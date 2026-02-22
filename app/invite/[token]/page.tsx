@@ -39,5 +39,16 @@ export default async function InvitePage({ params }: { params: { token: string }
     )
   }
 
+  if (invite.expiresAt != null && new Date(invite.expiresAt) < new Date()) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg px-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Invite Expired</h1>
+          <p className="text-text-2">This invite link has expired.</p>
+        </div>
+      </div>
+    )
+  }
+
   return <InviteAcceptance invite={invite} />
 }

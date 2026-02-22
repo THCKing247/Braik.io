@@ -44,7 +44,7 @@ export async function createNotifications(
       where: { teamId },
       select: { userId: true },
     })
-    const all = memberships.map((m) => m.userId).filter(Boolean) as string[]
+    const all = memberships.map((m: { userId: string }) => m.userId).filter(Boolean) as string[]
     const exclude = new Set(excludeUserIds ?? [])
     userIds = all.filter((id) => !exclude.has(id))
   }

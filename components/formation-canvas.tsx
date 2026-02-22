@@ -403,8 +403,6 @@ export function FormationCanvas({
                   <PlayerCard
                     player={player}
                     canEdit={canEdit}
-                    primaryColor={primaryColor}
-                    secondaryColor={secondaryColor}
                     size="small"
                   />
                 </div>

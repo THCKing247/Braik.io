@@ -16,6 +16,7 @@ interface Playbook {
   createdAt: Date
   updatedAt: Date
   side?: "offense" | "defense" | "special_teams"
+  formation?: string
   fileUrl?: string
   canvasData?: any
 }

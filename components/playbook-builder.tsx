@@ -415,10 +415,10 @@ export function PlaybookBuilder({
     }
   }
 
-  const handlePlayerDrag = (playerId: string, e: React.MouseEvent) => {
+  const handlePlayerDrag = (playerId: string, e: React.MouseEvent<SVGSVGElement | Element>) => {
     if (!canEdit || tool !== "select") return
     e.preventDefault()
-    const startPoint = getCanvasPoint(e)
+    const startPoint = getCanvasPoint(e as React.MouseEvent<SVGSVGElement>)
     const player = players.find((p) => p.id === playerId)
     if (!player) return
 

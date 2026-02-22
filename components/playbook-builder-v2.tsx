@@ -143,7 +143,7 @@ export function PlaybookBuilderV2({
     }
   }
 
-  const addToHistory = (newShapes: Shape[]) {
+  const addToHistory = (newShapes: Shape[]) => {
     const newHistory = history.slice(0, historyIndex + 1)
     newHistory.push(newShapes)
     setHistory(newHistory)
@@ -429,7 +429,7 @@ export function PlaybookBuilderV2({
 
             {/* Render shapes */}
             {shapes.map((shape) => {
-              const pixel = coordSystem.yardToPixel(shape.xYards, shape.yYards)
+              const pixel = coordSystem.yardToPixel(shape.xYards ?? 0, shape.yYards ?? 0)
               const markerSize = coordSystem.getMarkerSize()
               const isSelected = selectedShapeId === shape.id
               const shapeColor = currentSide === "defense" ? "#DC2626" : "#3B82F6"

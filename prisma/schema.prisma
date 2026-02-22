@@ -1,0 +1,271 @@
+// Braik – Prisma schema
+// Required for `prisma generate` (postinstall). Use `db:push` or `db:migrate` to sync DB.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String?
+  password  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships       Membership[]
+  announcements     Announcement[]         @relation("AnnouncementCreator")
+  auditLogs         AuditLog[]             @relation("AuditLogActor")
+  aIActionProposals AIActionProposal[]
+  aIConversations   AIConversation[]
+  aIUsageRecords    AIUsageRecord[]  @relation("AIUsageRecordUser")
+  attachments       Attachment[]
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // "school" | "college" | "club"
+  city      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams Team[]
+}
+
+model Team {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  name               String
+  slogan             String?
+  sport              String
+  schoolName         String?
+  teamName           String
+  primaryColor       String?
+  secondaryColor     String?
+  seasonName         String
+  seasonStart        DateTime
+  seasonEnd          DateTime
+  rosterCap          Int       @default(50)
+  duesAmount         Float     @default(0)
+  duesDueDate        DateTime?
+  subscriptionPaid  Boolean   @default(false)
+  subscriptionAmount Float    @default(0)
+  amountPaid         Float    @default(0)
+  teamIdCode         String?   @unique
+  playerCode         String?   @unique
+  parentCode         String?   @unique
+  aiEnabled          Boolean   @default(false)
+  aiDisabledByPlatform Boolean @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships     Membership[]
+  calendarSettings CalendarSettings?
+  notifications   Notification[]
+  invites         Invite[]
+  announcements   Announcement[]
+  auditLogs       AuditLog[]
+  events          Event[]
+  players         Player[]
+  aIActionProposals AIActionProposal[]
+  aIConversations   AIConversation[]
+  aIUsageRecords    AIUsageRecord[]
+  aIUsage           AIUsage[]
+  attachments       Attachment[]
+}
+
+model Membership {
+  userId   String
+  teamId   String
+  role     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([userId, teamId])
+}
+
+model CalendarSettings {
+  id                        String   @id @default(cuid())
+  teamId                    String   @unique
+  defaultView               String   @default("week")
+  practiceColor             String   @default("#22C55E")
+  gameColor                 String   @default("#2563EB")
+  meetingColor              String   @default("#475569")
+  customColor               String   @default("#334155")
+  assistantsCanAddMeetings  Boolean  @default(true)
+  assistantsCanAddPractices Boolean  @default(false)
+  assistantsCanEditNonlocked Boolean @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  type      String
+  title     String
+  body      String
+  linkUrl   String?
+  linkType  String?
+  linkId    String?
+  metadata  Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model Invite {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  teamId     String
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  teamId    String
+  title     String
+  body      String
+  audience  String   @default("all")
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator User @relation("AnnouncementCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  teamId       String
+  actorUserId  String
+  action       String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor User @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  teamId      String
+  title       String
+  start       DateTime
+  end         DateTime?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  teamId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  payments Payment[]
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  playerId  String
+  status    String   // e.g. "completed" | "pending"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model AIActionProposal {
+  id                     String   @id @default(cuid())
+  userId                 String
+  teamId                 String
+  actionType             String
+  payload                Json?
+  affectedRecordsPreview Json?
+  status                 String   @default("pending") // "pending" | "executed"
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  teamId    String
+  role      String
+  messages  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model AIUsageRecord {
+  id             String   @id @default(cuid())
+  teamId         String
+  userId         String
+  tokensUsed     Int
+  roleWeight     Float
+  weightedTokens Int
+  actionType     String
+  createdAt      DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation("AIUsageRecordUser", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AIUsage {
+  teamId       String
+  seasonYear   Int
+  tokensUsed   Int      @default(0)
+  requestsCount Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, seasonYear])
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  teamId      String
+  fileName    String
+  fileUrl     String
+  fileSize    Int
+  mimeType    String
+  uploadedBy  String
+  purpose     String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team  Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  owner User @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+}

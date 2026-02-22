@@ -6,6 +6,7 @@ declare module "next-auth" {
       id: string
       teamId?: string
       role?: string
+      isPlatformOwner?: boolean
     } & DefaultSession["user"]
   }
 }

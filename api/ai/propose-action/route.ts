@@ -34,11 +34,10 @@ export async function POST(request: Request) {
 
     // Only coaches can propose actions
     if (membership.role !== "HEAD_COACH" && membership.role !== "ASSISTANT_COACH") {
-      logPermissionDenial({
+      logPermissionDenial("Only coaches can propose AI actions", {
         userId: session.user.id,
         teamId,
         role: membership.role,
-        reason: "Only coaches can propose AI actions",
       })
       return NextResponse.json(
         { error: "Only coaches can propose AI actions" },

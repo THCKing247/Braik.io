@@ -1,0 +1,219 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Layout Rail Dimensions */
+    --qa-rail-width: 56px;
+    --qa-gap: 24px;
+    --ai-rail-width: 72px;
+    
+    /* Light Steel Palette - Enterprise Design System */
+    --snow: 247 249 252; /* #F7F9FC - page background (subtle off-white) */
+    --platinum: 233 236 239; /* #e9ecef - secondary surfaces/panels */
+    --alabaster: 222 226 230; /* #dee2e6 - separators */
+    --border: 206 212 218; /* #ced4da - primary border */
+    --focus: 173 181 189; /* #adb5bd - focus/active outline */
+    --text: 33 37 41; /* #212529 - primary text */
+    --text2: 73 80 87; /* #495057 - secondary text */
+    --muted: 108 117 125; /* #6c757d - muted text */
+    --gunmetal: 52 58 64; /* #343a40 - button dark */
+    --shadow: 33 37 41; /* #212529 - deepest neutral */
+    
+    /* Brand Accent (Braik blue) – accent only */
+    --accent: 37 99 235; /* #2563EB - use only for strokes, icons, active underline, focus ring */
+    
+    /* Portal Background - Light Steel */
+    --braik-navy: var(--snow); /* Portal uses Light Steel, not navy */
+    --bg: var(--snow);
+    --background: var(--snow);
+    
+    /* Surfaces */
+    --surface: 255 255 255; /* #FFFFFF - Cards (white) */
+    --surface-2: var(--platinum); /* Secondary surfaces */
+    --surface-3: var(--alabaster); /* Subtle separation */
+    --card: var(--surface);
+    
+    /* Text Colors */
+    --text-on-white: var(--text);
+    --text-on-navy: var(--text);
+    --text-secondary: var(--text2);
+    --foreground: var(--text);
+    --card-foreground: var(--text);
+    --muted-foreground: var(--muted);
+    --meta-foreground: var(--muted);
+    
+    /* Borders */
+    --border-2: var(--alabaster);
+    --input: var(--border);
+    --ring: var(--accent);
+    
+    /* Legacy mappings for compatibility */
+    --braik-primary: var(--text);
+    --braik-accent: var(--accent);
+    --primary: var(--text);
+    --primary-hover: var(--accent);
+    --accent-primary: var(--accent);
+    --accent-secondary: 255 255 255;
+    --primary-foreground: 255 255 255;
+    --accent-foreground: 255 255 255;
+    
+    /* Semantic Colors - Minimal use only */
+    --success: 34 197 94; /* #22C55E - use sparingly */
+    --danger: 239 68 68; /* #EF4444 - use sparingly */
+    --destructive: var(--danger);
+    --destructive-foreground: 255 255 255;
+    
+    /* Secondary */
+    --secondary: var(--platinum);
+    --secondary-foreground: var(--text);
+    
+    /* Popover */
+    --popover: var(--surface);
+    --popover-foreground: var(--text);
+    
+    /* Radius */
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Light Steel palette remains the same for portal */
+    /* Portal always uses light theme */
+    --snow: 247 249 252;
+    --platinum: 233 236 239;
+    --alabaster: 222 226 230;
+    --border: 206 212 218;
+    --focus: 173 181 189;
+    --text: 33 37 41;
+    --text2: 73 80 87;
+    --muted: 108 117 125;
+    --gunmetal: 52 58 64;
+    --shadow: 33 37 41;
+    --accent: 37 99 235;
+    --bg: var(--snow);
+    --background: var(--snow);
+    --surface: 255 255 255;
+    --surface-2: var(--platinum);
+    --surface-3: var(--alabaster);
+    --card: var(--surface);
+    --text-on-white: var(--text);
+    --text-on-navy: var(--text);
+    --text-secondary: var(--text2);
+    --foreground: var(--text);
+    --card-foreground: var(--text);
+    --muted-foreground: var(--muted);
+    --meta-foreground: var(--muted);
+    --border-2: var(--alabaster);
+    --input: var(--border);
+    --ring: var(--accent);
+    --braik-primary: var(--text);
+    --braik-accent: var(--accent);
+    --primary: var(--text);
+    --primary-hover: var(--accent);
+    --accent-primary: var(--accent);
+    --accent-secondary: 255 255 255;
+    --primary-foreground: 255 255 255;
+    --accent-foreground: 255 255 255;
+    --success: 34 197 94;
+    --danger: 239 68 68;
+    --destructive: var(--danger);
+    --destructive-foreground: 255 255 255;
+    --secondary: var(--platinum);
+    --secondary-foreground: var(--text);
+    --popover: var(--surface);
+    --popover-foreground: var(--text);
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    background-color: rgb(var(--snow));
+    min-height: 100vh;
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+    width: 100%;
+  }
+  
+  body {
+    @apply font-sans;
+    background-color: #F7F9FC;
+    color: rgb(var(--text));
+    transition: background-color 0.3s ease, color 0.3s ease;
+    min-height: 100vh;
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  /* Athletic Typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-athletic;
+    letter-spacing: 0.05em;
+    color: rgb(var(--text));
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl font-bold uppercase;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl font-semibold uppercase;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl font-semibold;
+  }
+
+  h4 {
+    @apply text-xl md:text-2xl font-medium;
+  }
+}
+
+@layer utilities {
+  .font-athletic {
+    font-family: var(--font-teko), var(--font-oswald), sans-serif;
+  }
+
+  .font-sans {
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+}
+
+/* Layout Structure - Rail Offset */
+/* Root shell */
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Fixed icon rail - overlays, does NOT contribute to document width */
+.quick-actions {
+  position: fixed;
+  left: 0;
+  top: 70px; /* Below nav - adjusted from 50% to account for nav */
+  bottom: 0;
+  width: var(--qa-rail-width);
+  z-index: 1000;
+  height: calc(100vh - 70px); /* Full viewport height minus nav */
+  overflow-y: visible; /* No scrolling - items display fully */
+  overflow-x: visible;
+  /* Rail is out of document flow - does not affect layout width */
+}
+
+/* THIS IS THE CRITICAL LINE - padding adjusts content, not layout width */
+.app-content {
+  padding-left: calc(var(--qa-rail-width) + var(--qa-gap));
+  padding-right: var(--ai-rail-width);
+  padding-top: 32px;
+  padding-bottom: 32px;
+  width: 100%;
+  box-sizing: border-box;
+  /* Content is padded inward, total layout width remains 100% */
+}

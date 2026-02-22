@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       })
 
       if (team) {
-        const unpaidCount = team.players.filter((p) => !p.payments.some((pay) => pay.status === "completed")).length
+        const unpaidCount = team.players.filter((p: { payments: { status: string }[] }) => !p.payments.some((pay: { status: string }) => pay.status === "completed")).length
         context = `Team: ${team.name}. Unpaid players: ${unpaidCount}. Dues amount: $${team.duesAmount}. Due date: ${team.duesDueDate ? new Date(team.duesDueDate).toLocaleDateString() : "Not set"}.`
       }
     }

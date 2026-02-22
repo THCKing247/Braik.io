@@ -14,7 +14,8 @@ export async function POST(request: Request) {
 
     const { teamId, title, body, audience } = await request.json()
 
-    await requireTeamPermission(teamId, "post_announcements")
+    const forbidden = await requireTeamPermission(teamId, "post_announcements")
+    if (forbidden) return forbidden
 
     const announcement = await prisma.announcement.create({
       data: {

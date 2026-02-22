@@ -1,0 +1,357 @@
+"use client"
+
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { SiteHeader } from "@/components/site-header"
+import { SiteFooter } from "@/components/site-footer"
+import { ScrollReveal } from "@/components/scroll-reveal"
+import { SectionDivider } from "@/components/section-divider"
+
+export default function Home() {
+  return (
+    <div className="min-h-screen bg-white">
+      <SiteHeader />
+
+      {/* Hero Identity Section */}
+      <section 
+        className="relative min-h-[90vh] flex items-center bg-white"
+      >
+        <div className="container mx-auto px-4 py-24 md:py-32">
+          <div className="max-w-3xl mx-auto text-center space-y-12">
+            <ScrollReveal>
+              <div className="space-y-8">
+                <h1 className="text-5xl md:text-6xl lg:text-7xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-[1.1]">
+                  Braik the busywork.
+                  <br />
+                  <span className="text-[#3B82F6]">Run the team.</span>
+                </h1>
+                <p className="text-lg md:text-xl text-[#495057] font-medium max-w-2xl mx-auto leading-relaxed">
+                  Programs break down under Inconsistency, Confusion, and Exhaustion.
+                  <br />
+                  <span className="text-[#3B82F6] font-semibold">Braik the ICE.</span>
+                </p>
+              </div>
+            </ScrollReveal>
+            
+            <ScrollReveal delay={100}>
+              <Link href="/signup/role">
+                <Button size="lg" className="text-base px-10 py-6">
+                  Braik into your season
+                </Button>
+              </Link>
+            </ScrollReveal>
+            
+            {/* Returning User Login - Visually De-emphasized */}
+            <ScrollReveal delay={200}>
+              <div className="pt-16 border-t border-[#E5E7EB]">
+                <p className="text-sm text-[#6c757d] font-medium">
+                  Returning to Braik?{" "}
+                  <Link href="/login" className="text-[#3B82F6] hover:underline">
+                    Sign in here
+                  </Link>
+                </p>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="thick" className="opacity-20" />
+
+      {/* Coach Reality Validation */}
+      <section className="relative py-40 bg-[#1a1d21]">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <ScrollReveal>
+              <div className="space-y-8">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center leading-tight">
+                  Coaches today are expected to do far more than coach.
+                </h2>
+                <div className="space-y-6 text-lg text-[#E5E7EB] leading-relaxed pt-8">
+                  <p>
+                    They manage rosters, schedules, payments, communication, documents, parents, assistants, and increasingly complex software—often with limited staff and even less time.
+                  </p>
+                  <p>
+                    Most programs are forced to stitch together multiple tools for scheduling, communication, payments, and team coordination. The result is fragmented communication, duplicated work, confusion for parents and players, and added stress for coaches.
+                  </p>
+                  <p className="text-[#3B82F6] font-semibold text-xl">
+                    Braik exists to change that.
+                  </p>
+                </div>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="offset" className="opacity-15" />
+
+      {/* Reframing Braik */}
+      <section className="relative py-40 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto">
+            <ScrollReveal>
+              <div className="grid md:grid-cols-2 gap-12 items-center">
+                {/* Image on the left */}
+                <div className="order-2 md:order-1 flex justify-center md:justify-start">
+                  <img 
+                    src="/diagram-hero-page-1.png" 
+                    alt="Braik system diagram" 
+                    className="max-w-full h-auto object-contain"
+                    style={{ maxHeight: '1500px', width: 'auto' }}
+                  />
+                </div>
+                {/* Content on the right */}
+                <div className="space-y-8 order-1 md:order-2">
+                  <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-tight">
+                    One system. Less stress.
+                  </h2>
+                  <div className="space-y-6 text-lg text-[#495057] leading-relaxed pt-8">
+                    <p className="text-xl font-medium text-[#212529]">
+                      Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
+                    </p>
+                    <p>
+                      Instead of juggling spreadsheets, group texts, payment platforms, and document folders, Braik brings everything into one system—designed around the head coach's workflow.
+                    </p>
+                    <p>
+                      Braik steps in as a unified system and support layer, helping programs operate smoothly while allowing coaches to focus on coaching.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="asymmetric" className="opacity-15" />
+
+      {/* Built for Real Program Constraints */}
+      <section className="relative py-40 bg-[#F9FAFB]">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <ScrollReveal>
+              <div className="space-y-8">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center leading-tight">
+                  Built for real program constraints
+                </h2>
+                <div className="space-y-6 text-lg text-[#495057] leading-relaxed pt-8">
+                  <p>
+                    Braik was designed with a clear reality in mind: coaching staffs are limited, budgets are tight, and expectations remain high.
+                  </p>
+                  <p>
+                    Rather than pushing premium pricing or locking teams into rigid plans, Braik is structured to stay accessible for real programs—especially at the high school level. The platform is built to grow with your program, not force you to overpay for features you don't need.
+                  </p>
+                  <p>
+                    Braik is billed per season, aligned with team dues and seasonal planning. It's budgetable, intentional, and built for programs that need structure without complexity.
+                  </p>
+                </div>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="thick" className="opacity-20" />
+
+      {/* Varsity & JV Program Structure */}
+      <section className="relative py-40 bg-[#1a1d21]">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <ScrollReveal>
+              <div className="space-y-8">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center leading-tight">
+                  Built for entire programs — Varsity and JV
+                </h2>
+                <div className="space-y-6 text-lg text-[#E5E7EB] leading-relaxed pt-8">
+                  <p>
+                    Most athletic programs don't operate as a single roster. Varsity and JV teams often share resources, staff, and schedules—but are forced into separate systems or duplicate subscriptions.
+                  </p>
+                  <p>
+                    Braik was built to reflect how programs actually function. Varsity and JV teams are managed under one program, giving coaches a unified system without sacrificing team-level autonomy.
+                  </p>
+                  <p>
+                    Varsity Head Coaches manage the full program and can create and configure JV teams, assign JV Head Coaches, and maintain program-level oversight. JV Head Coaches have full authority over their own team dashboards, schedules, communication, and players, but cannot access or override Varsity teams or program-level settings.
+                  </p>
+                  <p>
+                    This structure keeps programs unified while respecting clear lines of responsibility and authority.
+                  </p>
+                </div>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="offset" className="opacity-15" />
+
+      {/* High-Level Capabilities */}
+      <section className="relative py-40 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-5xl mx-auto">
+            <ScrollReveal>
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-20">
+                Core operational areas
+              </h2>
+            </ScrollReveal>
+            
+            <div className="grid md:grid-cols-2 gap-8">
+              <ScrollReveal delay={0}>
+                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                    Communication
+                  </h3>
+                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                    Targeted messaging and announcements that keep everyone informed without overwhelming anyone. The right people see the right information, automatically.
+                  </p>
+                </div>
+              </ScrollReveal>
+              
+              <ScrollReveal delay={50}>
+                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                    Scheduling
+                  </h3>
+                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                    Calendar management with RSVPs and event coordination. Everyone sees what they need to see, when they need to see it.
+                  </p>
+                </div>
+              </ScrollReveal>
+              
+              <ScrollReveal delay={100}>
+                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                    Payments
+                  </h3>
+                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                    Season-based dues collection and coach-collected payments with clear tracking and accountability. Know who's paid, who hasn't, and what's outstanding.
+                  </p>
+                </div>
+              </ScrollReveal>
+              
+              <ScrollReveal delay={150}>
+                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                    Documents
+                  </h3>
+                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                    Centralized playbooks, installs, and program resources. Organized by unit and position, with acknowledgement tracking for important materials.
+                  </p>
+                </div>
+              </ScrollReveal>
+              
+              <ScrollReveal delay={200}>
+                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                    Inventory
+                  </h3>
+                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                    Equipment tracking and assignment for team-issued gear. Know what you have, where it is, and who's responsible for it.
+                  </p>
+                </div>
+              </ScrollReveal>
+              
+              <ScrollReveal delay={250}>
+                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                    Roster Management
+                  </h3>
+                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                    Player tracking, position management, and depth charts. Everything organized the way your program actually operates.
+                  </p>
+                </div>
+              </ScrollReveal>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="asymmetric" className="opacity-15" />
+
+      {/* AI Assistant (Optional Support) */}
+      <section className="relative py-40 bg-[#F9FAFB]">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto">
+            <ScrollReveal>
+              <div className="grid md:grid-cols-2 gap-12 items-center">
+                {/* Content on the left */}
+                <div className="space-y-8">
+                  <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-tight">
+                    Optional AI support
+                  </h2>
+                  <div className="space-y-6 text-lg text-[#495057] leading-relaxed pt-8">
+                    <p>
+                      Braik includes an optional AI assistant designed to help handle routine tasks, summarize information, and reduce the mental load that comes with running a program.
+                    </p>
+                    <p>
+                      The AI assistant helps with drafting messages, surfacing issues, and executing structured operational tasks. It's not meant to replace people—it's meant to support them.
+                    </p>
+                    <p className="text-[#6c757d] italic">
+                      AI is available as a paid per-season add-on for programs that want additional operational support. It's optional, supportive, and designed to reduce administrative burden without replacing coaching judgment.
+                    </p>
+                  </div>
+                </div>
+                {/* Image on the right */}
+                <div className="flex justify-center md:justify-end md:ml-8">
+                  <img 
+                    src="/open-ai-integration.png" 
+                    alt="Open AI integration" 
+                    className="max-w-full h-auto object-contain"
+                    style={{ maxHeight: '1500px', width: 'auto' }}
+                  />
+                </div>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="thick" className="opacity-20" />
+
+      {/* Final CTA */}
+      <section className="relative py-40 bg-[#1a1d21]">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto text-center">
+            <ScrollReveal>
+              <div className="space-y-10">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight leading-tight">
+                  See if Braik fits your program
+                </h2>
+                <div className="space-y-6 text-lg text-[#E5E7EB] leading-relaxed pt-4">
+                  <p>
+                    Braik was built to support coaches who are stretched thin, giving them the tools—and the help—they need to run their programs without sacrificing focus, organization, or time with their team.
+                  </p>
+                  <p>
+                    If you're running a program where organization, communication, and accountability matter—but time and staffing are limited—Braik is built for you.
+                  </p>
+                </div>
+                <div className="pt-8">
+                  <Link href="/signup/role">
+                    <Button size="lg" className="text-base px-10 py-6">
+                      Braik into your season
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      <SiteFooter />
+    </div>
+  )
+}

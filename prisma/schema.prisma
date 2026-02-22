@@ -132,6 +132,8 @@ model Invite {
   id         String    @id @default(cuid())
   token      String    @unique
   teamId     String
+  email      String
+  role       String
   acceptedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

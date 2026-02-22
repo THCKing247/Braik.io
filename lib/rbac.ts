@@ -2,14 +2,7 @@ import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-
-/** Role names used for permission checks */
-const ROLES = {
-  HEAD_COACH: "HEAD_COACH",
-  ASSISTANT_COACH: "ASSISTANT_COACH",
-  PLAYER: "PLAYER",
-  PARENT: "PARENT",
-} as const
+import { ROLES } from "@/lib/roles"
 
 /** Permission to role mapping: who can do what */
 const PERMISSION_ROLES: Record<string, readonly string[]> = {

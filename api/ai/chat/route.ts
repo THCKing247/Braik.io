@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import type { Event } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { getUserMembership } from "@/lib/rbac"
 import { requireBillingPermission } from "@/lib/billing-state"
@@ -113,7 +112,7 @@ export async function POST(request: Request) {
     let systemPrompt = `${roleScopedContext}
 
 Recent events:
-${recentEvents.map((e: Event) => `- ${e.title} on ${new Date(e.start).toLocaleDateString()}`).join("\n")}
+${recentEvents.map((e: { title: string; start: Date }) => `- ${e.title} on ${new Date(e.start).toLocaleDateString()}`).join("\n")}
 
 Team stats:
 - Players: ${team._count.players}

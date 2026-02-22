@@ -39,7 +39,8 @@ export default async function InvitePage({ params }: { params: { token: string }
     )
   }
 
-  const expiresAt = invite.expiresAt ?? null
+  const expiresAt =
+    (invite as typeof invite & { expiresAt?: Date | null }).expiresAt ?? null
   if (expiresAt !== null && new Date(expiresAt) < new Date()) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg px-4">

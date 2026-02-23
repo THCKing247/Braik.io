@@ -586,7 +586,9 @@ export function DepthChartView({
                 filters.offense ? "" : "opacity-60 hover:opacity-100"
               }`}
               style={{
-                color: "#000000",
+                color: filters.offense ? "#000000" : "#000000",
+              }}
+              style={{
                 backgroundColor: filters.offense ? "rgb(var(--braik-navy))" : "transparent",
                 borderColor: "#3B82F6",
               }}
@@ -599,7 +601,9 @@ export function DepthChartView({
                 filters.defense ? "" : "opacity-60 hover:opacity-100"
               }`}
               style={{
-                color: "#000000",
+                color: filters.defense ? "#000000" : "#000000",
+              }}
+              style={{
                 backgroundColor: filters.defense ? "rgb(var(--braik-navy))" : "transparent",
                 borderColor: "#3B82F6",
               }}
@@ -612,7 +616,9 @@ export function DepthChartView({
                 filters.athlete ? "" : "opacity-60 hover:opacity-100"
               }`}
               style={{
-                color: "#000000",
+                color: filters.athlete ? "#000000" : "#000000",
+              }}
+              style={{
                 backgroundColor: filters.athlete ? "rgb(var(--braik-navy))" : "transparent",
                 borderColor: "#3B82F6",
               }}
@@ -669,7 +675,9 @@ export function DepthChartView({
                     selectedUnit === unit ? "" : "opacity-60 hover:opacity-100"
                   }`}
                   style={{
-                    color: "#000000",
+                    color: selectedUnit === unit ? "#000000" : "#000000",
+                  }}
+                  style={{
                     backgroundColor: selectedUnit === unit ? "rgb(var(--braik-navy))" : "transparent",
                     borderColor: "#3B82F6",
                   }}
@@ -704,7 +712,9 @@ export function DepthChartView({
                         : "opacity-60 hover:opacity-100"
                     }`}
                     style={{
-                      color: "#000000",
+                      color: selectedSpecialTeamType === type.id ? "#000000" : "#000000",
+                    }}
+                    style={{
                       backgroundColor:
                         selectedSpecialTeamType === type.id ? "rgb(var(--braik-navy))" : "transparent",
                       borderColor: "#3B82F6",

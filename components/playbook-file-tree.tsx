@@ -11,7 +11,7 @@ interface Play {
   formation: string
   subcategory: string | null
   name: string
-  createdAt?: Date
+  createdAt: Date
 }
 
 interface PlaybookFileTreeProps {
@@ -53,24 +53,22 @@ export function PlaybookFileTree({
   // Organize plays by hierarchy: side -> formation -> subcategory -> plays
   // Also include pending formations (created but not yet saved with plays)
   const organized = useMemo(() => {
-    const structure: Record<string, Record<string, Record<string, Play[]>>> = {
+    const structure: Record<string, Record<string, Record<string | null, Play[]>>> = {
       offense: {},
       defense: {},
       special_teams: {},
     }
-    const subKey = (s: string | null) => s ?? "null"
 
     plays.forEach((play) => {
       const side = play.side || "offense"
       const formation = play.formation || "Unnamed"
       const subcategory = play.subcategory || null
-      const key = subKey(subcategory)
-
+      
       if (!structure[side]) structure[side] = {}
       if (!structure[side][formation]) structure[side][formation] = {}
-      if (!structure[side][formation][key]) structure[side][formation][key] = []
-
-      structure[side][formation][key].push(play)
+      if (!structure[side][formation][subcategory]) structure[side][formation][subcategory] = []
+      
+      structure[side][formation][subcategory].push(play)
     })
 
     // Add pending formations (formations created but not yet saved with plays)
@@ -78,7 +76,7 @@ export function PlaybookFileTree({
       if (!structure[side]) structure[side] = {}
       if (!structure[side][formation]) {
         structure[side][formation] = {}
-        structure[side][formation]["null"] = [] // Empty array for plays directly under formation
+        structure[side][formation][null] = [] // Empty array for plays directly under formation
       }
     })
 
@@ -332,7 +330,7 @@ export function PlaybookFileTree({
     )
   }
 
-  const renderFormation = (side: string, formation: string, formationData: Record<string, Play[]>) => {
+  const renderFormation = (side: string, formation: string, formationData: Record<string | null, Play[]>) => {
     const formationPath = `${side}/${formation}`
     const isExpanded = expanded.has(formationPath)
     const isEditing = editingFormation?.side === side && editingFormation?.formation === formation

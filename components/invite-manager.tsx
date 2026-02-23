@@ -11,7 +11,7 @@ interface Invite {
   id: string
   email: string
   role: string
-  expiresAt: Date | null
+  expiresAt: Date
   acceptedAt: Date | null
   createdAt: Date
   creator: { name: string | null; email: string }
@@ -234,7 +234,7 @@ export function InviteManager({ teamId, invites: initialInvites }: { teamId: str
                     <div>
                       <h3 className="font-semibold" style={{ color: "#000000" }}>{invite.email}</h3>
                       <div className="text-sm mt-1" style={{ color: "#000000" }}>
-                        Role: {invite.role.replace("_", " ")} • Expires: {invite.expiresAt ? format(new Date(invite.expiresAt), "MMM d, yyyy") : "Never"}
+                        Role: {invite.role.replace("_", " ")} • Expires: {format(new Date(invite.expiresAt), "MMM d, yyyy")}
                       </div>
                     </div>
                     <div className="flex gap-2">

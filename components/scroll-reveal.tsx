@@ -13,9 +13,6 @@ export function ScrollReveal({ children, delay = 0, className = "" }: ScrollReve
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -27,23 +24,14 @@ export function ScrollReveal({ children, delay = 0, className = "" }: ScrollReve
           }
         })
       },
-      { threshold: 0.05, rootMargin: "0px 0px -50px 0px" }
+      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
     )
 
-    observer.observe(el)
-
-    // If already in view on mount (e.g. hero at top), show immediately after a tick
-    const raf = requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect()
-      const inView = rect.top < (window.innerHeight ?? 0) * 0.9
-      if (inView) {
-        setTimeout(() => setIsVisible(true), delay)
-        observer.disconnect()
-      }
-    })
+    if (ref.current) {
+      observer.observe(ref.current)
+    }
 
     return () => {
-      cancelAnimationFrame(raf)
       observer.disconnect()
     }
   }, [delay])

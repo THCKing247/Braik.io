@@ -1,51 +1,103 @@
 import { getServerSession } from "next-auth"
-import { NextResponse } from "next/server"
-import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { ROLES } from "@/lib/roles"
+import { authOptions } from "./auth"
+import { prisma } from "./prisma"
+import { ROLES, type Role, canManageTeam, canEditRoster, canManageBilling, canPostAnnouncements, canViewPayments } from "./roles"
+import { logPermissionDenial } from "./structured-logger"
 
-/** Permission to role mapping: who can do what */
-const PERMISSION_ROLES: Record<string, readonly string[]> = {
-  post_announcements: [ROLES.HEAD_COACH, ROLES.ASSISTANT_COACH],
+export interface UserMembership {
+  userId: string
+  teamId: string
+  role: Role
+  permissions?: any
 }
 
-/**
- * Get the current user's membership for a team, or null if not a member.
- * Uses the current session; must be called from a route that has already validated session.
- */
-export async function getUserMembership(teamId: string) {
+export async function getUserMembership(teamId: string): Promise<UserMembership | null> {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return null
+  if (!session?.user?.id) {
+    return null
+  }
 
-  const membership = await prisma.membership.findFirst({
+  const membership = await prisma.membership.findUnique({
     where: {
-      userId: session.user.id,
-      teamId,
+      userId_teamId: {
+        userId: session.user.id,
+        teamId,
+      },
     },
   })
-  return membership
+
+  if (!membership) {
+    return null
+  }
+
+  return {
+    userId: membership.userId,
+    teamId: membership.teamId,
+    role: membership.role as Role,
+    permissions: membership.permissions,
+  }
 }
 
-/**
- * Check that the current user has the given permission for the team.
- * Returns a 403 NextResponse if denied, or null if allowed.
- * Caller should: const res = await requireTeamPermission(teamId, "permission"); if (res) return res
- */
+export async function requireAuth() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized")
+  }
+  return session.user
+}
+
+export async function requireTeamAccess(teamId: string, requiredRole?: Role) {
+  const user = await requireAuth()
+  const membership = await getUserMembership(teamId)
+
+  if (!membership) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId,
+      reason: "Not a member of this team",
+    })
+    throw new Error("Access denied: Not a member of this team")
+  }
+
+  if (requiredRole && membership.role !== requiredRole) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId,
+      role: membership.role,
+      requiredRole,
+      reason: `Requires ${requiredRole} role, but user has ${membership.role}`,
+    })
+    throw new Error(`Access denied: Requires ${requiredRole} role`)
+  }
+
+  return { user, membership }
+}
+
 export async function requireTeamPermission(
   teamId: string,
-  permission: string
-): Promise<NextResponse | null> {
-  const membership = await getUserMembership(teamId)
-  if (!membership) {
-    return NextResponse.json({ error: "Access denied" }, { status: 403 })
+  permission: "manage" | "edit_roster" | "manage_billing" | "post_announcements" | "view_payments"
+) {
+  const { membership } = await requireTeamAccess(teamId)
+
+  const checks = {
+    manage: canManageTeam,
+    edit_roster: canEditRoster,
+    manage_billing: canManageBilling,
+    post_announcements: canPostAnnouncements,
+    view_payments: canViewPayments,
   }
 
-  const allowedRoles = PERMISSION_ROLES[permission]
-  if (!allowedRoles || !allowedRoles.includes(membership.role)) {
-    return NextResponse.json(
-      { error: "You do not have permission to perform this action" },
-      { status: 403 }
-    )
+  if (!checks[permission](membership.role)) {
+    logPermissionDenial({
+      userId: membership.userId,
+      teamId,
+      role: membership.role,
+      requiredPermission: permission,
+      reason: `Insufficient permissions for ${permission}`,
+    })
+    throw new Error(`Access denied: Insufficient permissions for ${permission}`)
   }
-  return null
+
+  return { membership }
 }
+

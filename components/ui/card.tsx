@@ -1,4 +1,5 @@
 import * as React from "react"
+
 import { cn } from "@/lib/utils"
 
 const Card = React.forwardRef<
@@ -8,9 +9,33 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border border-border bg-card text-card-foreground shadow-sm",
+      "card rounded-2xl transition-all duration-250",
       className
     )}
+    style={{
+      background: "rgba(255, 255, 255, 0.95)",
+      borderRadius: "16px",
+      boxShadow: `
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 8px 24px rgba(11, 42, 91, 0.08)
+      `,
+      color: "rgb(var(--text))",
+      ...(props.style || {}),
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = "translateY(-2px)"
+      e.currentTarget.style.boxShadow = `
+        0 4px 8px rgba(0, 0, 0, 0.05),
+        0 14px 36px rgba(11, 42, 91, 0.12)
+      `
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = "translateY(0)"
+      e.currentTarget.style.boxShadow = `
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 8px 24px rgba(11, 42, 91, 0.08)
+      `
+    }}
     {...props}
   />
 ))
@@ -22,10 +47,7 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      "flex flex-col space-y-1.5 p-6",
-      className
-    )}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
     {...props}
   />
 ))
@@ -38,7 +60,7 @@ const CardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      "text-2xl font-semibold leading-none tracking-tight",
+      "text-2xl font-athletic font-semibold leading-none tracking-wide uppercase text-[#0F172A]",
       className
     )}
     {...props}
@@ -52,7 +74,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-sm text-[#6B7280]", className)}
     {...props}
   />
 ))
@@ -79,3 +101,4 @@ const CardFooter = React.forwardRef<
 CardFooter.displayName = "CardFooter"
 
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+

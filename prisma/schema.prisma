@@ -1,5 +1,5 @@
-// Braik – Prisma schema
-// Required for `prisma generate` (postinstall). Use `db:push` or `db:migrate` to sync DB.
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -11,27 +11,84 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String?  @unique
-  name      String?
-  password  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  password      String? // hashed password
+  image         String?
+  isPlatformOwner Boolean @default(false) // Platform Owner (Super Admin) flag
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  memberships       Membership[]
-  announcements     Announcement[]         @relation("AnnouncementCreator")
-  auditLogs         AuditLog[]             @relation("AuditLogActor")
-  aIActionProposals AIActionProposal[]
-  aIConversations   AIConversation[]
-  aIUsageRecords    AIUsageRecord[]  @relation("AIUsageRecordUser")
-  attachments       Attachment[]
+  // Relations
+  accounts            Account[]
+  sessions            Session[]
+  memberships         Membership[]
+  guardianProfile     Guardian?
+  playerProfiles      Player[]
+  createdInvites      Invite[]          @relation("InviteCreator")
+  createdAnnouncements Announcement[]
+  createdMessages     Message[]
+  createdThreads      MessageThread[]   @relation("ThreadCreator")
+  threadParticipants  ThreadParticipant[]
+  createdDocuments    Document[]
+  documentAcknowledgements DocumentAcknowledgement[]
+  auditLogs           AuditLog[]        @relation("AuditActor")
+  createdEvents       Event[]           @relation("EventCreator")
+  aiConversations     AIConversation[]
+  aiActionProposals   AIActionProposal[] @relation("ProposalCreator")
+  userPreferences     UserPreference?
+  aiUsageRecords      AIUsageRecord[]
+  createdAttachments  Attachment[]
+  createdCollections   CoachPaymentCollection[] @relation("CollectionCreator")
+  notifications       Notification[]
+  notificationPreferences NotificationPreference?
+  messageAttachments  MessageAttachment[] @relation("MessageAttachmentUploader")
+  inventoryTransactions InventoryTransaction[] @relation("InventoryTransactionPerformer")
+  createdPlays        Play[] @relation("PlayCreator")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model Organization {
   id        String   @id @default(cuid())
   name      String
-  type      String   // "school" | "college" | "club"
-  city      String?
+  type      String?  // "school", "club", etc.
+  city      String?  // City location (required for schools)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -39,222 +96,778 @@ model Organization {
 }
 
 model Team {
-  id                 String    @id @default(cuid())
-  organizationId     String
-  name               String
-  slogan             String?
-  sport              String
-  schoolName         String?
-  teamName           String
-  primaryColor       String?
-  secondaryColor     String?
-  seasonName         String
-  seasonStart        DateTime
-  seasonEnd          DateTime
-  rosterCap          Int       @default(50)
-  duesAmount         Float     @default(0)
-  duesDueDate        DateTime?
-  subscriptionPaid  Boolean   @default(false)
-  subscriptionAmount Float    @default(0)
-  amountPaid         Float    @default(0)
-  teamIdCode         String?   @unique
-  playerCode         String?   @unique
-  parentCode         String?   @unique
-  aiEnabled          Boolean   @default(false)
-  aiDisabledByPlatform Boolean @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id           String   @id @default(cuid())
+  organizationId String
+  name         String
+  slogan       String?  // "Go Team" or custom slogan
+  sport        String   // "football", "basketball", etc.
+  seasonName   String   // "Fall 2024", "2024-2025", etc.
+  seasonStart  DateTime
+  seasonEnd    DateTime
+  rosterCap    Int      @default(50)
+  duesAmount   Float    @default(5.0) // $5 per player
+  duesDueDate  DateTime?
+  // Subscription fields
+  subscriptionPaid Boolean @default(false)
+  subscriptionAmount Float @default(0) // Total subscription amount ($5 per player)
+  amountPaid Float @default(0) // Amount paid towards subscription
+  subscriptionDueDate DateTime? // When subscription is due
+  // Account status (per-season billing lifecycle)
+  accountStatus String @default("GRACE") // "ACTIVE", "GRACE", "READ_ONLY", "LOCKED"
+  // AI premium feature
+  aiEnabled Boolean @default(false) // AI premium feature enabled (per-season purchase)
+  aiDisabledByPlatform Boolean @default(false) // Platform Owner can disable AI
+  // Header Summary fields
+  schoolName   String?  // School name (can use organization.name as fallback)
+  teamName     String?  // Team name (can use name as fallback)
+  primaryColor String?   @default("#2563EB") // Primary team color (hex) - defaults to blue
+  secondaryColor String? @default("#FFFFFF") // Secondary team color (hex) - defaults to white
+  logoUrl      String?  // Team logo URL (placeholder for now)
+  teamIdCode   String?  @unique // 8-character Team ID code for joining (generated for Head Coach)
+  playerCode   String?  @unique // 8-character code for players to join program
+  parentCode   String?  @unique // 8-character code for parents to join program
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  memberships     Membership[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships  Membership[]
+  players      Player[]
+  invites      Invite[]
+  events       Event[]
+  announcements Announcement[]
+  messageThreads MessageThread[]
+  documents    Document[]
+  payments     Payment[]
+  auditLogs    AuditLog[]
   calendarSettings CalendarSettings?
-  notifications   Notification[]
-  invites         Invite[]
-  announcements   Announcement[]
-  auditLogs       AuditLog[]
-  events          Event[]
-  players         Player[]
-  aIActionProposals AIActionProposal[]
-  aIConversations   AIConversation[]
-  aIUsageRecords    AIUsageRecord[]
-  aIUsage           AIUsage[]
-  attachments       Attachment[]
+  inventoryItems InventoryItem[]
+  inventoryTransactions InventoryTransaction[]
+  updatesFeed UpdatesFeed[]
+  coachPaymentAccount CoachPaymentAccount?
+  coachPaymentCollections CoachPaymentCollection[]
+  attachments Attachment[]
+  messageAttachments MessageAttachment[]
+  seasons      Season[]
+  depthChart   DepthChartEntry[]
+  depthChartPositionLabels DepthChartPositionLabel[]
+  aiUsage      AIUsage[]
+  notifications Notification[]
+  plays        Play[]
+}
+
+model Season {
+  id              String   @id @default(cuid())
+  teamId          String
+  year            Int      // e.g., 2024
+  division        String?  // e.g., "Division I", "5A", etc.
+  conference      String?  // Conference name
+  playoffRuleset  String?  @db.Text // Playoff qualification rules (nullable)
+  firstGameWeekDate DateTime? // Cached date of first confirmed game (for billing)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  games Game[]
+
+  @@index([teamId])
+  @@index([year])
+}
+
+model Game {
+  id                String   @id @default(cuid())
+  seasonId          String
+  date              DateTime
+  opponent          String
+  homeAway          String   // "home" or "away"
+  gameType          String?  // "regular", "playoff", "championship", etc.
+  result            String?  // "win", "loss", null if not played yet
+  teamScore         Int?
+  opponentScore     Int?
+  conferenceGame    Boolean  @default(false)
+  source            String   @default("manual") // "manual", "sync", "ai_import"
+  confirmedByCoach  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId])
+  @@index([date])
+  @@index([confirmedByCoach])
 }
 
 model Membership {
-  userId   String
-  teamId   String
-  role     String
+  id          String   @id @default(cuid())
+  userId      String
+  teamId      String
+  role        String   // "HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT", "SCHOOL_ADMIN"
+  positionGroups Json? // For assistant coaches: array of position groups they can access (e.g., ["QB", "RB", "WR"])
+  permissions Json?    // JSON object for granular permissions
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+model Player {
+  id           String   @id @default(cuid())
+  teamId       String
+  userId       String?  // nullable - player may not have account yet
+  firstName    String
+  lastName     String
+  grade        Int?
+  jerseyNumber Int?
+  positionGroup String? // "QB", "RB", "WR", "OL", "DL", "LB", "DB", "K", etc.
+  status       String   @default("active") // "active", "inactive"
+  notes        String?  @db.Text
+  imageUrl     String?  // Player profile image URL
+  uniqueCode   String?  @unique // 8-character unique code for joining (generated per player)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guardianLinks GuardianPlayer[]
+  payments     Payment[]
+  rsvps        RSVP[]
+  assignedInventory InventoryItem[]
+  inventoryTransactions InventoryTransaction[]
+  depthChartEntries DepthChartEntry[]
+  eventPrivateNotes EventPrivateNote[] @relation("EventPrivateNotes")
+  @@index([userId])
+}
+
+model Guardian {
+  id        String   @id @default(cuid())
+  userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@id([userId, teamId])
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playerLinks    GuardianPlayer[]
+  payments       Payment[]
 }
 
-model CalendarSettings {
-  id                        String   @id @default(cuid())
-  teamId                    String   @unique
-  defaultView               String   @default("week")
-  practiceColor             String   @default("#22C55E")
-  gameColor                 String   @default("#2563EB")
-  meetingColor              String   @default("#475569")
-  customColor               String   @default("#334155")
-  assistantsCanAddMeetings  Boolean  @default(true)
-  assistantsCanAddPractices Boolean  @default(false)
-  assistantsCanEditNonlocked Boolean @default(false)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+model GuardianPlayer {
+  id         String   @id @default(cuid())
+  guardianId String
+  playerId   String
+  relationship String? // "parent", "guardian", "other"
+  createdAt  DateTime @default(now())
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-}
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-model Notification {
-  id        String   @id @default(cuid())
-  teamId    String
-  userId    String
-  type      String
-  title     String
-  body      String
-  linkUrl   String?
-  linkType  String?
-  linkId    String?
-  metadata  Json?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  @@unique([guardianId, playerId])
+  @@index([playerId])
 }
 
 model Invite {
   id         String    @id @default(cuid())
-  token      String    @unique
   teamId     String
   email      String
-  role       String
+  role       String    // "ASSISTANT_COACH", "PLAYER", "PARENT"
+  token      String    @unique
+  expiresAt  DateTime
   acceptedAt DateTime?
+  createdBy  String
   createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator    User      @relation("InviteCreator", fields: [createdBy], references: [id])
+
+  @@index([token])
+  @@index([email])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  teamId    String
+  eventType String   // "PRACTICE", "GAME", "MEETING", "CUSTOM"
+  title     String
+  description String? @db.Text
+  start     DateTime
+  end       DateTime
+  location  String?
+  visibility String  @default("TEAM") // "COACHES_ONLY", "TEAM", "PARENTS_AND_TEAM"
+  locked    Boolean  @default(false) // If true, assistants cannot edit
+  color     String?  // Optional color override (hex)
+  highlight Boolean  @default(false) // Priority event
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Hierarchical scoping fields (per BRAIK_MASTER_INTENT.md)
+  scopedPlayerIds      Json?   // Array of player IDs this event is scoped to (null = all players)
+  scopedPositionGroups Json?   // Array of position groups this event is scoped to (e.g., ["QB", "RB"])
+  scopedUnit           String? // "OFFENSE", "DEFENSE", "SPECIAL_TEAMS" (null = entire program)
+  coordinatorType      String? // "OC", "DC", "ST" (if created by coordinator)
+  
+  // Event linkage to chats and announcements
+  linkedChatId         String? // ID of linked message thread
+  linkedAnnouncementId String? // ID of linked announcement
+
+  team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator User @relation("EventCreator", fields: [createdBy], references: [id])
+  rsvps  RSVP[]
+  privateNotes EventPrivateNote[]
+  linkedDocuments DocumentEventLink[]
+
+  @@index([teamId])
+  @@index([start])
+  @@index([eventType])
+  @@index([scopedUnit])
+  @@index([linkedChatId])
+  @@index([linkedAnnouncementId])
+}
+
+model RSVP {
+  id        String   @id @default(cuid())
+  eventId   String
+  playerId  String
+  status    String   // "yes", "no", "maybe"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, playerId])
+  @@index([eventId])
+}
+
+// Private notes that players can add to events (view-only + private notes per spec)
+model EventPrivateNote {
+  id        String   @id @default(cuid())
+  eventId   String
+  playerId  String
+  note      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player Player @relation("EventPrivateNotes", fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, playerId])
+  @@index([eventId])
+  @@index([playerId])
 }
 
 model Announcement {
   id        String   @id @default(cuid())
   teamId    String
   title     String
-  body      String
-  audience  String   @default("all")
+  body      String   @db.Text
+  audience  String   @default("all") // "all", "players", "parents", "staff"
+  attachments Json?  // Array of file URLs/metadata
   createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  creator User @relation("AnnouncementCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  team  Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator User @relation(fields: [createdBy], references: [id])
+  linkedDocuments DocumentAnnouncementLink[]
+
+  @@index([teamId])
+  @@index([createdAt])
 }
 
-model AuditLog {
-  id           String   @id @default(cuid())
-  teamId       String
-  actorUserId  String
-  action       String
-  metadata     Json?
-  createdAt    DateTime @default(now())
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  actor User @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
-}
-
-model Event {
-  id          String    @id @default(cuid())
-  teamId      String
-  title       String
-  start       DateTime
-  end         DateTime?
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-}
-
-model Player {
+model MessageThread {
   id        String   @id @default(cuid())
   teamId    String
+  subject   String?
+  threadType String  @default("CUSTOM") // "GENERAL" (permanent general chat) or "CUSTOM" (coach-created)
+  createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  payments Payment[]
+  team         Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator      User              @relation("ThreadCreator", fields: [createdBy], references: [id])
+  participants ThreadParticipant[]
+  messages     Message[]
+  messageAttachments MessageAttachment[]
+
+  @@unique([teamId, threadType])
+  @@index([teamId, threadType])
+}
+
+model ThreadParticipant {
+  id        String   @id @default(cuid())
+  threadId  String
+  userId    String
+  readOnly  Boolean  @default(false) // true for parents viewing player threads (HS only)
+  createdAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  body      String   @db.Text
+  attachments Json?  // Array of file URLs/metadata (kept for backward compatibility)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  creator User          @relation(fields: [createdBy], references: [id])
+  messageAttachments MessageAttachment[]
+  linkedDocuments DocumentMessageLink[]
+
+  @@index([threadId])
+  @@index([createdAt])
+}
+
+// Message Attachments - tracks file metadata and enforces access control
+model MessageAttachment {
+  id        String   @id @default(cuid())
+  messageId String
+  threadId  String   // Denormalized for efficient access checks
+  teamId    String   // Denormalized for efficient access checks
+  fileName  String
+  fileUrl   String   // Secure path, not public URL
+  fileSize  Int      // Size in bytes
+  mimeType  String
+  uploadedBy String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  thread  MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  uploader User @relation("MessageAttachmentUploader", fields: [uploadedBy], references: [id])
+
+  @@index([messageId])
+  @@index([threadId])
+  @@index([teamId])
+  @@index([createdAt])
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  teamId      String
+  fileUrl     String
+  fileName    String
+  title       String
+  category    String   // "playbook", "install", "coaching_resource", "program_document", "waiver", "policy", "schedule", "other"
+  folder      String?  // Optional folder/path for organization (e.g., "Offense/Passing", "Defense/Base")
+  visibility  String   @default("all") // "staff", "players", "parents", "all"
+  fileSize    Int?
+  mimeType    String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Role-based scoping (per BRAIK_MASTER_INTENT.md)
+  scopedUnit           String?  // "OFFENSE", "DEFENSE", "SPECIAL_TEAMS" (for coordinators)
+  scopedPositionGroups Json?    // Array of position groups (e.g., ["QB", "RB"]) for position coaches
+  assignedPlayerIds    Json?    // Array of player IDs for player-specific documents
+  
+  team                Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator             User                     @relation(fields: [createdBy], references: [id])
+  acknowledgements    DocumentAcknowledgement[]
+  linkedToMessages    DocumentMessageLink[]
+  linkedToAnnouncements DocumentAnnouncementLink[]
+  linkedToEvents      DocumentEventLink[]
+
+  @@index([teamId])
+  @@index([category])
+  @@index([folder])
+  @@index([scopedUnit])
+}
+
+model DocumentAcknowledgement {
+  id          String   @id @default(cuid())
+  documentId  String
+  userId      String
+  acknowledgedAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@index([userId])
+}
+
+// Document linking tables for messages, announcements, and calendar events
+model DocumentMessageLink {
+  id        String   @id @default(cuid())
+  documentId String
+  messageId  String
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  message  Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, messageId])
+  @@index([documentId])
+  @@index([messageId])
+}
+
+model DocumentAnnouncementLink {
+  id            String   @id @default(cuid())
+  documentId    String
+  announcementId String
+  createdAt     DateTime @default(now())
+
+  document    Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, announcementId])
+  @@index([documentId])
+  @@index([announcementId])
+}
+
+model DocumentEventLink {
+  id        String   @id @default(cuid())
+  documentId String
+  eventId    String
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, eventId])
+  @@index([documentId])
+  @@index([eventId])
 }
 
 model Payment {
+  id              String    @id @default(cuid())
+  teamId          String
+  playerId        String
+  guardianId      String?
+  amount          Float
+  stripeSessionId String?  @unique
+  stripePaymentIntentId String? @unique
+  status          String    @default("pending") // "pending", "completed", "failed", "refunded"
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player  Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  guardian Guardian? @relation(fields: [guardianId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([playerId])
+  @@index([status])
+  @@index([stripeSessionId])
+}
+
+model AuditLog {
   id        String   @id @default(cuid())
-  playerId  String
-  status    String   // e.g. "completed" | "pending"
+  teamId    String?
+  actorUserId String
+  action    String   // "invite_sent", "payment_received", "roster_updated", etc.
+  metadata  Json?    // Additional context
+  createdAt DateTime @default(now())
+
+  team Team? @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor User @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([teamId])
+  @@index([actorUserId])
+  @@index([createdAt])
+}
+
+// Playbook Builder - Plays
+model Play {
+  id          String   @id @default(cuid())
+  teamId      String
+  side        String   // "offense", "defense", "special_teams"
+  formation   String   // Formation name (e.g., "Trips Right", "4-3", "Nickel")
+  subcategory String?  // Optional subcategory (e.g., "Cover 3" for defense)
+  name        String   // Play name (e.g., "Flood Right", "Fire Zone")
+  canvasData  Json     // Player positions, paths, routes, etc.
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team  Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator User @relation("PlayCreator", fields: [createdBy], references: [id])
+
+  @@index([teamId])
+  @@index([side])
+  @@index([formation])
+  @@index([side, formation])
+}
+
+// Film module stubs (for future)
+model Video {
+  id        String   @id @default(cuid())
+  teamId    String
+  title     String
+  fileUrl   String
+  thumbnailUrl String?
+  duration  Int?     // seconds
+  uploadedBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  clips Clip[]
+  tags  VideoTag[]
+
+  @@index([teamId])
+}
+
+model VideoTag {
+  id        String   @id @default(cuid())
+  videoId   String
+  name      String
+  createdAt DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+}
+
+model Clip {
+  id          String   @id @default(cuid())
+  videoId     String
+  title       String
+  startTime   Int      // seconds
+  endTime     Int      // seconds
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+}
+
+// Calendar Settings (Team-level)
+model CalendarSettings {
+  id                        String   @id @default(cuid())
+  teamId                    String   @unique
+  defaultView                String   @default("week") // "day", "week", "month"
+  practiceColor             String   @default("#22C55E") // Green - Practice/Positive
+  gameColor                 String   @default("#2563EB") // Blue - Games/Primary UI
+  meetingColor               String   @default("#475569") // Slate - Neutral
+  customColor                String   @default("#334155") // Slate - Neutral
+  assistantsCanAddMeetings   Boolean  @default(true)
+  assistantsCanAddPractices  Boolean  @default(false)
+  assistantsCanEditNonlocked Boolean  @default(false)
+  compactView                Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+// Inventory Management
+model InventoryItem {
+  id                String   @id @default(cuid())
+  teamId            String
+  category          String   // "Helmets", "Pads", "Jerseys", "Cones", etc.
+  name              String
+  quantityTotal     Int
+  quantityAvailable Int
+  condition         String   @default("GOOD") // "GOOD", "FAIR", "NEEDS_REPAIR", "REPLACE"
+  assignedToPlayerId String?
+  notes             String?  @db.Text
+  status            String   @default("AVAILABLE") // "AVAILABLE", "ASSIGNED", "MISSING", "NEEDS_REPLACEMENT", "DAMAGED"
+  files             Json?    // Store file metadata: [{ fileName, fileUrl, fileSize, mimeType }]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  team         Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignedPlayer Player? @relation(fields: [assignedToPlayerId], references: [id], onDelete: SetNull)
+  transactions InventoryTransaction[]
+
+  @@index([teamId])
+  @@index([category])
+  @@index([status])
+  @@index([assignedToPlayerId])
+}
+
+// Inventory Transaction History (issuance and return tracking)
+model InventoryTransaction {
+  id                String   @id @default(cuid())
+  inventoryItemId   String
+  teamId            String
+  transactionType  String   // "ISSUE", "RETURN", "DAMAGE_REPORT", "STATUS_CHANGE"
+  playerId          String?  // Player involved in the transaction
+  performedByUserId String   // User who performed the action
+  notes             String?  @db.Text
+  previousStatus    String?  // Status before change
+  newStatus         String?  // Status after change
+  createdAt         DateTime @default(now())
+
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player        Player?       @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  performedBy   User          @relation("InventoryTransactionPerformer", fields: [performedByUserId], references: [id])
+
+  @@index([inventoryItemId])
+  @@index([teamId])
+  @@index([playerId])
+  @@index([createdAt])
+  @@index([transactionType])
+}
+
+// Updates Feed
+model UpdatesFeed {
+  id          String   @id @default(cuid())
+  teamId      String
+  type        String   // "announcement", "event_created", "event_updated", "event_canceled", "inventory_update"
+  title       String
+  description String?  @db.Text
+  linkUrl     String? // Link to relevant page
+  linkType    String? // "announcement", "event", "inventory", etc.
+  linkId      String?  // ID of the linked item
+  urgency     String   @default("normal") // "low", "normal", "high"
+  createdAt   DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([createdAt])
+  @@index([type])
+}
+
+// Coach-Collected Payments
+model CoachPaymentAccount {
+  id                    String   @id @default(cuid())
+  teamId                String   @unique
+  provider              String   // "stripe", "paypal", etc.
+  connectedAccountId   String   // Provider's account ID
+  connectedAccountToken String?  @db.Text // Secure token reference (never raw details)
+  status                String   @default("pending") // "pending", "connected", "disconnected"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model CoachPaymentCollection {
+  id          String   @id @default(cuid())
+  teamId      String
+  title       String
+  description String?   @db.Text
+  amount      Float
+  dueDate     DateTime?
+  visibility  String   @default("PARENTS_AND_TEAM") // "PARENTS_AND_TEAM", "TEAM", "COACHES_ONLY"
+  status      String   @default("open") // "open", "closed"
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team        Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator     User                     @relation("CollectionCreator", fields: [createdBy], references: [id])
+  transactions CoachPaymentTransaction[]
+
+  @@index([teamId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CoachPaymentTransaction {
+  id              String   @id @default(cuid())
+  collectionId    String
+  payerUserId     String?  // User who paid (parent/player)
+  payerPlayerId   String?  // Player associated with payment
+  amount          Float
+  providerPaymentId String? // Provider's transaction ID
+  status          String   @default("pending") // "pending", "completed", "failed", "refunded"
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  collection CoachPaymentCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([status])
+}
+
+// AI System
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId   String
+  teamId   String
+  role     String   // User's role at time of conversation
+  messages Json     // Array of messages
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([teamId])
 }
 
 model AIActionProposal {
-  id                     String   @id @default(cuid())
-  userId                 String
-  teamId                 String
-  actionType             String
-  payload                Json?
-  affectedRecordsPreview Json?
-  status                 String   @default("pending") // "pending" | "executed"
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                String   @id @default(cuid())
+  userId            String
+  teamId            String
+  actionType        String   // "create_events", "update_events", "create_announcement", etc.
+  payload           Json     // Structured action data
+  affectedRecordsPreview Json? // Preview of what will change
+  status            String   @default("pending") // "pending", "confirmed", "rejected", "executed"
+  confirmedBy       String?
+  executedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation("ProposalCreator", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([status])
 }
 
-model AIConversation {
-  id        String   @id @default(cuid())
-  userId    String
-  teamId    String
-  role      String
-  messages  Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-}
-
-model AIUsageRecord {
-  id             String   @id @default(cuid())
-  teamId         String
-  userId         String
-  tokensUsed     Int
-  roleWeight     Float
-  weightedTokens Int
-  actionType     String
-  createdAt      DateTime @default(now())
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user User @relation("AIUsageRecordUser", fields: [userId], references: [id], onDelete: Cascade)
-}
-
+// AI Usage Tracking (per program, per season)
 model AIUsage {
-  teamId       String
-  seasonYear   Int
-  tokensUsed   Int      @default(0)
-  requestsCount Int     @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  teamId          String
+  seasonYear      Int      // e.g., 2024
+  tokensUsed      Int      @default(0) // Weighted tokens consumed
+  requestsCount   Int      @default(0) // Number of AI requests
+  lastResetAt     DateTime @default(now()) // When usage was last reset (start of season)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  records AIUsageRecord[]
 
-  @@id([teamId, seasonYear])
+  @@unique([teamId, seasonYear])
+  @@index([teamId])
+  @@index([seasonYear])
 }
 
+// Individual AI usage records (for detailed tracking)
+model AIUsageRecord {
+  id              String   @id @default(cuid())
+  usageId         String
+  userId          String
+  teamId          String
+  role            String   // User's role at time of request
+  actionType      String?  // "chat", "create_event", "draft_announcement", etc.
+  tokensUsed      Int      // Raw tokens used
+  roleWeight      Float    // Multiplier based on role (1.0 for Head Coach, 0.75 for Coordinators, etc.)
+  weightedTokens  Int      // tokensUsed * roleWeight
+  createdAt       DateTime @default(now())
+
+  usage AIUsage @relation(fields: [usageId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([usageId])
+  @@index([userId])
+  @@index([teamId])
+  @@index([createdAt])
+}
+
+// File Attachments (for AI uploads and other uses)
 model Attachment {
   id          String   @id @default(cuid())
   teamId      String
@@ -263,11 +876,104 @@ model Attachment {
   fileSize    Int
   mimeType    String
   uploadedBy  String
-  purpose     String?
-  metadata    Json?
+  purpose     String   @default("general") // "ai_upload", "document", "general"
+  extractedText String? @db.Text // For AI parsing results
+  metadata    Json?     // Additional metadata
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  team  Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  owner User @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  uploader User @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([purpose])
+  @@index([createdAt])
+}
+
+// User Preferences (optional personalization)
+model UserPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  defaultCalendarView String? @default("week") // "day", "week", "month"
+  hiddenEventTypes Json?   // Array of event types to hide
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Notifications (in-app notifications for all roles)
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String   // User who receives the notification
+  teamId      String   // Team context
+  type        String   // "announcement", "event_created", "event_updated", "event_starting_soon", "message", "thread_reply", "ai_task_completed", "billing_reminder", "payment_reminder", "account_status"
+  title       String
+  body        String?  @db.Text
+  linkUrl     String?  // Link to relevant page
+  linkType    String?  // "announcement", "event", "message", "billing", etc.
+  linkId      String?  // ID of the linked item
+  read        Boolean  @default(false)
+  readAt      DateTime?
+  metadata    Json?    // Additional context (e.g., event details, message preview)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([userId, read])
+  @@index([createdAt])
+  @@index([type])
+}
+
+// Notification Preferences (email preferences for Head Coach)
+model NotificationPreference {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  // Email preferences (Head Coach only per spec)
+  emailAnnouncements    Boolean  @default(true)
+  emailEvents           Boolean  @default(true)
+  emailBilling          Boolean  @default(true)
+  emailAccountStatus    Boolean  @default(true)
+  // Note: Messages are NOT emailed by default (per spec: "Do not spam email for messages")
+  emailMessages         Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Depth Chart (Football teams)
+model DepthChartEntry {
+  id        String   @id @default(cuid())
+  teamId    String
+  unit      String   // "offense", "defense", "special_teams"
+  position  String   // "QB", "RB", "WR", etc.
+  string    Int      // 1 = 1st string, 2 = 2nd string, 3 = 3rd string
+  playerId       String?
+  specialTeamType String? // "kickoff", "field_goal", "punt", etc. (only for special_teams unit)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team   Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  @@unique([teamId, unit, position, string, specialTeamType])
+  @@index([teamId])
+  @@index([playerId])
+}
+
+// Custom Position Labels (Head Coach can customize position names in depth chart)
+model DepthChartPositionLabel {
+  id        String   @id @default(cuid())
+  teamId    String
+  unit      String   // "offense", "defense", "special_teams"
+  position  String   // "QB", "RB", "WR", etc. (the position key)
+  customLabel String // Custom label name (e.g., "Quarterback" instead of "QB")
+  specialTeamType String? // For special teams positions
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team   Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  @@unique([teamId, unit, position, specialTeamType])
+  @@index([teamId])
+  @@index([teamId, unit])
 }

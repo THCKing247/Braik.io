@@ -1,34 +1,41 @@
+import { SideOfBall, ShapeKind, Shape } from "@/types/playbook"
+
 /**
- * Playbook template validation: 11 players, side-specific shapes, no overlaps.
+ * Returns allowed shape kinds for a given side
  */
-import type { SideOfBall, Shape, ShapeKind } from "@/types/playbook"
-
-const EXPECTED_SLOTS = 11
-
-export function validateTemplateSave(
-  side: SideOfBall,
-  shapes: Shape[]
-): { ok: boolean; reason?: string } {
-  if (shapes.length !== EXPECTED_SLOTS) {
-    return { ok: false, reason: `Formation must have exactly ${EXPECTED_SLOTS} players, found ${shapes.length}` }
+export function allowedTemplateShapeKinds(side: SideOfBall): Set<ShapeKind> {
+  if (side === "offense") {
+    return new Set(["OFFENSE_CIRCLE", "CENTER_SQUARE"])
   }
-  for (let i = 0; i < shapes.length; i++) {
-    if (!isValidTemplateShape(side, shapes[i]!.kind)) {
-      return { ok: false, reason: `Invalid shape ${shapes[i]!.kind} for ${side} formation` }
+  if (side === "defense") {
+    return new Set(["DEFENSE_TRIANGLE"])
+  }
+  // Special Teams: allow both offense and defense shapes
+  return new Set(["OFFENSE_CIRCLE", "CENTER_SQUARE", "DEFENSE_TRIANGLE", "SPECIAL_TEAMS_CIRCLE", "SPECIAL_TEAMS_SQUARE"])
+}
+
+/**
+ * Validates that a template can be saved
+ * Returns { ok: true } if valid, or { ok: false, reason: string } if invalid
+ */
+export function validateTemplateSave(side: SideOfBall, shapes: Shape[]): { ok: true } | { ok: false; reason: string } {
+  if (shapes.length !== 11) {
+    return { ok: false, reason: "Template requires exactly 11 players." }
+  }
+
+  const allowed = allowedTemplateShapeKinds(side)
+  for (const shape of shapes) {
+    if (!allowed.has(shape.kind)) {
+      return { ok: false, reason: `Invalid shape ${shape.kind} for ${side} template. Templates can only contain ${side} shapes.` }
     }
   }
+
   return { ok: true }
 }
 
+/**
+ * Checks if a shape kind is valid for a given side in template mode
+ */
 export function isValidTemplateShape(side: SideOfBall, shapeKind: ShapeKind): boolean {
-  if (side === "offense") {
-    return shapeKind === "CENTER_SQUARE" || shapeKind === "OFFENSE_CIRCLE"
-  }
-  if (side === "defense") {
-    return shapeKind === "DEFENSE_TRIANGLE"
-  }
-  if (side === "special_teams") {
-    return shapeKind === "OFFENSE_CIRCLE" || shapeKind === "SPECIAL_TEAMS_SQUARE" || shapeKind === "SPECIAL_TEAMS_CIRCLE" || shapeKind === "DEFENSE_TRIANGLE"
-  }
-  return false
+  return allowedTemplateShapeKinds(side).has(shapeKind)
 }

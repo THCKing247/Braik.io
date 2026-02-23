@@ -1,44 +1,33 @@
-"use client"
-
 import Link from "next/link"
+import Image from "next/image"
+import { Button } from "@/components/ui/button"
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-[#E5E7EB] bg-white">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link
-          href="/"
-          className="font-athletic text-xl font-bold uppercase tracking-tight text-[#212529] hover:text-[#3B82F6]"
+    <nav className="sticky top-0 z-50 bg-white border-b border-[#E5E7EB]/50">
+      <div className="w-full px-6 md:px-8 lg:px-12 py-3 flex items-center justify-between">
+        <Link 
+          href="/" 
+          className="flex items-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3B82F6] focus:ring-offset-2 rounded transition-all"
+          aria-label="Braik - Return to home page"
         >
-          Braik.io
+          <div className="h-12 w-[200px] flex items-center overflow-hidden">
+            <img 
+              src="/braik-logo.png" 
+              alt="Braik" 
+              className="w-full h-auto block object-contain object-left"
+            />
+          </div>
         </Link>
-        <nav className="flex items-center gap-6">
-          <Link
-            href="/pricing"
-            className="text-sm font-medium text-[#495057] hover:text-[#3B82F6]"
-          >
-            Pricing
+        <div className="flex items-center gap-8">
+          <Link href="/faq" className="text-[#212529] hover:text-[#3B82F6] transition-colors font-medium text-sm md:text-base">
+            FAQ
           </Link>
-          <Link
-            href="/about"
-            className="text-sm font-medium text-[#495057] hover:text-[#3B82F6]"
-          >
-            About
+          <Link href="/login" className="text-[#212529] hover:text-[#3B82F6] transition-colors font-medium text-sm md:text-base">
+            Login
           </Link>
-          <Link
-            href="/login"
-            className="text-sm font-medium text-[#495057] hover:text-[#3B82F6]"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/signup/role"
-            className="rounded-md bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white hover:bg-[#2563EB]"
-          >
-            Get started
-          </Link>
-        </nav>
+        </div>
       </div>
-    </header>
+    </nav>
   )
 }

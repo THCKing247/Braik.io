@@ -47,7 +47,7 @@ export function CollectionsManager({
 
       const data = await response.json()
       if (response.ok) {
-        setPaidPlayers(new Set(Array.from(paidPlayers).concat(playerId)))
+        setPaidPlayers(new Set([...paidPlayers, playerId]))
         router.refresh()
       } else {
         setError(data.error || "Failed to mark payment")

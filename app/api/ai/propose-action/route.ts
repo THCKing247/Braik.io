@@ -7,6 +7,9 @@ import { requireBillingPermission } from "@/lib/billing-state"
 import { logAIAction, logPermissionDenial } from "@/lib/structured-logger"
 import { requiresApproval, getRoleContext } from "@/lib/ai-utils"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
 // POST /api/ai/propose-action
 // AI proposes an action (e.g., creating events from uploaded file)
 export async function POST(request: Request) {

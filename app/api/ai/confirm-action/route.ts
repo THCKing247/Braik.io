@@ -9,6 +9,9 @@ import { executeConfirmedAction } from "@/lib/ai-actions"
 import { ROLES } from "@/lib/roles"
 import { logAIAction, logPermissionDenial } from "@/lib/structured-logger"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
 // POST /api/ai/confirm-action
 // Executes a confirmed AI action proposal
 export async function POST(request: Request) {

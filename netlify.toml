@@ -1,0 +1,11 @@
+[build]
+  # Ensure Prisma Client is always regenerated in Netlify CI before Next build.
+  command = "npm run build"
+  # Next.js Runtime serves static assets from this directory.
+  publish = ".netlify/static"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "22"

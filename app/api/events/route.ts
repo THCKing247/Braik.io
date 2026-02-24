@@ -48,7 +48,6 @@ export async function POST(request: Request) {
         start: new Date(start),
         end: new Date(end),
         location: location || null,
-        notes: notes || null,
         visibility,
         createdBy: session.user.id,
       },

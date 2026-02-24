@@ -84,10 +84,10 @@ export async function POST(request: Request) {
       const seasonEnd = new Date(now.getFullYear(), 11, 31) // December 31
       const seasonName = `${now.getFullYear()}-${now.getFullYear() + 1}`
 
-      // Generate Team ID (8 character alphanumeric code) for assistant coaches
+      // Generate assistant team code (8 character alphanumeric)
       let teamIdCode = generateProgramCode()
       
-      // Generate Player Code and Parent Code
+      // Generate team codes
       let playerCode = generateProgramCode()
       let parentCode = generateProgramCode()
       
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
         })
         if (!team) {
           return NextResponse.json(
-            { error: "Invalid Team ID. Please check with your Head Coach." },
+            { error: "Invalid Team Code. Please check with your Head Coach." },
             { status: 400 }
           )
         }
@@ -211,7 +211,7 @@ export async function POST(request: Request) {
         })
         if (!team) {
           return NextResponse.json(
-            { error: "Invalid Player Code. Please check with your coach." },
+            { error: "Invalid Team Code. Please check with your coach." },
             { status: 400 }
           )
         }
@@ -222,7 +222,7 @@ export async function POST(request: Request) {
         })
         if (!team) {
           return NextResponse.json(
-            { error: "Invalid Parent Code. Please check with your coach." },
+            { error: "Invalid Team Code. Please check with your coach." },
             { status: 400 }
           )
         }

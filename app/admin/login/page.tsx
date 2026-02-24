@@ -1,41 +1,42 @@
-"use client"
-
+import { redirect } from "next/navigation"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { isPlatformOwner } from "@/lib/platform-owner"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { HeroLoginForm } from "@/components/hero-login-form"
 import { ScrollReveal } from "@/components/scroll-reveal"
-import Link from "next/link"
+import { AdminLoginForm } from "@/components/admin-login-form"
 
-export default function LoginPage() {
+export default async function AdminLoginPage() {
+  const session = await getServerSession(authOptions)
+
+  if (session?.user?.id) {
+    const hasAccess = await isPlatformOwner(session.user.id)
+    redirect(hasAccess ? "/dashboard/admin" : "/dashboard")
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />
-      
       <section className="relative py-32 bg-white">
         <div className="container mx-auto px-4">
           <div className="max-w-md mx-auto">
             <ScrollReveal>
               <div className="text-center mb-12">
                 <h1 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight mb-4">
-                  Welcome back
+                  Admin Access
                 </h1>
                 <p className="text-lg text-[#495057]">
-                  Sign in to your Braik account
-                </p>
-                <p className="text-sm text-[#6B7280] mt-3">
-                  Platform support team?{" "}
-                  <Link href="/admin/login" className="text-[#1e3a5f] underline underline-offset-4">
-                    Use admin login
-                  </Link>
+                  Separate login for platform support and backend management
                 </p>
               </div>
-              <HeroLoginForm />
+              <AdminLoginForm />
             </ScrollReveal>
           </div>
         </div>
       </section>
-
       <SiteFooter />
     </div>
   )
 }
+

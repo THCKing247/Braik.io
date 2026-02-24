@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Ensure team has program codes (player code and parent code)
+    // Ensure team has program team codes
     await ensureProgramCodes(teamId)
 
     const players = []

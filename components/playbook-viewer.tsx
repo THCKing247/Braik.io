@@ -26,6 +26,8 @@ interface Play {
   subcategory: string | null
   name: string
   canvasData: any
+  createdAt: Date
+  updatedAt: Date
 }
 
 export function PlaybookViewer({

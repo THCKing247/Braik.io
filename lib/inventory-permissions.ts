@@ -106,7 +106,7 @@ export async function getInventoryPermissions(
     // Coordinators can view and manage inventory for their unit
     if (coordinatorType) {
       const unit = getCoordinatorUnit(coordinatorType)
-      const unitPositionGroups = getPositionGroupsForUnit(unit)
+      const unitPositionGroups = await getPositionGroupsForUnit(teamId, unit)
 
       // Get all players in this unit
       const unitPlayers = await prisma.player.findMany({

@@ -11,6 +11,8 @@ interface StarterCardProps {
     imageUrl?: string | null
   }
   canEdit: boolean
+  primaryColor?: string
+  secondaryColor?: string
   onRemove?: () => void
   onPromote?: () => void
 }

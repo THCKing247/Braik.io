@@ -143,7 +143,7 @@ export function PlaybookBuilderV2({
     }
   }
 
-  const addToHistory = (newShapes: Shape[]) {
+  const addToHistory = (newShapes: Shape[]) => {
     const newHistory = history.slice(0, historyIndex + 1)
     newHistory.push(newShapes)
     setHistory(newHistory)

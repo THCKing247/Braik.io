@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { Prisma } from "@prisma/client"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getUserMembership } from "@/lib/rbac"
@@ -341,8 +342,8 @@ export async function POST(
         highlight: highlight || false,
         createdBy: session.user.id,
         // Hierarchical scoping fields
-        scopedPlayerIds: scoping.scopedPlayerIds,
-        scopedPositionGroups: scoping.scopedPositionGroups,
+        scopedPlayerIds: scoping.scopedPlayerIds ?? Prisma.JsonNull,
+        scopedPositionGroups: scoping.scopedPositionGroups ?? Prisma.JsonNull,
         scopedUnit: scoping.scopedUnit,
         coordinatorType: scoping.coordinatorType,
         // Event linkage

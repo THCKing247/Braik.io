@@ -6,7 +6,7 @@ import { requireTeamPermission } from "@/lib/rbac"
 
 /**
  * GET /api/roster/codes
- * Get program codes (player code and parent code) with hierarchy-based visibility
+ * Get program codes (team codes) with hierarchy-based visibility
  * - Head Coach: Can see both codes
  * - Coordinators: Can see both codes
  * - Position Coaches: Can see both codes
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     const canViewCodes = ["HEAD_COACH", "ASSISTANT_COACH"].includes(membership.role)
 
     if (!canViewCodes) {
-      return NextResponse.json({ error: "Access denied: Only coaches can view program codes" }, { status: 403 })
+      return NextResponse.json({ error: "Access denied: Only coaches can view team codes" }, { status: 403 })
     }
 
     // Get team with codes

@@ -115,18 +115,18 @@ export function SubscriptionManager({
         </CardContent>
       </Card>
 
-      {/* Team ID Code - Head Coach Only */}
+      {/* Team Code - Head Coach Only */}
       {isHeadCoach && teamIdCode && (
         <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
           <CardHeader>
-            <CardTitle className="text-[#FFFFFF]">Team ID Code</CardTitle>
+            <CardTitle className="text-[#FFFFFF]">Team Code</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-[#FFFFFF]/80">
-              Share this Team ID code with Assistant Coaches, Players, and Parents so they can join your team.
+              Share this team code with Assistant Coaches, Players, and Parents so they can join your team.
             </p>
             <div className="p-6 bg-[#FFFFFF]/10 rounded-lg border border-[#FFFFFF]/20">
-              <p className="text-sm text-[#FFFFFF]/70 mb-2">Team ID Code</p>
+              <p className="text-sm text-[#FFFFFF]/70 mb-2">Team Code</p>
               <p className="text-4xl font-bold text-[#FFFFFF] font-mono tracking-wider">{teamIdCode}</p>
             </div>
             <p className="text-xs text-[#FFFFFF]/70">

@@ -64,7 +64,7 @@ export default async function SchedulePage() {
       </div>
       <ScheduleManager 
         teamId={membership.teamId} 
-        events={events} 
+        events={events as any} 
         canEdit={membership.role === "HEAD_COACH" || membership.role === "ASSISTANT_COACH"}
         defaultView={calendarSettings.defaultView as "day" | "week" | "month"}
       />

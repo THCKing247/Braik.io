@@ -16,6 +16,8 @@ interface PlayerCardProps {
   }
   canEdit?: boolean
   size?: "small" | "medium" | "large"
+  primaryColor?: string
+  secondaryColor?: string
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
   onImageUpload?: (playerId: string, file: File) => void

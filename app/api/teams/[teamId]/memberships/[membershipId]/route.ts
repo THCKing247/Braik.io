@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getUserMembership } from "@/lib/rbac"
+import { Prisma } from "@prisma/client"
 
 // PATCH /api/teams/[teamId]/memberships/[membershipId]
 // Update assistant coach position groups
@@ -59,7 +60,7 @@ export async function PATCH(
     const updated = await prisma.membership.update({
       where: { id: membershipId },
       data: {
-        positionGroups: positionGroups.length > 0 ? positionGroups : null,
+        positionGroups: positionGroups.length > 0 ? positionGroups : Prisma.JsonNull,
       },
     })
 

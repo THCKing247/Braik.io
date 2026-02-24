@@ -12,6 +12,8 @@ interface DepthCardProps {
   }
   string: number // 2 or 3
   canEdit: boolean
+  primaryColor?: string
+  secondaryColor?: string
   onPromote?: () => void
   onRemove?: () => void
   draggable?: boolean

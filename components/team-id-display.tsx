@@ -38,10 +38,10 @@ export function TeamIdDisplay({ teamIdCode, players, teamId }: TeamIdDisplayProp
       if (response.ok) {
         window.location.reload()
       } else {
-        alert("Failed to generate player codes")
+        alert("Failed to generate team codes")
       }
     } catch (err) {
-      alert("Error generating codes")
+      alert("Error generating team codes")
     }
   }
 
@@ -52,16 +52,16 @@ export function TeamIdDisplay({ teamIdCode, players, teamId }: TeamIdDisplayProp
   return (
     <Card className="bg-[#1e3a5f] border-[#1e3a5f] mb-6">
       <CardHeader>
-        <CardTitle className="text-[#FFFFFF]">Team ID Code</CardTitle>
+        <CardTitle className="text-[#FFFFFF]">Team Code</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-[#FFFFFF]/80 text-sm">
-          Share this Team ID code with Assistant Coaches, Players, and Parents so they can join your team.
+          Share this team code with Assistant Coaches, Players, and Parents so they can join your team.
         </p>
         
         <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
           <div className="flex-1">
-            <p className="text-sm text-[#FFFFFF]/70 mb-2">Team ID Code</p>
+            <p className="text-sm text-[#FFFFFF]/70 mb-2">Team Code</p>
             <div className="p-4 bg-[#FFFFFF]/10 rounded-lg border border-[#FFFFFF]/20">
               <p className="text-3xl font-bold text-[#FFFFFF] font-mono tracking-wider text-center">{teamIdCode}</p>
             </div>
@@ -71,7 +71,7 @@ export function TeamIdDisplay({ teamIdCode, players, teamId }: TeamIdDisplayProp
             <div className="flex flex-col items-center">
               <p className="text-sm text-[#FFFFFF]/70 mb-2">QR Code</p>
               <div className="p-4 bg-[#FFFFFF] rounded-lg">
-                <img src={qrCodeUrl} alt="Team ID QR Code" className="w-48 h-48" />
+                <img src={qrCodeUrl} alt="Team Code QR Code" className="w-48 h-48" />
               </div>
             </div>
           )}
@@ -79,19 +79,19 @@ export function TeamIdDisplay({ teamIdCode, players, teamId }: TeamIdDisplayProp
 
         <div className="pt-4 border-t border-[#FFFFFF]/20">
           <p className="text-sm text-[#FFFFFF]/70 mb-4">
-            Each player on your roster will receive a unique code. Generate codes for all players below.
+            Each player on your roster will receive a unique team code. Generate codes for all players below.
           </p>
           <Button
             onClick={handleGeneratePlayerCodes}
             className="bg-[#1e3a5f] text-[#FFFFFF] hover:bg-[#2d4a6f]"
           >
-            Generate Player Codes
+            Generate Team Codes
           </Button>
         </div>
 
         {players.length > 0 && (
           <div className="pt-4 border-t border-[#FFFFFF]/20">
-            <p className="text-sm font-semibold text-[#FFFFFF] mb-3">Player Codes</p>
+            <p className="text-sm font-semibold text-[#FFFFFF] mb-3">Team Codes</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {players.map((player) => (
                 <div

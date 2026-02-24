@@ -5,11 +5,25 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { SiteHeader } from "@/components/site-header"
 
+type SignupApiError = {
+  error?: string
+  code?: string
+  details?: string
+  teamIdCode?: string
+}
+
 export default function PaymentPage() {
   const router = useRouter()
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [signupData, setSignupData] = useState<any>(null)
+  const [signupData, setSignupData] = useState<Record<string, unknown> | null>(null)
+
+  const getApiErrorMessage = (status: number, data?: SignupApiError) => {
+    const code = data?.code || `HTTP-${status}`
+    const base = data?.error || "Signup request failed."
+    const details = data?.details ? ` Details: ${data.details}` : ""
+    return `[SIGNUP-API-${code}] ${base}${details}`
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem("signupData")
@@ -22,7 +36,7 @@ export default function PaymentPage() {
 
   const handleComplete = async () => {
     if (!signupData) {
-      setError("Missing signup data. Please start over.")
+      setError("[SIGNUP-FLOW-001] Missing signup data in local storage. Please restart signup from Step 1.")
       return
     }
 
@@ -47,22 +61,22 @@ export default function PaymentPage() {
         }),
       })
 
-      const data = await response.json()
+      const data = (await response.json()) as SignupApiError
 
       if (!response.ok) {
-        setError(data.error || "An error occurred")
+        setError(getApiErrorMessage(response.status, data))
         setLoading(false)
         return
       }
 
-      // If Head Coach, show Team ID code before redirecting
-      if (signupData.role === "head-coach" && data.teamIdCode) {
-        // Store Team ID code to show in success message
+      // If Head Coach, show team code before redirecting
+      if (signupData.role === "head-coach" && "teamIdCode" in data && typeof data.teamIdCode === "string") {
+        // Store team code to show in success message
         const updatedData = { ...signupData, teamIdCode: data.teamIdCode }
         localStorage.setItem("signupData", JSON.stringify(updatedData))
         
-        // Show Team ID code in a modal or alert, then proceed
-        alert(`Your Team ID Code: ${data.teamIdCode}\n\nShare this code with Assistant Coaches, Players, and Parents so they can join your team.`)
+        // Show team code in a modal or alert, then proceed
+        alert(`Your Team Code: ${data.teamIdCode}\n\nShare this team code with Assistant Coaches, Players, and Parents so they can join your team.`)
       }
 
       // Auto-login the user
@@ -74,7 +88,7 @@ export default function PaymentPage() {
       })
 
       if (result?.error) {
-        setError("Account created but login failed. Please try logging in manually.")
+        setError(`[SIGNUP-AUTH-${result.error}] Account was created, but auto-login failed. Please sign in manually on the login page.`)
         setLoading(false)
         return
       }
@@ -85,8 +99,9 @@ export default function PaymentPage() {
       // Redirect to dashboard
       router.push("/dashboard")
       router.refresh()
-    } catch (err) {
-      setError("An error occurred. Please try again.")
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown client exception"
+      setError(`[SIGNUP-CLIENT-500] Signup could not complete due to a client/runtime exception. Details: ${message}`)
       setLoading(false)
     }
   }
@@ -129,7 +144,7 @@ export default function PaymentPage() {
               </div>
 
               {error && (
-                <div className="text-sm text-white bg-[#EF4444] border border-[#EF4444] rounded-lg p-3 font-medium">
+                <div className="text-sm text-white bg-[#EF4444] border border-[#EF4444] rounded-lg p-3 font-medium" role="alert" aria-live="polite">
                   {error}
                 </div>
               )}

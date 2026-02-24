@@ -1,5 +1,6 @@
 import { prisma } from "./prisma"
 import { ROLES } from "./roles"
+import { Prisma } from "@prisma/client"
 
 export type NotificationType =
   | "announcement"
@@ -49,7 +50,7 @@ export async function createNotifications(payload: NotificationPayload): Promise
         linkUrl: linkUrl || null,
         linkType: linkType || null,
         linkId: linkId || null,
-        metadata: metadata || null,
+        metadata: metadata || Prisma.JsonNull,
       })),
     })
 
@@ -76,7 +77,7 @@ export async function createNotifications(payload: NotificationPayload): Promise
       linkUrl: linkUrl || null,
       linkType: linkType || null,
       linkId: linkId || null,
-      metadata: metadata || null,
+      metadata: metadata || Prisma.JsonNull,
     })),
   })
 

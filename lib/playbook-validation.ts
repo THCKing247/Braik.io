@@ -5,13 +5,19 @@ import { SideOfBall, ShapeKind, Shape } from "@/types/playbook"
  */
 export function allowedTemplateShapeKinds(side: SideOfBall): Set<ShapeKind> {
   if (side === "offense") {
-    return new Set(["OFFENSE_CIRCLE", "CENTER_SQUARE"])
+    return new Set<ShapeKind>(["OFFENSE_CIRCLE", "CENTER_SQUARE"])
   }
   if (side === "defense") {
-    return new Set(["DEFENSE_TRIANGLE"])
+    return new Set<ShapeKind>(["DEFENSE_TRIANGLE"])
   }
   // Special Teams: allow both offense and defense shapes
-  return new Set(["OFFENSE_CIRCLE", "CENTER_SQUARE", "DEFENSE_TRIANGLE", "SPECIAL_TEAMS_CIRCLE", "SPECIAL_TEAMS_SQUARE"])
+  return new Set<ShapeKind>([
+    "OFFENSE_CIRCLE",
+    "CENTER_SQUARE",
+    "DEFENSE_TRIANGLE",
+    "SPECIAL_TEAMS_CIRCLE",
+    "SPECIAL_TEAMS_SQUARE",
+  ])
 }
 
 /**

@@ -26,17 +26,17 @@ export default function RoleSelectionPage() {
     {
       value: "assistant-coach",
       label: "Assistant Coach",
-      description: "Join an existing team. Access to coaching features (requires Team ID).",
+      description: "Join an existing team. Access to coaching features (requires Team Code).",
     },
     {
       value: "player",
       label: "Player",
-      description: "Join your team. Access to schedule, messages, and team updates (requires Team ID).",
+      description: "Join your team. Access to schedule, messages, and team updates (requires Team Code).",
     },
     {
       value: "parent",
       label: "Parent",
-      description: "Join your child's team. Access to payments, schedule, and updates (requires Team ID).",
+      description: "Join your child's team. Access to payments, schedule, and updates (requires Team Code).",
     },
   ]
 

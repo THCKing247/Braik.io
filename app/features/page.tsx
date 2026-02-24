@@ -117,7 +117,9 @@ export default function FeaturesPage() {
             {features.map((feature, index) => (
               <div
                 key={index}
-                ref={(el) => (featureRefs.current[index] = el)}
+                ref={(el) => {
+                  featureRefs.current[index] = el
+                }}
                 className={`p-10 bg-[#1e3a5f] rounded-xl border-2 border-[#1e3a5f] text-[#FFFFFF] transition-all duration-1000 ease-out ${
                   visibleFeatures.has(index)
                     ? "opacity-100 translate-y-0"

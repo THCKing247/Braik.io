@@ -21,6 +21,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
+  const withErrorCode = (code: string, message: string) => `[${code}] ${message}`
+
   // Load from localStorage if available
   useEffect(() => {
     const saved = localStorage.getItem("signupData")
@@ -58,23 +60,23 @@ export default function SignupPage() {
     }
 
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      setError("Please fill in all required fields")
+      setError(withErrorCode("SIGNUP-VALIDATION-001", "Please fill in all required fields before continuing."))
       return
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match")
+      setError(withErrorCode("SIGNUP-VALIDATION-002", "Passwords do not match. Re-enter both password fields."))
       return
     }
 
     if (!validatePassword(password)) {
-      setError("Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character")
+      setError(withErrorCode("SIGNUP-VALIDATION-003", "Password must be at least 8 characters and include uppercase, lowercase, numeric, and special characters."))
       return
     }
 
-    // For non-Head-Coach roles, require Team ID
+    // For non-Head-Coach roles, require Team Code
     if (role !== "head-coach" && !teamId) {
-      setError("Team ID is required for this role")
+      setError(withErrorCode("SIGNUP-VALIDATION-004", "Team code is required for this role. Get the team code from your head coach."))
       return
     }
 
@@ -123,10 +125,10 @@ export default function SignupPage() {
                   <div className="space-y-2">
                     <Label htmlFor="teamId" className="text-sm font-medium text-[#495057]">
                       {role === "player" 
-                        ? "Player Code *" 
+                        ? "Team Code *" 
                         : role === "parent" 
-                        ? "Parent Code *"
-                        : "Team ID *"}
+                        ? "Team Code *"
+                        : "Team Code *"}
                     </Label>
                     <Input
                       id="teamId"
@@ -136,20 +138,20 @@ export default function SignupPage() {
                       className="bg-white text-[#212529] placeholder:text-[#6c757d] font-mono text-lg tracking-wider"
                       placeholder={
                         role === "player"
-                          ? "Enter Player Code from your coach"
+                          ? "Enter Team Code from your coach"
                           : role === "parent"
-                          ? "Enter Parent Code from your coach"
-                          : "Enter Team ID from your Head Coach"
+                          ? "Enter Team Code from your coach"
+                          : "Enter Team Code from your Head Coach"
                       }
                       required
                       maxLength={8}
                     />
                     <p className="text-xs text-[#6c757d]">
                       {role === "player"
-                        ? "Get your Player Code from your coach"
+                        ? "Get your Team Code from your coach"
                         : role === "parent"
-                        ? "Get your Parent Code from your coach"
-                        : "Get your Team ID from your Head Coach"}
+                        ? "Get your Team Code from your coach"
+                        : "Get your Team Code from your Head Coach"}
                     </p>
                   </div>
                 )}
@@ -233,7 +235,7 @@ export default function SignupPage() {
                     variant="outline"
                     className="flex-1 bg-white border-[#E5E7EB] text-[#212529] hover:bg-[#F9FAFB]"
                     onClick={() => {
-                      setError("Google sign-in coming soon")
+                      setError(withErrorCode("SIGNUP-SOCIAL-001", "Google sign-in is not enabled yet for this environment."))
                     }}
                   >
                     <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -249,7 +251,7 @@ export default function SignupPage() {
                     variant="outline"
                     className="flex-1 bg-white border-[#E5E7EB] text-[#212529] hover:bg-[#F9FAFB]"
                     onClick={() => {
-                      setError("Apple sign-in coming soon")
+                      setError(withErrorCode("SIGNUP-SOCIAL-002", "Apple sign-in is not enabled yet for this environment."))
                     }}
                   >
                     <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
@@ -261,19 +263,29 @@ export default function SignupPage() {
               </div>
 
               {error && (
-                <div className="text-sm text-white bg-[#EF4444] border border-[#EF4444] rounded-lg p-3 font-medium">
+                <div className="text-sm text-white bg-[#EF4444] border border-[#EF4444] rounded-lg p-3 font-medium" role="alert" aria-live="polite">
                   {error}
                 </div>
               )}
 
-              <Button 
-                type="button"
-                onClick={handleContinue}
-                className="w-full font-athletic uppercase tracking-wide" 
-                size="lg"
-              >
-                Continue
-              </Button>
+              <div className="flex gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/signup/role")}
+                  className="flex-1 bg-white border-[#E5E7EB] text-[#212529] hover:bg-[#F9FAFB]"
+                >
+                  Back
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={handleContinue}
+                  className="flex-1 font-athletic uppercase tracking-wide" 
+                  size="lg"
+                >
+                  Continue
+                </Button>
+              </div>
             </div>
             
             <div className="mt-6 text-center text-sm">

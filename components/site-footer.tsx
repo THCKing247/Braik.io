@@ -53,6 +53,16 @@ export function SiteFooter() {
                   FAQ
                 </Link>
               </li>
+              <li>
+                <a
+                  href="https://apextsgroup.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#212529] hover:text-[#3B82F6] transition-colors text-sm"
+                >
+                  Apex TSG
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -114,6 +124,9 @@ export function SiteFooter() {
         <div className="border-t border-[#E5E7EB] pt-8 text-center">
           <p className="text-[#212529] text-sm">
             &copy; 2024 Braik. All rights reserved.
+          </p>
+          <p className="text-[#6c757d] text-sm mt-2">
+            Powered by Apex TSG
           </p>
         </div>
       </div>

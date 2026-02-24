@@ -17,6 +17,7 @@
     "verify:separation": "tsx scripts/verify-separation.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "@prisma/client": "^5.7.1",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-dialog": "^1.0.5",

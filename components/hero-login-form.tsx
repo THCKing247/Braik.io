@@ -14,6 +14,23 @@ export function HeroLoginForm() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  const getDetailedLoginError = (code?: string) => {
+    if (!code) {
+      return "[AUTH-UNKNOWN] Sign-in failed without an error code. This can happen if the auth response was interrupted. Please retry."
+    }
+
+    switch (code) {
+      case "CredentialsSignin":
+        return "[AUTH-CREDENTIALS-401] The email/password combination does not match an active account."
+      case "Configuration":
+        return "[AUTH-CONFIG-500] Server auth configuration is invalid or missing. Please contact support."
+      case "AccessDenied":
+        return "[AUTH-ACCESS-403] Your account does not have permission to sign in."
+      default:
+        return `[AUTH-${code}] Sign-in failed. Source code: ${code}.`
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
@@ -26,34 +43,23 @@ export function HeroLoginForm() {
         redirect: false,
       })
 
-      console.log("Sign in result:", result)
-
       if (result?.error) {
-        console.error("Sign in error:", result.error)
-        if (result.error === "CredentialsSignin") {
-          setError("Invalid email or password. Please try again.")
-        } else if (result.error === "Configuration") {
-          setError("Server configuration error. Please contact support.")
-        } else {
-          setError(result.error || "Login failed. Please try again.")
-        }
+        setError(getDetailedLoginError(result.error))
       } else if (result?.ok) {
-        // Small delay to ensure session is set
-        setTimeout(() => {
-          window.location.href = "/dashboard"
-        }, 100)
+        router.push("/dashboard")
+        router.refresh()
       } else {
-        console.error("Unexpected result:", result)
-        setError("Login failed. Please try again.")
+        setError("[AUTH-NO-RESULT] Sign-in returned no success or error flag. Please retry.")
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error"
       console.error("Login exception:", err)
-      if (err?.message?.includes("Database") || err?.message?.includes("connection")) {
-        setError("Database connection failed. Please ensure PostgreSQL is running.")
-      } else if (err?.message?.includes("fetch")) {
-        setError("Network error. Please check your connection and try again.")
+      if (errorMessage.includes("Database") || errorMessage.includes("connection")) {
+        setError(`[AUTH-DB-500] Database connection failed during sign-in. Details: ${errorMessage}`)
+      } else if (errorMessage.includes("fetch")) {
+        setError(`[AUTH-NETWORK-0] Network request failed before server response. Details: ${errorMessage}`)
       } else {
-        setError(`An error occurred: ${err?.message || "Unknown error"}`)
+        setError(`[AUTH-UNEXPECTED-500] Unexpected sign-in exception. Details: ${errorMessage}`)
       }
     } finally {
       setLoading(false)
@@ -95,7 +101,11 @@ export function HeroLoginForm() {
           />
         </div>
         {error && (
-          <div className="text-sm text-white bg-[#EF4444] border border-[#EF4444] rounded-lg p-3 font-medium">
+          <div
+            className="text-sm text-white bg-[#EF4444] border border-[#EF4444] rounded-lg p-3 font-medium"
+            role="alert"
+            aria-live="polite"
+          >
             {error}
           </div>
         )}

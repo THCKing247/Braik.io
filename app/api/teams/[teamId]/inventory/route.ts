@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getUserMembership } from "@/lib/rbac"
 import { getInventoryPermissions, canViewInventoryItem } from "@/lib/inventory-permissions"
+import { Prisma } from "@prisma/client"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
@@ -243,7 +244,7 @@ export async function POST(
         assignedToPlayerId: assignedToPlayerId || null,
         notes: notes || null,
         status: status || "AVAILABLE",
-        files: uploadedFiles.length > 0 ? uploadedFiles : null,
+        files: uploadedFiles.length > 0 ? uploadedFiles : Prisma.JsonNull,
       },
       include: {
         assignedPlayer: {

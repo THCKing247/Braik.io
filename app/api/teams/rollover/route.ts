@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { Prisma } from "@prisma/client"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireTeamPermission } from "@/lib/rbac"
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
           userId: membership.userId,
           teamId: newTeam.id,
           role: membership.role,
-          permissions: membership.permissions,
+          permissions: membership.permissions ?? Prisma.JsonNull,
         },
       })
     }

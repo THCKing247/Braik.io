@@ -8,37 +8,66 @@ import { ScrollReveal } from "@/components/scroll-reveal"
 import { SectionDivider } from "@/components/section-divider"
 
 export default function Home() {
+  const heroValuePills = [
+    "One platform for coaches, players, and families",
+    "Built for Varsity + JV program structure",
+    "Season-based pricing that stays budgetable",
+  ]
+
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />
 
       {/* Hero Identity Section */}
-      <section 
-        className="relative min-h-[90vh] flex items-center bg-white"
-      >
-        <div className="container mx-auto px-4 py-24 md:py-32">
-          <div className="max-w-3xl mx-auto text-center space-y-12">
+      <section className="relative min-h-[90vh] flex items-center bg-gradient-to-b from-[#F8FAFC] via-white to-white overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/10 blur-3xl" />
+          <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#60A5FA]/10 blur-3xl" />
+        </div>
+        <div className="container relative mx-auto px-4 py-24 md:py-32">
+          <div className="max-w-4xl mx-auto text-center space-y-12">
             <ScrollReveal>
-              <div className="space-y-8">
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-[1.1]">
+              <div className="space-y-7">
+                <h1 className="text-5xl md:text-6xl lg:text-7xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-[1.08]">
                   Braik the busywork.
                   <br />
                   <span className="text-[#3B82F6]">Run the team.</span>
                 </h1>
                 <p className="text-lg md:text-xl text-[#495057] font-medium max-w-2xl mx-auto leading-relaxed">
-                  Programs break down under Inconsistency, Confusion, and Exhaustion.
+                  Your AI Assistant Coach for Every Season.
                   <br />
-                  <span className="text-[#3B82F6] font-semibold">Braik the ICE.</span>
+                  <span className="font-semibold text-[#495057]">Braik the Chaos.</span>
                 </p>
+                <div className="flex flex-wrap justify-center gap-3 pt-2">
+                  {heroValuePills.map((pill) => (
+                    <span
+                      key={pill}
+                      className="inline-flex items-center rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-4 py-2 text-sm font-medium text-[#1E3A8A]"
+                    >
+                      {pill}
+                    </span>
+                  ))}
+                </div>
               </div>
             </ScrollReveal>
             
             <ScrollReveal delay={100}>
-              <Link href="/signup/role">
-                <Button size="lg" className="text-base px-10 py-6">
-                  Braik into your season
-                </Button>
-              </Link>
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+                <Link href="/signup/role">
+                  <Button size="lg" className="text-base px-10 py-6 w-full sm:w-auto">
+                    Braik into your season
+                  </Button>
+                </Link>
+                <Link href="/pricing">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="text-base px-10 py-6 w-full sm:w-auto border-[#3B82F6] text-[#1D4ED8] hover:bg-[#EFF6FF]"
+                  >
+                    View pricing
+                  </Button>
+                </Link>
+              </div>
             </ScrollReveal>
             
             {/* Returning User Login - Visually De-emphasized */}
@@ -75,7 +104,7 @@ export default function Home() {
                   <p>
                     Most programs are forced to stitch together multiple tools for scheduling, communication, payments, and team coordination. The result is fragmented communication, duplicated work, confusion for parents and players, and added stress for coaches.
                   </p>
-                  <p className="text-[#3B82F6] font-semibold text-xl">
+                  <p className="text-white font-semibold text-xl">
                     Braik exists to change that.
                   </p>
                 </div>
@@ -201,8 +230,8 @@ export default function Home() {
             </ScrollReveal>
             
             <div className="grid md:grid-cols-2 gap-8">
-              <ScrollReveal delay={0}>
-                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+              <ScrollReveal delay={0} className="h-full">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
                   <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
                     Communication
@@ -213,8 +242,8 @@ export default function Home() {
                 </div>
               </ScrollReveal>
               
-              <ScrollReveal delay={50}>
-                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+              <ScrollReveal delay={50} className="h-full">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
                   <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
                     Scheduling
@@ -225,8 +254,8 @@ export default function Home() {
                 </div>
               </ScrollReveal>
               
-              <ScrollReveal delay={100}>
-                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+              <ScrollReveal delay={100} className="h-full">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
                   <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
                     Payments
@@ -237,8 +266,8 @@ export default function Home() {
                 </div>
               </ScrollReveal>
               
-              <ScrollReveal delay={150}>
-                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+              <ScrollReveal delay={150} className="h-full">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
                   <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
                     Documents
@@ -249,8 +278,8 @@ export default function Home() {
                 </div>
               </ScrollReveal>
               
-              <ScrollReveal delay={200}>
-                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+              <ScrollReveal delay={200} className="h-full">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
                   <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
                     Inventory
@@ -261,8 +290,8 @@ export default function Home() {
                 </div>
               </ScrollReveal>
               
-              <ScrollReveal delay={250}>
-                <div className="p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+              <ScrollReveal delay={250} className="h-full">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
                   <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
                     Roster Management

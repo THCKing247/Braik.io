@@ -2,8 +2,6 @@ import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default async function AdminPage() {
@@ -23,10 +21,33 @@ export default async function AdminPage() {
     redirect("/dashboard")
   }
 
-  // Get program count and user count for overview
-  const [programCount, userCount] = await Promise.all([
+  // Get program count, user count, and latest users for support visibility
+  const [programCount, userCount, latestUsers] = await Promise.all([
     prisma.team.count(),
     prisma.user.count(),
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 25,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isPlatformOwner: true,
+        createdAt: true,
+        memberships: {
+          select: {
+            role: true,
+            team: {
+              select: {
+                name: true,
+              },
+            },
+          },
+          take: 1,
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    }),
   ])
 
   return (
@@ -66,6 +87,51 @@ export default async function AdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Latest User Accounts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-600 mb-4">
+            Account visibility for support and development. Full export is available at{" "}
+            <code className="bg-gray-100 px-1 rounded">GET /api/admin/users</code> and{" "}
+            <code className="bg-gray-100 px-1 rounded">GET /api/admin/users?source=supabase</code>.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2 pr-4 font-medium">Email</th>
+                  <th className="py-2 pr-4 font-medium">Name</th>
+                  <th className="py-2 pr-4 font-medium">Role</th>
+                  <th className="py-2 pr-4 font-medium">Team</th>
+                  <th className="py-2 pr-4 font-medium">Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {latestUsers.map((account) => (
+                  <tr key={account.id} className="border-b last:border-0">
+                    <td className="py-2 pr-4">{account.email}</td>
+                    <td className="py-2 pr-4">{account.name || "—"}</td>
+                    <td className="py-2 pr-4">{account.memberships[0]?.role || "UNASSIGNED"}</td>
+                    <td className="py-2 pr-4">{account.memberships[0]?.team?.name || "—"}</td>
+                    <td className="py-2 pr-4">
+                      {account.isPlatformOwner ? (
+                        <span className="inline-flex rounded px-2 py-0.5 bg-blue-100 text-blue-900 text-xs font-medium">
+                          PLATFORM OWNER
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">Standard</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Admin Sections */}
       <div className="space-y-6">
@@ -109,8 +175,11 @@ export default async function AdminPage() {
               <p className="text-sm font-medium">Available API Endpoints:</p>
               <ul className="text-sm text-gray-600 list-disc list-inside space-y-1">
                 <li><code className="bg-gray-100 px-1 rounded">GET /api/admin/users</code> - List all users</li>
+                <li><code className="bg-gray-100 px-1 rounded">GET /api/admin/users?source=supabase</code> - List Supabase auth users</li>
                 <li><code className="bg-gray-100 px-1 rounded">GET /api/admin/users/[userId]</code> - Get user details</li>
                 <li><code className="bg-gray-100 px-1 rounded">PATCH /api/admin/users/[userId]</code> - Update user</li>
+                <li><code className="bg-gray-100 px-1 rounded">POST /api/admin/users/[userId]/password</code> - Reset user password</li>
+                <li><code className="bg-gray-100 px-1 rounded">PATCH /api/admin/users/[userId]/status</code> - Activate/deactivate user</li>
                 <li><code className="bg-gray-100 px-1 rounded">POST /api/admin/users/[userId]/sessions/revoke</code> - Force logout</li>
                 <li><code className="bg-gray-100 px-1 rounded">POST /api/admin/users/[userId]/archive</code> - Archive user</li>
                 <li><code className="bg-gray-100 px-1 rounded">DELETE /api/admin/users/[userId]</code> - Hard delete user</li>

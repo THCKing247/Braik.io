@@ -192,7 +192,7 @@ export function getRoleContext(membership: { role: Role; positionGroups?: any; p
   // Determine if coordinator (OC, DC, ST)
   const isCoordinator =
     role === ROLES.ASSISTANT_COACH &&
-    (positionGroups?.includes("OC") || positionGroups?.includes("DC") || positionGroups?.includes("ST"))
+    !!(positionGroups?.includes("OC") || positionGroups?.includes("DC") || positionGroups?.includes("ST"))
 
   // Determine unit from position groups
   let unit: "OFFENSE" | "DEFENSE" | "SPECIAL_TEAMS" | undefined

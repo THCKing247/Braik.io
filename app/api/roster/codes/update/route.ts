@@ -47,14 +47,14 @@ export async function POST(request: Request) {
     if (playerCode !== undefined) {
       // Validate format (8 characters alphanumeric)
       if (playerCode && (!/^[A-Z0-9]{8}$/.test(playerCode.toUpperCase()))) {
-        return NextResponse.json({ error: "Player code must be 8 alphanumeric characters" }, { status: 400 })
+        return NextResponse.json({ error: "Team code must be 8 alphanumeric characters" }, { status: 400 })
       }
       updateData.playerCode = playerCode ? playerCode.toUpperCase() : null
     }
     if (parentCode !== undefined) {
       // Validate format (8 characters alphanumeric)
       if (parentCode && (!/^[A-Z0-9]{8}$/.test(parentCode.toUpperCase()))) {
-        return NextResponse.json({ error: "Parent code must be 8 alphanumeric characters" }, { status: 400 })
+        return NextResponse.json({ error: "Team code must be 8 alphanumeric characters" }, { status: 400 })
       }
       updateData.parentCode = parentCode ? parentCode.toUpperCase() : null
     }
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
         },
       })
       if (existingPlayerCode) {
-        return NextResponse.json({ error: "Player code already in use" }, { status: 400 })
+        return NextResponse.json({ error: "Team code already in use" }, { status: 400 })
       }
     }
 
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
         },
       })
       if (existingParentCode) {
-        return NextResponse.json({ error: "Parent code already in use" }, { status: 400 })
+        return NextResponse.json({ error: "Team code already in use" }, { status: 400 })
       }
     }
 

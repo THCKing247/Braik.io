@@ -78,9 +78,9 @@ export function ProgramCodesDisplay({ teamId, userRole }: ProgramCodesDisplayPro
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div>
-              <Label className="text-sm font-medium">Player Code</Label>
+              <Label className="text-sm font-medium">Team Code</Label>
               <p className="text-xs text-muted-foreground mt-1">
-                Share this code with players to join the program
+                Share this team code with players to join the program
               </p>
             </div>
             {codes.playerCode && (
@@ -106,9 +106,9 @@ export function ProgramCodesDisplay({ teamId, userRole }: ProgramCodesDisplayPro
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div>
-              <Label className="text-sm font-medium">Parent Code</Label>
+              <Label className="text-sm font-medium">Team Code</Label>
               <p className="text-xs text-muted-foreground mt-1">
-                Share this code with parents to join the program
+                Share this team code with parents to join the program
               </p>
             </div>
             {codes.parentCode && (

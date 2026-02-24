@@ -75,7 +75,7 @@ export default async function RosterPage() {
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   })
 
-  const canEdit = userRole === "HEAD_COACH" || (userRole === "ASSISTANT_COACH" && positionGroups && positionGroups.length > 0)
+  const canEdit = userRole === "HEAD_COACH" || (userRole === "ASSISTANT_COACH" && !!positionGroups && positionGroups.length > 0)
 
   return (
     <div>

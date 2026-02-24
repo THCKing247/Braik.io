@@ -204,7 +204,7 @@ export function PlaybookBuilder({
     }
   }, [playData, side, initialPlayName, coordSystem])
 
-  const getCanvasPoint = (e: React.MouseEvent<SVGSVGElement>) => {
+  const getCanvasPoint = (e: React.MouseEvent<SVGSVGElement | Element>) => {
     if (!canvasRef.current) return { x: 0, y: 0, xYards: 0, yYards: 0 }
     const rect = canvasRef.current.getBoundingClientRect()
     const svg = canvasRef.current

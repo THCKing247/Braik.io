@@ -28,6 +28,8 @@ interface PlaybookFileTreeProps {
   pendingFormations?: Array<{ side: string; formation: string }>
 }
 
+const ROOT_SUBCATEGORY_KEY = "__ROOT__"
+
 export function PlaybookFileTree({
   plays,
   selectedPlayId,
@@ -53,7 +55,7 @@ export function PlaybookFileTree({
   // Organize plays by hierarchy: side -> formation -> subcategory -> plays
   // Also include pending formations (created but not yet saved with plays)
   const organized = useMemo(() => {
-    const structure: Record<string, Record<string, Record<string | null, Play[]>>> = {
+    const structure: Record<string, Record<string, Record<string, Play[]>>> = {
       offense: {},
       defense: {},
       special_teams: {},
@@ -62,13 +64,13 @@ export function PlaybookFileTree({
     plays.forEach((play) => {
       const side = play.side || "offense"
       const formation = play.formation || "Unnamed"
-      const subcategory = play.subcategory || null
+      const subcategoryKey = play.subcategory || ROOT_SUBCATEGORY_KEY
       
       if (!structure[side]) structure[side] = {}
       if (!structure[side][formation]) structure[side][formation] = {}
-      if (!structure[side][formation][subcategory]) structure[side][formation][subcategory] = []
+      if (!structure[side][formation][subcategoryKey]) structure[side][formation][subcategoryKey] = []
       
-      structure[side][formation][subcategory].push(play)
+      structure[side][formation][subcategoryKey].push(play)
     })
 
     // Add pending formations (formations created but not yet saved with plays)
@@ -76,7 +78,7 @@ export function PlaybookFileTree({
       if (!structure[side]) structure[side] = {}
       if (!structure[side][formation]) {
         structure[side][formation] = {}
-        structure[side][formation][null] = [] // Empty array for plays directly under formation
+        structure[side][formation][ROOT_SUBCATEGORY_KEY] = [] // Empty array for plays directly under formation
       }
     })
 
@@ -330,7 +332,7 @@ export function PlaybookFileTree({
     )
   }
 
-  const renderFormation = (side: string, formation: string, formationData: Record<string | null, Play[]>) => {
+  const renderFormation = (side: string, formation: string, formationData: Record<string, Play[]>) => {
     const formationPath = `${side}/${formation}`
     const isExpanded = expanded.has(formationPath)
     const isEditing = editingFormation?.side === side && editingFormation?.formation === formation
@@ -338,8 +340,8 @@ export function PlaybookFileTree({
 
     // Get all subcategories (including null for plays directly under formation)
     const subcategories = Object.keys(formationData).sort((a, b) => {
-      if (a === "null") return 1 // null subcategory last
-      if (b === "null") return -1
+      if (a === ROOT_SUBCATEGORY_KEY) return 1
+      if (b === ROOT_SUBCATEGORY_KEY) return -1
       return a.localeCompare(b)
     })
 
@@ -451,7 +453,7 @@ export function PlaybookFileTree({
               </div>
             )}
             {subcategories.map((subcategoryKey) => {
-              const subcategory = subcategoryKey === "null" ? null : subcategoryKey
+              const subcategory = subcategoryKey === ROOT_SUBCATEGORY_KEY ? null : subcategoryKey
               return renderSubFormation(side, formation, subcategory, formationData[subcategoryKey] || [])
             })}
             {subcategories.length === 0 && !isCreatingSubFormation && (

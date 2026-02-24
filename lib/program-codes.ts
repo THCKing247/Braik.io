@@ -1,6 +1,6 @@
 /**
  * Program Codes Utilities
- * Handles generation and management of program codes (player code and parent code)
+ * Handles generation and management of program team codes
  */
 
 import { prisma } from "./prisma"
@@ -14,7 +14,7 @@ export function generateProgramCode(): string {
 }
 
 /**
- * Ensure team has player and parent codes generated
+ * Ensure team has team codes generated
  * Called when roster is created/updated
  */
 export async function ensureProgramCodes(teamId: string): Promise<{ playerCode: string | null; parentCode: string | null }> {
@@ -30,7 +30,7 @@ export async function ensureProgramCodes(teamId: string): Promise<{ playerCode: 
   let needsUpdate = false
   const updateData: { playerCode?: string; parentCode?: string } = {}
 
-  // Generate player code if missing
+  // Generate team code for players if missing
   if (!team.playerCode) {
     let playerCode = generateProgramCode()
     // Ensure uniqueness
@@ -39,14 +39,14 @@ export async function ensureProgramCodes(teamId: string): Promise<{ playerCode: 
       playerCode = generateProgramCode()
       attempts++
       if (attempts > 10) {
-        throw new Error("Failed to generate unique player code")
+        throw new Error("Failed to generate unique team code")
       }
     }
     updateData.playerCode = playerCode
     needsUpdate = true
   }
 
-  // Generate parent code if missing
+  // Generate team code for parents if missing
   if (!team.parentCode) {
     let parentCode = generateProgramCode()
     // Ensure uniqueness
@@ -55,7 +55,7 @@ export async function ensureProgramCodes(teamId: string): Promise<{ playerCode: 
       parentCode = generateProgramCode()
       attempts++
       if (attempts > 10) {
-        throw new Error("Failed to generate unique parent code")
+        throw new Error("Failed to generate unique team code")
       }
     }
     updateData.parentCode = parentCode

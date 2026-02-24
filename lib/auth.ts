@@ -3,6 +3,14 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "./prisma"
 import bcrypt from "bcryptjs"
 
+function normalizePositionGroups(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+  const groups = value.filter((entry): entry is string => typeof entry === "string")
+  return groups.length ? groups : null
+}
+
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
@@ -10,7 +18,8 @@ export const authOptions: NextAuthOptions = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        adminLogin: { label: "Admin Login", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -39,6 +48,12 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
+          const isAdminLogin = credentials.adminLogin === "true"
+
+          if (isAdminLogin && !user.isPlatformOwner) {
+            return null
+          }
+
           // Get user's most recent membership (or first if multiple teams)
           const membership = await prisma.membership.findFirst({
             where: {
@@ -55,8 +70,19 @@ export const authOptions: NextAuthOptions = {
           })
 
           if (!membership) {
-            // Return null instead of throwing - NextAuth will handle the error
-            return null
+            if (!user.isPlatformOwner) {
+              // Return null instead of throwing - NextAuth will handle the error
+              return null
+            }
+
+            // Platform Owners can sign in without team membership for admin support access.
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: "PLATFORM_OWNER",
+              isPlatformOwner: true,
+            }
           }
 
           return {
@@ -67,7 +93,7 @@ export const authOptions: NextAuthOptions = {
             teamId: membership.teamId,
             teamName: membership.team.name,
             organizationName: membership.team.organization.name,
-            positionGroups: membership.positionGroups,
+            positionGroups: normalizePositionGroups(membership.positionGroups),
             isPlatformOwner: user.isPlatformOwner || false,
           }
         } catch (error: any) {

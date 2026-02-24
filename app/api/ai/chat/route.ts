@@ -16,10 +16,6 @@ import {
 import { executeSafeAction, createActionProposal } from "@/lib/ai-actions"
 import OpenAI from "openai"
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 // Default usage limit (can be made configurable per team)
 const DEFAULT_USAGE_LIMIT = 10000
 
@@ -146,6 +142,10 @@ Be helpful, concise, and coach-friendly.`
       // Return helpful responses without OpenAI
       return handleWithoutOpenAI(message, team, recentEvents, usageStatus)
     }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
 
     // Call OpenAI
     const completion = await openai.chat.completions.create({

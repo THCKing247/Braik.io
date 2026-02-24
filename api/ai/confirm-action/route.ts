@@ -56,7 +56,8 @@ export async function POST(request: Request) {
 
     // Only Head Coach can confirm actions
     if (membership.role !== ROLES.HEAD_COACH) {
-      logPermissionDenial("Only Head Coach can confirm AI actions", {
+      logPermissionDenial({
+        reason: "Only Head Coach can confirm AI actions",
         userId: session.user.id,
         teamId: proposal.teamId,
         role: membership.role,

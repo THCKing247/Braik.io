@@ -38,7 +38,6 @@ export async function POST(
         userId: session.user.id,
         role: membership.role,
         permissions: membership.permissions,
-        positionGroups: membership.positionGroups,
       },
       document.teamId
     )
@@ -144,7 +143,6 @@ export async function DELETE(
         userId: session.user.id,
         role: membership.role,
         permissions: membership.permissions,
-        positionGroups: membership.positionGroups,
       },
       document.teamId
     )

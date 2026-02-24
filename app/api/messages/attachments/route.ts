@@ -123,11 +123,6 @@ export async function POST(request: Request) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
-    const filePath = join(uploadDir, fileName)
-
-    await writeFile(filePath, buffer)
-
     // Store file with secure naming (timestamp + random + sanitized name)
     const secureFileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
     const filePath = join(uploadDir, secureFileName)

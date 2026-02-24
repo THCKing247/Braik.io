@@ -114,7 +114,7 @@ export async function POST(request: Request) {
       },
       include: {
         creator: { select: { name: true, email: true } },
-        acknowledgements: [],
+        acknowledgements: true,
       },
     })
 

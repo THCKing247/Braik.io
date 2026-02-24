@@ -28,6 +28,8 @@ export const metadata: Metadata = {
   description: "Sports team operating system for roster, dues, comms, schedule, docs, and AI admin assistant.",
 }
 
+export const dynamic = "force-dynamic"
+
 export default function RootLayout({
   children,
 }: {

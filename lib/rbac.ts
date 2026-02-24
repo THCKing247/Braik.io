@@ -9,6 +9,7 @@ export interface UserMembership {
   teamId: string
   role: Role
   permissions?: any
+  positionGroups?: any
 }
 
 export async function getUserMembership(teamId: string): Promise<UserMembership | null> {
@@ -35,6 +36,7 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
     teamId: membership.teamId,
     role: membership.role as Role,
     permissions: membership.permissions,
+    positionGroups: membership.positionGroups,
   }
 }
 

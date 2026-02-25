@@ -18,6 +18,7 @@ model User {
   password      String? // hashed password
   image         String?
   isPlatformOwner Boolean @default(false) // Platform Owner (Super Admin) flag
+  complianceMetadata Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -47,6 +48,8 @@ model User {
   messageAttachments  MessageAttachment[] @relation("MessageAttachmentUploader")
   inventoryTransactions InventoryTransaction[] @relation("InventoryTransactionPerformer")
   createdPlays        Play[] @relation("PlayCreator")
+  complianceLogs      ComplianceLog[]
+  minorConsentVerifications MinorConsentVerification[]
 }
 
 model Account {
@@ -153,6 +156,7 @@ model Team {
   aiUsage      AIUsage[]
   notifications Notification[]
   plays        Play[]
+  minorConsentVerifications MinorConsentVerification[]
 }
 
 model Season {
@@ -578,6 +582,53 @@ model AuditLog {
   @@index([teamId])
   @@index([actorUserId])
   @@index([createdAt])
+}
+
+model ComplianceLog {
+  id            String   @id @default(cuid()) @map("id")
+  userId        String   @map("user_id")
+  eventType     String   @map("event_type")
+  policyVersion String   @map("policy_version")
+  timestamp     DateTime @default(now()) @map("timestamp")
+  ipAddress     String?  @map("ip_address")
+  metadata      Json?    @map("metadata")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@map("compliance_log")
+}
+
+model MinorConsentVerification {
+  id                String   @id @default(cuid())
+  userId            String
+  token             String   @unique
+  childRole         String
+  childAge          Int
+  childFirstName    String
+  childLastName     String
+  childEmail        String
+  childPasswordHash String
+  teamJoinCode      String
+  teamId            String
+  parentEmail       String
+  policyVersion     String
+  consentTimestamp  DateTime
+  ipAddress         String?
+  acceptanceMeta    Json?
+  expiresAt         DateTime
+  confirmedAt       DateTime?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([parentEmail])
+  @@index([expiresAt])
 }
 
 // Playbook Builder - Plays

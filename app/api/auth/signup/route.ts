@@ -2,9 +2,25 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { ROLES } from "@/lib/roles"
-import { randomBytes } from "crypto"
+import { randomUUID } from "crypto"
 import { generateProgramCode } from "@/lib/program-codes"
 import { syncUserToSupabaseAuth } from "@/lib/supabase-admin"
+import { logComplianceEvent } from "@/lib/compliance-log"
+import { LEGAL_POLICY_VERSIONS } from "@/lib/compliance-config"
+import { getRequestIp } from "@/lib/request-ip"
+
+type ComplianceAcceptancePayload = {
+  terms?: { version?: string; acceptedAt?: string }
+  privacy?: { version?: string; acceptedAt?: string }
+  acceptableUse?: { version?: string; acceptedAt?: string }
+  aiAcknowledgement?: { version?: string; acceptedAt?: string }
+  minorParentalConsent?: {
+    version?: string
+    acceptedAt?: string
+    parentEmail?: string
+    playerAge?: number
+  } | null
+}
 
 export async function POST(request: Request) {
   try {
@@ -20,8 +36,20 @@ export async function POST(request: Request) {
       city,
       teamName,
       primaryColor,
-      secondaryColor
+      secondaryColor,
+      playerAge,
+      parentEmail,
+      compliance,
     } = await request.json()
+    const compliancePayload = (compliance || {}) as ComplianceAcceptancePayload
+    const ipAddress = getRequestIp(request)
+    const complianceMetadata = {
+      terms: compliancePayload.terms,
+      privacy: compliancePayload.privacy,
+      acceptableUse: compliancePayload.acceptableUse,
+      aiAcknowledgement: compliancePayload.aiAcknowledgement,
+      latestAcceptedAt: new Date().toISOString(),
+    }
 
     if (!email || !password) {
       return NextResponse.json(
@@ -33,6 +61,32 @@ export async function POST(request: Request) {
     if (password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters" },
+        { status: 400 }
+      )
+    }
+
+    if (role === "head-coach") {
+      if (!sportType || !programType || !teamName) {
+        return NextResponse.json(
+          { error: "Sport type, program type, and team name are required for Head Coach" },
+          { status: 400 }
+        )
+      }
+    } else if (!teamId) {
+      return NextResponse.json(
+        { error: "Program code is required" },
+        { status: 400 }
+      )
+    }
+
+    if (
+      !compliancePayload?.terms?.acceptedAt ||
+      !compliancePayload?.privacy?.acceptedAt ||
+      !compliancePayload?.acceptableUse?.acceptedAt ||
+      !compliancePayload?.aiAcknowledgement?.acceptedAt
+    ) {
+      return NextResponse.json(
+        { error: "Required policy acknowledgments are missing" },
         { status: 400 }
       )
     }
@@ -49,23 +103,24 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    })
+    let createdUserId: string | null = null
+    let createdUserEmail: string | null = null
+    let createdUserName: string | null = null
 
     const syncToSupabase = async (effectiveRole: string, effectiveTeamId?: string) => {
+      if (!createdUserId || !createdUserEmail) {
+        return {
+          synced: false,
+          reason: "Local user creation did not complete",
+        }
+      }
+
       try {
         return await syncUserToSupabaseAuth({
-          email: user.email,
+          email: createdUserEmail,
           password,
-          name: user.name,
-          appUserId: user.id,
+          name: createdUserName,
+          appUserId: createdUserId,
           role: effectiveRole,
           teamId: effectiveTeamId,
         })
@@ -80,23 +135,8 @@ export async function POST(request: Request) {
 
     // Handle different roles
     if (role === "head-coach") {
-      // Head Coach creates new team
-      if (!sportType || !programType || !teamName) {
-        return NextResponse.json(
-          { error: "Sport type, program type, and team name are required for Head Coach" },
-          { status: 400 }
-        )
-      }
-
       // Create organization
       const orgName = programType !== "youth" ? schoolName : city || "New Organization"
-      const organization = await prisma.organization.create({
-        data: {
-          name: orgName,
-          type: programType === "high-school" ? "school" : programType === "collegiate" ? "college" : "club",
-          city: programType === "youth" ? city : null,
-        },
-      })
 
       // Set default season dates (current year)
       const now = new Date()
@@ -122,56 +162,105 @@ export async function POST(request: Request) {
         teamIdCode = generateProgramCode()
       }
 
-      // Create team
-      const team = await prisma.team.create({
-        data: {
-          organizationId: organization.id,
-          name: teamName,
-          slogan: `Go ${teamName}`,
-          sport: sportType,
-          schoolName: programType !== "youth" ? schoolName : null,
-          teamName: teamName,
-          primaryColor: primaryColor || "#1e3a5f",
-          secondaryColor: secondaryColor || "#FFFFFF",
-          seasonName,
-          seasonStart,
-          seasonEnd,
-          rosterCap: 50,
-          duesAmount: 5.0,
-          subscriptionPaid: false,
-          subscriptionAmount: 0,
-          amountPaid: 0,
-          teamIdCode: teamIdCode, // For assistant coaches (backward compatibility)
-          playerCode: playerCode, // For players
-          parentCode: parentCode, // For parents
-        },
+      const { user, team } = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            name,
+            email,
+            password: hashedPassword,
+            complianceMetadata,
+          },
+        })
+
+        const organization = await tx.organization.create({
+          data: {
+            name: orgName,
+            type: programType === "high-school" ? "school" : programType === "collegiate" ? "college" : "club",
+            city: programType === "youth" ? city : null,
+          },
+        })
+
+        const team = await tx.team.create({
+          data: {
+            organizationId: organization.id,
+            name: teamName,
+            slogan: `Go ${teamName}`,
+            sport: sportType,
+            schoolName: programType !== "youth" ? schoolName : null,
+            teamName: teamName,
+            primaryColor: primaryColor || "#1e3a5f",
+            secondaryColor: secondaryColor || "#FFFFFF",
+            seasonName,
+            seasonStart,
+            seasonEnd,
+            rosterCap: 50,
+            duesAmount: 5.0,
+            subscriptionPaid: false,
+            subscriptionAmount: 0,
+            amountPaid: 0,
+            teamIdCode: teamIdCode, // For assistant coaches (backward compatibility)
+            playerCode: playerCode, // For players
+            parentCode: parentCode, // For parents
+          },
+        })
+
+        await tx.membership.create({
+          data: {
+            userId: user.id,
+            teamId: team.id,
+            role: ROLES.HEAD_COACH,
+          },
+        })
+
+        await tx.calendarSettings.create({
+          data: {
+            teamId: team.id,
+            defaultView: "week",
+            practiceColor: "#22C55E",
+            gameColor: "#2563EB",
+            meetingColor: "#475569",
+            customColor: "#334155",
+            assistantsCanAddMeetings: true,
+            assistantsCanAddPractices: false,
+            assistantsCanEditNonlocked: false,
+          },
+        })
+
+        return { user, team }
       })
 
-      // Create membership for head coach
-      await prisma.membership.create({
-        data: {
-          userId: user.id,
-          teamId: team.id,
-          role: ROLES.HEAD_COACH,
-        },
-      })
-
-      // Create calendar settings
-      await prisma.calendarSettings.create({
-        data: {
-          teamId: team.id,
-          defaultView: "week",
-          practiceColor: "#22C55E",
-          gameColor: "#2563EB",
-          meetingColor: "#475569",
-          customColor: "#334155",
-          assistantsCanAddMeetings: true,
-          assistantsCanAddPractices: false,
-          assistantsCanEditNonlocked: false,
-        },
-      })
+      createdUserId = user.id
+      createdUserEmail = user.email
+      createdUserName = user.name
 
       const supabaseSync = await syncToSupabase(ROLES.HEAD_COACH, team.id)
+
+      await Promise.all([
+        logComplianceEvent({
+          userId: user.id,
+          role: ROLES.HEAD_COACH,
+          eventType: "policy_acceptance",
+          policyVersion: LEGAL_POLICY_VERSIONS.terms,
+          ipAddress,
+          metadata: {
+            teamId: team.id,
+            terms: compliancePayload.terms,
+            privacy: compliancePayload.privacy,
+            acceptableUse: compliancePayload.acceptableUse,
+          },
+        }),
+        logComplianceEvent({
+          userId: user.id,
+          role: ROLES.HEAD_COACH,
+          eventType: "ai_acknowledgement",
+          policyVersion: LEGAL_POLICY_VERSIONS.aiAcknowledgement,
+          ipAddress,
+          metadata: {
+            teamId: team.id,
+            aiAcknowledgement: compliancePayload.aiAcknowledgement,
+          },
+        }),
+      ])
 
       // Return user data and program codes
       return NextResponse.json({ 
@@ -187,13 +276,6 @@ export async function POST(request: Request) {
       })
     } else {
       // Other roles join existing team via program codes
-      if (!teamId) {
-        return NextResponse.json(
-          { error: "Program code is required" },
-          { status: 400 }
-        )
-      }
-
       // Map role string to ROLES constant
       let roleConstant: string
       switch (role) {
@@ -256,16 +338,156 @@ export async function POST(request: Request) {
         )
       }
 
-      // Create membership
-      await prisma.membership.create({
-        data: {
-          userId: user.id,
-          teamId: team.id,
-          role: roleConstant,
-        },
+      const isMinorPlayer = role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18
+      if (isMinorPlayer) {
+        if (!parentEmail) {
+          return NextResponse.json(
+            { error: "Parent/guardian email is required for minor players" },
+            { status: 400 }
+          )
+        }
+        if (!compliancePayload.minorParentalConsent?.acceptedAt) {
+          return NextResponse.json(
+            { error: "Minor parental consent confirmation is required" },
+            { status: 400 }
+          )
+        }
+
+        const consentToken = randomUUID()
+        const user = await prisma.user.create({
+          data: {
+            name,
+            email,
+            password: hashedPassword,
+            complianceMetadata,
+          },
+        })
+
+        await prisma.minorConsentVerification.create({
+          data: {
+            userId: user.id,
+            token: consentToken,
+            childRole: role,
+            childAge: Number(playerAge),
+            childFirstName: (name || "").toString().split(" ")[0] || "Player",
+            childLastName: (name || "").toString().split(" ").slice(1).join(" ") || "",
+            childEmail: email,
+            childPasswordHash: hashedPassword,
+            teamJoinCode: teamId.toUpperCase(),
+            teamId: team.id,
+            parentEmail: parentEmail.trim().toLowerCase(),
+            policyVersion: LEGAL_POLICY_VERSIONS.privacy,
+            consentTimestamp: new Date(compliancePayload.minorParentalConsent.acceptedAt),
+            ipAddress,
+            acceptanceMeta: compliancePayload,
+            expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+          },
+        })
+
+        await Promise.all([
+          logComplianceEvent({
+            userId: user.id,
+            role: ROLES.PLAYER,
+            eventType: "policy_acceptance",
+            policyVersion: LEGAL_POLICY_VERSIONS.terms,
+            ipAddress,
+            metadata: {
+              teamId: team.id,
+              terms: compliancePayload.terms,
+              privacy: compliancePayload.privacy,
+              acceptableUse: compliancePayload.acceptableUse,
+            },
+          }),
+          logComplianceEvent({
+            userId: user.id,
+            role: ROLES.PLAYER,
+            eventType: "ai_acknowledgement",
+            policyVersion: LEGAL_POLICY_VERSIONS.aiAcknowledgement,
+            ipAddress,
+            metadata: {
+              teamId: team.id,
+              aiAcknowledgement: compliancePayload.aiAcknowledgement,
+            },
+          }),
+          logComplianceEvent({
+            userId: user.id,
+            role: ROLES.PLAYER,
+            eventType: "minor_parental_consent_asserted",
+            policyVersion: LEGAL_POLICY_VERSIONS.privacy,
+            ipAddress,
+            metadata: {
+              teamId: team.id,
+              parentEmail: parentEmail.trim().toLowerCase(),
+              playerAge: Number(playerAge),
+              token: consentToken,
+            },
+          }),
+        ])
+
+        // Use a verification route as the sole activation path for minors.
+        const verificationLink = `${new URL(request.url).origin}/api/compliance/minor-consent/verify?token=${consentToken}`
+        console.info(`Minor consent verification email should be sent to ${parentEmail}: ${verificationLink}`)
+
+        return NextResponse.json({
+          success: true,
+          consentVerificationRequired: true,
+          message: "Parent/guardian verification is required before this player account can be activated.",
+        })
+      }
+
+      const user = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            name,
+            email,
+            password: hashedPassword,
+            complianceMetadata,
+          },
+        })
+
+        await tx.membership.create({
+          data: {
+            userId: user.id,
+            teamId: team.id,
+            role: roleConstant,
+          },
+        })
+
+        return user
       })
 
+      createdUserId = user.id
+      createdUserEmail = user.email
+      createdUserName = user.name
+
       const supabaseSync = await syncToSupabase(roleConstant, team.id)
+
+      await Promise.all([
+        logComplianceEvent({
+          userId: user.id,
+          role: roleConstant,
+          eventType: "policy_acceptance",
+          policyVersion: LEGAL_POLICY_VERSIONS.terms,
+          ipAddress,
+          metadata: {
+            teamId: team.id,
+            terms: compliancePayload.terms,
+            privacy: compliancePayload.privacy,
+            acceptableUse: compliancePayload.acceptableUse,
+          },
+        }),
+        logComplianceEvent({
+          userId: user.id,
+          role: roleConstant,
+          eventType: "ai_acknowledgement",
+          policyVersion: LEGAL_POLICY_VERSIONS.aiAcknowledgement,
+          ipAddress,
+          metadata: {
+            teamId: team.id,
+            aiAcknowledgement: compliancePayload.aiAcknowledgement,
+          },
+        }),
+      ])
 
       // Return user data
       return NextResponse.json({ 

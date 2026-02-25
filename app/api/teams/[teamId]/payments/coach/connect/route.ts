@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getUserMembership } from "@/lib/rbac"
+import { LEGAL_POLICY_VERSIONS } from "@/lib/compliance-config"
+import { logComplianceEvent } from "@/lib/compliance-log"
+import { getRequestIp } from "@/lib/request-ip"
 
 // POST /api/teams/[teamId]/payments/coach/connect
 // This initiates the connection flow for a payment provider (e.g., Stripe Connect)
@@ -31,10 +34,16 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { provider } = body
+    const { provider, paymentAckAccepted, paymentAckVersion } = body
 
     if (!provider) {
       return NextResponse.json({ error: "Provider is required" }, { status: 400 })
+    }
+    if (!paymentAckAccepted) {
+      return NextResponse.json(
+        { error: "Payment activation acknowledgment is required" },
+        { status: 400 }
+      )
     }
 
     // Check if account already exists
@@ -72,6 +81,18 @@ export async function POST(
     // In production, you would return a Stripe Connect onboarding URL here
     // For now, return a mock onboarding URL
     const onboardingUrl = `/dashboard/payments/coach/complete?accountId=${account.id}`
+
+    await logComplianceEvent({
+      userId: session.user.id,
+      role: membership.role,
+      eventType: "payment_activation_acknowledgement",
+      policyVersion: paymentAckVersion || LEGAL_POLICY_VERSIONS.paymentAcknowledgement,
+      ipAddress: getRequestIp(request),
+      metadata: {
+        provider,
+        teamId,
+      },
+    })
 
     return NextResponse.json({
       account,

@@ -30,6 +30,7 @@ type UpdateSupabaseUserByAppUserIdParams = {
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
 
 export function getSupabaseAdminClient() {
   if (!supabaseUrl || !supabaseServiceRoleKey) {
@@ -42,6 +43,51 @@ export function getSupabaseAdminClient() {
       persistSession: false,
     },
   })
+}
+
+function getSupabasePublicClient() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+}
+
+export async function verifySupabaseCredentials(email: string, password: string) {
+  const supabase = getSupabasePublicClient()
+
+  if (!supabase) {
+    return {
+      verified: false,
+      reason: "SUPABASE_URL or SUPABASE_ANON_KEY is not configured",
+    }
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (error || !data.user) {
+    return {
+      verified: false,
+      reason: error?.message || "Invalid Supabase credentials",
+    }
+  }
+
+  // We only need credential verification and metadata, not a persisted Supabase session.
+  await supabase.auth.signOut()
+
+  return {
+    verified: true,
+    supabaseUserId: data.user.id,
+    userMetadata: (data.user.user_metadata || {}) as Record<string, unknown>,
+  }
 }
 
 async function findSupabaseUserByEmail(email: string): Promise<User | null> {

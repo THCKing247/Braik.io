@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { ScrollReveal } from "@/components/scroll-reveal"
 import { SectionDivider } from "@/components/section-divider"
+import { HeroShatterCta } from "@/components/hero-shatter-cta"
 
 export default function Home() {
   const heroValuePills = [
@@ -53,11 +54,7 @@ export default function Home() {
             
             <ScrollReveal delay={100}>
               <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-                <Link href="/signup/role">
-                  <Button size="lg" className="text-base px-10 py-6 w-full sm:w-auto">
-                    Braik into your season
-                  </Button>
-                </Link>
+                <HeroShatterCta size="lg" className="text-base px-10 py-6 w-full sm:w-auto" />
                 <Link href="/pricing">
                   <Button
                     size="lg"
@@ -368,11 +365,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="pt-8">
-                  <Link href="/signup/role">
-                    <Button size="lg" className="text-base px-10 py-6">
-                      Braik into your season
-                    </Button>
-                  </Link>
+                  <HeroShatterCta size="lg" className="text-base px-10 py-6" />
                 </div>
               </div>
             </ScrollReveal>

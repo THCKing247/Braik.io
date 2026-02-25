@@ -95,22 +95,18 @@ export default function FeaturesPage() {
   ]
 
   return (
-    <div className="min-h-screen text-[#FFFFFF] bg-[#64748B]">
+    <div className="min-h-screen bg-white">
       <SiteHeader />
       
       {/* Features */}
-      <section 
-        className="relative min-h-screen bg-cover bg-no-repeat"
-        style={{
-          backgroundImage: 'url(/hero-background.jpg)',
-          backgroundPosition: 'center 60%',
-        }}
-      >
-        {/* Left-to-right gradient scrim */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#64748B]/70 via-[#64748B]/50 to-[#64748B]/30"></div>
+      <section className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#F8FAFC] via-white to-white">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/10 blur-3xl" />
+          <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#60A5FA]/10 blur-3xl" />
+        </div>
         
         <div className="container mx-auto px-4 py-20 relative z-10">
-          <h2 className="text-3xl font-athletic font-bold text-center mb-16 text-[#FFFFFF] uppercase tracking-wide drop-shadow-lg">
+          <h2 className="text-4xl md:text-5xl font-athletic font-bold text-center mb-16 text-[#212529] uppercase tracking-tight">
             Everything your team needs
           </h2>
           <div className="max-w-5xl mx-auto space-y-8">
@@ -120,12 +116,18 @@ export default function FeaturesPage() {
                 ref={(el) => {
                   featureRefs.current[index] = el
                 }}
-                className={`p-10 bg-[#1e3a5f] rounded-xl border-2 border-[#1e3a5f] text-[#FFFFFF] transition-all duration-1000 ease-out ${
+                className={`p-10 rounded-[14px] relative overflow-hidden transition-all duration-1000 ease-out ${
                   visibleFeatures.has(index)
                     ? "opacity-100 translate-y-0"
                     : "opacity-0 translate-y-6"
                 }`}
+                style={{
+                  backgroundColor: "rgba(28, 28, 28, 0.9)",
+                  backdropFilter: "blur(6px)",
+                  boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                }}
               >
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
                 <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase">
                   {feature.emoji} {feature.title}
                 </h3>

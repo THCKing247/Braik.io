@@ -10,7 +10,9 @@ Use this checklist before and after every production push.
 - Confirm required env vars exist in `.env.local`:
   - `DATABASE_URL`
   - `NEXTAUTH_SECRET`
+  - `NEXTAUTH_URL`
   - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY`
 
 ## 2) Auth and account integration checks
@@ -47,7 +49,9 @@ Use this checklist before and after every production push.
 - Verify Netlify environment variables:
   - `DATABASE_URL`
   - `NEXTAUTH_SECRET`
+  - `NEXTAUTH_URL`
   - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY`
 - Smoke-test production routes:
   - `/login`

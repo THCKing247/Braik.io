@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { CreditCard, CheckCircle, XCircle } from "lucide-react"
+import { LEGAL_POLICY_VERSIONS } from "@/lib/compliance-config"
 
 interface CardIntegrationSettingsProps {
   teamId: string
@@ -20,6 +21,8 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
   const [loading, setLoading] = useState(false)
   const [account, setAccount] = useState<PaymentAccount | null>(null)
   const [showConnectForm, setShowConnectForm] = useState(false)
+  const [showPaymentAckModal, setShowPaymentAckModal] = useState(false)
+  const [paymentAckAccepted, setPaymentAckAccepted] = useState(false)
 
   useEffect(() => {
     loadAccountStatus()
@@ -48,7 +51,11 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
       const response = await fetch(`/api/teams/${teamId}/payments/coach/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "stripe" }),
+        body: JSON.stringify({
+          provider: "stripe",
+          paymentAckAccepted: true,
+          paymentAckVersion: LEGAL_POLICY_VERSIONS.paymentAcknowledgement,
+        }),
       })
 
       if (!response.ok) {
@@ -120,7 +127,12 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
                     complete the onboarding.
                   </p>
                   <div className="flex gap-2">
-                    <Button onClick={handleConnect} disabled={loading}>
+                    <Button
+                      onClick={() => {
+                        setShowPaymentAckModal(true)
+                      }}
+                      disabled={loading}
+                    >
                       {loading ? "Connecting..." : "Connect Stripe Account"}
                     </Button>
                     <Button
@@ -138,6 +150,59 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
           )}
         </CardContent>
       </Card>
+
+      {showPaymentAckModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              setShowPaymentAckModal(false)
+            }}
+            aria-label="Close dues acknowledgment modal"
+          />
+          <div className="relative w-full max-w-xl rounded-xl border border-[#E5E7EB] bg-white p-6">
+            <h3 className="text-2xl font-athletic font-semibold text-[#212529] uppercase tracking-wide">
+              Enable Dues Collection
+            </h3>
+            <p className="mt-3 text-sm text-[#495057]">
+              Before enabling payment features, confirm payment handling acknowledgement.
+            </p>
+            <label className="mt-4 flex items-start gap-2 text-sm text-[#212529]">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={paymentAckAccepted}
+                onChange={(e) => setPaymentAckAccepted(e.target.checked)}
+              />
+              <span>
+                I understand that payments are processed through a third-party provider and that Braik does not directly store full card data.
+              </span>
+            </label>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowPaymentAckModal(false)
+                  setPaymentAckAccepted(false)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!paymentAckAccepted || loading}
+                onClick={async () => {
+                  await handleConnect()
+                  setShowPaymentAckModal(false)
+                  setPaymentAckAccepted(false)
+                }}
+              >
+                Confirm and Continue
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

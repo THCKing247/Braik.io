@@ -36,6 +36,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${teko.variable} ${oswald.variable} font-sans`}>
+        <div className="bg-[#DC2626] text-white text-center text-xs md:text-sm font-medium py-2 px-4">
+          Site Is Currently Under Development - Braik Version 1.0.0 Coming Soon
+        </div>
         <Providers>{children}</Providers>
       </body>
     </html>

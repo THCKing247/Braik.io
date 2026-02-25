@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { SiteHeader } from "@/components/site-header"
+import { LEGAL_POLICY_REVIEW_KEYS, LEGAL_POLICY_VERSIONS } from "@/lib/compliance-config"
 
 export default function SignupPage() {
   const router = useRouter()
@@ -20,6 +21,13 @@ export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [playerAge, setPlayerAge] = useState("")
+  const [parentEmail, setParentEmail] = useState("")
+  const [acceptTerms, setAcceptTerms] = useState(false)
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false)
+  const [acceptAcceptableUse, setAcceptAcceptableUse] = useState(false)
+  const [acceptAiAcknowledgement, setAcceptAiAcknowledgement] = useState(false)
+  const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
 
   const withErrorCode = (code: string, message: string) => `[${code}] ${message}`
 
@@ -36,6 +44,13 @@ export default function SignupPage() {
       setFirstName(data.firstName || "")
       setLastName(data.lastName || "")
       setEmail(data.email || "")
+      setPlayerAge(data.playerAge || "")
+      setParentEmail(data.parentEmail || "")
+      setAcceptTerms(Boolean(data?.compliance?.terms?.acceptedAt))
+      setAcceptPrivacy(Boolean(data?.compliance?.privacy?.acceptedAt))
+      setAcceptAcceptableUse(Boolean(data?.compliance?.acceptableUse?.acceptedAt))
+      setAcceptAiAcknowledgement(Boolean(data?.compliance?.aiAcknowledgement?.acceptedAt))
+      setConfirmMinorConsent(Boolean(data?.compliance?.minorParentalConsent?.acceptedAt))
     } else {
       // If no role selected, redirect to role selection
       router.push("/signup/role")
@@ -80,6 +95,41 @@ export default function SignupPage() {
       return
     }
 
+    const reviewedTerms = localStorage.getItem(LEGAL_POLICY_REVIEW_KEYS.terms)
+    const reviewedPrivacy = localStorage.getItem(LEGAL_POLICY_REVIEW_KEYS.privacy)
+    const reviewedAup = localStorage.getItem(LEGAL_POLICY_REVIEW_KEYS.acceptableUse)
+
+    if (!acceptTerms || !reviewedTerms) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-001", "Review and accept the Terms of Service before continuing."))
+      return
+    }
+    if (!acceptPrivacy || !reviewedPrivacy) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-002", "Review and accept the Privacy Policy before continuing."))
+      return
+    }
+    if (!acceptAcceptableUse || !reviewedAup) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-003", "Review and accept the Acceptable Use Policy before continuing."))
+      return
+    }
+    if (!acceptAiAcknowledgement) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-004", "You must acknowledge AI-assisted tools before continuing."))
+      return
+    }
+
+    const isMinorPlayer = role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18
+    if (role === "player" && !playerAge) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-005", "Player age is required for youth protection compliance."))
+      return
+    }
+    if (isMinorPlayer && !confirmMinorConsent) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-006", "Parental/guardian consent confirmation is required for minor players."))
+      return
+    }
+    if (isMinorPlayer && !parentEmail.trim()) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-007", "Parent/guardian email is required for minor verification."))
+      return
+    }
+
     // Save to localStorage
     const saved = localStorage.getItem("signupData")
     const signupData = saved ? JSON.parse(saved) : {}
@@ -88,6 +138,34 @@ export default function SignupPage() {
     signupData.email = email
     signupData.password = password
     signupData.role = role
+    signupData.playerAge = playerAge
+    signupData.parentEmail = parentEmail
+    signupData.compliance = {
+      terms: {
+        version: LEGAL_POLICY_VERSIONS.terms,
+        acceptedAt: new Date().toISOString(),
+      },
+      privacy: {
+        version: LEGAL_POLICY_VERSIONS.privacy,
+        acceptedAt: new Date().toISOString(),
+      },
+      acceptableUse: {
+        version: LEGAL_POLICY_VERSIONS.acceptableUse,
+        acceptedAt: new Date().toISOString(),
+      },
+      aiAcknowledgement: {
+        version: LEGAL_POLICY_VERSIONS.aiAcknowledgement,
+        acceptedAt: new Date().toISOString(),
+      },
+      minorParentalConsent: isMinorPlayer
+        ? {
+            version: LEGAL_POLICY_VERSIONS.privacy,
+            acceptedAt: new Date().toISOString(),
+            parentEmail: parentEmail.trim(),
+            playerAge: Number(playerAge),
+          }
+        : null,
+    }
     if (teamId) {
       signupData.teamId = teamId
     }
@@ -196,6 +274,38 @@ export default function SignupPage() {
                   />
                 </div>
 
+                {role === "player" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="playerAge" className="text-sm font-medium text-[#495057]">Player Age *</Label>
+                    <Input
+                      id="playerAge"
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={playerAge}
+                      onChange={(e) => setPlayerAge(e.target.value)}
+                      className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                      placeholder="Enter player age"
+                      required
+                    />
+                  </div>
+                )}
+
+                {role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="parentEmail" className="text-sm font-medium text-[#495057]">Parent/Guardian Email *</Label>
+                    <Input
+                      id="parentEmail"
+                      type="email"
+                      value={parentEmail}
+                      onChange={(e) => setParentEmail(e.target.value)}
+                      className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                      placeholder="parent.guardian@example.com"
+                      required
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-sm font-medium text-[#495057]">Password *</Label>
                   <Input
@@ -224,6 +334,82 @@ export default function SignupPage() {
                     required
                   />
                 </div>
+              </div>
+
+              <div className="space-y-3 border-t border-[#E5E7EB] pt-4">
+                <p className="text-sm font-medium text-[#212529]">Required Legal Acknowledgments</p>
+                <label className="flex items-start gap-2 text-sm text-[#495057]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={acceptTerms}
+                    onChange={(e) => setAcceptTerms(e.target.checked)}
+                  />
+                  <span>
+                    I agree to the{" "}
+                    <Link href="/terms" target="_blank" className="text-[#3B82F6] hover:underline">
+                      Terms of Service
+                    </Link>
+                    .
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-[#495057]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={acceptPrivacy}
+                    onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                  />
+                  <span>
+                    I agree to the{" "}
+                    <Link href="/privacy" target="_blank" className="text-[#3B82F6] hover:underline">
+                      Privacy Policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-[#495057]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={acceptAcceptableUse}
+                    onChange={(e) => setAcceptAcceptableUse(e.target.checked)}
+                  />
+                  <span>
+                    I agree to the{" "}
+                    <Link href="/acceptable-use" target="_blank" className="text-[#3B82F6] hover:underline">
+                      Acceptable Use Policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-[#495057]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={acceptAiAcknowledgement}
+                    onChange={(e) => setAcceptAiAcknowledgement(e.target.checked)}
+                  />
+                  <span>
+                    I understand that Braik includes AI-powered tools and that AI-generated outputs must be reviewed before implementation.
+                  </span>
+                </label>
+                {role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18 && (
+                  <label className="flex items-start gap-2 text-sm text-[#495057]">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={confirmMinorConsent}
+                      onChange={(e) => setConfirmMinorConsent(e.target.checked)}
+                    />
+                    <span>
+                      I confirm that parental or legal guardian consent has been obtained for this minor&apos;s participation.
+                    </span>
+                  </label>
+                )}
+                <p className="text-xs text-[#6c757d]">
+                  Open each policy and scroll through it once to enable acceptance tracking.
+                </p>
               </div>
 
               {/* Social Login Options */}

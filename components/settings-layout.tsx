@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, Settings2 } from "lucide-react"
+import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, ShieldCheck } from "lucide-react"
 import { AccountSettings } from "./settings-sections/account-settings"
 import { TeamSettingsSection } from "./settings-sections/team-settings-section"
 import { SeasonSettings } from "./settings-sections/season-settings"
@@ -10,6 +10,7 @@ import { PermissionsSettings } from "./settings-sections/permissions-settings"
 import { CardIntegrationSettings } from "./settings-sections/card-integration-settings"
 import { AppearanceSettings } from "./settings-sections/appearance-settings"
 import { SupportSettings } from "./settings-sections/support-settings"
+import { ComplianceLegalSettings } from "./settings-sections/compliance-legal-settings"
 
 interface User {
   id: string
@@ -53,6 +54,7 @@ type SettingsSection =
   | "cardIntegration"
   | "appearance"
   | "support"
+  | "compliance"
 
 interface SettingsLayoutProps {
   user: User
@@ -73,6 +75,7 @@ const SETTINGS_SECTIONS: Array<{
   { id: "permissions", label: "Permissions", icon: Lock, visible: (role) => role === "HEAD_COACH" },
   { id: "cardIntegration", label: "Card Integration", icon: CreditCard, visible: (role) => role === "HEAD_COACH" },
   { id: "appearance", label: "Appearance", icon: Palette, visible: () => true },
+  { id: "compliance", label: "Compliance & Legal", icon: ShieldCheck, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
   { id: "support", label: "Support", icon: HelpCircle, visible: () => true },
 ]
 
@@ -101,6 +104,8 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
         return <AppearanceSettings />
       case "support":
         return <SupportSettings />
+      case "compliance":
+        return <ComplianceLegalSettings teamId={team.id} userRole={userRole} />
       default:
         return <AccountSettings user={user} />
     }

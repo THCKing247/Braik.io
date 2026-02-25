@@ -1,12 +1,25 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { SiteHeader } from "@/components/site-header"
 
 export default function RoleSelectionPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [showCard, setShowCard] = useState(false)
+
+  useEffect(() => {
+    const fromHero = searchParams.get("fromHero") === "1"
+    if (!fromHero) {
+      setShowCard(true)
+      return
+    }
+    const id = requestAnimationFrame(() => setShowCard(true))
+    return () => cancelAnimationFrame(id)
+  }, [searchParams])
 
   const handleRoleSelect = (roleValue: string) => {
     // Save role to localStorage
@@ -45,7 +58,11 @@ export default function RoleSelectionPage() {
       <SiteHeader />
       <section className="relative min-h-screen flex items-center justify-center px-4 py-24 md:py-32">
         <div className="container mx-auto">
-          <div className="w-full max-w-3xl mx-auto p-10 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+          <div
+            className={`w-full max-w-3xl mx-auto p-10 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm transition-all duration-500 ease-out ${
+              showCard ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            }`}
+          >
             <div className="mb-8">
               <h2 className="text-3xl md:text-4xl font-athletic font-bold text-center mb-2 text-[#212529] uppercase tracking-tight">
                 Choose Your Role

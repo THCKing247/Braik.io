@@ -10,6 +10,8 @@ type SignupApiError = {
   error?: string
   code?: string
   details?: string
+  consentVerificationRequired?: boolean
+  message?: string
 }
 
 export default function CompleteSignupPage() {
@@ -62,6 +64,9 @@ export default function CompleteSignupPage() {
           password: signupData.password,
           role: signupData.role,
           teamId: signupData.teamId,
+          playerAge: signupData.playerAge,
+          parentEmail: signupData.parentEmail,
+          compliance: signupData.compliance,
         }),
       })
 
@@ -69,6 +74,13 @@ export default function CompleteSignupPage() {
 
       if (!response.ok) {
         setError(getApiErrorMessage(response.status, data))
+        setLoading(false)
+        return
+      }
+
+      if (data.consentVerificationRequired) {
+        localStorage.removeItem("signupData")
+        setError(`[SIGNUP-CONSENT-202] ${data.message || "Parental consent verification is required before account activation."}`)
         setLoading(false)
         return
       }

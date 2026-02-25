@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "./prisma"
 import bcrypt from "bcryptjs"
+import { verifySupabaseCredentials } from "./supabase-admin"
 
 function normalizePositionGroups(value: unknown): string[] | null {
   if (!Array.isArray(value)) {
@@ -12,7 +13,7 @@ function normalizePositionGroups(value: unknown): string[] | null {
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -27,8 +28,12 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+          const isAdminLogin = credentials.adminLogin === "true"
+          const email = credentials.email.trim().toLowerCase()
+          const submittedPassword = credentials.password
+
+          let user = await prisma.user.findUnique({
+            where: { email },
             select: {
               id: true,
               email: true,
@@ -38,19 +43,86 @@ export const authOptions: NextAuthOptions = {
             }
           })
 
-          if (!user || !user.password) {
+          let supabaseMetadata: Record<string, unknown> | null = null
+          let verified = false
+
+          if (user?.password) {
+            verified = await bcrypt.compare(submittedPassword, user.password)
+          }
+
+          if (!verified) {
+            const supabaseResult = await verifySupabaseCredentials(email, submittedPassword)
+            if (!supabaseResult.verified) {
+              return null
+            }
+
+            verified = true
+            supabaseMetadata = supabaseResult.userMetadata ?? null
+
+            if (!user && typeof supabaseMetadata?.appUserId === "string") {
+              user = await prisma.user.findUnique({
+                where: { id: supabaseMetadata.appUserId },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  password: true,
+                  isPlatformOwner: true,
+                },
+              })
+            }
+
+            if (!user) {
+              const displayName = typeof supabaseMetadata?.displayName === "string" ? supabaseMetadata.displayName : null
+              const isPlatformOwnerFromMetadata = supabaseMetadata?.isPlatformOwner === true
+              const hashedPassword = await bcrypt.hash(submittedPassword, 10)
+
+              user = await prisma.user.create({
+                data: {
+                  email,
+                  name: displayName,
+                  password: hashedPassword,
+                  isPlatformOwner: isPlatformOwnerFromMetadata,
+                },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  password: true,
+                  isPlatformOwner: true,
+                },
+              })
+            } else if (!user.password) {
+              const hashedPassword = await bcrypt.hash(submittedPassword, 10)
+              user = await prisma.user.update({
+                where: { id: user.id },
+                data: { password: hashedPassword },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  password: true,
+                  isPlatformOwner: true,
+                },
+              })
+            }
+          }
+
+          if (!user || !verified) {
             return null
           }
 
-          const isValid = await bcrypt.compare(credentials.password, user.password)
+          const metadataPlatformOwner = supabaseMetadata?.isPlatformOwner === true
+          const effectivePlatformOwner = !!user.isPlatformOwner || metadataPlatformOwner
 
-          if (!isValid) {
-            return null
+          if (metadataPlatformOwner && !user.isPlatformOwner) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { isPlatformOwner: true },
+            })
           }
 
-          const isAdminLogin = credentials.adminLogin === "true"
-
-          if (isAdminLogin && !user.isPlatformOwner) {
+          if (isAdminLogin && !effectivePlatformOwner) {
             return null
           }
 
@@ -70,9 +142,15 @@ export const authOptions: NextAuthOptions = {
           })
 
           if (!membership) {
-            if (!user.isPlatformOwner) {
-              // Return null instead of throwing - NextAuth will handle the error
-              return null
+            if (!effectivePlatformOwner) {
+              // Allow sign-in for accounts missing a membership so onboarding/recovery can proceed.
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: "UNASSIGNED",
+                isPlatformOwner: effectivePlatformOwner,
+              }
             }
 
             // Platform Owners can sign in without team membership for admin support access.
@@ -81,7 +159,7 @@ export const authOptions: NextAuthOptions = {
               email: user.email,
               name: user.name,
               role: "PLATFORM_OWNER",
-              isPlatformOwner: true,
+              isPlatformOwner: effectivePlatformOwner,
             }
           }
 
@@ -94,7 +172,7 @@ export const authOptions: NextAuthOptions = {
             teamName: membership.team.name,
             organizationName: membership.team.organization.name,
             positionGroups: normalizePositionGroups(membership.positionGroups),
-            isPlatformOwner: user.isPlatformOwner || false,
+            isPlatformOwner: effectivePlatformOwner,
           }
         } catch (error: any) {
           console.error("Auth error:", error)

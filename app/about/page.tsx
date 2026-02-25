@@ -3,25 +3,29 @@ import { SiteFooter } from "@/components/site-footer"
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen text-[#FFFFFF] bg-[#64748B]">
+    <div className="min-h-screen bg-white">
       <SiteHeader />
       
-      <section 
-        className="relative min-h-screen bg-cover bg-no-repeat"
-        style={{
-          backgroundImage: 'url(/hero-background.jpg)',
-          backgroundPosition: 'center 60%',
-        }}
-      >
-        {/* Left-to-right gradient scrim */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#64748B]/70 via-[#64748B]/50 to-[#64748B]/30"></div>
+      <section className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#F8FAFC] via-white to-white">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/10 blur-3xl" />
+          <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#60A5FA]/10 blur-3xl" />
+        </div>
         
         <div className="container mx-auto px-4 py-20 relative z-10">
-          <h2 className="text-3xl font-athletic font-bold text-center mb-12 text-[#FFFFFF] uppercase tracking-wide drop-shadow-lg">
+          <h2 className="text-4xl md:text-5xl font-athletic font-bold text-center mb-12 text-[#212529] uppercase tracking-tight">
             ABOUT BRAIK
           </h2>
           <div className="max-w-4xl mx-auto">
-            <div className="p-10 bg-[#1e3a5f] rounded-xl border-2 border-[#1e3a5f] text-[#FFFFFF] space-y-8">
+            <div
+              className="p-10 rounded-[14px] relative overflow-hidden text-[#FFFFFF] space-y-8"
+              style={{
+                backgroundColor: "rgba(28, 28, 28, 0.9)",
+                backdropFilter: "blur(6px)",
+                boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+              }}
+            >
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
               <div>
                 <p className="text-xl font-semibold text-[#FFFFFF] mb-6 leading-relaxed text-center">
                   Built for Coaches. Designed to Lighten the Load.

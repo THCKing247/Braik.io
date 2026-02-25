@@ -10,6 +10,8 @@ type SignupApiError = {
   code?: string
   details?: string
   teamIdCode?: string
+  consentVerificationRequired?: boolean
+  message?: string
 }
 
 export default function PaymentPage() {
@@ -51,13 +53,15 @@ export default function PaymentPage() {
           name: `${signupData.firstName} ${signupData.lastName}`,
           email: signupData.email, 
           password: signupData.password,
+          role: signupData.role,
           sportType: signupData.sportType,
           programType: signupData.programType,
           schoolName: signupData.programType !== "youth" ? signupData.schoolName : null,
           city: signupData.programType === "youth" ? signupData.city : null,
           teamName: signupData.teamName,
           primaryColor: signupData.primaryColor,
-          secondaryColor: signupData.secondaryColor
+          secondaryColor: signupData.secondaryColor,
+          compliance: signupData.compliance,
         }),
       })
 
@@ -65,6 +69,13 @@ export default function PaymentPage() {
 
       if (!response.ok) {
         setError(getApiErrorMessage(response.status, data))
+        setLoading(false)
+        return
+      }
+
+      if (data.consentVerificationRequired) {
+        localStorage.removeItem("signupData")
+        setError(`[SIGNUP-CONSENT-202] ${data.message || "Parental consent verification is required before account activation."}`)
         setLoading(false)
         return
       }

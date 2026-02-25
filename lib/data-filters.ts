@@ -93,8 +93,14 @@ export async function buildPlayerFilter(
         in: positionGroups,
       },
     }
+  } else if (role === "PLAYER") {
+    // Players can only access their own record.
+    return {
+      ...baseFilter,
+      userId,
+    }
   }
 
-  // HEAD_COACH and PLAYER see all players (or their own data)
+  // HEAD_COACH sees all players.
   return baseFilter
 }

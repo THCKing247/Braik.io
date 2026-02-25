@@ -29,8 +29,8 @@ export default async function InvoicePage() {
     redirect("/onboarding")
   }
 
-  // Only head coach, assistant coach, and parents can access invoice
-  if (!["HEAD_COACH", "ASSISTANT_COACH", "PARENT"].includes(userRole || "")) {
+  // Head Coach can configure; Players/Parents can pay dues.
+  if (!["HEAD_COACH", "PLAYER", "PARENT"].includes(userRole || "")) {
     redirect("/dashboard")
   }
 

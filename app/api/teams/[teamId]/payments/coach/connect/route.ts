@@ -6,6 +6,7 @@ import { getUserMembership } from "@/lib/rbac"
 import { LEGAL_POLICY_VERSIONS } from "@/lib/compliance-config"
 import { logComplianceEvent } from "@/lib/compliance-log"
 import { getRequestIp } from "@/lib/request-ip"
+import { getActiveImpersonationFromToken, getSupportTokenFromRequestCookieHeader } from "@/lib/impersonation"
 
 // POST /api/teams/[teamId]/payments/coach/connect
 // This initiates the connection flow for a payment provider (e.g., Stripe Connect)
@@ -20,6 +21,15 @@ export async function POST(
     }
 
     const { teamId } = params
+    const supportToken = getSupportTokenFromRequestCookieHeader(request.headers.get("cookie"))
+    const impersonation = await getActiveImpersonationFromToken(supportToken)
+    if (impersonation) {
+      return NextResponse.json(
+        { error: "Bank/payout changes are blocked during support impersonation sessions" },
+        { status: 403 }
+      )
+    }
+
     const membership = await getUserMembership(teamId)
     if (!membership) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })

@@ -8,6 +8,7 @@ interface HeroShatterCtaProps {
   className?: string
   size?: "default" | "sm" | "lg" | "icon"
   label?: string
+  onAnimationStart?: () => void
 }
 
 type Shard = {
@@ -28,6 +29,7 @@ export function HeroShatterCta({
   className = "",
   size = "lg",
   label = "Braik into your season",
+  onAnimationStart,
 }: HeroShatterCtaProps) {
   const router = useRouter()
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -137,6 +139,7 @@ export function HeroShatterCta({
 
   const handleClick = () => {
     if (isAnimating) return
+    onAnimationStart?.()
     setIsAnimating(true)
 
     if (reducedMotion) {

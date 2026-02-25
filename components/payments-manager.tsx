@@ -40,8 +40,8 @@ interface PaymentsManagerProps {
 }
 
 export function PaymentsManager({ team, players, membership, currentUserId }: PaymentsManagerProps) {
-  const canViewPayments = membership.role === "HEAD_COACH" || membership.role === "ASSISTANT_COACH"
-  const canPay = membership.role === "PARENT"
+  const canViewPayments = membership.role === "HEAD_COACH"
+  const canPay = membership.role === "PARENT" || membership.role === "PLAYER"
   const canMarkPaid = membership.role === "HEAD_COACH"
 
   const handlePay = async (playerId: string) => {
@@ -176,7 +176,7 @@ export function PaymentsManager({ team, players, membership, currentUserId }: Pa
                         </span>
                       </div>
                     )}
-                    {canPay && needsPayment && player.guardianLinks.length > 0 && (
+                    {canPay && needsPayment && (membership.role === "PLAYER" || player.guardianLinks.length > 0) && (
                       <Button 
                         onClick={() => handlePay(player.id)}
                         style={{

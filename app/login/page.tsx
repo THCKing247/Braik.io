@@ -4,7 +4,6 @@ import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { HeroLoginForm } from "@/components/hero-login-form"
 import { ScrollReveal } from "@/components/scroll-reveal"
-import Link from "next/link"
 
 export default function LoginPage() {
   return (
@@ -21,12 +20,6 @@ export default function LoginPage() {
                 </h1>
                 <p className="text-lg text-[#495057]">
                   Sign in to your Braik account
-                </p>
-                <p className="text-sm text-[#6B7280] mt-3">
-                  Platform support team?{" "}
-                  <Link href="/admin/login" className="text-[#1e3a5f] underline underline-offset-4">
-                    Use admin login
-                  </Link>
                 </p>
               </div>
               <HeroLoginForm />

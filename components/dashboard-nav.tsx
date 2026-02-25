@@ -37,7 +37,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
     isPlatformOwnerOnly?: boolean
   }> = [
     { href: "/dashboard", label: "Dashboard", roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"] },
-    { href: "/dashboard/invoice", label: "Invoice", roles: ["HEAD_COACH", "ASSISTANT_COACH", "PARENT"] },
+    { href: "/dashboard/invoice", label: "Invoice", roles: ["HEAD_COACH", "PLAYER", "PARENT"] },
     { href: "/dashboard/settings", label: "Settings", roles: ["HEAD_COACH"] },
     { href: "/dashboard/admin", label: "Admin", isPlatformOwnerOnly: true },
   ]

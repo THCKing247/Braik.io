@@ -28,6 +28,10 @@ export default async function PaymentsPage() {
     redirect("/onboarding")
   }
 
+  if (!["HEAD_COACH", "PLAYER", "PARENT"].includes(userRole)) {
+    redirect("/dashboard")
+  }
+
   // Build filter based on role - parents only see their children, assistant coaches see their position groups
   const playerFilter = await buildPlayerFilter(
     session.user.id,
@@ -73,7 +77,7 @@ export default async function PaymentsPage() {
       </div>
 
       {/* Coach-Collected Payments */}
-      {(isHeadCoach || userRole === "ASSISTANT_COACH" || userRole === "PARENT") && (
+      {isHeadCoach && (
         <div>
           <h2 className="text-2xl font-semibold mb-4" style={{ color: "#111827" }}>Coach-Collected Payments</h2>
           <p className="text-sm mb-4" style={{ color: "#6B7280" }}>

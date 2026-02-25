@@ -14,8 +14,8 @@ export default async function SettingsPage() {
   const userRole = session.user.role
   const teamId = session.user.teamId
 
-  // Head coach and assistant coach can access settings; assistant visibility is section-limited client-side.
-  if (!["HEAD_COACH", "ASSISTANT_COACH"].includes(userRole)) {
+  // Team settings are Head Coach only.
+  if (userRole !== "HEAD_COACH") {
     redirect("/dashboard")
   }
 

@@ -6,6 +6,8 @@ import { requireBillingPermission } from "@/lib/billing-state"
 import { createNotifications } from "@/lib/notifications"
 import { logMessageSent, logPermissionDenial } from "@/lib/structured-logger"
 import { getUserMembership } from "@/lib/rbac"
+import { requireTeamServiceWriteAccess } from "@/lib/team-service-status"
+import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
 
 /**
  * POST /api/messages/send
@@ -41,6 +43,8 @@ export async function POST(request: Request) {
 
     // Check billing state - read-only mode blocks messaging
     await requireBillingPermission(thread.teamId, "message", prisma)
+    await requireTeamServiceWriteAccess(thread.teamId, prisma)
+    await auditImpersonatedActionFromRequest(request, "message_send", { teamId: thread.teamId, threadId })
 
     // Check if user is a participant
     const participant = thread.participants.find(

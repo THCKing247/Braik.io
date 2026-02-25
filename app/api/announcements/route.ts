@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireTeamPermission } from "@/lib/rbac"
 import { createNotifications } from "@/lib/notifications"
+import { requireTeamServiceWriteAccess } from "@/lib/team-service-status"
+import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +17,8 @@ export async function POST(request: Request) {
     const { teamId, title, body, audience } = await request.json()
 
     await requireTeamPermission(teamId, "post_announcements")
+    await requireTeamServiceWriteAccess(teamId, prisma)
+    await auditImpersonatedActionFromRequest(request, "announcement_create", { teamId })
 
     const announcement = await prisma.announcement.create({
       data: {

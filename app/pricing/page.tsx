@@ -1,7 +1,15 @@
+"use client"
+
+import { useEffect } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
+import { trackMarketingEvent } from "@/lib/analytics-client"
 
 export default function PricingPage() {
+  useEffect(() => {
+    trackMarketingEvent("viewed_pricing", { source: "pricing_page" })
+  }, [])
+
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />

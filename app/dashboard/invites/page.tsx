@@ -21,9 +21,9 @@ export default async function InvitesPage() {
     redirect("/onboarding")
   }
 
-  // Only head coaches and assistant coaches can manage invites
+  // Invite management is Head Coach only.
   try {
-    await requireTeamPermission(membership.teamId, "edit_roster")
+    await requireTeamPermission(membership.teamId, "manage")
   } catch {
     redirect("/dashboard")
   }

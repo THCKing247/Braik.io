@@ -36,7 +36,7 @@ export function SiteHeader() {
           </Link>
           <Link href="/login">
             <Button size="sm" className="font-athletic uppercase tracking-wide px-5">
-              Login
+              Sign in
             </Button>
           </Link>
         </div>

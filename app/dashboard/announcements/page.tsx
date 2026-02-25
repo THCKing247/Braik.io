@@ -33,7 +33,7 @@ export default async function AnnouncementsPage() {
         <h1 className="text-3xl font-bold mb-2" style={{ color: "#111827" }}>Announcements</h1>
         <p style={{ color: "#6B7280" }}>Team announcements and updates</p>
       </div>
-      <AnnouncementsManager teamId={membership.teamId} announcements={announcements} canPost={membership.role === "HEAD_COACH" || membership.role === "ASSISTANT_COACH"} />
+      <AnnouncementsManager teamId={membership.teamId} announcements={announcements} canPost={membership.role === "HEAD_COACH"} />
     </div>
   )
 }

@@ -1,19 +1,42 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { ScrollReveal } from "@/components/scroll-reveal"
 import { SectionDivider } from "@/components/section-divider"
 import { HeroShatterCta } from "@/components/hero-shatter-cta"
+import { LeadCaptureForm } from "@/components/lead-capture-form"
+import { trackMarketingEvent } from "@/lib/analytics-client"
 
 export default function Home() {
+  const pricingSectionRef = useRef<HTMLElement | null>(null)
   const heroValuePills = [
     "One platform for coaches, players, and families",
     "Built for Varsity + JV program structure",
     "Season-based pricing that stays budgetable",
   ]
+
+  useEffect(() => {
+    if (!pricingSectionRef.current) return
+    const target = pricingSectionRef.current
+    let hasTracked = false
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry?.isIntersecting && !hasTracked) {
+          hasTracked = true
+          trackMarketingEvent("viewed_pricing", { source: "landing_page_section" })
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.45 }
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">
@@ -54,14 +77,33 @@ export default function Home() {
             
             <ScrollReveal delay={100}>
               <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-                <HeroShatterCta size="lg" className="text-base px-10 py-6 w-full sm:w-auto" />
-                <Link href="/pricing">
+                <HeroShatterCta
+                  size="lg"
+                  className="text-base px-10 py-6 w-full sm:w-auto"
+                  onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_hero" })}
+                />
+                <Link
+                  href="/pricing"
+                  onClick={() => trackMarketingEvent("clicked_cta", { cta: "view_pricing_hero" })}
+                >
                   <Button
                     size="lg"
                     variant="outline"
                     className="text-base px-10 py-6 w-full sm:w-auto border-[#3B82F6] text-[#1D4ED8] hover:bg-[#EFF6FF]"
                   >
                     View pricing
+                  </Button>
+                </Link>
+                <Link
+                  href="/#request-demo"
+                  onClick={() => trackMarketingEvent("clicked_cta", { cta: "request_demo_hero" })}
+                >
+                  <Button
+                    size="lg"
+                    variant="ghost"
+                    className="text-base px-10 py-6 w-full sm:w-auto"
+                  >
+                    Request demo
                   </Button>
                 </Link>
               </div>
@@ -156,7 +198,7 @@ export default function Home() {
       <SectionDivider variant="asymmetric" className="opacity-15" />
 
       {/* Built for Real Program Constraints */}
-      <section className="relative py-40 bg-[#F9FAFB]">
+      <section ref={pricingSectionRef} className="relative py-40 bg-[#F9FAFB]">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
@@ -306,6 +348,56 @@ export default function Home() {
       {/* Section Divider */}
       <SectionDivider variant="asymmetric" className="opacity-15" />
 
+      {/* Role-Based Value */}
+      <section className="relative py-32 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto">
+            <ScrollReveal>
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-14">
+                What you get by role
+              </h2>
+            </ScrollReveal>
+            <div className="grid md:grid-cols-2 gap-6">
+              {[
+                {
+                  role: "Head Coach",
+                  details: "Full program oversight, roster and permissions control, collections and operational visibility for Varsity + JV.",
+                },
+                {
+                  role: "Assistant Coach",
+                  details: "Scoped coaching access for schedules, communication, installs, and assigned operational workflows.",
+                },
+                {
+                  role: "Player",
+                  details: "Clear schedule, announcements, documents, and team updates in one place with less confusion.",
+                },
+                {
+                  role: "Parent",
+                  details: "Reliable communication, dues tracking visibility, and the right information without inbox overload.",
+                },
+              ].map((item, index) => (
+                <ScrollReveal key={item.role} delay={index * 50} className="h-full">
+                  <div
+                    className="h-full p-8 rounded-[14px] relative overflow-hidden"
+                    style={{
+                      backgroundColor: "rgba(28, 28, 28, 0.9)",
+                      backdropFilter: "blur(6px)",
+                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                    }}
+                  >
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                    <h3 className="text-2xl font-athletic font-semibold mb-3 text-white uppercase tracking-wide">
+                      {item.role}
+                    </h3>
+                    <p className="text-[#E5E7EB] leading-relaxed">{item.details}</p>
+                  </div>
+                </ScrollReveal>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* AI Assistant (Optional Support) */}
       <section className="relative py-40 bg-[#F9FAFB]">
         <div className="container mx-auto px-4">
@@ -365,8 +457,31 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="pt-8">
-                  <HeroShatterCta size="lg" className="text-base px-10 py-6" />
+                  <HeroShatterCta
+                    size="lg"
+                    className="text-base px-10 py-6"
+                    onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_final" })}
+                  />
                 </div>
+              </div>
+            </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      {/* Request Demo */}
+      <section id="request-demo" className="relative py-32 bg-[#111827]">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <ScrollReveal>
+              <div className="space-y-6">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center">
+                  Request a demo
+                </h2>
+                <p className="text-center text-[#E5E7EB] text-lg">
+                  Share your program details and we will follow up with a tailored Braik walkthrough.
+                </p>
+                <LeadCaptureForm />
               </div>
             </ScrollReveal>
           </div>

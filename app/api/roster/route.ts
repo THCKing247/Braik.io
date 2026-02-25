@@ -6,6 +6,8 @@ import { requireTeamPermission } from "@/lib/rbac"
 import { requireBillingPermission } from "@/lib/billing-state"
 import { randomBytes } from "crypto"
 import { ensureProgramCodes } from "@/lib/program-codes"
+import { requireTeamServiceWriteAccess } from "@/lib/team-service-status"
+import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
 
 export async function POST(request: Request) {
   try {
@@ -17,6 +19,8 @@ export async function POST(request: Request) {
     const { teamId, firstName, lastName, grade, jerseyNumber, positionGroup, email, notes } = await request.json()
 
     await requireTeamPermission(teamId, "edit_roster")
+    await requireTeamServiceWriteAccess(teamId, prisma)
+    await auditImpersonatedActionFromRequest(request, "roster_create", { teamId })
     
     // Check billing state - read-only mode blocks roster modifications
     await requireBillingPermission(teamId, "modify", prisma)

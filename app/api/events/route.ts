@@ -6,6 +6,8 @@ import { requireTeamPermission, getUserMembership } from "@/lib/rbac"
 import { requireBillingPermission } from "@/lib/billing-state"
 import { createNotifications } from "@/lib/notifications"
 import { logEventAction } from "@/lib/structured-logger"
+import { requireTeamServiceWriteAccess } from "@/lib/team-service-status"
+import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
 
 export async function POST(request: Request) {
   try {
@@ -17,6 +19,8 @@ export async function POST(request: Request) {
     const { teamId, type, title, start, end, location, notes, audience } = await request.json()
 
     await requireTeamPermission(teamId, "post_announcements") // Reuse permission for events
+    await requireTeamServiceWriteAccess(teamId, prisma)
+    await auditImpersonatedActionFromRequest(request, "event_create", { teamId })
     
     // Check billing state - read-only mode blocks event creation
     await requireBillingPermission(teamId, "editEvents", prisma)

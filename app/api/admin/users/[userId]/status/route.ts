@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
 import bcrypt from "bcryptjs"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { isPlatformOwner } from "@/lib/platform-owner"
+import { getAdminAccessForApi } from "@/lib/admin-access"
 import { updateSupabaseUserByAppUserId } from "@/lib/supabase-admin"
 
 export async function PATCH(
@@ -11,14 +9,9 @@ export async function PATCH(
   { params }: { params: { userId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const hasAccess = await isPlatformOwner(session.user.id)
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied: Platform Owner only" }, { status: 403 })
+    const access = await getAdminAccessForApi()
+    if (!access.ok) {
+      return access.response
     }
 
     const { active, newPassword } = await request.json()
@@ -26,7 +19,7 @@ export async function PATCH(
       return NextResponse.json({ error: "active (boolean) is required" }, { status: 400 })
     }
 
-    if (!active && params.userId === session.user.id) {
+    if (!active && params.userId === access.context.actorId) {
       return NextResponse.json({ error: "You cannot deactivate your own account" }, { status: 400 })
     }
 
@@ -67,6 +60,7 @@ export async function PATCH(
       where: { id: target.id },
       data: {
         password: active ? hashedPassword : null,
+        status: active ? "ACTIVE" : "DISABLED",
       },
     })
 
@@ -92,7 +86,7 @@ export async function PATCH(
     await prisma.auditLog.create({
       data: {
         teamId: membership?.teamId || null,
-        actorUserId: session.user.id,
+        actorUserId: access.context.actorId,
         action: "admin_account_status_updated",
         metadata: {
           targetUserId: target.id,

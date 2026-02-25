@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireTeamPermission } from "@/lib/rbac"
 import crypto from "crypto"
+import { requireTeamServiceWriteAccess } from "@/lib/team-service-status"
+import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +21,8 @@ export async function POST(request: Request) {
     }
 
     await requireTeamPermission(teamId, "edit_roster")
+    await requireTeamServiceWriteAccess(teamId, prisma)
+    await auditImpersonatedActionFromRequest(request, "invite_create", { teamId, email, role })
 
     // Check if user already has membership
     const existingUser = await prisma.user.findUnique({ where: { email } })

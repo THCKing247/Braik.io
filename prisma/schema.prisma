@@ -15,9 +15,12 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   name          String?
+  role          String    @default("USER") // "USER", "ADMIN"
   password      String? // hashed password
   image         String?
   isPlatformOwner Boolean @default(false) // Platform Owner (Super Admin) flag
+  status        String    @default("ACTIVE") // "ACTIVE", "DISABLED"
+  lastLoginAt   DateTime?
   complianceMetadata Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -50,6 +53,13 @@ model User {
   createdPlays        Play[] @relation("PlayCreator")
   complianceLogs      ComplianceLog[]
   minorConsentVerifications MinorConsentVerification[]
+  supportTicketsCreated SupportTicket[] @relation("SupportTicketReporter")
+  supportTicketsAsHeadCoach SupportTicket[] @relation("SupportTicketHeadCoach")
+  supportMessagesSent SupportMessage[] @relation("SupportMessageSenderAdmin")
+  adminAuditLogs      AdminAuditLog[] @relation("AdminAuditActor")
+  adminImpersonationSessionsStarted AdminImpersonationSession[] @relation("AdminImpersonationActor")
+  adminImpersonationSessionsTargeted AdminImpersonationSession[] @relation("AdminImpersonationTarget")
+  createdAdminAnnouncements AdminAnnouncement[] @relation("AdminAnnouncementCreator")
 }
 
 model Account {
@@ -102,6 +112,9 @@ model Team {
   id           String   @id @default(cuid())
   organizationId String
   name         String
+  planTier     String?  @default("starter")
+  serviceStatus String  @default("ACTIVE") // "ACTIVE", "PAST_DUE", "SUSPENDED"
+  region       String?
   slogan       String?  // "Go Team" or custom slogan
   sport        String   // "football", "basketball", etc.
   seasonName   String   // "Fall 2024", "2024-2025", etc.
@@ -157,6 +170,9 @@ model Team {
   notifications Notification[]
   plays        Play[]
   minorConsentVerifications MinorConsentVerification[]
+  supportTickets SupportTicket[]
+  adminAnnouncements AdminAnnouncement[]
+  adminImpersonationSessions AdminImpersonationSession[]
 }
 
 model Season {
@@ -993,6 +1009,101 @@ model NotificationPreference {
   updatedAt             DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SupportTicket {
+  id                String   @id @default(cuid())
+  teamId             String
+  createdByUserId    String
+  headCoachUserId    String
+  status             String   @default("NEW") // "NEW", "IN_PROGRESS", "WAITING", "RESOLVED", "CLOSED"
+  category           String?
+  priority           String?  @default("normal") // "low", "normal", "high", "urgent"
+  subject            String
+  originalMessage    String   @db.Text
+  assignedAdminId    String?
+  resolvedAt         DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  team          Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdByUser User @relation("SupportTicketReporter", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  headCoachUser User @relation("SupportTicketHeadCoach", fields: [headCoachUserId], references: [id], onDelete: Cascade)
+  messages      SupportMessage[]
+
+  @@index([teamId, status])
+  @@index([headCoachUserId, status])
+  @@index([createdAt])
+}
+
+model SupportMessage {
+  id             String   @id @default(cuid())
+  ticketId        String
+  senderAdminId   String
+  message         String   @db.Text
+  createdAt       DateTime @default(now())
+
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderAdmin User          @relation("SupportMessageSenderAdmin", fields: [senderAdminId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  action      String
+  targetType  String?
+  targetId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  actor User @relation("AdminAuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model AdminAnnouncement {
+  id              String   @id @default(cuid())
+  createdByAdminId String
+  teamId          String?
+  scope           String   @default("ALL_HEAD_COACHES") // "ALL_HEAD_COACHES", "FILTERED", "TEAM"
+  headCoachOnly   Boolean  @default(true)
+  content         String   @db.Text
+  filters         Json?
+  createdAt       DateTime @default(now())
+
+  creator User  @relation("AdminAnnouncementCreator", fields: [createdByAdminId], references: [id], onDelete: Cascade)
+  team    Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([createdAt])
+}
+
+model AdminImpersonationSession {
+  id             String   @id @default(cuid())
+  actorAdminId   String
+  targetUserId   String
+  targetTeamId   String?
+  tokenHash      String   @unique
+  startedAt      DateTime @default(now())
+  expiresAt      DateTime
+  endedAt        DateTime?
+  reason         String?
+  active         Boolean  @default(true)
+
+  actorAdmin User @relation("AdminImpersonationActor", fields: [actorAdminId], references: [id], onDelete: Cascade)
+  targetUser User @relation("AdminImpersonationTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetTeam Team? @relation(fields: [targetTeamId], references: [id], onDelete: SetNull)
+
+  @@index([actorAdminId, active])
+  @@index([targetUserId, active])
+  @@index([expiresAt])
 }
 
 // Depth Chart (Football teams)

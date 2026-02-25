@@ -46,13 +46,13 @@ export function InvoicePageClient({
       id: "subscription",
       label: "Subscription",
       icon: CreditCard,
-      visible: isHeadCoach || userRole === "ASSISTANT_COACH",
+      visible: isHeadCoach,
     },
     {
       id: "payments",
       label: "Payments",
       icon: DollarSign,
-      visible: isHeadCoach || userRole === "ASSISTANT_COACH" || userRole === "PARENT",
+      visible: isHeadCoach || userRole === "PLAYER" || userRole === "PARENT",
     },
     {
       id: "collections",
@@ -96,7 +96,7 @@ export function InvoicePageClient({
             </div>
 
             {/* Coach-Collected Payments */}
-            {(isHeadCoach || userRole === "ASSISTANT_COACH" || userRole === "PARENT") && (
+            {isHeadCoach && (
               <div>
                 <h2 className="text-2xl font-semibold mb-4" style={{ color: "#111827" }}>
                   Coach-Collected Payments

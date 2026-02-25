@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
 import bcrypt from "bcryptjs"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { isPlatformOwner } from "@/lib/platform-owner"
+import { getAdminAccessForApi } from "@/lib/admin-access"
 import { updateSupabaseUserByAppUserId } from "@/lib/supabase-admin"
 
 export async function POST(
@@ -11,14 +9,9 @@ export async function POST(
   { params }: { params: { userId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const hasAccess = await isPlatformOwner(session.user.id)
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied: Platform Owner only" }, { status: 403 })
+    const access = await getAdminAccessForApi()
+    if (!access.ok) {
+      return access.response
     }
 
     const { newPassword } = await request.json()
@@ -80,7 +73,7 @@ export async function POST(
     await prisma.auditLog.create({
       data: {
         teamId: membership?.teamId || null,
-        actorUserId: session.user.id,
+        actorUserId: access.context.actorId,
         action: "admin_password_reset",
         metadata: {
           targetUserId: target.id,

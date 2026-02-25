@@ -61,8 +61,8 @@ export function getMessagingPermissions(
     case "PLAYER":
       return {
         canMessageIndividual: (targetRole, targetType) => {
-          // Can message coaches and players on same team
-          return targetType === "coach" || targetType === "player"
+          // Players can message staff only.
+          return targetType === "coach"
         },
         canCreateOneOnOne: (targetRole, targetType) => {
           // Cannot create threads - per spec, players can only reply
@@ -80,8 +80,8 @@ export function getMessagingPermissions(
     case "PARENT":
       return {
         canMessageIndividual: (targetRole, targetType) => {
-          // Can only message Head Coach and JV Head Coach
-          return targetType === "coach" && (targetRole === "HEAD_COACH")
+          // Parents can message staff only.
+          return targetType === "coach"
         },
         canCreateOneOnOne: (targetRole, targetType) => {
           // Cannot create threads - per spec, parents can only reply

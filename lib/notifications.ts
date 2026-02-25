@@ -264,6 +264,21 @@ async function sendEmailNotification(
 }
 
 /**
+ * Placeholder push delivery hook.
+ * Integrate OneSignal/Firebase/APNs later with user device token storage.
+ */
+export async function sendPushNotifications(
+  recipientUserIds: string[],
+  title: string,
+  body?: string
+): Promise<void> {
+  if (recipientUserIds.length === 0) {
+    return
+  }
+  console.log("[PUSH NOTIFICATION]", { recipientCount: recipientUserIds.length, title, body })
+}
+
+/**
  * Mark a notification as read
  */
 export async function markNotificationAsRead(

@@ -38,7 +38,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     href: "/dashboard/documents",
     label: "Documents",
     icon: FileText,
-    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER"],
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"],
   },
   {
     id: "playbooks",

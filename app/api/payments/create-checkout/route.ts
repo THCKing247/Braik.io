@@ -17,10 +17,28 @@ export async function POST(request: Request) {
 
     const { teamId, playerId } = await request.json()
 
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_teamId: {
+          userId: session.user.id,
+          teamId,
+        },
+      },
+      select: { role: true },
+    })
+
+    if (!membership) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    }
+
     const team = await prisma.team.findUnique({ where: { id: teamId } })
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        userId: true,
         guardianLinks: {
           include: {
             guardian: { include: { user: true } },
@@ -31,6 +49,17 @@ export async function POST(request: Request) {
 
     if (!team || !player) {
       return NextResponse.json({ error: "Team or player not found" }, { status: 404 })
+    }
+
+    if (membership.role !== "HEAD_COACH") {
+      const canPayForPlayer =
+        (membership.role === "PLAYER" && player.userId === session.user.id) ||
+        (membership.role === "PARENT" &&
+          player.guardianLinks.some((link) => link.guardian.userId === session.user.id))
+
+      if (!canPayForPlayer) {
+        return NextResponse.json({ error: "Access denied for this player payment" }, { status: 403 })
+      }
     }
 
     // Check if already paid

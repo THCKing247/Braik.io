@@ -43,6 +43,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const [activeProposalId, setActiveProposalId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const canUseAdvancedActions = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -249,7 +250,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                       Hi! I'm your AI assistant. Ask me about your team, schedule, or get help with
                       tasks.
                     </p>
-                    {userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH" ? (
+                    {canUseAdvancedActions ? (
                       <p className="text-xs mt-2" style={{ color: "rgb(var(--text2))" }}>
                         I can help you create events, send messages, and manage your team.
                       </p>
@@ -368,31 +369,37 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                     disabled={loading || uploading}
                     className="flex-1"
                   />
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="ai-file-upload"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={loading || uploading}
-                    title="Upload file (Excel, CSV, PDF, Image)"
-                    className="rounded-lg border-2"
-                    style={{ borderColor: "#0B2A5B", color: "#0B2A5B" }}
-                  >
-                    <Upload className="h-4 w-4" />
-                  </Button>
+                  {canUseAdvancedActions && (
+                    <>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="ai-file-upload"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={loading || uploading}
+                        title="Upload file (Excel, CSV, PDF, Image)"
+                        className="rounded-lg border-2"
+                        style={{ borderColor: "#0B2A5B", color: "#0B2A5B" }}
+                      >
+                        <Upload className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                   <Button onClick={handleSend} disabled={loading || uploading || !input.trim()} size="sm" className="rounded-lg">
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
                 <p className="text-xs text-text-2">
-                  Press Enter to send • Upload files to extract schedule/events • AI parsing available when OpenAI is configured
+                  {canUseAdvancedActions
+                    ? "Press Enter to send • Upload files to extract schedule/events • AI parsing available when OpenAI is configured"
+                    : "Press Enter to send • Role-limited to assistant Q&A for schedule and team updates"}
                 </p>
               </div>
             </CardContent>

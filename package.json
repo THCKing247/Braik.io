@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:optimized": "next dev",
-    "prebuild": "prisma generate",
+    "prebuild": "tsx scripts/verify-env.ts && prisma generate",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

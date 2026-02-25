@@ -58,7 +58,7 @@ export default function Home() {
                   <span className="text-[#3B82F6]">Run the team.</span>
                 </h1>
                 <p className="text-lg md:text-xl text-[#495057] font-medium max-w-2xl mx-auto leading-relaxed">
-                  Your AI Assistant Coach for Every Season.
+                  Your AI Operations Coach for Every Season.
                   <br />
                   <span className="font-semibold text-[#495057]">Braik the Chaos.</span>
                 </p>
@@ -398,7 +398,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* AI Assistant (Optional Support) */}
+      {/* AI Operations Coach (Foundational) */}
       <section className="relative py-40 bg-[#F9FAFB]">
         <div className="container mx-auto px-4">
           <div className="max-w-6xl mx-auto">
@@ -407,28 +407,31 @@ export default function Home() {
                 {/* Content on the left */}
                 <div className="space-y-8">
                   <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-tight">
-                    Optional AI support
+                    AI Operations Coach is foundational
                   </h2>
                   <div className="space-y-6 text-lg text-[#495057] leading-relaxed pt-8">
                     <p>
-                      Braik includes an optional AI assistant designed to help handle routine tasks, summarize information, and reduce the mental load that comes with running a program.
+                      Braik is built around an AI Operations Coach that helps run the day to day load of a program: drafting communication, surfacing issues, and executing structured operations.
                     </p>
                     <p>
-                      The AI assistant helps with drafting messages, surfacing issues, and executing structured operational tasks. It's not meant to replace people—it's meant to support them.
+                      Head Coach access is included by default with metered usage each season. If usage exceeds the included allotment, additional usage is billed so programs can scale without interruption.
                     </p>
                     <p className="text-[#6c757d] italic">
-                      AI is available as a paid per-season add-on for programs that want additional operational support. It's optional, supportive, and designed to reduce administrative burden without replacing coaching judgment.
+                      Assistant Coach AI access is tiered opt in under Head Coach control. The AI is not a side add on. It is a core operational layer designed to support coaching judgment, not replace it.
                     </p>
                   </div>
                 </div>
-                {/* Image on the right */}
-                <div className="flex justify-center md:justify-end md:ml-8">
-                  <img 
-                    src="/open-ai-integration.png" 
-                    alt="Open AI integration" 
-                    className="max-w-full h-auto object-contain"
-                    style={{ maxHeight: '1500px', width: 'auto' }}
-                  />
+                {/* Visual on the right (brand-safe placeholder) */}
+                <div className="flex justify-center md:justify-end md:ml-8 w-full">
+                  <div className="w-full max-w-md p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                    <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
+                    <p className="text-white text-2xl font-athletic font-semibold uppercase tracking-wide mb-3">
+                      Operations Coach Workflows
+                    </p>
+                    <p className="text-[#E5E7EB] text-base leading-relaxed">
+                      Head Coach default AI plus assistant tier controls, usage guardrails, and execution support built for real staff workflows.
+                    </p>
+                  </div>
                 </div>
               </div>
             </ScrollReveal>

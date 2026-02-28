@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getUserMembership } from "@/lib/rbac"
 import { requireBillingPermission } from "@/lib/billing-state"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 // POST /api/ai/upload
 // Handles file uploads for AI parsing (Excel, CSV, PDF, images)
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
 
     // Check billing state - AI is always premium
     await requireBillingPermission(teamId, "useAI", prisma)
+    await requireTeamOperationAccess(teamId, "ai", prisma)
 
     // Get team to check AI flags
     const team = await prisma.team.findUnique({
@@ -142,6 +144,9 @@ export async function POST(request: Request) {
       },
     })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("AI upload error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

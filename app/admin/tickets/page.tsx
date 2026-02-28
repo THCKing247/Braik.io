@@ -1,6 +1,7 @@
 import { AdminTicketMessageForm } from "@/components/admin-ticket-message-form"
 import { AdminTicketStatusForm } from "@/components/admin-ticket-status-form"
 import { prisma } from "@/lib/prisma"
+import { safeAdminDbQuery } from "@/lib/admin-db-safe"
 
 export default async function AdminTicketsPage({
   searchParams,
@@ -10,32 +11,46 @@ export default async function AdminTicketsPage({
   const query = searchParams?.q?.trim() || ""
   const status = searchParams?.status?.trim() || ""
 
-  const tickets = await prisma.supportTicket.findMany({
-    where: {
-      ...(status ? { status } : {}),
-      ...(query
-        ? {
-            OR: [
-              { subject: { contains: query, mode: "insensitive" } },
-              { team: { name: { contains: query, mode: "insensitive" } } },
-              { createdByUser: { email: { contains: query, mode: "insensitive" } } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 80,
-    include: {
-      team: { select: { name: true } },
-      createdByUser: { select: { email: true, name: true } },
-      headCoachUser: { select: { email: true, name: true } },
-      messages: {
+  const tickets = await safeAdminDbQuery(
+    () =>
+      prisma.supportTicket.findMany({
+        where: {
+          ...(status ? { status } : {}),
+          ...(query
+            ? {
+                OR: [
+                  { subject: { contains: query, mode: "insensitive" } },
+                  { team: { name: { contains: query, mode: "insensitive" } } },
+                  { createdByUser: { email: { contains: query, mode: "insensitive" } } },
+                ],
+              }
+            : {}),
+        },
         orderBy: { createdAt: "desc" },
-        take: 3,
-        include: { senderAdmin: { select: { email: true } } },
-      },
-    },
-  })
+        take: 80,
+        include: {
+          team: { select: { name: true } },
+          createdByUser: { select: { email: true, name: true } },
+          headCoachUser: { select: { email: true, name: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 3,
+            include: { senderAdmin: { select: { email: true } } },
+          },
+        },
+      }),
+    [] as Array<{
+      id: string
+      subject: string
+      status: string
+      priority: string | null
+      originalMessage: string
+      team: { name: string }
+      createdByUser: { email: string; name: string | null }
+      headCoachUser: { email: string; name: string | null }
+      messages: Array<{ id: string; message: string; senderAdmin: { email: string } }>
+    }>
+  )
 
   return (
     <div className="space-y-5">

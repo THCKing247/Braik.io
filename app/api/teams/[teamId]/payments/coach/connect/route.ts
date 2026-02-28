@@ -7,6 +7,7 @@ import { LEGAL_POLICY_VERSIONS } from "@/lib/compliance-config"
 import { logComplianceEvent } from "@/lib/compliance-log"
 import { getRequestIp } from "@/lib/request-ip"
 import { getActiveImpersonationFromToken, getSupportTokenFromRequestCookieHeader } from "@/lib/impersonation"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 // POST /api/teams/[teamId]/payments/coach/connect
 // This initiates the connection flow for a payment provider (e.g., Stripe Connect)
@@ -34,6 +35,8 @@ export async function POST(
     if (!membership) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
+
+    await requireTeamOperationAccess(teamId, "billing", prisma)
 
     // Only head coach can connect payment accounts
     if (membership.role !== "HEAD_COACH") {
@@ -110,6 +113,9 @@ export async function POST(
       message: "Complete the onboarding process to connect your payment account",
     })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Connect payment account error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

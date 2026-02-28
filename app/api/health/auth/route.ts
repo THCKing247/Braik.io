@@ -9,8 +9,8 @@ export async function GET() {
     NEXTAUTH_SECRET: isSet(process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET),
     NEXTAUTH_URL: isSet(process.env.NEXTAUTH_URL || process.env.URL || process.env.DEPLOY_PRIME_URL),
     DATABASE_URL: isSet(process.env.DATABASE_URL),
-    SUPABASE_URL: isSet(process.env.SUPABASE_URL),
-    SUPABASE_ANON_KEY: isSet(process.env.SUPABASE_ANON_KEY),
+    SUPABASE_URL: isSet(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+    SUPABASE_ANON_KEY: isSet(process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     SUPABASE_SERVICE_ROLE_KEY: isSet(process.env.SUPABASE_SERVICE_ROLE_KEY),
   }
 

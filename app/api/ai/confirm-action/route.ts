@@ -8,6 +8,7 @@ import { requireBillingPermission } from "@/lib/billing-state"
 import { executeConfirmedAction } from "@/lib/ai-actions"
 import { ROLES } from "@/lib/roles"
 import { logAIAction, logPermissionDenial } from "@/lib/structured-logger"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
 
     // Check billing state
     await requireBillingPermission(proposal.teamId, "useAI", prisma)
+    await requireTeamOperationAccess(proposal.teamId, "ai", prisma)
 
     // Only Head Coach can confirm actions
     if (membership.role !== ROLES.HEAD_COACH) {
@@ -143,6 +145,9 @@ export async function POST(request: Request) {
       },
     })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Confirm action error:", error)
 
     // Handle billing permission errors

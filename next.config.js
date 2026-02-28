@@ -5,8 +5,8 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // Allow production deploys while legacy type issues are addressed incrementally
-    ignoreBuildErrors: true,
+    // Block deploys on TypeScript errors to avoid runtime regressions in production.
+    ignoreBuildErrors: false,
   },
   images: {
     domains: ['localhost'],

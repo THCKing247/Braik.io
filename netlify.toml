@@ -1,11 +1,9 @@
 [build]
   # Ensure Prisma Client is always regenerated in Netlify CI before Next build.
   command = "npm run build"
-  # Netlify Next runtime cannot use repo root as publish directory.
-  publish = ".next"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
 [build.environment]
-  NODE_VERSION = "22"
+  NODE_VERSION = "20"

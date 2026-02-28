@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { getUserMembership } from "@/lib/rbac"
 import { canViewDepthChart } from "@/lib/depth-chart-permissions"
 import { requireBillingPermission } from "@/lib/billing-state"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 export async function GET(request: Request) {
   try {
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
 
     // Check billing state - read-only mode blocks depth chart edits
     await requireBillingPermission(teamId, "editDepthCharts", prisma)
+    await requireTeamOperationAccess(teamId, "write", prisma)
 
     // Get full membership details for permission checks
     const fullMembership = await prisma.membership.findUnique({
@@ -246,6 +248,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, entries: results })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Depth chart POST error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

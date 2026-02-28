@@ -7,7 +7,7 @@ export function AdminAnnouncementForm() {
   const [planTier, setPlanTier] = useState("")
   const [region, setRegion] = useState("")
   const [sport, setSport] = useState("")
-  const [serviceStatus, setServiceStatus] = useState("")
+  const [teamStatus, setTeamStatus] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState("")
 
@@ -25,7 +25,7 @@ export function AdminAnnouncementForm() {
             ...(planTier ? { planTier } : {}),
             ...(region ? { region } : {}),
             ...(sport ? { sport } : {}),
-            ...(serviceStatus ? { serviceStatus } : {}),
+            ...(teamStatus ? { teamStatus } : {}),
           },
         }),
       })
@@ -72,13 +72,14 @@ export function AdminAnnouncementForm() {
         />
         <select
           className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
-          value={serviceStatus}
-          onChange={(event) => setServiceStatus(event.target.value)}
+          value={teamStatus}
+          onChange={(event) => setTeamStatus(event.target.value)}
         >
           <option value="">Any status</option>
-          <option value="ACTIVE">ACTIVE</option>
-          <option value="PAST_DUE">PAST_DUE</option>
-          <option value="SUSPENDED">SUSPENDED</option>
+          <option value="active">ACTIVE</option>
+          <option value="suspended">SUSPENDED</option>
+          <option value="cancelled">CANCELLED</option>
+          <option value="terminated">TERMINATED</option>
         </select>
       </div>
       <div className="flex items-center gap-3">

@@ -2,12 +2,7 @@ import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { isAdminEmailDomainAllowed } from "@/lib/admin-security"
-
-const BOOTSTRAP_ADMIN_EMAILS = new Set([
-  "michael.mcclellan@apextsgroup.com",
-  "kenneth.mceachin@apextsgroup.com",
-])
+import { writeAdminAuditLog } from "@/lib/admin-audit"
 
 export interface AdminAccessContext {
   actorId: string
@@ -25,63 +20,66 @@ export async function getAdminAccessForApi(): Promise<
     }
   }
 
-  const normalizedEmail = session.user.email.trim().toLowerCase()
-  if (BOOTSTRAP_ADMIN_EMAILS.has(normalizedEmail)) {
-    const bootstrapUser = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true },
-    }).catch(() => null)
-
+  const sessionUserId = session.user.id
+  const sessionEmail = session.user.email
+  const isBootstrapAdminSession = sessionUserId.startsWith("bootstrap-admin:")
+  if (isBootstrapAdminSession) {
     return {
       ok: true,
       context: {
-        actorId: bootstrapUser?.id || session.user.id,
-        actorEmail: normalizedEmail,
+        actorId: sessionUserId,
+        actorEmail: sessionEmail,
       },
     }
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true, isPlatformOwner: true, email: true, status: true },
+    where: { id: sessionUserId },
+    select: { id: true, isPlatformOwner: true, role: true, status: true, email: true },
   })
 
-  if ((!user?.isPlatformOwner && user?.role !== "ADMIN") || user.status === "DISABLED") {
+  const isAdmin = typeof user?.role === "string" && user.role.toLowerCase() === "admin"
+  const isPlatformOwner = user?.isPlatformOwner === true
+  if ((!isAdmin && !isPlatformOwner) || user?.status === "DISABLED") {
+    if (session.user.id) {
+      await writeAdminAuditLog({
+        actorId: session.user.id,
+        action: "admin_access_denied",
+        targetType: "api",
+        targetId: "admin_api",
+        metadata: { reason: "non_admin_role_or_disabled" },
+      }).catch(() => undefined)
+    }
     return {
       ok: false,
       response: NextResponse.json({ error: "Access denied: Admin only" }, { status: 403 }),
     }
   }
 
-  if (!isAdminEmailDomainAllowed(user.email)) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Admin email domain not allowed" }, { status: 403 }),
-    }
-  }
-
   return {
     ok: true,
     context: {
-      actorId: session.user.id,
-      actorEmail: user.email,
+      actorId: sessionUserId,
+      actorEmail: user?.email || sessionEmail,
     },
   }
 }
 
 export async function hasAdminAccess(userId: string, email?: string | null): Promise<boolean> {
-  if (email && BOOTSTRAP_ADMIN_EMAILS.has(email.trim().toLowerCase())) {
+  if (userId.startsWith("bootstrap-admin:")) {
     return true
   }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { email: true, role: true, isPlatformOwner: true, status: true },
+    select: { email: true, isPlatformOwner: true, role: true, status: true },
   })
 
-  if ((!user?.isPlatformOwner && user?.role !== "ADMIN") || user.status === "DISABLED") {
+  const isAdmin = typeof user?.role === "string" && user.role.toLowerCase() === "admin"
+  const isPlatformOwner = user?.isPlatformOwner === true
+  if ((!isAdmin && !isPlatformOwner) || user?.status === "DISABLED") {
     return false
   }
 
-  return isAdminEmailDomainAllowed(user.email)
+  return true
 }

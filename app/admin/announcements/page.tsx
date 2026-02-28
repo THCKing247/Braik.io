@@ -1,14 +1,19 @@
 import { AdminAnnouncementForm } from "@/components/admin-announcement-form"
 import { prisma } from "@/lib/prisma"
+import { safeAdminDbQuery } from "@/lib/admin-db-safe"
 
 export default async function AdminAnnouncementsPage() {
-  const recent = await prisma.adminAnnouncement.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    include: {
-      creator: { select: { email: true } },
-    },
-  })
+  const recent = await safeAdminDbQuery(
+    () =>
+      prisma.adminAnnouncement.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: {
+          creator: { select: { email: true } },
+        },
+      }),
+    [] as Array<{ id: string; scope: string; createdAt: Date; content: string; creator: { email: string } }>
+  )
 
   return (
     <div className="space-y-5">

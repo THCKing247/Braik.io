@@ -17,9 +17,20 @@ export async function POST(request: Request) {
       planTier?: string
       region?: string
       sport?: string
+      teamStatus?: string
       serviceStatus?: string
       teamId?: string
     }
+    const normalizedTeamStatus =
+      typeof filters.teamStatus === "string"
+        ? filters.teamStatus
+        : typeof filters.serviceStatus === "string"
+          ? filters.serviceStatus.toLowerCase() === "active"
+            ? "active"
+            : filters.serviceStatus.toLowerCase() === "suspended"
+              ? "suspended"
+              : undefined
+          : undefined
     if (!content) {
       return NextResponse.json({ error: "content is required" }, { status: 400 })
     }
@@ -31,7 +42,7 @@ export async function POST(request: Request) {
           ...(filters.planTier ? { planTier: filters.planTier } : {}),
           ...(filters.region ? { region: filters.region } : {}),
           ...(filters.sport ? { sport: filters.sport } : {}),
-          ...(filters.serviceStatus ? { serviceStatus: filters.serviceStatus } : {}),
+          ...(normalizedTeamStatus ? { teamStatus: normalizedTeamStatus } : {}),
           ...(filters.teamId ? { id: filters.teamId } : {}),
         },
       },

@@ -4,7 +4,30 @@ import { getAdminAccessForApi } from "@/lib/admin-access"
 import { writeAdminAuditLog } from "@/lib/admin-audit"
 import { createNotifications } from "@/lib/notifications"
 
-const VALID_SERVICE_STATUSES = ["ACTIVE", "PAST_DUE", "SUSPENDED"] as const
+const VALID_TEAM_STATUSES = ["active", "suspended", "cancelled", "terminated"] as const
+
+function normalizeTeamStatus(input: unknown): string | null {
+  if (typeof input !== "string") {
+    return null
+  }
+  const value = input.trim()
+  const lower = value.toLowerCase()
+  if ((VALID_TEAM_STATUSES as readonly string[]).includes(lower)) {
+    return lower
+  }
+  switch (value.toUpperCase()) {
+    case "ACTIVE":
+      return "active"
+    case "SUSPENDED":
+      return "suspended"
+    case "CANCELLED":
+      return "cancelled"
+    case "TERMINATED":
+      return "terminated"
+    default:
+      return null
+  }
+}
 
 export async function PATCH(request: Request, { params }: { params: { teamId: string } }) {
   try {
@@ -14,9 +37,9 @@ export async function PATCH(request: Request, { params }: { params: { teamId: st
     }
 
     const body = await request.json()
-    const nextStatus = typeof body.serviceStatus === "string" ? body.serviceStatus : null
-    if (!nextStatus || !VALID_SERVICE_STATUSES.includes(nextStatus as any)) {
-      return NextResponse.json({ error: "serviceStatus must be ACTIVE, PAST_DUE, or SUSPENDED" }, { status: 400 })
+    const nextStatus = normalizeTeamStatus(body.teamStatus ?? body.serviceStatus)
+    if (!nextStatus) {
+      return NextResponse.json({ error: "teamStatus must be active, suspended, cancelled, or terminated" }, { status: 400 })
     }
 
     const team = await prisma.team.findUnique({
@@ -24,7 +47,7 @@ export async function PATCH(request: Request, { params }: { params: { teamId: st
       select: {
         id: true,
         name: true,
-        serviceStatus: true,
+        teamStatus: true,
         memberships: {
           where: { role: "HEAD_COACH" },
           select: { userId: true },
@@ -37,8 +60,8 @@ export async function PATCH(request: Request, { params }: { params: { teamId: st
 
     const updated = await prisma.team.update({
       where: { id: team.id },
-      data: { serviceStatus: nextStatus },
-      select: { id: true, name: true, serviceStatus: true, updatedAt: true },
+      data: { teamStatus: nextStatus },
+      select: { id: true, name: true, teamStatus: true, updatedAt: true },
     })
 
     await createNotifications({
@@ -47,7 +70,7 @@ export async function PATCH(request: Request, { params }: { params: { teamId: st
       title: "Team service status updated",
       body: `${team.name} is now ${nextStatus.replace("_", " ").toLowerCase()}.`,
       targetUserIds: team.memberships.map((membership) => membership.userId),
-      metadata: { previousStatus: team.serviceStatus, nextStatus },
+      metadata: { previousStatus: team.teamStatus, nextStatus },
     })
 
     await writeAdminAuditLog({
@@ -56,7 +79,7 @@ export async function PATCH(request: Request, { params }: { params: { teamId: st
       targetType: "team",
       targetId: team.id,
       metadata: {
-        previousStatus: team.serviceStatus,
+        previousStatus: team.teamStatus,
         nextStatus,
       },
       ipAddress: request.headers.get("x-forwarded-for"),

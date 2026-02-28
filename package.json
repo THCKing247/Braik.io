@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "dev:optimized": "next dev",
-    "prebuild": "tsx scripts/verify-env.ts && prisma generate",
+    "prebuild": "tsx scripts/verify-env.ts && prisma generate && npm run typecheck",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",

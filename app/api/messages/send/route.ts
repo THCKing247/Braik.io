@@ -6,8 +6,8 @@ import { requireBillingPermission } from "@/lib/billing-state"
 import { createNotifications } from "@/lib/notifications"
 import { logMessageSent, logPermissionDenial } from "@/lib/structured-logger"
 import { getUserMembership } from "@/lib/rbac"
-import { requireTeamServiceWriteAccess } from "@/lib/team-service-status"
 import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 /**
  * POST /api/messages/send
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     // Check billing state - read-only mode blocks messaging
     await requireBillingPermission(thread.teamId, "message", prisma)
-    await requireTeamServiceWriteAccess(thread.teamId, prisma)
+    await requireTeamOperationAccess(thread.teamId, "write", prisma)
     await auditImpersonatedActionFromRequest(request, "message_send", { teamId: thread.teamId, threadId })
 
     // Check if user is a participant
@@ -203,6 +203,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(message)
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Send message error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-const SERVICE_STATUSES = ["ACTIVE", "PAST_DUE", "SUSPENDED"] as const
+const TEAM_STATUSES = ["active", "suspended", "cancelled", "terminated"] as const
 
 export function AdminTeamStatusForm({
   teamId,
@@ -24,7 +24,7 @@ export function AdminTeamStatusForm({
       const response = await fetch(`/api/admin/teams/${teamId}/service-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceStatus: status }),
+        body: JSON.stringify({ teamStatus: status }),
       })
       const payload = await response.json()
       if (!response.ok) {
@@ -45,9 +45,9 @@ export function AdminTeamStatusForm({
         value={status}
         onChange={(event) => setStatus(event.target.value)}
       >
-        {SERVICE_STATUSES.map((value) => (
+        {TEAM_STATUSES.map((value) => (
           <option key={value} value={value}>
-            {value}
+            {value.toUpperCase()}
           </option>
         ))}
       </select>

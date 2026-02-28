@@ -21,6 +21,9 @@ model User {
   isPlatformOwner Boolean @default(false) // Platform Owner (Super Admin) flag
   status        String    @default("ACTIVE") // "ACTIVE", "DISABLED"
   lastLoginAt   DateTime?
+  aiCreditsRemaining Int  @default(0)
+  aiTier        String    @default("BASIC") // "BASIC", "PRO"
+  aiAutoRechargeEnabled Boolean @default(false)
   complianceMetadata Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -60,6 +63,8 @@ model User {
   adminImpersonationSessionsStarted AdminImpersonationSession[] @relation("AdminImpersonationActor")
   adminImpersonationSessionsTargeted AdminImpersonationSession[] @relation("AdminImpersonationTarget")
   createdAdminAnnouncements AdminAnnouncement[] @relation("AdminAnnouncementCreator")
+  headCoachForTeams Team[] @relation("TeamHeadCoach")
+  agentActions AgentAction[]
 }
 
 model Account {
@@ -112,7 +117,12 @@ model Team {
   id           String   @id @default(cuid())
   organizationId String
   name         String
+  headCoachUserId String?
   planTier     String?  @default("starter")
+  subscriptionStatus String @default("active") // "active", "past_due", "grace_period", "suspended", "cancelled", "terminated"
+  teamStatus   String @default("active") // "active", "suspended", "cancelled", "terminated"
+  baseAiCredits Int @default(0)
+  aiUsageThisCycle Int @default(0)
   serviceStatus String  @default("ACTIVE") // "ACTIVE", "PAST_DUE", "SUSPENDED"
   region       String?
   slogan       String?  // "Go Team" or custom slogan
@@ -146,6 +156,7 @@ model Team {
   updatedAt    DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  headCoachUser User? @relation("TeamHeadCoach", fields: [headCoachUserId], references: [id], onDelete: SetNull)
   memberships  Membership[]
   players      Player[]
   invites      Invite[]
@@ -173,6 +184,8 @@ model Team {
   supportTickets SupportTicket[]
   adminAnnouncements AdminAnnouncement[]
   adminImpersonationSessions AdminImpersonationSession[]
+  subscriptions Subscription[]
+  agentActions AgentAction[]
 }
 
 model Season {
@@ -1104,6 +1117,49 @@ model AdminImpersonationSession {
   @@index([actorAdminId, active])
   @@index([targetUserId, active])
   @@index([expiresAt])
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  teamId               String
+  stripeSubscriptionId String?  @unique
+  status               String   @default("active")
+  currentPeriodEnd     DateTime?
+  autoRechargeEnabled  Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([status])
+}
+
+model AgentAction {
+  id                 String   @id @default(cuid())
+  teamId             String
+  userId             String
+  actionType         String
+  executedAt         DateTime @default(now())
+  undoAvailableUntil DateTime?
+  undone             Boolean  @default(false)
+  costInCredits      Float    @default(0)
+  createdAt          DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, executedAt])
+  @@index([userId, executedAt])
+  @@index([actionType])
+}
+
+model AdminConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  valueJson Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Depth Chart (Football teams)

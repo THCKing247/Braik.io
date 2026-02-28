@@ -6,6 +6,7 @@ import { getUserMembership } from "@/lib/rbac"
 import { requireBillingPermission } from "@/lib/billing-state"
 import { logAIAction, logPermissionDenial } from "@/lib/structured-logger"
 import { requiresApproval, getRoleContext } from "@/lib/ai-utils"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
 
     // Check billing state - AI is always premium
     await requireBillingPermission(teamId, "useAI", prisma)
+    await requireTeamOperationAccess(teamId, "ai", prisma)
 
     // Get team to check AI flags
     const team = await prisma.team.findUnique({
@@ -118,6 +120,9 @@ export async function POST(request: Request) {
       message: "Action proposal created. Review and confirm to execute.",
     })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Propose action error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

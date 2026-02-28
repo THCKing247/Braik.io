@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireTeamAccess } from "@/lib/rbac"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 // GET /api/plays?teamId=xxx
 export async function GET(request: Request) {
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
     }
 
     const { membership } = await requireTeamAccess(teamId)
+    await requireTeamOperationAccess(teamId, "write", prisma)
 
     // Check permissions based on role
     const canViewAll = membership.role === "HEAD_COACH"
@@ -148,6 +150,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(play)
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Create play error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

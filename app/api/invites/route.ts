@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireTeamPermission } from "@/lib/rbac"
 import crypto from "crypto"
-import { requireTeamServiceWriteAccess } from "@/lib/team-service-status"
 import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 export async function POST(request: Request) {
   try {
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     await requireTeamPermission(teamId, "edit_roster")
-    await requireTeamServiceWriteAccess(teamId, prisma)
+    await requireTeamOperationAccess(teamId, "write", prisma)
     await auditImpersonatedActionFromRequest(request, "invite_create", { teamId, email, role })
 
     // Check if user already has membership
@@ -87,6 +87,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(invite)
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Invite error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

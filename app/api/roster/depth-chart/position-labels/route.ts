@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireTeamPermission } from "@/lib/rbac"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 /**
  * GET /api/roster/depth-chart/position-labels
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
 
     // Only Head Coach can edit position labels
     await requireTeamPermission(teamId, "manage")
+    await requireTeamOperationAccess(teamId, "write", prisma)
 
     // Validate each label
     for (const label of labels) {
@@ -148,6 +150,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, labels: results })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Update position labels error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

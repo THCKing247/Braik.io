@@ -15,6 +15,7 @@ import {
 } from "@/lib/ai-utils"
 import { executeSafeAction, createActionProposal } from "@/lib/ai-actions"
 import OpenAI from "openai"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 // Default usage limit (can be made configurable per team)
 const DEFAULT_USAGE_LIMIT = 10000
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
 
     // Check billing state - AI is always premium and requires active/grace status
     const billingState = await requireBillingPermission(teamId, "useAI", prisma)
+    await requireTeamOperationAccess(teamId, "ai", prisma)
 
     // Check if AI is enabled for this team
     const aiStatus = await isAIEnabled(teamId)
@@ -194,6 +196,9 @@ Be helpful, concise, and coach-friendly.`
       },
     })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("AI chat error:", error)
 
     // If OpenAI API key is missing or invalid, return a helpful message

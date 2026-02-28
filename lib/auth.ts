@@ -12,6 +12,61 @@ function normalizePositionGroups(value: unknown): string[] | null {
   return groups.length ? groups : null
 }
 
+function hasValue(value: string | undefined) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function normalizeUserRoleFromMetadata(value: unknown): "USER" | "ADMIN" | null {
+  if (typeof value !== "string") {
+    return null
+  }
+  const normalized = value.trim().toUpperCase()
+  if (normalized === "USER" || normalized === "ADMIN") {
+    return normalized
+  }
+  return null
+}
+
+function normalizeUserStatusFromMetadata(value: unknown): "ACTIVE" | "DISABLED" | null {
+  if (typeof value !== "string") {
+    return null
+  }
+  const normalized = value.trim().toUpperCase()
+  if (normalized === "ACTIVE" || normalized === "DISABLED") {
+    return normalized
+  }
+  return null
+}
+
+let authEnvLogged = false
+function logAuthRuntimeEnv() {
+  if (authEnvLogged) {
+    return
+  }
+
+  authEnvLogged = true
+  const authSecretConfigured = hasValue(process.env.NEXTAUTH_SECRET) || hasValue(process.env.AUTH_SECRET)
+  const databaseConfigured = hasValue(process.env.DATABASE_URL)
+  const nextAuthUrlConfigured =
+    hasValue(process.env.NEXTAUTH_URL) || hasValue(process.env.URL) || hasValue(process.env.DEPLOY_PRIME_URL)
+  const supabasePublicConfigured = hasValue(process.env.SUPABASE_URL) && hasValue(process.env.SUPABASE_ANON_KEY)
+
+  if (!authSecretConfigured || !databaseConfigured || !nextAuthUrlConfigured) {
+    console.error("[auth] Missing required runtime env", {
+      authSecretConfigured,
+      databaseConfigured,
+      nextAuthUrlConfigured,
+      netlify: process.env.NETLIFY === "true",
+      nodeEnv: process.env.NODE_ENV,
+    })
+    return
+  }
+
+  if (!supabasePublicConfigured) {
+    console.warn("[auth] Supabase credential fallback is disabled (SUPABASE_URL or SUPABASE_ANON_KEY missing)")
+  }
+}
+
 const ADMIN_BOOTSTRAP_CREDENTIALS: Record<string, { password: string; name: string }> = {
   "michael.mcclellan@apextsgroup.com": {
     password: "admin@081197",
@@ -89,12 +144,16 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        let stage = "start"
         try {
+          logAuthRuntimeEnv()
           const email = credentials.email.trim().toLowerCase()
           const submittedPassword = credentials.password
 
+          stage = "bootstrap_admin"
           const bootstrappedAdmin = await bootstrapAdminFromFallback(email, submittedPassword)
           if (bootstrappedAdmin) {
+            stage = "bootstrap_membership_lookup"
             const adminMembership = await prisma.membership.findFirst({
               where: { userId: bootstrappedAdmin.id },
               include: {
@@ -132,6 +191,7 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
+          stage = "user_lookup"
           let user = await prisma.user.findUnique({
             where: { email },
             select: {
@@ -149,19 +209,29 @@ export const authOptions: NextAuthOptions = {
           let verified = false
 
           if (user?.password) {
+            stage = "password_compare"
             verified = await bcrypt.compare(submittedPassword, user.password)
           }
 
           if (!verified) {
+            stage = "supabase_verify"
             const supabaseResult = await verifySupabaseCredentials(email, submittedPassword)
             if (!supabaseResult.verified) {
+              console.warn("[auth] Supabase credential verification failed", {
+                email,
+                reason: supabaseResult.reason || "invalid_credentials",
+              })
               return null
             }
 
             verified = true
             supabaseMetadata = supabaseResult.userMetadata ?? null
+            const metadataRole = normalizeUserRoleFromMetadata(supabaseMetadata?.role)
+            const metadataStatus = normalizeUserStatusFromMetadata(supabaseMetadata?.status)
+            const metadataPlatformOwner = supabaseMetadata?.isPlatformOwner === true
 
             if (!user && typeof supabaseMetadata?.appUserId === "string") {
+              stage = "app_user_lookup_from_supabase_metadata"
               user = await prisma.user.findUnique({
                 where: { id: supabaseMetadata.appUserId },
                 select: {
@@ -177,8 +247,8 @@ export const authOptions: NextAuthOptions = {
             }
 
             if (!user) {
+              stage = "create_user_from_supabase"
               const displayName = typeof supabaseMetadata?.displayName === "string" ? supabaseMetadata.displayName : null
-              const isPlatformOwnerFromMetadata = supabaseMetadata?.isPlatformOwner === true
               const hashedPassword = await bcrypt.hash(submittedPassword, 10)
 
               user = await prisma.user.create({
@@ -186,7 +256,9 @@ export const authOptions: NextAuthOptions = {
                   email,
                   name: displayName,
                   password: hashedPassword,
-                  isPlatformOwner: isPlatformOwnerFromMetadata,
+                  role: metadataRole ?? "USER",
+                  status: metadataStatus ?? "ACTIVE",
+                  isPlatformOwner: metadataPlatformOwner,
                 },
                 select: {
                   id: true,
@@ -198,11 +270,35 @@ export const authOptions: NextAuthOptions = {
                   status: true,
                 },
               })
-            } else if (!user.password) {
-              const hashedPassword = await bcrypt.hash(submittedPassword, 10)
+            } else {
+              const displayName = typeof supabaseMetadata?.displayName === "string" ? supabaseMetadata.displayName : null
+              const updateData: {
+                password?: string
+                role?: "USER" | "ADMIN"
+                status?: "ACTIVE" | "DISABLED"
+                isPlatformOwner?: boolean
+                name?: string | null
+              } = {}
+
+              // Supabase has already validated credentials, so keep local hash aligned.
+              updateData.password = await bcrypt.hash(submittedPassword, 10)
+              if (metadataRole && user.role !== metadataRole) {
+                updateData.role = metadataRole
+              }
+              if (metadataStatus && user.status !== metadataStatus) {
+                updateData.status = metadataStatus
+              }
+              if (metadataPlatformOwner && !user.isPlatformOwner) {
+                updateData.isPlatformOwner = true
+              }
+              if (displayName && !user.name) {
+                updateData.name = displayName
+              }
+
+              stage = "sync_user_from_supabase"
               user = await prisma.user.update({
                 where: { id: user.id },
-                data: { password: hashedPassword },
+                data: updateData,
                 select: {
                   id: true,
                   email: true,
@@ -237,12 +333,14 @@ export const authOptions: NextAuthOptions = {
           const hasAdminRole = user.role === "ADMIN"
           const effectiveAdmin = effectivePlatformOwner || hasAdminRole
 
+          stage = "update_last_login"
           await prisma.user.update({
             where: { id: user.id },
             data: { lastLoginAt: new Date() },
           })
 
           // Get user's most recent membership (or first if multiple teams)
+          stage = "membership_lookup"
           const membership = await prisma.membership.findFirst({
             where: {
               userId: user.id,
@@ -293,14 +391,32 @@ export const authOptions: NextAuthOptions = {
             positionGroups: normalizePositionGroups(membership.positionGroups),
             isPlatformOwner: effectivePlatformOwner,
           }
-        } catch (error: any) {
-          console.error("Auth error:", error)
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error)
+          console.error("[auth] authorize failed", {
+            stage,
+            message,
+            name: error instanceof Error ? error.name : "UnknownError",
+          })
           // Return null on error - NextAuth will show a generic error
           return null
         }
       }
     })
   ],
+  logger: {
+    error(code, metadata) {
+      console.error("[next-auth] error", { code, metadata })
+    },
+    warn(code) {
+      console.warn("[next-auth] warn", { code })
+    },
+    debug(code, metadata) {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[next-auth] debug", { code, metadata })
+      }
+    },
+  },
   session: {
     strategy: "jwt",
   },

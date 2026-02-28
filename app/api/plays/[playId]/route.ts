@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireTeamAccess } from "@/lib/rbac"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
 
 // GET /api/plays/[playId]
 export async function GET(
@@ -34,6 +35,7 @@ export async function GET(
     }
 
     const { membership } = await requireTeamAccess(play.teamId)
+    await requireTeamOperationAccess(play.teamId, "write", prisma)
 
     // Check view permissions (same logic as GET /api/plays)
     const canViewAll = membership.role === "HEAD_COACH"
@@ -144,6 +146,9 @@ export async function PATCH(
 
     return NextResponse.json(updated)
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Update play error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },
@@ -173,6 +178,7 @@ export async function DELETE(
     }
 
     const { membership } = await requireTeamAccess(play.teamId)
+    await requireTeamOperationAccess(play.teamId, "write", prisma)
 
     // Only Head Coach can delete
     if (membership.role !== "HEAD_COACH") {
@@ -185,6 +191,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
+    if (error instanceof TeamOperationBlockedError) {
+      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
     console.error("Delete play error:", error)
     return NextResponse.json(
       { error: error.message || "Internal server error" },

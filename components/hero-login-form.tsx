@@ -1,7 +1,7 @@
 "use client"
 
-import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { getSession, signIn } from "next-auth/react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,11 +10,22 @@ import { Eye, EyeOff } from "lucide-react"
 
 export function HeroLoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+
+  const normalizeCallbackUrl = (value: string | null) => {
+    if (!value || !value.startsWith("/")) {
+      return undefined
+    }
+    if (value === "/admin/login") {
+      return "/admin/dashboard"
+    }
+    return value
+  }
 
   const getDetailedLoginError = (code?: string) => {
     if (!code) {
@@ -39,18 +50,34 @@ export function HeroLoginForm() {
     setLoading(true)
 
     try {
+      const callbackUrl = normalizeCallbackUrl(searchParams.get("callbackUrl"))
+
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
         redirect: false,
+        callbackUrl,
       })
 
       if (result?.error) {
+        console.error("Login failed", {
+          code: result.error,
+          status: result.status,
+          ok: result.ok,
+          callbackUrl,
+        })
         setError(getDetailedLoginError(result.error))
       } else if (result?.ok) {
-        router.push("/dashboard")
+        let destination = callbackUrl
+        if (!destination) {
+          const session = await getSession()
+          const isAdmin = session?.user?.adminRole === "ADMIN" || session?.user?.isPlatformOwner === true
+          destination = isAdmin ? "/admin/dashboard" : "/dashboard"
+        }
+        router.push(destination)
         router.refresh()
       } else {
+        console.error("Login returned no explicit success/error", { result })
         setError("[AUTH-NO-RESULT] Sign-in returned no success or error flag. Please retry.")
       }
     } catch (err: unknown) {

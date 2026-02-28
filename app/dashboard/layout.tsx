@@ -8,6 +8,7 @@ import { AIWidgetWrapper } from "@/components/ai-widget-wrapper"
 import { SubscriptionGuard } from "@/components/subscription-guard"
 import { QuickActionsSidebar } from "@/components/quick-actions-sidebar"
 import { getActiveImpersonationFromCookies } from "@/lib/impersonation"
+import { SuspensionBanner } from "@/components/suspension-banner"
 
 export default async function DashboardLayout({
   children,
@@ -67,6 +68,7 @@ export default async function DashboardLayout({
             Support Session Active - you are viewing as another user. Bank/payout changes are disabled.
           </div>
         )}
+        <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session.user.role} />
         <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
           {children}
         </SubscriptionGuard>

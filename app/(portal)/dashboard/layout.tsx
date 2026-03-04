@@ -114,6 +114,11 @@ export default async function DashboardLayout({
     if (isRedirectError(err)) throw err
     const message = err instanceof Error ? err.message : String(err)
     console.error("[dashboard layout] Server Components render failed:", message, err)
+    // In development, rethrow the original error so the overlay shows the real cause.
+    // In production, Next.js omits the message in the client; check server logs for the message above.
+    if (process.env.NODE_ENV === "development") {
+      throw err
+    }
     throw new Error(
       "[dashboard] failed to load session or teams: " + message
     )

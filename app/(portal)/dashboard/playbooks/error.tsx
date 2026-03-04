@@ -47,6 +47,11 @@ export default function PlaybooksError({
               We couldn&apos;t load Playbooks. This can happen due to a temporary connection or
               configuration issue. Try again or return to the dashboard.
             </p>
+            {error.digest && (
+              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                Reference: {error.digest}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button

@@ -23,11 +23,6 @@ export default function DashboardError({
     } catch (_) {
       // ignore
     }
-    try {
-      void import("@sentry/nextjs").then((m) => m.captureException?.(error, { extra: { digest: error.digest } })).catch(() => {})
-    } catch (_) {
-      // Sentry not installed
-    }
   }, [error])
 
   return (

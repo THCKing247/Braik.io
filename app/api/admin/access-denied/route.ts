@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
-import { writeAdminAuditLog } from "@/lib/admin-audit"
+﻿import { NextResponse } from "next/server"
+import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
 
 export async function POST(request: Request) {
   try {

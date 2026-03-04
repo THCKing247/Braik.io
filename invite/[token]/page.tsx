@@ -1,5 +1,5 @@
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { InviteAcceptance } from "@/components/invite-acceptance"
+﻿import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { InviteAcceptance } from "@/components/portal/invite-acceptance"
 
 export default async function InvitePage({ params }: { params: { token: string } }) {
   const supabase = getSupabaseServer()

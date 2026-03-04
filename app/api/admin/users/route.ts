@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server"
-import { getAdminAccessForApi } from "@/lib/admin-access"
+﻿import { NextResponse } from "next/server"
+import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { listSupabaseAuthUsers } from "@/lib/supabase-admin"
+import { listSupabaseAuthUsers } from "@/lib/supabase/supabase-admin"
 
 export async function GET(request: Request) {
   try {

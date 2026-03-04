@@ -1,9 +1,9 @@
-"use client"
+﻿"use client"
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
-import { AdminTeamStatusForm } from "@/components/admin-team-status-form"
+import { AdminTeamStatusForm } from "@/components/admin/admin-team-status-form"
 
 interface TeamRow {
   id: string

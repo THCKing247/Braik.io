@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server"
+﻿import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getServerSession } from "@/lib/server-auth"
+import { getServerSession } from "@/lib/auth/server-auth"
 
 export async function GET() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

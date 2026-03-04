@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
-import { getAdminAccessForApi } from "@/lib/admin-access"
+﻿import { NextResponse } from "next/server"
+import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export async function GET(request: Request) {

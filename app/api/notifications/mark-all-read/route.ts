@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/server-auth"
-import { getUserMembership } from "@/lib/rbac"
-import { markAllNotificationsAsRead } from "@/lib/notifications"
+﻿import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
+import { getUserMembership } from "@/lib/auth/rbac"
+import { markAllNotificationsAsRead } from "@/lib/utils/notifications"
 
 /**
  * POST /api/notifications/mark-all-read

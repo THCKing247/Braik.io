@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/server-auth"
+﻿import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getUserMembership } from "@/lib/rbac"
-import { markNotificationAsRead } from "@/lib/notifications"
+import { getUserMembership } from "@/lib/auth/rbac"
+import { markNotificationAsRead } from "@/lib/utils/notifications"
 
 /**
  * PATCH /api/notifications/[id]

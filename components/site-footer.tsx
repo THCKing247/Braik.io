@@ -1,9 +1,9 @@
-"use client"
+﻿"use client"
 
 import Link from "next/link"
 import Image from "next/image"
 import { type FormEvent, useEffect, useState } from "react"
-import { useSession } from "@/lib/client-auth"
+import { useSession } from "@/lib/auth/client-auth"
 
 export function SiteFooter() {
   const { data: session } = useSession()

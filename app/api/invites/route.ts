@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/server-auth"
+﻿import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamPermission } from "@/lib/rbac"
+import { requireTeamPermission } from "@/lib/auth/rbac"
 import crypto from "crypto"
-import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
-import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
+import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
 
 export async function POST(request: Request) {
   try {

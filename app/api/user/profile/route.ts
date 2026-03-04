@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/server-auth"
+﻿import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { updateSupabaseUserByAppUserId } from "@/lib/supabase-admin"
+import { updateSupabaseUserByAppUserId } from "@/lib/supabase/supabase-admin"
 
 export async function PATCH(request: Request) {
   try {

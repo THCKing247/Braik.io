@@ -1,6 +1,6 @@
-import { randomBytes } from "crypto"
+﻿import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
-import { getSupabaseAdminClient } from "@/lib/supabase-admin"
+import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 

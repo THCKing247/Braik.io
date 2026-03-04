@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server"
-import { getAdminAccessForApi } from "@/lib/admin-access"
-import { writeAdminAuditLog } from "@/lib/admin-audit"
-import { appendSystemConfigVersion, listSystemConfig } from "@/lib/system-config-store"
+﻿import { NextResponse } from "next/server"
+import { getAdminAccessForApi } from "@/lib/admin/admin-access"
+import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
+import { appendSystemConfigVersion, listSystemConfig } from "@/lib/admin/system-config-store"
 
 export async function GET(request: Request) {
   try {

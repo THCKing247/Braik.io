@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
-import { getSupabaseAdminClient } from "@/lib/supabase-admin"
+﻿import { NextResponse } from "next/server"
+import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 
 type LeadPayload = {
   name: string

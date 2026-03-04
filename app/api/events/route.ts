@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/server-auth"
+﻿import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamPermission, getUserMembership } from "@/lib/rbac"
-import { requireBillingPermission } from "@/lib/billing-state"
-import { createNotifications } from "@/lib/notifications"
-import { logEventAction } from "@/lib/structured-logger"
-import { auditImpersonatedActionFromRequest } from "@/lib/impersonation"
-import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/team-operation-guard"
+import { requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
+import { requireBillingPermission } from "@/lib/billing/billing-state"
+import { createNotifications } from "@/lib/utils/notifications"
+import { logEventAction } from "@/lib/audit/structured-logger"
+import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
 
 export async function POST(request: Request) {
   try {

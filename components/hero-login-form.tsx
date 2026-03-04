@@ -1,6 +1,6 @@
-"use client"
+﻿"use client"
 
-import { signIn } from "@/lib/client-auth"
+import { signIn } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"

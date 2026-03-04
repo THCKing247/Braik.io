@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/server-auth"
+﻿import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getUserMembership } from "@/lib/rbac"
-import { getUnreadNotificationCount } from "@/lib/notifications"
+import { getUserMembership } from "@/lib/auth/rbac"
+import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 
 /**
  * GET /api/notifications

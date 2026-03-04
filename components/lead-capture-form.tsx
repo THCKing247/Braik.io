@@ -1,10 +1,10 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { trackMarketingEvent } from "@/lib/analytics-client"
+import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 
 export function LeadCaptureForm() {
   const [name, setName] = useState("")

@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
@@ -11,6 +12,36 @@ import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
 import { SuspensionBanner } from "@/components/suspension-banner"
 
 export const dynamic = "force-dynamic"
+
+/** Shown when the dashboard layout fails to load (avoids 500 and ERR_HTTP2 by returning 200). */
+function DashboardLayoutFallback() {
+  return (
+    <div className="flex min-h-[80vh] items-center justify-center p-6" style={{ backgroundColor: "rgb(var(--snow))" }}>
+      <div className="w-full max-w-md rounded-lg border bg-white p-8 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
+        <h2 className="text-xl font-bold" style={{ color: "rgb(var(--text))" }}>Something went wrong</h2>
+        <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+          We couldn&apos;t load the dashboard. This can happen due to a temporary connection or configuration issue.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"
+            style={{ borderColor: "rgb(var(--accent))", color: "rgb(var(--accent))" }}
+          >
+            Try again
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white"
+            style={{ backgroundColor: "rgb(var(--accent))" }}
+          >
+            Home
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default async function DashboardLayout({
   children,
@@ -114,14 +145,12 @@ export default async function DashboardLayout({
     if (isRedirectError(err)) throw err
     const message = err instanceof Error ? err.message : String(err)
     console.error("[dashboard layout] Server Components render failed:", message, err)
-    // In development, rethrow the original error so the overlay shows the real cause.
-    // In production, Next.js omits the message in the client; check server logs for the message above.
+    // In development, rethrow so the overlay shows the real error.
     if (process.env.NODE_ENV === "development") {
       throw err
     }
-    throw new Error(
-      "[dashboard] failed to load session or teams: " + message
-    )
+    // In production, return fallback UI so the request returns 200 and avoids 500 + ERR_HTTP2_PROTOCOL_ERROR.
+    return <DashboardLayoutFallback />
   }
 
   return (

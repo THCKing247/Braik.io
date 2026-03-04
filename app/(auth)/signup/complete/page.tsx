@@ -38,7 +38,7 @@ export default function CompleteSignupPage() {
       router.push("/signup/program")
       return
     }
-    if (!data.firstName || !data.lastName || !data.email || !data.password || !data.teamId) {
+    if (!data.firstName || !data.lastName || !data.email || !data.password) {
       router.push("/signup")
       return
     }
@@ -154,7 +154,18 @@ export default function CompleteSignupPage() {
                       <p><strong className="text-[#212529]">Role:</strong> {signupData.role === "assistant-coach" ? "Assistant Coach" : signupData.role === "player" ? "Player" : "Parent"}</p>
                       <p><strong className="text-[#212529]">Name:</strong> {signupData.firstName} {signupData.lastName}</p>
                       <p><strong className="text-[#212529]">Email:</strong> {signupData.email}</p>
-                      <p><strong className="text-[#212529]">Team Code:</strong> {signupData.teamId}</p>
+                      {signupData.teamId ? (
+                        <p>
+                          <strong className="text-[#212529]">
+                            {signupData.role === "parent" ? "Player Code:" : "Team Code:"}
+                          </strong>{" "}
+                          {signupData.teamId}
+                        </p>
+                      ) : (
+                        <p className="text-[#6c757d] text-sm italic">
+                          No code entered — you can connect to your {signupData.role === "parent" ? "player" : "team"} from your dashboard after signing up.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

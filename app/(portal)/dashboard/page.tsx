@@ -4,6 +4,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { ConnectToTeam } from "@/components/portal/connect-to-team"
 import {
   Users,
   Calendar,
@@ -16,6 +17,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
+  Lock,
 } from "lucide-react"
 
 const FEATURES = [
@@ -103,6 +105,7 @@ export default function DashboardPage() {
 
   const visibleFeatures = FEATURES.filter((f) => !role || f.roles.includes(role))
   const isHeadCoach = role === "HEAD_COACH"
+  const hasTeam = Boolean(session?.user?.teamId)
 
   if (status === "loading") {
     return (
@@ -110,6 +113,11 @@ export default function DashboardPage() {
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2563EB] border-t-transparent" />
       </div>
     )
+  }
+
+  // Non-head-coach users who haven't entered a team code yet see the connect screen
+  if (status === "authenticated" && !isHeadCoach && !hasTeam) {
+    return <ConnectToTeam role={role || "PLAYER"} />
   }
 
   return (
@@ -219,55 +227,75 @@ export default function DashboardPage() {
           Your Features
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {visibleFeatures.map(({ id, href, label, description, icon: Icon, highlight }) => (
-            <Link key={id} href={href} className="group block no-underline">
-              <Card
-                className="h-full border transition-all duration-200 group-hover:shadow-md group-hover:-translate-y-0.5"
-                style={{
-                  backgroundColor: highlight ? "rgb(var(--accent))" : "#FFFFFF",
-                  borderColor: highlight ? "rgb(var(--accent))" : "rgb(var(--border))",
-                }}
+          {visibleFeatures.map(({ id, href, label, description, icon: Icon, highlight }) => {
+            // Features other than "Invite Members" are locked until the user has a team
+            const isLocked = !isHeadCoach && !hasTeam && id !== "invites"
+            const linkHref = isLocked ? "#" : href
+
+            return (
+              <Link
+                key={id}
+                href={linkHref}
+                onClick={isLocked ? (e) => e.preventDefault() : undefined}
+                className={`group block no-underline ${isLocked ? "cursor-default" : ""}`}
               >
-                <CardContent className="p-4 flex flex-col gap-3 h-full">
-                  <div className="flex items-center justify-between">
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-lg"
-                      style={{
-                        backgroundColor: highlight
-                          ? "rgba(255,255,255,0.2)"
-                          : "rgb(var(--platinum))",
-                      }}
-                    >
-                      <Icon
-                        className="h-5 w-5"
-                        style={{ color: highlight ? "#FFFFFF" : "rgb(var(--accent))" }}
-                      />
+                <Card
+                  className="h-full border transition-all duration-200"
+                  style={{
+                    backgroundColor: isLocked ? "rgb(var(--platinum))" : highlight ? "rgb(var(--accent))" : "#FFFFFF",
+                    borderColor: isLocked ? "rgb(var(--border))" : highlight ? "rgb(var(--accent))" : "rgb(var(--border))",
+                    opacity: isLocked ? 0.65 : 1,
+                  }}
+                >
+                  <CardContent className="p-4 flex flex-col gap-3 h-full">
+                    <div className="flex items-center justify-between">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-lg"
+                        style={{
+                          backgroundColor: highlight && !isLocked
+                            ? "rgba(255,255,255,0.2)"
+                            : "rgb(var(--platinum))",
+                        }}
+                      >
+                        <Icon
+                          className="h-5 w-5"
+                          style={{ color: isLocked ? "rgb(var(--muted))" : highlight ? "#FFFFFF" : "rgb(var(--accent))" }}
+                        />
+                      </div>
+                      {isLocked ? (
+                        <Lock className="h-3.5 w-3.5" style={{ color: "rgb(var(--muted))" }} />
+                      ) : (
+                        <ArrowRight
+                          className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ color: highlight ? "#FFFFFF" : "rgb(var(--muted))" }}
+                        />
+                      )}
                     </div>
-                    <ArrowRight
-                      className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{ color: highlight ? "#FFFFFF" : "rgb(var(--muted))" }}
-                    />
-                  </div>
-                  <div>
-                    <p
-                      className="font-semibold text-sm"
-                      style={{ color: highlight ? "#FFFFFF" : "rgb(var(--text))" }}
-                    >
-                      {label}
-                    </p>
-                    <p
-                      className="text-xs mt-0.5"
-                      style={{
-                        color: highlight ? "rgba(255,255,255,0.8)" : "rgb(var(--muted))",
-                      }}
-                    >
-                      {description}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                    <div>
+                      <p
+                        className="font-semibold text-sm"
+                        style={{ color: isLocked ? "rgb(var(--muted))" : highlight ? "#FFFFFF" : "rgb(var(--text))" }}
+                      >
+                        {label}
+                      </p>
+                      <p
+                        className="text-xs mt-0.5"
+                        style={{
+                          color: isLocked
+                            ? "rgb(var(--muted))"
+                            : highlight
+                            ? "rgba(255,255,255,0.8)"
+                            : "rgb(var(--muted))",
+                        }}
+                      >
+                        {isLocked ? "Connect to a team to unlock" : description}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            )
+          })}
         </div>
       </div>
     </div>

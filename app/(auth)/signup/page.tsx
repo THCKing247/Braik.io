@@ -116,10 +116,7 @@ export default function SignupPage() {
       return
     }
 
-    if (role !== "head-coach" && !teamId) {
-      setError(withErrorCode("SIGNUP-VALIDATION-004", "Team code is required for this role. Get the team code from your head coach."))
-      return
-    }
+    // Team/player code is now optional at sign-up — users can enter it from the dashboard after logging in.
 
     if (!acceptTerms) {
       setError(withErrorCode("SIGNUP-COMPLIANCE-001", "Please read and accept the Terms of Service before continuing."))
@@ -319,7 +316,8 @@ export default function SignupPage() {
                   {role && role !== "head-coach" && (
                     <div className="space-y-2">
                       <Label htmlFor="teamId" className="text-sm font-medium text-[#495057]">
-                        Team Code *
+                        {role === "parent" ? "Player Code" : "Team Code"}{" "}
+                        <span className="font-normal text-[#9CA3AF]">(Optional)</span>
                       </Label>
                       <Input
                         id="teamId"
@@ -328,19 +326,16 @@ export default function SignupPage() {
                         onChange={(e) => setTeamId(e.target.value.toUpperCase())}
                         className="bg-white text-[#212529] placeholder:text-[#6c757d] font-mono text-lg tracking-wider"
                         placeholder={
-                          role === "player"
-                            ? "Enter Team Code from your coach"
-                            : role === "parent"
-                            ? "Enter Team Code from your coach"
-                            : "Enter Team Code from your Head Coach"
+                          role === "parent"
+                            ? "Enter Player Code — you can add this after signing up"
+                            : "Enter Team Code — you can add this after signing up"
                         }
-                        required
                         maxLength={8}
                       />
                       <p className="text-xs text-[#6c757d]">
-                        {role === "player" || role === "parent"
-                          ? "Get your Team Code from your coach"
-                          : "Get your Team Code from your Head Coach"}
+                        {role === "parent"
+                          ? "Your Player Code comes from your child's coaching staff. You can enter it now or from your dashboard after signing up."
+                          : "Get your Team Code from your Head Coach. You can enter it now or connect from your dashboard after signing up."}
                       </p>
                     </div>
                   )}

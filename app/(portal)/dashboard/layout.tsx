@@ -85,10 +85,12 @@ export default async function DashboardLayout({
     }))
   }
 
-  // Only redirect to onboarding if the user truly has no team association at all.
-  // Newly registered head coaches will always have a team via signup-secure, so
-  // this redirect should only trigger for legacy / platform-admin edge cases.
-  if (teams.length === 0 && !session.user.isPlatformOwner) {
+  // Head Coaches must always have a team — redirect to onboarding only for them.
+  // Players, Assistant Coaches, and Parents can sign up without a team code and
+  // connect to their team from the dashboard, so they are allowed through here
+  // with teams.length === 0 (the dashboard page handles the "no team" empty state).
+  const userRole = session.user.role?.toUpperCase()
+  if (teams.length === 0 && userRole === "HEAD_COACH" && !session.user.isPlatformOwner) {
     redirect("/onboarding")
   }
 

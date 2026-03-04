@@ -140,9 +140,8 @@ export async function POST(request: Request) {
       throw new SignupRouteError(403, "Role tampering detected")
     }
 
-    if (role !== "head_coach" && !programCode) {
-      throw new SignupRouteError(400, "Invalid invite code")
-    }
+    // Note: programCode is now OPTIONAL for non-head-coach roles.
+    // Users can join a team from the dashboard after signing up.
 
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
@@ -171,10 +170,11 @@ export async function POST(request: Request) {
 
     createdAuthUserId = authData.user.id
 
-    let teamId: string
+    let teamId: string | null = null
     let inviteCode: string | null = null
 
     if (role === "head_coach") {
+      // Head Coach always creates a brand-new team immediately.
       inviteCode = generateSecureInviteCode(8)
 
       const { data: insertedTeam, error: teamInsertError } = await supabase
@@ -202,7 +202,8 @@ export async function POST(request: Request) {
       if (inviteInsertError) {
         throw new SignupRouteError(500, "Database failure while creating invite", inviteInsertError.message)
       }
-    } else {
+    } else if (programCode) {
+      // Non-head-coach provided an invite/player code — look it up and link them now.
       const { data: invite, error: inviteLookupError } = await supabase
         .from("invites")
         .select("id, team_id, uses, max_uses, expires_at")
@@ -214,19 +215,19 @@ export async function POST(request: Request) {
       }
 
       if (!invite || !invite.team_id) {
-        throw new SignupRouteError(400, "Invalid invite code")
+        throw new SignupRouteError(400, "The code you entered is not valid. Double-check it with your coach or try again later.")
       }
 
       const uses = typeof invite.uses === "number" ? invite.uses : 0
       const maxUses = typeof invite.max_uses === "number" ? invite.max_uses : Number.MAX_SAFE_INTEGER
       if (uses >= maxUses) {
-        throw new SignupRouteError(400, "Invalid invite code")
+        throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
       }
 
       if (invite.expires_at) {
         const expiresAt = new Date(invite.expires_at as string)
         if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-          throw new SignupRouteError(400, "Invalid invite code")
+          throw new SignupRouteError(400, "This invite code has expired. Ask your coach for a fresh one.")
         }
       }
 
@@ -241,12 +242,13 @@ export async function POST(request: Request) {
         throw new SignupRouteError(500, "Database failure while updating invite usage")
       }
     }
+    // else: no code provided — user signs up without a team and will connect later.
 
     const { error: profileInsertError } = await supabase.from("profiles").upsert({
       id: createdAuthUserId,
       email,
       role,
-      team_id: teamId,
+      team_id: teamId,           // null when no code was provided
       full_name: fullName,
       phone: phone ?? null,
       sport: sport ?? null,
@@ -257,29 +259,30 @@ export async function POST(request: Request) {
       throw new SignupRouteError(500, "Database failure while creating profile", profileInsertError.message)
     }
 
-    // Add the user to team_members so the dashboard can find their team immediately
-    // without requiring an extra onboarding step.
-    const teamMemberRole =
-      role === "head_coach"
-        ? "HEAD_COACH"
-        : role === "assistant_coach"
-        ? "ASSISTANT_COACH"
-        : role === "player"
-        ? "PLAYER"
-        : role === "parent"
-        ? "PARENT"
-        : "PLAYER"
+    // Only insert a team_members row when the user is already linked to a team.
+    if (teamId) {
+      const teamMemberRole =
+        role === "head_coach"
+          ? "HEAD_COACH"
+          : role === "assistant_coach"
+          ? "ASSISTANT_COACH"
+          : role === "player"
+          ? "PLAYER"
+          : role === "parent"
+          ? "PARENT"
+          : "PLAYER"
 
-    const { error: memberInsertError } = await supabase.from("team_members").insert({
-      team_id: teamId,
-      user_id: createdAuthUserId,
-      role: teamMemberRole,
-      active: true,
-    })
+      const { error: memberInsertError } = await supabase.from("team_members").insert({
+        team_id: teamId,
+        user_id: createdAuthUserId,
+        role: teamMemberRole,
+        active: true,
+      })
 
-    if (memberInsertError) {
-      // Non-fatal: profile and team are already created. Log and continue.
-      console.error("Warning: team_members insert failed:", memberInsertError.message)
+      if (memberInsertError) {
+        // Non-fatal: profile and team are already created. Log and continue.
+        console.error("Warning: team_members insert failed:", memberInsertError.message)
+      }
     }
 
     // Ensure a row exists in public.users (for admin tools and team invite queries)

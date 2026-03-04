@@ -6,10 +6,12 @@ const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player
 
 class SignupRouteError extends Error {
   status: number
+  details?: string
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, details?: string) {
     super(message)
     this.status = status
+    this.details = details
   }
 }
 
@@ -92,10 +94,19 @@ function mapCreateUserError(errorMessage: string): SignupRouteError {
     message.includes("duplicate") ||
     message.includes("unique")
   ) {
-    return new SignupRouteError(409, "A user with this email already exists")
+    return new SignupRouteError(409, "An account with this email already exists. Please sign in instead.")
   }
 
-  return new SignupRouteError(500, "Failed to create auth user")
+  if (message.includes("password") && (message.includes("weak") || message.includes("short") || message.includes("characters"))) {
+    return new SignupRouteError(400, "Password does not meet Supabase requirements.", errorMessage)
+  }
+
+  if (message.includes("invalid email") || message.includes("email address")) {
+    return new SignupRouteError(400, "Invalid email address.", errorMessage)
+  }
+
+  // Surface the raw Supabase error as `details` so the frontend can display it
+  return new SignupRouteError(500, "Failed to create auth user", errorMessage)
 }
 
 export async function POST(request: Request) {
@@ -135,7 +146,10 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
-      throw new SignupRouteError(500, "Supabase Admin client is not configured")
+      throw new SignupRouteError(
+        500,
+        "Server is missing Supabase credentials. Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in your environment variables."
+      )
     }
 
     const { data: authData, error: createAuthError } = await supabase.auth.admin.createUser({
@@ -174,7 +188,7 @@ export async function POST(request: Request) {
         .single()
 
       if (teamInsertError || !insertedTeam?.id) {
-        throw new SignupRouteError(500, "Database failure while creating team")
+        throw new SignupRouteError(500, "Database failure while creating team", teamInsertError?.message)
       }
 
       teamId = insertedTeam.id as string
@@ -186,7 +200,7 @@ export async function POST(request: Request) {
       })
 
       if (inviteInsertError) {
-        throw new SignupRouteError(500, "Database failure while creating invite")
+        throw new SignupRouteError(500, "Database failure while creating invite", inviteInsertError.message)
       }
     } else {
       const { data: invite, error: inviteLookupError } = await supabase
@@ -240,7 +254,7 @@ export async function POST(request: Request) {
     })
 
     if (profileInsertError) {
-      throw new SignupRouteError(500, "Database failure while creating profile")
+      throw new SignupRouteError(500, "Database failure while creating profile", profileInsertError.message)
     }
 
     // Add the user to team_members so the dashboard can find their team immediately
@@ -304,11 +318,18 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof SignupRouteError) {
-      return NextResponse.json({ error: error.message }, { status: error.status })
+      return NextResponse.json(
+        {
+          error: error.message,
+          ...(error.details ? { details: error.details } : {}),
+        },
+        { status: error.status }
+      )
     }
 
-    console.error("Secure signup route error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const unknownMsg = error instanceof Error ? error.message : String(error)
+    console.error("Secure signup route error:", unknownMsg)
+    return NextResponse.json({ error: "Internal server error", details: unknownMsg }, { status: 500 })
   }
 }
 

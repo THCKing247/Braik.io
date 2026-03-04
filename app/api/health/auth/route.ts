@@ -1,0 +1,28 @@
+import { NextResponse } from "next/server"
+
+function isSet(value: string | undefined) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+export async function GET() {
+  const env = {
+    AUTH_SECRET: isSet(process.env.AUTH_SECRET),
+    SUPABASE_URL: isSet(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+    SUPABASE_ANON_KEY: isSet(process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    SUPABASE_SERVICE_ROLE_KEY: isSet(process.env.SUPABASE_SERVICE_ROLE_KEY),
+  }
+
+  const missing = Object.entries(env)
+    .filter(([, configured]) => !configured)
+    .map(([key]) => key)
+
+  return NextResponse.json(
+    {
+      ok: missing.length === 0,
+      env,
+      missing,
+    },
+    { status: missing.length === 0 ? 200 : 500 }
+  )
+}
+

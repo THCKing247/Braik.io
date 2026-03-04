@@ -1,0 +1,25 @@
+You need to make two changes to prisma/schema.prisma:
+
+1. Add imageUrl field after notes (around line 206):
+   Change:
+     notes        String?  @db.Text
+     uniqueCode   String?  @unique
+   
+   To:
+     notes        String?  @db.Text
+     imageUrl     String?  // Player profile image URL
+     uniqueCode   String?  @unique
+
+2. Add depthChartEntries relation after assignedInventory (around line 216):
+   Change:
+     assignedInventory InventoryItem[]
+     
+     @@index([teamId])
+   
+   To:
+     assignedInventory InventoryItem[]
+     depthChartEntries DepthChartEntry[]
+     
+     @@index([teamId])
+
+Then run: npm run db:push

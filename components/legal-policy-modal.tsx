@@ -223,16 +223,31 @@ export function LegalPolicyModal({ policyKey, isOpen, onClose }: LegalPolicyModa
   const [hasRead, setHasRead] = useState(false)
   const [scrollPct, setScrollPct] = useState(0)
 
-  // Reset read state whenever a new policy is opened
+  // Reset read state whenever a new policy is opened, then immediately check
+  // whether the content is short enough that no scrolling is required.
   useEffect(() => {
-    if (isOpen) {
-      setHasRead(false)
-      setScrollPct(0)
-      // Scroll the content back to top
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = 0
-      }
+    if (!isOpen) return
+
+    setHasRead(false)
+    setScrollPct(0)
+
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0
     }
+
+    // After the browser has painted the modal content, check if a scrollbar
+    // is even present. If the entire policy fits without scrolling, consider
+    // it fully read straight away so the accept button is immediately active.
+    const raf = requestAnimationFrame(() => {
+      const el = scrollRef.current
+      if (!el) return
+      if (el.scrollHeight <= el.clientHeight) {
+        setHasRead(true)
+        setScrollPct(1)
+      }
+    })
+
+    return () => cancelAnimationFrame(raf)
   }, [isOpen, policyKey])
 
   // Close on Escape

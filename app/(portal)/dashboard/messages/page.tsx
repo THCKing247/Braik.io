@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { MessageSquare } from "lucide-react"
+
 export default function MessagesPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Messages"
+      description="Direct and group messaging for your entire team. Send updates, share files, and keep everyone in the loop in real time."
+      icon={MessageSquare}
+    />
   )
 }

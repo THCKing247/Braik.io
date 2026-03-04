@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { UserPlus } from "lucide-react"
+
 export default function InvitesPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Invite Team Members"
+      description="Send invitations to players, coaches, and parents to join your team on Braik. Share your Team Code or send individual email invites."
+      icon={UserPlus}
+    />
   )
 }

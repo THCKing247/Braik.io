@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { BookOpen } from "lucide-react"
+
 export default function PlaybooksPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Playbooks"
+      description="Build and share digital playbooks. Create plays, assign formations, and give every player access to the game plan from any device."
+      icon={BookOpen}
+    />
   )
 }

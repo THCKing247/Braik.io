@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { Star } from "lucide-react"
+
 export default function SubscriptionPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Subscription"
+      description="View your current plan, manage billing, and upgrade your subscription. Braik Pro features are available for teams of all sizes."
+      icon={Star}
+    />
   )
 }

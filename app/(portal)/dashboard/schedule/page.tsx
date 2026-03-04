@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { Calendar } from "lucide-react"
+
 export default function SchedulePage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Schedule"
+      description="View and manage your full season schedule. Add games, practices, film sessions, and team events with reminders sent automatically."
+      icon={Calendar}
+    />
   )
 }

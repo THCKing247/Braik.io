@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { Users } from "lucide-react"
+
 export default function RosterPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Roster Management"
+      description="Add and manage players, coaches, and staff. Assign positions, track eligibility, and keep your team organized — all in one place."
+      icon={Users}
+    />
   )
 }

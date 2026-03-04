@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { Megaphone } from "lucide-react"
+
 export default function AnnouncementsPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Announcements"
+      description="Broadcast important updates, reminders, and news to your entire team instantly. All members stay informed in one place."
+      icon={Megaphone}
+    />
   )
 }

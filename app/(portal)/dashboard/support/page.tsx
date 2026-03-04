@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { LifeBuoy } from "lucide-react"
+
 export default function SupportPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Support"
+      description="Access help articles, submit a support ticket, or chat with the Braik team. We're here to help you get the most out of the platform."
+      icon={LifeBuoy}
+    />
   )
 }

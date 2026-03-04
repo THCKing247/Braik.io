@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { CreditCard } from "lucide-react"
+
 export default function PaymentsPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Payments"
+      description="Manage your payment methods, view transaction history, and handle payout settings for team collections and dues."
+      icon={CreditCard}
+    />
   )
 }

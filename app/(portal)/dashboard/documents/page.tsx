@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { FileText } from "lucide-react"
+
 export default function DocumentsPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Documents"
+      description="Upload and manage waivers, permission slips, eligibility forms, and any other team paperwork — all digitally signed and stored securely."
+      icon={FileText}
+    />
   )
 }

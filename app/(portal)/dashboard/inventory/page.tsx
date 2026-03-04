@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { Package } from "lucide-react"
+
 export default function InventoryPage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Inventory"
+      description="Track uniforms, pads, helmets, and all team equipment. Assign gear to players and get notified when items need to be returned."
+      icon={Package}
+    />
   )
 }

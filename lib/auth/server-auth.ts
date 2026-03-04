@@ -55,7 +55,10 @@ export async function getServerSession(): Promise<{ user: SessionUser } | null> 
     isPlatformOwner = (appUser as { is_platform_owner?: boolean }).is_platform_owner === true
   }
 
-  const role = profile?.role ?? "player"
+  // Normalize role to uppercase so UI components (DashboardNav, QuickActionsSidebar,
+  // SubscriptionGuard) that check "HEAD_COACH" etc. match correctly.
+  const rawRole = profile?.role ?? "player"
+  const role = rawRole.toUpperCase().replace(/ /g, "_")
   return {
     user: {
       id: userData.user.id,

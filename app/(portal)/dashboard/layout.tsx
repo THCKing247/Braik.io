@@ -98,11 +98,13 @@ export default async function DashboardLayout({
   const secondaryColor = currentTeam?.secondaryColor || "#FFFFFF"
   const isFootballProgram = (currentTeam?.sport || "").toLowerCase() === "football"
 
-  const subscriptionPaid = currentTeam?.subscriptionPaid ?? false
   const playerCount = currentTeam?.players?.length ?? 0
   const subscriptionAmount = playerCount * 5.0
   const amountPaid = currentTeam?.amountPaid ?? 0
   const remainingBalance = subscriptionAmount - amountPaid
+  // Consider subscription paid when there is no outstanding balance (e.g. teams with
+  // 0 players during pre-launch always have a $0.00 balance and should not be blocked).
+  const subscriptionPaid = (currentTeam?.subscriptionPaid ?? false) || remainingBalance <= 0
   const impersonationSession = await getActiveImpersonationFromCookies()
 
   return (

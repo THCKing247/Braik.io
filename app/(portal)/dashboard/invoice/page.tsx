@@ -1,9 +1,12 @@
+import { ComingSoon } from "@/components/portal/coming-soon"
+import { DollarSign } from "lucide-react"
+
 export default function InvoicePage() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center p-6">
-      <p className="text-center text-[#6c757d]">
-        This feature is temporarily unavailable while migrating to Supabase.
-      </p>
-    </div>
+    <ComingSoon
+      title="Invoices & Payments"
+      description="View and manage dues, fees, and payment history. Send invoices to players and parents and track payment status across your entire team."
+      icon={DollarSign}
+    />
   )
 }

@@ -1,4 +1,5 @@
-﻿import { redirect } from "next/navigation"
+import { redirect } from "next/navigation"
+import { isRedirectError } from "next/dist/client/components/redirect"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
@@ -14,42 +15,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await getServerSessionOrSupabase()
-
-  if (!session?.user?.id) {
-    redirect("/login")
-  }
-
-  const supabase = getSupabaseServer()
-
-  // Load user's teams via team_members (Supabase)
-  const { data: memberships } = await supabase
-    .from("team_members")
-    .select("team_id, role")
-    .eq("user_id", session.user.id)
-    .eq("active", true)
-
-  let teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
-
-  // Fallback: if no team_members row exists yet (e.g. just signed up and the
-  // team_members insert is still propagating), read team_id directly from the
-  // user's profile so they land on the dashboard without an onboarding detour.
-  if (teamIds.length === 0 && session.user.teamId) {
-    teamIds = [session.user.teamId]
-  }
-
-  // Second fallback: read profile directly in case session.user.teamId is stale
-  if (teamIds.length === 0) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("team_id")
-      .eq("id", session.user.id)
-      .maybeSingle()
-    if (profile?.team_id) {
-      teamIds = [profile.team_id]
-    }
-  }
-
+  let session: Awaited<ReturnType<typeof getServerSessionOrSupabase>>
   let teams: Array<{
     id: string
     name: string
@@ -62,52 +28,90 @@ export default async function DashboardLayout({
     subscriptionPaid?: boolean
     amountPaid?: number
     players?: unknown[]
-  }> = []
+  }>
+  let currentTeam: { primaryColor?: string; secondaryColor?: string; sport?: string; teamStatus?: string; amountPaid?: number; subscriptionPaid?: boolean; players?: unknown[] } | undefined
+  let subscriptionPaid: boolean
+  let remainingBalance: number
+  let impersonationSession: Awaited<ReturnType<typeof getActiveImpersonationFromCookies>>
 
-  if (teamIds.length > 0) {
-    const { data: teamsData } = await supabase
-      .from("teams")
-      .select("id, name")
-      .in("id", teamIds)
+  try {
+    session = await getServerSessionOrSupabase()
 
-    teams = (teamsData ?? []).map((t) => ({
-      id: t.id,
-      name: t.name,
-      organization: { name: t.name ?? "" },
-      sport: "football",
-      seasonName: "",
-      primaryColor: "#1e3a5f",
-      secondaryColor: "#FFFFFF",
-      teamStatus: "active",
-      subscriptionPaid: false,
-      amountPaid: 0,
-      players: [],
-    }))
+    if (!session?.user?.id) {
+      redirect("/login")
+    }
+
+    const supabase = getSupabaseServer()
+
+    // Load user's teams via team_members (Supabase)
+    const { data: memberships } = await supabase
+      .from("team_members")
+      .select("team_id, role")
+      .eq("user_id", session.user.id)
+      .eq("active", true)
+
+    let teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
+
+    // Fallback: if no team_members row exists yet (e.g. just signed up and the
+    // team_members insert is still propagating), read team_id directly from the
+    // user's profile so they land on the dashboard without an onboarding detour.
+    if (teamIds.length === 0 && session.user.teamId) {
+      teamIds = [session.user.teamId]
+    }
+
+    // Second fallback: read profile directly in case session.user.teamId is stale
+    if (teamIds.length === 0) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("team_id")
+        .eq("id", session.user.id)
+        .maybeSingle()
+      if (profile?.team_id) {
+        teamIds = [profile.team_id]
+      }
+    }
+
+    teams = []
+
+    if (teamIds.length > 0) {
+      const { data: teamsData } = await supabase
+        .from("teams")
+        .select("id, name")
+        .in("id", teamIds)
+
+      teams = (teamsData ?? []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        organization: { name: t.name ?? "" },
+        sport: "football",
+        seasonName: "",
+        primaryColor: "#1e3a5f",
+        secondaryColor: "#FFFFFF",
+        teamStatus: "active",
+        subscriptionPaid: false,
+        amountPaid: 0,
+        players: [],
+      }))
+    }
+
+    // Head Coaches must always have a team — redirect to onboarding only for them.
+    const userRole = session.user.role?.toUpperCase()
+    if (teams.length === 0 && userRole === "HEAD_COACH" && !session.user.isPlatformOwner) {
+      redirect("/onboarding")
+    }
+
+    const currentTeamId = session.user.teamId || teams[0]?.id
+    currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
+    const playerCount = currentTeam?.players?.length ?? 0
+    const subscriptionAmount = playerCount * 5.0
+    const amountPaid = currentTeam?.amountPaid ?? 0
+    remainingBalance = subscriptionAmount - amountPaid
+    subscriptionPaid = (currentTeam?.subscriptionPaid ?? false) || remainingBalance <= 0
+    impersonationSession = await getActiveImpersonationFromCookies()
+  } catch (err) {
+    if (isRedirectError(err)) throw err
+    redirect("/login")
   }
-
-  // Head Coaches must always have a team — redirect to onboarding only for them.
-  // Players, Assistant Coaches, and Parents can sign up without a team code and
-  // connect to their team from the dashboard, so they are allowed through here
-  // with teams.length === 0 (the dashboard page handles the "no team" empty state).
-  const userRole = session.user.role?.toUpperCase()
-  if (teams.length === 0 && userRole === "HEAD_COACH" && !session.user.isPlatformOwner) {
-    redirect("/onboarding")
-  }
-
-  const currentTeamId = session.user.teamId || teams[0]?.id
-  const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
-  const primaryColor = currentTeam?.primaryColor || "#1e3a5f"
-  const secondaryColor = currentTeam?.secondaryColor || "#FFFFFF"
-  const isFootballProgram = (currentTeam?.sport || "").toLowerCase() === "football"
-
-  const playerCount = currentTeam?.players?.length ?? 0
-  const subscriptionAmount = playerCount * 5.0
-  const amountPaid = currentTeam?.amountPaid ?? 0
-  const remainingBalance = subscriptionAmount - amountPaid
-  // Consider subscription paid when there is no outstanding balance (e.g. teams with
-  // 0 players during pre-launch always have a $0.00 balance and should not be blocked).
-  const subscriptionPaid = (currentTeam?.subscriptionPaid ?? false) || remainingBalance <= 0
-  const impersonationSession = await getActiveImpersonationFromCookies()
 
   return (
     <div className="app-shell" style={{ backgroundColor: "rgb(var(--snow))" }}>

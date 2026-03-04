@@ -10,6 +10,8 @@ import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
 import { SuspensionBanner } from "@/components/suspension-banner"
 
+export const dynamic = "force-dynamic"
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -110,7 +112,11 @@ export default async function DashboardLayout({
     impersonationSession = await getActiveImpersonationFromCookies()
   } catch (err) {
     if (isRedirectError(err)) throw err
-    redirect("/login")
+    const message = err instanceof Error ? err.message : String(err)
+    console.error("[dashboard layout] Server Components render failed:", message, err)
+    throw new Error(
+      "[dashboard] failed to load session or teams: " + message
+    )
   }
 
   return (

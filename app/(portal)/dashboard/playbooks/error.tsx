@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { AlertCircle } from "lucide-react"
 
-export default function DashboardError({
+export default function PlaybooksError({
   error,
   reset,
 }: {
@@ -14,19 +14,15 @@ export default function DashboardError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error("[dashboard] Route error:", error.message, error.digest ?? "", error)
-    try {
-      const Sentry = (window as unknown as { Sentry?: { captureException: (err: unknown, ctx?: { extra?: Record<string, unknown> }) => void } }).Sentry
-      if (Sentry?.captureException) {
-        Sentry.captureException(error, { extra: { digest: error.digest, route: "dashboard" } })
+    console.error("[playbooks] Route error:", error.message, error.digest ?? "", error)
+    if (typeof window !== "undefined" && (window as unknown as { Sentry?: { captureException: (err: unknown, ctx?: unknown) => void } }).Sentry?.captureException) {
+      try {
+        (window as unknown as { Sentry: { captureException: (err: unknown, ctx?: unknown) => void } }).Sentry.captureException(error, {
+          extra: { digest: error.digest, route: "/dashboard/playbooks" },
+        })
+      } catch (_) {
+        // ignore Sentry failures
       }
-    } catch (_) {
-      // ignore
-    }
-    try {
-      void import("@sentry/nextjs").then((m) => m.captureException?.(error, { extra: { digest: error.digest } })).catch(() => {})
-    } catch (_) {
-      // Sentry not installed
     }
   }, [error])
 
@@ -48,14 +44,14 @@ export default function DashboardError({
               Something went wrong
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
-              We couldn&apos;t load this page. This can happen due to a temporary connection or
+              We couldn&apos;t load Playbooks. This can happen due to a temporary connection or
               configuration issue. Try again or return to the dashboard.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button
               variant="outline"
-              onClick={reset}
+              onClick={() => reset()}
               style={{ borderColor: "rgb(var(--accent))", color: "rgb(var(--accent))" }}
             >
               Try again

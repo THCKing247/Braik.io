@@ -55,7 +55,7 @@ export default function CompleteSignupPage() {
     setLoading(true)
 
     try {
-      const response = await fetch("/api/auth/signup", {
+      const response = await fetch("/api/auth/signup-secure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -122,11 +122,26 @@ export default function CompleteSignupPage() {
         <div className="container mx-auto">
           <div className="w-full max-w-2xl mx-auto p-10 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
             <div className="mb-8">
+              {/* Step progress bar */}
+              <div className="flex items-center gap-2 mb-6">
+                {[
+                  { label: "Account", active: true },
+                  { label: "Review", active: true },
+                ].map((step, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="h-1.5 w-full rounded-full bg-[#3B82F6]" />
+                    <span className={`text-xs font-medium ${i === 1 ? "text-[#3B82F6]" : "text-[#93C5FD]"}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
               <h2 className="text-3xl md:text-4xl font-athletic font-bold text-center mb-2 text-[#212529] uppercase tracking-tight">
                 Complete Your Account
               </h2>
               <p className="text-center text-[#495057]">
-                Review your information and create your account
+                Step 2 of 2 — Review and confirm
               </p>
             </div>
 

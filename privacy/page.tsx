@@ -1,7 +1,5 @@
 ﻿import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { LegalReadTracker } from "@/components/legal-read-tracker"
-import { LEGAL_POLICY_REVIEW_KEYS, LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 
 export default function PrivacyPage() {
   return (
@@ -151,10 +149,6 @@ export default function PrivacyPage() {
               <p>We may update this Privacy Policy periodically. Continued use constitutes acceptance.</p>
             </div>
 
-            <LegalReadTracker
-              storageKey={LEGAL_POLICY_REVIEW_KEYS.privacy}
-              policyVersion={LEGAL_POLICY_VERSIONS.privacy}
-            />
           </div>
         </div>
       </section>

@@ -224,7 +224,7 @@ export function SiteFooter() {
           {/* Copyright */}
           <div className="border-t border-[#E5E7EB] pt-8 text-center">
             <p className="text-[#212529] text-sm">
-              &copy; 2024 Braik. All rights reserved.
+              &copy; {new Date().getFullYear()} Braik. All rights reserved.
             </p>
             <p className="text-[#6c757d] text-sm mt-2">
               Powered by Apex TSG

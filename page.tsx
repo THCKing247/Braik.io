@@ -76,36 +76,44 @@ export default function Home() {
             </ScrollReveal>
             
             <ScrollReveal delay={100}>
-              <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-                <HeroShatterCta
-                  size="lg"
-                  className="text-base px-10 py-6 w-full sm:w-auto"
-                  onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_hero" })}
-                />
-                <Link
-                  href="/pricing"
-                  onClick={() => trackMarketingEvent("clicked_cta", { cta: "view_pricing_hero" })}
-                >
-                  <Button
+              {/* Primary CTA — dominant */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-full sm:w-auto">
+                  <HeroShatterCta
                     size="lg"
-                    variant="outline"
-                    className="text-base px-10 py-6 w-full sm:w-auto border-[#3B82F6] text-[#1D4ED8] hover:bg-[#EFF6FF]"
+                    className="text-lg px-12 py-7 w-full sm:w-auto shadow-lg shadow-blue-200/60"
+                    onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_hero" })}
+                  />
+                </div>
+
+                {/* Secondary CTAs — smaller, below */}
+                <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                  <Link
+                    href="/pricing"
+                    onClick={() => trackMarketingEvent("clicked_cta", { cta: "view_pricing_hero" })}
                   >
-                    View pricing
-                  </Button>
-                </Link>
-                <Link
-                  href="/#request-demo"
-                  onClick={() => trackMarketingEvent("clicked_cta", { cta: "request_demo_hero" })}
-                >
-                  <Button
-                    size="lg"
-                    variant="ghost"
-                    className="text-base px-10 py-6 w-full sm:w-auto"
+                    <Button
+                      size="default"
+                      variant="outline"
+                      className="text-sm px-6 py-2.5 w-full sm:w-auto border-[#3B82F6] text-[#1D4ED8] hover:bg-[#EFF6FF]"
+                    >
+                      View pricing
+                    </Button>
+                  </Link>
+                  <span className="hidden sm:block text-[#D1D5DB] text-sm">·</span>
+                  <Link
+                    href="/#request-demo"
+                    onClick={() => trackMarketingEvent("clicked_cta", { cta: "request_demo_hero" })}
                   >
-                    Request demo
-                  </Button>
-                </Link>
+                    <Button
+                      size="default"
+                      variant="ghost"
+                      className="text-sm px-6 py-2.5 w-full sm:w-auto text-[#6c757d] hover:text-[#212529]"
+                    >
+                      Request demo
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </ScrollReveal>
             
@@ -167,8 +175,8 @@ export default function Home() {
                   <img 
                     src="/diagram-hero-page-1.png" 
                     alt="Braik system diagram" 
-                    className="max-w-full h-auto object-contain"
-                    style={{ maxHeight: '1500px', width: 'auto' }}
+                    className="max-w-full h-auto object-contain rounded-xl"
+                    style={{ maxHeight: '600px', width: 'auto' }}
                   />
                 </div>
                 {/* Content on the right */}

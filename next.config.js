@@ -18,8 +18,6 @@ const nextConfig = {
       bodySizeLimit: '10mb',
     },
   },
-  // Optimize memory usage
-  swcMinify: true,
   compiler: {
     // Remove console logs in production to reduce bundle size
     removeConsole: process.env.NODE_ENV === 'production' ? {

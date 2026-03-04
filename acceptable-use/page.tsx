@@ -1,7 +1,5 @@
 ﻿import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { LegalReadTracker } from "@/components/legal-read-tracker"
-import { LEGAL_POLICY_REVIEW_KEYS, LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 
 export default function AcceptableUsePage() {
   return (
@@ -59,10 +57,6 @@ export default function AcceptableUsePage() {
                 repeated violations may be escalated immediately.
               </p>
             </div>
-            <LegalReadTracker
-              storageKey={LEGAL_POLICY_REVIEW_KEYS.acceptableUse}
-              policyVersion={LEGAL_POLICY_VERSIONS.acceptableUse}
-            />
           </div>
         </div>
       </section>

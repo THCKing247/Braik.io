@@ -105,10 +105,18 @@ export async function POST(request: Request) {
     const body = (await request.json()) as RawSignupBody
     const { fullName, programName, email, password, role, phone, sport, programCode } = parseSignupPayload(body)
 
-    if (!fullName || !programName || !email || !password || !sport || !role) {
+    // programName and sport are only required when the user is creating a new team (head_coach)
+    const isHeadCoach = role === "head_coach"
+    if (!fullName || !email || !password || !role) {
       throw new SignupRouteError(
         400,
-        "Missing required fields: fullName, programName, email, password, role, and sport are required"
+        "Missing required fields: fullName (or name), email, password, and role are required"
+      )
+    }
+    if (isHeadCoach && (!programName || !sport)) {
+      throw new SignupRouteError(
+        400,
+        "Missing required fields for Head Coach: programName (or teamName) and sport (or sportType) are required"
       )
     }
 
@@ -226,13 +234,56 @@ export async function POST(request: Request) {
       role,
       team_id: teamId,
       full_name: fullName,
-      phone,
-      sport,
-      program_name: programName,
+      phone: phone ?? null,
+      sport: sport ?? null,
+      program_name: programName ?? null,
     })
 
     if (profileInsertError) {
       throw new SignupRouteError(500, "Database failure while creating profile")
+    }
+
+    // Add the user to team_members so the dashboard can find their team immediately
+    // without requiring an extra onboarding step.
+    const teamMemberRole =
+      role === "head_coach"
+        ? "HEAD_COACH"
+        : role === "assistant_coach"
+        ? "ASSISTANT_COACH"
+        : role === "player"
+        ? "PLAYER"
+        : role === "parent"
+        ? "PARENT"
+        : "PLAYER"
+
+    const { error: memberInsertError } = await supabase.from("team_members").insert({
+      team_id: teamId,
+      user_id: createdAuthUserId,
+      role: teamMemberRole,
+      active: true,
+    })
+
+    if (memberInsertError) {
+      // Non-fatal: profile and team are already created. Log and continue.
+      console.error("Warning: team_members insert failed:", memberInsertError.message)
+    }
+
+    // Ensure a row exists in public.users (for admin tools and team invite queries)
+    try {
+      await supabase
+        .from("users")
+        .upsert(
+          {
+            id: createdAuthUserId,
+            email,
+            name: fullName,
+            role: "user",
+            status: "active",
+          },
+          { onConflict: "id" }
+        )
+    } catch {
+      // ignore — public.users may not exist in all environments
     }
 
     return NextResponse.json(

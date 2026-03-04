@@ -94,9 +94,9 @@ export function HeroLoginForm() {
   }
 
   return (
-    <div className="w-full max-w-md bg-white rounded-2xl border border-[#E5E7EB] p-8 shadow-sm">
+    <div className="w-full bg-white rounded-2xl border border-[#E5E7EB] p-8 shadow-sm">
       <h2 className="text-xl font-athletic font-semibold mb-6 text-[#212529] uppercase tracking-wide text-center">
-        Login
+        Sign In
       </h2>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">

@@ -29,7 +29,26 @@ export default async function DashboardLayout({
     .eq("user_id", session.user.id)
     .eq("active", true)
 
-  const teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
+  let teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
+
+  // Fallback: if no team_members row exists yet (e.g. just signed up and the
+  // team_members insert is still propagating), read team_id directly from the
+  // user's profile so they land on the dashboard without an onboarding detour.
+  if (teamIds.length === 0 && session.user.teamId) {
+    teamIds = [session.user.teamId]
+  }
+
+  // Second fallback: read profile directly in case session.user.teamId is stale
+  if (teamIds.length === 0) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("team_id")
+      .eq("id", session.user.id)
+      .maybeSingle()
+    if (profile?.team_id) {
+      teamIds = [profile.team_id]
+    }
+  }
 
   let teams: Array<{
     id: string
@@ -66,6 +85,9 @@ export default async function DashboardLayout({
     }))
   }
 
+  // Only redirect to onboarding if the user truly has no team association at all.
+  // Newly registered head coaches will always have a team via signup-secure, so
+  // this redirect should only trigger for legacy / platform-admin edge cases.
   if (teams.length === 0 && !session.user.isPlatformOwner) {
     redirect("/onboarding")
   }

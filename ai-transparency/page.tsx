@@ -1,7 +1,5 @@
 ﻿import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { LegalReadTracker } from "@/components/legal-read-tracker"
-import { LEGAL_POLICY_REVIEW_KEYS, LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 
 export default function AITransparencyPage() {
   return (
@@ -58,10 +56,6 @@ export default function AITransparencyPage() {
                 Access controls still apply, and teams should only submit content they are authorized to share.
               </p>
             </div>
-            <LegalReadTracker
-              storageKey={LEGAL_POLICY_REVIEW_KEYS.aiTransparency}
-              policyVersion={LEGAL_POLICY_VERSIONS.aiTransparency}
-            />
           </div>
         </div>
       </section>

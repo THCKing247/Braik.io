@@ -4,12 +4,14 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { SiteHeader } from "@/components/site-header"
+import { CheckCircle, Copy, Check } from "lucide-react"
 
 type SignupApiError = {
   error?: string
   code?: string
   details?: string
-  teamIdCode?: string
+  /** Returned by /api/auth/signup-secure for head_coach role */
+  inviteCode?: string
   consentVerificationRequired?: boolean
   message?: string
 }
@@ -19,6 +21,9 @@ export default function PaymentPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [signupData, setSignupData] = useState<Record<string, unknown> | null>(null)
+  const [teamCode, setTeamCode] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
 
   const getApiErrorMessage = (status: number, data?: SignupApiError) => {
     const code = data?.code || `HTTP-${status}`
@@ -36,6 +41,20 @@ export default function PaymentPage() {
     setSignupData(JSON.parse(saved))
   }, [router])
 
+  const handleCopyCode = () => {
+    if (!teamCode) return
+    navigator.clipboard.writeText(teamCode).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    })
+  }
+
+  const handleGoToDashboard = () => {
+    localStorage.removeItem("signupData")
+    router.push("/dashboard")
+    router.refresh()
+  }
+
   const handleComplete = async () => {
     if (!signupData) {
       setError("[SIGNUP-FLOW-001] Missing signup data in local storage. Please restart signup from Step 1.")
@@ -46,7 +65,7 @@ export default function PaymentPage() {
     setLoading(true)
 
     try {
-      const response = await fetch("/api/auth/signup", {
+      const response = await fetch("/api/auth/signup-secure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -80,16 +99,6 @@ export default function PaymentPage() {
         return
       }
 
-      // If Head Coach, show team code before redirecting
-      if (signupData.role === "head-coach" && "teamIdCode" in data && typeof data.teamIdCode === "string") {
-        // Store team code to show in success message
-        const updatedData = { ...signupData, teamIdCode: data.teamIdCode }
-        localStorage.setItem("signupData", JSON.stringify(updatedData))
-        
-        // Show team code in a modal or alert, then proceed
-        alert(`Your Team Code: ${data.teamIdCode}\n\nShare this team code with Assistant Coaches, Players, and Parents so they can join your team.`)
-      }
-
       // Auto-login the user
       const { signIn } = await import("@/lib/auth/client-auth")
       const result = await signIn("credentials", {
@@ -104,12 +113,18 @@ export default function PaymentPage() {
         return
       }
 
-      // Clear localStorage
-      localStorage.removeItem("signupData")
+      setLoading(false)
 
-      // Redirect to dashboard
-      router.push("/dashboard")
-      router.refresh()
+      // If Head Coach, show team code inline before redirecting
+      if (signupData.role === "head-coach" && "inviteCode" in data && typeof data.inviteCode === "string") {
+        setTeamCode(data.inviteCode)
+      } else {
+        // Non-head-coach: go straight to dashboard
+        setRedirecting(true)
+        localStorage.removeItem("signupData")
+        router.push("/dashboard")
+        router.refresh()
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown client exception"
       setError(`[SIGNUP-CLIENT-500] Signup could not complete due to a client/runtime exception. Details: ${message}`)
@@ -121,6 +136,70 @@ export default function PaymentPage() {
     router.push("/signup/program")
   }
 
+  // ── Team Code success screen ─────────────────────────────────────────
+  if (teamCode) {
+    return (
+      <div className="min-h-screen bg-white">
+        <SiteHeader />
+        <section className="relative min-h-screen flex items-center justify-center px-4 py-24 md:py-32">
+          <div className="container mx-auto">
+            <div className="w-full max-w-2xl mx-auto p-10 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm text-center space-y-8">
+              {/* Success icon */}
+              <div className="flex justify-center">
+                <CheckCircle className="w-16 h-16 text-[#22C55E]" strokeWidth={1.5} />
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-3xl md:text-4xl font-athletic font-bold text-[#212529] uppercase tracking-tight">
+                  Account Created!
+                </h2>
+                <p className="text-[#495057] text-lg">
+                  Your program is set up and ready to go.
+                </p>
+              </div>
+
+              {/* Team Code card */}
+              <div className="rounded-xl border-2 border-[#3B82F6] bg-[#EFF6FF] p-6 space-y-3">
+                <p className="text-sm font-semibold text-[#1E3A8A] uppercase tracking-widest">
+                  Your Team Code
+                </p>
+                <p className="text-4xl font-mono font-bold tracking-[0.25em] text-[#1D4ED8]">
+                  {teamCode}
+                </p>
+                <p className="text-sm text-[#3B82F6]">
+                  Share this code with Assistant Coaches, Players, and Parents so they can join your team.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="inline-flex items-center gap-2 mt-1 rounded-lg border border-[#3B82F6] bg-white px-4 py-2 text-sm font-medium text-[#1D4ED8] hover:bg-[#DBEAFE] transition-colors"
+                >
+                  {copied ? <Check className="w-4 h-4 text-[#22C55E]" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "Copied!" : "Copy Team Code"}
+                </button>
+              </div>
+
+              <div className="rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] p-4 text-sm text-[#6c757d] text-left">
+                <p className="font-medium text-[#212529] mb-1">Save this code somewhere safe.</p>
+                <p>You can also find your Team Code anytime inside your dashboard under Settings.</p>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleGoToDashboard}
+                disabled={redirecting}
+                className="w-full font-athletic uppercase tracking-wide"
+                size="lg"
+              >
+                {redirecting ? "Taking you to your dashboard..." : "Go to Dashboard"}
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />
@@ -128,30 +207,57 @@ export default function PaymentPage() {
         <div className="container mx-auto">
           <div className="w-full max-w-2xl mx-auto p-10 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
             <div className="mb-8">
+              {/* Step progress bar */}
+              <div className="flex items-center gap-2 mb-6">
+                {[1, 2, 3].map((step) => (
+                  <div key={step} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className={`h-1.5 w-full rounded-full transition-colors ${
+                        step <= 3 ? "bg-[#3B82F6]" : "bg-[#E5E7EB]"
+                      }`}
+                    />
+                    <span className={`text-xs font-medium ${step === 3 ? "text-[#3B82F6]" : "text-[#9CA3AF]"}`}>
+                      {step === 1 ? "Account" : step === 2 ? "Program" : "Review"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
               <h2 className="text-3xl md:text-4xl font-athletic font-bold text-center mb-2 text-[#212529] uppercase tracking-tight">
-                Payment Setup
+                Review & Create
               </h2>
               <p className="text-center text-[#495057]">
-                Step 3 of 3 - Payment Setup
+                Step 3 of 3 — Confirm your program details
               </p>
             </div>
 
             <div className="space-y-6">
-              <div className="space-y-4">
-                <p className="text-[#495057]">
-                  Payment integration with Stripe will be available soon. For now, you can complete your account setup and configure payment later.
-                </p>
-                <div className="p-6 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB]">
-                  <p className="text-sm text-[#495057] mb-2">
-                    <strong className="text-[#212529]">Coming Soon:</strong> Secure payment processing through Stripe
-                  </p>
-                  <ul className="text-sm text-[#495057] space-y-1 list-disc list-inside ml-2">
-                    <li>Credit card processing</li>
-                    <li>Automatic billing</li>
-                    <li>Payment history tracking</li>
-                    <li>Invoice generation</li>
-                  </ul>
+              {/* Program summary */}
+              {signupData && (
+                <div className="p-5 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB] space-y-2 text-sm">
+                  <p className="font-semibold text-[#212529] text-base mb-3">Program Summary</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[#495057]">
+                    <span className="text-[#9CA3AF]">Team Name</span>
+                    <span className="font-medium text-[#212529]">{String(signupData.teamName || "—")}</span>
+                    <span className="text-[#9CA3AF]">Sport</span>
+                    <span className="font-medium text-[#212529] capitalize">{String(signupData.sportType || "—")}</span>
+                    <span className="text-[#9CA3AF]">Program Type</span>
+                    <span className="font-medium text-[#212529] capitalize">{String(signupData.programType || "—").replace("-", " ")}</span>
+                    {Boolean(signupData.schoolName) && (
+                      <>
+                        <span className="text-[#9CA3AF]">School</span>
+                        <span className="font-medium text-[#212529]">{String(signupData.schoolName)}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
+              )}
+
+              <div className="p-5 rounded-xl border border-dashed border-[#D1D5DB] bg-white space-y-2">
+                <p className="text-sm font-semibold text-[#212529]">Payment — Coming Soon</p>
+                <p className="text-sm text-[#6c757d]">
+                  Billing setup via Stripe will be available before launch. You can complete your account now and configure payment from your dashboard.
+                </p>
               </div>
 
               {error && (
@@ -166,6 +272,7 @@ export default function PaymentPage() {
                   variant="outline"
                   onClick={handleBack}
                   className="flex-1 bg-white border-[#E5E7EB] text-[#212529] hover:bg-[#F9FAFB]"
+                  disabled={loading}
                 >
                   Back
                 </Button>

@@ -1,7 +1,5 @@
 ﻿import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { LegalReadTracker } from "@/components/legal-read-tracker"
-import { LEGAL_POLICY_REVIEW_KEYS, LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 
 export default function TermsPage() {
   return (
@@ -219,10 +217,6 @@ export default function TermsPage() {
               <p>These Terms are governed by the laws of the State of Florida.</p>
             </div>
 
-            <LegalReadTracker
-              storageKey={LEGAL_POLICY_REVIEW_KEYS.terms}
-              policyVersion={LEGAL_POLICY_VERSIONS.terms}
-            />
           </div>
         </div>
       </section>

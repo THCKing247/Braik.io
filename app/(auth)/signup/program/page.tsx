@@ -82,11 +82,27 @@ export default function ProgramInfoPage() {
         <div className="container mx-auto">
           <div className="w-full max-w-2xl mx-auto p-10 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
             <div className="mb-8">
+              {/* Step progress bar */}
+              <div className="flex items-center gap-2 mb-6">
+                {[
+                  { label: "Account", active: true },
+                  { label: "Program", active: true },
+                  { label: "Review", active: false },
+                ].map((step, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div className={`h-1.5 w-full rounded-full ${step.active ? "bg-[#3B82F6]" : "bg-[#E5E7EB]"}`} />
+                    <span className={`text-xs font-medium ${step.active && i === 1 ? "text-[#3B82F6]" : step.active ? "text-[#93C5FD]" : "text-[#9CA3AF]"}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
               <h2 className="text-3xl md:text-4xl font-athletic font-bold text-center mb-2 text-[#212529] uppercase tracking-tight">
                 Program Information
               </h2>
               <p className="text-center text-[#495057]">
-                Step 2 of 3 - Program Setup
+                Step 2 of 3 — Program Setup
               </p>
             </div>
 

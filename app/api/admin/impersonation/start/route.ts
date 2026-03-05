@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const maxAgeSec = durationMinutes * 60
 
   const token = createImpersonationToken({
-    adminId: access.userId,
+    adminId: access.context.actorId,
     targetUserId,
     maxAgeSec,
   })

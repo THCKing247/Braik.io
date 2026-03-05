@@ -109,7 +109,10 @@ export async function POST(request: Request) {
     }
 
     const rawRole = typeof profile?.role === "string" ? profile.role : "player"
-    const role = mapRoleToProfileRole(rawRole) || rawRole.toLowerCase()
+    const normalized = rawRole.trim().toLowerCase()
+    const mapped = mapRoleToProfileRole(rawRole)
+    const role =
+      normalized === "admin" ? "admin" : mapped !== "player" ? mapped : normalized || "player"
     const isAdmin = role === "admin"
     const allowAdminCallback =
       isAdmin &&

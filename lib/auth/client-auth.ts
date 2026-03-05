@@ -32,6 +32,7 @@ function getRedirectFromRole(role?: string) {
     case "assistant_coach":
     case "player":
     case "parent":
+    case "athlete":
       return "/dashboard"
     default:
       return "/dashboard"

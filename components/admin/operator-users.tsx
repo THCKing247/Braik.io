@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
+import { getUserRoleLabel } from "@/lib/auth/user-roles"
 
 interface UserRow {
   id: string
@@ -101,7 +102,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     View profile
                   </Link>
                 </td>
-                <td className="px-3 py-2">{user.role}</td>
+                <td className="px-3 py-2">{getUserRoleLabel(user.role)}</td>
                 <td className="px-3 py-2">
                   {user.memberships.length
                     ? user.memberships.map((membership) => `${membership.team.name} (${membership.role})`).join(", ")

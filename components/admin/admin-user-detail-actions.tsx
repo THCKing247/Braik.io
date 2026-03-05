@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { USER_ROLE_VALUES, USER_ROLE_LABELS } from "@/lib/auth/user-roles"
 
 export function AdminUserDetailActions({
   user,
@@ -109,8 +110,11 @@ export function AdminUserDetailActions({
         <input className="rounded border border-white/20 bg-black/20 px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} />
         <input className="rounded border border-white/20 bg-black/20 px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
         <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="USER">USER</option>
-          <option value="ADMIN">ADMIN</option>
+          {USER_ROLE_VALUES.map((r) => (
+            <option key={r} value={r}>
+              {USER_ROLE_LABELS[r]}
+            </option>
+          ))}
         </select>
         <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="ACTIVE">ACTIVE</option>

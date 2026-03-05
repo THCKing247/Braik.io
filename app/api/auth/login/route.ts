@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 
 function getRoleRedirect(role: string) {
   switch (role) {
@@ -9,6 +10,7 @@ function getRoleRedirect(role: string) {
     case "assistant_coach":
     case "player":
     case "parent":
+    case "athlete":
       return "/dashboard"
     default:
       return "/dashboard"
@@ -116,6 +118,7 @@ export async function POST(request: Request) {
 
     // Ensure public.users has a row for this auth user (for team_members FK and admin checks).
     // Must complete before returning so /admin/dashboard layout sees the correct role.
+    const userRole = profileRoleToUserRole(role)
     await supabaseServerClient
       .from("users")
       .upsert(
@@ -123,7 +126,7 @@ export async function POST(request: Request) {
           id: data.user.id,
           email: data.user.email ?? normalizedEmail,
           name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
-          role: role === "admin" ? "admin" : "user",
+          role: userRole,
           status: "active",
         },
         { onConflict: "id" }

@@ -23,6 +23,7 @@ const ROLE_MAP: Record<string, string> = {
   head_coach: "head_coach",
   assistant_coach: "assistant_coach",
   player: "player",
+  athlete: "player", // profile/team role is "player"; public.users.role will be "athlete" on login
   parent: "parent",
   admin: "admin",
 }

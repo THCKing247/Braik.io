@@ -1,6 +1,7 @@
-﻿import { randomBytes } from "crypto"
+import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 
@@ -286,6 +287,7 @@ export async function POST(request: Request) {
     }
 
     // Ensure a row exists in public.users (for admin tools and team invite queries)
+    const userRole = profileRoleToUserRole(role)
     try {
       await supabase
         .from("users")
@@ -294,7 +296,7 @@ export async function POST(request: Request) {
             id: createdAuthUserId,
             email,
             name: fullName,
-            role: "user",
+            role: userRole,
             status: "active",
           },
           { onConflict: "id" }

@@ -39,7 +39,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
     <div className="space-y-4">
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Users Management</h2>
+          <h2 className="text-xl font-semibold">Account Management</h2>
           <div className="flex gap-2">
             <input
               value={query}

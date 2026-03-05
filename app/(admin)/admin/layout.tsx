@@ -1,4 +1,4 @@
-﻿import Link from "next/link"
+import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { hasAdminAccess } from "@/lib/admin/admin-access"
@@ -37,7 +37,7 @@ export default async function AdminPortalLayout({
               Overview
             </Link>
             <Link href="/admin/users" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Users
+              Accounts
             </Link>
             <Link href="/admin/teams" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               Teams

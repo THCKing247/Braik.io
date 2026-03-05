@@ -46,6 +46,14 @@ export default function LoginPage() {
                 Get started free
               </Link>
             </p>
+            <div className="mt-4 pt-3 border-t border-[#E5E7EB]">
+              <Link
+                href="/login?callbackUrl=%2Fadmin%2Fdashboard"
+                className="inline-flex items-center justify-center rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-2 text-sm font-medium text-[#495057] hover:bg-[#E9ECEF] hover:border-[#DEE2E6] transition-colors"
+              >
+                Admin login
+              </Link>
+            </div>
           </div>
         </div>
       </section>

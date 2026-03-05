@@ -119,21 +119,24 @@ export async function POST(request: Request) {
     // Ensure public.users has a row for this auth user (for team_members FK and admin checks).
     // Must complete before returning so /admin/dashboard layout sees the correct role.
     const userRole = profileRoleToUserRole(role)
-    await supabaseServerClient
-      .from("users")
-      .upsert(
-        {
-          id: data.user.id,
-          email: data.user.email ?? normalizedEmail,
-          name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
-          role: userRole,
-          status: "active",
-        },
-        { onConflict: "id" }
-      )
-      .select()
-      .single()
-      .catch(() => ({ data: null, error: null }))
+    try {
+      await supabaseServerClient
+        .from("users")
+        .upsert(
+          {
+            id: data.user.id,
+            email: data.user.email ?? normalizedEmail,
+            name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
+            role: userRole,
+            status: "active",
+          },
+          { onConflict: "id" }
+        )
+        .select()
+        .single()
+    } catch {
+      // ignore — public.users upsert is best-effort (e.g. table may not exist in some envs)
+    }
 
     const response = NextResponse.json({
       success: true,

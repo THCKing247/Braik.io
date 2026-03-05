@@ -78,6 +78,25 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
     }
   }
 
+  async function handleSignInAsUser(user: UserRow) {
+    setActionLoading(user.id)
+    try {
+      const res = await fetch("/api/admin/impersonation/start", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: user.id, durationMinutes: 60 }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to start session")
+      const redirect = (data as { redirect?: string }).redirect ?? "/dashboard"
+      window.location.href = redirect
+    } catch (e) {
+      setActionLoading(null)
+      alert(e instanceof Error ? e.message : "Failed to sign in as user")
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
@@ -187,6 +206,15 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     >
                       Teams
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleSignInAsUser(user)}
+                      disabled={!!actionLoading}
+                      className="rounded bg-violet-500/20 px-2 py-1 text-xs text-violet-200 hover:bg-violet-500/30 disabled:opacity-50"
+                      title="Open this user's brAIk.io dashboard (sudo sign in)"
+                    >
+                      Sign in as user
+                    </button>
                   </div>
                 </td>
               </tr>

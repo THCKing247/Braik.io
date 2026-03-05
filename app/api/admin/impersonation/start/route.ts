@@ -1,8 +1,41 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { getAdminAccessForApi } from "@/lib/admin/admin-access"
+import {
+  createImpersonationToken,
+  impersonationCookieHeader,
+} from "@/lib/admin/impersonation"
 
-export async function POST() {
-  return NextResponse.json(
-    { error: "Not migrated: Prisma removed. Use Supabase." },
-    { status: 501 }
-  )
+const DEFAULT_DURATION_MINUTES = 60
+
+export async function POST(request: NextRequest) {
+  const access = await getAdminAccessForApi()
+  if (!access.ok) return access.response
+
+  let body: { targetUserId?: string; durationMinutes?: number }
+  try {
+    body = (await request.json()) as { targetUserId?: string; durationMinutes?: number }
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+
+  const targetUserId = typeof body.targetUserId === "string" ? body.targetUserId.trim() : null
+  if (!targetUserId) {
+    return NextResponse.json({ error: "targetUserId is required" }, { status: 400 })
+  }
+
+  const durationMinutes = typeof body.durationMinutes === "number"
+    ? Math.min(120, Math.max(1, body.durationMinutes))
+    : DEFAULT_DURATION_MINUTES
+  const maxAgeSec = durationMinutes * 60
+
+  const token = createImpersonationToken({
+    adminId: access.userId,
+    targetUserId,
+    maxAgeSec,
+  })
+
+  const cookie = impersonationCookieHeader(token, maxAgeSec)
+  const response = NextResponse.json({ redirect: "/dashboard", ok: true })
+  response.headers.set("Set-Cookie", cookie)
+  return response
 }

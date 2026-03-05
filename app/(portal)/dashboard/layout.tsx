@@ -9,6 +9,7 @@ import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
 import { SubscriptionGuard } from "@/components/portal/subscription-guard"
 import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
+import { ImpersonationBanner } from "@/components/admin/impersonation-banner"
 import { SuspensionBanner } from "@/components/suspension-banner"
 
 export const dynamic = "force-dynamic"
@@ -76,11 +77,15 @@ export default async function DashboardLayout({
 
     const supabase = getSupabaseServer()
 
+    // When impersonating, load the target user's teams; otherwise use session user
+    impersonationSession = await getActiveImpersonationFromCookies()
+    const effectiveUserId = impersonationSession?.target_user_id ?? session.user.id
+
     // Load user's teams via team_members (Supabase)
     const { data: memberships } = await supabase
       .from("team_members")
       .select("team_id, role")
-      .eq("user_id", session.user.id)
+      .eq("user_id", effectiveUserId)
       .eq("active", true)
 
     let teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
@@ -88,7 +93,7 @@ export default async function DashboardLayout({
     // Fallback: if no team_members row exists yet (e.g. just signed up and the
     // team_members insert is still propagating), read team_id directly from the
     // user's profile so they land on the dashboard without an onboarding detour.
-    if (teamIds.length === 0 && session.user.teamId) {
+    if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
       teamIds = [session.user.teamId]
     }
 
@@ -97,7 +102,7 @@ export default async function DashboardLayout({
       const { data: profile } = await supabase
         .from("profiles")
         .select("team_id")
-        .eq("id", session.user.id)
+        .eq("id", effectiveUserId)
         .maybeSingle()
       if (profile?.team_id) {
         teamIds = [profile.team_id]
@@ -133,14 +138,15 @@ export default async function DashboardLayout({
       redirect("/onboarding")
     }
 
-    const currentTeamId = session.user.teamId || teams[0]?.id
+    const currentTeamId = impersonationSession
+      ? teams[0]?.id
+      : (session.user.teamId || teams[0]?.id)
     currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
     const playerCount = currentTeam?.players?.length ?? 0
     const subscriptionAmount = playerCount * 5.0
     const amountPaid = currentTeam?.amountPaid ?? 0
     remainingBalance = subscriptionAmount - amountPaid
     subscriptionPaid = (currentTeam?.subscriptionPaid ?? false) || remainingBalance <= 0
-    impersonationSession = await getActiveImpersonationFromCookies()
   } catch (err) {
     if (isRedirectError(err)) throw err
     const message = err instanceof Error ? err.message : String(err)
@@ -158,11 +164,7 @@ export default async function DashboardLayout({
       <DashboardNav teams={teams} />
       <QuickActionsSidebar />
       <main className="app-content" style={{ backgroundColor: "rgb(var(--snow))" }}>
-        {impersonationSession && (
-          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-100 px-4 py-3 text-sm text-amber-900">
-            Support Session Active - you are viewing as another user. Bank/payout changes are disabled.
-          </div>
-        )}
+        {impersonationSession && <ImpersonationBanner />}
         <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session.user.role} />
         <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
           {children}

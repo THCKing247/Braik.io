@@ -2,6 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { hasAdminAccess } from "@/lib/admin/admin-access"
+import { isAdminEmailAllowed } from "@/lib/admin/admin-security"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
 
 export default async function AdminProtectedLayout({
@@ -14,10 +15,11 @@ export default async function AdminProtectedLayout({
     redirect("/admin/login")
   }
 
-  // Allow if users table says admin, or if profile role is admin (session already has profile.role as session.user.role)
+  // Allow: env allowlist, users table, or profile role (session.user.role from getServerSession)
   const roleUpper = (session.user.role ?? "").toUpperCase()
   const isAdminFromProfile = roleUpper === "ADMIN" || roleUpper === "SCHOOL_ADMIN"
   const allowed =
+    isAdminEmailAllowed(session.user.email ?? "") ||
     session.user.isPlatformOwner === true ||
     isAdminFromProfile ||
     (await hasAdminAccess(session.user.id, session.user.email))

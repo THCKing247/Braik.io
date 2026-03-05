@@ -2,6 +2,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
+import { isAdminEmailAllowed } from "@/lib/admin/admin-security"
 
 export interface AdminAccessContext {
   actorId: string
@@ -22,7 +23,7 @@ export async function getAdminAccessForApi(): Promise<
   const sessionUserId = session.user.id
   const sessionEmail = session.user.email
   const isBootstrapAdminSession = sessionUserId.startsWith("bootstrap-admin:")
-  if (isBootstrapAdminSession) {
+  if (isBootstrapAdminSession || isAdminEmailAllowed(sessionEmail)) {
     return {
       ok: true,
       context: {
@@ -104,8 +105,11 @@ function isAdminProfileRole(role: string | null | undefined): boolean {
   return r === "admin" || r === "school_admin"
 }
 
-export async function hasAdminAccess(userId: string, _email?: string | null): Promise<boolean> {
+export async function hasAdminAccess(userId: string, email?: string | null): Promise<boolean> {
   if (userId.startsWith("bootstrap-admin:")) {
+    return true
+  }
+  if (email && isAdminEmailAllowed(email)) {
     return true
   }
 

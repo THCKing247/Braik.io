@@ -27,3 +27,18 @@ export function isAdminEmailDomainAllowed(email: string): boolean {
 
   return allowlist.includes(normalizeDomain(domain))
 }
+
+/** Comma-separated list of emails that always have admin access (e.g. ADMIN_EMAILS=a@b.com,b@b.com). */
+export function getAdminEmailAllowlist(): string[] {
+  const raw = process.env.ADMIN_EMAILS || ""
+  return raw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+export function isAdminEmailAllowed(email: string): boolean {
+  const list = getAdminEmailAllowlist()
+  if (list.length === 0) return false
+  return list.includes(email.trim().toLowerCase())
+}

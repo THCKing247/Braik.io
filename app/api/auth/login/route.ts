@@ -114,23 +114,23 @@ export async function POST(request: Request) {
       requestedCallbackUrl.startsWith("/admin")
     const redirectTo = allowAdminCallback ? requestedCallbackUrl : getRoleRedirect(role)
 
-    // Ensure public.users has a row for this auth user (for team_members FK and admin checks)
-    void Promise.resolve(
-      supabaseServerClient
-        .from("users")
-        .upsert(
-          {
-            id: data.user.id,
-            email: data.user.email ?? normalizedEmail,
-            name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
-            role: role === "admin" ? "admin" : "user",
-            status: "active",
-          },
-          { onConflict: "id" }
-        )
-        .select()
-        .single()
-    ).catch(() => {})
+    // Ensure public.users has a row for this auth user (for team_members FK and admin checks).
+    // Must complete before returning so /admin/dashboard layout sees the correct role.
+    await supabaseServerClient
+      .from("users")
+      .upsert(
+        {
+          id: data.user.id,
+          email: data.user.email ?? normalizedEmail,
+          name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
+          role: role === "admin" ? "admin" : "user",
+          status: "active",
+        },
+        { onConflict: "id" }
+      )
+      .select()
+      .single()
+      .catch(() => ({ data: null, error: null }))
 
     const response = NextResponse.json({
       success: true,

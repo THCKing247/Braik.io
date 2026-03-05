@@ -1,4 +1,4 @@
-﻿import { getServerSession } from "@/lib/auth/server-auth"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
@@ -74,7 +74,7 @@ export async function hasAdminAccess(userId: string, _email?: string | null): Pr
   const supabase = getSupabaseServer()
   const { data: user } = await supabase
     .from("users")
-    .select("role, status")
+    .select("role, status, is_platform_owner")
     .eq("id", userId)
     .maybeSingle()
 

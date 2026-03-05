@@ -14,7 +14,13 @@ export default async function AdminProtectedLayout({
     redirect("/admin/login")
   }
 
-  const allowed = await hasAdminAccess(session.user.id, session.user.email)
+  // Allow if users table says admin, or if profile role is admin (session already has profile.role as session.user.role)
+  const roleUpper = (session.user.role ?? "").toUpperCase()
+  const isAdminFromProfile = roleUpper === "ADMIN" || roleUpper === "SCHOOL_ADMIN"
+  const allowed =
+    session.user.isPlatformOwner === true ||
+    isAdminFromProfile ||
+    (await hasAdminAccess(session.user.id, session.user.email))
   if (!allowed) {
     await writeAdminAuditLog({
       actorId: session.user.id,

@@ -49,6 +49,7 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
     body: JSON.stringify({
       email: options.email,
       password: options.password,
+      callbackUrl: options.callbackUrl || undefined,
     }),
     credentials: "include",
   })

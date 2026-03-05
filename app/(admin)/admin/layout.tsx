@@ -11,7 +11,7 @@ export default async function AdminPortalLayout({
 }) {
   const session = await getServerSessionOrSupabase()
   if (!session?.user?.id) {
-    redirect("/login")
+    redirect("/login?callbackUrl=%2Fadmin%2Fdashboard")
   }
 
   const allowed = await hasAdminAccess(session.user.id, session.user.email)

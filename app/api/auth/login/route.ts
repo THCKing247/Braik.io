@@ -108,7 +108,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Failed to load user profile" }, { status: 500 })
     }
 
-    const role = typeof profile?.role === "string" ? profile.role : "player"
+    const rawRole = typeof profile?.role === "string" ? profile.role : "player"
+    const role = mapRoleToProfileRole(rawRole) || rawRole.toLowerCase()
     const isAdmin = role === "admin"
     const allowAdminCallback =
       isAdmin &&

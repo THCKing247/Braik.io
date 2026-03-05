@@ -41,6 +41,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Admin login is its own portal; allow unauthenticated access
+  if (pathname === "/admin/login") {
+    return NextResponse.next()
+  }
+
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/login"

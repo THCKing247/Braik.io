@@ -1,6 +1,8 @@
 import { ComingSoon } from "@/components/portal/coming-soon"
 import { Sparkles } from "lucide-react"
 
+export const dynamic = "force-dynamic"
+
 export default function AiAssistantPage() {
   return (
     <ComingSoon

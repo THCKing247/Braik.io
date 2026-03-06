@@ -1,8 +1,10 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
+import { getUserRoleLabel, USER_ROLE_VALUES, USER_ROLE_LABELS } from "@/lib/auth/user-roles"
 
 interface UserRow {
   id: string
@@ -23,9 +25,14 @@ function chipClass(status: string): string {
   return "bg-white/10 text-white/80 border-white/20"
 }
 
+const ALLOWED_STATUSES = ["active", "suspended", "deactivated", "DISABLED"] as const
+
 export function OperatorUsers({ users }: { users: UserRow[] }) {
+  const router = useRouter()
   const [query, setQuery] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
+  const [editUser, setEditUser] = useState<UserRow | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -35,11 +42,66 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
     )
   }, [users, query])
 
+  async function handleSuspendOrRestore(user: UserRow) {
+    const isSuspended = user.status.toLowerCase().includes("suspend")
+    const newStatus = isSuspended ? "active" : "suspended"
+    if (!isSuspended && !window.confirm(`Suspend ${user.email}? They will not be able to sign in.`)) return
+    setActionLoading(user.id)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to update")
+      router.refresh()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to update user")
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleDelete(user: UserRow) {
+    if (!window.confirm(`Permanently delete ${user.email}? This cannot be undone.`)) return
+    setActionLoading(user.id)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to delete")
+      router.refresh()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to delete user")
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleSignInAsUser(user: UserRow) {
+    setActionLoading(user.id)
+    try {
+      const res = await fetch("/api/admin/impersonation/start", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: user.id, durationMinutes: 60 }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to start session")
+      const redirect = (data as { redirect?: string }).redirect ?? "/dashboard"
+      window.location.href = redirect
+    } catch (e) {
+      setActionLoading(null)
+      alert(e instanceof Error ? e.message : "Failed to sign in as user")
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Users Management</h2>
+          <h2 className="text-xl font-semibold">Account Management</h2>
           <div className="flex gap-2">
             <input
               value={query}
@@ -89,6 +151,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Created</th>
               <th className="px-3 py-2">Last Login</th>
+              <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -101,7 +164,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     View profile
                   </Link>
                 </td>
-                <td className="px-3 py-2">{user.role}</td>
+                <td className="px-3 py-2">{getUserRoleLabel(user.role)}</td>
                 <td className="px-3 py-2">
                   {user.memberships.length
                     ? user.memberships.map((membership) => `${membership.team.name} (${membership.role})`).join(", ")
@@ -112,11 +175,64 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                 </td>
                 <td className="px-3 py-2">{new Date(user.createdAt).toISOString().slice(0, 10)}</td>
                 <td className="px-3 py-2">{user.lastLoginAt ? new Date(user.lastLoginAt).toISOString().slice(0, 10) : "Never"}</td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditUser(user)}
+                      className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSuspendOrRestore(user)}
+                      disabled={!!actionLoading}
+                      className="rounded bg-amber-500/20 px-2 py-1 text-xs text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
+                    >
+                      {user.status.toLowerCase().includes("suspend") ? "Restore" : "Suspend"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(user)}
+                      disabled={!!actionLoading}
+                      className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                    <Link
+                      href={`/admin/teams?userId=${user.id}`}
+                      className="rounded bg-cyan-500/20 px-2 py-1 text-xs text-cyan-200 hover:bg-cyan-500/30"
+                    >
+                      Teams
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleSignInAsUser(user)}
+                      disabled={!!actionLoading}
+                      className="rounded bg-violet-500/20 px-2 py-1 text-xs text-violet-200 hover:bg-violet-500/30 disabled:opacity-50"
+                      title="Open this user's brAIk.io dashboard (sudo sign in)"
+                    >
+                      Sign in as user
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {editUser && (
+        <EditUserModal
+          user={editUser}
+          onClose={() => setEditUser(null)}
+          onSaved={() => {
+            setEditUser(null)
+            router.refresh()
+          }}
+        />
+      )}
 
       <AdminModal
         open={modalOpen}
@@ -158,5 +274,121 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
         </div>
       </AdminModal>
     </div>
+  )
+}
+
+function EditUserModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: UserRow
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [name, setName] = useState(user.name ?? "")
+  const [email, setEmail] = useState(user.email)
+  const [role, setRole] = useState(user.role.trim().toLowerCase().replace(/-/g, "_"))
+  const [status, setStatus] = useState(
+    ["active", "suspended", "deactivated", "DISABLED"].includes(user.status.toLowerCase())
+      ? user.status
+      : user.status.toLowerCase().includes("suspend")
+        ? "suspended"
+        : "active"
+  )
+  const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError("")
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim() || null,
+          email: email.trim().toLowerCase(),
+          role: role,
+          status: status,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to save")
+      onSaved()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <AdminModal open title={`Edit ${user.email}`} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs text-white/70">Name</label>
+            <input
+              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-white/70">Email</label>
+            <input
+              type="email"
+              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-white/70">Role</label>
+            <select
+              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            >
+              {USER_ROLE_VALUES.map((r) => (
+                <option key={r} value={r}>
+                  {USER_ROLE_LABELS[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-white/70">Status</label>
+            <select
+              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {ALLOWED_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {error ? <p className="text-xs text-red-400">{error}</p> : null}
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded bg-cyan-500 px-3 py-2 text-sm font-medium text-black disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button type="button" onClick={onClose} className="rounded bg-white/10 px-3 py-2 text-sm">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </AdminModal>
   )
 }

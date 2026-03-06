@@ -1,26 +1,41 @@
-﻿import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
 import { OperatorTeams } from "@/components/admin/operator-teams"
 
 export default async function AdminTeamsPage({
   searchParams,
 }: {
-  searchParams?: { q?: string }
+  searchParams?: { q?: string; userId?: string }
 }) {
   const query = searchParams?.q?.trim() || ""
+  const filterUserId = searchParams?.userId?.trim() || null
   const supabase = getSupabaseServer()
 
   const teams = await safeAdminDbQuery(
     async () => {
-      let q = supabase.from("teams").select("id, name, plan_tier, subscription_status, team_status, org").order("created_at", { ascending: false }).limit(100)
+      let teamIds: string[] | null = null
+      if (filterUserId) {
+        const { data: memberRows } = await supabase
+          .from("team_members")
+          .select("team_id")
+          .eq("user_id", filterUserId)
+        teamIds = [...new Set((memberRows ?? []).map((m) => (m as { team_id: string }).team_id))]
+        if (teamIds.length === 0) return []
+      }
+
+      let q = supabase
+        .from("teams")
+        .select("id, name, plan_tier, subscription_status, team_status, org")
+        .order("created_at", { ascending: false })
+        .limit(100)
+      if (teamIds) q = q.in("id", teamIds)
       if (query) {
         q = q.or(`name.ilike.%${query}%,org.ilike.%${query}%`)
       }
       const { data: rows } = await q
       const result = await Promise.all(
         (rows ?? []).map(async (t) => {
-const { data: memberships } = await supabase.from("team_members").select("user_id, role").eq("team_id", t.id)
-          const coachMemberships = (memberships ?? []).filter((m) => ["HEAD_COACH", "ASSISTANT_COACH", "head_coach", "assistant_coach"].includes(String((m as { role?: string }).role ?? "")))
+          const { data: memberships } = await supabase.from("team_members").select("user_id, role").eq("team_id", t.id)
           return {
             id: t.id,
             name: t.name,
@@ -47,5 +62,5 @@ const { data: memberships } = await supabase.from("team_members").select("user_i
     }>
   )
 
-  return <OperatorTeams teams={teams} />
+  return <OperatorTeams teams={teams} filterUserId={filterUserId} />
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 
 function getRoleRedirect(role: string) {
   switch (role) {
@@ -9,6 +10,7 @@ function getRoleRedirect(role: string) {
     case "assistant_coach":
     case "player":
     case "parent":
+    case "athlete":
       return "/dashboard"
     default:
       return "/dashboard"
@@ -37,7 +39,11 @@ export async function POST(request: Request) {
 
     const supabaseServerClient = getSupabaseServer()
 
-    const { email, password } = (await request.json()) as { email?: string; password?: string }
+    const { email, password, callbackUrl: requestedCallbackUrl } = (await request.json()) as {
+      email?: string
+      password?: string
+      callbackUrl?: string
+    }
     const normalizedEmail = email?.trim().toLowerCase()
     if (!normalizedEmail || !password) {
       return NextResponse.json({ success: false, error: "Email and password are required" }, { status: 400 })
@@ -102,26 +108,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Failed to load user profile" }, { status: 500 })
     }
 
-    const role = typeof profile?.role === "string" ? profile.role : "player"
-    const redirectTo = getRoleRedirect(role)
+    const rawRole = typeof profile?.role === "string" ? profile.role : "player"
+    const normalized = rawRole.trim().toLowerCase()
+    const mapped = mapRoleToProfileRole(rawRole)
+    const role =
+      normalized === "admin" ? "admin" : mapped !== "player" ? mapped : normalized || "player"
+    const isAdmin = role === "admin"
+    const allowAdminCallback =
+      isAdmin &&
+      typeof requestedCallbackUrl === "string" &&
+      requestedCallbackUrl.startsWith("/admin")
+    const redirectTo = allowAdminCallback ? requestedCallbackUrl : getRoleRedirect(role)
 
-    // Ensure public.users has a row for this auth user (for team_members FK and admin checks)
-    void Promise.resolve(
-      supabaseServerClient
+    // Ensure public.users has a row for this auth user (for team_members FK and admin checks).
+    // Must complete before returning so /admin/dashboard layout sees the correct role.
+    const userRole = profileRoleToUserRole(role)
+    try {
+      await supabaseServerClient
         .from("users")
         .upsert(
           {
             id: data.user.id,
             email: data.user.email ?? normalizedEmail,
             name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
-            role: role === "admin" ? "admin" : "user",
+            role: userRole,
             status: "active",
           },
           { onConflict: "id" }
         )
         .select()
         .single()
-    ).catch(() => {})
+    } catch {
+      // ignore — public.users upsert is best-effort (e.g. table may not exist in some envs)
+    }
 
     const response = NextResponse.json({
       success: true,

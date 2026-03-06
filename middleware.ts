@@ -19,6 +19,11 @@ function clearAuthCookies(response: NextResponse) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Never run auth or redirects for static assets (avoids ERR_HTTP2_PROTOCOL_ERROR on chunks)
+  if (pathname.startsWith("/_next/") || pathname.startsWith("/favicon")) {
+    return NextResponse.next()
+  }
+
   if (pathname.startsWith("/api/dev/")) {
     if (process.env.NODE_ENV === "production") {
       const expectedSeedKey = process.env.SEED_KEY
@@ -33,6 +38,11 @@ export async function middleware(request: NextRequest) {
 
   const requiresAuth = pathname.startsWith("/dashboard") || pathname.startsWith("/admin")
   if (!requiresAuth) {
+    return NextResponse.next()
+  }
+
+  // Admin login is its own portal; allow unauthenticated access
+  if (pathname === "/admin/login") {
     return NextResponse.next()
   }
 

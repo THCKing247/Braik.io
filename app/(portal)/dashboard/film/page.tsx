@@ -1,6 +1,8 @@
 import { ComingSoon } from "@/components/portal/coming-soon"
 import { Video } from "lucide-react"
 
+export const dynamic = "force-dynamic"
+
 export default function FilmPage() {
   return (
     <ComingSoon

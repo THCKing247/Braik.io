@@ -1,6 +1,7 @@
-﻿import { NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 
 export async function POST(request: Request) {
   try {
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
     const supabase = getSupabaseServer()
 
     // Ensure user exists in public.users (for team_members FK)
+    const userRole = profileRoleToUserRole(session.user.role)
     try {
       await supabase
         .from("users")
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
             id: session.user.id,
             email: session.user.email ?? "",
             name: session.user.name ?? null,
-            role: "user",
+            role: userRole,
             status: "active",
           },
           { onConflict: "id" }

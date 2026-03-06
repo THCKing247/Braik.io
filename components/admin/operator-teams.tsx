@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
@@ -25,7 +25,7 @@ function statusChip(value: string): string {
   return "bg-white/10 text-white/80 border-white/20"
 }
 
-export function OperatorTeams({ teams }: { teams: TeamRow[] }) {
+export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filterUserId?: string | null }) {
   const [query, setQuery] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -39,6 +39,20 @@ export function OperatorTeams({ teams }: { teams: TeamRow[] }) {
 
   return (
     <div className="space-y-4">
+      {filterUserId && (
+        <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-3">
+          <p className="text-sm text-cyan-100">
+            Showing teams for this user.{" "}
+            <Link href={`/admin/users/${filterUserId}`} className="font-medium text-cyan-200 underline hover:text-cyan-100">
+              View user in Accounts
+            </Link>
+            {" · "}
+            <Link href="/admin/teams" className="font-medium text-cyan-200 underline hover:text-cyan-100">
+              Show all teams
+            </Link>
+          </p>
+        </div>
+      )}
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Teams Management</h2>

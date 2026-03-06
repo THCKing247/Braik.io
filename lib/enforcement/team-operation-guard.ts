@@ -2,6 +2,13 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export type TeamOperation = "write" | "ai" | "billing" | "view"
 
+/**
+ * When false, subscription_status and AI payment checks are skipped so all
+ * teams have full write + AI access.  Flip to true at launch when billing
+ * enforcement (Stripe) is integrated.
+ */
+const BILLING_ENFORCED = false
+
 export class TeamOperationBlockedError extends Error {
   statusCode: number
   code: string
@@ -49,24 +56,29 @@ export async function requireTeamOperationAccess(
   const teamStatus = t.team_status ?? "active"
   const subscriptionStatus = t.subscription_status ?? "active"
 
-  if (subscriptionStatus === "terminated") {
-    throw new TeamOperationBlockedError(
-      423,
-      "TEAM_SUBSCRIPTION_TERMINATED",
-      "Team access is locked because the subscription is terminated.",
-      {
-        teamId: team.id,
-        operation,
-        teamStatus,
-        subscriptionStatus,
-      }
-    )
+  // ── Billing enforcement (disabled in dev) ─────────────────────────────
+  if (BILLING_ENFORCED) {
+    if (subscriptionStatus === "terminated") {
+      throw new TeamOperationBlockedError(
+        423,
+        "TEAM_SUBSCRIPTION_TERMINATED",
+        "Team access is locked because the subscription is terminated.",
+        {
+          teamId: team.id,
+          operation,
+          teamStatus,
+          subscriptionStatus,
+        }
+      )
+    }
   }
+  // ──────────────────────────────────────────────────────────────────────
 
   if (operation === "billing" || operation === "view") {
     return
   }
 
+  // Admin suspension (non-payment): always enforced regardless of billing flag.
   if (teamStatus !== "active") {
     throw new TeamOperationBlockedError(
       403,
@@ -81,7 +93,8 @@ export async function requireTeamOperationAccess(
     )
   }
 
-  if (operation === "ai") {
+  // ── AI gating (disabled in dev) ────────────────────────────────────────
+  if (BILLING_ENFORCED && operation === "ai") {
     const aiEnabled = t.ai_enabled ?? false
     const aiDisabledByPlatform = t.ai_disabled_by_platform ?? false
     if (!aiEnabled || aiDisabledByPlatform) {
@@ -98,4 +111,5 @@ export async function requireTeamOperationAccess(
       )
     }
   }
+  // ──────────────────────────────────────────────────────────────────────
 }

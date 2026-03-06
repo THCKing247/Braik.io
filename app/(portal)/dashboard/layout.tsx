@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { Suspense } from "react"
 import { isRedirectError } from "next/dist/client/components/redirect"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
@@ -142,11 +143,19 @@ export default async function DashboardLayout({
       ? teams[0]?.id
       : (session.user.teamId || teams[0]?.id)
     currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
-    const playerCount = currentTeam?.players?.length ?? 0
-    const subscriptionAmount = playerCount * 5.0
-    const amountPaid = currentTeam?.amountPaid ?? 0
-    remainingBalance = subscriptionAmount - amountPaid
-    subscriptionPaid = (currentTeam?.subscriptionPaid ?? false) || remainingBalance <= 0
+
+    // ── Dev mode: treat all accounts as fully paid ─────────────────────────
+    // Remove these two lines and restore the payment calculation below when
+    // Stripe is integrated and billing enforcement is ready at launch.
+    remainingBalance = 0
+    subscriptionPaid = true
+    // ── Original calculation (restore at launch) ───────────────────────────
+    // const playerCount = currentTeam?.players?.length ?? 0
+    // const subscriptionAmount = playerCount * 5.0
+    // const amountPaid = currentTeam?.amountPaid ?? 0
+    // remainingBalance = subscriptionAmount - amountPaid
+    // subscriptionPaid = (currentTeam?.subscriptionPaid ?? false) || remainingBalance <= 0
+    // ──────────────────────────────────────────────────────────────────────
   } catch (err) {
     if (isRedirectError(err)) throw err
     const message = err instanceof Error ? err.message : String(err)
@@ -161,7 +170,12 @@ export default async function DashboardLayout({
 
   return (
     <div className="app-shell" style={{ backgroundColor: "rgb(var(--snow))" }}>
-      <DashboardNav teams={teams} />
+      {/* Suspense is required here because DashboardNav uses useSearchParams() */}
+      <Suspense fallback={
+        <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />
+      }>
+        <DashboardNav teams={teams} />
+      </Suspense>
       <QuickActionsSidebar />
       <main className="app-content" style={{ backgroundColor: "rgb(var(--snow))" }}>
         {impersonationSession && <ImpersonationBanner />}

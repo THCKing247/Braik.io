@@ -1,14 +1,37 @@
 ﻿/**
  * Billing & Season Lifecycle State Machine
- * 
+ *
  * Implements per-season billing model with:
  * - Pre-season grace period (June/July) with full access
  * - Payment due by first game week
  * - Non-payment → read-only mode
  * - AI premium feature gating
+ *
+ * ─── DEV MODE ──────────────────────────────────────────────────────────────
+ * BILLING_ENFORCED = false  →  all billing checks are bypassed and every team
+ * is treated as fully paid + active.  Flip to true when Stripe is integrated
+ * and you are ready to enforce payment at launch.
+ * ───────────────────────────────────────────────────────────────────────────
  */
 
 import { logBillingStateTransition } from "@/lib/audit/structured-logger"
+
+/** Set to true when Stripe is integrated and billing enforcement is ready. */
+const BILLING_ENFORCED = false
+
+/** Full-access billing state returned whenever billing is not enforced. */
+const DEV_FULL_ACCESS: BillingState = {
+  status: "ACTIVE",
+  isReadOnly: false,
+  canCreate: true,
+  canModify: true,
+  canMessage: true,
+  canEditEvents: true,
+  canEditDepthCharts: true,
+  canUseAI: true,
+  canView: true,
+  reason: "Dev mode — billing not enforced",
+}
 
 export type AccountStatus = "ACTIVE" | "GRACE" | "READ_ONLY" | "LOCKED"
 
@@ -41,7 +64,7 @@ export interface SeasonBillingContext {
 
 /**
  * Determine account status based on billing context
- * 
+ *
  * State transitions:
  * - GRACE: Pre-season (June/July) OR before first game week
  * - ACTIVE: Payment complete and after grace period
@@ -49,6 +72,7 @@ export interface SeasonBillingContext {
  * - LOCKED: Platform Owner action (manual override)
  */
 export function calculateAccountStatus(context: SeasonBillingContext): AccountStatus {
+  if (!BILLING_ENFORCED) return "ACTIVE"
   const { currentDate, firstGameWeekDate, paymentDueDate, amountPaid, subscriptionAmount } = context
 
   // Check if in grace period (June/July pre-season)
@@ -86,6 +110,7 @@ export function calculateAccountStatus(context: SeasonBillingContext): AccountSt
  * Get billing state with all permissions
  */
 export function getBillingState(context: SeasonBillingContext): BillingState {
+  if (!BILLING_ENFORCED) return DEV_FULL_ACCESS
   const status = calculateAccountStatus(context)
   const { aiEnabled, aiDisabledByPlatform } = context
 
@@ -197,6 +222,7 @@ export function calculatePaymentDueDate(
  * Get billing state for a team (Supabase)
  */
 export async function getTeamBillingState(teamId: string): Promise<BillingState> {
+  if (!BILLING_ENFORCED) return DEV_FULL_ACCESS
   const { getSupabaseServer } = await import("@/src/lib/supabaseServer")
   const supabase = getSupabaseServer()
 
@@ -345,6 +371,7 @@ export async function requireBillingPermission(
   teamId: string,
   permission: "create" | "modify" | "message" | "editEvents" | "editDepthCharts" | "useAI" | "view"
 ): Promise<BillingState> {
+  if (!BILLING_ENFORCED) return DEV_FULL_ACCESS
   const billingState = await getTeamBillingState(teamId)
 
   const permissionMap = {

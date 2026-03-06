@@ -1,6 +1,8 @@
 import { ComingSoon } from "@/components/portal/coming-soon"
 import { CreditCard } from "lucide-react"
 
+export const dynamic = "force-dynamic"
+
 export default function PaymentsPage() {
   return (
     <ComingSoon

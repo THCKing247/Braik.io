@@ -1,11 +1,11 @@
-"use client"
+﻿"use client"
 
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SiteHeader } from "@/components/site-header"
+import { SiteHeader } from "@/components/marketing/site-header"
 
 export default function ProgramInfoPage() {
   const router = useRouter()

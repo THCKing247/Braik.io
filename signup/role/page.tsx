@@ -1,10 +1,10 @@
-"use client"
+﻿"use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { SiteHeader } from "@/components/site-header"
+import { SiteHeader } from "@/components/marketing/site-header"
 
 export default function RoleSelectionPage() {
   const router = useRouter()

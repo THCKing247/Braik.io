@@ -1,4 +1,4 @@
-import Link from "next/link"
+﻿import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { isRedirectError } from "next/dist/client/components/redirect"
@@ -11,7 +11,7 @@ import { SubscriptionGuard } from "@/components/portal/subscription-guard"
 import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner"
-import { SuspensionBanner } from "@/components/suspension-banner"
+import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 
 export const dynamic = "force-dynamic"
 

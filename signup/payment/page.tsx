@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { SiteHeader } from "@/components/site-header"
+import { SiteHeader } from "@/components/marketing/site-header"
 
 type SignupApiError = {
   error?: string

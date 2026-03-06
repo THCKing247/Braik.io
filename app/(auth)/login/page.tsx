@@ -1,9 +1,9 @@
-"use client"
+﻿"use client"
 
 import Link from "next/link"
-import { SiteHeader } from "@/components/site-header"
-import { SiteFooter } from "@/components/site-footer"
-import { HeroLoginForm } from "@/components/hero-login-form"
+import { SiteHeader } from "@/components/marketing/site-header"
+import { SiteFooter } from "@/components/marketing/site-footer"
+import { HeroLoginForm } from "@/components/marketing/hero-login-form"
 
 export default function LoginPage() {
   return (

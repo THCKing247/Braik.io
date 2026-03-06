@@ -1,8 +1,8 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useRef, useState } from "react"
-import { SiteHeader } from "@/components/site-header"
-import { SiteFooter } from "@/components/site-footer"
+import { SiteHeader } from "@/components/marketing/site-header"
+import { SiteFooter } from "@/components/marketing/site-footer"
 
 export default function FeaturesPage() {
   const [visibleFeatures, setVisibleFeatures] = useState<Set<number>>(new Set())

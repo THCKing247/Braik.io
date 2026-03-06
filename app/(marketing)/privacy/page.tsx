@@ -1,6 +1,6 @@
-﻿import { SiteHeader } from "@/components/site-header"
-import { SiteFooter } from "@/components/site-footer"
-import { LegalReadTracker } from "@/components/legal-read-tracker"
+﻿import { SiteHeader } from "@/components/marketing/site-header"
+import { SiteFooter } from "@/components/marketing/site-footer"
+import { LegalReadTracker } from "@/components/marketing/legal-read-tracker"
 import { LEGAL_POLICY_REVIEW_KEYS, LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 
 export default function PrivacyPage() {

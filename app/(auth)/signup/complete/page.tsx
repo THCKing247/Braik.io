@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { signIn } from "@/lib/auth/client-auth"
-import { SiteHeader } from "@/components/site-header"
+import { SiteHeader } from "@/components/marketing/site-header"
 
 type SignupApiError = {
   error?: string

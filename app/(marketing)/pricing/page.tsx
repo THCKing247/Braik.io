@@ -1,8 +1,8 @@
 ﻿"use client"
 
 import { useEffect } from "react"
-import { SiteHeader } from "@/components/site-header"
-import { SiteFooter } from "@/components/site-footer"
+import { SiteHeader } from "@/components/marketing/site-header"
+import { SiteFooter } from "@/components/marketing/site-footer"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 
 export default function PricingPage() {

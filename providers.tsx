@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { SessionProvider } from "@/lib/auth/client-auth"
-import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeProvider } from "@/components/ui/theme-provider"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (

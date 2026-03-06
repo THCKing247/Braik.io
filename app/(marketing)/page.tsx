@@ -3,12 +3,12 @@
 import Link from "next/link"
 import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { SiteHeader } from "@/components/site-header"
-import { SiteFooter } from "@/components/site-footer"
-import { ScrollReveal } from "@/components/scroll-reveal"
-import { SectionDivider } from "@/components/section-divider"
-import { HeroShatterCta } from "@/components/hero-shatter-cta"
-import { LeadCaptureForm } from "@/components/lead-capture-form"
+import { SiteHeader } from "@/components/marketing/site-header"
+import { SiteFooter } from "@/components/marketing/site-footer"
+import { ScrollReveal } from "@/components/marketing/scroll-reveal"
+import { SectionDivider } from "@/components/marketing/section-divider"
+import { HeroShatterCta } from "@/components/marketing/hero-shatter-cta"
+import { LeadCaptureForm } from "@/components/marketing/lead-capture-form"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 
 export default function Home() {

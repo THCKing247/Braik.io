@@ -1,4 +1,4 @@
-﻿import Link from "next/link"
+import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { isRedirectError } from "next/dist/client/components/redirect"
@@ -76,6 +76,11 @@ export default async function DashboardLayout({
       redirect("/login")
     }
 
+    const userRole = session.user.role?.toUpperCase()
+    if (userRole === "ATHLETIC_DIRECTOR") {
+      return <>{children}</>
+    }
+
     const supabase = getSupabaseServer()
 
     // When impersonating, load the target user's teams; otherwise use session user
@@ -134,8 +139,8 @@ export default async function DashboardLayout({
     }
 
     // Head Coaches must always have a team — redirect to onboarding only for them.
-    const userRole = session.user.role?.toUpperCase()
-    if (teams.length === 0 && userRole === "HEAD_COACH" && !session.user.isPlatformOwner) {
+    const layoutUserRole = session.user.role?.toUpperCase()
+    if (teams.length === 0 && layoutUserRole === "HEAD_COACH" && !session.user.isPlatformOwner) {
       redirect("/onboarding")
     }
 

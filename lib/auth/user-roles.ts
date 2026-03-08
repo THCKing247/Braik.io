@@ -5,6 +5,7 @@
 export const USER_ROLE_VALUES = [
   "head_coach",
   "assistant_coach",
+  "athletic_director",
   "parent",
   "athlete",
   "admin",
@@ -17,6 +18,7 @@ export type UserRole = (typeof USER_ROLE_VALUES)[number]
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   head_coach: "Head Coach",
   assistant_coach: "Assistant Coach",
+  athletic_director: "Athletic Director",
   parent: "Parent",
   athlete: "Athlete",
   admin: "Admin",

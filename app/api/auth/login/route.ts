@@ -6,6 +6,8 @@ function getRoleRedirect(role: string) {
   switch (role) {
     case "admin":
       return "/admin/dashboard"
+    case "athletic_director":
+      return "/dashboard/ad"
     case "head_coach":
     case "assistant_coach":
     case "player":
@@ -22,6 +24,7 @@ function mapRoleToProfileRole(storedRole: string): string {
   const map: Record<string, string> = {
     HEAD_COACH: "head_coach",
     ASSISTANT_COACH: "assistant_coach",
+    ATHLETIC_DIRECTOR: "athletic_director",
     PLAYER: "player",
     PARENT: "parent",
     SCHOOL_ADMIN: "admin",

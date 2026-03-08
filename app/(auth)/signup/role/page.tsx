@@ -134,33 +134,60 @@ export default function RoleSelectionPage() {
                 Sign up for Braik
               </h2>
               <p className="text-[#495057]">
-                Choose your role to get started — you can&apos;t change this later.
+                Choose your path to get started — you can&apos;t change this later.
               </p>
             </div>
 
             <div className="space-y-8 mb-8">
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6B7280] mb-3">
-                  Coaches & staff
+                <h3 className="text-base font-semibold text-[#212529] mb-1">
+                  Coach / Team Program
                 </h3>
-                <p className="text-[#495057] text-sm mb-3">
-                  Head coaches, assistant coaches, and athletic directors.
+                <p className="text-[#495057] text-sm mb-4">
+                  For coaches starting with a single team or program.
                 </p>
                 <div className="space-y-3">
-                  {coachRoles.map(roleCard)}
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {coachRoles.map(roleCard)}
+                  </div>
+                  <p className="text-xs text-[#6B7280] mt-2">Players and parents</p>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {playerRoles.map(roleCard)}
+                  </div>
                 </div>
               </div>
 
               <div className="border-t border-[#E5E7EB] pt-8">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6B7280] mb-3">
-                  Players & parents
+                <h3 className="text-base font-semibold text-[#212529] mb-1">
+                  Athletic Director / Department License
                 </h3>
-                <p className="text-[#495057] text-sm mb-3">
-                  Athletes and parents or guardians joining a team.
+                <p className="text-[#495057] text-sm mb-4">
+                  For schools that want Braik across their entire athletic department.
                 </p>
-                <div className="space-y-3">
-                  {playerRoles.map(roleCard)}
-                </div>
+                <Link href="/signup/athletic-director" className="block">
+                  <button
+                    type="button"
+                    className="w-full p-5 rounded-xl border-2 border-[#E5E7EB] bg-white hover:border-[#3B82F6] hover:bg-[#F9FAFB] text-left transition-all duration-200 cursor-pointer flex items-start gap-4 group"
+                  >
+                    <span className="text-2xl mt-0.5 shrink-0">🏫</span>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-athletic font-semibold text-[#212529] uppercase tracking-wide mb-1">
+                        Athletic Director
+                      </h4>
+                      <p className="text-[#495057] text-sm leading-relaxed">
+                        Set up your school and athletic department. Unlimited teams and athletes.
+                      </p>
+                    </div>
+                    <svg
+                      className="w-5 h-5 text-[#D1D5DB] group-hover:text-[#3B82F6] transition-colors shrink-0 self-center"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </Link>
               </div>
             </div>
 

@@ -75,6 +75,16 @@ After seeding, verify in Supabase:
    - Confirm users have expected roles and team mapping
    - Admin users are seeded with `team_id = null`
 
+## Athletic Director (AD) dev account
+
+To test the Athletic Director portal locally:
+
+1. Go to **Sign up** → choose **Athletic Director / Department License** → **Athletic Director**.
+2. Or go directly to `/signup/athletic-director` and complete the form (school name, school type, etc.).
+3. After signup, sign in; you will be redirected to `/dashboard/ad`.
+
+To seed a sample school and AD via API (e.g. for E2E or local dev), use `POST /api/auth/signup-athletic-director` with a JSON body containing `firstName`, `lastName`, `email`, `password`, `schoolName`, `schoolType`, and optional fields (`mascot`, `city`, `state`, `estimatedTeamCount`, `estimatedAthleteCount`, etc.).
+
 ## Cleanup / disable after seeding
 
 Recommended hardening after initial seed:

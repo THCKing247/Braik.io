@@ -146,6 +146,14 @@ export default function PricingPage() {
                     </p>
                   </div>
                 </div>
+                <div className="pt-4">
+                  <a
+                    href="/signup/athletic-director"
+                    className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-6 py-3 text-base font-semibold text-white hover:bg-[#2563EB] transition-colors"
+                  >
+                    Start Department Setup
+                  </a>
+                </div>
               </div>
             </div>
 

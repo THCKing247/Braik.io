@@ -1,79 +1,76 @@
-﻿import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { InviteAcceptance } from "@/components/portal/invite-acceptance"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { InviteAcceptCard, type InviteDetails } from "@/components/invites/invite-accept-card"
+import { InviteInvalidState } from "@/components/invites/invite-invalid-state"
 
 export default async function InvitePage({ params }: { params: { token: string } }) {
   const supabase = getSupabaseServer()
   const { data: inviteRow } = await supabase
     .from("invites")
-    .select("id, email, role, team_id, token, expires_at, accepted_at")
+    .select("id, email, role, team_id, token, expires_at, accepted_at, school_id, created_by")
     .eq("token", params.token)
     .maybeSingle()
 
   if (!inviteRow) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg px-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Invalid Invite</h1>
-          <p className="text-text-2">This invite link is invalid or has expired.</p>
-        </div>
-      </div>
-    )
+    return <InviteInvalidState reason="not_found" />
+  }
+
+  if (inviteRow.accepted_at) {
+    return <InviteInvalidState reason="already_accepted" />
+  }
+
+  const expiresAt = new Date(inviteRow.expires_at)
+  if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+    return <InviteInvalidState reason="expired" />
   }
 
   const { data: team } = await supabase
     .from("teams")
-    .select("id, name, org")
+    .select("id, name, sport")
     .eq("id", inviteRow.team_id)
-    .single()
+    .maybeSingle()
 
   if (!team) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg px-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Invalid Invite</h1>
-          <p className="text-text-2">Team not found.</p>
-        </div>
-      </div>
-    )
+    return <InviteInvalidState reason="not_found" />
   }
 
-  const invite = {
+  let schoolName: string | null = null
+  if (inviteRow.school_id) {
+    const { data: school } = await supabase
+      .from("schools")
+      .select("name")
+      .eq("id", inviteRow.school_id)
+      .maybeSingle()
+    schoolName = school?.name ?? null
+  }
+
+  let inviterName: string | null = null
+  if (inviteRow.created_by) {
+    const { data: inviter } = await supabase
+      .from("users")
+      .select("name")
+      .eq("id", inviteRow.created_by)
+      .maybeSingle()
+    inviterName = inviter?.name ?? null
+  }
+
+  const invite: InviteDetails = {
     id: inviteRow.id,
+    token: inviteRow.token,
     email: inviteRow.email,
     role: inviteRow.role,
     team: {
       id: team.id,
-      name: team.name,
-      organization: { name: team.org ?? team.name ?? "" },
+      name: team.name ?? "",
+      sport: (team as { sport?: string }).sport ?? null,
     },
-    expires_at: inviteRow.expires_at,
-    accepted_at: inviteRow.accepted_at,
+    schoolName,
+    inviterName,
+    expiresAt: inviteRow.expires_at,
   }
 
-  if (invite.accepted_at) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg px-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Invite Already Accepted</h1>
-          <p className="text-text-2">This invite has already been accepted.</p>
-          <a href="/login" className="text-primary hover:underline mt-4 inline-block">
-            Go to Login
-          </a>
-        </div>
-      </div>
-    )
-  }
-
-  if (new Date(invite.expires_at) < new Date()) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg px-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Invite Expired</h1>
-          <p className="text-text-2">This invite has expired. Please request a new invite.</p>
-        </div>
-      </div>
-    )
-  }
-
-  return <InviteAcceptance invite={invite} />
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] px-4 py-12">
+      <InviteAcceptCard invite={invite} />
+    </div>
+  )
 }

@@ -49,7 +49,7 @@ export default function RoleSelectionPage() {
     }, 300)
   }
 
-  const roles = [
+  const coachRoles = [
     {
       value: "head-coach",
       label: "Head Coach",
@@ -62,6 +62,9 @@ export default function RoleSelectionPage() {
       description: "Join an existing team. Access to coaching features (requires Team Code).",
       icon: "📋",
     },
+  ]
+
+  const playerRoles = [
     {
       value: "player",
       label: "Player",
@@ -76,6 +79,46 @@ export default function RoleSelectionPage() {
     },
   ]
 
+  const roleCard = (role: (typeof coachRoles)[0] | (typeof playerRoles)[0]) => {
+    const isSelected = selectedRole === role.value
+    return (
+      <button
+        key={role.value}
+        onClick={() => handleRoleSelect(role.value)}
+        disabled={selectedRole !== null}
+        className={`w-full p-5 rounded-xl border-2 text-left transition-all duration-200 cursor-pointer flex items-start gap-4 group ${
+          isSelected
+            ? "border-[#3B82F6] bg-[#EFF6FF] shadow-md"
+            : selectedRole
+            ? "border-[#E5E7EB] bg-white opacity-50 cursor-not-allowed"
+            : "border-[#E5E7EB] bg-white hover:border-[#3B82F6] hover:bg-[#F9FAFB] hover:shadow-sm"
+        }`}
+      >
+        <span className="text-2xl mt-0.5 shrink-0">{role.icon}</span>
+        <div className="flex-1">
+          <h3 className="text-lg font-athletic font-semibold text-[#212529] uppercase tracking-wide mb-1">
+            {role.label}
+          </h3>
+          <p className="text-[#495057] text-sm leading-relaxed">{role.description}</p>
+        </div>
+        <div className="ml-2 shrink-0 self-center">
+          {isSelected ? (
+            <CheckCircle className="w-6 h-6 text-[#3B82F6]" />
+          ) : (
+            <svg
+              className="w-5 h-5 text-[#D1D5DB] group-hover:text-[#3B82F6] transition-colors"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          )}
+        </div>
+      </button>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />
@@ -88,53 +131,37 @@ export default function RoleSelectionPage() {
           >
             <div className="mb-8 text-center space-y-2">
               <h2 className="text-3xl md:text-4xl font-athletic font-bold text-[#212529] uppercase tracking-tight">
-                Choose Your Role
+                Sign up for Braik
               </h2>
               <p className="text-[#495057]">
-                Select your role to get started — you can&apos;t change this later.
+                Choose your role to get started — you can&apos;t change this later.
               </p>
             </div>
 
-            <div className="space-y-3 mb-8">
-              {roles.map((role) => {
-                const isSelected = selectedRole === role.value
-                return (
-                  <button
-                    key={role.value}
-                    onClick={() => handleRoleSelect(role.value)}
-                    disabled={selectedRole !== null}
-                    className={`w-full p-5 rounded-xl border-2 text-left transition-all duration-200 cursor-pointer flex items-start gap-4 group ${
-                      isSelected
-                        ? "border-[#3B82F6] bg-[#EFF6FF] shadow-md"
-                        : selectedRole
-                        ? "border-[#E5E7EB] bg-white opacity-50 cursor-not-allowed"
-                        : "border-[#E5E7EB] bg-white hover:border-[#3B82F6] hover:bg-[#F9FAFB] hover:shadow-sm"
-                    }`}
-                  >
-                    <span className="text-2xl mt-0.5 shrink-0">{role.icon}</span>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-athletic font-semibold text-[#212529] uppercase tracking-wide mb-1">
-                        {role.label}
-                      </h3>
-                      <p className="text-[#495057] text-sm leading-relaxed">{role.description}</p>
-                    </div>
-                    <div className="ml-2 shrink-0 self-center">
-                      {isSelected ? (
-                        <CheckCircle className="w-6 h-6 text-[#3B82F6]" />
-                      ) : (
-                        <svg
-                          className="w-5 h-5 text-[#D1D5DB] group-hover:text-[#3B82F6] transition-colors"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </button>
-                )
-              })}
+            <div className="space-y-8 mb-8">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6B7280] mb-3">
+                  Coaches & staff
+                </h3>
+                <p className="text-[#495057] text-sm mb-3">
+                  Head coaches, assistant coaches, and athletic directors.
+                </p>
+                <div className="space-y-3">
+                  {coachRoles.map(roleCard)}
+                </div>
+              </div>
+
+              <div className="border-t border-[#E5E7EB] pt-8">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6B7280] mb-3">
+                  Players & parents
+                </h3>
+                <p className="text-[#495057] text-sm mb-3">
+                  Athletes and parents or guardians joining a team.
+                </p>
+                <div className="space-y-3">
+                  {playerRoles.map(roleCard)}
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col items-center gap-4">

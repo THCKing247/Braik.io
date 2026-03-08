@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -301,6 +301,16 @@ export default function SignupPage() {
                   </div>
                 )}
 
+                {(role === "head-coach" || role === "assistant-coach") && (
+                  <p className="text-center text-sm font-semibold uppercase tracking-wider text-[#6B7280] mb-1">
+                    Coaches & staff
+                  </p>
+                )}
+                {(role === "player" || role === "parent") && (
+                  <p className="text-center text-sm font-semibold uppercase tracking-wider text-[#6B7280] mb-1">
+                    Players & parents
+                  </p>
+                )}
                 <h2 className="text-3xl md:text-4xl font-athletic font-bold text-center mb-2 text-[#212529] uppercase tracking-tight">
                   Sign up for Braik
                 </h2>

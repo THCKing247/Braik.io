@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -12,6 +12,22 @@ export default function RoleSelectionPage() {
   const searchParams = useSearchParams()
   const [showCard, setShowCard] = useState(false)
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
+
+  // Deep link from pricing: start head coach signup with calculator params
+  useEffect(() => {
+    const roleParam = searchParams.get("role")
+    if (roleParam === "head-coach") {
+      const signupData: Record<string, string> = {
+        role: "head-coach",
+        sportType: searchParams.get("sport") || "",
+        rosterSize: searchParams.get("roster") || "",
+        paymentModel: searchParams.get("payment") || "",
+      }
+      localStorage.setItem("signupData", JSON.stringify(signupData))
+      router.replace("/signup")
+      return
+    }
+  }, [searchParams, router])
 
   useEffect(() => {
     const fromHero = searchParams.get("fromHero") === "1"

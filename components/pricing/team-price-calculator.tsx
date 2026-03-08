@@ -117,7 +117,9 @@ export function TeamPriceCalculator() {
     if (rosterSize < minRoster) setRosterSize(minRoster)
   }, [minRoster])
 
-  const signupHref = `/signup?sport=${encodeURIComponent(sport.toLowerCase())}&roster=${clampedRoster}&payment=${paymentModel}`
+  const sportForSignup =
+    sport === "Track & Field" ? "track" : sport === "Cross Country" ? "other" : sport.toLowerCase()
+  const signupHref = `/signup/role?role=head-coach&sport=${encodeURIComponent(sportForSignup)}&roster=${clampedRoster}&payment=${paymentModel}`
 
   return (
     <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-xl shadow-[#0f172a]/5 overflow-hidden">

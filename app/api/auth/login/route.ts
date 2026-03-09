@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       requestedCallbackUrl.startsWith("/admin")
     const redirectTo = allowAdminCallback ? requestedCallbackUrl : getRoleRedirect(role)
 
-    // Ensure public.users has a row for this auth user (for team_members FK and admin checks).
+    // Ensure public.users has a row for this auth user (for admin checks and profile sync).
     // Must complete before returning so /admin/dashboard layout sees the correct role.
     const userRole = profileRoleToUserRole(role)
     try {

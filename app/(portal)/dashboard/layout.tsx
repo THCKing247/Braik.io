@@ -3,7 +3,6 @@ import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { isRedirectError } from "next/dist/client/components/redirect"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
-import { getUserMembership } from "@/lib/auth/rbac"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
@@ -89,40 +88,29 @@ export default async function DashboardLayout({
     impersonationSession = await getActiveImpersonationFromCookies()
     const effectiveUserId = impersonationSession?.target_user_id ?? session.user.id
 
-    // Load user's teams via team_members (Supabase)
-    const { data: memberships } = await supabase
-      .from("team_members")
-      .select("team_id, role")
-      .eq("user_id", effectiveUserId)
-      .eq("active", true)
+    // Load user's team(s) from profiles (production source of truth; no team_members table)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("team_id")
+      .eq("id", effectiveUserId)
+      .maybeSingle()
 
-    let teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
-
-    // Fallback: if no team_members row exists yet (e.g. just signed up and the
-    // team_members insert is still propagating), read team_id directly from the
-    // user's profile so they land on the dashboard without an onboarding detour.
-    let usedProfileFallback = false
-    if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
-      teamIds = [session.user.teamId]
-      usedProfileFallback = true
+    let teamIds: string[] = []
+    if (profile?.team_id) {
+      teamIds = [profile.team_id]
     }
-
-    // Second fallback: read profile directly in case session.user.teamId is stale
+    // Include teams the user created (created_by) in case profile.team_id is not set yet
     if (teamIds.length === 0) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("team_id")
-        .eq("id", effectiveUserId)
-        .maybeSingle()
-      if (profile?.team_id) {
-        teamIds = [profile.team_id]
-        usedProfileFallback = true
+      const { data: createdTeams } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("created_by", effectiveUserId)
+      if (createdTeams?.length) {
+        teamIds = createdTeams.map((t) => t.id)
       }
     }
-
-    // Repair: if we used profile fallback, ensure team_members row exists so roster/APIs work.
-    if (usedProfileFallback && teamIds.length > 0 && effectiveUserId === session.user.id) {
-      await getUserMembership(teamIds[0])
+    if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
+      teamIds = [session.user.teamId]
     }
 
     teams = []

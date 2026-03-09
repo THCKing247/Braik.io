@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
@@ -41,7 +41,11 @@ export async function GET(request: Request) {
     }
 
     const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
+    const { data: team, error: teamErr } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
+    if (teamErr) {
+      console.error("[GET /api/roster] teams lookup failed", { teamId, error: teamErr })
+      return NextResponse.json({ error: "Failed to load roster" }, { status: 500 })
+    }
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
@@ -93,6 +97,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json(players)
   } catch (err) {
+    if (err instanceof MembershipLookupError) {
+      console.error("[GET /api/roster] membership lookup failed (DB/schema)", { error: err.message, cause: err.cause })
+      return NextResponse.json({ error: "Failed to load roster" }, { status: 500 })
+    }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json(
@@ -127,7 +135,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const { requireTeamPermission } = await import("@/lib/auth/rbac")
+    const { requireTeamPermission, MembershipLookupError } = await import("@/lib/auth/rbac")
     await requireTeamPermission(teamId, "edit_roster")
 
     const firstName = String(body?.firstName ?? "").trim()
@@ -219,6 +227,10 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(out)
   } catch (err) {
+    if (err instanceof MembershipLookupError) {
+      console.error("[POST /api/roster] membership lookup failed (DB/schema)", { error: err.message, cause: err.cause })
+      return NextResponse.json({ error: "Failed to add player" }, { status: 500 })
+    }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Not a member") || message.includes("Insufficient")) {
       return NextResponse.json(

@@ -36,12 +36,11 @@ export async function createNotifications(payload: NotificationPayload): Promise
     userIds = targetUserIds.filter((id) => !excludeUserIds.includes(id))
   } else {
     const supabase = getSupabaseServer()
-    const { data: members } = await supabase
-      .from("team_members")
-      .select("user_id")
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id")
       .eq("team_id", teamId)
-      .eq("active", true)
-    userIds = (members ?? []).map((m) => m.user_id)
+    userIds = (profiles ?? []).map((p) => p.id)
   }
 
   if (userIds.length === 0) return

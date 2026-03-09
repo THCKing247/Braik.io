@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { updateSupabaseUserByAppUserId } from "@/lib/supabase/supabase-admin"
@@ -41,12 +41,10 @@ export async function PATCH(request: Request) {
 
     await supabase.from("users").update(updateData).eq("id", session.user.id)
 
-    const { data: membership } = await supabase
-      .from("team_members")
+    const { data: profile } = await supabase
+      .from("profiles")
       .select("role, team_id")
-      .eq("user_id", session.user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
+      .eq("id", session.user.id)
       .maybeSingle()
 
     let supabaseSync: { synced: boolean; reason?: string } | undefined
@@ -55,8 +53,8 @@ export async function PATCH(request: Request) {
         appUserId: session.user.id,
         email: updateData.email ?? existingUser.email,
         name: updateData.name ?? existingUser.name,
-        role: membership?.role,
-        teamId: membership?.team_id,
+        role: profile?.role ?? undefined,
+        teamId: profile?.team_id ?? undefined,
       })
       supabaseSync = { synced: syncResult.synced, reason: syncResult.reason }
     } catch (syncError: unknown) {

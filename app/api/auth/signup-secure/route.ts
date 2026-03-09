@@ -283,8 +283,6 @@ export async function POST(request: Request) {
       throw new SignupRouteError(500, "Database failure while creating profile", profileInsertError.message)
     }
 
-    // Ensure a row exists in public.users BEFORE team_members insert (team_members.user_id FK references users.id).
-    const userRole = profileRoleToUserRole(role)
     try {
       await supabase
         .from("users")
@@ -293,42 +291,13 @@ export async function POST(request: Request) {
             id: createdAuthUserId,
             email,
             name: fullName,
-            role: userRole,
+            role: profileRoleToUserRole(role),
             status: "active",
           },
           { onConflict: "id" }
         )
     } catch {
       // ignore — public.users may not exist in all environments
-    }
-
-    // Insert team_members when user is linked to a team. Required for roster and RBAC; do not treat as non-fatal.
-    if (teamId) {
-      const teamMemberRole =
-        role === "head_coach"
-          ? "HEAD_COACH"
-          : role === "assistant_coach"
-          ? "ASSISTANT_COACH"
-          : role === "player"
-          ? "PLAYER"
-          : role === "parent"
-          ? "PARENT"
-          : "PLAYER"
-
-      const { error: memberInsertError } = await supabase.from("team_members").insert({
-        team_id: teamId,
-        user_id: createdAuthUserId,
-        role: teamMemberRole,
-        active: true,
-      })
-
-      if (memberInsertError) {
-        throw new SignupRouteError(
-          500,
-          "Your account was created but we could not add you to the team. Please try joining the team again from the dashboard or contact support.",
-          memberInsertError.message
-        )
-      }
     }
 
     return NextResponse.json(

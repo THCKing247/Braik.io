@@ -1,7 +1,7 @@
-﻿import { NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamPermission } from "@/lib/auth/rbac"
+import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import crypto from "crypto"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
@@ -27,14 +27,12 @@ export async function POST(request: Request) {
 
     const { data: existingUser } = await supabase.from("users").select("id").eq("email", normalizedEmail).maybeSingle()
     if (existingUser) {
-      const { data: existingMembership } = await supabase
-        .from("team_members")
+      const { data: profile } = await supabase
+        .from("profiles")
         .select("team_id")
-        .eq("user_id", existingUser.id)
-        .eq("team_id", teamId)
-        .eq("active", true)
+        .eq("id", existingUser.id)
         .maybeSingle()
-      if (existingMembership) {
+      if (profile?.team_id === teamId) {
         return NextResponse.json({ error: "User is already a member of this team" }, { status: 400 })
       }
     }
@@ -85,6 +83,10 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     if (error instanceof TeamOperationBlockedError) {
       return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
+    }
+    if (error instanceof MembershipLookupError) {
+      console.error("[POST /api/invites] membership lookup failed (DB/schema)", error.message)
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }
     console.error("Invite error:", error)
     return NextResponse.json(

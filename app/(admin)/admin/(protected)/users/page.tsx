@@ -1,4 +1,4 @@
-﻿import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
 import { OperatorUsers } from "@/components/admin/operator-users"
 
@@ -19,9 +19,21 @@ export default async function AdminUsersPage({
       const { data: rows } = await q
       const withMemberships = await Promise.all(
         (rows ?? []).map(async (u) => {
-          const { data: memberships } = await supabase.from("team_members").select("role, team_id").eq("user_id", u.id)
-          const teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role, team_id")
+            .eq("id", u.id)
+            .maybeSingle()
+          const teamIds = profile?.team_id ? [profile.team_id] : []
           const { data: teams } = teamIds.length > 0 ? await supabase.from("teams").select("id, name").in("id", teamIds) : { data: [] }
+          const memberships = profile?.team_id
+            ? [
+                {
+                  role: profile.role ?? "player",
+                  team: (teams ?? []).find((t) => t.id === profile.team_id) ?? { id: profile.team_id, name: "" },
+                },
+              ]
+            : []
           return {
             id: u.id,
             email: u.email,
@@ -30,10 +42,7 @@ export default async function AdminUsersPage({
             status: u.status,
             createdAt: u.created_at,
             lastLoginAt: u.last_login_at,
-            memberships: (memberships ?? []).map((m) => ({
-              role: m.role,
-              team: (teams ?? []).find((t) => t.id === m.team_id) ?? { id: m.team_id, name: "" },
-            })),
+            memberships,
           }
         })
       )

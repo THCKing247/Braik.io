@@ -15,7 +15,7 @@ interface DebugSession {
 interface CoachPageDebugProps {
   /** Only log when role is coach (HEAD_COACH or ASSISTANT_COACH). */
   session: DebugSession | null
-  /** Team IDs the user is a member of (from team_members or profile fallback). */
+  /** Team IDs the user is a member of (from profiles.team_id). */
   teamIds: string[]
   /** Whether the layout allowed access (user passed auth and role check). */
   accessAllowed: boolean

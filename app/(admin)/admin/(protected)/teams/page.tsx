@@ -15,11 +15,12 @@ export default async function AdminTeamsPage({
     async () => {
       let teamIds: string[] | null = null
       if (filterUserId) {
-        const { data: memberRows } = await supabase
-          .from("team_members")
+        const { data: profile } = await supabase
+          .from("profiles")
           .select("team_id")
-          .eq("user_id", filterUserId)
-        teamIds = [...new Set((memberRows ?? []).map((m) => (m as { team_id: string }).team_id))]
+          .eq("id", filterUserId)
+          .maybeSingle()
+        teamIds = profile?.team_id ? [profile.team_id] : []
         if (teamIds.length === 0) return []
       }
 
@@ -35,7 +36,10 @@ export default async function AdminTeamsPage({
       const { data: rows } = await q
       const result = await Promise.all(
         (rows ?? []).map(async (t) => {
-          const { data: memberships } = await supabase.from("team_members").select("user_id, role").eq("team_id", t.id)
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("team_id", t.id)
           return {
             id: t.id,
             name: t.name,
@@ -44,7 +48,7 @@ export default async function AdminTeamsPage({
             teamStatus: (t as { team_status?: string }).team_status ?? "active",
             organization: { name: (t as { org?: string }).org ?? t.name ?? "" },
             players: [] as Array<{ id: string }>,
-            memberships: (memberships ?? []).map((m) => ({ userId: (m as { user_id: string }).user_id })),
+            memberships: (profiles ?? []).map((p) => ({ userId: p.id })),
           }
         })
       )

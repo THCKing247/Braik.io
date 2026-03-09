@@ -32,12 +32,6 @@ export async function POST(request: Request) {
     }
 
     const userId = session.user.id
-    const rawRole = (session.user.role || "PLAYER").toUpperCase()
-    const teamMemberRole =
-      rawRole === "ASSISTANT_COACH" ? "ASSISTANT_COACH" :
-      rawRole === "PLAYER" ? "PLAYER" :
-      rawRole === "PARENT" ? "PARENT" :
-      "PLAYER"
 
     let teamId: string | null = null
     let usedPlayerInvite = false
@@ -115,7 +109,6 @@ export async function POST(request: Request) {
         .eq("id", invite.id)
     }
 
-    // Ensure user exists in public.users so team_members upsert (FK) succeeds.
     try {
       await supabase
         .from("users")
@@ -130,10 +123,10 @@ export async function POST(request: Request) {
           { onConflict: "id" }
         )
     } catch {
-      // best-effort; team_members upsert may still succeed if user row exists
+      // best-effort; profile update is the source of truth for membership
     }
 
-    // Update the user's profile to link them to the team
+    // Update the user's profile to link them to the team (production source of truth; no team_members table)
     const { error: profileUpdateError } = await supabase
       .from("profiles")
       .update({ team_id: teamId })
@@ -142,24 +135,6 @@ export async function POST(request: Request) {
     if (profileUpdateError) {
       return NextResponse.json(
         { success: false, error: "Failed to update your profile.", details: profileUpdateError.message },
-        { status: 500 }
-      )
-    }
-
-    // Insert team_members row (upsert in case row already exists). Required for roster and RBAC.
-    const { error: memberError } = await supabase.from("team_members").upsert(
-      {
-        team_id: teamId,
-        user_id: userId,
-        role: teamMemberRole,
-        active: true,
-      },
-      { onConflict: "team_id,user_id" }
-    )
-
-    if (memberError) {
-      return NextResponse.json(
-        { success: false, error: "Failed to add you to the team.", details: memberError.message },
         { status: 500 }
       )
     }

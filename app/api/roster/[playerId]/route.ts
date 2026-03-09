@@ -21,7 +21,7 @@ export async function PATCH(
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
-    const { requireTeamPermission } = await import("@/lib/auth/rbac")
+    const { requireTeamPermission, MembershipLookupError } = await import("@/lib/auth/rbac")
     const supabase = getSupabaseServer()
 
     const { data: player, error: fetchErr } = await supabase
@@ -102,6 +102,10 @@ export async function PATCH(
       claimedAt: p.claimed_at ?? null,
     })
   } catch (err) {
+    if (err instanceof MembershipLookupError) {
+      console.error("[PATCH /api/roster/[playerId]] membership lookup failed (DB/schema)", err.message)
+      return NextResponse.json({ error: "Failed to update player" }, { status: 500 })
+    }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Insufficient")) {
       return NextResponse.json({ error: message }, { status: 403 })

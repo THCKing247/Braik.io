@@ -44,7 +44,6 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServer()
 
-    // Ensure user exists in public.users (for team_members FK)
     const userRole = profileRoleToUserRole(session.user.role)
     try {
       await supabase
@@ -65,8 +64,11 @@ export async function POST(request: Request) {
       // ignore upsert errors (e.g. user already exists)
     }
 
-    // Create team (only name — org/plan_tier/status may not exist in all envs)
-    const teamInsert: Record<string, unknown> = { name: teamName }
+    // Create team; set created_by so RBAC recognizes the creator (no team_members table in production)
+    const teamInsert: Record<string, unknown> = {
+      name: teamName,
+      created_by: session.user.id,
+    }
     const { data: team, error: teamError } = await supabase
       .from("teams")
       .insert(teamInsert)
@@ -80,30 +82,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Add current user as head coach
-    const { error: memberError } = await supabase.from("team_members").insert({
-      team_id: team.id,
-      user_id: session.user.id,
-      role: "HEAD_COACH",
-      active: true,
-    })
-
-    if (memberError) {
-      await supabase.from("teams").delete().eq("id", team.id)
-      return NextResponse.json(
-        { error: memberError.message ?? "Failed to add you to the team" },
-        { status: 500 }
-      )
-    }
-
-    // Set default team on profile so dashboard/team switcher and session stay in sync
+    // Set profile so user is head coach for this team (production source of truth)
     const { error: profileError } = await supabase
       .from("profiles")
       .update({ team_id: team.id })
       .eq("id", session.user.id)
 
     if (profileError) {
-      await supabase.from("team_members").delete().eq("team_id", team.id).eq("user_id", session.user.id)
       await supabase.from("teams").delete().eq("id", team.id)
       return NextResponse.json(
         { error: profileError.message ?? "Failed to update your profile" },

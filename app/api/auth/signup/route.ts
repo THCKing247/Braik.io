@@ -149,7 +149,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Failed to create profile" }, { status: 500 })
     }
 
-    // Ensure public.users exists so team_members insert (FK) succeeds.
     if (teamId) {
       try {
         await supabaseServerClient
@@ -166,31 +165,6 @@ export async function POST(request: Request) {
           )
       } catch {
         // best-effort
-      }
-
-      const teamMemberRole =
-        role === "head_coach"
-          ? "HEAD_COACH"
-          : role === "assistant_coach"
-          ? "ASSISTANT_COACH"
-          : role === "player"
-          ? "PLAYER"
-          : role === "parent"
-          ? "PARENT"
-          : "PLAYER"
-
-      const { error: memberError } = await supabaseServerClient.from("team_members").insert({
-        team_id: teamId,
-        user_id: authUser.user.id,
-        role: teamMemberRole,
-        active: true,
-      })
-
-      if (memberError) {
-        return NextResponse.json(
-          { success: false, error: "Your account was created but we could not add you to the team. Please try joining the team again from the dashboard or contact support.", details: memberError.message },
-          { status: 500 }
-        )
       }
     }
 

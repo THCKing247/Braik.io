@@ -32,7 +32,7 @@ export async function POST(
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
-    const { requireTeamPermission } = await import("@/lib/auth/rbac")
+    const { requireTeamPermission, MembershipLookupError } = await import("@/lib/auth/rbac")
     const supabase = getSupabaseServer()
 
     const { data: player, error: fetchErr } = await supabase
@@ -88,6 +88,10 @@ export async function POST(
       inviteStatus: (p.invite_status ?? "invited") as "invited",
     })
   } catch (err) {
+    if (err instanceof MembershipLookupError) {
+      console.error("[POST /api/roster/[playerId]/invite] membership lookup failed (DB/schema)", err.message)
+      return NextResponse.json({ error: "Failed to set invite" }, { status: 500 })
+    }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Insufficient")) {
       return NextResponse.json({ error: message }, { status: 403 })

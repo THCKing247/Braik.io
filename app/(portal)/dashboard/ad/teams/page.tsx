@@ -29,24 +29,31 @@ export default async function AdTeamsPage() {
 
     if (teamsData?.length) {
       const teamIds = teamsData.map((t) => t.id)
-      const { data: members } = await supabase
-        .from("team_members")
-        .select("team_id, user_id")
+      const { data: coachProfiles } = await supabase
+        .from("profiles")
+        .select("id, team_id")
         .in("team_id", teamIds)
-        .eq("role", "HEAD_COACH")
-        .eq("active", true)
+        .ilike("role", "head_coach")
 
-      const userIds = [...new Set((members ?? []).map((m) => m.user_id))]
+      const coachUserIdByTeam = new Map<string, string>()
+      coachProfiles?.forEach((p) => {
+        coachUserIdByTeam.set(p.team_id, p.id)
+      })
+      teamsData.forEach((t) => {
+        const createdBy = (t as { created_by?: string }).created_by
+        if (createdBy && !coachUserIdByTeam.has(t.id)) {
+          coachUserIdByTeam.set(t.id, createdBy)
+        }
+      })
+      const coachUserIds = [...new Set(coachUserIdByTeam.values())]
       const { data: users } = await supabase
         .from("users")
         .select("id, name")
-        .in("id", userIds)
-
+        .in("id", coachUserIds)
       const headCoachByTeam = new Map<string, string>()
-      members?.forEach((m) => {
-        const u = users?.find((u) => u.id === m.user_id)
-        const name = u?.name?.trim() || null
-        if (name) headCoachByTeam.set(m.team_id, name)
+      coachUserIdByTeam.forEach((userId, teamId) => {
+        const u = users?.find((u) => u.id === userId)
+        headCoachByTeam.set(teamId, u?.name?.trim() ?? "")
       })
 
       const now = new Date().toISOString()

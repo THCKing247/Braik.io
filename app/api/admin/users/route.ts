@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { listSupabaseAuthUsers } from "@/lib/supabase/supabase-admin"
@@ -42,27 +42,27 @@ export async function GET(request: Request) {
 
     const withMemberships = await Promise.all(
       (users ?? []).map(async (u) => {
-        const { data: memberships } = await supabase
-          .from("team_members")
+        const { data: profile } = await supabase
+          .from("profiles")
           .select("role, team_id")
-          .eq("user_id", u.id)
-        const teamIds = [...new Set((memberships ?? []).map((m) => m.team_id))]
+          .eq("id", u.id)
+          .maybeSingle()
+        const teamIds = profile?.team_id ? [profile.team_id] : []
         const teams =
           teamIds.length > 0
             ? await supabase.from("teams").select("id, name, org").in("id", teamIds)
             : { data: [] }
-        return {
-          ...u,
-          memberships: (memberships ?? []).map((m) => {
-            const team = (teams.data ?? []).find((t) => t.id === m.team_id)
-            return {
-              role: m.role,
-              teamId: m.team_id,
-              teamName: team?.name,
-              organizationName: team?.org,
-            }
-          }),
-        }
+        const memberships = profile?.team_id
+          ? [
+              {
+                role: profile.role ?? "player",
+                teamId: profile.team_id,
+                teamName: (teams.data ?? []).find((t) => t.id === profile.team_id)?.name,
+                organizationName: (teams.data ?? []).find((t) => t.id === profile.team_id)?.org,
+              },
+            ]
+          : []
+        return { ...u, memberships }
       })
     )
 

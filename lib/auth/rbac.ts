@@ -40,14 +40,14 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
 
   // Recovery: no active membership. Try (1) reactivate inactive row, (2) insert missing row, (3) handle unique conflict.
   if (!membership) {
-    const { data: inactiveRow } = await supabase
+    const { data: inactiveData } = await supabase
       .from("team_members")
       .select("team_id, user_id, role, permissions")
       .eq("user_id", session.user.id)
       .eq("team_id", teamId)
       .eq("active", false)
       .maybeSingle()
-      .then((r) => r.data as TeamMemberRow | null)
+    const inactiveRow = inactiveData as TeamMemberRow | null
 
     if (inactiveRow) {
       await supabase.from("team_members").update({ active: true }).eq("user_id", session.user.id).eq("team_id", teamId)

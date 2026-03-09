@@ -169,10 +169,41 @@ export function CalendarWidgetEnhanced({
           {months.map((month) => {
             const monthStart = startOfMonth(month)
             const monthEnd = endOfMonth(month)
-            const weekStart = startOfWeek(monthStart, { weekStartsOn: 0 })
-            const calendarStart = weekStart
-            const calendarEnd = endOfMonth(addDays(monthEnd, 6 - monthEnd.getDay()))
-            const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
+            // Only get days from the current month
+            const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
+            
+            // Group days by week
+            const weeks: Date[][] = []
+            let currentWeek: Date[] = []
+            
+            monthDays.forEach((day) => {
+              const dayOfWeek = day.getDay()
+              
+              if (dayOfWeek === 0 && currentWeek.length > 0) {
+                weeks.push(currentWeek)
+                currentWeek = []
+              }
+              
+              if (weeks.length === 0 && currentWeek.length === 0 && dayOfWeek !== 0) {
+                for (let i = 0; i < dayOfWeek; i++) {
+                  currentWeek.push(null as any)
+                }
+              }
+              
+              currentWeek.push(day)
+              
+              if (dayOfWeek === 6) {
+                weeks.push(currentWeek)
+                currentWeek = []
+              }
+            })
+            
+            if (currentWeek.length > 0) {
+              while (currentWeek.length < 7) {
+                currentWeek.push(null as any)
+              }
+              weeks.push(currentWeek)
+            }
 
             return (
               <div key={month.toISOString()} className="space-y-2">
@@ -186,40 +217,47 @@ export function CalendarWidgetEnhanced({
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {calendarDays.map((day) => {
-                    const dayEvents = getEventsForDate(day)
-                    const isToday = isTodayDate(day)
-                    const isCurrentMonth = isSameMonth(day, month)
-                    const isSelected = isSameDay(day, currentDate)
+                <div className="space-y-1">
+                  {weeks.map((week, weekIndex) => (
+                    <div key={weekIndex} className="grid grid-cols-7 gap-1">
+                      {week.map((day, dayIndex) => {
+                        if (!day) {
+                          return <div key={`empty-${dayIndex}`} className="text-xs" />
+                        }
+                        
+                        const dayEvents = getEventsForDate(day)
+                        const isToday = isTodayDate(day)
+                        const isSelected = isSameDay(day, currentDate)
 
-                    return (
-                      <div
-                        key={day.toISOString()}
-                        onClick={() => handleMiniCalendarDateClick(day)}
-                        className={`text-xs p-1 rounded cursor-pointer transition-all ${
-                          !isCurrentMonth ? "opacity-30" : ""
-                        } ${isToday ? "font-bold" : ""} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
-                        style={{
-                          backgroundColor: isToday ? "rgba(59, 130, 246, 0.1)" : "transparent",
-                          color: isToday ? "#3B82F6" : "rgb(var(--text))",
-                        }}
-                      >
-                        <div className="text-center">{format(day, "d")}</div>
-                        {dayEvents.length > 0 && (
-                          <div className="flex justify-center gap-0.5 mt-0.5">
-                            {dayEvents.slice(0, 3).map((event, idx) => (
-                              <div
-                                key={idx}
-                                className="w-1 h-1 rounded-full"
-                                style={{ backgroundColor: event.color || "#3B82F6" }}
-                              />
-                            ))}
+                        return (
+                          <div
+                            key={day.toISOString()}
+                            onClick={() => handleMiniCalendarDateClick(day)}
+                            className={`text-xs p-1 rounded cursor-pointer transition-all text-center ${
+                              isToday ? "font-bold" : ""
+                            } ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                            style={{
+                              backgroundColor: isToday ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                              color: isToday ? "#3B82F6" : "rgb(var(--text))",
+                            }}
+                          >
+                            <div className="text-center">{format(day, "d")}</div>
+                            {dayEvents.length > 0 && (
+                              <div className="flex justify-center gap-0.5 mt-0.5">
+                                {dayEvents.slice(0, 3).map((event, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="w-1 h-1 rounded-full"
+                                    style={{ backgroundColor: event.color || "#3B82F6" }}
+                                  />
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                        )
+                      })}
+                    </div>
+                  ))}
                 </div>
               </div>
             )
@@ -313,14 +351,17 @@ export function CalendarWidgetEnhanced({
               })}
             </div>
 
-            {/* Hour lines */}
+            {/* Hour lines - aligned with day columns, spanning all 7 days */}
             {timeSlots.map((slot, index) => (
               <div
                 key={`line-${slot.toISOString()}`}
-                className="absolute left-16 right-0 border-t"
+                className="absolute border-t"
                 style={{
                   top: `${index * 60}px`,
+                  left: "64px", // After time column (w-16 = 64px)
+                  right: "0",
                   borderColor: "rgb(var(--border))",
+                  opacity: 0.3, // Reduced opacity
                 }}
               />
             ))}
@@ -409,10 +450,46 @@ export function CalendarWidgetEnhanced({
   const renderMonthView = () => {
     const monthStart = startOfMonth(currentDate)
     const monthEnd = endOfMonth(currentDate)
-    const weekStart = startOfWeek(monthStart, { weekStartsOn: 0 })
-    const calendarStart = weekStart
-    const calendarEnd = endOfMonth(addDays(monthEnd, 6 - monthEnd.getDay()))
-    const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
+    // Only get days from the current month
+    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
+    
+    // Group days by week
+    const weeks: Date[][] = []
+    let currentWeek: Date[] = []
+    
+    monthDays.forEach((day) => {
+      const dayOfWeek = day.getDay() // 0 = Sunday, 6 = Saturday
+      
+      // If it's Sunday and we have days in current week, start a new week
+      if (dayOfWeek === 0 && currentWeek.length > 0) {
+        weeks.push(currentWeek)
+        currentWeek = []
+      }
+      
+      // Fill in empty days at the start of the first week
+      if (weeks.length === 0 && currentWeek.length === 0 && dayOfWeek !== 0) {
+        for (let i = 0; i < dayOfWeek; i++) {
+          currentWeek.push(null as any) // Placeholder for empty cells
+        }
+      }
+      
+      currentWeek.push(day)
+      
+      // If it's Saturday, close the week
+      if (dayOfWeek === 6) {
+        weeks.push(currentWeek)
+        currentWeek = []
+      }
+    })
+    
+    // Add remaining days in the last week
+    if (currentWeek.length > 0) {
+      // Fill remaining days to make 7
+      while (currentWeek.length < 7) {
+        currentWeek.push(null as any)
+      }
+      weeks.push(currentWeek)
+    }
 
     return (
       <div className="space-y-2">
@@ -426,59 +503,66 @@ export function CalendarWidgetEnhanced({
         </div>
 
         {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-1">
-          {calendarDays.map((day) => {
-            const dayEvents = getEventsForDate(day)
-            const isToday = isTodayDate(day)
-            const isCurrentMonth = isSameMonth(day, currentDate)
+        <div className="space-y-1">
+          {weeks.map((week, weekIndex) => (
+            <div key={weekIndex} className="grid grid-cols-7 gap-1">
+              {week.map((day, dayIndex) => {
+                if (!day) {
+                  return <div key={`empty-${dayIndex}`} className="min-h-[100px]" />
+                }
+                
+                const dayEvents = getEventsForDate(day)
+                const isToday = isTodayDate(day)
 
-            return (
-              <div
-                key={day.toISOString()}
-                onClick={() => handleDayClick(day)}
-                className={`min-h-[100px] border rounded p-2 cursor-pointer hover:shadow-sm transition-all ${
-                  !isCurrentMonth ? "opacity-40" : ""
-                } ${isToday ? "ring-2 ring-blue-500" : ""}`}
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  borderColor: isToday ? "#3B82F6" : "rgb(var(--border))",
-                }}
-              >
-                <div
-                  className={`text-sm font-semibold mb-1 ${
-                    isToday ? "text-blue-500" : ""
-                  }`}
-                  style={!isToday ? { color: "rgb(var(--text))" } : {}}
-                >
-                  {format(day, "d")}
-                </div>
-                <div className="space-y-1">
-                  {dayEvents.slice(0, 3).map((event) => (
+                return (
+                  <div
+                    key={day.toISOString()}
+                    onClick={() => handleDayClick(day)}
+                    className={`min-h-[100px] border rounded p-2 cursor-pointer hover:shadow-sm transition-all ${
+                      isToday ? "ring-2 ring-blue-500" : ""
+                    }`}
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      borderColor: isToday ? "#3B82F6" : "rgb(var(--border))",
+                    }}
+                  >
                     <div
-                      key={event.id}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEventClick(event)
-                      }}
-                      className="text-xs p-1 rounded truncate cursor-pointer hover:shadow-sm border-l-2"
-                      style={{
-                        backgroundColor: "#FFFFFF",
-                        borderLeftColor: event.color || "#3B82F6",
-                        borderLeftWidth: "3px",
-                      }}
+                      className={`text-sm font-semibold mb-1 ${
+                        isToday ? "text-blue-500" : ""
+                      }`}
+                      style={!isToday ? { color: "rgb(var(--text))" } : {}}
                     >
-                      <span style={{ color: "rgb(var(--text))" }}>{event.title}</span>
+                      {format(day, "d")}
                     </div>
-                  ))}
-                  {dayEvents.length > 3 && (
-                    <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
-                      +{dayEvents.length - 3} more
+                    <div className="space-y-1">
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <div
+                          key={event.id}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEventClick(event)
+                          }}
+                          className="text-xs p-1 rounded truncate cursor-pointer hover:shadow-sm border-l-2"
+                          style={{
+                            backgroundColor: "#FFFFFF",
+                            borderLeftColor: event.color || "#3B82F6",
+                            borderLeftWidth: "3px",
+                          }}
+                        >
+                          <span style={{ color: "rgb(var(--text))" }}>{event.title}</span>
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
+                          +{dayEvents.length - 3} more
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -512,7 +596,7 @@ export function CalendarWidgetEnhanced({
       <div className="flex-1 overflow-y-auto">
         <div className="relative" style={{ minHeight: "1440px" }}>
           {/* Time column */}
-          <div className="absolute left-0 top-0 bottom-0 w-20 border-r" style={{ borderColor: "rgb(var(--border))" }}>
+          <div className="absolute left-0 top-0 bottom-0 w-20 border-r z-10" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
             {timeSlots.map((slot, index) => {
               const hour = slot.getHours()
               const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
@@ -520,12 +604,11 @@ export function CalendarWidgetEnhanced({
               return (
                 <div
                   key={slot.toISOString()}
-                  className="absolute border-t"
+                  className="absolute"
                   style={{
                     top: `${index * 60}px`,
                     left: 0,
                     right: 0,
-                    borderColor: "rgb(var(--border))",
                     height: "60px",
                   }}
                 >
@@ -543,6 +626,21 @@ export function CalendarWidgetEnhanced({
               )
             })}
           </div>
+
+          {/* Hour lines - full width with reduced opacity */}
+          {timeSlots.map((slot, index) => (
+            <div
+              key={`line-${slot.toISOString()}`}
+              className="absolute border-t"
+              style={{
+                top: `${index * 60}px`,
+                left: "80px", // After time column
+                right: "0",
+                borderColor: "rgb(var(--border))",
+                opacity: 0.3, // Reduced opacity
+              }}
+            />
+          ))}
 
           {/* Current time indicator */}
           {isToday && currentTimePosition !== null && (
@@ -621,10 +719,41 @@ export function CalendarWidgetEnhanced({
   const MiniCalendar = () => {
     const monthStart = startOfMonth(miniCalendarMonth)
     const monthEnd = endOfMonth(miniCalendarMonth)
-    const weekStart = startOfWeek(monthStart, { weekStartsOn: 0 })
-    const calendarStart = weekStart
-    const calendarEnd = endOfMonth(addDays(monthEnd, 6 - monthEnd.getDay()))
-    const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
+    // Only get days from the current month
+    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
+    
+    // Group days by week
+    const weeks: Date[][] = []
+    let currentWeek: Date[] = []
+    
+    monthDays.forEach((day) => {
+      const dayOfWeek = day.getDay()
+      
+      if (dayOfWeek === 0 && currentWeek.length > 0) {
+        weeks.push(currentWeek)
+        currentWeek = []
+      }
+      
+      if (weeks.length === 0 && currentWeek.length === 0 && dayOfWeek !== 0) {
+        for (let i = 0; i < dayOfWeek; i++) {
+          currentWeek.push(null as any)
+        }
+      }
+      
+      currentWeek.push(day)
+      
+      if (dayOfWeek === 6) {
+        weeks.push(currentWeek)
+        currentWeek = []
+      }
+    })
+    
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push(null as any)
+      }
+      weeks.push(currentWeek)
+    }
 
     const prevMonth = () => {
       setMiniCalendarMonth(subMonths(miniCalendarMonth, 1))
@@ -668,42 +797,49 @@ export function CalendarWidgetEnhanced({
           ))}
         </div>
 
-        {/* Date grid */}
-        <div className="grid grid-cols-7 gap-1">
-          {calendarDays.map((day) => {
-            const isToday = isTodayDate(day)
-            const isSelected = isSameDay(day, currentDate)
-            const isCurrentMonth = isSameMonth(day, miniCalendarMonth)
-            const dayEvents = getEventsForDate(day)
+        {/* Date grid - only show days from current month */}
+        <div className="space-y-1">
+          {weeks.map((week, weekIndex) => (
+            <div key={weekIndex} className="grid grid-cols-7 gap-1">
+              {week.map((day, dayIndex) => {
+                if (!day) {
+                  return <div key={`empty-${dayIndex}`} className="text-xs" />
+                }
+                
+                const isToday = isTodayDate(day)
+                const isSelected = isSameDay(day, currentDate)
+                const dayEvents = getEventsForDate(day)
 
-            return (
-              <div
-                key={day.toISOString()}
-                onClick={() => handleMiniCalendarDateClick(day)}
-                className={`text-xs p-1 rounded cursor-pointer transition-all text-center ${
-                  !isCurrentMonth ? "opacity-30" : ""
-                } ${isToday ? "font-bold" : ""} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
-                style={{
-                  backgroundColor: isToday
-                    ? "rgba(59, 130, 246, 0.1)"
-                    : isSelected
-                    ? "rgba(59, 130, 246, 0.2)"
-                    : "transparent",
-                  color: isToday ? "#3B82F6" : "rgb(var(--text))",
-                }}
-              >
-                {format(day, "d")}
-                {dayEvents.length > 0 && (
-                  <div className="flex justify-center gap-0.5 mt-0.5">
-                    <div
-                      className="w-1 h-1 rounded-full"
-                      style={{ backgroundColor: dayEvents[0]?.color || "#3B82F6" }}
-                    />
+                return (
+                  <div
+                    key={day.toISOString()}
+                    onClick={() => handleMiniCalendarDateClick(day)}
+                    className={`text-xs p-1 rounded cursor-pointer transition-all text-center ${
+                      isToday ? "font-bold" : ""
+                    } ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+                    style={{
+                      backgroundColor: isToday
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : isSelected
+                        ? "rgba(59, 130, 246, 0.2)"
+                        : "transparent",
+                      color: isToday ? "#3B82F6" : "rgb(var(--text))",
+                    }}
+                  >
+                    {format(day, "d")}
+                    {dayEvents.length > 0 && (
+                      <div className="flex justify-center gap-0.5 mt-0.5">
+                        <div
+                          className="w-1 h-1 rounded-full"
+                          style={{ backgroundColor: dayEvents[0]?.color || "#3B82F6" }}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })}
+                )
+              })}
+            </div>
+          ))}
         </div>
       </div>
     )

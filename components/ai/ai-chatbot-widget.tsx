@@ -1,6 +1,7 @@
-﻿"use client"
+"use client"
 
 import { useState, useRef, useEffect } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -201,21 +202,25 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         <button
           data-ai-widget
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 h-16 w-16 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center z-50 border-2"
+          className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center z-50 p-0 overflow-hidden bg-transparent border-0"
           style={{
-            backgroundColor: primaryColor,
-            borderColor: primaryColor,
-            boxShadow: `0 10px 15px -3px ${primaryColor}40, 0 4px 6px -2px ${primaryColor}40`
+            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.1)"
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = `0 20px 25px -5px ${primaryColor}50, 0 10px 10px -5px ${primaryColor}50`
+            e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.1)"
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = `0 10px 15px -3px ${primaryColor}40, 0 4px 6px -2px ${primaryColor}40`
+            e.currentTarget.style.boxShadow = "0 10px 15px -3px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.1)"
           }}
           aria-label="Open AI Assistant"
         >
-          <MessageSquare className="h-7 w-7" style={{ color: "white" }} />
+          <Image
+            src="/images/ai-chat-icon.png"
+            alt="AI Assistant"
+            width={64}
+            height={64}
+            className="rounded-full object-cover w-full h-full"
+          />
         </button>
       )}
 

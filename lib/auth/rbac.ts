@@ -28,14 +28,15 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
   }
 
   const supabase = getSupabaseServer()
-  let membership = await supabase
+  type TeamMemberRow = { team_id: string; user_id: string; role: string; permissions?: unknown }
+  let membership: TeamMemberRow | null = await supabase
     .from("team_members")
     .select("team_id, user_id, role, permissions")
     .eq("user_id", session.user.id)
     .eq("team_id", teamId)
     .eq("active", true)
     .maybeSingle()
-    .then((r) => r.data)
+    .then((r) => r.data as TeamMemberRow | null)
 
   // Recovery: profile has this team but team_members row is missing (e.g. signup insert failed).
   // Create the missing row so the user can access their team.
@@ -59,8 +60,8 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
           team_id: teamId,
           user_id: session.user.id,
           role,
-          permissions: undefined,
-        } as { team_id: string; user_id: string; role: string; permissions?: unknown }
+          permissions: undefined as unknown,
+        }
       }
     }
   }

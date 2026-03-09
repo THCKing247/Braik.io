@@ -1,14 +1,14 @@
 "use client"
 
+import { Suspense } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"
 import { ConnectToTeam } from "@/components/portal/connect-to-team"
 
 /**
- * Resolves teamId and session for dashboard child pages.
- * Shows loading or ConnectToTeam when needed; otherwise renders children with resolved props.
+ * Internal component that uses useSearchParams - must be wrapped in Suspense
  */
-export function DashboardPageShell({
+function DashboardPageShellContent({
   children,
   requireTeam = true,
 }: {
@@ -49,4 +49,31 @@ export function DashboardPageShell({
   }
 
   return <>{children({ teamId, userRole, userId, canEdit })}</>
+}
+
+/**
+ * Resolves teamId and session for dashboard child pages.
+ * Shows loading or ConnectToTeam when needed; otherwise renders children with resolved props.
+ * Wraps content in Suspense to handle useSearchParams() requirement.
+ */
+export function DashboardPageShell({
+  children,
+  requireTeam = true,
+}: {
+  children: (props: { teamId: string; userRole: string; userId: string; canEdit: boolean }) => React.ReactNode
+  requireTeam?: boolean
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+        </div>
+      }
+    >
+      <DashboardPageShellContent requireTeam={requireTeam}>
+        {children}
+      </DashboardPageShellContent>
+    </Suspense>
+  )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -16,6 +16,7 @@ import {
   MapPin,
   Clock,
 } from "lucide-react"
+import { CalendarWidget } from "./calendar-widget"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,160 +46,82 @@ function getRoleLabel(role?: string) {
   }
 }
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-]
 
-// Placeholder events — will be replaced by real schedule data when built
-const PLACEHOLDER_EVENTS: Array<{ day: number; month: number; year: number; label: string; type: "game" | "practice" | "event" }> = []
+// ─── Calendar Component ────────────────────────────────────────────────────────
 
-// ─── Mini Calendar ────────────────────────────────────────────────────────────
+function DashboardCalendar({ teamId }: { teamId?: string }) {
+  const [events, setEvents] = useState<Array<{
+    id: string
+    eventType: string
+    title: string
+    start: string
+    end: string
+    location?: string
+    color?: string
+    highlight: boolean
+  }>>([])
+  const [loading, setLoading] = useState(true)
 
-function MiniCalendar() {
-  const today = new Date()
-  const [viewYear, setViewYear] = useState(today.getFullYear())
-  const [viewMonth, setViewMonth] = useState(today.getMonth())
+  useEffect(() => {
+    if (!teamId) {
+      setLoading(false)
+      return
+    }
 
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay()
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/teams/${teamId}/calendar/events`)
+      .then((res) => {
+        if (!res.ok) return []
+        return res.json()
+      })
+      .then((data: unknown) => {
+        if (!cancelled && Array.isArray(data)) {
+          setEvents(
+            (data as Array<{
+              id: string
+              type: string
+              title: string
+              start: string
+              end: string
+              location?: string | null
+            }>).map((e) => ({
+              id: e.id,
+              eventType: e.type || "CUSTOM",
+              title: e.title || "",
+              start: e.start,
+              end: e.end,
+              location: e.location || undefined,
+              color: undefined,
+              highlight: false,
+            }))
+          )
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [teamId])
 
-  function prevMonth() {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
-    else setViewMonth(m => m - 1)
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      </div>
+    )
   }
-  function nextMonth() {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
-    else setViewMonth(m => m + 1)
-  }
-
-  const eventsThisMonth = PLACEHOLDER_EVENTS.filter(
-    e => e.month === viewMonth && e.year === viewYear
-  )
-  const eventDays = new Set(eventsThisMonth.map(e => e.day))
-
-  // Build grid cells (null = empty padding cell)
-  const cells: (number | null)[] = []
-  for (let i = 0; i < firstDay; i++) cells.push(null)
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-
-  const isToday = (d: number) =>
-    d === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear()
 
   return (
-    <div className="space-y-3">
-      {/* Month navigation */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={prevMonth}
-          className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[rgb(var(--platinum))]"
-          aria-label="Previous month"
-        >
-          <ChevronLeft className="h-4 w-4" style={{ color: "rgb(var(--text2))" }} />
-        </button>
-        <p className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
-          {MONTHS[viewMonth]} {viewYear}
-        </p>
-        <button
-          onClick={nextMonth}
-          className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[rgb(var(--platinum))]"
-          aria-label="Next month"
-        >
-          <ChevronRight className="h-4 w-4" style={{ color: "rgb(var(--text2))" }} />
-        </button>
-      </div>
-
-      {/* Day-of-week header */}
-      <div className="grid grid-cols-7 gap-1">
-        {DAYS.map(d => (
-          <div key={d} className="py-1.5 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-            {d}
-          </div>
-        ))}
-      </div>
-
-      {/* Date grid */}
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((cell, i) => {
-          if (cell === null) return <div key={`empty-${i}`} />
-          const hasEvent = eventDays.has(cell)
-          const todayCell = isToday(cell)
-          return (
-            <div
-              key={cell}
-              className="relative flex flex-col items-center justify-center rounded-lg text-sm font-medium transition-colors hover:bg-[rgb(var(--platinum))] cursor-default"
-              style={{
-                backgroundColor: todayCell ? "rgb(var(--accent))" : "transparent",
-                color: todayCell ? "#FFFFFF" : "rgb(var(--text))",
-                minHeight: "42px",
-              }}
-            >
-              {cell}
-              {hasEvent && !todayCell && (
-                <span
-                  className="absolute bottom-1 h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: "rgb(var(--accent))" }}
-                />
-              )}
-              {hasEvent && todayCell && (
-                <span className="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-white/70" />
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Upcoming events list — placeholder */}
-      <div className="mt-2 space-y-1.5 border-t pt-3" style={{ borderColor: "rgb(var(--border))" }}>
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--text2))" }}>
-          Upcoming
-        </p>
-        {eventsThisMonth.length === 0 ? (
-          <div className="flex items-center gap-2 rounded-lg border border-dashed p-3" style={{ borderColor: "rgb(var(--border))" }}>
-            <Calendar className="h-4 w-4 flex-shrink-0" style={{ color: "rgb(var(--muted))" }} />
-            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-              No events scheduled yet.{" "}
-              <Link href="/dashboard/schedule" className="hover:underline" style={{ color: "rgb(var(--accent))" }}>
-                Add to schedule →
-              </Link>
-            </p>
-          </div>
-        ) : (
-          eventsThisMonth.slice(0, 4).map((e, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-lg p-2" style={{ backgroundColor: "rgb(var(--platinum))" }}>
-              <div
-                className="h-2 w-2 flex-shrink-0 rounded-full"
-                style={{
-                  backgroundColor:
-                    e.type === "game" ? "#EF4444" :
-                    e.type === "practice" ? "rgb(var(--accent))" :
-                    "#F59E0B",
-                }}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium" style={{ color: "rgb(var(--text))" }}>{e.label}</p>
-                <p className="text-[10px]" style={{ color: "rgb(var(--muted))" }}>
-                  {MONTHS[e.month]} {e.day}
-                </p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <Link href="/dashboard/schedule">
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full text-xs font-medium"
-          style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text2))" }}
-        >
-          <Calendar className="mr-1.5 h-3.5 w-3.5" />
-          View Full Schedule
-        </Button>
-      </Link>
-    </div>
+    <CalendarWidget
+      teamId={teamId || ""}
+      events={events}
+      canEdit={false}
+      defaultView="month"
+    />
   )
 }
 
@@ -458,25 +381,7 @@ export function TeamDashboard({ session }: TeamDashboardProps) {
       <TeamBanner user={user} />
 
       {/* ── Full-width Calendar ── */}
-      <Card
-        className="border"
-        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
-      >
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-            <Calendar className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
-            Schedule
-          </CardTitle>
-          <Link href="/dashboard/schedule">
-            <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
-              Full view
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          <MiniCalendar />
-        </CardContent>
-      </Card>
+      <DashboardCalendar teamId={user.teamId} />
 
       {/* ── Updates + Notifications side by side ── */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

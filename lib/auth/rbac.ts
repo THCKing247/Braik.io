@@ -38,29 +38,53 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
     .maybeSingle()
     .then((r) => r.data as TeamMemberRow | null)
 
-  // Recovery: profile has this team but team_members row is missing (e.g. signup insert failed).
-  // Create the missing row so the user can access their team.
+  // Recovery: no active membership. Try (1) reactivate inactive row, (2) insert missing row, (3) handle unique conflict.
   if (!membership) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("team_id, role")
-      .eq("id", session.user.id)
+    const { data: inactiveRow } = await supabase
+      .from("team_members")
+      .select("team_id, user_id, role, permissions")
+      .eq("user_id", session.user.id)
+      .eq("team_id", teamId)
+      .eq("active", false)
       .maybeSingle()
+      .then((r) => r.data as TeamMemberRow | null)
 
-    if (profile?.team_id === teamId) {
-      const role = profileRoleToTeamMemberRole(profile.role)
-      const { error } = await supabase.from("team_members").insert({
-        team_id: teamId,
-        user_id: session.user.id,
-        role,
-        active: true,
-      })
-      if (!error) {
-        membership = {
+    if (inactiveRow) {
+      await supabase.from("team_members").update({ active: true }).eq("user_id", session.user.id).eq("team_id", teamId)
+      membership = inactiveRow
+    } else {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("team_id, role")
+        .eq("id", session.user.id)
+        .maybeSingle()
+
+      const profileMatches = profile?.team_id === teamId
+      let isTeamCreator = false
+      if (!profileMatches) {
+        const { data: team } = await supabase.from("teams").select("created_by").eq("id", teamId).maybeSingle()
+        isTeamCreator = (team as { created_by?: string } | null)?.created_by === session.user.id
+      }
+
+      if (profileMatches || isTeamCreator) {
+        const role = profile ? profileRoleToTeamMemberRole(profile.role) : ROLES.HEAD_COACH
+        const { error } = await supabase.from("team_members").insert({
           team_id: teamId,
           user_id: session.user.id,
           role,
-          permissions: undefined as unknown,
+          active: true,
+        })
+        if (!error) {
+          membership = { team_id: teamId, user_id: session.user.id, role, permissions: undefined as unknown }
+        } else if (error.code === "23505") {
+          const { data: existing } = await supabase
+            .from("team_members")
+            .update({ active: true })
+            .eq("user_id", session.user.id)
+            .eq("team_id", teamId)
+            .select("team_id, user_id, role, permissions")
+            .single()
+          if (existing) membership = existing as TeamMemberRow
         }
       }
     }

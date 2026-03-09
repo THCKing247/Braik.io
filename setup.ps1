@@ -39,10 +39,12 @@ if (-not (Test-Path .env)) {
     $base64Secret = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($secret))
     
     $envContent = @"
-# Database
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/braik?schema=public"
+# Supabase Configuration (REQUIRED)
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+SUPABASE_ANON_KEY="your-anon-key"
 
-# NextAuth
+# Next.js
 APP_URL="http://localhost:3000"
 AUTH_SECRET="$base64Secret"
 
@@ -60,7 +62,7 @@ UPLOAD_DIR="./uploads"
     
     $envContent | Out-File -FilePath .env -Encoding utf8
     Write-Host "✓ .env file created" -ForegroundColor Green
-    Write-Host "  Please update DATABASE_URL with your PostgreSQL credentials" -ForegroundColor Yellow
+    Write-Host "  Please update Supabase credentials in .env" -ForegroundColor Yellow
 } else {
     Write-Host "✓ .env file already exists" -ForegroundColor Green
 }
@@ -76,25 +78,16 @@ if ($LASTEXITCODE -eq 0) {
     exit 1
 }
 
-# Generate Prisma client
-Write-Host ""
-Write-Host "Generating Prisma client..." -ForegroundColor Yellow
-npm run db:generate
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ Prisma client generated" -ForegroundColor Green
-} else {
-    Write-Host "✗ Failed to generate Prisma client" -ForegroundColor Red
-    exit 1
-}
-
 Write-Host ""
 Write-Host "=== Setup Complete! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Make sure PostgreSQL is running" -ForegroundColor White
-Write-Host "2. Update DATABASE_URL in .env if needed" -ForegroundColor White
-Write-Host "3. Run: npm run db:push    (to create database tables)" -ForegroundColor White
-Write-Host "4. Run: npm run db:seed    (to add sample data)" -ForegroundColor White
-Write-Host "5. Run: npm run dev        (to start the server)" -ForegroundColor White
+Write-Host "1. Configure Supabase:" -ForegroundColor White
+Write-Host "   - Add SUPABASE_URL to .env" -ForegroundColor Gray
+Write-Host "   - Add SUPABASE_SERVICE_ROLE_KEY to .env" -ForegroundColor Gray
+Write-Host "   - Add SUPABASE_ANON_KEY to .env (if using client-side queries)" -ForegroundColor Gray
+Write-Host "2. Run database migrations in Supabase dashboard or via Supabase CLI" -ForegroundColor White
+Write-Host "3. Run: npm run dev        (to start the server)" -ForegroundColor White
 Write-Host ""
+Write-Host "Note: Database is managed via Supabase migrations, not Prisma" -ForegroundColor Cyan
 Write-Host "Then visit: http://localhost:3000" -ForegroundColor Cyan

@@ -16,7 +16,8 @@ import {
   MapPin,
   Clock,
 } from "lucide-react"
-import { CalendarWidget } from "./calendar-widget"
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths } from "date-fns"
+// Calendar widget removed - using inline component instead
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ function DashboardCalendar({ teamId }: { teamId?: string }) {
     highlight: boolean
   }>>([])
   const [loading, setLoading] = useState(true)
+  const [currentMonth, setCurrentMonth] = useState(new Date())
 
   useEffect(() => {
     if (!teamId) {
@@ -92,7 +94,7 @@ function DashboardCalendar({ teamId }: { teamId?: string }) {
               start: e.start,
               end: e.end,
               location: e.location || undefined,
-              color: undefined,
+              color: e.type === "GAME" ? "#EF4444" : e.type === "PRACTICE" ? "#10B981" : e.type === "MEETING" ? "#F59E0B" : "#8B5CF6",
               highlight: false,
             }))
           )
@@ -107,21 +109,146 @@ function DashboardCalendar({ teamId }: { teamId?: string }) {
     return () => { cancelled = true }
   }, [teamId])
 
+  const getEventsForDate = (date: Date) => {
+    return events.filter((event) => {
+      const eventDate = new Date(event.start)
+      return isSameDay(eventDate, date)
+    })
+  }
+
+  const monthStart = startOfMonth(currentMonth)
+  const monthEnd = endOfMonth(currentMonth)
+  const weekStart = startOfWeek(monthStart, { weekStartsOn: 0 })
+  const calendarStart = weekStart
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
+
   if (loading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
+            <Calendar className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+            Schedule
+          </CardTitle>
+          <Link href="/dashboard/schedule">
+            <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
+              Full view
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          <div className="flex min-h-[300px] items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <CalendarWidget
-      teamId={teamId || ""}
-      events={events}
-      canEdit={false}
-      defaultView="month"
-    />
+    <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
+          <Calendar className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+          Schedule
+        </CardTitle>
+        <Link href="/dashboard/schedule">
+          <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
+            Full view
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {/* Month navigation */}
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+              className="h-7 w-7 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+              {format(currentMonth, "MMMM yyyy")}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              className="h-7 w-7 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 gap-1">
+            {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
+              <div key={day} className="text-center text-xs font-semibold py-1" style={{ color: "rgb(var(--muted))" }}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map((day) => {
+              const dayEvents = getEventsForDate(day)
+              const isToday = isSameDay(day, new Date())
+              const isCurrentMonth = isSameMonth(day, currentMonth)
+
+              return (
+                <Link
+                  key={day.toISOString()}
+                  href="/dashboard/schedule"
+                  className={`min-h-[60px] border rounded p-1.5 cursor-pointer hover:shadow-sm transition-all ${
+                    !isCurrentMonth ? "opacity-30" : ""
+                  } ${isToday ? "ring-2 ring-blue-500" : ""}`}
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: isToday ? "#3B82F6" : "rgb(var(--border))",
+                  }}
+                >
+                  <div
+                    className={`text-xs font-semibold mb-1 ${
+                      isToday ? "text-blue-500" : ""
+                    }`}
+                    style={!isToday ? { color: "rgb(var(--text))" } : {}}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  <div className="space-y-0.5">
+                    {dayEvents.slice(0, 2).map((event) => (
+                      <div
+                        key={event.id}
+                        className="text-[10px] p-0.5 rounded truncate border-l-2"
+                        style={{
+                          backgroundColor: "#FFFFFF",
+                          borderLeftColor: event.color || "#3B82F6",
+                          borderLeftWidth: "2px",
+                        }}
+                      >
+                        <span className="truncate block" style={{ color: "rgb(var(--text))" }}>
+                          {event.title}
+                        </span>
+                      </div>
+                    ))}
+                    {dayEvents.length > 2 && (
+                      <div className="text-[10px] font-medium" style={{ color: "rgb(var(--muted))" }}>
+                        +{dayEvents.length - 2}
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

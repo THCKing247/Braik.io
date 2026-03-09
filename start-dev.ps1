@@ -43,9 +43,16 @@ if (-not (Test-Path .env)) {
     $base64Secret = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($secret))
     
     $envContent = @"
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/braik?schema=public"
+# Supabase Configuration
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+SUPABASE_ANON_KEY="your-anon-key"
+
+# Next.js
 APP_URL="http://localhost:3000"
 AUTH_SECRET="$base64Secret"
+
+# File Upload (local dev)
 UPLOAD_DIR="./uploads"
 "@
     
@@ -60,21 +67,13 @@ if (-not (Test-Path node_modules)) {
     npm install
 }
 
-# Check if Prisma client is generated
-if (-not (Test-Path node_modules/.prisma)) {
-    Write-Host ""
-    Write-Host "Generating Prisma client..." -ForegroundColor Yellow
-    npm run db:generate
-}
-
 Write-Host ""
 Write-Host "=== Ready to start! ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Run: npm run db:push    (creates database tables)" -ForegroundColor White
-Write-Host "2. Run: npm run db:seed    (adds sample data)" -ForegroundColor White
+Write-Host "1. Make sure Supabase is configured (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env)" -ForegroundColor White
+Write-Host "2. Run database migrations in Supabase dashboard or via CLI" -ForegroundColor White
 Write-Host "3. Run: npm run dev        (starts the server)" -ForegroundColor White
 Write-Host ""
-Write-Host "Or run all at once:" -ForegroundColor Yellow
-Write-Host "  npm run db:push && npm run db:seed && npm run dev" -ForegroundColor Cyan
+Write-Host "Note: Database migrations are managed via Supabase, not Prisma" -ForegroundColor Cyan
 Write-Host ""

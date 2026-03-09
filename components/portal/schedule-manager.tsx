@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { format } from "date-fns"
-import { CalendarWidget } from "./calendar-widget"
+import { CalendarWidgetEnhanced } from "./calendar-widget-enhanced"
 
 interface Event {
   id: string
@@ -38,7 +38,7 @@ interface ScheduleManagerProps {
   teamId: string
   events: Event[]
   canEdit: boolean
-  defaultView?: "day" | "week" | "month"
+  defaultView?: "day" | "week" | "month" | "year"
 }
 
 export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaultView = "day" }: ScheduleManagerProps) {
@@ -302,7 +302,7 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
         </div>
       )}
 
-      <CalendarWidget
+      <CalendarWidgetEnhanced
         teamId={teamId}
         events={calendarEvents}
         canEdit={canEdit}

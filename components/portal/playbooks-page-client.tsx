@@ -1,29 +1,27 @@
 ﻿"use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { PlaybooksManager } from "@/components/portal/playbooks-manager"
 import { PlaybookFileTree } from "@/components/portal/playbook-file-tree"
 import { PlaybookBuilder } from "@/components/portal/playbook-builder"
 
 interface Play {
   id: string
+  teamId: string
+  playbookId: string | null
   side: string
   formation: string
   subcategory: string | null
   name: string
   canvasData: any
-  createdAt: Date
-  creator: {
-    id: string
-    name: string | null
-    email: string
-  }
+  createdAt: string
+  updatedAt: string
 }
 
 interface PlaybooksPageClientProps {
   teamId: string
   fileBasedPlaybooks: any[]
-  builderPlays: Play[]
+  builderPlays?: Play[]
   canUpload: boolean
   canEditAll: boolean
   canEditOffense: boolean
@@ -35,7 +33,7 @@ interface PlaybooksPageClientProps {
 export function PlaybooksPageClient({
   teamId,
   fileBasedPlaybooks,
-  builderPlays,
+  builderPlays: initialBuilderPlays = [],
   canUpload,
   canEditAll,
   canEditOffense,
@@ -49,6 +47,43 @@ export function PlaybooksPageClient({
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null)
   const [selectedSide, setSelectedSide] = useState<"offense" | "defense" | "special_teams">("offense")
   const [pendingFormations, setPendingFormations] = useState<Array<{ side: string; formation: string }>>([])
+  const [builderPlays, setBuilderPlays] = useState<Play[]>(initialBuilderPlays)
+  const [loading, setLoading] = useState(initialBuilderPlays.length === 0)
+
+  // Load plays if not provided
+  useEffect(() => {
+    if (initialBuilderPlays.length === 0) {
+      loadPlays()
+    }
+  }, [teamId])
+
+  const loadPlays = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/plays?teamId=${teamId}`)
+      if (response.ok) {
+        const plays = await response.json()
+        // Convert API response to Play format
+        const formattedPlays: Play[] = plays.map((p: any) => ({
+          id: p.id,
+          teamId: p.teamId,
+          playbookId: p.playbookId,
+          side: p.side,
+          formation: p.formation,
+          subcategory: p.subcategory,
+          name: p.name,
+          canvasData: p.canvasData,
+          createdAt: typeof p.createdAt === 'string' ? p.createdAt : p.createdAt,
+          updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : p.updatedAt,
+        }))
+        setBuilderPlays(formattedPlays)
+      }
+    } catch (error) {
+      console.error("Error loading plays:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const selectedPlay = builderPlays.find((p) => p.id === selectedPlayId)
 
@@ -123,7 +158,7 @@ export function PlaybooksPageClient({
           : f
         )
       )
-      window.location.reload()
+      await loadPlays() // Reload plays instead of full page reload
     } catch (error) {
       alert("Error renaming formation")
     }
@@ -160,7 +195,7 @@ export function PlaybooksPageClient({
       setPendingFormations((prev) => 
         prev.filter((f) => !(f.side === selectedSide && f.formation === selectedFormation))
       )
-      window.location.reload()
+      await loadPlays() // Reload plays instead of full page reload
     } catch (error) {
       alert("Error saving play")
     }
@@ -176,7 +211,7 @@ export function PlaybooksPageClient({
         throw new Error("Failed to delete play")
       }
 
-      window.location.reload()
+      await loadPlays() // Reload plays instead of full page reload
     } catch (error) {
       alert("Error deleting play")
     }
@@ -194,10 +229,18 @@ export function PlaybooksPageClient({
         throw new Error("Failed to rename play")
       }
 
-      window.location.reload()
+      await loadPlays() // Reload plays instead of full page reload
     } catch (error) {
       alert("Error renaming play")
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div>Loading plays...</div>
+      </div>
+    )
   }
 
   return (
@@ -206,7 +249,14 @@ export function PlaybooksPageClient({
         {/* Left Sidebar - File Tree */}
         <div className="w-64 border-r flex-shrink-0 overflow-hidden" style={{ borderColor: "#E5E7EB" }}>
           <PlaybookFileTree
-            plays={builderPlays}
+            plays={builderPlays.map(p => ({
+              id: p.id,
+              side: p.side,
+              formation: p.formation,
+              subcategory: p.subcategory,
+              name: p.name,
+              createdAt: typeof p.createdAt === 'string' ? new Date(p.createdAt) : p.createdAt as any,
+            }))}
             selectedPlayId={selectedPlayId}
             onSelectPlay={handleSelectPlay}
             onNewPlay={handleNewPlay}

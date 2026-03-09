@@ -139,7 +139,7 @@ export async function requireTeamAccess(teamId: string, requiredRole?: Role) {
 
 export async function requireTeamPermission(
   teamId: string,
-  permission: "manage" | "edit_roster" | "manage_billing" | "post_announcements" | "view_payments"
+  permission: "manage" | "edit_roster" | "manage_billing" | "post_announcements" | "view_payments" | "edit_offense_plays" | "edit_defense_plays" | "edit_special_teams_plays"
 ) {
   const { membership } = await requireTeamAccess(teamId)
 
@@ -149,6 +149,9 @@ export async function requireTeamPermission(
     manage_billing: canManageBilling,
     post_announcements: canPostAnnouncements,
     view_payments: canViewPayments,
+    edit_offense_plays: canEditRoster, // Coaches can edit offense plays
+    edit_defense_plays: canEditRoster, // Coaches can edit defense plays
+    edit_special_teams_plays: canEditRoster, // Coaches can edit special teams plays
   }
 
   if (!checks[permission](membership.role)) {

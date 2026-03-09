@@ -37,15 +37,22 @@ if (-not (Test-Path .env)) {
     $base64Secret = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($secret))
     
     $envContent = @"
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/braik?schema=public"
+# Supabase Configuration (REQUIRED)
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+SUPABASE_ANON_KEY="your-anon-key"
+
+# Next.js
 APP_URL="http://localhost:3000"
 AUTH_SECRET="$base64Secret"
+
+# File Upload (local dev)
 UPLOAD_DIR="./uploads"
 "@
     
     $envContent | Out-File -FilePath .env -Encoding utf8
     Write-Host "✓ .env file created" -ForegroundColor Green
-    Write-Host "  Note: Update DATABASE_URL if your PostgreSQL password is different" -ForegroundColor Yellow
+    Write-Host "  Note: Update Supabase credentials in .env" -ForegroundColor Yellow
 } else {
     Write-Host "✓ .env file exists" -ForegroundColor Green
 }
@@ -64,45 +71,28 @@ if (-not (Test-Path node_modules)) {
     Write-Host "✓ Dependencies already installed" -ForegroundColor Green
 }
 
-# Generate Prisma client
+# Check Supabase configuration
 Write-Host ""
-Write-Host "Generating Prisma client..." -ForegroundColor Yellow
-npm run db:generate
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "✗ Failed to generate Prisma client" -ForegroundColor Red
-    exit 1
-}
-Write-Host "✓ Prisma client generated" -ForegroundColor Green
-
-# Check database connection
-Write-Host ""
-Write-Host "Setting up database..." -ForegroundColor Yellow
-Write-Host "  Make sure PostgreSQL is running!" -ForegroundColor Yellow
-
-# Push schema
-Write-Host "  Creating database tables..." -ForegroundColor Yellow
-npm run db:push
-if ($LASTEXITCODE -ne 0) {
-    Write-Host ""
-    Write-Host "⚠ Database setup failed. Make sure:" -ForegroundColor Yellow
-    Write-Host "  1. PostgreSQL is installed and running" -ForegroundColor White
-    Write-Host "  2. DATABASE_URL in .env is correct" -ForegroundColor White
-    Write-Host "  3. Database 'braik' exists (or will be created)" -ForegroundColor White
-    Write-Host ""
-    Write-Host "You can start PostgreSQL with Docker:" -ForegroundColor Cyan
-    Write-Host "  docker run --name braik-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=braik -p 5432:5432 -d postgres:15" -ForegroundColor White
-    exit 1
-}
-Write-Host "✓ Database tables created" -ForegroundColor Green
-
-# Seed database
-Write-Host "  Adding sample data..." -ForegroundColor Yellow
-npm run db:seed
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "⚠ Seeding failed, but continuing..." -ForegroundColor Yellow
+Write-Host "Checking Supabase configuration..." -ForegroundColor Yellow
+if (-not (Test-Path .env)) {
+    Write-Host "⚠ .env file not found. Please create it with Supabase credentials." -ForegroundColor Yellow
 } else {
-    Write-Host "✓ Sample data added" -ForegroundColor Green
+    $envContent = Get-Content .env -Raw
+    if ($envContent -notmatch "SUPABASE_URL") {
+        Write-Host "⚠ SUPABASE_URL not found in .env" -ForegroundColor Yellow
+    } else {
+        Write-Host "✓ Supabase configuration found" -ForegroundColor Green
+    }
+    if ($envContent -notmatch "SUPABASE_SERVICE_ROLE_KEY") {
+        Write-Host "⚠ SUPABASE_SERVICE_ROLE_KEY not found in .env" -ForegroundColor Yellow
+    } else {
+        Write-Host "✓ Service role key found" -ForegroundColor Green
+    }
 }
+
+Write-Host ""
+Write-Host "Note: Database migrations must be run in Supabase dashboard or via Supabase CLI" -ForegroundColor Cyan
+Write-Host "  Migration files are in: supabase/migrations/" -ForegroundColor Gray
 
 Write-Host ""
 Write-Host "=== Starting Server ===" -ForegroundColor Cyan

@@ -1,5 +1,5 @@
 [build]
-  # Ensure Prisma Client is always regenerated in Netlify CI before Next build.
+  # Next.js build (database migrations handled via Supabase)
   command = "npm run build"
   # Prevent Netlify defaulting publish to the repo root, which breaks @netlify/plugin-nextjs.
   publish = ".next"

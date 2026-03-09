@@ -212,11 +212,11 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
           onMouseLeave={(e) => {
             e.currentTarget.style.boxShadow = "0 10px 15px -3px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.1)"
           }}
-          aria-label="Open AI Assistant"
+          aria-label="Open Coach B"
         >
           <Image
             src="/images/ai-chat-icon.png"
-            alt="AI Assistant"
+            alt="Coach B"
             width={64}
             height={64}
             className="rounded-full object-cover w-full h-full"
@@ -232,7 +232,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 font-athletic uppercase" style={{ color: "#FFFFFF" }}>
                   <Sparkles className="h-5 w-5" style={{ color: "#FFFFFF" }} />
-                  AI Assistant
+                  Coach B
                 </CardTitle>
                 <Button
                   variant="ghost"
@@ -252,7 +252,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                   <div className="text-center py-12" style={{ color: "rgb(var(--text))" }}>
                     <Sparkles className="h-16 w-16 mx-auto mb-4" style={{ color: "#3B82F6" }} />
                     <p className="text-sm font-medium mb-2" style={{ color: "rgb(var(--text))" }}>
-                      Hi! I'm your AI assistant. Ask me about your team, schedule, or get help with
+                      Hi! I'm Coach B. Ask me about your team, schedule, or get help with
                       tasks.
                     </p>
                     {canUseAdvancedActions ? (
@@ -404,7 +404,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                 <p className="text-xs text-text-2">
                   {canUseAdvancedActions
                     ? "Press Enter to send • Upload files to extract schedule/events • AI parsing available when OpenAI is configured"
-                    : "Press Enter to send • Role-limited to assistant Q&A for schedule and team updates"}
+                    : "Press Enter to send • Role-limited to Coach B Q&A for schedule and team updates"}
                 </p>
               </div>
             </CardContent>

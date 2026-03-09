@@ -50,7 +50,7 @@ export function AIAssistant({ teamId }: { teamId: string }) {
     <div className="grid gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>AI Assistant</CardTitle>
+          <CardTitle>Coach B</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

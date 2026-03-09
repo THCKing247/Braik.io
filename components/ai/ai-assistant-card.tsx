@@ -24,7 +24,7 @@ export function AIAssistantCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl" style={{ color: "rgb(var(--text))" }}>
           <Sparkles className="h-6 w-6" style={{ color: "rgb(var(--accent))" }} />
-          AI Assistant
+          Coach B
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -41,7 +41,7 @@ export function AIAssistantCard() {
           }}
           onClick={handleOpenAI}
         >
-          Open AI Chat
+          Chat with Coach B
         </Button>
       </CardContent>
     </Card>

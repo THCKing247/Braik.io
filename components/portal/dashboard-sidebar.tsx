@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useSession } from "@/lib/auth/client-auth"
 import { useCoachB } from "@/components/portal/coach-b-context"
@@ -10,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { LayoutDashboard, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 240
-const HEADER_HEIGHT = 70
+const HEADER_HEIGHT = 54
 
 interface Team {
   id: string
@@ -47,25 +46,10 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
       }}
       aria-label="Dashboard navigation"
     >
-      {/* Top: Brand + role */}
+      {/* Top: role + team (main Braik logo stays in header only) */}
       <div className="p-4 border-b border-white/10">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 rounded-lg p-2 -m-2 focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
-          aria-label="Braik - Dashboard"
-        >
-          <div className="h-8 w-[120px] overflow-hidden flex items-center">
-            <Image
-              src="/braik-logo.png"
-              alt="Braik"
-              width={360}
-              height={180}
-              className="w-full h-auto object-contain object-left opacity-95"
-            />
-          </div>
-        </Link>
         {roleLabel && (
-          <p className="mt-3 text-xs font-medium text-white/70 uppercase tracking-wide">
+          <p className="text-xs font-medium text-white/70 uppercase tracking-wide">
             {roleLabel}
           </p>
         )}

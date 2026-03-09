@@ -256,7 +256,7 @@ function DashboardCalendar({ teamId }: { teamId?: string }) {
 
 function TeamBanner({ user }: { user: SessionUser }) {
   const teamName = user.teamName || user.organizationName || "Your Team"
-  const displayName = user.name || user.email?.split("@")[0] || "Coach"
+  const lastName = user?.name?.split(" ").slice(-1)[0] || ""
   const roleLabel = getRoleLabel(user.role)
 
   // Placeholder record — will be populated from real season data
@@ -293,7 +293,7 @@ function TeamBanner({ user }: { user: SessionUser }) {
 
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">
-              Welcome back, {displayName}
+              Welcome back, Coach{lastName ? ` ${lastName}` : ""}
             </p>
             <h1
               className="text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl"

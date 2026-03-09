@@ -135,9 +135,10 @@ export async function POST(request: Request) {
       .single()
 
     if (schoolError || !school?.id) {
+      console.error("[signup-athletic-director] school insert:", schoolError?.message ?? "no id", schoolError)
       await supabase.auth.admin.deleteUser(createdAuthUserId).catch(() => undefined)
       return NextResponse.json(
-        { error: "Failed to create school record." },
+        { error: schoolError?.message ?? "Failed to create school record." },
         { status: 500 }
       )
     }
@@ -153,48 +154,76 @@ export async function POST(request: Request) {
     })
 
     if (deptError) {
+      console.error("[signup-athletic-director] athletic_departments insert:", deptError.message, deptError)
       await supabase.auth.admin.deleteUser(createdAuthUserId).catch(() => undefined)
       return NextResponse.json(
-        { error: "Failed to create athletic department." },
+        { error: deptError.message ?? "Failed to create athletic department." },
         { status: 500 }
       )
     }
 
-    const { error: profileError } = await supabase.from("profiles").upsert({
+    const profilePayload: Record<string, unknown> = {
       id: createdAuthUserId,
       email,
       full_name: fullName,
       role: "athletic_director",
       team_id: null,
-      school_id: school.id,
       phone: phone ?? null,
       sport: null,
       program_name: schoolName,
       updated_at: new Date().toISOString(),
-    })
+    }
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert(
+        { ...profilePayload, school_id: school.id },
+        { onConflict: "id" }
+      )
 
     if (profileError) {
-      await supabase.auth.admin.deleteUser(createdAuthUserId).catch(() => undefined)
-      return NextResponse.json(
-        { error: "Failed to create profile." },
-        { status: 500 }
-      )
+      const msg = (profileError.message ?? "").toLowerCase()
+      const missingColumn = msg.includes("column") && msg.includes("does not exist")
+      if (missingColumn && msg.includes("school_id")) {
+        const { error: profileRetryError } = await supabase
+          .from("profiles")
+          .upsert(profilePayload, { onConflict: "id" })
+        if (profileRetryError) {
+          console.error("[signup-athletic-director] profiles upsert (no school_id):", profileRetryError.message)
+          await supabase.auth.admin.deleteUser(createdAuthUserId).catch(() => undefined)
+          return NextResponse.json(
+            { error: profileRetryError.message ?? "Failed to create profile." },
+            { status: 500 }
+          )
+        }
+      } else {
+        console.error("[signup-athletic-director] profiles upsert:", profileError.message, profileError)
+        await supabase.auth.admin.deleteUser(createdAuthUserId).catch(() => undefined)
+        return NextResponse.json(
+          { error: profileError.message ?? "Failed to create profile." },
+          { status: 500 }
+        )
+      }
     }
 
     const userRole = profileRoleToUserRole("athletic_director")
-    await supabase
-      .from("users")
-      .upsert(
-        {
-          id: createdAuthUserId,
-          email,
-          name: fullName,
-          role: userRole,
-          status: "active",
-        },
-        { onConflict: "id" }
+    const { error: userError } = await supabase.from("users").upsert(
+      {
+        id: createdAuthUserId,
+        email,
+        name: fullName,
+        role: userRole,
+        status: "active",
+      },
+      { onConflict: "id" }
+    )
+
+    if (userError) {
+      console.error("[signup-athletic-director] users upsert:", userError.message, userError)
+      return NextResponse.json(
+        { error: userError.message ?? "Failed to sync user record." },
+        { status: 500 }
       )
-      .then(() => {})
+    }
 
     return NextResponse.json(
       {
@@ -205,6 +234,8 @@ export async function POST(request: Request) {
       { status: 201 }
     )
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error("[signup-athletic-director] unexpected error:", message, err)
     if (createdAuthUserId) {
       const supabase = getSupabaseAdminClient()
       if (supabase) {

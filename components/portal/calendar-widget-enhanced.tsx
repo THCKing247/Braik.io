@@ -341,19 +341,21 @@ export function CalendarWidgetEnhanced({
                 return (
                   <div
                     key={slot.toISOString()}
-                    className="relative z-10 text-xs text-right whitespace-nowrap px-2 py-0.5"
+                    className="absolute text-right whitespace-nowrap"
                     style={{
-                      position: "absolute",
                       top: `${index * 60}px`,
                       left: 0,
                       right: 0,
                       maxWidth: "80px",
-                      color: "rgb(var(--text2))",
                       transform: "translateY(-50%)",
-                      backgroundColor: "#FFFFFF",
                     }}
                   >
-                    {index % 2 === 0 ? `${displayHour} ${ampm}` : ""}
+                    <span
+                      className="relative z-10 bg-white px-2 text-sm"
+                      style={{ color: "rgb(var(--text2))" }}
+                    >
+                      {index % 2 === 0 ? `${displayHour} ${ampm}` : ""}
+                    </span>
                   </div>
                 )
               })}
@@ -614,16 +616,16 @@ export function CalendarWidgetEnhanced({
                     height: "60px",
                   }}
                 >
-                  <div
-                    className="relative z-10 left-0 top-0 px-2 text-xs font-medium"
+                  <span
+                    className="relative z-10 bg-white px-2 text-sm font-medium"
                     style={{
                       color: "rgb(var(--text2))",
                       transform: "translateY(-50%)",
-                      backgroundColor: "#FFFFFF",
+                      display: "inline-block",
                     }}
                   >
                     {displayHour}:00 {ampm}
-                  </div>
+                  </span>
                 </div>
               )
             })}
@@ -865,8 +867,8 @@ export function CalendarWidgetEnhanced({
   return (
     <>
       <div className="flex flex-col h-full" style={{ backgroundColor: "#FFFFFF" }}>
-        {/* Top Navigation Bar */}
-        <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "rgb(var(--border))" }}>
+        {/* Top Navigation Bar - bg and z-10 so view pills and border sit above calendar content */}
+        <div className="flex items-center justify-between p-4 border-b relative z-10 bg-white" style={{ borderColor: "rgb(var(--border))" }}>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
@@ -906,12 +908,12 @@ export function CalendarWidgetEnhanced({
             <div className="text-sm font-medium px-3" style={{ color: "rgb(var(--text))", minWidth: "200px", textAlign: "center" }}>
               {getDateDisplay()}
             </div>
-            <div className="flex items-center gap-1 border-l pl-2" style={{ borderColor: "rgb(var(--border))" }}>
+            <div className="flex items-center gap-1 border-l pl-2 relative z-10" style={{ borderColor: "rgb(var(--border))" }}>
               <Button
                 variant={view === "day" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setView("day")}
-                className="font-medium"
+                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "day" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
               >
                 Day
               </Button>
@@ -919,7 +921,7 @@ export function CalendarWidgetEnhanced({
                 variant={view === "week" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setView("week")}
-                className="font-medium"
+                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "week" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
               >
                 Week
               </Button>
@@ -927,7 +929,7 @@ export function CalendarWidgetEnhanced({
                 variant={view === "month" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setView("month")}
-                className="font-medium"
+                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "month" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
               >
                 Month
               </Button>
@@ -935,7 +937,7 @@ export function CalendarWidgetEnhanced({
                 variant={view === "year" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setView("year")}
-                className="font-medium"
+                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "year" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
               >
                 Year
               </Button>

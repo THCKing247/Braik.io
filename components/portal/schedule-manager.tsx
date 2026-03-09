@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { format } from "date-fns"
+import { addHours } from "date-fns"
 import { CalendarWidgetEnhanced } from "./calendar-widget-enhanced"
+import { DateTimePicker } from "./date-time-picker"
 
 interface Event {
   id: string
@@ -48,8 +49,8 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
 
   const [type, setType] = useState("practice")
   const [title, setTitle] = useState("")
-  const [start, setStart] = useState("")
-  const [end, setEnd] = useState("")
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [endDate, setEndDate] = useState<Date | null>(null)
   const [location, setLocation] = useState("")
   const [notes, setNotes] = useState("")
   const [audience, setAudience] = useState("all")
@@ -66,14 +67,28 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
     setFiles(files.filter((_, i) => i !== index))
   }
 
+  // When Start changes: if End is empty or earlier than Start, set End = Start + 1 hour
+  useEffect(() => {
+    if (!startDate) return
+    if (!endDate || endDate < startDate) {
+      setEndDate(addHours(startDate, 1))
+    }
+  }, [startDate])
+
   const handleAddEvent = async () => {
-    if (!title || !start || !end) {
+    if (!title || !startDate || !endDate) {
       alert("Title, start, and end are required")
+      return
+    }
+    if (endDate < startDate) {
+      alert("End must be after start")
       return
     }
 
     setLoading(true)
     try {
+      const start = startDate.toISOString()
+      const end = endDate.toISOString()
       // Create the event first
       const response = await fetch("/api/events", {
         method: "POST",
@@ -154,8 +169,8 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
 
       // Reset form
       setTitle("")
-      setStart("")
-      setEnd("")
+      setStartDate(null)
+      setEndDate(null)
       setLocation("")
       setNotes("")
       setFiles([])
@@ -214,14 +229,22 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Start *</Label>
-                      <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>End *</Label>
-                      <Input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
-                    </div>
+                    <DateTimePicker
+                      label="Start *"
+                      value={startDate}
+                      onChange={setStartDate}
+                      placeholder="Select start date and time"
+                      id="add-event-start"
+                    />
+                    <DateTimePicker
+                      label="End *"
+                      value={endDate}
+                      onChange={setEndDate}
+                      placeholder="Select end date and time"
+                      minDate={startDate}
+                      defaultTime={startDate ? addHours(startDate, 1) : null}
+                      id="add-event-end"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Location</Label>

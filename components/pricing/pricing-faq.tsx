@@ -26,7 +26,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "What is included in the Athletic Department license?",
-    a: "The Athletic Department license ($3,500/year) includes unlimited teams, unlimited athletes, unlimited coaches, an athletic director dashboard, department-wide analytics, and centralized program management—all under one annual payment.",
+    a: "The Athletic Department license ($6,500/year) includes unlimited teams, unlimited athletes, unlimited coaches, an athletic director dashboard, department-wide analytics, and centralized program management—all under one annual payment.",
   },
   {
     q: "Can we start with one team and upgrade later?",

@@ -85,7 +85,7 @@ export default async function AthleticDirectorOverviewPage() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-lg bg-[#F9FAFB] p-4">
           <div>
             <p className="font-medium text-[#212529]">Athletic Department License</p>
-            <p className="text-2xl font-bold text-[#212529]">$3,500 <span className="text-sm font-normal text-[#6B7280]">/ year</span></p>
+            <p className="text-2xl font-bold text-[#212529]">$6,500 <span className="text-sm font-normal text-[#6B7280]">/ year</span></p>
             <p className="mt-1 text-sm text-[#6B7280]">Unlimited teams, athletes, and coaches</p>
           </div>
           <div className="rounded-md bg-[#D1FAE5] px-3 py-1 text-sm font-medium text-[#065F46]">

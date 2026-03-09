@@ -120,7 +120,7 @@ export default function PricingPage() {
                 </div>
 
                 <p className="text-3xl font-bold text-[#FFFFFF]">
-                  $3,500 per year
+                  $6,500 per year
                 </p>
 
                 <div className="grid md:grid-cols-2 gap-8">
@@ -142,7 +142,7 @@ export default function PricingPage() {
                       How billing works
                     </h3>
                     <p className="text-[#FFFFFF]/90 leading-relaxed">
-                      $3,500 annual license. One payment covers the entire athletic department.
+                      $6,500 annual license. One payment covers the entire athletic department.
                     </p>
                   </div>
                 </div>

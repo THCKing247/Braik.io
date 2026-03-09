@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { EventDetailModal } from "./event-detail-modal"
+import { DayEventsModal } from "./day-events-modal"
 
 interface CalendarEvent {
   id: string
@@ -42,6 +43,8 @@ export function CalendarWidget({
   const [events, setEvents] = useState(initialEvents)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showEventDetail, setShowEventDetail] = useState(false)
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  const [showDayEvents, setShowDayEvents] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
 
   // Default handler: show event detail modal
@@ -74,6 +77,11 @@ export function CalendarWidget({
     })
   }
 
+  const handleDayClick = (day: Date) => {
+    setSelectedDay(day)
+    setShowDayEvents(true)
+  }
+
   const renderWeekView = () => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -90,7 +98,8 @@ export function CalendarWidget({
             return (
               <div
                 key={day.toISOString()}
-                className={`border rounded-lg p-3 transition-all duration-200 min-h-[200px] ${
+                onClick={() => handleDayClick(day)}
+                className={`border rounded-lg p-3 transition-all duration-200 min-h-[200px] cursor-pointer hover:shadow-md ${
                   isToday 
                     ? "border-2 shadow-sm" 
                     : ""
@@ -106,10 +115,13 @@ export function CalendarWidget({
                   <div className="text-lg">{format(day, "d")}</div>
                 </div>
                 <div className="space-y-2">
-                  {dayEvents.map((event) => (
+                  {dayEvents.slice(0, 3).map((event) => (
                     <div
                       key={event.id}
-                      onClick={() => handleEventClick(event)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEventClick(event)
+                      }}
                       className="text-xs p-2 rounded-md cursor-pointer transition-all hover:scale-105 font-medium border-l-2"
                       style={{ 
                         backgroundColor: "#FFFFFF",
@@ -122,6 +134,11 @@ export function CalendarWidget({
                       <div className="truncate" style={{ color: "rgb(var(--text))" }}>{event.title}</div>
                     </div>
                   ))}
+                  {dayEvents.length > 3 && (
+                    <div className="text-xs font-medium text-center pt-1" style={{ color: "rgb(var(--accent))" }}>
+                      +{dayEvents.length - 3} more
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -157,7 +174,8 @@ export function CalendarWidget({
             return (
               <div
                 key={day.toISOString()}
-                className={`min-h-[100px] border rounded-lg p-2 transition-all duration-200 ${
+                onClick={() => handleDayClick(day)}
+                className={`min-h-[100px] border rounded-lg p-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
                   isToday 
                     ? "border-2 shadow-sm" 
                     : ""
@@ -175,7 +193,10 @@ export function CalendarWidget({
                   {dayEvents.slice(0, 2).map((event) => (
                     <div
                       key={event.id}
-                      onClick={() => handleEventClick(event)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEventClick(event)
+                      }}
                       className="text-[10px] p-1.5 rounded cursor-pointer truncate font-medium transition-all hover:scale-105 border-l-2"
                       style={{ 
                         backgroundColor: "#FFFFFF",
@@ -204,12 +225,12 @@ export function CalendarWidget({
       (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
     )
 
-    // Generate time slots from 5am to 12am (midnight)
+    // Generate time slots from 5am to 11pm
     const timeSlots: Date[] = []
     const startHour = 5
-    const endHour = 24 // 12am (midnight)
+    const endHour = 23 // 11pm
     
-    for (let hour = startHour; hour < endHour; hour++) {
+    for (let hour = startHour; hour <= endHour; hour++) {
       const slot = new Date(currentDate)
       slot.setHours(hour, 0, 0, 0)
       timeSlots.push(slot)
@@ -224,8 +245,16 @@ export function CalendarWidget({
       const currentMinute = now.getMinutes()
       const totalMinutes = currentHour * 60 + currentMinute
       
-      // If before 4:45am (before 285 minutes) or after 11:59pm (1440 minutes = midnight), show at bottom
-      if (totalMinutes < 285 || totalMinutes >= 1440) {
+      // Day view shows 5 AM to 11 PM (19 hours = 1140px)
+      // 5 AM = 300 minutes, 11 PM = 1380 minutes (23:00), 11:59 PM = 1439 minutes
+      
+      // If before 4:45am (before 285 minutes), show at top
+      if (totalMinutes < 285) {
+        return 0
+      }
+      
+      // If after 11:59pm (1440 minutes = midnight), show at bottom
+      if (totalMinutes >= 1440) {
         return 1140 // Bottom of the timeline (19 hours * 60px = 1140px)
       }
       
@@ -234,11 +263,10 @@ export function CalendarWidget({
         return 0 // Top of the timeline
       }
       
-      // If 5:00am or later and before midnight, calculate actual position
+      // If 5:00am or later, calculate actual position
       // Day starts at 5:00am (300 minutes), so subtract 300 minutes
       const minutesFrom5AM = totalMinutes - 300
-      // Each minute = 1px (since we have 60px per hour = 1px per minute)
-      // Clamp to max 1140px (end of day at 12am)
+      // Clamp to max 1140px (end of day at 11:59pm = 19 hours * 60px = 1140px)
       return Math.min(minutesFrom5AM, 1140)
     }
 
@@ -264,6 +292,7 @@ export function CalendarWidget({
         </div>
         
         <div className="relative" style={{ minHeight: "1140px" }}>
+          {/* Day view shows 5 AM to 11 PM = 19 hours = 1140px */}
           {/* Time slots */}
           <div className="relative">
             {timeSlots.map((slot, index) => {
@@ -355,7 +384,7 @@ export function CalendarWidget({
               const position = getEventPosition(eventStart)
               const height = getEventHeight(eventStart, eventEnd)
 
-              // Only show if event is within the visible range (5am-12am)
+              // Only show if event is within the visible range (5am-11pm = 1140px max)
               if (position < 0 || position >= 1140) return null
 
               return (
@@ -412,91 +441,18 @@ export function CalendarWidget({
   }
 
   return (
-    <Card 
-      className="border"
-      style={{
-        backgroundColor: "#FFFFFF",
-        borderColor: "rgb(var(--border))",
-        borderWidth: "1px",
-      }}
-    >
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <CardTitle className="text-3xl" style={{ color: "rgb(var(--text))" }}>Calendar</CardTitle>
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex gap-1 border rounded-lg p-1" style={{ borderColor: "rgb(var(--border))", borderWidth: "1px", backgroundColor: "#FFFFFF" }}>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setView("day")}
-                className="font-athletic uppercase"
-                style={{ 
-                  color: "rgb(var(--text))",
-                  borderBottom: view === "day" ? `2px solid rgb(var(--accent))` : "none",
-                  borderRadius: 0
-                }}
-              >
-                Day
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setView("week")}
-                className="font-athletic uppercase"
-                style={{ 
-                  color: "rgb(var(--text))",
-                  borderBottom: view === "week" ? `2px solid rgb(var(--accent))` : "none",
-                  borderRadius: 0
-                }}
-              >
-                Week
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setView("month")}
-                className="font-athletic uppercase"
-                style={{ 
-                  color: "rgb(var(--text))",
-                  borderBottom: view === "month" ? `2px solid rgb(var(--accent))` : "none",
-                  borderRadius: 0
-                }}
-              >
-                Month
-              </Button>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigateDate("prev")} 
-                className="rounded-lg"
-                style={{ 
-                  color: "rgb(var(--text))", 
-                  borderColor: "rgb(var(--border))",
-                  backgroundColor: "#FFFFFF"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgb(var(--platinum))"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#FFFFFF"}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigateDate("next")} 
-                className="rounded-lg"
-                style={{ 
-                  color: "rgb(var(--text))", 
-                  borderColor: "rgb(var(--border))",
-                  backgroundColor: "#FFFFFF"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgb(var(--platinum))"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#FFFFFF"}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+    <>
+      <Card 
+        className="border"
+        style={{
+          backgroundColor: "#FFFFFF",
+          borderColor: "rgb(var(--border))",
+          borderWidth: "1px",
+        }}
+      >
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <CardTitle className="text-3xl" style={{ color: "rgb(var(--text))" }}>Calendar</CardTitle>
             {canEdit && onCreateEvent && (
               <Button size="sm" onClick={onCreateEvent} className="font-athletic uppercase">
                 <Plus className="h-4 w-4 mr-1" />
@@ -504,13 +460,138 @@ export function CalendarWidget({
               </Button>
             )}
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        {view === "day" && renderDayView()}
-        {view === "week" && renderWeekView()}
-        {view === "month" && renderMonthView()}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="flex gap-4">
+            {/* Left sidebar with view controls and navigation */}
+            <div className="flex flex-col gap-3 w-48 flex-shrink-0">
+              {/* View selector */}
+              <div className="flex flex-col gap-1 border rounded-lg p-1" style={{ borderColor: "rgb(var(--border))", borderWidth: "1px", backgroundColor: "#FFFFFF" }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setView("day")}
+                  className="font-athletic uppercase justify-start"
+                  style={{ 
+                    color: "rgb(var(--text))",
+                    backgroundColor: view === "day" ? "rgb(var(--platinum))" : "transparent",
+                    borderBottom: view === "day" ? `2px solid rgb(var(--accent))` : "none",
+                    borderRadius: 0
+                  }}
+                >
+                  Day
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setView("week")}
+                  className="font-athletic uppercase justify-start"
+                  style={{ 
+                    color: "rgb(var(--text))",
+                    backgroundColor: view === "week" ? "rgb(var(--platinum))" : "transparent",
+                    borderBottom: view === "week" ? `2px solid rgb(var(--accent))` : "none",
+                    borderRadius: 0
+                  }}
+                >
+                  Week
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setView("month")}
+                  className="font-athletic uppercase justify-start"
+                  style={{ 
+                    color: "rgb(var(--text))",
+                    backgroundColor: view === "month" ? "rgb(var(--platinum))" : "transparent",
+                    borderBottom: view === "month" ? `2px solid rgb(var(--accent))` : "none",
+                    borderRadius: 0
+                  }}
+                >
+                  Month
+                </Button>
+              </div>
+              
+              {/* Navigation arrows */}
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigateDate("prev")} 
+                  className="rounded-lg flex-1"
+                  style={{ 
+                    color: "rgb(var(--text))", 
+                    borderColor: "rgb(var(--border))",
+                    backgroundColor: "#FFFFFF"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgb(var(--platinum))"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#FFFFFF"}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigateDate("next")} 
+                  className="rounded-lg flex-1"
+                  style={{ 
+                    color: "rgb(var(--text))", 
+                    borderColor: "rgb(var(--border))",
+                    backgroundColor: "#FFFFFF"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgb(var(--platinum))"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#FFFFFF"}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Calendar content */}
+            <div className="flex-1">
+              {view === "day" && renderDayView()}
+              {view === "week" && renderWeekView()}
+              {view === "month" && renderMonthView()}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Event Detail Modal */}
+      {selectedEvent && (
+        <EventDetailModal
+          event={{
+            id: selectedEvent.id,
+            eventType: selectedEvent.eventType,
+            title: selectedEvent.title,
+            start: selectedEvent.start,
+            end: selectedEvent.end,
+            location: selectedEvent.location || null,
+            description: null,
+            creator: { name: null, email: "" },
+            linkedDocuments: [],
+          }}
+          isOpen={showEventDetail}
+          onClose={() => {
+            setShowEventDetail(false)
+            setSelectedEvent(null)
+          }}
+          teamId={teamId}
+        />
+      )}
+      
+      {/* Day Events Modal */}
+      {selectedDay && (
+        <DayEventsModal
+          date={selectedDay}
+          events={getEventsForDate(selectedDay)}
+          isOpen={showDayEvents}
+          onClose={() => {
+            setShowDayEvents(false)
+            setSelectedDay(null)
+          }}
+          onEventClick={handleEventClick}
+        />
+      )}
+    </>
   )
 }

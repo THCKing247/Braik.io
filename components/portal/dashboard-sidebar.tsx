@@ -35,7 +35,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
 
   return (
     <aside
-      className="hidden lg:flex flex-col flex-shrink-0 w-[240px] min-h-0 overflow-y-auto z-40"
+      className="hidden lg:flex flex-col flex-shrink-0 w-[240px] h-full min-h-0 overflow-hidden z-40"
       style={{
         background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
         boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
@@ -44,7 +44,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
       aria-label="Dashboard navigation"
     >
       {/* Top: role + team (main Braik logo stays in header only) */}
-      <div className="p-4 border-b border-white/10">
+      <div className="flex-shrink-0 p-4 border-b border-white/10">
         {roleLabel && (
           <p className="text-xs font-medium text-white/70 uppercase tracking-wide">
             {roleLabel}
@@ -58,7 +58,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
       </div>
 
       {/* User block */}
-      <div className="p-3 border-b border-white/10">
+      <div className="flex-shrink-0 p-3 border-b border-white/10">
         <div className="rounded-lg bg-white/10 px-3 py-2">
           <p className="text-sm font-medium text-white truncate" title={session?.user?.email}>
             {session?.user?.name || session?.user?.email || "User"}
@@ -67,8 +67,8 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         </div>
       </div>
 
-      {/* Main nav */}
-      <nav className="flex-1 p-3 space-y-0.5" aria-label="Main navigation">
+      {/* Main nav: flex-1 + min-h-0 so it fills space and scrolls if needed; Coach B stays at bottom */}
+      <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5" aria-label="Main navigation">
         <SidebarNavItem
           href="/dashboard"
           label="Dashboard"
@@ -86,8 +86,8 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         ))}
       </nav>
 
-      {/* Coach B section */}
-      <div className="p-3 border-t border-white/10">
+      {/* Coach B section: flex-shrink-0 so it stays anchored near bottom */}
+      <div className="flex-shrink-0 p-3 border-t border-white/10">
         <div
           className={cn(
             "rounded-xl p-4 transition-all duration-200 overflow-hidden",
@@ -128,7 +128,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
       </div>
 
       {/* Footer branding */}
-      <div className="p-3 border-t border-white/10">
+      <div className="flex-shrink-0 p-3 border-t border-white/10">
         <p className="text-xs text-white/50 text-center">Braik</p>
       </div>
     </aside>

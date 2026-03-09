@@ -8,6 +8,7 @@ import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
 import { cn } from "@/lib/utils"
 
 const SIDEBAR_GAP = 24
+const HEADER_HEIGHT_PX = 54
 
 interface Team {
   id: string
@@ -38,8 +39,11 @@ export function DashboardLayoutClient({
 
   return (
     <CoachBProvider isDesktop={isDesktop}>
-      <div className={cn("flex flex-col min-w-0", className)}>
-        {/* One horizontal row: sidebar + main, same top, no gap */}
+      <div
+        className={cn("flex flex-col min-w-0 overflow-hidden", className)}
+        style={{ height: `calc(100vh - ${HEADER_HEIGHT_PX}px)` }}
+      >
+        {/* One horizontal row: sidebar + main; height is viewport-based so sidebar stays consistent */}
         <div className="flex flex-1 min-h-0 min-w-0">
           {isDesktop && (
             <DashboardSidebar teams={teams} />

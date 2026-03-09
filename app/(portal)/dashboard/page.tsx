@@ -34,5 +34,19 @@ export default function DashboardPage() {
     return <ConnectToTeam role={role || "PLAYER"} />
   }
 
+  // Authenticated but missing user payload (e.g. session API returned incomplete data)
+  if (status === "authenticated" && !session?.user) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-6" style={{ backgroundColor: "rgb(var(--snow))" }}>
+        <div className="rounded-lg border bg-white p-6 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
+          <h2 className="text-base font-semibold" style={{ color: "rgb(var(--text))" }}>Session data is incomplete</h2>
+          <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+            We could not finish loading your account details. Please refresh the page or sign out and back in.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return <TeamDashboard session={session} />
 }

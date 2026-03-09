@@ -438,7 +438,18 @@ function NotificationsCard() {
 
 export function TeamDashboard({ session }: TeamDashboardProps) {
   const user = session?.user
-  if (!user) return null
+  if (!user) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-6" style={{ backgroundColor: "rgb(var(--snow))" }}>
+        <div className="rounded-lg border bg-white p-6 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
+          <h2 className="text-base font-semibold" style={{ color: "rgb(var(--text))" }}>Unable to load your profile</h2>
+          <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+            Your session loaded, but your user profile data is incomplete. Refresh the page or sign in again.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 pb-8">

@@ -12,6 +12,7 @@ import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
+import { CoachPageDebug } from "@/components/portal/coach-page-debug"
 
 export const dynamic = "force-dynamic"
 
@@ -183,8 +184,13 @@ export default async function DashboardLayout({
       </Suspense>
       <QuickActionsSidebar />
       <main className="app-content" style={{ backgroundColor: "rgb(var(--snow))" }}>
+        <CoachPageDebug
+          session={session}
+          teamIds={teams.map((t) => t.id)}
+          accessAllowed={true}
+        />
         {impersonationSession && <ImpersonationBanner />}
-        <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session.user.role} />
+        <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session?.user?.role} />
         <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
           {children}
         </SubscriptionGuard>

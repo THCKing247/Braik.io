@@ -69,21 +69,23 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
 
       if (profileMatches || isTeamCreator) {
         // Ensure user exists in public.users so team_members insert (FK) succeeds
-        await supabase
-          .from("users")
-          .upsert(
-            {
-              id: session.user.id,
-              email: session.user.email ?? "",
-              name: session.user.name ?? null,
-              role: profileRoleToUserRole(profile?.role),
-              status: "active",
-            },
-            { onConflict: "id" }
-          )
-          .select()
-          .then(() => undefined)
-          .catch(() => undefined)
+        try {
+          await supabase
+            .from("users")
+            .upsert(
+              {
+                id: session.user.id,
+                email: session.user.email ?? "",
+                name: session.user.name ?? null,
+                role: profileRoleToUserRole(profile?.role),
+                status: "active",
+              },
+              { onConflict: "id" }
+            )
+            .select()
+        } catch {
+          // ignore — best-effort so team_members insert can succeed
+        }
 
         const role = profile ? profileRoleToTeamMemberRole(profile.role) : ROLES.HEAD_COACH
         const { error } = await supabase.from("team_members").insert({

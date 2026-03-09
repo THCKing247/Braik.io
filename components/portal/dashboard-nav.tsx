@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useSession, signOut } from "@/lib/auth/client-auth"
 import Link from "next/link"
@@ -27,31 +27,8 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const userRole = session?.user?.role
   const isPlatformOwner = session?.user?.isPlatformOwner || false
 
-  // Top navigation: Dashboard, Invoice, Settings, and Admin
-  // Roster, Schedule, Messages, Documents, and Inventory are in quick actions sidebar
-  // Platform Owner is a flag, not a role - Platform Owners may also have team roles (e.g., HEAD_COACH)
-  const topNavItems: Array<{
-    href: string
-    label: string
-    roles?: string[]
-    isPlatformOwnerOnly?: boolean
-  }> = [
-    { href: "/dashboard", label: "Dashboard", roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"] },
-    { href: "/dashboard/invoice", label: "Invoice", roles: ["HEAD_COACH", "PLAYER", "PARENT"] },
-    { href: "/dashboard/settings", label: "Settings", roles: ["HEAD_COACH"] },
-    { href: "/admin/dashboard", label: "Admin", isPlatformOwnerOnly: true },
-  ]
-
-  // Filter nav items based on user role and Platform Owner flag
-  // Platform Owners see all items their team role allows, plus Admin
-  const navItems = topNavItems.filter((item) => {
-    // Admin is only for Platform Owners
-    if (item.isPlatformOwnerOnly) {
-      return isPlatformOwner
-    }
-    // Regular role-based filtering
-    return userRole && item.roles?.includes(userRole)
-  })
+  // Dashboard, Invoice, and Settings live in the left sidebar; only Admin remains in top nav for Platform Owners
+  const showAdminLink = isPlatformOwner
 
   return (
     <nav 
@@ -86,40 +63,32 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             </Link>
           </div>
           
-          {/* Navigation Links - Centered */}
-          <div className="flex-1 flex justify-center items-center gap-6">
+          {/* Center: team switcher only when multiple teams */}
+          <div className="flex-1 flex justify-center items-center">
             {teams.length > 1 && (
               <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
             )}
-            <div className="hidden md:flex items-center gap-4 flex-wrap">
-              {navItems.map((item) => {
-                // Check if current path matches (exact match or starts with for nested routes)
-                const isActive = pathname === item.href || 
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href))
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "text-sm font-medium transition-colors px-3 py-2 rounded-md",
-                      isActive
-                        ? "font-semibold border-b-2"
-                        : "hover:bg-[rgb(var(--platinum))]"
-                    )}
-                    style={{
-                      color: isActive ? "rgb(var(--text))" : "rgb(var(--text))",
-                      borderBottomColor: isActive ? "rgb(var(--accent))" : "transparent"
-                    }}
-                  >
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
           </div>
           
           {/* User Controls - Far Right */}
           <div className="flex-shrink-0 flex items-center gap-4">
+            {showAdminLink && (
+              <Link
+                href="/admin/dashboard"
+                className={cn(
+                  "text-sm font-medium transition-colors px-3 py-2 rounded-md",
+                  pathname?.startsWith("/admin")
+                    ? "font-semibold border-b-2"
+                    : "hover:bg-[rgb(var(--platinum))]"
+                )}
+                style={{
+                  color: "rgb(var(--text))",
+                  borderBottomColor: pathname?.startsWith("/admin") ? "rgb(var(--accent))" : "transparent"
+                }}
+              >
+                Admin
+              </Link>
+            )}
             <ThemeToggle />
             {userRole && (
               <span 

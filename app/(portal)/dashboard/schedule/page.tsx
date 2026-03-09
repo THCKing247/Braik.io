@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { ScheduleManager } from "@/components/portal/schedule-manager"
 
@@ -7,8 +8,58 @@ export default function SchedulePage() {
   return (
     <DashboardPageShell>
       {({ teamId, canEdit }) => (
-        <ScheduleManager teamId={teamId} events={[]} canEdit={canEdit} defaultView="week" />
+        <SchedulePageContent teamId={teamId} canEdit={canEdit} />
       )}
     </DashboardPageShell>
+  )
+}
+
+function SchedulePageContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
+  const [events, setEvents] = useState<Array<{ id: string; type: string; title: string; start: string; end: string; location: string | null; notes: string | null; audience: string; creator: { name: string | null; email: string }; rsvps: unknown[]; linkedDocuments?: unknown[] }>>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/teams/${teamId}/calendar/events`)
+      .then((res) => {
+        if (!res.ok) return []
+        return res.json()
+      })
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setEvents(data.map((e: { start: string; end: string }) => ({ ...e, start: e.start, end: e.end })))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [teamId])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      </div>
+    )
+  }
+
+  const eventsWithDates = events.map((e) => ({
+    ...e,
+    start: new Date(e.start),
+    end: new Date(e.end),
+  }))
+
+  return (
+    <ScheduleManager
+      teamId={teamId}
+      events={eventsWithDates}
+      canEdit={canEdit}
+      defaultView="week"
+    />
   )
 }

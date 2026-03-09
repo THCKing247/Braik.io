@@ -2,6 +2,7 @@ import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { MembershipLookupError } from "@/lib/auth/rbac"
 
 function generateInviteCode(length = 8): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -32,7 +33,7 @@ export async function POST(
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
-    const { requireTeamPermission, MembershipLookupError } = await import("@/lib/auth/rbac")
+    const { requireTeamPermission } = await import("@/lib/auth/rbac")
     const supabase = getSupabaseServer()
 
     const { data: player, error: fetchErr } = await supabase
@@ -87,7 +88,7 @@ export async function POST(
       inviteCode: p.invite_code ?? code,
       inviteStatus: (p.invite_status ?? "invited") as "invited",
     })
-  } catch (err) {
+  } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {
       console.error("[POST /api/roster/[playerId]/invite] membership lookup failed (DB/schema)", err.message)
       return NextResponse.json({ error: "Failed to set invite" }, { status: 500 })

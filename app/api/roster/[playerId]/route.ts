@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { MembershipLookupError } from "@/lib/auth/rbac"
 
 /**
  * PATCH /api/roster/[playerId] - Update a player (e.g. invite_code, invite_status).
@@ -21,7 +22,7 @@ export async function PATCH(
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
-    const { requireTeamPermission, MembershipLookupError } = await import("@/lib/auth/rbac")
+    const { requireTeamPermission } = await import("@/lib/auth/rbac")
     const supabase = getSupabaseServer()
 
     const { data: player, error: fetchErr } = await supabase
@@ -101,7 +102,7 @@ export async function PATCH(
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",
       claimedAt: p.claimed_at ?? null,
     })
-  } catch (err) {
+  } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {
       console.error("[PATCH /api/roster/[playerId]] membership lookup failed (DB/schema)", err.message)
       return NextResponse.json({ error: "Failed to update player" }, { status: 500 })

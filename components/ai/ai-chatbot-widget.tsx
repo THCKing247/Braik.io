@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { MessageSquare, X, Send, Upload, Sparkles, File, AlertTriangle } from "lucide-react"
 import { AIActionConfirmation } from "@/components/ai/ai-action-confirmation"
+import { useCoachB } from "@/components/portal/coach-b-context"
 
 interface Message {
   id: string
@@ -45,6 +46,12 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canUseAdvancedActions = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
+  const coachB = useCoachB()
+
+  // When dashboard sidebar is shown (desktop), register open so "Ask Coach B" in sidebar opens this widget; hide floating button.
+  useEffect(() => {
+    coachB?.registerOpen(() => setIsOpen(true))
+  }, [coachB])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -195,10 +202,12 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
   }
 
+  const showFloatingButton = !isOpen && !coachB?.isDesktop
+
   return (
     <>
-      {/* Floating Button */}
-      {!isOpen && (
+      {/* Floating Button - only on smaller screens; on desktop the sidebar "Ask Coach B" opens the chat */}
+      {showFloatingButton && (
         <button
           data-ai-widget
           onClick={() => setIsOpen(true)}

@@ -5,10 +5,8 @@ import { isRedirectError } from "next/dist/client/components/redirect"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
-import { TeamSwitcher } from "@/components/portal/team-switcher"
-import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
 import { SubscriptionGuard } from "@/components/portal/subscription-guard"
-import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
+import { DashboardLayoutClient } from "@/components/portal/dashboard-layout-client"
 import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
@@ -162,14 +160,12 @@ export default async function DashboardLayout({
 
     return (
       <div className="app-shell" style={{ backgroundColor: "rgb(var(--snow))" }}>
-        {/* Suspense is required here because DashboardNav uses useSearchParams() */}
         <Suspense fallback={
           <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />
         }>
           <DashboardNav teams={teams} />
         </Suspense>
-        <QuickActionsSidebar />
-        <main className="app-content" style={{ backgroundColor: "rgb(var(--snow))" }}>
+        <DashboardLayoutClient teams={teams}>
           <CoachPageDebug
             session={session}
             teamIds={teams.map((t) => t.id)}
@@ -180,8 +176,7 @@ export default async function DashboardLayout({
           <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
             {children}
           </SubscriptionGuard>
-        </main>
-        <AIWidgetWrapper />
+        </DashboardLayoutClient>
       </div>
     )
   } catch (err) {

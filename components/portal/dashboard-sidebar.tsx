@@ -1,0 +1,178 @@
+"use client"
+
+import Link from "next/link"
+import Image from "next/image"
+import { usePathname, useSearchParams } from "next/navigation"
+import { useSession } from "@/lib/auth/client-auth"
+import { useCoachB } from "@/components/portal/coach-b-context"
+import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
+import { cn } from "@/lib/utils"
+import { LayoutDashboard, MessageSquare, Sparkles } from "lucide-react"
+
+const SIDEBAR_WIDTH = 240
+const HEADER_HEIGHT = 70
+
+interface Team {
+  id: string
+  name: string
+  organization: { name: string }
+  sport: string
+  seasonName: string
+}
+
+export function DashboardSidebar({ teams }: { teams: Team[] }) {
+  const { data: session } = useSession()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const coachB = useCoachB()
+  const userRole = session?.user?.role
+  const currentTeamId = searchParams.get("teamId") || teams[0]?.id
+  const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
+  const quickActions = getQuickActionsForRole(userRole)
+
+  const roleLabel = userRole
+    ? userRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+    : ""
+
+  return (
+    <aside
+      className="hidden lg:flex flex-col fixed left-0 top-0 z-40 overflow-y-auto"
+      style={{
+        width: SIDEBAR_WIDTH,
+        top: HEADER_HEIGHT,
+        height: `calc(100vh - ${HEADER_HEIGHT}px)`,
+        background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
+        boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
+        borderRight: "1px solid rgba(255,255,255,0.08)",
+      }}
+      aria-label="Dashboard navigation"
+    >
+      {/* Top: Brand + role */}
+      <div className="p-4 border-b border-white/10">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 rounded-lg p-2 -m-2 focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
+          aria-label="Braik - Dashboard"
+        >
+          <div className="h-8 w-[120px] overflow-hidden flex items-center">
+            <Image
+              src="/braik-logo.png"
+              alt="Braik"
+              width={360}
+              height={180}
+              className="w-full h-auto object-contain object-left opacity-95"
+            />
+          </div>
+        </Link>
+        {roleLabel && (
+          <p className="mt-3 text-xs font-medium text-white/70 uppercase tracking-wide">
+            {roleLabel}
+          </p>
+        )}
+        {currentTeam?.name && (
+          <p className="text-sm font-semibold text-white mt-0.5 truncate" title={currentTeam.name}>
+            {currentTeam.name}
+          </p>
+        )}
+      </div>
+
+      {/* User block */}
+      <div className="p-3 border-b border-white/10">
+        <div className="rounded-lg bg-white/10 px-3 py-2">
+          <p className="text-sm font-medium text-white truncate" title={session?.user?.email}>
+            {session?.user?.name || session?.user?.email || "User"}
+          </p>
+          <p className="text-xs text-white/70 truncate">{session?.user?.email}</p>
+        </div>
+      </div>
+
+      {/* Main nav */}
+      <nav className="flex-1 p-3 space-y-0.5" aria-label="Main navigation">
+        <SidebarNavItem
+          href="/dashboard"
+          label="Dashboard"
+          icon={LayoutDashboard}
+          isActive={pathname === "/dashboard"}
+        />
+        {quickActions.map((action) => (
+          <SidebarNavItem
+            key={action.id}
+            href={action.href}
+            label={action.label}
+            icon={action.icon}
+            isActive={pathname === action.href || (action.href !== "/dashboard" && pathname.startsWith(action.href))}
+          />
+        ))}
+      </nav>
+
+      {/* Coach B section */}
+      <div className="p-3 border-t border-white/10">
+        <div
+          className={cn(
+            "rounded-xl p-4 transition-all duration-200",
+            "bg-white/10 hover:bg-white/15 border border-white/10"
+          )}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <MessageSquare className="h-5 w-5 text-[#93C5FD]" aria-hidden />
+            <span className="text-sm font-semibold text-white">Coach B</span>
+          </div>
+          <p className="text-xs text-white/80 mb-3">
+            Ask about your team, schedule, or get help with tasks.
+          </p>
+          <button
+            type="button"
+            onClick={() => coachB?.open()}
+            className={cn(
+              "w-full flex items-center justify-center gap-2 rounded-lg py-2.5 px-3",
+              "text-sm font-medium text-white bg-[#2563EB] hover:bg-[#3B82F6]",
+              "focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]",
+              "transition-colors shadow-sm"
+            )}
+            aria-label="Ask Coach B"
+          >
+            <Sparkles className="h-4 w-4" aria-hidden />
+            Ask Coach B
+          </button>
+        </div>
+      </div>
+
+      {/* Footer branding */}
+      <div className="p-3 border-t border-white/10">
+        <p className="text-xs text-white/50 text-center">Braik</p>
+      </div>
+    </aside>
+  )
+}
+
+function SidebarNavItem({
+  href,
+  label,
+  icon: Icon,
+  isActive,
+}: {
+  href: string
+  label: string
+  icon: QuickAction["icon"]
+  isActive: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+        "focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]",
+        isActive
+          ? "bg-[#2563EB] text-white shadow-md border border-white/20"
+          : "text-white/90 hover:bg-white/15 hover:text-white"
+      )}
+      aria-current={isActive ? "page" : undefined}
+    >
+      <Icon className="h-5 w-5 flex-shrink-0" aria-hidden />
+      <span>{label}</span>
+    </Link>
+  )
+}
+
+export const DASHBOARD_SIDEBAR_WIDTH = SIDEBAR_WIDTH
+export const DASHBOARD_HEADER_HEIGHT = HEADER_HEIGHT

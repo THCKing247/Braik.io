@@ -329,10 +329,10 @@ export function CalendarWidgetEnhanced({
 
           {/* Time grid - same calendar-grid as header for alignment */}
           <div className="relative grid calendar-grid" style={{ minHeight: "1440px" }}>
-            {/* Time column (first column, 80px) - overflow hidden so labels don't spill into day columns */}
+            {/* Time column (first column, 80px) - z-20 so labels sit above hour-line overlay */}
             <div
-              className="relative min-w-0 w-[80px] flex-shrink-0 border-r bg-white z-10 overflow-hidden"
-              style={{ borderColor: "rgb(var(--border))" }}
+              className="relative min-w-0 w-[80px] flex-shrink-0 border-r z-20"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
             >
               {timeSlots.map((slot, index) => {
                 const hour = slot.getHours()
@@ -341,14 +341,16 @@ export function CalendarWidgetEnhanced({
                 return (
                   <div
                     key={slot.toISOString()}
-                    className="absolute text-xs pr-2 text-right whitespace-nowrap"
+                    className="relative z-10 text-xs text-right whitespace-nowrap px-2 py-0.5"
                     style={{
+                      position: "absolute",
                       top: `${index * 60}px`,
                       left: 0,
                       right: 0,
                       maxWidth: "80px",
                       color: "rgb(var(--text2))",
                       transform: "translateY(-50%)",
+                      backgroundColor: "#FFFFFF",
                     }}
                   >
                     {index % 2 === 0 ? `${displayHour} ${ampm}` : ""}
@@ -403,15 +405,15 @@ export function CalendarWidgetEnhanced({
                 )
               })}
 
-            {/* Overlay: hour lines and current time (does not take a grid cell) */}
+            {/* Overlay: hour lines (z-10) and current time - below time column (z-20) so labels render above lines */}
             <div
-              className="absolute top-0 bottom-0 left-[80px] right-0 pointer-events-none z-20"
+              className="absolute top-0 bottom-0 left-[80px] right-0 pointer-events-none z-10"
               aria-hidden
             >
               {timeSlots.map((slot, index) => (
                 <div
                   key={`line-${slot.toISOString()}`}
-                  className="absolute border-t"
+                  className="absolute border-t z-0"
                   style={{
                     top: `${index * 60}px`,
                     left: 0,
@@ -595,8 +597,8 @@ export function CalendarWidgetEnhanced({
     return (
       <div className="flex-1 overflow-y-auto">
         <div className="relative" style={{ minHeight: "1440px" }}>
-          {/* Time column */}
-          <div className="absolute left-0 top-0 bottom-0 w-20 border-r z-10" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+          {/* Time column - z-20 so labels sit above hour lines */}
+          <div className="absolute left-0 top-0 bottom-0 w-20 border-r z-20" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
             {timeSlots.map((slot, index) => {
               const hour = slot.getHours()
               const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
@@ -613,7 +615,7 @@ export function CalendarWidgetEnhanced({
                   }}
                 >
                   <div
-                    className="absolute left-0 top-0 px-2 text-xs font-medium"
+                    className="relative z-10 left-0 top-0 px-2 text-xs font-medium"
                     style={{
                       color: "rgb(var(--text2))",
                       transform: "translateY(-50%)",
@@ -627,11 +629,11 @@ export function CalendarWidgetEnhanced({
             })}
           </div>
 
-          {/* Hour lines - full width with reduced opacity */}
+          {/* Hour lines - z-0 so time labels render above */}
           {timeSlots.map((slot, index) => (
             <div
               key={`line-${slot.toISOString()}`}
-              className="absolute border-t"
+              className="absolute border-t z-0"
               style={{
                 top: `${index * 60}px`,
                 left: "80px", // After time column

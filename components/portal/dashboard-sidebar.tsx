@@ -96,7 +96,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         >
           <div className="flex justify-center mb-3">
             <Image
-              src="/images/coach-b-clipboard-mascot.png"
+              src="/images/ai-chat-icon-tmp.png"
               alt="Coach B clipboard mascot"
               width={140}
               height={140}

@@ -85,13 +85,27 @@ export function CalendarWidget({
   const renderWeekView = () => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    const weekGridCols = "80px repeat(7, minmax(0, 1fr))"
 
     return (
       <div className="space-y-4">
         <div className="text-2xl font-athletic font-bold uppercase mb-6 tracking-wide border-b pb-3" style={{ color: "rgb(var(--text))", borderColor: "rgb(var(--border))" }}>
           Week of {format(weekStart, "MMMM d, yyyy")}
         </div>
-        <div className="grid grid-cols-7 gap-3">
+        <div className="grid gap-3" style={{ gridTemplateColumns: weekGridCols }}>
+          {/* Weekday header row: time gutter + Sun–Sat */}
+          <div className="min-w-0" aria-hidden />
+          {weekDays.map((day) => (
+            <div
+              key={`header-${day.toISOString()}`}
+              className="text-center text-sm font-athletic font-semibold uppercase tracking-wide py-1"
+              style={{ color: "rgb(var(--text))" }}
+            >
+              {format(day, "EEE")} {format(day, "d")}
+            </div>
+          ))}
+          {/* Body row: time gutter + 7 day columns */}
+          <div className="min-w-0" aria-hidden />
           {weekDays.map((day) => {
             const dayEvents = getEventsForDate(day)
             const isToday = isSameDay(day, new Date())
@@ -99,21 +113,17 @@ export function CalendarWidget({
               <div
                 key={day.toISOString()}
                 onClick={() => handleDayClick(day)}
-                className={`border rounded-lg p-3 transition-all duration-200 min-h-[200px] cursor-pointer hover:shadow-md ${
-                  isToday 
-                    ? "border-2 shadow-sm" 
+                className={`border rounded-lg p-3 transition-all duration-200 min-h-[200px] cursor-pointer hover:shadow-md min-w-0 ${
+                  isToday
+                    ? "border-2 shadow-sm"
                     : ""
                 }`}
-                style={{ 
+                style={{
                   backgroundColor: "#FFFFFF",
                   borderColor: isToday ? "rgb(var(--accent))" : "rgb(var(--border))",
-                  borderWidth: isToday ? "2px" : "1px"
+                  borderWidth: isToday ? "2px" : "1px",
                 }}
               >
-                <div className="text-sm font-athletic font-bold mb-3 uppercase" style={{ color: "rgb(var(--text))" }}>
-                  <div>{format(day, "EEE")}</div>
-                  <div className="text-lg">{format(day, "d")}</div>
-                </div>
                 <div className="space-y-2">
                   {dayEvents.slice(0, 3).map((event) => (
                     <div
@@ -123,10 +133,10 @@ export function CalendarWidget({
                         handleEventClick(event)
                       }}
                       className="text-xs p-2 rounded-md cursor-pointer transition-all hover:scale-105 font-medium border-l-2"
-                      style={{ 
+                      style={{
                         backgroundColor: "#FFFFFF",
                         borderLeftColor: "rgb(var(--accent))",
-                        borderLeftWidth: "2px"
+                        borderLeftWidth: "2px",
                       }}
                       title={event.title}
                     >

@@ -11,6 +11,16 @@ export interface UserMembership {
   positionGroups?: unknown
 }
 
+/** Map profile.role (e.g. head_coach) to team_members.role (e.g. HEAD_COACH). */
+function profileRoleToTeamMemberRole(profileRole: string | null | undefined): Role {
+  const raw = (profileRole ?? "player").toString().trim().toLowerCase().replace(/-/g, "_")
+  if (raw === "head_coach") return ROLES.HEAD_COACH
+  if (raw === "assistant_coach") return ROLES.ASSISTANT_COACH
+  if (raw === "parent") return ROLES.PARENT
+  if (raw === "school_admin" || raw === "admin") return ROLES.SCHOOL_ADMIN
+  return ROLES.PLAYER
+}
+
 export async function getUserMembership(teamId: string): Promise<UserMembership | null> {
   const session = await getServerSession()
   if (!session?.user?.id) {
@@ -18,13 +28,42 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
   }
 
   const supabase = getSupabaseServer()
-  const { data: membership } = await supabase
+  let membership = await supabase
     .from("team_members")
     .select("team_id, user_id, role, permissions")
     .eq("user_id", session.user.id)
     .eq("team_id", teamId)
     .eq("active", true)
     .maybeSingle()
+    .then((r) => r.data)
+
+  // Recovery: profile has this team but team_members row is missing (e.g. signup insert failed).
+  // Create the missing row so the user can access their team.
+  if (!membership) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("team_id, role")
+      .eq("id", session.user.id)
+      .maybeSingle()
+
+    if (profile?.team_id === teamId) {
+      const role = profileRoleToTeamMemberRole(profile.role)
+      const { error } = await supabase.from("team_members").insert({
+        team_id: teamId,
+        user_id: session.user.id,
+        role,
+        active: true,
+      })
+      if (!error) {
+        membership = {
+          team_id: teamId,
+          user_id: session.user.id,
+          role,
+          permissions: undefined,
+        } as { team_id: string; user_id: string; role: string; permissions?: unknown }
+      }
+    }
+  }
 
   if (!membership) {
     return null

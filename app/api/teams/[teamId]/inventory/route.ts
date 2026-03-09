@@ -23,13 +23,20 @@ export async function GET(
     }
 
     const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
+    
+    // Verify team exists
+    const { data: team, error: teamError } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
+    if (teamError) {
+      console.error("[GET /api/teams/.../inventory] team lookup error", teamError)
+      return NextResponse.json({ error: "Failed to verify team" }, { status: 500 })
+    }
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
     await requireTeamAccess(teamId)
 
+    // Fetch inventory items and players
     const [itemsRes, playersRes] = await Promise.all([
       supabase
         .from("inventory_items")
@@ -44,16 +51,26 @@ export async function GET(
     ])
 
     if (itemsRes.error) {
-      console.error("[GET /api/teams/.../inventory] items", itemsRes.error.message)
+      console.error("[GET /api/teams/.../inventory] items error:", {
+        message: itemsRes.error.message,
+        details: itemsRes.error.details,
+        hint: itemsRes.error.hint,
+        code: itemsRes.error.code,
+      })
       return NextResponse.json(
-        { error: "Failed to load inventory" },
+        { error: "Failed to load inventory", details: itemsRes.error.message },
         { status: 500 }
       )
     }
     if (playersRes.error) {
-      console.error("[GET /api/teams/.../inventory] players", playersRes.error.message)
+      console.error("[GET /api/teams/.../inventory] players error:", {
+        message: playersRes.error.message,
+        details: playersRes.error.details,
+        hint: playersRes.error.hint,
+        code: playersRes.error.code,
+      })
       return NextResponse.json(
-        { error: "Failed to load players" },
+        { error: "Failed to load players", details: playersRes.error.message },
         { status: 500 }
       )
     }

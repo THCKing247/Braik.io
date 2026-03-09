@@ -8,6 +8,12 @@ export function getSupabaseServer() {
     throw new Error("Supabase server environment variables are missing")
   }
 
-  return createClient(supabaseUrl, serviceRoleKey)
+  // Create client with service role key - this automatically bypasses RLS
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
 }
 

@@ -180,7 +180,6 @@ export async function POST(request: Request) {
       phone: phone ?? null,
       sport: null,
       program_name: schoolName,
-      updated_at: new Date().toISOString(),
     }
     const { error: profileError } = await supabase
       .from("profiles")

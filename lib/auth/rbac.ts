@@ -1,4 +1,4 @@
-﻿import { getServerSession } from "@/lib/auth/server-auth"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { ROLES, type Role, canManageTeam, canEditRoster, canManageBilling, canPostAnnouncements, canViewPayments } from "./roles"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
@@ -30,10 +30,15 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
     return null
   }
 
+  // Normalize role to uppercase with underscores so permission checks (e.g. canEditRoster)
+  // match ROLES.HEAD_COACH / ROLES.ASSISTANT_COACH regardless of DB storage (head_coach vs HEAD_COACH).
+  const rawRole = (membership.role ?? "PARENT") as string
+  const role = rawRole.toUpperCase().replace(/[\s-]/g, "_") as Role
+
   return {
     userId: membership.user_id,
     teamId: membership.team_id,
-    role: (membership.role ?? "PARENT") as Role,
+    role,
     permissions: (membership as { permissions?: unknown }).permissions,
     positionGroups: (membership as { position_groups?: unknown }).position_groups,
   }

@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     try {
       await supabase
         .from("profiles")
-        .update({ team_id: team.id, updated_at: new Date().toISOString() })
+        .update({ team_id: team.id })
         .eq("id", session.user.id)
     } catch {
       // ignore profile update errors

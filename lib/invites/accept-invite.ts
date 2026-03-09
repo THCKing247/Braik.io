@@ -98,7 +98,6 @@ export async function acceptInvite(
       full_name: acceptingUserName,
       role: profileRole,
       team_id: invite.team_id,
-      updated_at: new Date().toISOString(),
     },
     { onConflict: "id" }
   )

@@ -43,8 +43,8 @@ export async function PATCH(
       email?: string | null
       firstName?: string | null
       lastName?: string | null
-      grade?: number | null
-      jerseyNumber?: number | null
+      grade?: number | string | null
+      jerseyNumber?: number | string | null
       positionGroup?: string | null
       notes?: string | null
       status?: string
@@ -68,10 +68,12 @@ export async function PATCH(
       updates.last_name = body.lastName.trim() || null
     }
     if (body.grade !== undefined) {
-      updates.grade = body.grade == null || body.grade === "" ? null : Number(body.grade)
+      const g = body.grade
+      updates.grade = g == null || g === "" ? null : Number(g)
     }
     if (body.jerseyNumber !== undefined) {
-      updates.jersey_number = body.jerseyNumber == null || body.jerseyNumber === "" ? null : Number(body.jerseyNumber)
+      const j = body.jerseyNumber
+      updates.jersey_number = j == null || j === "" ? null : Number(j)
     }
     if (body.positionGroup !== undefined) {
       updates.position_group = typeof body.positionGroup === "string" ? body.positionGroup.trim() || null : null

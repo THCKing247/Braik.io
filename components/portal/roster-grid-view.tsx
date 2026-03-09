@@ -4,7 +4,7 @@ import { useState } from "react"
 import { PlayerCard } from "./player-card"
 import { Button } from "@/components/ui/button"
 
-interface Player {
+export interface Player {
   id: string
   firstName: string
   lastName: string
@@ -18,14 +18,15 @@ interface Player {
   inviteCode?: string | null
   inviteStatus?: "not_invited" | "invited" | "joined"
   user?: { email: string } | null
+  guardianLinks?: Array<{ guardian: { user: { email: string } } }>
 }
 
 interface RosterGridViewProps {
   players: Player[]
   canEdit: boolean
   onEditPlayer?: (player: Player) => void
-  onSendInvite?: (player: Player) => void
-  onDeletePlayer?: (player: Player) => void
+  onSendInvite?: (player: Player) => void | Promise<void>
+  onDeletePlayer?: (player: Player) => void | Promise<void>
 }
 
 export function RosterGridView({

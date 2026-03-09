@@ -676,9 +676,9 @@ export function RosterManagerEnhanced({
         <RosterGridView
           players={players}
           canEdit={canEdit}
-          onEditPlayer={canEdit ? (p) => setEditingPlayer(p) : undefined}
-          onSendInvite={canEdit ? handleSendInvite : undefined}
-          onDeletePlayer={canEdit ? handleDeletePlayer : undefined}
+          onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
+          onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+          onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
         />
       )}
 

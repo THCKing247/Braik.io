@@ -283,7 +283,26 @@ export async function POST(request: Request) {
       throw new SignupRouteError(500, "Database failure while creating profile", profileInsertError.message)
     }
 
-    // Only insert a team_members row when the user is already linked to a team.
+    // Ensure a row exists in public.users BEFORE team_members insert (team_members.user_id FK references users.id).
+    const userRole = profileRoleToUserRole(role)
+    try {
+      await supabase
+        .from("users")
+        .upsert(
+          {
+            id: createdAuthUserId,
+            email,
+            name: fullName,
+            role: userRole,
+            status: "active",
+          },
+          { onConflict: "id" }
+        )
+    } catch {
+      // ignore — public.users may not exist in all environments
+    }
+
+    // Insert team_members when user is linked to a team. Required for roster and RBAC; do not treat as non-fatal.
     if (teamId) {
       const teamMemberRole =
         role === "head_coach"
@@ -304,28 +323,12 @@ export async function POST(request: Request) {
       })
 
       if (memberInsertError) {
-        // Non-fatal: profile and team are already created. Log and continue.
-        console.error("Warning: team_members insert failed:", memberInsertError.message)
-      }
-    }
-
-    // Ensure a row exists in public.users (for admin tools and team invite queries)
-    const userRole = profileRoleToUserRole(role)
-    try {
-      await supabase
-        .from("users")
-        .upsert(
-          {
-            id: createdAuthUserId,
-            email,
-            name: fullName,
-            role: userRole,
-            status: "active",
-          },
-          { onConflict: "id" }
+        throw new SignupRouteError(
+          500,
+          "Your account was created but we could not add you to the team. Please try joining the team again from the dashboard or contact support.",
+          memberInsertError.message
         )
-    } catch {
-      // ignore — public.users may not exist in all environments
+      }
     }
 
     return NextResponse.json(

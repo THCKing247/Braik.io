@@ -1,5 +1,6 @@
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { ROLES, type Role, canManageTeam, canEditRoster, canManageBilling, canPostAnnouncements, canViewPayments } from "./roles"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 
@@ -67,6 +68,23 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
       }
 
       if (profileMatches || isTeamCreator) {
+        // Ensure user exists in public.users so team_members insert (FK) succeeds
+        await supabase
+          .from("users")
+          .upsert(
+            {
+              id: session.user.id,
+              email: session.user.email ?? "",
+              name: session.user.name ?? null,
+              role: profileRoleToUserRole(profile?.role),
+              status: "active",
+            },
+            { onConflict: "id" }
+          )
+          .select()
+          .then(() => undefined)
+          .catch(() => undefined)
+
         const role = profile ? profileRoleToTeamMemberRole(profile.role) : ROLES.HEAD_COACH
         const { error } = await supabase.from("team_members").insert({
           team_id: teamId,

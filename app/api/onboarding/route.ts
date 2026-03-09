@@ -96,14 +96,19 @@ export async function POST(request: Request) {
       )
     }
 
-    // Set default team on profile so dashboard/team switcher works
-    try {
-      await supabase
-        .from("profiles")
-        .update({ team_id: team.id })
-        .eq("id", session.user.id)
-    } catch {
-      // ignore profile update errors
+    // Set default team on profile so dashboard/team switcher and session stay in sync
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ team_id: team.id })
+      .eq("id", session.user.id)
+
+    if (profileError) {
+      await supabase.from("team_members").delete().eq("team_id", team.id).eq("user_id", session.user.id)
+      await supabase.from("teams").delete().eq("id", team.id)
+      return NextResponse.json(
+        { error: profileError.message ?? "Failed to update your profile" },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ success: true, teamId: team.id })

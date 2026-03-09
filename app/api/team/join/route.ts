@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 
 export const runtime = "nodejs"
@@ -114,6 +115,24 @@ export async function POST(request: Request) {
         .eq("id", invite.id)
     }
 
+    // Ensure user exists in public.users so team_members upsert (FK) succeeds.
+    try {
+      await supabase
+        .from("users")
+        .upsert(
+          {
+            id: userId,
+            email: session.user.email ?? "",
+            name: session.user.name ?? null,
+            role: profileRoleToUserRole(session.user.role ?? "player"),
+            status: "active",
+          },
+          { onConflict: "id" }
+        )
+    } catch {
+      // best-effort; team_members upsert may still succeed if user row exists
+    }
+
     // Update the user's profile to link them to the team
     const { error: profileUpdateError } = await supabase
       .from("profiles")
@@ -127,7 +146,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Insert team_members row (upsert in case row already exists)
+    // Insert team_members row (upsert in case row already exists). Required for roster and RBAC.
     const { error: memberError } = await supabase.from("team_members").upsert(
       {
         team_id: teamId,
@@ -139,7 +158,10 @@ export async function POST(request: Request) {
     )
 
     if (memberError) {
-      console.error("team_members upsert failed:", memberError.message)
+      return NextResponse.json(
+        { success: false, error: "Failed to add you to the team.", details: memberError.message },
+        { status: 500 }
+      )
     }
 
     // Fetch team name for the success message

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { isRedirectError } from "next/dist/client/components/redirect"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
+import { getUserMembership } from "@/lib/auth/rbac"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
@@ -100,8 +101,10 @@ export default async function DashboardLayout({
     // Fallback: if no team_members row exists yet (e.g. just signed up and the
     // team_members insert is still propagating), read team_id directly from the
     // user's profile so they land on the dashboard without an onboarding detour.
+    let usedProfileFallback = false
     if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
       teamIds = [session.user.teamId]
+      usedProfileFallback = true
     }
 
     // Second fallback: read profile directly in case session.user.teamId is stale
@@ -113,7 +116,13 @@ export default async function DashboardLayout({
         .maybeSingle()
       if (profile?.team_id) {
         teamIds = [profile.team_id]
+        usedProfileFallback = true
       }
+    }
+
+    // Repair: if we used profile fallback, ensure team_members row exists so roster/APIs work.
+    if (usedProfileFallback && teamIds.length > 0 && effectiveUserId === session.user.id) {
+      await getUserMembership(teamIds[0])
     }
 
     teams = []

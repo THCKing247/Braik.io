@@ -95,7 +95,14 @@ export async function GET(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Not a member")) {
-      return NextResponse.json({ error: message }, { status: 403 })
+      return NextResponse.json(
+        {
+          error: "You don't have access to this team's roster.",
+          code: "TEAM_ACCESS_DENIED",
+          hint: "If you recently joined this team, try refreshing the page or signing out and back in. If the problem persists, ask your coach to re-send the team invite.",
+        },
+        { status: 403 }
+      )
     }
     console.error("[GET /api/roster]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -214,7 +221,14 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Not a member") || message.includes("Insufficient")) {
-      return NextResponse.json({ error: message }, { status: 403 })
+      return NextResponse.json(
+        {
+          error: message.includes("Insufficient") ? "You don't have permission to edit the roster." : "You don't have access to this team's roster.",
+          code: "TEAM_ACCESS_DENIED",
+          hint: "If you recently joined this team, try refreshing the page or signing out and back in. If the problem persists, ask your coach to re-send the team invite.",
+        },
+        { status: 403 }
+      )
     }
     console.error("[POST /api/roster]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

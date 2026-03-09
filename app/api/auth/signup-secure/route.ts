@@ -171,6 +171,23 @@ export async function POST(request: Request) {
 
     createdAuthUserId = authData.user.id
 
+    // Ensure public.users row exists before any FKs (e.g. players.user_id) reference it
+    const { error: usersUpsertError } = await supabase
+      .from("users")
+      .upsert(
+        {
+          id: createdAuthUserId,
+          email,
+          name: fullName,
+          role: profileRoleToUserRole(role),
+          status: "active",
+        },
+        { onConflict: "id" }
+      )
+    if (usersUpsertError) {
+      throw new SignupRouteError(500, "Database failure while creating user record", usersUpsertError.message)
+    }
+
     let teamId: string | null = null
     let inviteCode: string | null = null
 
@@ -281,23 +298,6 @@ export async function POST(request: Request) {
 
     if (profileInsertError) {
       throw new SignupRouteError(500, "Database failure while creating profile", profileInsertError.message)
-    }
-
-    try {
-      await supabase
-        .from("users")
-        .upsert(
-          {
-            id: createdAuthUserId,
-            email,
-            name: fullName,
-            role: profileRoleToUserRole(role),
-            status: "active",
-          },
-          { onConflict: "id" }
-        )
-    } catch {
-      // ignore — public.users may not exist in all environments
     }
 
     return NextResponse.json(

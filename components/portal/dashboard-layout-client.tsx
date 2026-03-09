@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
 import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
+import { useIsMobileDevice } from "@/lib/hooks/use-is-mobile-device"
 import { cn } from "@/lib/utils"
 
 const SIDEBAR_GAP = 24
@@ -27,15 +27,8 @@ export function DashboardLayoutClient({
   children: React.ReactNode
   className?: string
 }) {
-  const [isDesktop, setIsDesktop] = useState(false)
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)")
-    const handler = () => setIsDesktop(mq.matches)
-    handler()
-    mq.addEventListener("change", handler)
-    return () => mq.removeEventListener("change", handler)
-  }, [])
+  const isMobileDevice = useIsMobileDevice()
+  const isDesktop = !isMobileDevice
 
   return (
     <CoachBProvider isDesktop={isDesktop}>

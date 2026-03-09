@@ -35,7 +35,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
 
   return (
     <aside
-      className="hidden lg:flex flex-col flex-shrink-0 w-[240px] h-full min-h-0 overflow-hidden z-40"
+      className="flex flex-col flex-shrink-0 w-[240px] h-full min-h-0 overflow-hidden z-40"
       style={{
         background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
         boxShadow: "4px 0 24px rgba(0,0,0,0.08)",

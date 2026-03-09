@@ -295,7 +295,7 @@ export function CalendarWidgetEnhanced({
       <div className="flex-1 overflow-x-auto">
         <div className="min-w-full">
           {/* Day headers */}
-          <div className="grid grid-cols-8 border-b sticky top-0 bg-white z-20" style={{ borderColor: "rgb(var(--border))" }}>
+          <div className="grid calendar-grid border-b sticky top-0 bg-white z-20" style={{ borderColor: "rgb(var(--border))" }}>
             <div className="p-2 border-r" style={{ borderColor: "rgb(var(--border))" }}></div>
             {weekDays.map((day) => {
               const isToday = isTodayDate(day)
@@ -327,10 +327,10 @@ export function CalendarWidgetEnhanced({
             })}
           </div>
 
-          {/* Time grid */}
-          <div className="relative" style={{ minHeight: "1440px" }}>
-            {/* Time column */}
-            <div className="absolute left-0 top-0 bottom-0 w-16 border-r bg-white z-10" style={{ borderColor: "rgb(var(--border))" }}>
+          {/* Time grid - same calendar-grid as header for alignment */}
+          <div className="relative grid calendar-grid" style={{ minHeight: "1440px" }}>
+            {/* Time column (first column, 80px) */}
+            <div className="relative border-r bg-white z-10" style={{ borderColor: "rgb(var(--border))" }}>
               {timeSlots.map((slot, index) => {
                 const hour = slot.getHours()
                 const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
@@ -341,6 +341,8 @@ export function CalendarWidgetEnhanced({
                     className="absolute text-xs pr-2 text-right"
                     style={{
                       top: `${index * 60}px`,
+                      left: 0,
+                      right: 0,
                       color: "rgb(var(--text2))",
                       transform: "translateY(-50%)",
                     }}
@@ -351,51 +353,8 @@ export function CalendarWidgetEnhanced({
               })}
             </div>
 
-            {/* Hour lines - aligned with day columns, spanning all 7 days */}
-            {timeSlots.map((slot, index) => (
-              <div
-                key={`line-${slot.toISOString()}`}
-                className="absolute border-t"
-                style={{
-                  top: `${index * 60}px`,
-                  left: "64px", // After time column (w-16 = 64px)
-                  right: "0",
-                  borderColor: "rgb(var(--border))",
-                  opacity: 0.3, // Reduced opacity
-                }}
-              />
-            ))}
-
-            {/* Current time indicator */}
-            {isCurrentWeek && currentTimePosition !== null && (
-              <div
-                className="absolute left-16 right-0 z-30"
-                style={{
-                  top: `${currentTimePosition}px`,
-                }}
-              >
-                <div className="flex items-center">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{
-                      backgroundColor: "#EA4335",
-                      marginLeft: "-6px",
-                      boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
-                    }}
-                  />
-                  <div
-                    className="flex-1 h-0.5"
-                    style={{
-                      backgroundColor: "#EA4335",
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Events grid */}
-            <div className="ml-16 grid grid-cols-7">
-              {weekDays.map((day) => {
+            {/* Day columns (7 columns) - events */}
+            {weekDays.map((day) => {
                 const dayEvents = getEventsForDate(day).sort(
                   (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
                 )
@@ -439,6 +398,43 @@ export function CalendarWidgetEnhanced({
                   </div>
                 )
               })}
+
+            {/* Overlay: hour lines and current time (does not take a grid cell) */}
+            <div
+              className="absolute top-0 bottom-0 left-[80px] right-0 pointer-events-none z-20"
+              aria-hidden
+            >
+              {timeSlots.map((slot, index) => (
+                <div
+                  key={`line-${slot.toISOString()}`}
+                  className="absolute border-t"
+                  style={{
+                    top: `${index * 60}px`,
+                    left: 0,
+                    right: 0,
+                    borderColor: "rgb(var(--border))",
+                    opacity: 0.3,
+                  }}
+                />
+              ))}
+              {isCurrentWeek && currentTimePosition !== null && (
+                <div
+                  className="absolute left-0 right-0 z-30"
+                  style={{ top: `${currentTimePosition}px` }}
+                >
+                  <div className="flex items-center">
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{
+                        backgroundColor: "#EA4335",
+                        marginLeft: "-6px",
+                        boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
+                      }}
+                    />
+                    <div className="flex-1 h-0.5" style={{ backgroundColor: "#EA4335" }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1025,11 +1021,13 @@ export function CalendarWidgetEnhanced({
           </div>
 
           {/* Main Calendar View */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {view === "day" && renderDayView()}
-            {view === "week" && renderWeekView()}
-            {view === "month" && renderMonthView()}
-            {view === "year" && renderYearView()}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4">
+              {view === "day" && renderDayView()}
+              {view === "week" && renderWeekView()}
+              {view === "month" && renderMonthView()}
+              {view === "year" && renderYearView()}
+            </div>
           </div>
         </div>
       </div>

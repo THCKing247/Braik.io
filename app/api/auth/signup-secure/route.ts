@@ -204,43 +204,66 @@ export async function POST(request: Request) {
         throw new SignupRouteError(500, "Database failure while creating invite", inviteInsertError.message)
       }
     } else if (programCode) {
-      // Non-head-coach provided an invite/player code — look it up and link them now.
-      const { data: invite, error: inviteLookupError } = await supabase
-        .from("invites")
-        .select("id, team_id, uses, max_uses, expires_at")
-        .eq("code", programCode)
+      // Prefer linking to an existing coach-created player (by players.invite_code) to avoid duplicate roster rows.
+      const { data: existingPlayer, error: playerLookupErr } = await supabase
+        .from("players")
+        .select("id, team_id")
+        .eq("invite_code", programCode)
+        .is("user_id", null)
         .maybeSingle()
 
-      if (inviteLookupError) {
-        throw new SignupRouteError(500, "Database failure while validating invite")
-      }
-
-      if (!invite || !invite.team_id) {
-        throw new SignupRouteError(400, "The code you entered is not valid. Double-check it with your coach or try again later.")
-      }
-
-      const uses = typeof invite.uses === "number" ? invite.uses : 0
-      const maxUses = typeof invite.max_uses === "number" ? invite.max_uses : Number.MAX_SAFE_INTEGER
-      if (uses >= maxUses) {
-        throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
-      }
-
-      if (invite.expires_at) {
-        const expiresAt = new Date(invite.expires_at as string)
-        if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-          throw new SignupRouteError(400, "This invite code has expired. Ask your coach for a fresh one.")
+      if (!playerLookupErr && existingPlayer?.team_id) {
+        teamId = existingPlayer.team_id as string
+        const { error: linkErr } = await supabase
+          .from("players")
+          .update({
+            user_id: createdAuthUserId,
+            claimed_at: new Date().toISOString(),
+            invite_status: "joined",
+          })
+          .eq("id", existingPlayer.id)
+        if (linkErr) {
+          throw new SignupRouteError(500, "Failed to link your account to the roster.", linkErr.message)
         }
-      }
+      } else {
+        // Fall back to team invite code (invites.code)
+        const { data: invite, error: inviteLookupError } = await supabase
+          .from("invites")
+          .select("id, team_id, uses, max_uses, expires_at")
+          .eq("code", programCode)
+          .maybeSingle()
 
-      teamId = invite.team_id as string
+        if (inviteLookupError) {
+          throw new SignupRouteError(500, "Database failure while validating invite")
+        }
 
-      const { error: inviteUpdateError } = await supabase
-        .from("invites")
-        .update({ uses: uses + 1 })
-        .eq("id", invite.id)
+        if (!invite || !invite.team_id) {
+          throw new SignupRouteError(400, "The code you entered is not valid. Double-check it with your coach or try again later.")
+        }
 
-      if (inviteUpdateError) {
-        throw new SignupRouteError(500, "Database failure while updating invite usage")
+        const uses = typeof invite.uses === "number" ? invite.uses : 0
+        const maxUses = typeof invite.max_uses === "number" ? invite.max_uses : Number.MAX_SAFE_INTEGER
+        if (uses >= maxUses) {
+          throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
+        }
+
+        if (invite.expires_at) {
+          const expiresAt = new Date(invite.expires_at as string)
+          if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+            throw new SignupRouteError(400, "This invite code has expired. Ask your coach for a fresh one.")
+          }
+        }
+
+        teamId = invite.team_id as string
+
+        const { error: inviteUpdateError } = await supabase
+          .from("invites")
+          .update({ uses: uses + 1 })
+          .eq("id", invite.id)
+
+        if (inviteUpdateError) {
+          throw new SignupRouteError(500, "Database failure while updating invite usage")
+        }
       }
     }
     // else: no code provided — user signs up without a team and will connect later.

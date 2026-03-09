@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RosterGridView } from "./roster-grid-view"
 import { DepthChartView } from "./depth-chart-view"
 
+/** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
+const ROSTER_BILLING_WARNING =
+  typeof process.env.NEXT_PUBLIC_ROSTER_BILLING_WARNING === "string" && process.env.NEXT_PUBLIC_ROSTER_BILLING_WARNING.trim()
+    ? process.env.NEXT_PUBLIC_ROSTER_BILLING_WARNING.trim()
+    : "If this player later creates an account and joins your team, this will count toward your billable roster total (additional roster slot)."
+
 interface Player {
   id: string
   firstName: string
@@ -18,6 +24,10 @@ interface Player {
   status: string
   notes: string | null
   imageUrl?: string | null
+  email?: string | null
+  inviteCode?: string | null
+  inviteStatus?: "not_invited" | "invited" | "joined"
+  claimedAt?: string | null
   user: { email: string } | null
   guardianLinks: Array<{
     guardian: { user: { email: string } }
@@ -65,6 +75,7 @@ export function RosterManagerEnhanced({
   const [email, setEmail] = useState("")
   const [notes, setNotes] = useState("")
   const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [showBillingWarningModal, setShowBillingWarningModal] = useState(false)
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
@@ -87,13 +98,10 @@ export function RosterManagerEnhanced({
     }
   }
 
-  const handleAddPlayer = async () => {
-    if (!firstName || !lastName) {
-      alert("First and last name are required")
-      return
-    }
-
+  const submitAddPlayer = async () => {
+    if (!firstName || !lastName) return
     setLoading(true)
+    setShowBillingWarningModal(false)
     try {
       const response = await fetch("/api/roster", {
         method: "POST",
@@ -102,19 +110,18 @@ export function RosterManagerEnhanced({
           teamId,
           firstName,
           lastName,
-          grade: grade ? parseInt(grade) : null,
-          jerseyNumber: jerseyNumber ? parseInt(jerseyNumber) : null,
+          grade: grade ? parseInt(grade, 10) : null,
+          jerseyNumber: jerseyNumber ? parseInt(jerseyNumber, 10) : null,
           positionGroup: positionGroup || null,
           email: email || null,
           notes: notes || null,
         }),
       })
-
+      const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error("Failed to add player")
+        throw new Error(data?.error ?? "Failed to add player")
       }
-
-      const newPlayer = await response.json()
+      const newPlayer = data as Player
       setPlayers([...players, newPlayer])
       setFirstName("")
       setLastName("")
@@ -124,11 +131,19 @@ export function RosterManagerEnhanced({
       setEmail("")
       setNotes("")
       setShowAddForm(false)
-    } catch (error) {
-      alert("Error adding player")
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error adding player")
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleAddPlayer = () => {
+    if (!firstName || !lastName) {
+      alert("First and last name are required")
+      return
+    }
+    setShowBillingWarningModal(true)
   }
 
   const handleCsvImport = async () => {
@@ -340,6 +355,37 @@ export function RosterManagerEnhanced({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Billing warning confirmation: coach-created player may become a billable slot when they join */}
+      {showBillingWarningModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => !loading && setShowBillingWarningModal(false)}
+            aria-hidden
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md bg-white border border-[#E5E7EB]">
+              <CardHeader>
+                <CardTitle className="text-[#0F172A]">Confirm add player</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-[#475569]" style={{ lineHeight: 1.5 }}>
+                  {ROSTER_BILLING_WARNING}
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <Button variant="outline" onClick={() => setShowBillingWarningModal(false)} disabled={loading}>
+                    Cancel
+                  </Button>
+                  <Button onClick={submitAddPlayer} disabled={loading}>
+                    {loading ? "Adding..." : "Confirm & add player"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
 
       {/* Content Views */}

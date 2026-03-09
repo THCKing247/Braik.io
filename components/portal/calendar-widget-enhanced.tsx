@@ -296,14 +296,14 @@ export function CalendarWidgetEnhanced({
         <div className="min-w-full">
           {/* Day headers */}
           <div className="grid calendar-grid border-b sticky top-0 bg-white z-20" style={{ borderColor: "rgb(var(--border))" }}>
-            <div className="p-2 border-r" style={{ borderColor: "rgb(var(--border))" }}></div>
+            <div className="p-2 border-r min-w-0 w-[80px] flex-shrink-0" style={{ borderColor: "rgb(var(--border))" }} aria-hidden />
             {weekDays.map((day) => {
               const isToday = isTodayDate(day)
               const dayEvents = getEventsForDate(day)
               return (
                 <div
                   key={day.toISOString()}
-                  className="p-2 border-r text-center"
+                  className="p-2 border-r text-center min-w-0"
                   style={{ borderColor: "rgb(var(--border))" }}
                 >
                   <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
@@ -329,8 +329,11 @@ export function CalendarWidgetEnhanced({
 
           {/* Time grid - same calendar-grid as header for alignment */}
           <div className="relative grid calendar-grid" style={{ minHeight: "1440px" }}>
-            {/* Time column (first column, 80px) */}
-            <div className="relative border-r bg-white z-10" style={{ borderColor: "rgb(var(--border))" }}>
+            {/* Time column (first column, 80px) - overflow hidden so labels don't spill into day columns */}
+            <div
+              className="relative min-w-0 w-[80px] flex-shrink-0 border-r bg-white z-10 overflow-hidden"
+              style={{ borderColor: "rgb(var(--border))" }}
+            >
               {timeSlots.map((slot, index) => {
                 const hour = slot.getHours()
                 const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
@@ -338,11 +341,12 @@ export function CalendarWidgetEnhanced({
                 return (
                   <div
                     key={slot.toISOString()}
-                    className="absolute text-xs pr-2 text-right"
+                    className="absolute text-xs pr-2 text-right whitespace-nowrap"
                     style={{
                       top: `${index * 60}px`,
                       left: 0,
                       right: 0,
+                      maxWidth: "80px",
                       color: "rgb(var(--text2))",
                       transform: "translateY(-50%)",
                     }}
@@ -361,7 +365,7 @@ export function CalendarWidgetEnhanced({
                 return (
                   <div
                     key={day.toISOString()}
-                    className="border-r relative"
+                    className="border-r relative min-w-0"
                     style={{ borderColor: "rgb(var(--border))", minHeight: "1440px" }}
                   >
                     {dayEvents.map((event) => {

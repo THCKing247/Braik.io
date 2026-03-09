@@ -162,6 +162,31 @@ export default async function DashboardLayout({
     // remainingBalance = subscriptionAmount - amountPaid
     // subscriptionPaid = (currentTeam?.subscriptionPaid ?? false) || remainingBalance <= 0
     // ──────────────────────────────────────────────────────────────────────
+
+    return (
+      <div className="app-shell" style={{ backgroundColor: "rgb(var(--snow))" }}>
+        {/* Suspense is required here because DashboardNav uses useSearchParams() */}
+        <Suspense fallback={
+          <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />
+        }>
+          <DashboardNav teams={teams} />
+        </Suspense>
+        <QuickActionsSidebar />
+        <main className="app-content" style={{ backgroundColor: "rgb(var(--snow))" }}>
+          <CoachPageDebug
+            session={session}
+            teamIds={teams.map((t) => t.id)}
+            accessAllowed={true}
+          />
+          {impersonationSession && <ImpersonationBanner />}
+          <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session?.user?.role} />
+          <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
+            {children}
+          </SubscriptionGuard>
+        </main>
+        <AIWidgetWrapper />
+      </div>
+    )
   } catch (err) {
     if (isRedirectError(err)) throw err
     const message = err instanceof Error ? err.message : String(err)
@@ -173,29 +198,4 @@ export default async function DashboardLayout({
     // In production, return fallback UI so the request returns 200 and avoids 500 + ERR_HTTP2_PROTOCOL_ERROR.
     return <DashboardLayoutFallback />
   }
-
-  return (
-    <div className="app-shell" style={{ backgroundColor: "rgb(var(--snow))" }}>
-      {/* Suspense is required here because DashboardNav uses useSearchParams() */}
-      <Suspense fallback={
-        <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />
-      }>
-        <DashboardNav teams={teams} />
-      </Suspense>
-      <QuickActionsSidebar />
-      <main className="app-content" style={{ backgroundColor: "rgb(var(--snow))" }}>
-        <CoachPageDebug
-          session={session}
-          teamIds={teams.map((t) => t.id)}
-          accessAllowed={true}
-        />
-        {impersonationSession && <ImpersonationBanner />}
-        <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session?.user?.role} />
-        <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
-          {children}
-        </SubscriptionGuard>
-      </main>
-      <AIWidgetWrapper />
-    </div>
-  )
 }

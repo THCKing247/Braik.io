@@ -41,6 +41,13 @@ export async function PATCH(
       inviteCode?: string | null
       inviteStatus?: "not_invited" | "invited" | "joined"
       email?: string | null
+      firstName?: string | null
+      lastName?: string | null
+      grade?: number | null
+      jerseyNumber?: number | null
+      positionGroup?: string | null
+      notes?: string | null
+      status?: string
       [key: string]: unknown
     }
 
@@ -53,6 +60,27 @@ export async function PATCH(
     }
     if (body.email !== undefined) {
       updates.email = typeof body.email === "string" ? body.email.trim().toLowerCase() || null : null
+    }
+    if (typeof body.firstName === "string") {
+      updates.first_name = body.firstName.trim() || null
+    }
+    if (typeof body.lastName === "string") {
+      updates.last_name = body.lastName.trim() || null
+    }
+    if (body.grade !== undefined) {
+      updates.grade = body.grade == null || body.grade === "" ? null : Number(body.grade)
+    }
+    if (body.jerseyNumber !== undefined) {
+      updates.jersey_number = body.jerseyNumber == null || body.jerseyNumber === "" ? null : Number(body.jerseyNumber)
+    }
+    if (body.positionGroup !== undefined) {
+      updates.position_group = typeof body.positionGroup === "string" ? body.positionGroup.trim() || null : null
+    }
+    if (body.notes !== undefined) {
+      updates.notes = typeof body.notes === "string" ? body.notes.trim() || null : null
+    }
+    if (body.status === "active" || body.status === "inactive") {
+      updates.status = body.status
     }
 
     if (Object.keys(updates).length === 0) {
@@ -112,6 +140,61 @@ export async function PATCH(
       return NextResponse.json({ error: message }, { status: 403 })
     }
     console.error("[PATCH /api/roster/[playerId]]", err)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE /api/roster/[playerId] - Remove a player from the roster.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ playerId: string }> }
+) {
+  try {
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { playerId } = await params
+    if (!playerId) {
+      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const { requireTeamPermission } = await import("@/lib/auth/rbac")
+    const supabase = getSupabaseServer()
+
+    const { data: player, error: fetchErr } = await supabase
+      .from("players")
+      .select("id, team_id")
+      .eq("id", playerId)
+      .maybeSingle()
+
+    if (fetchErr || !player) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+
+    await requireTeamPermission(player.team_id, "edit_roster")
+
+    const { error: deleteErr } = await supabase.from("players").delete().eq("id", playerId)
+
+    if (deleteErr) {
+      console.error("[DELETE /api/roster/[playerId]]", deleteErr.message)
+      return NextResponse.json({ error: deleteErr.message }, { status: 500 })
+    }
+
+    return new NextResponse(null, { status: 204 })
+  } catch (err: unknown) {
+    if (err instanceof MembershipLookupError) {
+      console.error("[DELETE /api/roster/[playerId]] membership lookup failed (DB/schema)", err.message)
+      return NextResponse.json({ error: "Failed to delete player" }, { status: 500 })
+    }
+    const message = err instanceof Error ? err.message : "Access denied"
+    if (message.includes("Access denied") || message.includes("Insufficient")) {
+      return NextResponse.json({ error: message }, { status: 403 })
+    }
+    console.error("[DELETE /api/roster/[playerId]]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

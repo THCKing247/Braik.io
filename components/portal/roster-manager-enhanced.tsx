@@ -53,6 +53,165 @@ interface RosterManagerEnhancedProps {
   userRole?: string
 }
 
+function EditPlayerModal({
+  player,
+  onSave,
+  onCancel,
+  loading,
+}: {
+  player: Player
+  onSave: (payload: {
+    firstName: string
+    lastName: string
+    grade: number | null
+    jerseyNumber: number | null
+    positionGroup: string | null
+    notes: string | null
+    email?: string | null
+  }) => void
+  onCancel: () => void
+  loading: boolean
+}) {
+  const [firstName, setFirstName] = useState(player.firstName)
+  const [lastName, setLastName] = useState(player.lastName)
+  const [grade, setGrade] = useState(player.grade != null ? String(player.grade) : "")
+  const [jerseyNumber, setJerseyNumber] = useState(player.jerseyNumber != null ? String(player.jerseyNumber) : "")
+  const [positionGroup, setPositionGroup] = useState(player.positionGroup ?? "")
+  const [notes, setNotes] = useState(player.notes ?? "")
+  const [email, setEmail] = useState(player.email ?? "")
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!firstName.trim() || !lastName.trim()) {
+      alert("First and last name are required")
+      return
+    }
+    onSave({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      grade: grade === "" ? null : parseInt(grade, 10),
+      jerseyNumber: jerseyNumber === "" ? null : parseInt(jerseyNumber, 10),
+      positionGroup: positionGroup.trim() || null,
+      notes: notes.trim() || null,
+      email: email.trim() || null,
+    })
+  }
+
+  return (
+    <Card className="w-full max-w-md bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+      <CardHeader>
+        <CardTitle className="text-[#0F172A]">Edit Player</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+          <div className="space-y-2 col-span-2 sm:col-span-1">
+            <Label className="text-[#0F172A]">First Name *</Label>
+            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </div>
+          <div className="space-y-2 col-span-2 sm:col-span-1">
+            <Label className="text-[#0F172A]">Last Name *</Label>
+            <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Grade</Label>
+            <Input type="number" value={grade} onChange={(e) => setGrade(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Jersey Number</Label>
+            <Input type="number" value={jerseyNumber} onChange={(e) => setJerseyNumber(e.target.value)} />
+          </div>
+          <div className="space-y-2 col-span-2">
+            <Label className="text-[#0F172A]">Position</Label>
+            <Input value={positionGroup} onChange={(e) => setPositionGroup(e.target.value)} placeholder="e.g. QB, RB" />
+          </div>
+          <div className="space-y-2 col-span-2">
+            <Label className="text-[#0F172A]">Email (optional)</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="space-y-2 col-span-2">
+            <Label className="text-[#0F172A]">Notes</Label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="flex min-h-[80px] w-full rounded-md border border-border bg-bg px-3 py-2 text-sm"
+              placeholder="Eligibility, injuries, etc."
+            />
+          </div>
+          <div className="col-span-2 flex gap-3 justify-end">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function InviteLinkModal({
+  playerName,
+  inviteCode,
+  onClose,
+}: {
+  playerName: string
+  inviteCode: string
+  onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const [joinUrl, setJoinUrl] = useState("")
+  useEffect(() => {
+    setJoinUrl(typeof window !== "undefined" ? `${window.location.origin}/dashboard` : "")
+  }, [])
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(inviteCode).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const handleCopyLink = () => {
+    const text = joinUrl ? `${joinUrl}\n\nTeam/player code: ${inviteCode}` : inviteCode
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <Card className="w-full max-w-md bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+      <CardHeader>
+        <CardTitle className="text-[#0F172A]">Invite link for {playerName}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-[#475569]">
+          Share this code with the player. They can enter it on the dashboard to join your team and link to this roster spot.
+        </p>
+        <div className="flex items-center gap-2">
+          <Input readOnly value={inviteCode} className="font-mono" />
+          <Button variant="outline" size="sm" onClick={handleCopyCode}>
+            {copied ? "Copied!" : "Copy code"}
+          </Button>
+        </div>
+        {joinUrl && (
+          <div className="space-y-2">
+            <Label className="text-[#0F172A] text-xs">Or copy join link (includes code in instructions)</Label>
+            <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
+              {copied ? "Copied!" : "Copy join link & code"}
+            </Button>
+          </div>
+        )}
+        <div className="flex justify-end">
+          <Button onClick={onClose}>Done</Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function RosterManagerEnhanced({ 
   teamId, 
   players: initialPlayers, 
@@ -76,6 +235,9 @@ export function RosterManagerEnhanced({
   const [notes, setNotes] = useState("")
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [showBillingWarningModal, setShowBillingWarningModal] = useState(false)
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
+  const [inviteModal, setInviteModal] = useState<{ player: Player; inviteCode: string } | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
@@ -177,6 +339,90 @@ export function RosterManagerEnhanced({
       alert(error.message || "Error importing CSV")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveEdit = async (payload: {
+    firstName: string
+    lastName: string
+    grade: number | null
+    jerseyNumber: number | null
+    positionGroup: string | null
+    notes: string | null
+    email?: string | null
+  }) => {
+    if (!editingPlayer) return
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/roster/${editingPlayer.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          grade: payload.grade,
+          jerseyNumber: payload.jerseyNumber,
+          positionGroup: payload.positionGroup || null,
+          notes: payload.notes || null,
+          email: payload.email ?? undefined,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error ?? "Failed to update player")
+      }
+      const updated = data as Player
+      setPlayers((prev) => prev.map((p) => (p.id === updated.id ? { ...updated, user: editingPlayer.user, guardianLinks: editingPlayer.guardianLinks ?? [] } : p)))
+      setEditingPlayer(null)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error updating player")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeletePlayer = async (player: Player) => {
+    if (!confirm(`Remove ${player.firstName} ${player.lastName} from the roster? This cannot be undone.`)) {
+      return
+    }
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/roster/${player.id}`, { method: "DELETE" })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error ?? "Failed to delete player")
+      }
+      setPlayers((prev) => prev.filter((p) => p.id !== player.id))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error deleting player")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSendInvite = async (player: Player) => {
+    if (player.user) {
+      alert("This player has already linked an account.")
+      return
+    }
+    setInviteLoading(true)
+    try {
+      const response = await fetch(`/api/roster/${player.id}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error ?? "Failed to generate invite")
+      }
+      const code = (data as { inviteCode?: string }).inviteCode
+      if (code) {
+        setInviteModal({ player, inviteCode: code })
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error sending invite")
+    } finally {
+      setInviteLoading(false)
     }
   }
 
@@ -388,11 +634,51 @@ export function RosterManagerEnhanced({
         </>
       )}
 
+      {/* Edit Player Modal */}
+      {editingPlayer && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => !loading && setEditingPlayer(null)}
+            aria-hidden
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <EditPlayerModal
+              player={editingPlayer}
+              onSave={handleSaveEdit}
+              onCancel={() => setEditingPlayer(null)}
+              loading={loading}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Invite link modal */}
+      {inviteModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => setInviteModal(null)}
+            aria-hidden
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <InviteLinkModal
+              playerName={`${inviteModal.player.firstName} ${inviteModal.player.lastName}`}
+              inviteCode={inviteModal.inviteCode}
+              onClose={() => setInviteModal(null)}
+            />
+          </div>
+        </>
+      )}
+
       {/* Content Views */}
       {activeTab === "roster" && (
         <RosterGridView
           players={players}
           canEdit={canEdit}
+          onEditPlayer={canEdit ? (p) => setEditingPlayer(p) : undefined}
+          onSendInvite={canEdit ? handleSendInvite : undefined}
+          onDeletePlayer={canEdit ? handleDeletePlayer : undefined}
         />
       )}
 

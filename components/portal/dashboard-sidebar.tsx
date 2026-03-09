@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils"
 import { LayoutDashboard, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 240
-const HEADER_HEIGHT = 54
 
 interface Team {
   id: string
@@ -35,11 +34,8 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
 
   return (
     <aside
-      className="hidden lg:flex flex-col fixed left-0 top-0 z-40 overflow-y-auto"
+      className="hidden lg:flex flex-col flex-shrink-0 w-[240px] min-h-0 overflow-y-auto z-40"
       style={{
-        width: SIDEBAR_WIDTH,
-        top: HEADER_HEIGHT,
-        height: `calc(100vh - ${HEADER_HEIGHT}px)`,
         background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
         boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
         borderRight: "1px solid rgba(255,255,255,0.08)",
@@ -159,4 +155,3 @@ function SidebarNavItem({
 }
 
 export const DASHBOARD_SIDEBAR_WIDTH = SIDEBAR_WIDTH
-export const DASHBOARD_HEADER_HEIGHT = HEADER_HEIGHT

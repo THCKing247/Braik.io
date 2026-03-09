@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
-import { DashboardSidebar, DASHBOARD_SIDEBAR_WIDTH } from "@/components/portal/dashboard-sidebar"
+import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
+import { cn } from "@/lib/utils"
 
 const SIDEBAR_GAP = 24
 
@@ -19,9 +20,11 @@ interface Team {
 export function DashboardLayoutClient({
   teams,
   children,
+  className,
 }: {
   teams: Team[]
   children: React.ReactNode
+  className?: string
 }) {
   const [isDesktop, setIsDesktop] = useState(false)
 
@@ -35,23 +38,28 @@ export function DashboardLayoutClient({
 
   return (
     <CoachBProvider isDesktop={isDesktop}>
-      {isDesktop ? (
-        <DashboardSidebar teams={teams} />
-      ) : (
-        <QuickActionsSidebar />
-      )}
-      <main
-        className="app-content"
-        style={{
-          backgroundColor: "rgb(var(--snow))",
-          paddingLeft: isDesktop
-            ? `${DASHBOARD_SIDEBAR_WIDTH + SIDEBAR_GAP}px`
-            : undefined,
-        }}
-      >
-        {children}
-      </main>
-      <AIWidgetWrapper />
+      <div className={cn("flex flex-col min-w-0", className)}>
+        {/* One horizontal row: sidebar + main, same top, no gap */}
+        <div className="flex flex-1 min-h-0 min-w-0">
+          {isDesktop && (
+            <DashboardSidebar teams={teams} />
+          )}
+          {!isDesktop && <QuickActionsSidebar />}
+          <main
+            className={cn(
+              "flex-1 min-w-0 overflow-auto",
+              !isDesktop && "app-content"
+            )}
+            style={{
+              backgroundColor: "rgb(var(--snow))",
+              paddingLeft: isDesktop ? SIDEBAR_GAP : undefined,
+            }}
+          >
+            {children}
+          </main>
+        </div>
+        <AIWidgetWrapper />
+      </div>
     </CoachBProvider>
   )
 }

@@ -159,13 +159,15 @@ export default async function DashboardLayout({
     // ──────────────────────────────────────────────────────────────────────
 
     return (
-      <div className="app-shell" style={{ backgroundColor: "rgb(var(--snow))" }}>
-        <Suspense fallback={
-          <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />
-        }>
-          <DashboardNav teams={teams} />
-        </Suspense>
-        <DashboardLayoutClient teams={teams}>
+      <div className="app-shell flex flex-col min-h-screen" style={{ backgroundColor: "rgb(var(--snow))" }}>
+        <header className="flex-shrink-0">
+          <Suspense fallback={
+            <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />
+          }>
+            <DashboardNav teams={teams} />
+          </Suspense>
+        </header>
+        <DashboardLayoutClient teams={teams} className="flex flex-1 min-h-0 min-w-0">
           <CoachPageDebug
             session={session}
             teamIds={teams.map((t) => t.id)}

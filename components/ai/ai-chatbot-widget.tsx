@@ -215,7 +215,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
           aria-label="Open Coach B"
         >
           <Image
-            src="/images/ai-chat-icon.png"
+            src="/images/ai-chat-icon-no-bg.png"
             alt="Coach B"
             width={64}
             height={64}

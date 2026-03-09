@@ -23,7 +23,20 @@ function RosterPageContent({
   canEdit: boolean
   userRole: string
 }) {
-  const [players, setPlayers] = useState<Array<{ id: string; firstName: string; lastName: string; grade: number | null; jerseyNumber: number | null; positionGroup: string | null; status: string; notes: string | null; imageUrl?: string | null; user: { email: string } | null; guardianLinks: unknown[] }>>([])
+  type PlayerItem = {
+    id: string
+    firstName: string
+    lastName: string
+    grade: number | null
+    jerseyNumber: number | null
+    positionGroup: string | null
+    status: string
+    notes: string | null
+    imageUrl?: string | null
+    user: { email: string } | null
+    guardianLinks: Array<{ guardian: { user: { email: string } } }>
+  }
+  const [players, setPlayers] = useState<PlayerItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,8 +47,15 @@ function RosterPageContent({
         if (!res.ok) return []
         return res.json()
       })
-      .then((data) => {
-        if (!cancelled && Array.isArray(data)) setPlayers(data)
+      .then((data: unknown) => {
+        if (!cancelled && Array.isArray(data)) {
+          setPlayers(
+            (data as Record<string, unknown>[]).map((p) => ({
+              ...p,
+              guardianLinks: Array.isArray(p.guardianLinks) ? p.guardianLinks : [],
+            })) as PlayerItem[]
+          )
+        }
       })
       .catch(() => {
         if (!cancelled) setPlayers([])

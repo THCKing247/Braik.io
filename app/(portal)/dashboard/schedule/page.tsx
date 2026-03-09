@@ -14,8 +14,22 @@ export default function SchedulePage() {
   )
 }
 
+type EventItem = {
+  id: string
+  type: string
+  title: string
+  start: string
+  end: string
+  location: string | null
+  notes: string | null
+  audience: string
+  creator: { name: string | null; email: string }
+  rsvps: Array<{ player: { firstName: string; lastName: string }; status: string }>
+  linkedDocuments?: Array<{ document: { id: string; title: string; fileName: string; fileUrl: string; fileSize: number | null; mimeType: string | null } }>
+}
+
 function SchedulePageContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
-  const [events, setEvents] = useState<Array<{ id: string; type: string; title: string; start: string; end: string; location: string | null; notes: string | null; audience: string; creator: { name: string | null; email: string }; rsvps: unknown[]; linkedDocuments?: unknown[] }>>([])
+  const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -26,9 +40,15 @@ function SchedulePageContent({ teamId, canEdit }: { teamId: string; canEdit: boo
         if (!res.ok) return []
         return res.json()
       })
-      .then((data) => {
+      .then((data: unknown) => {
         if (!cancelled && Array.isArray(data)) {
-          setEvents(data.map((e: { start: string; end: string }) => ({ ...e, start: e.start, end: e.end })))
+          setEvents(
+            (data as Record<string, unknown>[]).map((e) => ({
+              ...e,
+              rsvps: Array.isArray(e.rsvps) ? e.rsvps : [],
+              linkedDocuments: Array.isArray(e.linkedDocuments) ? e.linkedDocuments : [],
+            })) as EventItem[]
+          )
         }
       })
       .catch(() => {

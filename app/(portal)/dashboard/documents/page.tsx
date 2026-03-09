@@ -23,7 +23,21 @@ function DocumentsPageContent({
   userRole: string
   canEdit: boolean
 }) {
-  const [documents, setDocuments] = useState<Array<{ id: string; title: string; fileName: string; category: string; folder: string | null; visibility: string; scopedUnit: string | null; scopedPositionGroups: unknown; assignedPlayerIds: unknown; createdAt: string; creator: { name: string | null; email: string }; acknowledgements: Array<{ id: string }> }>>([])
+  type DocItem = {
+    id: string
+    title: string
+    fileName: string
+    category: string
+    folder: string | null
+    visibility: string
+    scopedUnit: string | null
+    scopedPositionGroups: unknown
+    assignedPlayerIds: unknown
+    createdAt: string
+    creator: { name: string | null; email: string }
+    acknowledgements: Array<{ id: string }>
+  }
+  const [documents, setDocuments] = useState<DocItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,9 +48,9 @@ function DocumentsPageContent({
         if (!res.ok) return []
         return res.json()
       })
-      .then((data) => {
+      .then((data: unknown) => {
         if (!cancelled && Array.isArray(data)) {
-          setDocuments(data.map((d: { createdAt: string }) => ({ ...d, createdAt: new Date(d.createdAt) as unknown as string })))
+          setDocuments(data as DocItem[])
         }
       })
       .catch(() => {

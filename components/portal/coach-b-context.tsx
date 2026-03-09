@@ -21,7 +21,7 @@ export function CoachBProvider({
   children: React.ReactNode
   isDesktop: boolean
 }) {
-  const openRef = React.useRef<() => void>(null)
+  const openRef = React.useRef<(() => void) | null>(null) as React.MutableRefObject<(() => void) | null>
 
   const value: CoachBContextValue = React.useMemo(
     () => ({

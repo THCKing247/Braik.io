@@ -1,14 +1,19 @@
 "use client"
 
-import { ComingSoon } from "@/components/portal/coming-soon"
-import { FileText } from "lucide-react"
+import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { DocumentsManager } from "@/components/portal/documents-manager"
 
 export default function DocumentsPage() {
   return (
-    <ComingSoon
-      title="Documents"
-      description="Upload and manage waivers, permission slips, eligibility forms, and any other team paperwork — all digitally signed and stored securely."
-      icon={FileText}
-    />
+    <DashboardPageShell>
+      {({ teamId, userRole, canEdit }) => (
+        <DocumentsManager
+          teamId={teamId}
+          documents={[]}
+          canUpload={canEdit}
+          userRole={userRole}
+        />
+      )}
+    </DashboardPageShell>
   )
 }

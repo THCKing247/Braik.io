@@ -1,14 +1,12 @@
 "use client"
 
-import { ComingSoon } from "@/components/portal/coming-soon"
-import { UserPlus } from "lucide-react"
+import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { InviteManager } from "@/components/portal/invite-manager"
 
 export default function InvitesPage() {
   return (
-    <ComingSoon
-      title="Invite Team Members"
-      description="Send invitations to players, coaches, and parents to join your team on Braik. Share your Team Code or send individual email invites."
-      icon={UserPlus}
-    />
+    <DashboardPageShell>
+      {({ teamId }) => <InviteManager teamId={teamId} invites={[]} />}
+    </DashboardPageShell>
   )
 }

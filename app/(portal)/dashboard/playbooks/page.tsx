@@ -1,14 +1,24 @@
 "use client"
 
-import { ComingSoon } from "@/components/portal/coming-soon"
-import { BookOpen } from "lucide-react"
+import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { PlaybooksPageClient } from "@/components/portal/playbooks-page-client"
 
 export default function PlaybooksPage() {
   return (
-    <ComingSoon
-      title="Playbooks"
-      description="Build and share digital playbooks. Create plays, assign formations, and give every player access to the game plan from any device."
-      icon={BookOpen}
-    />
+    <DashboardPageShell>
+      {({ teamId, userRole, canEdit }) => (
+        <PlaybooksPageClient
+          teamId={teamId}
+          fileBasedPlaybooks={[]}
+          builderPlays={[]}
+          canUpload={canEdit}
+          canEditAll={canEdit}
+          canEditOffense={canEdit}
+          canEditDefense={canEdit}
+          canEditSpecialTeams={canEdit}
+          userRole={userRole}
+        />
+      )}
+    </DashboardPageShell>
   )
 }

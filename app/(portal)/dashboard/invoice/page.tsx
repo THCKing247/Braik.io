@@ -1,14 +1,28 @@
 "use client"
 
-import { ComingSoon } from "@/components/portal/coming-soon"
-import { DollarSign } from "lucide-react"
+import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { InvoicePageClient } from "@/components/portal/invoice-page-client"
 
 export default function InvoicePage() {
   return (
-    <ComingSoon
-      title="Invoices & Payments"
-      description="View and manage dues, fees, and payment history. Send invoices to players and parents and track payment status across your entire team."
-      icon={DollarSign}
-    />
+    <DashboardPageShell>
+      {({ teamId, userRole, userId }) => (
+        <InvoicePageClient
+          team={{
+            id: teamId,
+            name: "",
+            amountPaid: 0,
+            subscriptionPaid: false,
+            teamIdCode: "",
+            duesAmount: 0,
+          }}
+          players={[]}
+          membership={null}
+          collections={[]}
+          currentUserId={userId}
+          userRole={userRole}
+        />
+      )}
+    </DashboardPageShell>
   )
 }

@@ -1,14 +1,18 @@
 "use client"
 
-import { ComingSoon } from "@/components/portal/coming-soon"
-import { Megaphone } from "lucide-react"
+import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { AnnouncementsManager } from "@/components/portal/announcements-manager"
 
 export default function AnnouncementsPage() {
   return (
-    <ComingSoon
-      title="Announcements"
-      description="Broadcast important updates, reminders, and news to your entire team instantly. All members stay informed in one place."
-      icon={Megaphone}
-    />
+    <DashboardPageShell>
+      {({ teamId, canEdit }) => (
+        <AnnouncementsManager
+          teamId={teamId}
+          announcements={[]}
+          canPost={canEdit}
+        />
+      )}
+    </DashboardPageShell>
   )
 }

@@ -1,14 +1,14 @@
 "use client"
 
-import { ComingSoon } from "@/components/portal/coming-soon"
-import { Calendar } from "lucide-react"
+import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { ScheduleManager } from "@/components/portal/schedule-manager"
 
 export default function SchedulePage() {
   return (
-    <ComingSoon
-      title="Schedule"
-      description="View and manage your full season schedule. Add games, practices, film sessions, and team events with reminders sent automatically."
-      icon={Calendar}
-    />
+    <DashboardPageShell>
+      {({ teamId, canEdit }) => (
+        <ScheduleManager teamId={teamId} events={[]} canEdit={canEdit} defaultView="week" />
+      )}
+    </DashboardPageShell>
   )
 }

@@ -36,8 +36,17 @@ function slugFromName(name: string): string {
 export async function POST(request: Request) {
   let createdAuthUserId: string | null = null
 
+  let body: ADSignupBody
   try {
-    const body = (await request.json()) as ADSignupBody
+    body = (await request.json()) as ADSignupBody
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid JSON in request body." },
+      { status: 400 }
+    )
+  }
+
+  try {
     const firstName = asNonEmptyString(body.firstName)
     const lastName = asNonEmptyString(body.lastName)
     const email = asNonEmptyString(body.email)?.toLowerCase() ?? null
@@ -243,7 +252,10 @@ export async function POST(request: Request) {
       }
     }
     return NextResponse.json(
-      { error: "An unexpected error occurred. Please try again." },
+      {
+        error: "An unexpected error occurred. Please try again.",
+        detail: process.env.NODE_ENV === "development" ? message : undefined,
+      },
       { status: 500 }
     )
   }

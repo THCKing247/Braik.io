@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useSession } from "@/lib/auth/client-auth"
 import { useCoachB } from "@/components/portal/coach-b-context"
@@ -89,12 +90,21 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
       <div className="p-3 border-t border-white/10">
         <div
           className={cn(
-            "rounded-xl p-4 transition-all duration-200",
+            "rounded-xl p-4 transition-all duration-200 overflow-hidden",
             "bg-white/10 hover:bg-white/15 border border-white/10"
           )}
         >
+          <div className="flex justify-center mb-3">
+            <Image
+              src="/images/coach-b-clipboard-mascot.png"
+              alt="Coach B clipboard mascot"
+              width={140}
+              height={140}
+              className="object-contain"
+            />
+          </div>
           <div className="flex items-center gap-2 mb-2">
-            <MessageSquare className="h-5 w-5 text-[#93C5FD]" aria-hidden />
+            <MessageSquare className="h-5 w-5 text-[#93C5FD] flex-shrink-0" aria-hidden />
             <span className="text-sm font-semibold text-white">Coach B</span>
           </div>
           <p className="text-xs text-white/80 mb-3">

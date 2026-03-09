@@ -61,13 +61,14 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
         .maybeSingle()
 
       const profileMatches = profile?.team_id === teamId
+      const sessionMatches = session.user.teamId === teamId
       let isTeamCreator = false
-      if (!profileMatches) {
+      if (!profileMatches && !sessionMatches) {
         const { data: team } = await supabase.from("teams").select("created_by").eq("id", teamId).maybeSingle()
         isTeamCreator = (team as { created_by?: string } | null)?.created_by === session.user.id
       }
 
-      if (profileMatches || isTeamCreator) {
+      if (profileMatches || sessionMatches || isTeamCreator) {
         // Ensure user exists in public.users so team_members insert (FK) succeeds
         try {
           await supabase

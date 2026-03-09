@@ -3,11 +3,11 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useSession } from "@/lib/auth/client-auth"
+import { useSession, signOut } from "@/lib/auth/client-auth"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, MessageSquare, Sparkles } from "lucide-react"
+import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 240
 
@@ -127,8 +127,21 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         </div>
       </div>
 
-      {/* Footer branding */}
-      <div className="flex-shrink-0 p-3 border-t border-white/10">
+      {/* Footer: sign out + branding */}
+      <div className="flex-shrink-0 p-3 border-t border-white/10 space-y-2">
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className={cn(
+            "w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium",
+            "text-white/90 hover:bg-white/15 hover:text-white transition-colors",
+            "focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
+          )}
+          aria-label="Sign out"
+        >
+          <LogOut className="h-4 w-4" aria-hidden />
+          Sign out
+        </button>
         <p className="text-xs text-white/50 text-center">Braik</p>
       </div>
     </aside>

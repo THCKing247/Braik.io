@@ -1,27 +1,32 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 
 /**
  * GET /api/roster/print?teamId=xxx
  * Returns roster data formatted for printing/emailing
  */
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
 export async function GET(request: Request) {
   try {
     const session = await getServerSession()
     if (!session?.user?.id) {
+      console.warn("[GET /api/roster/print] Unauthorized: no session or user id")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!teamId) {
+      console.warn("[GET /api/roster/print] Bad request: teamId is missing")
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
     const supabase = getSupabaseServer()
-    
+
     // Get team data
     const { data: team, error: teamError } = await supabase
       .from("teams")
@@ -29,11 +34,41 @@ export async function GET(request: Request) {
       .eq("id", teamId)
       .maybeSingle()
 
-    if (teamError || !team) {
+    if (teamError) {
+      console.error("[GET /api/roster/print] Team lookup failed", { teamId, error: teamError })
+      return NextResponse.json({ error: "Failed to load team" }, { status: 500 })
+    }
+    if (!team) {
+      console.warn("[GET /api/roster/print] Team not found", { teamId })
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
-    await requireTeamAccess(teamId)
+    try {
+      await requireTeamAccess(teamId)
+    } catch (accessErr: unknown) {
+      const msg = accessErr instanceof Error ? accessErr.message : "Access denied"
+      if (accessErr instanceof MembershipLookupError) {
+        console.error("[GET /api/roster/print] Membership lookup failed", {
+          userId: session.user.id,
+          teamId,
+          error: accessErr,
+        })
+        return NextResponse.json(
+          { error: "Failed to verify team access" },
+          { status: 500 }
+        )
+      }
+      if (msg === "Unauthorized") {
+        console.warn("[GET /api/roster/print] Unauthorized", { teamId })
+        return NextResponse.json({ error: msg }, { status: 401 })
+      }
+      console.warn("[GET /api/roster/print] Access denied", {
+        userId: session.user.id,
+        teamId,
+        reason: msg,
+      })
+      return NextResponse.json({ error: msg }, { status: 403 })
+    }
 
     // Get players
     const { data: players, error: playersError } = await supabase
@@ -46,7 +81,7 @@ export async function GET(request: Request) {
       .order("first_name", { ascending: true })
 
     if (playersError) {
-      console.error("[GET /api/roster/print]", playersError)
+      console.error("[GET /api/roster/print] Players query failed", { teamId, error: playersError })
       return NextResponse.json({ error: "Failed to load roster" }, { status: 500 })
     }
 
@@ -125,6 +160,8 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
+      success: true,
+      teamId: team.id,
       team: {
         id: team.id,
         name: (team as any).name,
@@ -136,10 +173,11 @@ export async function GET(request: Request) {
       players: formattedPlayers,
       generatedAt: new Date().toISOString(),
     })
-  } catch (error: any) {
-    console.error("[GET /api/roster/print]", error)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to generate roster"
+    console.error("[GET /api/roster/print] Unexpected error", { error, message })
     return NextResponse.json(
-      { error: error.message || "Failed to generate roster" },
+      { error: message },
       { status: 500 }
     )
   }

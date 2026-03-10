@@ -59,12 +59,12 @@ export async function GET(request: Request) {
 
     const supabase = getSupabaseServer()
 
-    // --- Stage: team base lookup (guaranteed columns only) ---
-    // Only id, name, org are required so missing optional columns (season_name, roster_template)
-    // do not cause PostgREST select errors in production.
-    const { data: teamBase, error: teamError } = await supabase
+    // --- Stage: team base lookup (id only to avoid any missing-column 500s) ---
+    // Only "id" is selected so production schemas missing name/org/season_name/roster_template
+    // cannot cause PostgREST to fail on this first query.
+    const { data: teamRow, error: teamError } = await supabase
       .from("teams")
-      .select("id, name, org")
+      .select("id")
       .eq("id", teamId)
       .maybeSingle()
 
@@ -75,9 +75,33 @@ export async function GET(request: Request) {
         { status: 500 }
       )
     }
-    if (!teamBase) {
+    if (!teamRow) {
       console.warn("[GET /api/roster/print] Team not found", { teamId })
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    }
+
+    // --- Optional: team display fields (name, org) ---
+    // Loaded separately so missing columns do not crash the endpoint; use defaults if unavailable.
+    let teamName = "Team"
+    let teamOrg: string | null = null
+    try {
+      const { data: display, error: displayError } = await supabase
+        .from("teams")
+        .select("name, org")
+        .eq("id", teamId)
+        .maybeSingle()
+      if (displayError) {
+        console.warn("[GET /api/roster/print] Optional team display (name, org) lookup failed", {
+          teamId,
+          error: displayError,
+        })
+      } else if (display) {
+        const d = display as { name?: string | null; org?: string | null }
+        if (d.name != null && d.name !== "") teamName = d.name
+        if (d.org != null && d.org !== "") teamOrg = d.org
+      }
+    } catch (displayErr) {
+      console.warn("[GET /api/roster/print] Optional team display lookup threw", { teamId, error: displayErr })
     }
 
     // --- Stage: access check ---
@@ -194,8 +218,8 @@ export async function GET(request: Request) {
     }
 
     // Fallback: use org as school name when school lookup unavailable or empty
-    if (!schoolName && (teamBase as { org?: string | null }).org) {
-      schoolName = (teamBase as { org: string }).org
+    if (!schoolName && teamOrg) {
+      schoolName = teamOrg
     }
 
     const currentYear = new Date().getFullYear()
@@ -229,10 +253,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      teamId: teamBase.id,
+      teamId: teamRow.id,
       team: {
-        id: teamBase.id,
-        name: (teamBase as { name?: string }).name ?? "",
+        id: teamRow.id,
+        name: teamName,
         schoolName,
         seasonName,
         year: currentYear,

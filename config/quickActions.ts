@@ -1,4 +1,4 @@
-import { Calendar, Users, Megaphone, FileText, DollarSign, CreditCard, Package, UserPlus, MessageSquare, BookOpen, Receipt, Settings } from "lucide-react"
+import { Calendar, Users, Megaphone, FileText, DollarSign, CreditCard, Package, UserPlus, MessageSquare, BookOpen, Receipt, Settings, Stethoscope } from "lucide-react"
 import { LucideIcon } from "lucide-react"
 
 export interface QuickAction {
@@ -52,6 +52,13 @@ export const QUICK_ACTIONS: QuickAction[] = [
     href: "/dashboard/inventory",
     label: "Inventory",
     icon: Package,
+    roles: ["HEAD_COACH", "ASSISTANT_COACH"],
+  },
+  {
+    id: "health",
+    href: "/dashboard/health",
+    label: "Health",
+    icon: Stethoscope,
     roles: ["HEAD_COACH", "ASSISTANT_COACH"],
   },
   {

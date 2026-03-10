@@ -17,6 +17,7 @@ export interface Player {
   email?: string | null
   inviteCode?: string | null
   inviteStatus?: "not_invited" | "invited" | "joined"
+  healthStatus?: "active" | "injured" | "unavailable"
   user?: { email: string } | null
   guardianLinks?: Array<{ guardian: { user: { email: string } } }>
 }

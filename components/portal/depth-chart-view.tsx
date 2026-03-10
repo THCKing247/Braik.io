@@ -13,6 +13,7 @@ interface Player {
   positionGroup: string | null
   status: string
   imageUrl?: string | null
+  healthStatus?: "active" | "injured" | "unavailable"
 }
 
 interface DepthChartEntry {

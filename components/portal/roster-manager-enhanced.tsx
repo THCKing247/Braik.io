@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RosterGridView } from "./roster-grid-view"
 import { DepthChartView } from "./depth-chart-view"
+import { RosterPrintView } from "./roster-print-view"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
 const ROSTER_BILLING_WARNING =
@@ -28,6 +29,7 @@ interface Player {
   inviteCode?: string | null
   inviteStatus?: "not_invited" | "invited" | "joined"
   claimedAt?: string | null
+  healthStatus?: "active" | "injured" | "unavailable"
   user: { email: string } | null
   guardianLinks: Array<{
     guardian: { user: { email: string } }
@@ -451,6 +453,7 @@ export function RosterManagerEnhanced({
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
   const [inviteModal, setInviteModal] = useState<{ player: Player; inviteCode: string } | null>(null)
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [showPrintView, setShowPrintView] = useState(false)
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
@@ -493,6 +496,7 @@ export function RosterManagerEnhanced({
       setShowSavePrompt(true)
     } else {
       setShowDepthChartModal(false)
+      setActiveTab("roster")
     }
   }
 
@@ -500,6 +504,7 @@ export function RosterManagerEnhanced({
     await handleSaveDepthChart()
     setShowSavePrompt(false)
     setShowDepthChartModal(false)
+    setActiveTab("roster")
   }
 
   const handleDiscardAndClose = () => {
@@ -508,6 +513,7 @@ export function RosterManagerEnhanced({
     setShowSavePrompt(false)
     setShowDepthChartModal(false)
     setHasUnsavedChanges(false)
+    setActiveTab("roster")
   }
 
   const handleAddPlayerSave = (payload: {
@@ -816,10 +822,11 @@ export function RosterManagerEnhanced({
       {/* Add/Import Controls */}
       {canEdit && activeTab === "roster" && (
         <div className="mb-6 flex gap-4">
-          {!showAddModal && !showImportForm && (
+          {!showAddModal && !showImportForm && !showPrintView && (
             <>
               <Button onClick={() => setShowAddModal(true)}>Add Player</Button>
               <Button variant="outline" onClick={() => setShowImportForm(true)}>Import CSV</Button>
+              <Button variant="outline" onClick={() => setShowPrintView(true)}>Print/Email Roster</Button>
             </>
           )}
         </div>
@@ -946,7 +953,7 @@ export function RosterManagerEnhanced({
       )}
 
       {/* Content Views */}
-      {activeTab === "roster" && (
+      {activeTab === "roster" && !showPrintView && (
         <RosterGridView
           players={players}
           canEdit={canEdit}
@@ -954,6 +961,11 @@ export function RosterManagerEnhanced({
           onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
           onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
         />
+      )}
+
+      {/* Print/Email View */}
+      {activeTab === "roster" && showPrintView && (
+        <RosterPrintView teamId={teamId} onClose={() => setShowPrintView(false)} />
       )}
 
       {/* Depth Chart Full-Screen Modal */}

@@ -11,6 +11,7 @@ import { CardIntegrationSettings } from "./settings-sections/card-integration-se
 import { AppearanceSettings } from "./settings-sections/appearance-settings"
 import { SupportSettings } from "./settings-sections/support-settings"
 import { ComplianceLegalSettings } from "./settings-sections/compliance-legal-settings"
+import { RosterTemplateSettings } from "./settings-sections/roster-template-settings"
 
 interface User {
   id: string
@@ -55,6 +56,7 @@ type SettingsSection =
   | "appearance"
   | "support"
   | "compliance"
+  | "rosterTemplate"
 
 interface SettingsLayoutProps {
   user: User
@@ -76,6 +78,7 @@ const SETTINGS_SECTIONS: Array<{
   { id: "cardIntegration", label: "Card Integration", icon: CreditCard, visible: (role) => role === "HEAD_COACH" },
   { id: "appearance", label: "Appearance", icon: Palette, visible: () => true },
   { id: "compliance", label: "Compliance & Legal", icon: ShieldCheck, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
+  { id: "rosterTemplate", label: "Roster Template", icon: Users, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
   { id: "support", label: "Support", icon: HelpCircle, visible: () => true },
 ]
 
@@ -106,6 +109,8 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
         return <SupportSettings />
       case "compliance":
         return <ComplianceLegalSettings teamId={team.id} userRole={userRole} />
+      case "rosterTemplate":
+        return <RosterTemplateSettings teamId={team.id} />
       default:
         return <AccountSettings user={user} />
     }

@@ -13,6 +13,7 @@ interface PlayerCardProps {
     positionGroup: string | null
     status: string
     imageUrl?: string | null
+    healthStatus?: "active" | "injured" | "unavailable"
   }
   canEdit?: boolean
   size?: "small" | "medium" | "large"
@@ -40,6 +41,20 @@ export function PlayerCard({
     return `${first}${last}`.toUpperCase() || "?"
   }
 
+  const getHealthStatusColor = () => {
+    const status = player.healthStatus || "active"
+    switch (status) {
+      case "active":
+        return "bg-green-500"
+      case "injured":
+        return "bg-red-500"
+      case "unavailable":
+        return "bg-orange-500"
+      default:
+        return "bg-gray-500"
+    }
+  }
+
   const handleImageClick = () => {
     if (canEdit && onImageUpload) {
       const input = document.createElement("input")
@@ -57,11 +72,12 @@ export function PlayerCard({
 
   return (
     <Card
-      className={`cursor-pointer hover:shadow-sm transition-all duration-200 border overflow-hidden ${
+      className={`cursor-pointer hover:shadow-sm transition-all duration-200 border overflow-hidden relative ${
         draggable ? "cursor-move" : ""
       }`}
       style={{
-        borderColor: "rgb(var(--border))",
+        borderColor: player.healthStatus === "injured" ? "#EF4444" : player.healthStatus === "unavailable" ? "#F97316" : "rgb(var(--border))",
+        borderWidth: player.healthStatus && player.healthStatus !== "active" ? "2px" : "1px",
         backgroundColor: "#FFFFFF",
       }}
       draggable={draggable}
@@ -69,6 +85,10 @@ export function PlayerCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* Health Status Indicator */}
+      {player.healthStatus && player.healthStatus !== "active" && (
+        <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getHealthStatusColor()}`} title={player.healthStatus === "injured" ? "Injured" : "Unavailable"} />
+      )}
       <CardContent className="p-3 flex flex-col items-center h-full">
         {/* Player Image / Placeholder */}
         <div

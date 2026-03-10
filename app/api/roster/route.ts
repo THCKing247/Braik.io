@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     await requireTeamAccess(teamId)
     const { data: rows, error } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, invite_code, invite_status, claimed_at, created_by")
+      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, invite_code, invite_status, claimed_at, created_by, health_status")
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
@@ -91,6 +91,7 @@ export async function GET(request: Request) {
       inviteCode: p.invite_code ?? null,
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",
       claimedAt: p.claimed_at ?? null,
+      healthStatus: ((p as any).health_status ?? "active") as "active" | "injured" | "unavailable",
       user: p.user_id ? (userMap.get(p.user_id) ? { email: userMap.get(p.user_id)!.email } : null) : null,
       guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
     }))

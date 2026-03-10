@@ -1,9 +1,12 @@
-﻿"use client"
+"use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { PlaybooksManager } from "@/components/portal/playbooks-manager"
 import { PlaybookFileTree } from "@/components/portal/playbook-file-tree"
 import { PlaybookBuilder } from "@/components/portal/playbook-builder"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 interface Play {
   id: string
@@ -43,12 +46,26 @@ export function PlaybooksPageClient({
 }: PlaybooksPageClientProps) {
   const [viewMode, setViewMode] = useState<"files" | "builder">("builder")
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null)
-  const [selectedFormation, setSelectedFormation] = useState<string>("")
+  const [selectedFormation, setSelectedFormation] = useState<string>("Custom")
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null)
   const [selectedSide, setSelectedSide] = useState<"offense" | "defense" | "special_teams">("offense")
   const [pendingFormations, setPendingFormations] = useState<Array<{ side: string; formation: string }>>([])
   const [builderPlays, setBuilderPlays] = useState<Play[]>(initialBuilderPlays)
   const [loading, setLoading] = useState(initialBuilderPlays.length === 0)
+  const [isCreatingFormation, setIsCreatingFormation] = useState(false)
+  const [newFormationName, setNewFormationName] = useState("")
+
+  // Formations list for current side: from saved plays + pending + "Custom", deduped
+  const formationsForSide = useMemo(() => {
+    const set = new Set<string>(["Custom"])
+    builderPlays.forEach((p) => {
+      if (p.side === selectedSide && p.formation?.trim()) set.add(p.formation.trim())
+    })
+    pendingFormations.forEach(({ side, formation }) => {
+      if (side === selectedSide && formation?.trim()) set.add(formation.trim())
+    })
+    return Array.from(set).sort((a, b) => (a === "Custom" ? -1 : b === "Custom" ? 1 : a.localeCompare(b)))
+  }, [builderPlays, pendingFormations, selectedSide])
 
   // Load plays if not provided
   useEffect(() => {
@@ -91,11 +108,31 @@ export function PlaybooksPageClient({
     const play = builderPlays.find((p) => p.id === playId)
     if (play) {
       setSelectedPlayId(playId)
-      setSelectedFormation(play.formation)
+      setSelectedFormation(play.formation?.trim() || "Custom")
       setSelectedSubcategory(play.subcategory)
       setSelectedSide(play.side as "offense" | "defense" | "special_teams")
       setViewMode("builder")
     }
+  }
+
+  const handleAddFormation = () => {
+    const name = newFormationName.trim()
+    if (!name) return
+    const exists = formationsForSide.some((f) => f.toLowerCase() === name.toLowerCase())
+    if (exists) return
+    setPendingFormations((prev) => {
+      const already = prev.some((f) => f.side === selectedSide && f.formation.toLowerCase() === name.toLowerCase())
+      if (already) return prev
+      return [...prev, { side: selectedSide, formation: name }]
+    })
+    setSelectedFormation(name)
+    setNewFormationName("")
+    setIsCreatingFormation(false)
+  }
+
+  const cancelNewFormation = () => {
+    setNewFormationName("")
+    setIsCreatingFormation(false)
   }
 
   const handleNewPlay = (side: string, formation: string, subcategory?: string | null) => {
@@ -165,9 +202,10 @@ export function PlaybooksPageClient({
   }
 
   const handleSavePlay = async (canvasData: any, playName: string) => {
-    if (!selectedFormation.trim()) {
-      alert("Please select or create a formation first")
-      return
+    let formation = selectedFormation?.trim() || ""
+    if (!formation) {
+      formation = "Custom"
+      setSelectedFormation("Custom")
     }
 
     try {
@@ -180,7 +218,7 @@ export function PlaybooksPageClient({
         body: JSON.stringify({
           teamId,
           side: selectedSide,
-          formation: selectedFormation.trim(),
+          formation,
           subcategory: selectedSubcategory || null,
           name: playName,
           canvasData,
@@ -192,8 +230,8 @@ export function PlaybooksPageClient({
       }
 
       // Remove formation from pending once play is saved
-      setPendingFormations((prev) => 
-        prev.filter((f) => !(f.side === selectedSide && f.formation === selectedFormation))
+      setPendingFormations((prev) =>
+        prev.filter((f) => !(f.side === selectedSide && f.formation === formation))
       )
       await loadPlays() // Reload plays instead of full page reload
     } catch (error) {
@@ -280,16 +318,69 @@ export function PlaybooksPageClient({
               userRole={userRole}
             />
           ) : (
-            <PlaybookBuilder
-              playId={selectedPlayId}
-              playData={selectedPlay?.canvasData}
-              playName={selectedPlay?.name || ""}
-              side={selectedSide}
-              formation={selectedFormation}
-              onSave={handleSavePlay}
-              onClose={() => setViewMode("files")}
-              canEdit={canEditAll || canEditOffense || canEditDefense || canEditSpecialTeams}
-            />
+            <div className="flex flex-col flex-1 overflow-hidden">
+              {/* Formation selector */}
+              <div
+                className="flex items-center gap-3 p-2 border-b flex-shrink-0"
+                style={{ borderColor: "#E5E7EB", backgroundColor: "#FAFAFA" }}
+              >
+                <Label htmlFor="formation-select" className="text-sm font-medium text-[#0F172A] shrink-0">
+                  Formation
+                </Label>
+                <select
+                  id="formation-select"
+                  value={selectedFormation || "Custom"}
+                  onChange={(e) => setSelectedFormation(e.target.value)}
+                  className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#3B82F6] min-w-[140px]"
+                  disabled={isCreatingFormation}
+                >
+                  {formationsForSide.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+                {!isCreatingFormation ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsCreatingFormation(true)}
+                  >
+                    New Formation
+                  </Button>
+                ) : (
+                  <>
+                    <Input
+                      value={newFormationName}
+                      onChange={(e) => setNewFormationName(e.target.value)}
+                      placeholder="e.g. Trips Right, I-Form"
+                      className="h-9 w-44 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddFormation()
+                        if (e.key === "Escape") cancelNewFormation()
+                      }}
+                    />
+                    <Button type="button" size="sm" onClick={handleAddFormation} disabled={!newFormationName.trim()}>
+                      Add
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={cancelNewFormation}>
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
+              <PlaybookBuilder
+                playId={selectedPlayId}
+                playData={selectedPlay?.canvasData}
+                playName={selectedPlay?.name || ""}
+                side={selectedSide}
+                formation={selectedFormation || "Custom"}
+                onSave={handleSavePlay}
+                onClose={() => setViewMode("files")}
+                canEdit={canEditAll || canEditOffense || canEditDefense || canEditSpecialTeams}
+              />
+            </div>
           )}
         </div>
       </div>

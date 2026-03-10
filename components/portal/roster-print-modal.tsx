@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { X, Printer, Settings } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -272,55 +273,59 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
         </Card>
       </div>
 
-      {/* Printable copy: outside .no-print, off-screen on screen; only this is visible in print */}
-      <div className="roster-print-root-screen-hidden" aria-hidden="true">
-        <div
-          ref={printRef}
-          className="roster-print-root bg-white p-8 mx-auto max-w-4xl text-black"
-          style={{ width: "8.5in" }}
-        >
-          {printBody}
-        </div>
-      </div>
+      {/* Printable content rendered into body so @media print can hide entire page and show only this */}
+      {typeof document !== "undefined" &&
+        document.body &&
+        createPortal(
+          <div
+            className="roster-print-portal"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: "-9999px",
+              top: 0,
+              width: "1px",
+              height: "1px",
+              overflow: "hidden",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              ref={printRef}
+              className="roster-print-root bg-white p-8 max-w-4xl text-black"
+              style={{ width: "8.5in" }}
+            >
+              {printBody}
+            </div>
+          </div>,
+          document.body
+        )}
 
       <style jsx global>{`
-        .roster-print-root-screen-hidden {
-          position: absolute;
-          left: -9999px;
-          top: 0;
-          width: 1px;
-          height: 1px;
-          overflow: hidden;
-        }
         @media print {
-          .roster-print-root-screen-hidden {
-            position: static !important;
-            width: auto !important;
-            height: auto !important;
-            overflow: visible !important;
-            left: auto !important;
+          /* Hide entire page (sidebar, header, modal, etc.); only portal content is visible */
+          body * {
+            visibility: hidden !important;
           }
-          .no-print {
-            display: none !important;
-          }
-          .roster-print-root {
-            display: block !important;
+          body > .roster-print-portal,
+          body > .roster-print-portal * {
             visibility: visible !important;
+          }
+          body > .roster-print-portal {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            max-width: 100% !important;
-            background: white !important;
+            height: auto !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+          }
+          body > .roster-print-portal .roster-print-root {
+            position: static !important;
+            margin: 0 auto !important;
             color: black !important;
           }
-          .roster-print-root * {
-            visibility: visible !important;
-            color: black !important;
-          }
-          .roster-print-root table,
-          .roster-print-root th,
-          .roster-print-root td {
+          body > .roster-print-portal .roster-print-root * {
             color: black !important;
           }
           @page {

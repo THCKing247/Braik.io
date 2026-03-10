@@ -1,8 +1,13 @@
 -- ============================================================================
--- COMPLETE SUPABASE MIGRATIONS FOR HEALTH & ROSTER PRINT/EMAIL
+-- COMPLETE SUPABASE MIGRATIONS FOR INJURY REPORT & ROSTER PRINT/EMAIL
 -- ============================================================================
 -- Copy and paste these migrations into your Supabase SQL Editor
 -- Run them in order (they use IF NOT EXISTS, so safe to rerun)
+-- ============================================================================
+-- 
+-- NOTE: User email is already stored in auth.users.email and profiles.email
+-- The email functionality uses the authenticated user's email from the session
+-- No additional database changes needed for email functionality
 -- ============================================================================
 
 -- ============================================================================
@@ -216,6 +221,14 @@ FROM pg_policies
 WHERE schemaname = 'public'
   AND tablename = 'player_injuries';
 
+-- ============================================================================
+-- EMAIL FUNCTIONALITY NOTES
+-- ============================================================================
+-- User email is retrieved from auth.users.email via getServerSession()
+-- No additional database schema changes needed for email functionality
+-- The email API route uses the authenticated user's email from the session
+-- Email service integration (SendGrid, Resend, etc.) should be added to
+-- app/api/roster/email/route.ts in the POST handler
 -- ============================================================================
 -- END OF MIGRATIONS
 -- ============================================================================

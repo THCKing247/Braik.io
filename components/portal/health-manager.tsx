@@ -190,7 +190,7 @@ export function HealthManager({ teamId }: HealthManagerProps) {
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-2">
             <Stethoscope className="h-8 w-8" />
-            Health & Injuries
+            Injury Report
           </h1>
           <p className="text-white/70 mt-1">Track player injuries and health status</p>
         </div>

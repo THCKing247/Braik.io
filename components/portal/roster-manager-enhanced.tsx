@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RosterGridView } from "./roster-grid-view"
 import { DepthChartView } from "./depth-chart-view"
-import { RosterPrintView } from "./roster-print-view"
+import { RosterPrintModal } from "./roster-print-modal"
+import { RosterEmailModal } from "./roster-email-modal"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
 const ROSTER_BILLING_WARNING =
@@ -453,7 +454,8 @@ export function RosterManagerEnhanced({
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
   const [inviteModal, setInviteModal] = useState<{ player: Player; inviteCode: string } | null>(null)
   const [inviteLoading, setInviteLoading] = useState(false)
-  const [showPrintView, setShowPrintView] = useState(false)
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
@@ -822,11 +824,12 @@ export function RosterManagerEnhanced({
       {/* Add/Import Controls */}
       {canEdit && activeTab === "roster" && (
         <div className="mb-6 flex gap-4">
-          {!showAddModal && !showImportForm && !showPrintView && (
+          {!showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (
             <>
               <Button onClick={() => setShowAddModal(true)}>Add Player</Button>
               <Button variant="outline" onClick={() => setShowImportForm(true)}>Import CSV</Button>
-              <Button variant="outline" onClick={() => setShowPrintView(true)}>Print/Email Roster</Button>
+              <Button variant="outline" onClick={() => setShowPrintModal(true)}>Print Roster</Button>
+              <Button variant="outline" onClick={() => setShowEmailModal(true)}>Email Roster</Button>
             </>
           )}
         </div>
@@ -953,7 +956,7 @@ export function RosterManagerEnhanced({
       )}
 
       {/* Content Views */}
-      {activeTab === "roster" && !showPrintView && (
+      {activeTab === "roster" && !showPrintModal && !showEmailModal && (
         <RosterGridView
           players={players}
           canEdit={canEdit}
@@ -963,9 +966,14 @@ export function RosterManagerEnhanced({
         />
       )}
 
-      {/* Print/Email View */}
-      {activeTab === "roster" && showPrintView && (
-        <RosterPrintView teamId={teamId} onClose={() => setShowPrintView(false)} />
+      {/* Print Modal */}
+      {showPrintModal && (
+        <RosterPrintModal teamId={teamId} onClose={() => setShowPrintModal(false)} />
+      )}
+
+      {/* Email Modal */}
+      {showEmailModal && (
+        <RosterEmailModal teamId={teamId} onClose={() => setShowEmailModal(false)} />
       )}
 
       {/* Depth Chart Full-Screen Modal */}

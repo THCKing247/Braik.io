@@ -15,10 +15,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { teamId, recipientEmail, recipientName } = body
+    const { teamId, senderEmail, recipientEmail, subject, message } = body
 
-    if (!teamId || !recipientEmail) {
-      return NextResponse.json({ error: "teamId and recipientEmail are required" }, { status: 400 })
+    if (!teamId || !recipientEmail || !senderEmail) {
+      return NextResponse.json({ error: "teamId, senderEmail, and recipientEmail are required" }, { status: 400 })
     }
 
     await requireTeamPermission(teamId, "manage")
@@ -38,10 +38,21 @@ export async function POST(request: Request) {
     const rosterData = await rosterResponse.json()
 
     // Generate HTML email content
-    const htmlContent = generateRosterEmailHTML(rosterData)
+    const htmlContent = generateRosterEmailHTML(rosterData, message || "")
 
     // TODO: Integrate with email service (SendGrid, Resend, etc.)
     // For now, return success (email sending will be implemented separately)
+    // In production, you would:
+    // 1. Use your email service (SendGrid, Resend, AWS SES, etc.)
+    // 2. Send email from senderEmail to recipientEmail
+    // 3. Use subject and htmlContent
+    
+    console.log("Email would be sent:", {
+      from: senderEmail,
+      to: recipientEmail,
+      subject: subject || `Roster - ${new Date().toLocaleDateString()}`,
+      html: htmlContent,
+    })
     
     return NextResponse.json({
       success: true,
@@ -57,7 +68,7 @@ export async function POST(request: Request) {
   }
 }
 
-function generateRosterEmailHTML(data: any): string {
+function generateRosterEmailHTML(data: any, customMessage: string = ""): string {
   const { team, template, players, generatedAt } = data
 
   let html = `
@@ -90,7 +101,16 @@ function generateRosterEmailHTML(data: any): string {
     html += `<h1>${team.name}</h1>`
   }
 
-  html += `</div><table><thead><tr>`
+  html += `</div>`
+
+  // Add custom message if provided
+  if (customMessage) {
+    html += `<div style="margin-bottom: 20px; padding: 15px; background-color: #f9fafb; border-left: 4px solid #3B82F6;">`
+    html += `<p style="margin: 0; color: #374151; white-space: pre-wrap;">${customMessage.replace(/\n/g, '<br>')}</p>`
+    html += `</div>`
+  }
+
+  html += `<table><thead><tr>`
 
   if (template.body.showJerseyNumber) {
     html += `<th>${template.body.jerseyNumberLabel}</th>`

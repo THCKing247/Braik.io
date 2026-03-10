@@ -57,7 +57,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   {
     id: "health",
     href: "/dashboard/health",
-    label: "Health",
+    label: "Injury Report",
     icon: Stethoscope,
     roles: ["HEAD_COACH", "ASSISTANT_COACH"],
   },

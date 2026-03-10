@@ -6,7 +6,8 @@ import { requireTeamPermission } from "@/lib/auth/rbac"
 /**
  * POST /api/roster/import
  * Imports players from CSV file.
- * Expected CSV format: firstName,lastName,grade,jerseyNumber,positionGroup,email,notes
+ * Expected CSV format: firstName,lastName,grade,jerseyNumber,positionGroup,email,notes,weight,height
+ * Columns 8 and 9 (weight, height) are optional. Weight should be a number (lbs); height is text (e.g. 5'10" or 6-2).
  */
 export async function POST(request: Request) {
   try {
@@ -58,6 +59,8 @@ export async function POST(request: Request) {
       position_group: string | null
       email: string | null
       notes: string | null
+      weight: number | null
+      height: string | null
       status: string
       created_by: string
     }> = []
@@ -77,6 +80,9 @@ export async function POST(request: Request) {
       const positionGroup = parts[4] || null
       const email = parts[5] ? parts[5].toLowerCase().trim() : null
       const notes = parts[6] || null
+      const weightRaw = parts[7] ? parseInt(parts[7], 10) : null
+      const weight = weightRaw != null && !Number.isNaN(weightRaw) ? weightRaw : null
+      const height = parts[8] ? parts[8].trim() || null : null
 
       playersToInsert.push({
         team_id: teamId,
@@ -87,6 +93,8 @@ export async function POST(request: Request) {
         position_group: positionGroup,
         email: email,
         notes: notes,
+        weight,
+        height,
         status: "active",
         created_by: session.user.id,
       })
@@ -100,7 +108,7 @@ export async function POST(request: Request) {
     const { data: inserted, error: insertError } = await supabase
       .from("players")
       .insert(playersToInsert)
-      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, email, invite_code, invite_status, claimed_at, user_id")
+      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, email, invite_code, invite_status, claimed_at, user_id, weight, height")
 
     if (insertError) {
       console.error("[POST /api/roster/import]", insertError)
@@ -122,7 +130,9 @@ export async function POST(request: Request) {
       inviteCode: p.invite_code || null,
       inviteStatus: (p.invite_status as "not_invited" | "invited" | "joined") || "not_invited",
       claimedAt: p.claimed_at || null,
-      user: p.user_id ? { email: "" } : null, // Would need to join users table for full user info
+      weight: (p as { weight?: number | null }).weight ?? null,
+      height: (p as { height?: string | null }).height ?? null,
+      user: p.user_id ? { email: "" } : null,
       guardianLinks: [],
     }))
 

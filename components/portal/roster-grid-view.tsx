@@ -28,6 +28,7 @@ interface RosterGridViewProps {
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
+  onImageUploadSuccess?: (playerId: string, imageUrl: string) => void
 }
 
 export function RosterGridView({
@@ -36,6 +37,7 @@ export function RosterGridView({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  onImageUploadSuccess,
 }: RosterGridViewProps) {
   const [uploadingPlayerId, setUploadingPlayerId] = useState<string | null>(null)
 
@@ -51,21 +53,14 @@ export function RosterGridView({
       })
 
       if (!response.ok) {
-        throw new Error("Failed to upload image")
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err?.error ?? "Failed to upload image")
       }
 
       const data = await response.json()
-      
-      // Update the player's imageUrl in the local state
-      const player = players.find(p => p.id === playerId)
-      if (player) {
-        player.imageUrl = data.imageUrl
-      }
-
-      // Reload the page to show the new image
-      window.location.reload()
+      onImageUploadSuccess?.(playerId, data.imageUrl)
     } catch (error) {
-      alert("Error uploading image. Please try again.")
+      alert(error instanceof Error ? error.message : "Error uploading image. Please try again.")
     } finally {
       setUploadingPlayerId(null)
     }

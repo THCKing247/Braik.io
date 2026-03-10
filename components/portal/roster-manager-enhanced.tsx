@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -489,8 +489,28 @@ export function RosterManagerEnhanced({
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [rosterViewMode, setRosterViewMode] = useState<"card" | "list">("card")
+  const [rosterSearchQuery, setRosterSearchQuery] = useState("")
+  const [rosterPositionFilter, setRosterPositionFilter] = useState<string>("")
 
   const isFootball = teamSport?.toLowerCase() === "football"
+
+  const filteredRosterPlayers = useMemo(() => {
+    let list = players
+    const q = rosterSearchQuery.trim().toLowerCase()
+    if (q) {
+      list = list.filter(
+        (p) =>
+          (p.firstName?.toLowerCase() ?? "").includes(q) ||
+          (p.lastName?.toLowerCase() ?? "").includes(q) ||
+          `${(p.firstName ?? "").toLowerCase()} ${(p.lastName ?? "").toLowerCase()}`.includes(q) ||
+          `${(p.lastName ?? "").toLowerCase()} ${(p.firstName ?? "").toLowerCase()}`.includes(q)
+      )
+    }
+    if (rosterPositionFilter) {
+      list = list.filter((p) => (p.positionGroup?.toUpperCase() ?? "") === rosterPositionFilter.toUpperCase())
+    }
+    return list
+  }, [players, rosterSearchQuery, rosterPositionFilter])
 
   // Load depth chart data when modal opens
   useEffect(() => {
@@ -670,6 +690,12 @@ export function RosterManagerEnhanced({
     } finally {
       setLoading(false)
     }
+  }
+
+  const handlePlayerImageUploaded = (playerId: string, imageUrl: string) => {
+    setPlayers((prev) =>
+      prev.map((p) => (p.id === playerId ? { ...p, imageUrl } : p))
+    )
   }
 
   const handleDeletePlayer = async (player: Player) => {
@@ -861,7 +887,38 @@ export function RosterManagerEnhanced({
       {/* Add/Import Controls + View Toggle */}
       {activeTab === "roster" && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              type="search"
+              placeholder="Search by name..."
+              value={rosterSearchQuery}
+              onChange={(e) => setRosterSearchQuery(e.target.value)}
+              className="max-w-[220px] h-9 text-sm"
+            />
+            <select
+              value={rosterPositionFilter}
+              onChange={(e) => setRosterPositionFilter(e.target.value)}
+              className="h-9 rounded-md border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+              aria-label="Filter by position"
+            >
+              <option value="">All positions</option>
+              <optgroup label="Offense">
+                <option value="QB">QB</option>
+                <option value="RB">RB</option>
+                <option value="WR">WR</option>
+                <option value="TE">TE</option>
+                <option value="OL">OL</option>
+              </optgroup>
+              <optgroup label="Defense">
+                <option value="DL">DL</option>
+                <option value="LB">LB</option>
+                <option value="DB">DB</option>
+              </optgroup>
+              <optgroup label="Special">
+                <option value="K">K</option>
+                <option value="P">P</option>
+              </optgroup>
+            </select>
             <span className="text-sm font-medium text-[#64748B]">View:</span>
             <div className="flex rounded-lg border border-[#E5E7EB] bg-white p-0.5">
               <button
@@ -920,7 +977,7 @@ export function RosterManagerEnhanced({
                   className="text-[#111827]"
                 />
                 <p className="text-xs text-[#6B7280]">
-                  CSV format: First Name, Last Name, Grade, Jersey Number, Position, Email (optional), Notes (optional)
+                  CSV format: First Name, Last Name, Grade, Jersey Number, Position, Email (optional), Notes (optional), Weight (optional), Height (optional)
                 </p>
               </div>
             </div>
@@ -1027,15 +1084,16 @@ export function RosterManagerEnhanced({
       {activeTab === "roster" && !showPrintModal && !showEmailModal && (
         rosterViewMode === "card" ? (
           <RosterGridView
-            players={players}
+            players={filteredRosterPlayers}
             canEdit={canEdit}
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+            onImageUploadSuccess={handlePlayerImageUploaded}
           />
         ) : (
           <RosterListView
-            players={players}
+            players={filteredRosterPlayers}
             canEdit={canEdit}
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}

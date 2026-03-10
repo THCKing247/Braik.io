@@ -52,7 +52,17 @@ export function DashboardLayoutClient({
               paddingLeft: isDesktop ? SIDEBAR_GAP : undefined,
             }}
           >
-            {children}
+            {/* Same bordered, rounded content area as roster tab for consistent layout */}
+            <div className="h-full min-h-0 flex flex-col px-4 py-6">
+              <div
+                className="flex-1 min-h-[420px] overflow-y-auto overflow-x-hidden rounded-lg border border-[#E5E7EB] bg-white/50 [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                aria-label="Page content"
+              >
+                <div className="p-4">
+                  {children}
+                </div>
+              </div>
+            </div>
           </main>
         </div>
         <AIWidgetWrapper />

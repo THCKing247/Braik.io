@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     return NextResponse.json(formatted)
   } catch (error: any) {
     console.error("[GET /api/roster/depth-chart/position-labels]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to load position labels" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
     )
@@ -77,7 +77,7 @@ export async function PATCH(request: Request) {
     const teamId = searchParams.get("teamId")
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
-    }
+}
 
     await requireTeamPermission(teamId, "edit_roster")
 
@@ -109,9 +109,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error("[PATCH /api/roster/depth-chart/position-labels]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to update position labels" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

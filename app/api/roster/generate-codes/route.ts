@@ -113,9 +113,9 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("[POST /api/roster/generate-codes]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to generate codes" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

@@ -129,9 +129,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ players: formatted })
   } catch (error: any) {
     console.error("[POST /api/roster/import]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to import roster" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

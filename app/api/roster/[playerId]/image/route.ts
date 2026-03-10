@@ -80,7 +80,7 @@ export async function POST(
     return NextResponse.json({ imageUrl: fileUrl })
   } catch (error: any) {
     console.error("[POST /api/roster/[playerId]/image]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to upload image" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
     )
@@ -140,9 +140,9 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error("[DELETE /api/roster/[playerId]/image]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to remove image" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

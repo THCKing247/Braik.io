@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     return NextResponse.json(formatted)
   } catch (error: any) {
     console.error("[GET /api/plays]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to load plays" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
     )
@@ -173,9 +173,9 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("[POST /api/plays]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to create play" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

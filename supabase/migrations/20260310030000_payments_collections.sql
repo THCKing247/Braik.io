@@ -122,6 +122,8 @@ begin
 end;
 $$;
 
+drop trigger if exists update_invoice_amount_paid_trigger on public.transactions;
+
 create trigger update_invoice_amount_paid_trigger
 after insert or update on public.transactions
 for each row

@@ -90,6 +90,8 @@ begin
 end;
 $$;
 
+drop trigger if exists update_message_thread_updated_at_trigger on public.messages;
+
 create trigger update_message_thread_updated_at_trigger
 after insert on public.messages
 for each row

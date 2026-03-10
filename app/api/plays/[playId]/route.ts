@@ -51,7 +51,7 @@ export async function GET(
     })
   } catch (error: any) {
     console.error("[GET /api/plays/[playId]]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to load play" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
     )
@@ -121,7 +121,7 @@ export async function PATCH(
 
     if (body.name !== undefined) {
       updateData.name = body.name.trim()
-    }
+}
     if (body.canvasData !== undefined) {
       updateData.canvas_data = body.canvasData
     }
@@ -163,7 +163,7 @@ export async function PATCH(
     })
   } catch (error: any) {
     console.error("[PATCH /api/plays/[playId]]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to update play" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
     )
@@ -187,7 +187,7 @@ export async function DELETE(
     const { playId } = await params
     if (!playId) {
       return NextResponse.json({ error: "playId is required" }, { status: 400 })
-    }
+}
 
     const supabase = getSupabaseServer()
 
@@ -222,9 +222,9 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error("[DELETE /api/plays/[playId]]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to delete play" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

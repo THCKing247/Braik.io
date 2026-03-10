@@ -60,7 +60,7 @@ as $$
   select exists (
     select 1
     from public.team_members tm
-    join public.users u on u.id = auth.uid()
+    join public.users u on u.id = tm.user_id
     where tm.team_id = team_id_param
       and tm.user_id = auth.uid()
       and tm.active = true

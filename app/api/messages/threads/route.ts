@@ -127,9 +127,9 @@ export async function GET(request: Request) {
     return NextResponse.json(formatted)
   } catch (error: any) {
     console.error("[GET /api/messages/threads]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to load threads" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

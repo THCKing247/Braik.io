@@ -222,6 +222,25 @@ WHERE schemaname = 'public'
   AND tablename = 'player_injuries';
 
 -- ============================================================================
+-- FIXES APPLIED TO MIGRATION FILES
+-- ============================================================================
+-- The following fixes have been applied to the migration files:
+--
+-- 1. can_manage_team function: Fixed ambiguous column reference
+--    Changed: join public.users u on u.id = auth.uid()
+--    To:      join public.users u on u.id = tm.user_id
+--
+-- 2. All triggers: Added DROP TRIGGER IF EXISTS before CREATE TRIGGER
+--    - update_message_thread_updated_at_trigger
+--    - update_invoice_amount_paid_trigger
+--    - update_player_health_on_injury_change
+--    - update_player_health_on_status_change
+--
+-- 3. players_team_member_read policy: Fixed guardian_user_id reference
+--    Changed: gl.guardian_user_id = auth.uid()
+--    To:      join public.guardians g on g.id = gl.guardian_id
+--             and g.user_id = auth.uid()
+-- ============================================================================
 -- EMAIL FUNCTIONALITY NOTES
 -- ============================================================================
 -- User email is retrieved from auth.users.email via getServerSession()

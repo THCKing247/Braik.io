@@ -67,9 +67,9 @@ export async function GET(request: Request) {
     })
   } catch (error: any) {
     console.error("[GET /api/messages/attachments/serve]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to serve attachment" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

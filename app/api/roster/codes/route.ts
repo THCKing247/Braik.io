@@ -40,9 +40,9 @@ export async function GET(request: Request) {
     })
   } catch (error: any) {
     console.error("[GET /api/roster/codes]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to load codes" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

@@ -59,8 +59,9 @@ create policy players_team_member_read on public.players
       -- Parents can view their linked players
       select 1
       from public.guardian_links gl
+      join public.guardians g on g.id = gl.guardian_id
       where gl.player_id = players.id
-        and gl.guardian_user_id = auth.uid()
+        and g.user_id = auth.uid()
     )
   );
 

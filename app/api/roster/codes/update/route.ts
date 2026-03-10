@@ -88,9 +88,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error("[PATCH /api/roster/codes/update]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to update codes" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

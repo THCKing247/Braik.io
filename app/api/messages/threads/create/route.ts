@@ -121,9 +121,9 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("[POST /api/messages/threads/create]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to create thread" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

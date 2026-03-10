@@ -125,9 +125,9 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("[POST /api/messages/send]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to send message" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

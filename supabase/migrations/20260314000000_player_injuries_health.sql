@@ -72,12 +72,16 @@ end;
 $$;
 
 -- Trigger to update health status when injury is created/updated/deleted
+drop trigger if exists update_player_health_on_injury_change on public.player_injuries;
+
 create trigger update_player_health_on_injury_change
 after insert or update or delete on public.player_injuries
 for each row
 execute function public.update_player_health_status();
 
 -- Trigger to update health status when player status changes
+drop trigger if exists update_player_health_on_status_change on public.players;
+
 create trigger update_player_health_on_status_change
 after update of status on public.players
 for each row

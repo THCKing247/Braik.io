@@ -84,9 +84,9 @@ export async function GET(request: Request) {
     return NextResponse.json(contacts)
   } catch (error: any) {
     console.error("[GET /api/messages/contacts]", error)
-    return NextResponse.json(
+  return NextResponse.json(
       { error: error.message || "Failed to load contacts" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-    )
+  )
   }
 }

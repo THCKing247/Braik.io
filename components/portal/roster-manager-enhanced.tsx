@@ -427,7 +427,7 @@ export function RosterManagerEnhanced({
   userRole
 }: RosterManagerEnhancedProps) {
   const [players, setPlayers] = useState(initialPlayers)
-  const [activeTab, setActiveTab] = useState<"roster">("roster")
+  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart">("roster")
   const [depthChart, setDepthChart] = useState<DepthChartEntry[]>([])
   const [depthChartSnapshot, setDepthChartSnapshot] = useState<DepthChartEntry[]>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -466,7 +466,14 @@ export function RosterManagerEnhanced({
       const response = await fetch(`/api/roster/depth-chart?teamId=${teamId}`)
       if (response.ok) {
         const data = await response.json()
-        const entries = data.entries || []
+        const entries = (data.entries || []).map((e: DepthChartEntry) => {
+          // Ensure player object is populated if playerId exists
+          if (e.playerId && !e.player) {
+            const player = players.find(p => p.id === e.playerId)
+            return { ...e, player: player || null }
+          }
+          return e
+        })
         setDepthChart(entries)
         setDepthChartSnapshot(JSON.parse(JSON.stringify(entries))) // Deep copy for comparison
         setHasUnsavedChanges(false)
@@ -478,6 +485,7 @@ export function RosterManagerEnhanced({
 
   const handleOpenDepthChart = () => {
     setShowDepthChartModal(true)
+    setActiveTab("depth-chart")
   }
 
   const handleCloseDepthChart = () => {
@@ -719,12 +727,15 @@ export function RosterManagerEnhanced({
       
       // Add new entry if playerId is not null
       if (update.playerId) {
+        // Find the player object to attach to the entry
+        const player = players.find(p => p.id === update.playerId)
         updatedChart.push({
           id: `temp-${Date.now()}-${Math.random()}`,
           unit: update.unit,
           position: update.position,
           string: update.string,
           playerId: update.playerId,
+          player: player || null,
           formation: update.formation || null,
           specialTeamType: update.specialTeamType || null,
         })
@@ -753,7 +764,14 @@ export function RosterManagerEnhanced({
       const reloadResponse = await fetch(`/api/roster/depth-chart?teamId=${teamId}`)
       if (reloadResponse.ok) {
         const data = await reloadResponse.json()
-        const entries = data.entries || []
+        const entries = (data.entries || []).map((e: DepthChartEntry) => {
+          // Ensure player object is populated if playerId exists
+          if (e.playerId && !e.player) {
+            const player = players.find(p => p.id === e.playerId)
+            return { ...e, player: player || null }
+          }
+          return e
+        })
         setDepthChart(entries)
         setDepthChartSnapshot(JSON.parse(JSON.stringify(entries)))
         setHasUnsavedChanges(false)
@@ -767,24 +785,30 @@ export function RosterManagerEnhanced({
     <div>
       {/* Tab Navigation */}
       <div className="mb-6 border-b border-[#64748B]">
-        <div className="flex gap-4 items-center justify-between">
-          <div className="flex gap-4">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab("roster")}
+            className={`px-4 py-2 font-semibold transition-colors ${
+              activeTab === "roster"
+                ? "border-b-2"
+                : "opacity-60 hover:opacity-100"
+            }`}
+            style={activeTab === "roster" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+          >
+            Roster View
+          </button>
+          {isFootball && (
             <button
-              onClick={() => setActiveTab("roster")}
+              onClick={handleOpenDepthChart}
               className={`px-4 py-2 font-semibold transition-colors ${
-                activeTab === "roster"
+                activeTab === "depth-chart"
                   ? "border-b-2"
                   : "opacity-60 hover:opacity-100"
               }`}
-              style={activeTab === "roster" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+              style={activeTab === "depth-chart" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
             >
-              Roster View
+              Depth Chart
             </button>
-          </div>
-          {isFootball && canEdit && (
-            <Button onClick={handleOpenDepthChart} variant="outline">
-              Open Depth Chart
-            </Button>
           )}
         </div>
       </div>

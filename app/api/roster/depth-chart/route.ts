@@ -38,31 +38,54 @@ export async function GET(request: Request) {
       .order("string", { ascending: true })
 
     if (entriesError) {
-      console.error("[GET /api/roster/depth-chart]", entriesError)
-      return NextResponse.json({ error: "Failed to load depth chart" }, { status: 500 })
+      console.error("[GET /api/roster/depth-chart] entries query error:", {
+        message: entriesError.message,
+        details: entriesError.details,
+        hint: entriesError.hint,
+        code: entriesError.code,
+      })
+      return NextResponse.json(
+        { error: "Failed to load depth chart", details: entriesError.message },
+        { status: 500 }
+      )
     }
 
     // Get player details for entries with player_id
-    const playerIds = (entries ?? []).filter((e) => e.player_id).map((e) => e.player_id!)
+    const playerIds = [...new Set((entries ?? []).filter((e) => e.player_id).map((e) => e.player_id!))] // Remove duplicates
     let playersMap = new Map<string, { id: string; firstName: string; lastName: string; jerseyNumber: number | null; imageUrl: string | null }>()
     if (playerIds.length > 0) {
-      const { data: players } = await supabase
-        .from("players")
-        .select("id, first_name, last_name, jersey_number, image_url")
-        .in("id", playerIds)
+      try {
+        const { data: players, error: playersError } = await supabase
+          .from("players")
+          .select("id, first_name, last_name, jersey_number, image_url")
+          .in("id", playerIds)
 
-      playersMap = new Map(
-        (players ?? []).map((p) => [
-          p.id,
-          {
-            id: p.id,
-            firstName: p.first_name,
-            lastName: p.last_name,
-            jerseyNumber: p.jersey_number,
-            imageUrl: p.image_url,
-          },
-        ])
-      )
+        if (playersError) {
+          console.error("[GET /api/roster/depth-chart] players query error:", {
+            message: playersError.message,
+            details: playersError.details,
+            hint: playersError.hint,
+            code: playersError.code,
+          })
+          // Continue without player data rather than failing completely
+        } else {
+          playersMap = new Map(
+            (players ?? []).map((p) => [
+              p.id,
+              {
+                id: p.id,
+                firstName: p.first_name ?? "",
+                lastName: p.last_name ?? "",
+                jerseyNumber: p.jersey_number ?? null,
+                imageUrl: p.image_url ?? null,
+              },
+            ])
+          )
+        }
+      } catch (err) {
+        console.error("[GET /api/roster/depth-chart] players query exception:", err)
+        // Continue without player data rather than failing completely
+      }
     }
 
     // Format response

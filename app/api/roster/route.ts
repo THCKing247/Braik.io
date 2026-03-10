@@ -146,20 +146,72 @@ export async function POST(request: Request) {
 
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() || null : null
     const jerseyNumber = body?.jerseyNumber != null ? Number(body.jerseyNumber) : null
+    const positionGroup = typeof body?.positionGroup === "string" ? body.positionGroup.trim().toUpperCase() || null : null
 
     const supabase = getSupabaseServer()
+
+    // Helper function to determine position side
+    const getPositionSide = (pos: string | null): "offense" | "defense" | "special" | null => {
+      if (!pos) return null
+      const offensePositions = ["QB", "RB", "WR", "TE", "OL"]
+      const defensePositions = ["DL", "LB", "DB"]
+      const specialPositions = ["K", "P"]
+      if (offensePositions.includes(pos)) return "offense"
+      if (defensePositions.includes(pos)) return "defense"
+      if (specialPositions.includes(pos)) return "special"
+      return null
+    }
 
     // Duplicate check: same team + first+last name + same jersey (or same email if provided)
     const { data: existingByName } = await supabase
       .from("players")
-      .select("id, jersey_number")
+      .select("id, jersey_number, position_group")
       .eq("team_id", teamId)
       .ilike("first_name", firstName)
       .ilike("last_name", lastName)
 
-    const duplicateByJersey =
-      jerseyNumber != null &&
-      existingByName?.some((r) => (r as { jersey_number?: number }).jersey_number === jerseyNumber)
+    // Jersey number validation: allow duplicate if one is offense and one is defense
+    let duplicateByJersey = false
+    if (jerseyNumber != null && jerseyNumber >= 0 && jerseyNumber <= 99) {
+      const newPlayerSide = getPositionSide(positionGroup)
+      
+      // Check for jersey conflicts
+      const { data: existingByJersey } = await supabase
+        .from("players")
+        .select("id, first_name, last_name, position_group")
+        .eq("team_id", teamId)
+        .eq("jersey_number", jerseyNumber)
+
+      if (existingByJersey && existingByJersey.length > 0) {
+        // If new player has no position or special teams, allow duplicate
+        if (!newPlayerSide || newPlayerSide === "special") {
+          // Special teams can share numbers, but check if there's a conflict with same side
+          const hasConflict = existingByJersey.some((p) => {
+            const existingSide = getPositionSide(p.position_group)
+            return existingSide === newPlayerSide
+          })
+          if (hasConflict && newPlayerSide) {
+            duplicateByJersey = true
+          }
+        } else {
+          // Check if any existing player with same jersey is on the same side
+          const hasSameSideConflict = existingByJersey.some((p) => {
+            const existingSide = getPositionSide(p.position_group)
+            // Conflict if both are offense or both are defense
+            return existingSide === newPlayerSide
+          })
+          if (hasSameSideConflict) {
+            duplicateByJersey = true
+          }
+        }
+      }
+    } else if (jerseyNumber != null && (jerseyNumber < 0 || jerseyNumber > 99)) {
+      return NextResponse.json(
+        { error: "Jersey number must be between 0 and 99." },
+        { status: 400 }
+      )
+    }
+
     // Same first+last name with no jersey given: treat as duplicate to avoid multiple "John Smith" placeholders
     const duplicateByNameOnly = (existingByName?.length ?? 0) > 0 && jerseyNumber == null
     let duplicateByEmail = false
@@ -172,9 +224,15 @@ export async function POST(request: Request) {
         .maybeSingle()
       duplicateByEmail = !!byEmail
     }
-    if (duplicateByJersey || duplicateByEmail || duplicateByNameOnly) {
+    if (duplicateByJersey) {
       return NextResponse.json(
-        { error: "A player with this name and jersey number (or email) already exists on this roster." },
+        { error: "Jersey number is already in use by a player on the same side (offense/defense). Two players with the same number cannot both be on the same side of the ball." },
+        { status: 409 }
+      )
+    }
+    if (duplicateByEmail || duplicateByNameOnly) {
+      return NextResponse.json(
+        { error: "A player with this name (or email) already exists on this roster." },
         { status: 409 }
       )
     }

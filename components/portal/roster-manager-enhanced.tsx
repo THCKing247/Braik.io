@@ -151,6 +151,213 @@ function EditPlayerModal({
   )
 }
 
+// Helper function to determine if a position is offense or defense
+function getPositionSide(positionGroup: string | null): "offense" | "defense" | "special" | null {
+  if (!positionGroup) return null
+  const offensePositions = ["QB", "RB", "WR", "TE", "OL"]
+  const defensePositions = ["DL", "LB", "DB"]
+  const specialPositions = ["K", "P"]
+  
+  if (offensePositions.includes(positionGroup.toUpperCase())) return "offense"
+  if (defensePositions.includes(positionGroup.toUpperCase())) return "defense"
+  if (specialPositions.includes(positionGroup.toUpperCase())) return "special"
+  return null
+}
+
+// Helper function to map grade string to number (High School: 9-12, College: 1-4)
+function gradeStringToNumber(gradeStr: string, isCollege: boolean = false): number | null {
+  const gradeMap: Record<string, number> = isCollege
+    ? { Freshman: 1, Sophomore: 2, Junior: 3, Senior: 4 }
+    : { Freshman: 9, Sophomore: 10, Junior: 11, Senior: 12 }
+  return gradeMap[gradeStr] ?? null
+}
+
+function AddPlayerModal({
+  onSave,
+  onCancel,
+  loading,
+  existingPlayers,
+}: {
+  onSave: (payload: {
+    firstName: string
+    lastName: string
+    grade: number | null
+    jerseyNumber: number | null
+    positionGroup: string | null
+    notes: string | null
+    email?: string | null
+  }) => void
+  onCancel: () => void
+  loading: boolean
+  existingPlayers: Player[]
+}) {
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [grade, setGrade] = useState("")
+  const [jerseyNumber, setJerseyNumber] = useState("")
+  const [positionGroup, setPositionGroup] = useState("")
+  const [email, setEmail] = useState("")
+  const [notes, setNotes] = useState("")
+  const [jerseyError, setJerseyError] = useState<string | null>(null)
+
+  // Validate jersey number when it changes
+  useEffect(() => {
+    setJerseyError(null)
+    if (!jerseyNumber || !positionGroup) return
+
+    const num = parseInt(jerseyNumber, 10)
+    if (isNaN(num) || num < 0 || num > 99) {
+      setJerseyError("Jersey number must be between 0 and 99")
+      return
+    }
+
+    const newPlayerSide = getPositionSide(positionGroup)
+    if (!newPlayerSide || newPlayerSide === "special") return // Special teams can share numbers
+
+    // Check for conflicts with existing players
+    const conflictingPlayer = existingPlayers.find((p) => {
+      if (p.jerseyNumber !== num) return false
+      if (!p.positionGroup) return false
+      const existingSide = getPositionSide(p.positionGroup)
+      // Conflict if both are offense or both are defense
+      return existingSide === newPlayerSide
+    })
+
+    if (conflictingPlayer) {
+      setJerseyError(
+        `Jersey number ${num} is already used by ${conflictingPlayer.firstName} ${conflictingPlayer.lastName} (${conflictingPlayer.positionGroup}). Two players with the same number cannot both be on the same side (offense/defense).`
+      )
+    }
+  }, [jerseyNumber, positionGroup, existingPlayers])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!firstName.trim() || !lastName.trim()) {
+      alert("First and last name are required")
+      return
+    }
+    if (jerseyError) {
+      alert(jerseyError)
+      return
+    }
+    
+    // Convert grade string to number (assuming high school for now)
+    const gradeNum = grade ? gradeStringToNumber(grade, false) : null
+    
+    onSave({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      grade: gradeNum,
+      jerseyNumber: jerseyNumber ? parseInt(jerseyNumber, 10) : null,
+      positionGroup: positionGroup.trim() || null,
+      notes: notes.trim() || null,
+      email: email.trim() || null,
+    })
+  }
+
+  return (
+    <Card className="w-full max-w-2xl bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+      <CardHeader>
+        <CardTitle className="text-[#0F172A]">Add Player</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+          <div className="space-y-2 col-span-2 sm:col-span-1">
+            <Label className="text-[#0F172A]">First Name *</Label>
+            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+          </div>
+          <div className="space-y-2 col-span-2 sm:col-span-1">
+            <Label className="text-[#0F172A]">Last Name *</Label>
+            <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Grade</Label>
+            <select
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
+              className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B2A5B] focus-visible:ring-offset-2"
+              style={{ borderColor: "#0B2A5B" }}
+            >
+              <option value="">Select grade</option>
+              <option value="Freshman">Freshman</option>
+              <option value="Sophomore">Sophomore</option>
+              <option value="Junior">Junior</option>
+              <option value="Senior">Senior</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Jersey Number</Label>
+            <Input
+              type="number"
+              min="0"
+              max="99"
+              value={jerseyNumber}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === "" || (parseInt(val, 10) >= 0 && parseInt(val, 10) <= 99)) {
+                  setJerseyNumber(val)
+                }
+              }}
+              placeholder="0-99"
+            />
+            {jerseyError && (
+              <p className="text-xs text-red-600 mt-1">{jerseyError}</p>
+            )}
+          </div>
+          <div className="space-y-2 col-span-2">
+            <Label className="text-[#0F172A]">Position</Label>
+            <select
+              value={positionGroup}
+              onChange={(e) => setPositionGroup(e.target.value)}
+              className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B2A5B] focus-visible:ring-offset-2"
+              style={{ borderColor: "#0B2A5B" }}
+            >
+              <option value="">Select position</option>
+              <optgroup label="Offense">
+                <option value="QB">QB</option>
+                <option value="RB">RB</option>
+                <option value="WR">WR</option>
+                <option value="TE">TE</option>
+                <option value="OL">OL</option>
+              </optgroup>
+              <optgroup label="Defense">
+                <option value="DL">DL</option>
+                <option value="LB">LB</option>
+                <option value="DB">DB</option>
+              </optgroup>
+              <optgroup label="Special Teams">
+                <option value="K">K</option>
+                <option value="P">P</option>
+              </optgroup>
+            </select>
+          </div>
+          <div className="space-y-2 col-span-2">
+            <Label className="text-[#0F172A]">Email (optional - for invite)</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="space-y-2 col-span-2">
+            <Label className="text-[#0F172A]">Notes</Label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="flex min-h-[80px] w-full rounded-md border border-border bg-bg px-3 py-2 text-sm"
+              placeholder="Eligibility notes, injuries, etc."
+            />
+          </div>
+          <div className="col-span-2 flex gap-3 justify-end">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || !!jerseyError}>
+              {loading ? "Adding..." : "Add Player"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
 function InviteLinkModal({
   playerName,
   inviteCode,
@@ -220,48 +427,97 @@ export function RosterManagerEnhanced({
   userRole
 }: RosterManagerEnhancedProps) {
   const [players, setPlayers] = useState(initialPlayers)
-  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart">("roster")
+  const [activeTab, setActiveTab] = useState<"roster">("roster")
   const [depthChart, setDepthChart] = useState<DepthChartEntry[]>([])
+  const [depthChartSnapshot, setDepthChartSnapshot] = useState<DepthChartEntry[]>([])
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showDepthChartModal, setShowDepthChartModal] = useState(false)
+  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
   const [showImportForm, setShowImportForm] = useState(false)
 
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [grade, setGrade] = useState("")
-  const [jerseyNumber, setJerseyNumber] = useState("")
-  const [positionGroup, setPositionGroup] = useState("")
-  const [email, setEmail] = useState("")
-  const [notes, setNotes] = useState("")
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [showBillingWarningModal, setShowBillingWarningModal] = useState(false)
+  const [pendingPlayerData, setPendingPlayerData] = useState<{
+    firstName: string
+    lastName: string
+    grade: number | null
+    jerseyNumber: number | null
+    positionGroup: string | null
+    notes: string | null
+    email?: string | null
+  } | null>(null)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
   const [inviteModal, setInviteModal] = useState<{ player: Player; inviteCode: string } | null>(null)
   const [inviteLoading, setInviteLoading] = useState(false)
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
-  // Load depth chart data
+  // Load depth chart data when modal opens
   useEffect(() => {
-    if (isFootball && activeTab === "depth-chart") {
+    if (isFootball && showDepthChartModal) {
       loadDepthChart()
     }
-  }, [teamId, isFootball, activeTab])
+  }, [teamId, isFootball, showDepthChartModal])
 
   const loadDepthChart = async () => {
     try {
       const response = await fetch(`/api/roster/depth-chart?teamId=${teamId}`)
       if (response.ok) {
         const data = await response.json()
-        setDepthChart(data.entries || [])
+        const entries = data.entries || []
+        setDepthChart(entries)
+        setDepthChartSnapshot(JSON.parse(JSON.stringify(entries))) // Deep copy for comparison
+        setHasUnsavedChanges(false)
       }
     } catch (error) {
       console.error("Failed to load depth chart:", error)
     }
   }
 
+  const handleOpenDepthChart = () => {
+    setShowDepthChartModal(true)
+  }
+
+  const handleCloseDepthChart = () => {
+    if (hasUnsavedChanges) {
+      setShowSavePrompt(true)
+    } else {
+      setShowDepthChartModal(false)
+    }
+  }
+
+  const handleSaveAndClose = async () => {
+    await handleSaveDepthChart()
+    setShowSavePrompt(false)
+    setShowDepthChartModal(false)
+  }
+
+  const handleDiscardAndClose = () => {
+    // Reload from snapshot to discard changes
+    setDepthChart(JSON.parse(JSON.stringify(depthChartSnapshot)))
+    setShowSavePrompt(false)
+    setShowDepthChartModal(false)
+    setHasUnsavedChanges(false)
+  }
+
+  const handleAddPlayerSave = (payload: {
+    firstName: string
+    lastName: string
+    grade: number | null
+    jerseyNumber: number | null
+    positionGroup: string | null
+    notes: string | null
+    email?: string | null
+  }) => {
+    setPendingPlayerData(payload)
+    setShowBillingWarningModal(true)
+    setShowAddModal(false)
+  }
+
   const submitAddPlayer = async () => {
-    if (!firstName || !lastName) return
+    if (!pendingPlayerData) return
     setLoading(true)
     setShowBillingWarningModal(false)
     try {
@@ -270,13 +526,7 @@ export function RosterManagerEnhanced({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teamId,
-          firstName,
-          lastName,
-          grade: grade ? parseInt(grade, 10) : null,
-          jerseyNumber: jerseyNumber ? parseInt(jerseyNumber, 10) : null,
-          positionGroup: positionGroup || null,
-          email: email || null,
-          notes: notes || null,
+          ...pendingPlayerData,
         }),
       })
       const data = await response.json().catch(() => ({}))
@@ -285,27 +535,15 @@ export function RosterManagerEnhanced({
       }
       const newPlayer = data as Player
       setPlayers([...players, newPlayer])
-      setFirstName("")
-      setLastName("")
-      setGrade("")
-      setJerseyNumber("")
-      setPositionGroup("")
-      setEmail("")
-      setNotes("")
-      setShowAddForm(false)
+      setPendingPlayerData(null)
+      setShowAddModal(false)
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error adding player")
+      // Reopen modal on error
+      setShowAddModal(true)
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleAddPlayer = () => {
-    if (!firstName || !lastName) {
-      alert("First and last name are required")
-      return
-    }
-    setShowBillingWarningModal(true)
   }
 
   const handleCsvImport = async () => {
@@ -434,25 +672,94 @@ export function RosterManagerEnhanced({
     formation?: string | null
     specialTeamType?: string | null
   }>) => {
-    try {
-      const response = await fetch("/api/roster/depth-chart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          entries: updates,
-        }),
+    const response = await fetch(`/api/roster/depth-chart?teamId=${teamId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        entries: updates,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+      throw new Error(errorData.error || "Failed to update depth chart")
+    }
+  }
+
+  // Track changes to depth chart (apply locally, mark as unsaved)
+  const handleDepthChartChange = (updates: Array<{
+    unit: string
+    position: string
+    string: number
+    playerId: string | null
+    formation?: string | null
+    specialTeamType?: string | null
+  }>) => {
+    // Apply changes locally
+    const updatedChart = [...depthChart]
+    
+    updates.forEach((update) => {
+      // Remove entries that match this position/string
+      const indicesToRemove: number[] = []
+      updatedChart.forEach((e, idx) => {
+        if (
+          e.unit === update.unit &&
+          e.position === update.position &&
+          e.string === update.string &&
+          (update.specialTeamType
+            ? e.specialTeamType === update.specialTeamType
+            : !e.specialTeamType && !e.formation)
+        ) {
+          indicesToRemove.push(idx)
+        }
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
-        throw new Error(errorData.error || "Failed to update depth chart")
+      
+      // Remove in reverse order to maintain indices
+      indicesToRemove.reverse().forEach(idx => updatedChart.splice(idx, 1))
+      
+      // Add new entry if playerId is not null
+      if (update.playerId) {
+        updatedChart.push({
+          id: `temp-${Date.now()}-${Math.random()}`,
+          unit: update.unit,
+          position: update.position,
+          string: update.string,
+          playerId: update.playerId,
+          formation: update.formation || null,
+          specialTeamType: update.specialTeamType || null,
+        })
       }
+    })
 
-      await loadDepthChart()
-    } catch (error: any) {
-      console.error("Failed to update depth chart:", error)
-      alert(`Error updating depth chart: ${error.message || "Unknown error"}`)
+    setDepthChart(updatedChart)
+    setHasUnsavedChanges(true)
+  }
+
+  const handleSaveDepthChart = async () => {
+    // Get all current entries and save them
+    const updates = depthChart.map((e) => ({
+      unit: e.unit,
+      position: e.position,
+      string: e.string,
+      playerId: e.playerId,
+      formation: e.formation || null,
+      specialTeamType: e.specialTeamType || null,
+    }))
+
+    try {
+      await handleDepthChartUpdate(updates)
+      
+      // Reload to get saved state
+      const reloadResponse = await fetch(`/api/roster/depth-chart?teamId=${teamId}`)
+      if (reloadResponse.ok) {
+        const data = await reloadResponse.json()
+        const entries = data.entries || []
+        setDepthChart(entries)
+        setDepthChartSnapshot(JSON.parse(JSON.stringify(entries)))
+        setHasUnsavedChanges(false)
+      }
+    } catch (error) {
+      console.error("Failed to save depth chart:", error)
     }
   }
 
@@ -460,30 +767,24 @@ export function RosterManagerEnhanced({
     <div>
       {/* Tab Navigation */}
       <div className="mb-6 border-b border-[#64748B]">
-        <div className="flex gap-4">
-          <button
-            onClick={() => setActiveTab("roster")}
-            className={`px-4 py-2 font-semibold transition-colors ${
-              activeTab === "roster"
-                ? "border-b-2"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={activeTab === "roster" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
-          >
-            Roster View
-          </button>
-          {isFootball && (
+        <div className="flex gap-4 items-center justify-between">
+          <div className="flex gap-4">
             <button
-              onClick={() => setActiveTab("depth-chart")}
+              onClick={() => setActiveTab("roster")}
               className={`px-4 py-2 font-semibold transition-colors ${
-                activeTab === "depth-chart"
+                activeTab === "roster"
                   ? "border-b-2"
                   : "opacity-60 hover:opacity-100"
               }`}
-              style={activeTab === "depth-chart" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+              style={activeTab === "roster" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
             >
-              Depth Chart
+              Roster View
             </button>
+          </div>
+          {isFootball && canEdit && (
+            <Button onClick={handleOpenDepthChart} variant="outline">
+              Open Depth Chart
+            </Button>
           )}
         </div>
       </div>
@@ -491,9 +792,9 @@ export function RosterManagerEnhanced({
       {/* Add/Import Controls */}
       {canEdit && activeTab === "roster" && (
         <div className="mb-6 flex gap-4">
-          {!showAddForm && !showImportForm && (
+          {!showAddModal && !showImportForm && (
             <>
-              <Button onClick={() => setShowAddForm(true)}>Add Player</Button>
+              <Button onClick={() => setShowAddModal(true)}>Add Player</Button>
               <Button variant="outline" onClick={() => setShowImportForm(true)}>Import CSV</Button>
             </>
           )}
@@ -533,74 +834,23 @@ export function RosterManagerEnhanced({
         </Card>
       )}
 
-      {/* Add Player Form */}
-      {showAddForm && (
-        <Card className="mb-6 bg-white border border-[#E5E7EB]">
-          <CardHeader>
-            <CardTitle className="text-[#0F172A]">Add Player</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-[#0F172A]">First Name *</Label>
-                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[#0F172A]">Last Name *</Label>
-                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[#0F172A]">Grade</Label>
-                <Input type="number" value={grade} onChange={(e) => setGrade(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[#0F172A]">Jersey Number</Label>
-                <Input type="number" value={jerseyNumber} onChange={(e) => setJerseyNumber(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[#0F172A]">Position</Label>
-                <select
-                  value={positionGroup}
-                  onChange={(e) => setPositionGroup(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm"
-                >
-                  <option value="">Select position</option>
-                  <option value="QB">QB</option>
-                  <option value="RB">RB</option>
-                  <option value="WR">WR</option>
-                  <option value="TE">TE</option>
-                  <option value="OL">OL</option>
-                  <option value="DL">DL</option>
-                  <option value="LB">LB</option>
-                  <option value="DB">DB</option>
-                  <option value="K">K</option>
-                  <option value="P">P</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[#0F172A]">Email (optional - for invite)</Label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label className="text-[#0F172A]">Notes</Label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="flex min-h-[80px] w-full rounded-md border border-border bg-bg px-3 py-2 text-sm"
-                  placeholder="Eligibility notes, injuries, etc."
-                />
-              </div>
-            </div>
-            <div className="flex gap-4 mt-4">
-              <Button onClick={handleAddPlayer} disabled={loading}>
-                {loading ? "Adding..." : "Add Player"}
-              </Button>
-              <Button variant="outline" onClick={() => setShowAddForm(false)}>
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Add Player Modal */}
+      {showAddModal && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/50"
+            onClick={() => !loading && setShowAddModal(false)}
+            aria-hidden
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <AddPlayerModal
+              onSave={handleAddPlayerSave}
+              onCancel={() => setShowAddModal(false)}
+              loading={loading}
+              existingPlayers={players}
+            />
+          </div>
+        </>
       )}
 
       {/* Billing warning confirmation: coach-created player may become a billable slot when they join */}
@@ -682,15 +932,72 @@ export function RosterManagerEnhanced({
         />
       )}
 
-      {activeTab === "depth-chart" && isFootball && (
-        <DepthChartView
-          teamId={teamId}
-          players={players}
-          depthChart={depthChart}
-          onUpdate={handleDepthChartUpdate}
-          canEdit={canEdit}
-          isHeadCoach={userRole === "HEAD_COACH"}
-        />
+      {/* Depth Chart Full-Screen Modal */}
+      {showDepthChartModal && isFootball && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50" aria-hidden />
+          <div className="fixed inset-0 z-50 flex flex-col bg-white">
+            {/* Header with close button */}
+            <div className="flex items-center justify-between p-4 border-b border-[#E5E7EB] bg-white">
+              <h2 className="text-2xl font-semibold text-[#0F172A]">Depth Chart</h2>
+              <div className="flex items-center gap-3">
+                {hasUnsavedChanges && (
+                  <span className="text-sm text-amber-600 font-medium">Unsaved changes</span>
+                )}
+                {hasUnsavedChanges && (
+                  <Button onClick={handleSaveDepthChart} variant="default">
+                    Save
+                  </Button>
+                )}
+                <Button variant="outline" onClick={handleCloseDepthChart}>
+                  Close
+                </Button>
+              </div>
+            </div>
+            {/* Full-screen depth chart content */}
+            <div className="flex-1 overflow-auto">
+              <DepthChartView
+                teamId={teamId}
+                players={players}
+                depthChart={depthChart}
+                onUpdate={handleDepthChartChange}
+                canEdit={canEdit}
+                isHeadCoach={userRole === "HEAD_COACH"}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Save Prompt Modal */}
+      {showSavePrompt && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] bg-black/50"
+            onClick={() => setShowSavePrompt(false)}
+            aria-hidden
+          />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <Card className="w-full max-w-md bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+              <CardHeader>
+                <CardTitle className="text-[#0F172A]">Unsaved Changes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-[#475569]">
+                  You have unsaved changes to the depth chart. What would you like to do?
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <Button variant="outline" onClick={handleDiscardAndClose}>
+                    Discard Changes
+                  </Button>
+                  <Button onClick={handleSaveAndClose}>
+                    Save & Close
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
     </div>
   )

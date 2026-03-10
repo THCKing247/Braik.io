@@ -47,8 +47,8 @@ export function RosterListView({
 }: RosterListViewProps) {
   return (
     <div
-      className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white overflow-x-hidden"
-      style={{ minHeight: "420px", maxHeight: "min(calc(100vh - 260px), 900px)" }}
+      className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white overflow-x-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+      style={{ minHeight: "420px", maxHeight: "800px" }}
     >
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">

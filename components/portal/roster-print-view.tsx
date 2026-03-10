@@ -59,6 +59,12 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
         const response = await fetch(`/api/roster/print?teamId=${teamId}`)
         if (response.ok) {
           const data = await response.json()
+          console.log("[roster-print-view] API response payload", {
+            hasTeam: !!data?.team,
+            hasTemplate: !!data?.template,
+            playerCount: data?.players?.length ?? 0,
+            teamName: data?.team?.name,
+          })
           setRosterData(data)
         } else {
           const body = await response.json().catch(() => ({}))
@@ -76,8 +82,26 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
   }, [teamId])
 
   const handlePrint = () => {
-    if (!printRef.current) return
-    window.print()
+    const el = printRef.current
+    const players = rosterData?.players ?? []
+    console.log("[roster-print-view] handlePrint", {
+      printRefExists: !!el,
+      playerCount: players.length,
+      templateExists: !!rosterData?.template,
+    })
+    if (!el) {
+      console.warn("[roster-print-view] Print aborted: printable container ref not mounted")
+      return
+    }
+    if (!rosterData) {
+      console.warn("[roster-print-view] Print aborted: no roster data")
+      return
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print()
+      })
+    })
   }
 
   const handleEmail = async () => {
@@ -123,82 +147,87 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
   }
 
   const { team, template, players, generatedAt } = rosterData
+  const hasPlayers = Array.isArray(players) && players.length > 0
 
   return (
     <div className="space-y-4">
-      {/* Print controls - hidden when printing */}
-      <div className="flex gap-3 print:hidden">
+      <div className="no-print flex gap-3">
         <Button onClick={handlePrint}>Print Roster</Button>
         <Button onClick={handleEmail} variant="outline">Email Roster</Button>
         <Button onClick={onClose} variant="outline">Close</Button>
       </div>
 
-      {/* Roster content */}
-      <div ref={printRef} className="bg-white p-8 print:p-4">
-        {/* Header */}
-        <div className="text-center mb-8 print:mb-6">
+      <div
+        ref={printRef}
+        className="roster-print-root bg-white p-8 text-black"
+      >
+        <div className="text-center mb-8">
           {template.header.showYear && (
-            <p className="text-sm text-gray-600 mb-1">
+            <p className="text-sm text-gray-700 mb-1">
               <strong>{template.header.yearLabel}:</strong> {team.year}
             </p>
           )}
           {template.header.showSchoolName && team.schoolName && (
-            <p className="text-sm text-gray-600 mb-1">
+            <p className="text-sm text-gray-700 mb-1">
               <strong>{template.header.schoolNameLabel}:</strong> {team.schoolName}
             </p>
           )}
           {template.header.showTeamName && (
-            <h1 className="text-3xl font-bold mt-2">{team.name}</h1>
+            <h1 className="text-3xl font-bold mt-2 text-black">{team.name}</h1>
           )}
         </div>
 
-        {/* Roster Table */}
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-100">
-              {template.body.showJerseyNumber && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
-                  {template.body.jerseyNumberLabel}
-                </th>
-              )}
-              {template.body.showPlayerName && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
-                  {template.body.playerNameLabel}
-                </th>
-              )}
-              {template.body.showGrade && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold">
-                  {template.body.gradeLabel}
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((player, idx) => (
-              <tr key={idx}>
+        {hasPlayers ? (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
                 {template.body.showJerseyNumber && (
-                  <td className="border border-gray-300 px-4 py-2">
-                    {player.jerseyNumber ?? ""}
-                  </td>
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                    {template.body.jerseyNumberLabel}
+                  </th>
                 )}
                 {template.body.showPlayerName && (
-                  <td className="border border-gray-300 px-4 py-2">
-                    {player.name}
-                  </td>
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                    {template.body.playerNameLabel}
+                  </th>
                 )}
                 {template.body.showGrade && (
-                  <td className="border border-gray-300 px-4 py-2">
-                    {player.gradeLabel ?? player.grade ?? ""}
-                  </td>
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                    {template.body.gradeLabel}
+                  </th>
                 )}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {players.map((player, idx) => (
+                <tr key={idx}>
+                  {template.body.showJerseyNumber && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.jerseyNumber ?? ""}
+                    </td>
+                  )}
+                  {template.body.showPlayerName && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.name}
+                    </td>
+                  )}
+                  {template.body.showGrade && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.gradeLabel ?? player.grade ?? ""}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-gray-700 py-8 text-center font-medium">
+            No roster data to print. Add players to this team first.
+          </p>
+        )}
 
-        {/* Footer */}
         {(template.footer.showGeneratedDate || template.footer.customText) && (
-          <div className="mt-8 text-center text-sm text-gray-600 print:mt-6">
+          <div className="mt-8 text-center text-sm text-gray-700">
             {template.footer.showGeneratedDate && (
               <p>Generated: {new Date(generatedAt).toLocaleDateString()}</p>
             )}
@@ -209,23 +238,32 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
         )}
       </div>
 
-      {/* Print styles */}
       <style jsx global>{`
         @media print {
-          body * {
-            visibility: hidden;
+          .no-print {
+            display: none !important;
           }
-          .print\\:p-4,
-          .print\\:mb-6,
-          .print\\:mt-6,
-          .print\\:p-4 * {
-            visibility: visible;
+          .roster-print-root {
+            display: block !important;
+            visibility: visible !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            background: white !important;
+            color: black !important;
           }
-          .print\\:p-4 {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+          .roster-print-root * {
+            visibility: visible !important;
+            color: black !important;
+          }
+          .roster-print-root table,
+          .roster-print-root th,
+          .roster-print-root td {
+            color: black !important;
+          }
+          @page {
+            margin: 0.5in;
           }
         }
       `}</style>

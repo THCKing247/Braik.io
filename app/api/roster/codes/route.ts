@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServer()
     const { data: team } = await supabase
       .from("teams")
-      .select("id, player_code, parent_code, team_id_code")
+      .select("id, name, player_code, parent_code, team_id_code")
       .eq("id", teamId)
       .maybeSingle()
 
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     await requireTeamAccess(teamId)
 
     return NextResponse.json({
+      teamName: team.name || null,
       playerCode: team.player_code || null,
       parentCode: team.parent_code || null,
       teamIdCode: team.team_id_code || null,

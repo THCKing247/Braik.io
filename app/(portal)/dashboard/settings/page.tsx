@@ -2,6 +2,7 @@
 
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { TeamSettings } from "@/components/portal/team-settings"
+import { TeamCodeSettingsCard } from "@/components/portal/team-code-settings-card"
 
 const defaultTeam = {
   id: "",
@@ -22,8 +23,11 @@ const defaultTeam = {
 export default function SettingsPage() {
   return (
     <DashboardPageShell>
-      {({ teamId }) => (
-        <TeamSettings team={{ ...defaultTeam, id: teamId }} />
+      {({ teamId, userRole }) => (
+        <div className="space-y-6">
+          <TeamCodeSettingsCard teamId={teamId} isHeadCoach={userRole === "HEAD_COACH"} />
+          <TeamSettings team={{ ...defaultTeam, id: teamId }} />
+        </div>
       )}
     </DashboardPageShell>
   )

@@ -116,22 +116,37 @@ export function SubscriptionManager({
       </Card>
 
       {/* Team Code - Head Coach Only */}
-      {isHeadCoach && teamIdCode && (
+      {isHeadCoach && (
         <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
           <CardHeader>
             <CardTitle className="text-[#FFFFFF]">Team Code</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-[#FFFFFF]/80">
-              Share this team code with Assistant Coaches, Players, and Parents so they can join your team.
-            </p>
-            <div className="p-6 bg-[#FFFFFF]/10 rounded-lg border border-[#FFFFFF]/20">
-              <p className="text-sm text-[#FFFFFF]/70 mb-2">Team Code</p>
-              <p className="text-4xl font-bold text-[#FFFFFF] font-mono tracking-wider">{teamIdCode}</p>
-            </div>
-            <p className="text-xs text-[#FFFFFF]/70">
-              This code is required when other users sign up to join your team.
-            </p>
+            {teamIdCode ? (
+              <>
+                <p className="text-[#FFFFFF]/80">
+                  Share this team code with Assistant Coaches, Players, and Parents so they can join your team.
+                </p>
+                <div className="p-6 bg-[#FFFFFF]/10 rounded-lg border border-[#FFFFFF]/20">
+                  <p className="text-sm text-[#FFFFFF]/70 mb-2">Team Code</p>
+                  <p className="text-4xl font-bold text-[#FFFFFF] font-mono tracking-wider">{teamIdCode}</p>
+                </div>
+                <p className="text-xs text-[#FFFFFF]/70">
+                  This code is required when other users sign up to join your team. You can also manage it in Settings.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[#FFFFFF]/80">
+                  No team code has been generated yet. Generate one in Settings so others can join your team.
+                </p>
+                <Link href="/dashboard/settings">
+                  <Button variant="outline" className="bg-[#FFFFFF] text-[#1e3a5f] hover:bg-[#F1F5F9]">
+                    Go to Settings to generate Team Code
+                  </Button>
+                </Link>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

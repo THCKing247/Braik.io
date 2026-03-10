@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LayoutGrid, List } from "lucide-react"
 import { RosterGridView } from "./roster-grid-view"
+import { RosterListView } from "./roster-list-view"
 import { DepthChartView } from "./depth-chart-view"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
@@ -456,6 +458,7 @@ export function RosterManagerEnhanced({
   const [inviteLoading, setInviteLoading] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
+  const [rosterViewMode, setRosterViewMode] = useState<"card" | "list">("card")
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
@@ -821,16 +824,47 @@ export function RosterManagerEnhanced({
         </div>
       </div>
 
-      {/* Add/Import Controls */}
-      {canEdit && activeTab === "roster" && (
-        <div className="mb-6 flex gap-4">
-          {!showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (
-            <>
+      {/* Add/Import Controls + View Toggle */}
+      {activeTab === "roster" && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-[#64748B]">View:</span>
+            <div className="flex rounded-lg border border-[#E5E7EB] bg-white p-0.5">
+              <button
+                type="button"
+                onClick={() => setRosterViewMode("card")}
+                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  rosterViewMode === "card"
+                    ? "bg-[#3B82F6] text-white shadow-sm"
+                    : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                }`}
+                aria-pressed={rosterViewMode === "card"}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setRosterViewMode("list")}
+                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  rosterViewMode === "list"
+                    ? "bg-[#3B82F6] text-white shadow-sm"
+                    : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                }`}
+                aria-pressed={rosterViewMode === "list"}
+              >
+                <List className="h-4 w-4" />
+                List
+              </button>
+            </div>
+          </div>
+          {canEdit && !showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (
+            <div className="flex gap-2">
               <Button onClick={() => setShowAddModal(true)}>Add Player</Button>
               <Button variant="outline" onClick={() => setShowImportForm(true)}>Import CSV</Button>
               <Button variant="outline" onClick={() => setShowPrintModal(true)}>Print Roster</Button>
               <Button variant="outline" onClick={() => setShowEmailModal(true)}>Email Roster</Button>
-            </>
+            </div>
           )}
         </div>
       )}
@@ -957,13 +991,23 @@ export function RosterManagerEnhanced({
 
       {/* Content Views */}
       {activeTab === "roster" && !showPrintModal && !showEmailModal && (
-        <RosterGridView
-          players={players}
-          canEdit={canEdit}
-          onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
-          onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
-          onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
-        />
+        rosterViewMode === "card" ? (
+          <RosterGridView
+            players={players}
+            canEdit={canEdit}
+            onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
+            onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+            onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+          />
+        ) : (
+          <RosterListView
+            players={players}
+            canEdit={canEdit}
+            onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
+            onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+            onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+          />
+        )
       )}
 
       {/* Print Modal */}

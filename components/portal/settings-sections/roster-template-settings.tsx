@@ -24,9 +24,15 @@ interface RosterTemplate {
     showJerseyNumber: boolean
     showPlayerName: boolean
     showGrade: boolean
+    showPosition: boolean
+    showWeight: boolean
+    showHeight: boolean
     jerseyNumberLabel: string
     playerNameLabel: string
     gradeLabel: string
+    positionLabel: string
+    weightLabel: string
+    heightLabel: string
     sortBy: "jerseyNumber" | "name"
   }
   footer: {
@@ -48,9 +54,15 @@ const defaultTemplate: RosterTemplate = {
     showJerseyNumber: true,
     showPlayerName: true,
     showGrade: true,
+    showPosition: true,
+    showWeight: true,
+    showHeight: true,
     jerseyNumberLabel: "Number",
     playerNameLabel: "Name",
     gradeLabel: "Grade",
+    positionLabel: "Position",
+    weightLabel: "Weight",
+    heightLabel: "Height",
     sortBy: "jerseyNumber",
   },
   footer: {
@@ -302,6 +314,96 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                     setTemplate({
                       ...template,
                       body: { ...template.body, gradeLabel: e.target.value },
+                    })
+                  }
+                  className="bg-white/10 border-white/20 text-white"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="showPosition"
+                checked={template.body.showPosition !== false}
+                onCheckedChange={(checked) =>
+                  setTemplate({
+                    ...template,
+                    body: { ...template.body, showPosition: checked === true },
+                  })
+                }
+              />
+              <Label htmlFor="showPosition" className="text-white">Show Position</Label>
+            </div>
+            {template.body.showPosition !== false && (
+              <div className="ml-6 space-y-2">
+                <Label htmlFor="positionLabel" className="text-white/70">Position Label</Label>
+                <Input
+                  id="positionLabel"
+                  value={template.body.positionLabel ?? "Position"}
+                  onChange={(e) =>
+                    setTemplate({
+                      ...template,
+                      body: { ...template.body, positionLabel: e.target.value },
+                    })
+                  }
+                  className="bg-white/10 border-white/20 text-white"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="showWeight"
+                checked={template.body.showWeight !== false}
+                onCheckedChange={(checked) =>
+                  setTemplate({
+                    ...template,
+                    body: { ...template.body, showWeight: checked === true },
+                  })
+                }
+              />
+              <Label htmlFor="showWeight" className="text-white">Show Weight</Label>
+            </div>
+            {template.body.showWeight !== false && (
+              <div className="ml-6 space-y-2">
+                <Label htmlFor="weightLabel" className="text-white/70">Weight Label</Label>
+                <Input
+                  id="weightLabel"
+                  value={template.body.weightLabel ?? "Weight"}
+                  onChange={(e) =>
+                    setTemplate({
+                      ...template,
+                      body: { ...template.body, weightLabel: e.target.value },
+                    })
+                  }
+                  className="bg-white/10 border-white/20 text-white"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="showHeight"
+                checked={template.body.showHeight !== false}
+                onCheckedChange={(checked) =>
+                  setTemplate({
+                    ...template,
+                    body: { ...template.body, showHeight: checked === true },
+                  })
+                }
+              />
+              <Label htmlFor="showHeight" className="text-white">Show Height</Label>
+            </div>
+            {template.body.showHeight !== false && (
+              <div className="ml-6 space-y-2">
+                <Label htmlFor="heightLabel" className="text-white/70">Height Label</Label>
+                <Input
+                  id="heightLabel"
+                  value={template.body.heightLabel ?? "Height"}
+                  onChange={(e) =>
+                    setTemplate({
+                      ...template,
+                      body: { ...template.body, heightLabel: e.target.value },
                     })
                   }
                   className="bg-white/10 border-white/20 text-white"

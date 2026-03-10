@@ -48,6 +48,8 @@ export async function PATCH(
       positionGroup?: string | null
       notes?: string | null
       status?: string
+      weight?: number | string | null
+      height?: string | null
       [key: string]: unknown
     }
 
@@ -80,6 +82,13 @@ export async function PATCH(
     }
     if (body.notes !== undefined) {
       updates.notes = typeof body.notes === "string" ? body.notes.trim() || null : null
+    }
+    if (body.weight !== undefined) {
+      const w = body.weight
+      updates.weight = w == null || w === "" ? null : Number(w)
+    }
+    if (body.height !== undefined) {
+      updates.height = typeof body.height === "string" ? body.height.trim() || null : null
     }
     if (body.status === "active" || body.status === "inactive") {
       updates.status = body.status
@@ -116,6 +125,8 @@ export async function PATCH(
       invite_code?: string | null
       invite_status?: string
       claimed_at?: string | null
+      weight?: number | null
+      height?: string | null
     }
     return NextResponse.json({
       id: p.id,
@@ -131,6 +142,8 @@ export async function PATCH(
       inviteCode: p.invite_code ?? null,
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",
       claimedAt: p.claimed_at ?? null,
+      weight: p.weight ?? null,
+      height: p.height ?? null,
     })
   } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {

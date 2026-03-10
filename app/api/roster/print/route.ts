@@ -21,9 +21,15 @@ const DEFAULT_ROSTER_TEMPLATE = {
     showJerseyNumber: true,
     showPlayerName: true,
     showGrade: true,
+    showPosition: true,
+    showWeight: true,
+    showHeight: true,
     jerseyNumberLabel: "Number",
     playerNameLabel: "Name",
     gradeLabel: "Grade",
+    positionLabel: "Position",
+    weightLabel: "Weight",
+    heightLabel: "Height",
     sortBy: "jerseyNumber" as const,
   },
   footer: {
@@ -133,9 +139,10 @@ export async function GET(request: Request) {
     }
 
     // --- Stage: players lookup (required for roster) ---
+    // Include position_group, weight, height for official game roster submission (optional columns via add-if-not-exists migration)
     const { data: players, error: playersError } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, jersey_number")
+      .select("id, first_name, last_name, grade, jersey_number, position_group, weight, height")
       .eq("team_id", teamId)
       .eq("status", "active")
       .order("jersey_number", { ascending: true, nullsFirst: false })
@@ -223,24 +230,47 @@ export async function GET(request: Request) {
     }
 
     const currentYear = new Date().getFullYear()
-    const template = rosterTemplate ?? DEFAULT_ROSTER_TEMPLATE
+    const template = {
+      ...DEFAULT_ROSTER_TEMPLATE,
+      ...rosterTemplate,
+      header: { ...DEFAULT_ROSTER_TEMPLATE.header, ...(rosterTemplate?.header ?? {}) },
+      body: {
+        ...DEFAULT_ROSTER_TEMPLATE.body,
+        ...(rosterTemplate?.body ?? {}),
+      },
+      footer: { ...DEFAULT_ROSTER_TEMPLATE.footer, ...(rosterTemplate?.footer ?? {}) },
+    }
 
-    const formattedPlayers = (players || []).map((p) => ({
-      jerseyNumber: p.jersey_number,
-      name: `${p.first_name} ${p.last_name}`,
-      grade: p.grade,
-      gradeLabel: p.grade
-        ? p.grade === 9
-          ? "Freshman"
-          : p.grade === 10
-            ? "Sophomore"
-            : p.grade === 11
-              ? "Junior"
-              : p.grade === 12
-                ? "Senior"
-                : `Grade ${p.grade}`
-        : null,
-    }))
+    const formattedPlayers = (players || []).map((p) => {
+      const row = p as {
+        first_name: string
+        last_name: string
+        grade: number | null
+        jersey_number: number | null
+        position_group?: string | null
+        weight?: number | null
+        height?: string | null
+      }
+      return {
+        jerseyNumber: row.jersey_number,
+        name: `${row.first_name} ${row.last_name}`,
+        grade: row.grade,
+        gradeLabel: row.grade
+          ? row.grade === 9
+            ? "Freshman"
+            : row.grade === 10
+              ? "Sophomore"
+              : row.grade === 11
+                ? "Junior"
+                : row.grade === 12
+                  ? "Senior"
+                  : `Grade ${row.grade}`
+          : null,
+        position: row.position_group ?? null,
+        weight: row.weight != null ? row.weight : null,
+        height: row.height ?? null,
+      }
+    })
 
     if (template.body.sortBy === "jerseyNumber") {
       formattedPlayers.sort((a, b) => {

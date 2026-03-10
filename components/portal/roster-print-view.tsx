@@ -30,9 +30,15 @@ interface RosterData {
       showJerseyNumber: boolean
       showPlayerName: boolean
       showGrade: boolean
+      showPosition?: boolean
+      showWeight?: boolean
+      showHeight?: boolean
       jerseyNumberLabel: string
       playerNameLabel: string
       gradeLabel: string
+      positionLabel?: string
+      weightLabel?: string
+      heightLabel?: string
       sortBy: string
     }
     footer: {
@@ -45,6 +51,9 @@ interface RosterData {
     name: string
     grade: number | null
     gradeLabel: string | null
+    position: string | null
+    weight: number | null
+    height: string | null
   }>
   generatedAt: string
 }
@@ -181,33 +190,63 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
                   {template.body.playerNameLabel}
                 </th>
               )}
-              {template.body.showGrade && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
-                  {template.body.gradeLabel}
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((player, idx) => (
-              <tr key={idx}>
-                {template.body.showJerseyNumber && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">
-                    {player.jerseyNumber ?? ""}
-                  </td>
-                )}
-                {template.body.showPlayerName && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">
-                    {player.name}
-                  </td>
-                )}
                 {template.body.showGrade && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">
-                    {player.gradeLabel ?? player.grade ?? ""}
-                  </td>
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                    {template.body.gradeLabel}
+                  </th>
+                )}
+                {(template.body.showPosition !== false) && (
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                    {template.body.positionLabel ?? "Position"}
+                  </th>
+                )}
+                {(template.body.showWeight !== false) && (
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                    {template.body.weightLabel ?? "Weight"}
+                  </th>
+                )}
+                {(template.body.showHeight !== false) && (
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                    {template.body.heightLabel ?? "Height"}
+                  </th>
                 )}
               </tr>
-            ))}
+            </thead>
+            <tbody>
+              {players.map((player, idx) => (
+                <tr key={idx}>
+                  {template.body.showJerseyNumber && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.jerseyNumber ?? ""}
+                    </td>
+                  )}
+                  {template.body.showPlayerName && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.name}
+                    </td>
+                  )}
+                  {template.body.showGrade && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.gradeLabel ?? player.grade ?? ""}
+                    </td>
+                  )}
+                  {(template.body.showPosition !== false) && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.position ?? ""}
+                    </td>
+                  )}
+                  {(template.body.showWeight !== false) && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.weight != null ? player.weight : ""}
+                    </td>
+                  )}
+                  {(template.body.showHeight !== false) && (
+                    <td className="border border-gray-300 px-4 py-2 text-black">
+                      {player.height ?? ""}
+                    </td>
+                  )}
+                </tr>
+              ))}
           </tbody>
         </table>
       ) : (

@@ -33,6 +33,8 @@ interface Player {
   inviteStatus?: "not_invited" | "invited" | "joined"
   claimedAt?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
+  weight?: number | null
+  height?: string | null
   user: { email: string } | null
   guardianLinks: Array<{
     guardian: { user: { email: string } }
@@ -84,6 +86,8 @@ function EditPlayerModal({
   const [positionGroup, setPositionGroup] = useState(player.positionGroup ?? "")
   const [notes, setNotes] = useState(player.notes ?? "")
   const [email, setEmail] = useState(player.email ?? "")
+  const [weight, setWeight] = useState(player.weight != null ? String(player.weight) : "")
+  const [height, setHeight] = useState(player.height ?? "")
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -99,6 +103,8 @@ function EditPlayerModal({
       positionGroup: positionGroup.trim() || null,
       notes: notes.trim() || null,
       email: email.trim() || null,
+      weight: weight === "" ? null : parseInt(weight, 10),
+      height: height.trim() || null,
     })
   }
 
@@ -128,6 +134,14 @@ function EditPlayerModal({
           <div className="space-y-2 col-span-2">
             <Label className="text-[#0F172A]">Position</Label>
             <Input value={positionGroup} onChange={(e) => setPositionGroup(e.target.value)} placeholder="e.g. QB, RB" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Weight (lbs)</Label>
+            <Input type="number" min="0" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 185" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Height</Label>
+            <Input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 5'10&quot; or 6-2" />
           </div>
           <div className="space-y-2 col-span-2">
             <Label className="text-[#0F172A]">Email (optional)</Label>
@@ -191,6 +205,8 @@ function AddPlayerModal({
     positionGroup: string | null
     notes: string | null
     email?: string | null
+    weight?: number | null
+    height?: string | null
   }) => void
   onCancel: () => void
   loading: boolean
@@ -203,6 +219,8 @@ function AddPlayerModal({
   const [positionGroup, setPositionGroup] = useState("")
   const [email, setEmail] = useState("")
   const [notes, setNotes] = useState("")
+  const [weight, setWeight] = useState("")
+  const [height, setHeight] = useState("")
   const [jerseyError, setJerseyError] = useState<string | null>(null)
 
   // Validate jersey number when it changes
@@ -257,6 +275,8 @@ function AddPlayerModal({
       positionGroup: positionGroup.trim() || null,
       notes: notes.trim() || null,
       email: email.trim() || null,
+      weight: weight === "" ? null : parseInt(weight, 10),
+      height: height.trim() || null,
     })
   }
 
@@ -335,6 +355,14 @@ function AddPlayerModal({
                 <option value="P">P</option>
               </optgroup>
             </select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Weight (lbs)</Label>
+            <Input type="number" min="0" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 185" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#0F172A]">Height</Label>
+            <Input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 5'10&quot; or 6-2" />
           </div>
           <div className="space-y-2 col-span-2">
             <Label className="text-[#0F172A]">Email (optional - for invite)</Label>
@@ -607,6 +635,8 @@ export function RosterManagerEnhanced({
     positionGroup: string | null
     notes: string | null
     email?: string | null
+    weight?: number | null
+    height?: string | null
   }) => {
     if (!editingPlayer) return
     setLoading(true)
@@ -622,6 +652,8 @@ export function RosterManagerEnhanced({
           positionGroup: payload.positionGroup || null,
           notes: payload.notes || null,
           email: payload.email ?? undefined,
+          weight: payload.weight ?? undefined,
+          height: payload.height ?? undefined,
         }),
       })
       const data = await response.json().catch(() => ({}))

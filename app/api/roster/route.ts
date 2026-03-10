@@ -20,6 +20,8 @@ type PlayerRow = {
   invite_status?: string | null
   claimed_at?: string | null
   created_by?: string | null
+  weight?: number | null
+  height?: string | null
 }
 
 /**
@@ -53,7 +55,7 @@ export async function GET(request: Request) {
     await requireTeamAccess(teamId)
     const { data: rows, error } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, invite_code, invite_status, claimed_at, created_by, health_status")
+      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, invite_code, invite_status, claimed_at, created_by, health_status, weight, height")
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
@@ -92,6 +94,8 @@ export async function GET(request: Request) {
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",
       claimedAt: p.claimed_at ?? null,
       healthStatus: ((p as any).health_status ?? "active") as "active" | "injured" | "unavailable",
+      weight: (p as any).weight ?? null,
+      height: (p as any).height ?? null,
       user: p.user_id ? (userMap.get(p.user_id) ? { email: userMap.get(p.user_id)!.email } : null) : null,
       guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
     }))
@@ -238,6 +242,9 @@ export async function POST(request: Request) {
       )
     }
 
+    const weight = body?.weight != null ? Number(body.weight) : null
+    const height = typeof body?.height === "string" ? body.height.trim() || null : null
+
     const insertPayload: Record<string, unknown> = {
       team_id: teamId,
       first_name: firstName,
@@ -247,6 +254,8 @@ export async function POST(request: Request) {
       position_group: body?.positionGroup ?? null,
       notes: body?.notes ?? null,
       status: "active",
+      weight: weight,
+      height: height,
       invite_status: "not_invited",
       created_by: session.user.id,
       email: email ?? null,
@@ -281,6 +290,8 @@ export async function POST(request: Request) {
       inviteCode: p.invite_code ?? null,
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",
       claimedAt: (player as { claimed_at?: string | null }).claimed_at ?? null,
+      weight: (p as any).weight ?? null,
+      height: (p as any).height ?? null,
       user: null as { email: string } | null,
       guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
     }

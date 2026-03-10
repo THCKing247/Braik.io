@@ -75,6 +75,8 @@ function EditPlayerModal({
     positionGroup: string | null
     notes: string | null
     email?: string | null
+    weight?: number | null
+    height?: string | null
   }) => void
   onCancel: () => void
   loading: boolean

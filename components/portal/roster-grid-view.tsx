@@ -67,7 +67,12 @@ export function RosterGridView({
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    <div
+      className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white/50"
+      style={{ maxHeight: "420px" }}
+      aria-label="Roster cards grid"
+    >
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
       {players.map((player) => (
         <div key={player.id} className="flex flex-col gap-2">
           <PlayerCard
@@ -124,6 +129,7 @@ export function RosterGridView({
           No players in roster
         </div>
       )}
+      </div>
     </div>
   )
 }

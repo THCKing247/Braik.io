@@ -4,8 +4,40 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 
 /**
+ * Default roster template when teams.roster_template column is missing or unavailable.
+ * Used to avoid 500s during rolling migrations or in environments where the column
+ * has not been added yet.
+ */
+const DEFAULT_ROSTER_TEMPLATE = {
+  header: {
+    showYear: true,
+    showSchoolName: true,
+    showTeamName: true,
+    yearLabel: "Year",
+    schoolNameLabel: "School",
+    teamNameLabel: "Team",
+  },
+  body: {
+    showJerseyNumber: true,
+    showPlayerName: true,
+    showGrade: true,
+    jerseyNumberLabel: "Number",
+    playerNameLabel: "Name",
+    gradeLabel: "Grade",
+    sortBy: "jerseyNumber" as const,
+  },
+  footer: {
+    showGeneratedDate: true,
+    customText: "",
+  },
+}
+
+/**
  * GET /api/roster/print?teamId=xxx
- * Returns roster data formatted for printing/emailing
+ * Returns roster data formatted for printing/emailing.
+ * Uses only guaranteed team columns first; optional fields (season_name, roster_template,
+ * school_id/schools) are loaded separately so production schema mismatches during
+ * rolling migrations do not cause 500s.
  */
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -27,34 +59,40 @@ export async function GET(request: Request) {
 
     const supabase = getSupabaseServer()
 
-    // Get team data
-    const { data: team, error: teamError } = await supabase
+    // --- Stage: team base lookup (guaranteed columns only) ---
+    // Only id, name, org are required so missing optional columns (season_name, roster_template)
+    // do not cause PostgREST select errors in production.
+    const { data: teamBase, error: teamError } = await supabase
       .from("teams")
-      .select("id, name, org, season_name, roster_template")
+      .select("id, name, org")
       .eq("id", teamId)
       .maybeSingle()
 
     if (teamError) {
-      console.error("[GET /api/roster/print] Team lookup failed", { teamId, error: teamError })
-      return NextResponse.json({ error: "Failed to load team" }, { status: 500 })
+      console.error("[GET /api/roster/print] Team base lookup failed", { teamId, error: teamError })
+      return NextResponse.json(
+        { error: "Failed to load team", stage: "team_base" },
+        { status: 500 }
+      )
     }
-    if (!team) {
+    if (!teamBase) {
       console.warn("[GET /api/roster/print] Team not found", { teamId })
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
+    // --- Stage: access check ---
     try {
       await requireTeamAccess(teamId)
     } catch (accessErr: unknown) {
       const msg = accessErr instanceof Error ? accessErr.message : "Access denied"
       if (accessErr instanceof MembershipLookupError) {
-        console.error("[GET /api/roster/print] Membership lookup failed", {
+        console.error("[GET /api/roster/print] Membership lookup failed (access check)", {
           userId: session.user.id,
           teamId,
           error: accessErr,
         })
         return NextResponse.json(
-          { error: "Failed to verify team access" },
+          { error: "Failed to verify team access", stage: "access_check" },
           { status: 500 }
         )
       }
@@ -70,7 +108,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: msg }, { status: 403 })
     }
 
-    // Get players
+    // --- Stage: players lookup (required for roster) ---
     const { data: players, error: playersError } = await supabase
       .from("players")
       .select("id, first_name, last_name, grade, jersey_number")
@@ -81,75 +119,105 @@ export async function GET(request: Request) {
       .order("first_name", { ascending: true })
 
     if (playersError) {
-      console.error("[GET /api/roster/print] Players query failed", { teamId, error: playersError })
-      return NextResponse.json({ error: "Failed to load roster" }, { status: 500 })
+      console.error("[GET /api/roster/print] Players lookup failed", { teamId, error: playersError })
+      return NextResponse.json(
+        {
+          error: "Failed to load roster",
+          details: playersError.message,
+          stage: "players",
+        },
+        { status: 500 }
+      )
     }
 
-    // Get school name if team has school_id
+    // --- Stage: optional team metadata (season_name, roster_template) ---
+    // Loaded in a separate query so missing columns in production do not crash the endpoint.
+    let seasonName: string | null = null
+    let rosterTemplate: typeof DEFAULT_ROSTER_TEMPLATE | null = null
+    try {
+      const { data: meta, error: metaError } = await supabase
+        .from("teams")
+        .select("season_name, roster_template")
+        .eq("id", teamId)
+        .maybeSingle()
+
+      if (metaError) {
+        console.warn("[GET /api/roster/print] Optional team metadata lookup failed (column may not exist)", {
+          teamId,
+          error: metaError,
+        })
+      } else if (meta) {
+        seasonName = (meta as { season_name?: string | null }).season_name ?? null
+        const raw = (meta as { roster_template?: unknown }).roster_template
+        if (raw && typeof raw === "object" && raw !== null) {
+          rosterTemplate = raw as typeof DEFAULT_ROSTER_TEMPLATE
+        }
+      }
+    } catch (metaErr) {
+      console.warn("[GET /api/roster/print] Optional team metadata lookup threw", {
+        teamId,
+        error: metaErr,
+      })
+    }
+
+    // --- Stage: optional school lookup ---
+    // school_id / schools table may not exist in all environments.
     let schoolName: string | null = null
     try {
-      const { data: teamWithSchool } = await supabase
+      const { data: teamWithSchool, error: schoolIdError } = await supabase
         .from("teams")
         .select("school_id")
         .eq("id", teamId)
         .maybeSingle()
 
-      if (teamWithSchool && (teamWithSchool as any).school_id) {
+      if (schoolIdError) {
+        console.warn("[GET /api/roster/print] Optional school_id lookup failed (column may not exist)", {
+          teamId,
+          error: schoolIdError,
+        })
+      } else if (teamWithSchool && (teamWithSchool as { school_id?: string | null }).school_id) {
+        const schoolId = (teamWithSchool as { school_id: string }).school_id
         const { data: school } = await supabase
           .from("schools")
           .select("name")
-          .eq("id", (teamWithSchool as any).school_id)
+          .eq("id", schoolId)
           .maybeSingle()
-        if (school) {
-          schoolName = school.name
+        if (school && (school as { name?: string }).name) {
+          schoolName = (school as { name: string }).name
         }
       }
-    } catch (err) {
-      // Ignore if schools table doesn't exist or query fails
+    } catch (schoolErr) {
+      console.warn("[GET /api/roster/print] Optional school lookup threw (table/column may not exist)", {
+        teamId,
+        error: schoolErr,
+      })
     }
 
-    // Use org as fallback for school name
-    if (!schoolName && (team as any).org) {
-      schoolName = (team as any).org
+    // Fallback: use org as school name when school lookup unavailable or empty
+    if (!schoolName && (teamBase as { org?: string | null }).org) {
+      schoolName = (teamBase as { org: string }).org
     }
 
-    // Get current year
     const currentYear = new Date().getFullYear()
+    const template = rosterTemplate ?? DEFAULT_ROSTER_TEMPLATE
 
-    // Get template (with defaults)
-    const template = (team as any).roster_template || {
-      header: {
-        showYear: true,
-        showSchoolName: true,
-        showTeamName: true,
-        yearLabel: "Year",
-        schoolNameLabel: "School",
-        teamNameLabel: "Team",
-      },
-      body: {
-        showJerseyNumber: true,
-        showPlayerName: true,
-        showGrade: true,
-        jerseyNumberLabel: "Number",
-        playerNameLabel: "Name",
-        gradeLabel: "Grade",
-        sortBy: "jerseyNumber",
-      },
-      footer: {
-        showGeneratedDate: true,
-        customText: "",
-      },
-    }
-
-    // Format players based on template
     const formattedPlayers = (players || []).map((p) => ({
       jerseyNumber: p.jersey_number,
       name: `${p.first_name} ${p.last_name}`,
       grade: p.grade,
-      gradeLabel: p.grade ? (p.grade === 9 ? "Freshman" : p.grade === 10 ? "Sophomore" : p.grade === 11 ? "Junior" : p.grade === 12 ? "Senior" : `Grade ${p.grade}`) : null,
+      gradeLabel: p.grade
+        ? p.grade === 9
+          ? "Freshman"
+          : p.grade === 10
+            ? "Sophomore"
+            : p.grade === 11
+              ? "Junior"
+              : p.grade === 12
+                ? "Senior"
+                : `Grade ${p.grade}`
+        : null,
     }))
 
-    // Sort players based on template
     if (template.body.sortBy === "jerseyNumber") {
       formattedPlayers.sort((a, b) => {
         if (a.jerseyNumber === null && b.jerseyNumber === null) return 0
@@ -161,12 +229,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      teamId: team.id,
+      teamId: teamBase.id,
       team: {
-        id: team.id,
-        name: (team as any).name,
-        schoolName: schoolName,
-        seasonName: (team as any).season_name,
+        id: teamBase.id,
+        name: (teamBase as { name?: string }).name ?? "",
+        schoolName,
+        seasonName,
         year: currentYear,
       },
       template,
@@ -177,7 +245,7 @@ export async function GET(request: Request) {
     const message = error instanceof Error ? error.message : "Failed to generate roster"
     console.error("[GET /api/roster/print] Unexpected error", { error, message })
     return NextResponse.json(
-      { error: message },
+      { error: message, stage: "unexpected" },
       { status: 500 }
     )
   }

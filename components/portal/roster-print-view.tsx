@@ -61,7 +61,9 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
           const data = await response.json()
           setRosterData(data)
         } else {
-          alert("Failed to load roster data")
+          const body = await response.json().catch(() => ({}))
+          const message = typeof body?.error === "string" ? body.error : "Failed to load roster data"
+          alert(message)
         }
       } catch (error) {
         console.error("Failed to load roster:", error)

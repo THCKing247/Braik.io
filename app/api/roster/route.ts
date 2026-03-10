@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
+import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
       positionGroup: p.position_group ?? null,
       status: p.status ?? "active",
       notes: p.notes ?? null,
-      imageUrl: p.image_url ?? null,
+      imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
       email: p.email ?? null,
       inviteCode: p.invite_code ?? null,
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",
@@ -285,7 +286,7 @@ export async function POST(request: Request) {
       positionGroup: p.position_group ?? null,
       status: p.status ?? "active",
       notes: p.notes ?? null,
-      imageUrl: p.image_url ?? null,
+      imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
       email: p.email ?? null,
       inviteCode: p.invite_code ?? null,
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",

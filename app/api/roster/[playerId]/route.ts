@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
+import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 
 /**
  * PATCH /api/roster/[playerId] - Update a player (e.g. invite_code, invite_status).
@@ -137,7 +138,7 @@ export async function PATCH(
       positionGroup: p.position_group ?? null,
       status: p.status ?? "active",
       notes: p.notes ?? null,
-      imageUrl: p.image_url ?? null,
+      imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
       email: p.email ?? null,
       inviteCode: p.invite_code ?? null,
       inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",

@@ -35,6 +35,7 @@ function getContentType(filePath: string): string {
     jpeg: "image/jpeg",
     png: "image/png",
     gif: "image/gif",
+    webp: "image/webp",
     txt: "text/plain",
     doc: "application/msword",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

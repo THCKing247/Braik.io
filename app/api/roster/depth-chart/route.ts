@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
+import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 
 /**
  * GET /api/roster/depth-chart?teamId=xxx
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
                 firstName: p.first_name ?? "",
                 lastName: p.last_name ?? "",
                 jerseyNumber: p.jersey_number ?? null,
-                imageUrl: p.image_url ?? null,
+                imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
               },
             ])
           )

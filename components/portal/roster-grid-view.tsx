@@ -69,7 +69,7 @@ export function RosterGridView({
   return (
     <div
       className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white/50"
-      style={{ maxHeight: "420px" }}
+      style={{ minHeight: "420px", maxHeight: "min(calc(100vh - 260px), 900px)" }}
       aria-label="Roster cards grid"
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">

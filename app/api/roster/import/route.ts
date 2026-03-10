@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission } from "@/lib/auth/rbac"
+import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 
 /**
  * POST /api/roster/import
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
       positionGroup: p.position_group,
       status: p.status,
       notes: p.notes,
-      imageUrl: p.image_url,
+      imageUrl: normalizePlayerImageUrl(p.image_url),
       email: p.email || null,
       inviteCode: p.invite_code || null,
       inviteStatus: (p.invite_status as "not_invited" | "invited" | "joined") || "not_invited",

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { writeFile, mkdir, unlink } from "fs/promises"
+import { join } from "path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission } from "@/lib/auth/rbac"
@@ -56,15 +58,18 @@ export async function POST(
       return NextResponse.json({ error: "File size exceeds 5MB limit" }, { status: 400 })
     }
 
-    // TODO: Upload to Supabase Storage or file system
-    // For now, generate a URL (would be replaced with actual Storage upload)
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 15)
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
     const secureFileName = `${timestamp}-${random}-${sanitizedName}`
-    const fileUrl = `./uploads/players/${secureFileName}`
 
-    // In production: await supabase.storage.from('player-images').upload(secureFileName, file)
+    const uploadsDir = join(process.cwd(), "uploads", "players")
+    await mkdir(uploadsDir, { recursive: true })
+    const filePath = join(uploadsDir, secureFileName)
+    const buffer = Buffer.from(await file.arrayBuffer())
+    await writeFile(filePath, buffer)
+
+    const fileUrl = `/api/uploads/players/${secureFileName}`
 
     // Update player with image URL
     const { error: updateError } = await supabase
@@ -121,10 +126,15 @@ export async function DELETE(
 
     await requireTeamPermission(player.team_id, "edit_roster")
 
-    // TODO: Delete from Supabase Storage if using Storage
-    // if (player.image_url) {
-    //   await supabase.storage.from('player-images').remove([player.image_url])
-    // }
+    if (player.image_url?.startsWith("/api/uploads/players/")) {
+      const fileName = player.image_url.replace("/api/uploads/players/", "")
+      const filePath = join(process.cwd(), "uploads", "players", fileName)
+      try {
+        await unlink(filePath)
+      } catch {
+        // Ignore if file already missing
+      }
+    }
 
     // Update player to remove image URL
     const { error: updateError } = await supabase

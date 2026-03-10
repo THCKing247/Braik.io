@@ -46,7 +46,10 @@ export function RosterListView({
   onDeletePlayer,
 }: RosterListViewProps) {
   return (
-    <div className="rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
+    <div
+      className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white overflow-x-hidden"
+      style={{ minHeight: "420px", maxHeight: "min(calc(100vh - 260px), 900px)" }}
+    >
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>

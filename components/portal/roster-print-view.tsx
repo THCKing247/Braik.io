@@ -304,14 +304,15 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
 
       <style jsx global>{`
         @media print {
-          body * {
-            visibility: hidden !important;
+          @page {
+            margin: 0 !important;
+            size: auto;
           }
-          body > .roster-print-portal,
-          body > .roster-print-portal * {
-            visibility: visible !important;
+          body * {
+            display: none !important;
           }
           body > .roster-print-portal {
+            display: block !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -320,16 +321,17 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
             overflow: visible !important;
             pointer-events: auto !important;
           }
+          body > .roster-print-portal * {
+            display: revert !important;
+            visibility: visible !important;
+            color: black !important;
+          }
           body > .roster-print-portal .roster-print-root {
+            display: block !important;
             position: static !important;
             margin: 0 auto !important;
+            padding: 0.5in !important;
             color: black !important;
-          }
-          body > .roster-print-portal .roster-print-root * {
-            color: black !important;
-          }
-          @page {
-            margin: 0.5in;
           }
         }
       `}</style>

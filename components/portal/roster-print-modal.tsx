@@ -288,7 +288,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                 <ul className="text-white/80 text-sm space-y-1 list-disc list-inside">
                   <li>Recommended: Portrait orientation</li>
                   <li>Paper size: Letter (8.5" x 11")</li>
-                  <li>Margins: Default or Narrow</li>
+                  <li>Turn off &quot;Headers and footers&quot; in the print dialog to hide date, URL, and page numbers</li>
                   <li>Scale: 100% (default)</li>
                   <li>Background graphics: Enabled (if available)</li>
                 </ul>
@@ -342,15 +342,17 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
 
       <style jsx global>{`
         @media print {
-          /* Hide entire page (sidebar, header, modal, etc.); only portal content is visible */
-          body * {
-            visibility: hidden !important;
+          /* Remove browser header/footer (date, URL, page number) by using no page margin */
+          @page {
+            margin: 0 !important;
+            size: auto;
           }
-          body > .roster-print-portal,
-          body > .roster-print-portal * {
-            visibility: visible !important;
+          /* Hide entire page with display:none so only portal takes space (prevents 2nd blank page) */
+          body * {
+            display: none !important;
           }
           body > .roster-print-portal {
+            display: block !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -359,16 +361,17 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
             overflow: visible !important;
             pointer-events: auto !important;
           }
+          body > .roster-print-portal * {
+            display: revert !important;
+            visibility: visible !important;
+            color: black !important;
+          }
           body > .roster-print-portal .roster-print-root {
+            display: block !important;
             position: static !important;
             margin: 0 auto !important;
+            padding: 0.5in !important;
             color: black !important;
-          }
-          body > .roster-print-portal .roster-print-root * {
-            color: black !important;
-          }
-          @page {
-            margin: 0.5in;
           }
         }
       `}</style>

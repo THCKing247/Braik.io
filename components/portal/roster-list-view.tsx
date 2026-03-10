@@ -18,6 +18,8 @@ export interface Player {
   inviteCode?: string | null
   inviteStatus?: "not_invited" | "invited" | "joined"
   healthStatus?: "active" | "injured" | "unavailable"
+  weight?: number | null
+  height?: string | null
   user?: { email: string } | null
   guardianLinks?: Array<{ guardian: { user: { email: string } } }>
 }
@@ -54,6 +56,8 @@ export function RosterListView({
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">#</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-24">Position</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-24">Grade</th>
+              <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Weight</th>
+              <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Height</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Status</th>
               {canEdit && (onEditPlayer || onSendInvite || onDeletePlayer) && (
                 <th className="px-4 py-3 font-semibold text-[#0F172A] text-right">Actions</th>
@@ -130,6 +134,12 @@ function RosterListRow({
       </td>
       <td className="px-4 py-2 text-[#475569]">
         {player.grade != null ? player.grade : "—"}
+      </td>
+      <td className="px-4 py-2 text-[#475569]">
+        {player.weight != null ? `${player.weight}` : "—"}
+      </td>
+      <td className="px-4 py-2 text-[#475569]">
+        {player.height ?? "—"}
       </td>
       <td className="px-4 py-2">
         <span

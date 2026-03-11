@@ -30,32 +30,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    let body: unknown
+    let rawBody: unknown
     try {
-      body = await req.json()
+      rawBody = await req.json()
     } catch {
       if (process.env.NODE_ENV !== "test") {
         console.log("[POST /api/events] validation failed: invalid JSON")
       }
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
+    const body = rawBody as Record<string, unknown>
 
-    const { teamId, type, title, start, end, location, notes, audience } = body as Record<string, unknown>
+    const teamId = typeof body.teamId === "string" ? body.teamId.trim() : ""
+    const title = typeof body.title === "string" ? body.title.trim() : ""
+    const startVal = body.start ?? body.startAt
+    const endVal = body.end ?? body.endAt
 
-    if (!teamId || typeof teamId !== "string" || !teamId.trim()) {
+    if (!teamId) {
       if (process.env.NODE_ENV !== "test") {
         console.log("[POST /api/events] validation failed: missing or invalid teamId")
       }
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
-    if (!title || typeof title !== "string" || !title.trim()) {
+    if (!title) {
       if (process.env.NODE_ENV !== "test") {
         console.log("[POST /api/events] validation failed: missing or invalid title")
       }
       return NextResponse.json({ error: "title is required" }, { status: 400 })
     }
-    const startVal = start ?? (body as Record<string, unknown>).startAt
-    const endVal = end ?? (body as Record<string, unknown>).endAt
     if (!startVal || (typeof startVal !== "string" && typeof startVal !== "number")) {
       if (process.env.NODE_ENV !== "test") {
         console.log("[POST /api/events] validation failed: missing or invalid start/startAt")
@@ -78,21 +80,26 @@ export async function POST(req: Request) {
 
     await requireBillingPermission(teamId, "editEvents")
 
+    const typeStr = typeof body.type === "string" ? body.type : ""
     const eventTypeMap: Record<string, string> = {
       practice: "PRACTICE",
       game: "GAME",
       meeting: "MEETING",
       other: "CUSTOM",
     }
-    const eventType = eventTypeMap[typeof type === "string" ? type : ""] || "CUSTOM"
+    const eventType = eventTypeMap[typeStr] || "CUSTOM"
 
+    const audienceStr = typeof body.audience === "string" ? body.audience : ""
     const visibilityMap: Record<string, string> = {
       all: "PARENTS_AND_TEAM",
       players: "TEAM",
       parents: "PARENTS_AND_TEAM",
       staff: "COACHES_ONLY",
     }
-    const visibility = visibilityMap[typeof audience === "string" ? audience : ""] || "TEAM"
+    const visibility = visibilityMap[audienceStr] || "TEAM"
+
+    const notesVal = typeof body.notes === "string" ? body.notes : null
+    const locationVal = typeof body.location === "string" ? body.location : null
 
     const supabase = getSupabaseServer()
     const { data: event, error: eventError } = await supabase
@@ -101,10 +108,10 @@ export async function POST(req: Request) {
         team_id: teamId,
         event_type: eventType,
         title,
-        description: (notes as string) || null,
+        description: notesVal,
         start: new Date(startStr).toISOString(),
         end: new Date(endStr).toISOString(),
-        location: (location as string) || null,
+        location: locationVal,
         visibility,
         created_by: session.user.id,
       })

@@ -8,7 +8,7 @@ import { PlaybookInspector } from "@/components/portal/playbook-inspector"
 import { PlaycallerView } from "@/components/portal/playcaller-view"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
-import type { FormationRecord, PlayRecord, SideOfBall } from "@/types/playbook"
+import type { FormationRecord, PlayRecord, SideOfBall, RoutePoint, BlockEndPoint } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 
 interface PlaybookWorkspaceProps {
@@ -227,19 +227,40 @@ export function PlaybookWorkspace({
   }
 
   const handleSaveFromBuilder = (data: CanvasData, name: string) => {
+    const coord = new FieldCoordinateSystem(800, 600, 15, 50)
     const canvasData: PlayCanvasData = {
-      players: data.players.map((p) => ({
-        id: p.id,
-        x: p.x,
-        y: p.y,
-        xYards: p.xYards ?? 0,
-        yYards: p.yYards ?? 0,
-        label: p.label,
-        shape: p.shape,
-        playerType: p.playerType,
-        technique: p.technique,
-        gap: p.gap,
-      })),
+      players: data.players.map((p) => {
+        const base = {
+          id: p.id,
+          x: p.x,
+          y: p.y,
+          xYards: p.xYards ?? 0,
+          yYards: p.yYards ?? 0,
+          label: p.label,
+          shape: p.shape,
+          playerType: p.playerType,
+          technique: p.technique,
+          gap: p.gap,
+        }
+        const route: RoutePoint[] | undefined = p.route?.length
+          ? p.route.map((pt, i) => {
+              const x = "x" in pt ? pt.x! : coord.yardToPixel((pt as { xYards: number }).xYards, (pt as { yYards: number }).yYards).x
+              const y = "y" in pt ? pt.y! : coord.yardToPixel((pt as { xYards: number }).xYards, (pt as { yYards: number }).yYards).y
+              const xYards = "xYards" in pt ? (pt as { xYards: number }).xYards : coord.pixelToYard(x, y).xYards
+              const yYards = "yYards" in pt ? (pt as { yYards: number }).yYards : coord.pixelToYard(x, y).yYards
+              return { x, y, xYards, yYards, t: "t" in pt ? pt.t : i / (p.route!.length - 1 || 1) }
+            })
+          : undefined
+        const blockingLine: BlockEndPoint | undefined = p.blockingLine
+          ? (() => {
+              const bl = p.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
+              const xYards = bl.xYards ?? (bl.x != null ? coord.pixelToYard(bl.x, bl.y ?? 0).xYards : 0)
+              const yYards = bl.yYards ?? (bl.y != null ? coord.pixelToYard(bl.x ?? 0, bl.y).yYards : 0)
+              return { x: bl.x, y: bl.y, xYards, yYards }
+            })()
+          : undefined
+        return { ...base, route, blockingLine }
+      }),
       zones: data.zones.map((z) => ({
         id: z.id,
         x: z.x,
@@ -356,7 +377,24 @@ export function PlaybookWorkspace({
         const coord = new FieldCoordinateSystem(800, 600, 15, 50)
         const playersWithPixels = rawCanvasData.players.map((p) => {
           const pixel = coord.yardToPixel(p.xYards, p.yYards)
-          return { ...p, x: pixel.x, y: pixel.y, xYards: p.xYards, yYards: p.yYards }
+          const base = { ...p, x: pixel.x, y: pixel.y, xYards: p.xYards, yYards: p.yYards }
+          // Normalize route points to have x,y for rendering (API may store only xYards/yYards)
+          if (p.route?.length) {
+            base.route = p.route.map((pt): RoutePoint => {
+              const xYards = "xYards" in pt ? (pt as { xYards: number }).xYards : coord.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).xYards
+              const yYards = "yYards" in pt ? (pt as { yYards: number }).yYards : coord.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).yYards
+              const px = coord.yardToPixel(xYards, yYards)
+              return { x: px.x, y: px.y, xYards, yYards, t: "t" in pt ? (pt as { t: number }).t : 0 }
+            })
+          }
+          if (p.blockingLine) {
+            const bl = p.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
+            const xYards = bl.xYards ?? (bl.x != null ? coord.pixelToYard(bl.x, bl.y ?? 0).xYards : 0)
+            const yYards = bl.yYards ?? (bl.y != null ? coord.pixelToYard(bl.x ?? 0, bl.y).yYards : 0)
+            const bp = coord.yardToPixel(xYards, yYards)
+            base.blockingLine = { x: bp.x, y: bp.y, xYards, yYards } as BlockEndPoint
+          }
+          return base as CanvasData["players"][number]
         })
         const zonesWithPixels = (rawCanvasData.zones ?? []).map((z) => {
           const xY = z.xYards != null && z.yYards != null ? coord.yardToPixel(z.xYards, z.yYards) : { x: z.x ?? 0, y: z.y ?? 0 }

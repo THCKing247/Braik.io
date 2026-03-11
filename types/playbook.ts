@@ -129,7 +129,11 @@ export type PlayRecord = {
   updatedAt: string
 }
 
-// Builder canvas format (players array with pixel/yard coords, zones, man coverage)
+// Route/block point for persistence (yard coords preferred for consistency)
+export type RoutePoint = { x?: number; y?: number; xYards: number; yYards: number; t: number }
+export type BlockEndPoint = { x?: number; y?: number; xYards: number; yYards: number }
+
+// Builder canvas format (players array with pixel/yard coords, zones, man coverage, routes, blocks)
 export type PlayCanvasData = {
   fieldView?: "HALF"
   players: Array<{
@@ -143,6 +147,8 @@ export type PlayCanvasData = {
     playerType?: "skill" | "lineman"
     technique?: string
     gap?: string
+    route?: RoutePoint[]
+    blockingLine?: BlockEndPoint
   }>
   zones: Array<{
     id: string

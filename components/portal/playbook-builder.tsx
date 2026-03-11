@@ -1,13 +1,31 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Play, Square, Move, Pencil, RotateCcw, Save, X, Circle, Maximize2, Minimize2, Users } from "lucide-react"
+import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban } from "lucide-react"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { PlaybookFileTree } from "@/components/portal/playbook-file-tree"
 import { PlaybookShapePalette } from "@/components/portal/playbook-shape-palette"
 import { validateTemplateSave } from "@/lib/utils/playbook-validation"
+
+type CanvasMode =
+  | "idle"
+  | "selecting"
+  | "placing_player"
+  | "drawing_route"
+  | "drawing_block"
+  | "drawing_zone"
+  | "editing_text"
+  | "erasing"
+  | "man_coverage"
+
+interface PointPX {
+  x: number
+  y: number
+  xYards: number
+  yYards: number
+}
 
 interface Player {
   id: string
@@ -103,13 +121,45 @@ export function PlaybookBuilder({
   const [isAnimating, setIsAnimating] = useState(false)
   const [animationMode, setAnimationMode] = useState<"all" | "skill" | "linemen">("all")
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
-  const [drawingRoute, setDrawingRoute] = useState<Array<{ x: number; y: number }>>([])
-  const [isDrawing, setIsDrawing] = useState(false)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [manCoverageStart, setManCoverageStart] = useState<string | null>(null)
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState("")
+
+  // Draft state: in-progress route/block (never saved until Finish)
+  const [routeDraft, setRouteDraft] = useState<{ playerId: string; points: PointPX[] } | null>(null)
+  const [blockDraft, setBlockDraft] = useState<{ playerId: string; endPoint: PointPX } | null>(null)
+  const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null)
+
+  // Undo/redo: undo stack holds past states; redo stack holds states we undid from
+  const [undoStack, setUndoStack] = useState<{ players: Player[]; zones: Zone[]; manCoverages: ManCoverage[] }[]>([])
+  const [redoStack, setRedoStack] = useState<{ players: Player[]; zones: Zone[]; manCoverages: ManCoverage[] }[]>([])
+  const pushHistory = useCallback(() => {
+    const snapshot = { players: JSON.parse(JSON.stringify(players)), zones: JSON.parse(JSON.stringify(zones)), manCoverages: JSON.parse(JSON.stringify(manCoverages)) }
+    setUndoStack((prev) => [...prev, snapshot].slice(-30))
+    setRedoStack([])
+  }, [players, zones, manCoverages])
+  const undo = useCallback(() => {
+    if (undoStack.length === 0) return
+    const current = { players: JSON.parse(JSON.stringify(players)), zones: JSON.parse(JSON.stringify(zones)), manCoverages: JSON.parse(JSON.stringify(manCoverages)) }
+    const restored = undoStack[undoStack.length - 1]
+    setRedoStack((prev) => [...prev, current])
+    setUndoStack((prev) => prev.slice(0, -1))
+    setPlayers(restored.players)
+    setZones(restored.zones)
+    setManCoverages(restored.manCoverages)
+  }, [undoStack, players, zones, manCoverages])
+  const redo = useCallback(() => {
+    if (redoStack.length === 0) return
+    const current = { players: JSON.parse(JSON.stringify(players)), zones: JSON.parse(JSON.stringify(zones)), manCoverages: JSON.parse(JSON.stringify(manCoverages)) }
+    const restored = redoStack[redoStack.length - 1]
+    setUndoStack((prev) => [...prev, current])
+    setRedoStack((prev) => prev.slice(0, -1))
+    setPlayers(restored.players)
+    setZones(restored.zones)
+    setManCoverages(restored.manCoverages)
+  }, [redoStack, players, zones, manCoverages])
 
   const canvasRef = useRef<SVGSVGElement>(null)
   const animationRef = useRef<number>()
@@ -162,14 +212,10 @@ export function PlaybookBuilder({
   // Handle ALT key for snapping toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Alt") {
-        setSnapEnabled(false)
-      }
+      if (e.key === "Alt") setSnapEnabled(false)
     }
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Alt") {
-        setSnapEnabled(true)
-      }
+      if (e.key === "Alt") setSnapEnabled(true)
     }
     window.addEventListener("keydown", handleKeyDown)
     window.addEventListener("keyup", handleKeyUp)
@@ -178,6 +224,103 @@ export function PlaybookBuilder({
       window.removeEventListener("keyup", handleKeyUp)
     }
   }, [])
+
+  // Finish/Cancel drawing and tool shortcuts
+  const finishRouteDraft = useCallback(() => {
+    if (!routeDraft || routeDraft.points.length < 2) return
+    const pts = routeDraft.points
+    setPlayers((prev) =>
+      prev.map((p) =>
+        p.id === routeDraft.playerId
+          ? {
+              ...p,
+              route: pts.map((pt, i) => ({
+                x: pt.x,
+                y: pt.y,
+                xYards: pt.xYards,
+                yYards: pt.yYards,
+                t: pts.length === 1 ? 1 : i / (pts.length - 1),
+              })),
+            }
+          : p
+      )
+    )
+    pushHistory()
+    setRouteDraft(null)
+    setCursorPosition(null)
+    setSelectedPlayerId(null)
+  }, [routeDraft, pushHistory])
+
+  const cancelRouteDraft = useCallback(() => {
+    setRouteDraft(null)
+    setCursorPosition(null)
+    setSelectedPlayerId(null)
+  }, [])
+
+  const finishBlockDraft = useCallback(() => {
+    if (!blockDraft) return
+    setPlayers((prev) =>
+      prev.map((p) =>
+        p.id === blockDraft.playerId
+          ? { ...p, blockingLine: { x: blockDraft.endPoint.x, y: blockDraft.endPoint.y, xYards: blockDraft.endPoint.xYards, yYards: blockDraft.endPoint.yYards } }
+          : p
+      )
+    )
+    pushHistory()
+    setBlockDraft(null)
+    setCursorPosition(null)
+    setSelectedPlayerId(null)
+  }, [blockDraft, pushHistory])
+
+  const cancelBlockDraft = useCallback(() => {
+    setBlockDraft(null)
+    setCursorPosition(null)
+    setSelectedPlayerId(null)
+  }, [])
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (routeDraft || blockDraft) {
+          e.preventDefault()
+          cancelRouteDraft()
+          cancelBlockDraft()
+        }
+        return
+      }
+      if (e.key === "Enter") {
+        if (routeDraft && routeDraft.points.length >= 2) {
+          e.preventDefault()
+          finishRouteDraft()
+        } else if (blockDraft) {
+          e.preventDefault()
+          finishBlockDraft()
+        }
+        return
+      }
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "z") {
+          e.preventDefault()
+          if (e.shiftKey) redo()
+          else undo()
+        } else if (e.key === "y") {
+          e.preventDefault()
+          redo()
+        }
+        return
+      }
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return
+      const key = e.key.toLowerCase()
+      if (key === "v") { e.preventDefault(); setTool("select"); cancelRouteDraft(); cancelBlockDraft() }
+      else if (key === "r") { e.preventDefault(); setTool("route"); cancelRouteDraft(); cancelBlockDraft() }
+      else if (key === "b") { e.preventDefault(); setTool("block"); cancelRouteDraft(); cancelBlockDraft() }
+      else if (key === "z" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); setTool("zone"); cancelRouteDraft(); cancelBlockDraft() }
+      else if (key === "t") { e.preventDefault(); setTool("select"); cancelRouteDraft(); cancelBlockDraft() }
+      else if (key === "e") { e.preventDefault(); setTool("erase"); cancelRouteDraft(); cancelBlockDraft() }
+    }
+    window.addEventListener("keydown", handleKey)
+    return () => window.removeEventListener("keydown", handleKey)
+  }, [routeDraft, blockDraft, finishRouteDraft, finishBlockDraft, cancelRouteDraft, cancelBlockDraft, undo, redo])
 
   useEffect(() => {
     if (playData) {
@@ -309,38 +452,50 @@ export function PlaybookBuilder({
         shape,
         playerType,
       }
+      pushHistory()
       setPlayers([...players, newPlayer])
     } else if (tool === "erase") {
-      // Find player at click point
       const clickedPlayer = players.find(
         (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
       )
       if (clickedPlayer) {
         setPlayers(players.filter((p) => p.id !== clickedPlayer.id))
+        pushHistory()
       }
-    } else if (tool === "route" && selectedPlayerId) {
-      const player = players.find((p) => p.id === selectedPlayerId)
-      if (player) {
-        if (!isDrawing) {
-          setIsDrawing(true)
-          setDrawingRoute([{ x: player.x, y: player.y }, point])
-        } else {
-          setDrawingRoute([...drawingRoute, point])
-        }
-      }
-    } else if (tool === "block" && selectedPlayerId) {
-      const player = players.find((p) => p.id === selectedPlayerId)
-      if (player) {
-        setPlayers(
-          players.map((p) =>
-            p.id === selectedPlayerId
-              ? {
-                  ...p,
-                  blockingLine: { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards },
-                }
-              : p
-          )
+    } else if (tool === "route") {
+      const clickedPlayer = players.find(
+        (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
+      )
+      if (routeDraft) {
+        if (clickedPlayer && clickedPlayer.id === routeDraft.playerId) return
+        setRouteDraft((prev) =>
+          prev ? { ...prev, points: [...prev.points, { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards }] } : null
         )
+      } else if (clickedPlayer) {
+        const origin: PointPX = {
+          x: clickedPlayer.x,
+          y: clickedPlayer.y,
+          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).xYards,
+          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).yYards,
+        }
+        setRouteDraft({ playerId: clickedPlayer.id, points: [origin] })
+        setSelectedPlayerId(clickedPlayer.id)
+      }
+    } else if (tool === "block") {
+      const clickedPlayer = players.find(
+        (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
+      )
+      if (blockDraft) {
+        setBlockDraft((prev) => (prev ? { ...prev, endPoint: { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards } } : null))
+      } else if (clickedPlayer) {
+        const origin: PointPX = {
+          x: clickedPlayer.x,
+          y: clickedPlayer.y,
+          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).xYards,
+          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).yYards,
+        }
+        setBlockDraft({ playerId: clickedPlayer.id, endPoint: origin })
+        setSelectedPlayerId(clickedPlayer.id)
       }
     } else if (tool === "zone") {
       const newZone: Zone = {
@@ -352,6 +507,7 @@ export function PlaybookBuilder({
         size: "small",
         type: "hook",
       }
+      pushHistory()
       setZones([...zones, newZone])
     } else if (tool === "man" && currentSide === "defense") {
       if (!manCoverageStart) {
@@ -366,6 +522,7 @@ export function PlaybookBuilder({
           (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
         )
         if (clickedPlayer && clickedPlayer.id !== manCoverageStart) {
+          pushHistory()
           setManCoverages([
             ...manCoverages,
             {
@@ -381,37 +538,24 @@ export function PlaybookBuilder({
   }
 
   const handleCanvasMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!canEdit || !isDrawing || !selectedPlayerId || tool !== "route") return
+    if (!canEdit) return
     const point = getCanvasPoint(e)
-    setDrawingRoute([...drawingRoute, point])
-  }
-
-  const finishDrawing = (finalize: boolean = false) => {
-    if (selectedPlayerId && drawingRoute.length > 0 && tool === "route") {
-      if (finalize || drawingRoute.length > 1) {
-        setPlayers(
-          players.map((p) =>
-            p.id === selectedPlayerId
-              ? {
-                  ...p,
-                  route: drawingRoute.map((pt, i) => ({
-                    ...pt,
-                    t: i / (drawingRoute.length - 1 || 1),
-                  })),
-                }
-              : p
-          )
-        )
-        setDrawingRoute([])
-        setIsDrawing(false)
-        setSelectedPlayerId(null)
-      }
+    if ((tool === "route" && routeDraft) || (tool === "block" && blockDraft)) {
+      setCursorPosition({ x: point.x, y: point.y })
+    } else {
+      setCursorPosition(null)
     }
   }
 
+  const handleCanvasMouseLeave = () => {
+    setCursorPosition(null)
+  }
+
   const handleCanvasDoubleClick = () => {
-    if (tool === "route" && isDrawing) {
-      finishDrawing(true)
+    if (tool === "route" && routeDraft && routeDraft.points.length >= 2) {
+      finishRouteDraft()
+    } else if (tool === "block" && blockDraft) {
+      finishBlockDraft()
     }
   }
 
@@ -543,7 +687,10 @@ export function PlaybookBuilder({
       setZones([])
       setManCoverages([])
     }
-    setDrawingRoute([])
+    setRouteDraft(null)
+    setBlockDraft(null)
+    setCursorPosition(null)
+    setSelectedPlayerId(null)
     setIsAnimating(false)
   }
 
@@ -565,14 +712,31 @@ export function PlaybookBuilder({
       }
     }
 
-    // Convert players to yard coordinates for saving
+    // Convert players to yard coordinates for saving; normalize route/blockingLine to include xYards/yYards
     const playersWithYards = players.map((p) => {
-      if (p.xYards !== undefined && p.yYards !== undefined) {
-        return p
-      } else {
-        const yards = coordSystem.pixelToYard(p.x, p.y)
-        return { ...p, xYards: yards.xYards, yYards: yards.yYards }
+      let out: Player = p.xYards !== undefined && p.yYards !== undefined
+        ? { ...p }
+        : { ...p, xYards: coordSystem.pixelToYard(p.x, p.y).xYards, yYards: coordSystem.pixelToYard(p.x, p.y).yYards }
+      if (out.route?.length) {
+        const routeArr = out.route
+        out = {
+          ...out,
+          route: routeArr.map((pt, i) => {
+            const x = "x" in pt ? pt.x! : coordSystem.yardToPixel((pt as { xYards: number }).xYards, (pt as { yYards: number }).yYards).x
+            const y = "y" in pt ? pt.y! : coordSystem.yardToPixel((pt as { xYards: number }).xYards, (pt as { yYards: number }).yYards).y
+            const xYards = "xYards" in pt ? (pt as { xYards: number }).xYards : coordSystem.pixelToYard(x, y).xYards
+            const yYards = "yYards" in pt ? (pt as { yYards: number }).yYards : coordSystem.pixelToYard(x, y).yYards
+            return { x, y, xYards, yYards, t: "t" in pt ? pt.t : i / (routeArr.length - 1 || 1) }
+          }),
+        }
       }
+      if (out.blockingLine) {
+        const bl = out.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
+        const xYards = bl.xYards ?? coordSystem.pixelToYard(bl.x ?? 0, bl.y ?? 0).xYards
+        const yYards = bl.yYards ?? coordSystem.pixelToYard(bl.x ?? 0, bl.y ?? 0).yYards
+        out = { ...out, blockingLine: { ...bl, x: bl.x, y: bl.y, xYards, yYards } }
+      }
+      return out
     })
 
     const canvasData: CanvasData = {
@@ -637,7 +801,36 @@ export function PlaybookBuilder({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {canEdit && !isTemplateMode && (
+            <>
+              <Button variant="outline" size="sm" onClick={undo} disabled={undoStack.length === 0} title="Undo (Ctrl+Z)">
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Undo
+              </Button>
+              <Button variant="outline" size="sm" onClick={redo} disabled={redoStack.length === 0} title="Redo (Ctrl+Shift+Z)">
+                <RotateCw className="h-4 w-4 mr-1" />
+                Redo
+              </Button>
+              {(routeDraft || blockDraft) && (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={routeDraft && routeDraft.points.length >= 2 ? finishRouteDraft : blockDraft ? finishBlockDraft : undefined}
+                    disabled={routeDraft ? routeDraft.points.length < 2 : !blockDraft}
+                    title="Finish (Enter)"
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Finish
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { cancelRouteDraft(); cancelBlockDraft() }} title="Cancel (Esc)">
+                    <Ban className="h-4 w-4 mr-1" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </>
+          )}
           {isTemplateMode ? (
             <Input
               value={templateNameState}
@@ -670,6 +863,17 @@ export function PlaybookBuilder({
         </div>
       </div>
 
+      {/* Drawing helper text */}
+      {canEdit && !isTemplateMode && (
+        <div className="flex-shrink-0 px-2 py-1 border-b text-xs text-slate-600 bg-slate-50" style={{ borderColor: "#E5E7EB" }}>
+          {tool === "route" && !routeDraft && "Click a player to start a route."}
+          {tool === "route" && routeDraft && "Click to add points, double-click or Enter to finish, Esc to cancel."}
+          {tool === "block" && !blockDraft && "Click a player to start a block."}
+          {tool === "block" && blockDraft && "Click to set block target, or Enter to finish, Esc to cancel."}
+          {tool === "select" && !routeDraft && !blockDraft && "Select and drag players. V = Select, R = Route, B = Block, Z = Zone, E = Erase."}
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         {/* Left: File Tree */}
         {teamId && (
@@ -696,14 +900,11 @@ export function PlaybookBuilder({
             currentSide={currentSide}
             selectedTool={tool}
             onSelectTool={(newTool) => {
-              setTool(newTool as any)
-              if (newTool === "select") {
-                setSelectedPlayerId(null)
-              } else if (newTool === "route") {
-                setDrawingRoute([])
-              } else if (newTool === "man") {
-                setManCoverageStart(null)
-              }
+              cancelRouteDraft()
+              cancelBlockDraft()
+              setTool(newTool as typeof tool)
+              if (newTool === "select") setSelectedPlayerId(null)
+              else if (newTool === "man") setManCoverageStart(null)
             }}
             isTemplateMode={isTemplateMode}
             canEdit={canEdit}
@@ -728,11 +929,7 @@ export function PlaybookBuilder({
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
             onDoubleClick={handleCanvasDoubleClick}
-            onMouseLeave={() => {
-              if (drawingRoute.length > 2) {
-                finishDrawing(true)
-              }
-            }}
+            onMouseLeave={handleCanvasMouseLeave}
           >
             {/* Field surface */}
             <PlaybookFieldSurface
@@ -742,16 +939,49 @@ export function PlaybookBuilder({
               yardEnd={yardLineEnd}
             />
 
-            {/* Drawing route (preview) */}
-            {drawingRoute.length > 1 && (
-              <polyline
-                points={drawingRoute.map((p) => `${p.x},${p.y}`).join(" ")}
-                fill="none"
-                stroke="#3B82F6"
-                strokeWidth="3"
-                strokeDasharray="5,5"
-              />
+            {/* Route draft: committed points + live cursor preview */}
+            {routeDraft && routeDraft.points.length > 0 && (
+              <g>
+                <polyline
+                  points={
+                    cursorPosition
+                      ? [...routeDraft.points, cursorPosition].map((p) => `${p.x},${p.y}`).join(" ")
+                      : routeDraft.points.map((p) => `${p.x},${p.y}`).join(" ")
+                  }
+                  fill="none"
+                  stroke="#3B82F6"
+                  strokeWidth="3"
+                  strokeDasharray="6,4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {routeDraft.points.map((pt, i) => (
+                  <circle key={i} cx={pt.x} cy={pt.y} r="4" fill="#3B82F6" stroke="white" strokeWidth="1.5" />
+                ))}
+              </g>
             )}
+
+            {/* Block draft: line from player to endPoint or cursor */}
+            {blockDraft && (() => {
+              const blocker = players.find((p) => p.id === blockDraft.playerId)
+              if (!blocker) return null
+              const end = cursorPosition ?? { x: blockDraft.endPoint.x, y: blockDraft.endPoint.y }
+              return (
+                <g>
+                  <line
+                    x1={blocker.x}
+                    y1={blocker.y}
+                    x2={end.x}
+                    y2={end.y}
+                    stroke="#F59E0B"
+                    strokeWidth="3"
+                    strokeDasharray="6,4"
+                    strokeLinecap="round"
+                  />
+                  <circle cx={end.x} cy={end.y} r="5" fill="#F59E0B" stroke="white" strokeWidth="1.5" />
+                </g>
+              )
+            })()}
 
             {/* Zones (defense) */}
             {zones.map((zone) => {

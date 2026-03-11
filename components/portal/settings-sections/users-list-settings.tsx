@@ -170,7 +170,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
       </div>
 
       {/* Assistants Section */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
             <UserCheck className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
@@ -202,7 +202,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
       </Card>
 
       {/* Players Section */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
             <Users className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
@@ -219,7 +219,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
               <div
                 key={user.id}
                 className="flex items-center justify-between p-3 rounded-lg border"
-                style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
               >
                 <div>
                   <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
@@ -237,7 +237,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
       </Card>
 
       {/* Parents Section */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
             <Users className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
@@ -254,7 +254,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
               <div
                 key={user.id}
                 className="flex items-center justify-between p-3 rounded-lg border"
-                style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
               >
                 <div>
                   <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
@@ -298,7 +298,7 @@ function UserCard({
   const currentPositionRoles = user.positionCoachRoles || []
 
   return (
-    <div className="border rounded-lg" style={{ borderColor: "rgb(var(--border))" }}>
+    <div className="border rounded-lg" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
       <div
         className="flex items-center justify-between p-3 cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
         onClick={onToggleExpand}
@@ -331,7 +331,7 @@ function UserCard({
       </div>
 
       {isExpanded && (
-        <div className="p-4 border-t space-y-4" style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}>
+        <div className="p-4 border-t space-y-4" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
           {/* Coordinator Role */}
           <div className="space-y-2">
             <label className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>

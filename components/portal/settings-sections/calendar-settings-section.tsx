@@ -57,22 +57,29 @@ export function CalendarSettingsSection({ teamId, initialSettings }: CalendarSet
 
   return (
     <div className="space-y-6">
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
-          <CardTitle className="text-white">Calendar View Settings</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+            CALENDAR VIEW SETTINGS
+          </CardTitle>
+          <CardDescription style={{ color: "rgb(var(--muted))" }}>
             Configure default calendar view and appearance
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Default View */}
           <div className="space-y-2">
-            <Label htmlFor="defaultView" className="text-white">Default Calendar View</Label>
+            <Label htmlFor="defaultView" style={{ color: "rgb(var(--text))" }}>Default Calendar View</Label>
             <select
               id="defaultView"
               value={settings.defaultView}
               onChange={(e) => setSettings({ ...settings, defaultView: e.target.value })}
-              className="flex h-10 w-full rounded-md border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
+              className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+              style={{
+                backgroundColor: "#FFFFFF",
+                borderColor: "rgb(var(--border))",
+                color: "rgb(var(--text))",
+              }}
             >
               <option value="day">Day</option>
               <option value="week">Week</option>
@@ -81,21 +88,26 @@ export function CalendarSettingsSection({ teamId, initialSettings }: CalendarSet
           </div>
 
           {/* Appearance */}
-          <div className="space-y-4 border-t border-white/10 pt-4">
-            <Label className="text-white">Appearance</Label>
+          <div className="space-y-4 border-t pt-4" style={{ borderColor: "rgb(var(--border))" }}>
+            <Label style={{ color: "rgb(var(--text))" }}>Appearance</Label>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={settings.compactView}
                 onChange={(e) => setSettings({ ...settings, compactView: e.target.checked })}
                 className="h-4 w-4"
+                style={{ accentColor: "rgb(var(--accent))" }}
               />
-              <span className="text-sm text-white">Use compact calendar view</span>
+              <span className="text-sm" style={{ color: "rgb(var(--text))" }}>Use compact calendar view</span>
             </label>
           </div>
 
-          <div className="flex justify-end pt-4 border-t border-white/10">
-            <Button onClick={handleSave} disabled={loading}>
+          <div className="flex justify-end pt-4 border-t" style={{ borderColor: "rgb(var(--border))" }}>
+            <Button
+              onClick={handleSave}
+              disabled={loading}
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+            >
               <Save className="h-4 w-4 mr-2" />
               Save Settings
             </Button>

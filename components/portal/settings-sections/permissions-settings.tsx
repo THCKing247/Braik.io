@@ -56,10 +56,12 @@ export function PermissionsSettings({ teamId, initialSettings }: PermissionsSett
 
   return (
     <div className="space-y-6">
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
-          <CardTitle className="text-white">Assistant Coach Permissions</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+            ASSISTANT COACH PERMISSIONS
+          </CardTitle>
+          <CardDescription style={{ color: "rgb(var(--muted))" }}>
             Configure what assistant coaches can do with calendar events
           </CardDescription>
         </CardHeader>
@@ -73,8 +75,9 @@ export function PermissionsSettings({ teamId, initialSettings }: PermissionsSett
                   setSettings({ ...settings, assistantsCanAddMeetings: e.target.checked })
                 }
                 className="h-4 w-4"
+                style={{ accentColor: "rgb(var(--accent))" }}
               />
-              <span className="text-sm text-white">Assistants can add meetings</span>
+              <span className="text-sm" style={{ color: "rgb(var(--text))" }}>Assistants can add meetings</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -84,8 +87,9 @@ export function PermissionsSettings({ teamId, initialSettings }: PermissionsSett
                   setSettings({ ...settings, assistantsCanAddPractices: e.target.checked })
                 }
                 className="h-4 w-4"
+                style={{ accentColor: "rgb(var(--accent))" }}
               />
-              <span className="text-sm text-white">Assistants can add practices</span>
+              <span className="text-sm" style={{ color: "rgb(var(--text))" }}>Assistants can add practices</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -95,13 +99,18 @@ export function PermissionsSettings({ teamId, initialSettings }: PermissionsSett
                   setSettings({ ...settings, assistantsCanEditNonlocked: e.target.checked })
                 }
                 className="h-4 w-4"
+                style={{ accentColor: "rgb(var(--accent))" }}
               />
-              <span className="text-sm text-white">Assistants can edit non-locked events</span>
+              <span className="text-sm" style={{ color: "rgb(var(--text))" }}>Assistants can edit non-locked events</span>
             </label>
           </div>
 
-          <div className="flex justify-end pt-4 border-t border-white/10">
-            <Button onClick={handleSave} disabled={loading}>
+          <div className="flex justify-end pt-4 border-t" style={{ borderColor: "rgb(var(--border))" }}>
+            <Button
+              onClick={handleSave}
+              disabled={loading}
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+            >
               <Save className="h-4 w-4 mr-2" />
               Save Permissions
             </Button>

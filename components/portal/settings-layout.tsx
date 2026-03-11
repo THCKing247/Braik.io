@@ -124,8 +124,8 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 text-white">Settings</h1>
-        <p className="text-white/80">Manage your account and team configuration</p>
+        <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>Settings</h1>
+        <p style={{ color: "rgb(var(--muted))" }}>Manage your account and team configuration</p>
       </div>
 
       <div className="flex gap-6">
@@ -140,10 +140,32 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                    isActive
-                      ? "bg-[#1e3a5f] text-white border border-[#3B82F6]"
-                      : "text-white/70 hover:text-white hover:bg-white/5"
+                    isActive ? "" : ""
                   }`}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: "rgb(var(--accent))",
+                          color: "white",
+                          border: "1px solid rgb(var(--accent))",
+                        }
+                      : {
+                          color: "rgb(var(--muted))",
+                          backgroundColor: "transparent",
+                        }
+                  }
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "rgba(37, 99, 235, 0.05)"
+                      e.currentTarget.style.color = "rgb(var(--text))"
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "transparent"
+                      e.currentTarget.style.color = "rgb(var(--muted))"
+                    }
+                  }}
                 >
                   <Icon className="h-5 w-5 flex-shrink-0" />
                   <span className="font-medium">{section.label}</span>
@@ -155,7 +177,13 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
 
         {/* Right Content Panel */}
         <div className="flex-1 min-w-0">
-          <div className="bg-[#1e3a5f] rounded-lg border border-[#1e3a5f] p-6">
+          <div
+            className="rounded-lg border p-6"
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderColor: "rgb(var(--accent))",
+            }}
+          >
             {renderContent()}
           </div>
         </div>

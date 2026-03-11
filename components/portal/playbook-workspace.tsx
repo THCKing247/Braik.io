@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Presentation } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PlaybookTree } from "@/components/portal/playbook-tree"
+import { PlaybookBrowser } from "@/components/portal/playbook-browser"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
 import { PlaybookInspector } from "@/components/portal/playbook-inspector"
 import { PlaycallerView } from "@/components/portal/playcaller-view"
@@ -132,6 +131,16 @@ export function PlaybookWorkspace({
     setSelectedFormationName(formationName)
     setSelectedSubcategory(subFormationName)
     setSelectedSide(side)
+    setEditingFormation(null)
+    setDesignerMode("play")
+  }
+
+  const handleNewPlayFromFormation = (formation: FormationRecord) => {
+    setSelectedPlayId(null)
+    setSelectedFormationId(formation.id)
+    setSelectedFormationName(formation.name)
+    setSelectedSubcategory(null)
+    setSelectedSide(formation.side)
     setEditingFormation(null)
     setDesignerMode("play")
   }
@@ -388,40 +397,22 @@ export function PlaybookWorkspace({
       ) : null}
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-64 flex-shrink-0 flex flex-col border-r border-border">
-          <div className="p-2 border-b border-border flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">Playbook</span>
-            {plays.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPlaycallerMode(true)
-                  setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
-                }}
-                title="Presentation / Playcaller mode"
-              >
-                <Presentation className="h-4 w-4 mr-1" />
-                Present
-              </Button>
-            )}
-          </div>
-          <PlaybookTree
-            formations={formations}
+        <div className="w-[380px] lg:w-[420px] flex-shrink-0 flex flex-col border-r border-border overflow-hidden">
+          <PlaybookBrowser
             plays={plays}
-            selectedFormationId={selectedFormationId}
+            formations={formations}
             selectedPlayId={selectedPlayId}
-            onSelectFormation={handleSelectFormation}
             onSelectPlay={handleSelectPlay}
-            onNewFormation={handleNewFormation}
             onNewPlay={handleNewPlay}
-            onNewSubFormation={handleNewSubFormation}
-            onRenameFormation={handleRenameFormation}
-            onDeleteFormation={handleDeleteFormation}
-            onRenamePlay={handleRenamePlay}
+            onNewFormation={handleNewFormation}
+            onNewPlayFromFormation={handleNewPlayFromFormation}
             onDuplicatePlay={handleDuplicatePlay}
+            onRenamePlay={handleRenamePlay}
             onDeletePlay={handleDeletePlay}
-            onEditFormation={handleEditFormation}
+            onStartPlaycaller={() => {
+              setPlaycallerMode(true)
+              setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
+            }}
             canEdit={canEdit}
             canEditOffense={canEditOffense}
             canEditDefense={canEditDefense}

@@ -354,7 +354,7 @@ export function CalendarWidgetEnhanced({
                       className="relative z-10 bg-white px-2 text-sm"
                       style={{ color: "rgb(var(--text2))" }}
                     >
-                      {index % 2 === 0 ? `${displayHour} ${ampm}` : ""}
+                      {hour % 2 === 0 ? `${displayHour} ${ampm}` : ""}
                     </span>
                   </div>
                 )

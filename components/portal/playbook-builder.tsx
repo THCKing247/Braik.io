@@ -424,6 +424,19 @@ export function PlaybookBuilder({
     if (initialPlayName) setPlayName(initialPlayName)
   }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height, editorSourceKey, playId, isTemplateMode, templateName])
 
+  // When canvas is resized, recompute x,y from yards so in-state pixels match current dimensions (animation, etc. use p.x/p.y).
+  useEffect(() => {
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (p.xYards != null && p.yYards != null) {
+          const pixel = coordSystem.yardToPixel(p.xYards, p.yYards)
+          return { ...p, x: pixel.x, y: pixel.y }
+        }
+        return p
+      })
+    )
+  }, [coordSystem, fieldDimensions.width, fieldDimensions.height])
+
   useEffect(() => {
     if (!onSelectPlayer) return
     if (!selectedPlayerId) {
@@ -502,13 +515,20 @@ export function PlaybookBuilder({
     return "skill"
   }
 
+  /** Display position: always derive from yards when available so resize/reload don't shift markers. */
+  const getPlayerDisplayPos = (p: Player): { x: number; y: number } => {
+    if (p.xYards != null && p.yYards != null) return coordSystem.yardToPixel(p.xYards, p.yYards)
+    return { x: p.x, y: p.y }
+  }
+
   /** Hit-test: find player whose center is within radius of point. Use 1.5x for route/block start for easier targeting. */
   const HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK = 1.5
   const getPlayerAtPoint = (point: { x: number; y: number }, hitRadiusMultiplier = 1) => {
     const radius = coordSystem.getMarkerSize() * hitRadiusMultiplier
-    return players.find(
-      (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < radius
-    )
+    return players.find((p) => {
+      const pos = getPlayerDisplayPos(p)
+      return Math.sqrt(Math.pow(pos.x - point.x, 2) + Math.pow(pos.y - point.y, 2)) < radius
+    })
   }
 
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -1247,6 +1267,7 @@ export function PlaybookBuilder({
                   ? `Assigned: ${assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}${[assigned.firstName, assigned.lastName].filter(Boolean).join(" ")}`
                   : "Unassigned"
 
+              const pos = getPlayerDisplayPos(player)
               return (
                 <g key={player.id}>
                   {player.positionCode && depthChartEntries?.length ? (
@@ -1255,8 +1276,8 @@ export function PlaybookBuilder({
                   {/* Hover "start here" ring when Route/Block tool and no draft */}
                   {isHoveredAsOrigin && (
                     <circle
-                      cx={player.x}
-                      cy={player.y}
+                      cx={pos.x}
+                      cy={pos.y}
                       r={markerSize / 2 + 6}
                       fill="none"
                       stroke="rgba(255,255,255,0.9)"
@@ -1290,8 +1311,8 @@ export function PlaybookBuilder({
                   {player.blockingLine && (
                     <g>
                       <line
-                        x1={player.x}
-                        y1={player.y}
+                        x1={pos.x}
+                        y1={pos.y}
                         x2={(player.blockingLine as { x: number; y: number }).x}
                         y2={(player.blockingLine as { x: number; y: number }).y}
                         stroke={playerColor}
@@ -1312,8 +1333,8 @@ export function PlaybookBuilder({
                   {/* Player shape */}
                   {player.shape === "circle" && (
                     <circle
-                      cx={player.x}
-                      cy={player.y}
+                      cx={pos.x}
+                      cy={pos.y}
                       r={markerSize / 2}
                       fill={playerColor}
                       stroke={isSelected ? "#0B2A5B" : "white"}
@@ -1333,8 +1354,8 @@ export function PlaybookBuilder({
                   )}
                   {player.shape === "square" && (
                     <rect
-                      x={player.x - markerSize / 2}
-                      y={player.y - markerSize / 2}
+                      x={pos.x - markerSize / 2}
+                      y={pos.y - markerSize / 2}
                       width={markerSize}
                       height={markerSize}
                       fill={playerColor}
@@ -1355,7 +1376,7 @@ export function PlaybookBuilder({
                   )}
                   {player.shape === "triangle" && (
                     <polygon
-                      points={`${player.x},${player.y + markerSize / 2} ${player.x - markerSize / 2},${player.y - markerSize / 2} ${player.x + markerSize / 2},${player.y - markerSize / 2}`}
+                      points={`${pos.x},${pos.y + markerSize / 2} ${pos.x - markerSize / 2},${pos.y - markerSize / 2} ${pos.x + markerSize / 2},${pos.y - markerSize / 2}`}
                       fill={playerColor}
                       stroke={isSelected ? "#0B2A5B" : "white"}
                       strokeWidth={isSelected ? "4" : "2"}
@@ -1376,8 +1397,8 @@ export function PlaybookBuilder({
                   {/* Player label: derived for position-based markers (not editable); legacy markers can edit inline */}
                   {editingLabelId === player.id && !player.positionCode ? (
                     <foreignObject
-                      x={player.x - 20}
-                      y={player.y + markerSize / 2 + 5}
+                      x={pos.x - 20}
+                      y={pos.y + markerSize / 2 + 5}
                       width="40"
                       height="20"
                     >
@@ -1422,8 +1443,8 @@ export function PlaybookBuilder({
                     </foreignObject>
                   ) : (
                     <text
-                      x={player.x}
-                      y={player.y + markerSize / 2 + 12}
+                      x={pos.x}
+                      y={pos.y + markerSize / 2 + 12}
                       textAnchor="middle"
                       fill="white"
                       fontSize="12"
@@ -1445,8 +1466,8 @@ export function PlaybookBuilder({
                   {/* Assignment status dot (position-based markers only) */}
                   {player.positionCode && depthChartEntries?.length && (
                     <circle
-                      cx={player.x + markerSize / 2 - 5}
-                      cy={player.y - markerSize / 2 + 5}
+                      cx={pos.x + markerSize / 2 - 5}
+                      cy={pos.y - markerSize / 2 + 5}
                       r={4}
                       fill={assigned ? "#22c55e" : "#94a3b8"}
                       stroke="white"
@@ -1457,8 +1478,8 @@ export function PlaybookBuilder({
                   {/* Technique/Gap (defense) */}
                   {player.shape === "triangle" && (player.technique || player.gap) && (
                     <text
-                      x={player.x}
-                      y={player.y + markerSize / 2 + 15}
+                      x={pos.x}
+                      y={pos.y + markerSize / 2 + 15}
                       textAnchor="middle"
                       fill="white"
                       fontSize="10"

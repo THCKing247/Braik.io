@@ -532,8 +532,11 @@ export function PlaybookWorkspace({
     if (!rawCanvasData) return null
     const coord = new FieldCoordinateSystem(800, 600, 15, 50)
     const playersWithPixels = rawCanvasData.players.map((p) => {
-      const base = { ...p, x: 0, y: 0, xYards: p.xYards, yYards: p.yYards } as CanvasData["players"][number]
-      const pixel = coord.yardToPixel(p.xYards, p.yYards)
+      const hasYards = typeof p.xYards === "number" && typeof p.yYards === "number"
+      const xYards = hasYards ? p.xYards : (p.x != null && p.y != null ? coord.pixelToYard(p.x, p.y).xYards : 0)
+      const yYards = hasYards ? p.yYards : (p.x != null && p.y != null ? coord.pixelToYard(p.x, p.y).yYards : 0)
+      const base = { ...p, x: 0, y: 0, xYards, yYards } as CanvasData["players"][number]
+      const pixel = coord.yardToPixel(xYards, yYards)
       base.x = pixel.x
       base.y = pixel.y
       // Normalize route points to have x,y for rendering (API may store only xYards/yYards)

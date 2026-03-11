@@ -221,8 +221,8 @@ export function PlaybookInspector({
                   <span className="ml-1 text-slate-400" title="Play is not linked to a formation record">(name only)</span>
                 )}
               </p>
-              {play.subcategory && (
-                <p>Subcategory: <span className="text-slate-800">{play.subcategory}</span></p>
+              {(play.subFormation ?? play.subcategory) && (
+                <p>Sub-formation: <span className="text-slate-800">{play.subFormation ?? play.subcategory}</span></p>
               )}
             </div>
           </div>

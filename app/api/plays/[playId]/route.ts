@@ -27,7 +27,7 @@ export async function GET(
     // Get play
     const { data: play, error: playError } = await supabase
       .from("plays")
-      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .eq("id", playId)
       .maybeSingle()
 
@@ -37,13 +37,22 @@ export async function GET(
 
     await requireTeamAccess(play.team_id)
 
+    const subFormationId = (play as { sub_formation_id?: string }).sub_formation_id ?? null
+    let subFormationName: string | null = null
+    if (subFormationId) {
+      const { data: subRow } = await supabase.from("sub_formations").select("name").eq("id", subFormationId).maybeSingle()
+      subFormationName = subRow?.name?.trim() ?? null
+    }
+
     const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
       formationId: (play as { formation_id?: string }).formation_id ?? null,
+      subFormationId,
       side: play.side,
       formation: play.formation,
+      subFormation: subFormationName,
       subcategory: play.subcategory ?? null,
       name: play.name,
       canvasData: play.canvas_data,
@@ -86,6 +95,7 @@ export async function PATCH(
       canvasData?: unknown
       formation?: string
       subcategory?: string | null
+      subFormationId?: string | null
       side?: string
       formationId?: string | null
     }
@@ -120,6 +130,7 @@ export async function PATCH(
       canvas_data?: unknown
       formation?: string
       formation_id?: string | null
+      sub_formation_id?: string | null
       subcategory?: string | null
       side?: string
       updated_at?: string
@@ -136,7 +147,6 @@ export async function PATCH(
     }
     if (body.formationId !== undefined) {
       updateData.formation_id = body.formationId
-      // Keep denormalized formation name in sync from the formation record when formationId is set
       if (body.formationId != null) {
         const { data: formationRow } = await supabase
           .from("formations")
@@ -146,6 +156,9 @@ export async function PATCH(
           .maybeSingle()
         if (formationRow?.name) updateData.formation = formationRow.name.trim()
       }
+    }
+    if (body.subFormationId !== undefined) {
+      updateData.sub_formation_id = body.subFormationId
     }
     if (body.subcategory !== undefined) {
       updateData.subcategory = body.subcategory?.trim() ?? null
@@ -160,7 +173,7 @@ export async function PATCH(
       .from("plays")
       .update(updateData)
       .eq("id", playId)
-      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .single()
 
     if (updateError || !play) {
@@ -168,13 +181,22 @@ export async function PATCH(
       return NextResponse.json({ error: "Failed to update play" }, { status: 500 })
     }
 
+    const updatedSubFormationId = (play as { sub_formation_id?: string }).sub_formation_id ?? null
+    let subFormationName: string | null = null
+    if (updatedSubFormationId) {
+      const { data: subRow } = await supabase.from("sub_formations").select("name").eq("id", updatedSubFormationId).maybeSingle()
+      subFormationName = subRow?.name?.trim() ?? null
+    }
+
     const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
       formationId: (play as { formation_id?: string }).formation_id ?? null,
+      subFormationId: updatedSubFormationId,
       side: play.side,
       formation: play.formation,
+      subFormation: subFormationName,
       subcategory: play.subcategory ?? null,
       name: play.name,
       canvasData: play.canvas_data,

@@ -102,7 +102,7 @@ export type BuilderMode = "TEMPLATE_EDIT" | "PLAY_EDIT" | "VIEW_ONLY"
 
 export type Tab = "LIBRARY" | "BUILDER"
 
-// API response types for formations and plays (align with DB)
+// API response types for formations, sub-formations, and plays (align with DB)
 export type FormationRecord = {
   id: string
   teamId: string
@@ -115,13 +115,26 @@ export type FormationRecord = {
   updatedAt: string
 }
 
+/** Sub-formation: category under a formation (e.g. Singleback > Deuce Close). */
+export type SubFormationRecord = {
+  id: string
+  teamId: string
+  formationId: string
+  side: SideOfBall
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type PlayRecord = {
   id: string
   teamId: string
   playbookId: string | null
   formationId: string | null
+  subFormationId: string | null
   side: SideOfBall
   formation: string
+  subFormation: string | null
   subcategory: string | null
   name: string
   canvasData: PlayCanvasData | null

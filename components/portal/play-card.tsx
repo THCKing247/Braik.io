@@ -133,7 +133,7 @@ export function PlayCard({
           )}
           <p className="text-xs text-slate-500 mt-0.5">
             {sideLabel(play.side)} · {formationDisplayName}
-            {play.subcategory ? ` · ${play.subcategory}` : ""}
+            {play.subFormation ? ` · ${play.subFormation}` : play.subcategory ? ` · ${play.subcategory}` : ""}
           </p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <AssignmentBadge status={assignmentStatus} />
@@ -210,12 +210,8 @@ export function PlayCard({
         )}
         <p className="text-xs text-slate-500 mt-1">
           {sideLabel(play.side)} · {formationDisplayName}
+          {play.subFormation ? ` · ${play.subFormation}` : play.subcategory ? ` · ${play.subcategory}` : ""}
         </p>
-        {play.subcategory && (
-          <p className="text-xs text-slate-500 truncate" title={play.subcategory}>
-            {play.subcategory}
-          </p>
-        )}
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <AssignmentBadge status={assignmentStatus} />
           {assignmentSummary && assignmentSummary.total > 0 && (

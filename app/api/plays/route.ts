@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("plays")
-      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .eq("team_id", teamId)
 
     if (side) {
@@ -46,20 +46,31 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to load plays" }, { status: 500 })
     }
 
-    // Format response
-    const formatted = (plays ?? []).map((p) => ({
-      id: p.id,
-      teamId: p.team_id,
-      playbookId: p.playbook_id ?? null,
-      formationId: (p as { formation_id?: string }).formation_id ?? null,
-      side: p.side,
-      formation: p.formation,
-      subcategory: p.subcategory ?? null,
-      name: p.name,
-      canvasData: p.canvas_data,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at,
-    }))
+    const subFormationIds = [...new Set((plays ?? []).map((p) => (p as { sub_formation_id?: string }).sub_formation_id).filter(Boolean))] as string[]
+    const subFormationNameMap = new Map<string, string>()
+    if (subFormationIds.length > 0) {
+      const { data: subRows } = await supabase.from("sub_formations").select("id, name").in("id", subFormationIds)
+      subRows?.forEach((r) => subFormationNameMap.set(r.id, r.name?.trim() ?? ""))
+    }
+
+    const formatted = (plays ?? []).map((p) => {
+      const sfId = (p as { sub_formation_id?: string }).sub_formation_id ?? null
+      return {
+        id: p.id,
+        teamId: p.team_id,
+        playbookId: p.playbook_id ?? null,
+        formationId: (p as { formation_id?: string }).formation_id ?? null,
+        subFormationId: sfId,
+        side: p.side,
+        formation: p.formation,
+        subFormation: sfId ? subFormationNameMap.get(sfId) ?? null : null,
+        subcategory: p.subcategory ?? null,
+        name: p.name,
+        canvasData: p.canvas_data,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at,
+      }
+    })
 
     const res = NextResponse.json(formatted)
     if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
@@ -89,6 +100,7 @@ export async function POST(request: Request) {
       teamId?: string
       playbookId?: string | null
       formationId?: string | null
+      subFormationId?: string | null
       side?: string
       formation?: string
       subcategory?: string | null
@@ -96,7 +108,7 @@ export async function POST(request: Request) {
       canvasData?: unknown
     }
 
-    const { teamId, playbookId, formationId, side, formation, subcategory, name, canvasData } = body
+    const { teamId, playbookId, formationId, subFormationId, side, formation, subcategory, name, canvasData } = body
 
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -158,6 +170,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "formation is required" }, { status: 400 })
     }
 
+    let subFormationNameForInsert: string | null = null
+    if (subFormationId) {
+      const { data: subRow } = await supabase
+        .from("sub_formations")
+        .select("id, name, formation_id")
+        .eq("id", subFormationId)
+        .eq("team_id", teamId)
+        .maybeSingle()
+      if (!subRow) {
+        return NextResponse.json({ error: "Sub-formation not found" }, { status: 404 })
+      }
+      if (formationId && subRow.formation_id !== formationId) {
+        return NextResponse.json({ error: "Sub-formation does not belong to the given formation" }, { status: 400 })
+      }
+      subFormationNameForInsert = subRow.name?.trim() ?? null
+    }
+
     const insertPayload: Record<string, unknown> = {
       team_id: teamId,
       playbook_id: playbookId ?? null,
@@ -170,12 +199,15 @@ export async function POST(request: Request) {
     if (formationId != null) {
       insertPayload.formation_id = formationId
     }
+    if (subFormationId != null) {
+      insertPayload.sub_formation_id = subFormationId
+    }
 
     // Create play
     const { data: play, error: playError } = await supabase
       .from("plays")
       .insert(insertPayload)
-      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .single()
 
     if (playError || !play) {
@@ -188,8 +220,10 @@ export async function POST(request: Request) {
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
       formationId: (play as { formation_id?: string }).formation_id ?? null,
+      subFormationId: (play as { sub_formation_id?: string }).sub_formation_id ?? null,
       side: play.side,
       formation: play.formation,
+      subFormation: subFormationNameForInsert,
       subcategory: play.subcategory ?? null,
       name: play.name,
       canvasData: play.canvas_data,

@@ -8,7 +8,7 @@ import { PlaybookInspector, type InspectorSelectedPlayer } from "@/components/po
 import { PlaycallerView } from "@/components/portal/playcaller-view"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
-import type { FormationRecord, PlayRecord, SideOfBall, RoutePoint, BlockEndPoint } from "@/types/playbook"
+import type { FormationRecord, SubFormationRecord, PlayRecord, SideOfBall, RoutePoint, BlockEndPoint } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 
@@ -34,8 +34,10 @@ export function PlaybookWorkspace({
   const [loading, setLoading] = useState(true)
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null)
   const [selectedFormationId, setSelectedFormationId] = useState<string | null>(null)
+  const [selectedSubFormationId, setSelectedSubFormationId] = useState<string | null>(null)
   const [selectedFormationName, setSelectedFormationName] = useState<string>("")
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null)
+  const [subFormations, setSubFormations] = useState<SubFormationRecord[]>([])
   const [selectedSide, setSelectedSide] = useState<SideOfBall>("offense")
   const [designerMode, setDesignerMode] = useState<DesignerMode>("idle")
   const [editingFormation, setEditingFormation] = useState<FormationRecord | null>(null)
@@ -65,6 +67,14 @@ export function PlaybookWorkspace({
     }
   }, [teamId])
 
+  const fetchSubFormations = useCallback(async () => {
+    const res = await fetch(`/api/sub-formations?teamId=${teamId}`)
+    if (res.ok) {
+      const data = await res.json()
+      setSubFormations(data)
+    }
+  }, [teamId])
+
   const fetchDepthChart = useCallback(async () => {
     const res = await fetch(`/api/roster/depth-chart?teamId=${teamId}`, { credentials: "same-origin" })
     if (res.ok) {
@@ -91,8 +101,8 @@ export function PlaybookWorkspace({
 
   const loadAll = useCallback(() => {
     setLoading(true)
-    Promise.all([fetchFormations(), fetchPlays(), fetchDepthChart(), fetchRoster()]).finally(() => setLoading(false))
-  }, [fetchFormations, fetchPlays, fetchDepthChart, fetchRoster])
+    Promise.all([fetchFormations(), fetchPlays(), fetchSubFormations(), fetchDepthChart(), fetchRoster()]).finally(() => setLoading(false))
+  }, [fetchFormations, fetchPlays, fetchSubFormations, fetchDepthChart, fetchRoster])
 
   const onAssignSlot = useCallback(
     async (unit: string, position: string, stringNum: number, playerId: string | null) => {
@@ -133,6 +143,7 @@ export function PlaybookWorkspace({
   const handleSelectPlay = (play: PlayRecord) => {
     setSelectedPlayId(play.id)
     setSelectedFormationId(play.formationId ?? null)
+    setSelectedSubFormationId(play.subFormationId ?? null)
     setSelectedFormationName(
       play.formationId ? (formations.find((f) => f.id === play.formationId)?.name ?? play.formation ?? "") : (play.formation ?? "")
     )
@@ -149,11 +160,27 @@ export function PlaybookWorkspace({
 
   const handleSelectFormation = (formationId: string | null, formationName: string, side: SideOfBall) => {
     setSelectedPlayId(null)
+    setSelectedSubFormationId(null)
     setSelectedFormationId(formationId)
     setSelectedFormationName(formationName)
     setSelectedSide(side)
     setEditingFormation(null)
     setDesignerMode("idle")
+  }
+
+  const handleSelectSubFormation = (subFormationId: string | null, _subFormationName: string) => {
+    setSelectedPlayId(null)
+    setSelectedSubFormationId(subFormationId)
+    setDesignerMode("idle")
+  }
+
+  const handleBrowserBack = () => {
+    if (selectedSubFormationId != null) {
+      setSelectedSubFormationId(null)
+    } else if (selectedFormationId != null) {
+      setSelectedFormationId(null)
+      setSelectedFormationName("")
+    }
   }
 
   const handleNewFormation = (side: SideOfBall) => {
@@ -175,21 +202,12 @@ export function PlaybookWorkspace({
     setDesignerMode("formation")
   }
 
-  const handleNewPlay = (side: SideOfBall, formationId: string | null, formationName: string, subcategory?: string | null) => {
+  const handleNewPlay = (side: SideOfBall, formationId: string | null, formationName: string, subFormationId?: string | null) => {
     setSelectedPlayId(null)
     setSelectedFormationId(formationId)
+    setSelectedSubFormationId(subFormationId ?? null)
     setSelectedFormationName(formationName || "Custom")
-    setSelectedSubcategory(subcategory ?? null)
-    setSelectedSide(side)
-    setEditingFormation(null)
-    setDesignerMode("play")
-  }
-
-  const handleNewSubFormation = (side: SideOfBall, formationName: string, subFormationName: string) => {
-    setSelectedPlayId(null)
-    setSelectedFormationId(null)
-    setSelectedFormationName(formationName)
-    setSelectedSubcategory(subFormationName)
+    setSelectedSubcategory(null)
     setSelectedSide(side)
     setEditingFormation(null)
     setDesignerMode("play")
@@ -198,11 +216,36 @@ export function PlaybookWorkspace({
   const handleNewPlayFromFormation = (formation: FormationRecord) => {
     setSelectedPlayId(null)
     setSelectedFormationId(formation.id)
+    setSelectedSubFormationId(null)
     setSelectedFormationName(formation.name)
     setSelectedSubcategory(null)
     setSelectedSide(formation.side)
     setEditingFormation(null)
     setDesignerMode("play")
+  }
+
+  const handleNewSubFormation = async (formationId: string, formationName: string, side: SideOfBall) => {
+    try {
+      const res = await fetch("/api/sub-formations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId,
+          formationId,
+          side,
+          name: "New Sub-Formation",
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to create sub-formation")
+      const created = await res.json()
+      await fetchSubFormations()
+      setSelectedSubFormationId(created.id)
+      setSelectedFormationId(formationId)
+      setSelectedFormationName(formationName)
+      setSelectedSide(side)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to create sub-formation")
+    }
   }
 
   const handleEditFormation = (formation: FormationRecord) => {
@@ -213,11 +256,11 @@ export function PlaybookWorkspace({
   }
 
   const handleSavePlay = async (canvasData: PlayCanvasData, playName: string) => {
-    // When linked to a formation, use the formation's name for denormalized play.formation (search/compat). Otherwise use current name or Custom.
     const formation =
       selectedFormationId && selectedFormationName?.trim()
         ? selectedFormationName.trim()
         : (selectedFormationName?.trim() || "Custom")
+    const subFormationIdToSave = selectedSubFormationId && selectedSubFormationId !== "__uncategorized__" ? selectedSubFormationId : null
     try {
       if (selectedPlayId) {
         const res = await fetch(`/api/plays/${selectedPlayId}`, {
@@ -228,6 +271,7 @@ export function PlaybookWorkspace({
             name: playName,
             formation,
             formationId: selectedFormationId,
+            subFormationId: subFormationIdToSave,
             subcategory: selectedSubcategory,
             canvasData,
           }),
@@ -243,6 +287,7 @@ export function PlaybookWorkspace({
             side: selectedSide,
             formation,
             formationId: selectedFormationId ?? undefined,
+            subFormationId: subFormationIdToSave ?? undefined,
             subcategory: selectedSubcategory ?? undefined,
             name: playName,
             canvasData,
@@ -369,12 +414,45 @@ export function PlaybookWorkspace({
       const res = await fetch(`/api/formations/${formationId}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed to delete")
       await fetchFormations()
+      await fetchSubFormations()
       if (editingFormation?.id === formationId) {
         setEditingFormation(null)
         setDesignerMode("idle")
       }
+      if (selectedFormationId === formationId) {
+        setSelectedFormationId(null)
+        setSelectedSubFormationId(null)
+        setSelectedFormationName("")
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to delete formation")
+    }
+  }
+
+  const handleRenameSubFormation = async (subFormationId: string, _oldName: string, newName: string) => {
+    try {
+      const res = await fetch(`/api/sub-formations/${subFormationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      })
+      if (!res.ok) throw new Error("Failed to rename")
+      await fetchSubFormations()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to rename sub-formation")
+    }
+  }
+
+  const handleDeleteSubFormation = async (subFormationId: string) => {
+    try {
+      const res = await fetch(`/api/sub-formations/${subFormationId}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete")
+      await fetchSubFormations()
+      if (selectedSubFormationId === subFormationId) {
+        setSelectedSubFormationId(null)
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to delete sub-formation")
     }
   }
 
@@ -406,6 +484,7 @@ export function PlaybookWorkspace({
           side: play.side,
           formation: play.formation,
           formationId: play.formationId ?? undefined,
+          subFormationId: play.subFormationId ?? undefined,
           name: `${play.name} (copy)`,
           canvasData: play.canvasData,
         }),
@@ -519,15 +598,26 @@ export function PlaybookWorkspace({
           <PlaybookBrowser
             plays={plays}
             formations={formations}
+            subFormations={subFormations}
             depthChartEntries={depthChartEntries}
+            selectedFormationId={selectedFormationId}
+            selectedSubFormationId={selectedSubFormationId}
             selectedPlayId={selectedPlayId}
+            onSelectFormation={handleSelectFormation}
+            onSelectSubFormation={handleSelectSubFormation}
             onSelectPlay={handleSelectPlay}
+            onBack={handleBrowserBack}
             onNewPlay={handleNewPlay}
             onNewFormation={handleNewFormation}
+            onNewSubFormation={handleNewSubFormation}
             onNewPlayFromFormation={handleNewPlayFromFormation}
             onDuplicatePlay={handleDuplicatePlay}
             onRenamePlay={handleRenamePlay}
+            onRenameFormation={handleRenameFormation}
+            onRenameSubFormation={handleRenameSubFormation}
             onDeletePlay={handleDeletePlay}
+            onDeleteFormation={handleDeleteFormation}
+            onDeleteSubFormation={handleDeleteSubFormation}
             onStartPlaycaller={() => {
               setPlaycallerMode(true)
               setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
@@ -546,7 +636,7 @@ export function PlaybookWorkspace({
               playId={designerMode === "play" ? selectedPlayId : null}
               playData={initialCanvasDataForDesigner}
               playName={initialNameForDesigner}
-              editorSourceKey={designerMode === "play" ? (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}`) : `formation-${editingFormation?.id ?? "new"}`}
+              editorSourceKey={designerMode === "play" ? (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}-${selectedSubFormationId ?? "none"}`) : `formation-${editingFormation?.id ?? "new"}`}
               side={selectedSide}
               formation={designerMode === "formation" ? (editingFormation?.name ?? "New Formation") : (selectedFormationName || "Custom")}
               onSave={handleSaveFromBuilder}

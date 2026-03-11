@@ -180,28 +180,22 @@ export function PlaybookBuilder({
   )
   const [fieldDimensions, setFieldDimensions] = useState({ width: 800, height: 600 })
 
-  // Update coordinate system and field dimensions when container size changes
+  // Update coordinate system and field dimensions when container or window size changes.
+  // Routes/blocks stay aligned because playData sync converts yard coords to current pixels (see effect below).
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
         const container = containerRef.current
-        // Use 100% of container - field fills entire area, no padding
         const availableWidth = container.clientWidth
         const availableHeight = container.clientHeight
-
-        // Calculate aspect ratio (53.33 yards wide : 35 yards tall)
         const fieldAspectRatio = FIELD_WIDTH_YARDS / VISIBLE_YARDS
-
         let width = availableWidth
         let height = availableHeight
-
-        // Fill container while maintaining aspect ratio
         if (width / height > fieldAspectRatio) {
           width = height * fieldAspectRatio
         } else {
           height = width / fieldAspectRatio
         }
-
         setFieldDimensions({ width, height })
         setCoordSystem(new FieldCoordinateSystem(width, height, yardLineStart, yardLineEnd))
       }
@@ -209,7 +203,13 @@ export function PlaybookBuilder({
 
     updateDimensions()
     window.addEventListener("resize", updateDimensions)
-    return () => window.removeEventListener("resize", updateDimensions)
+    const el = containerRef.current
+    const ro = el ? new ResizeObserver(updateDimensions) : null
+    if (el && ro) ro.observe(el)
+    return () => {
+      window.removeEventListener("resize", updateDimensions)
+      ro?.disconnect()
+    }
   }, [])
 
   // Handle ALT key for snapping toggle
@@ -327,14 +327,45 @@ export function PlaybookBuilder({
 
   useEffect(() => {
     if (playData) {
-      // Convert legacy pixel coordinates to yard coordinates if needed
+      // Source of truth: yard coordinates. Convert to current viewBox pixels so routes/blockingLine stay aligned on resize.
       const convertedPlayers = playData.players.map((p) => {
         if (p.xYards !== undefined && p.yYards !== undefined) {
-          // Already has yard coordinates, convert to pixels for rendering
           const pixel = coordSystem.yardToPixel(p.xYards, p.yYards)
-          return { ...p, x: pixel.x, y: pixel.y }
+          let out: Player = { ...p, x: pixel.x, y: pixel.y }
+          // Route: derive pixel from yards so resize doesn't detach the path (source of truth: xYards/yYards)
+          if (p.route?.length) {
+            out = {
+              ...out,
+              route: p.route.map((pt) => {
+                const hasYards = "xYards" in pt && typeof (pt as { xYards: number }).xYards === "number"
+                const px = hasYards
+                  ? coordSystem.yardToPixel((pt as { xYards: number }).xYards, (pt as { yYards: number }).yYards)
+                  : {
+                      x: ((pt as { x?: number }).x ?? 0) * (fieldDimensions.width / 800),
+                      y: ((pt as { y?: number }).y ?? 0) * (fieldDimensions.height / 600),
+                    }
+                return {
+                  ...pt,
+                  x: px.x,
+                  y: px.y,
+                  xYards: hasYards ? (pt as { xYards: number }).xYards : 0,
+                  yYards: hasYards ? (pt as { yYards: number }).yYards : 0,
+                  t: "t" in pt ? (pt as { t: number }).t : 0,
+                }
+              }),
+            }
+          }
+          // BlockingLine: derive pixel from yards for resize alignment
+          if (p.blockingLine) {
+            const bl = p.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
+            const hasYards = typeof bl.xYards === "number" && typeof bl.yYards === "number"
+            const bp = hasYards
+              ? coordSystem.yardToPixel(bl.xYards!, bl.yYards!)
+              : { x: (bl.x ?? 0) * (fieldDimensions.width / 800), y: (bl.y ?? 0) * (fieldDimensions.height / 600) }
+            out = { ...out, blockingLine: { ...bl, x: bp.x, y: bp.y, xYards: bl.xYards ?? 0, yYards: bl.yYards ?? 0 } }
+          }
+          return out
         } else {
-          // Legacy pixel coordinates, convert to yards
           const yards = coordSystem.pixelToYard(p.x, p.y)
           const pixel = coordSystem.yardToPixel(yards.xYards, yards.yYards)
           return { ...p, x: pixel.x, y: pixel.y, xYards: yards.xYards, yYards: yards.yYards }
@@ -348,7 +379,7 @@ export function PlaybookBuilder({
     if (initialPlayName) {
       setPlayName(initialPlayName)
     }
-  }, [playData, side, initialPlayName, coordSystem])
+  }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height])
 
   /** Uses lib/utils/canvas-coords (xMidYMid meet). All pointer tools depend on this. See tests/playbook-canvas-coords.test.ts. */
   const clientToViewBox = (clientX: number, clientY: number): { x: number; y: number } | null => {
@@ -1053,7 +1084,7 @@ export function PlaybookBuilder({
                       strokeDasharray="4,4"
                     />
                   )}
-                  {/* Player route */}
+                  {/* Player route — x,y kept in sync from xYards/yYards when coordSystem/fieldDimensions change (resize-safe) */}
                   {player.route && player.route.length > 1 && (
                     <g>
                       <polyline

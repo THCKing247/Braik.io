@@ -125,22 +125,21 @@ export function CalendarWidgetEnhanced({
     return (nowMinutes / 60) * DAY_VIEW_HOUR_HEIGHT
   }, [currentTime])
 
-  // Auto-scroll: Day view places now line ~30% from top in middle copy; Week view scrolls to current hour.
+  // Auto-scroll: Day and Week place now line in middle copy; Day ~30% from top, Week at current time.
   useEffect(() => {
     if ((view !== "day" && view !== "week") || !timeGridScrollRef.current) return
     const el = timeGridScrollRef.current
+    const now = new Date()
+    const nowMinutes = now.getHours() * 60 + now.getMinutes()
+    const nowOffset = (nowMinutes / 60) * DAY_VIEW_HOUR_HEIGHT
     if (view === "day") {
-      const now = new Date()
-      const nowMinutes = now.getHours() * 60 + now.getMinutes()
-      const nowOffset = (nowMinutes / 60) * DAY_VIEW_HOUR_HEIGHT
       const desiredViewportOffset = 0.3 * el.clientHeight
       const targetScroll = DAY_VIEW_DAY_HEIGHT + nowOffset - desiredViewportOffset
       const minScroll = DAY_VIEW_DAY_HEIGHT
       const maxScroll = Math.max(minScroll, 2 * DAY_VIEW_DAY_HEIGHT - el.clientHeight)
       el.scrollTop = Math.max(minScroll, Math.min(maxScroll, targetScroll))
     } else {
-      const minutesFromMidnight = new Date().getHours() * 60 + new Date().getMinutes()
-      el.scrollTop = Math.max(0, minutesFromMidnight - 90)
+      el.scrollTop = DAY_VIEW_DAY_HEIGHT + nowOffset
     }
   }, [view])
 
@@ -313,12 +312,11 @@ export function CalendarWidgetEnhanced({
     )
   }
 
-  // Render Week View (enhanced)
+  // Render Week View (enhanced) — header fixed; only the time-grid body scrolls and loops (3 copies)
   const renderWeekView = () => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
-    // Generate time slots
     const timeSlots: Date[] = []
     for (let hour = 0; hour < 24; hour++) {
       const slot = new Date(weekStart)
@@ -326,178 +324,190 @@ export function CalendarWidgetEnhanced({
       timeSlots.push(slot)
     }
 
-    const isCurrentWeek = weekDays.some(day => isTodayDate(day))
-    const getCurrentTimePosition = () => {
-      if (!isCurrentWeek) return null
-      const now = currentTime
-      const currentHour = now.getHours()
-      const currentMinute = now.getMinutes()
-      return currentHour * 60 + currentMinute
-    }
+    const isCurrentWeek = weekDays.some((day) => isTodayDate(day))
+    const currentTimePosition = isCurrentWeek
+      ? currentTime.getHours() * 60 + currentTime.getMinutes()
+      : null
 
-    const currentTimePosition = getCurrentTimePosition()
+    const weekBodyHeight = DAY_VIEW_DAY_HEIGHT * DAY_VIEW_COPIES
 
     return (
-      <div className="flex-1 flex flex-col min-h-0 min-w-full">
-        {/* Only vertical scroll region: sticky day headers + time grid */}
+      <div className="flex flex-1 flex-col min-h-0 min-w-full">
+        {/* Weekday headers — fixed above scroll; not part of looping content; grid aligns with body columns */}
+        <div
+          className="grid calendar-grid flex-shrink-0 border-b bg-white shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
+          style={{ borderColor: "rgb(var(--border))", zIndex: 10 }}
+        >
+          <div
+            className="w-[80px] min-w-0 flex-shrink-0 border-r p-2"
+            style={{ borderColor: "rgb(var(--border))" }}
+            aria-hidden
+          />
+          {weekDays.map((day) => {
+            const isToday = isTodayDate(day)
+            const dayEvents = getEventsForDate(day)
+            return (
+              <div
+                key={day.toISOString()}
+                className="min-w-0 border-r p-2 text-center"
+                style={{ borderColor: "rgb(var(--border))" }}
+              >
+                <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
+                  {format(day, "EEE")}
+                </div>
+                <div
+                  className={`mt-1 text-lg font-semibold ${
+                    isToday ? "mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-white" : ""
+                  }`}
+                  style={!isToday ? { color: "rgb(var(--text))" } : {}}
+                >
+                  {format(day, "d")}
+                </div>
+                {dayEvents.length > 0 && (
+                  <div className="mt-1 text-xs" style={{ color: "rgb(var(--muted))" }}>
+                    {dayEvents.length} event{dayEvents.length !== 1 ? "s" : ""}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Scrollable looping body — only this part scrolls; 3 copies so grid rotates underneath the fixed headers */}
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-auto"
+          className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overflow-x-auto"
+          onScroll={handleDayViewScroll}
         >
-          {/* Day headers - sticky at top of scroll area, aligned with columns */}
-          <div
-            className="grid calendar-grid border-b bg-white z-20 sticky top-0 flex-shrink-0 shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
-            style={{ borderColor: "rgb(var(--border))" }}
-          >
-            <div className="p-2 border-r min-w-0 w-[80px] flex-shrink-0" style={{ borderColor: "rgb(var(--border))" }} aria-hidden />
-            {weekDays.map((day) => {
-              const isToday = isTodayDate(day)
-              const dayEvents = getEventsForDate(day)
-              return (
-                <div
-                  key={day.toISOString()}
-                  className="p-2 border-r text-center min-w-0"
-                  style={{ borderColor: "rgb(var(--border))" }}
-                >
-                  <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
-                    {format(day, "EEE")}
-                  </div>
+          <div className="relative" style={{ height: weekBodyHeight }}>
+            {[0, 1, 2].map((copyIndex) => (
+              <div
+                key={copyIndex}
+                className="absolute left-0 right-0"
+                style={{
+                  top: copyIndex * DAY_VIEW_DAY_HEIGHT,
+                  height: DAY_VIEW_DAY_HEIGHT,
+                }}
+              >
+                <div className="relative grid h-full calendar-grid" style={{ minHeight: DAY_VIEW_DAY_HEIGHT }}>
+                  {/* Time column — sticky left when scrolling horizontally */}
                   <div
-                    className={`text-lg font-semibold mt-1 ${
-                      isToday ? "bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
-                    }`}
-                    style={!isToday ? { color: "rgb(var(--text))" } : {}}
+                    className="sticky left-0 relative z-20 min-w-0 w-[80px] flex-shrink-0 border-r"
+                    style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
                   >
-                    {format(day, "d")}
-                  </div>
-                  {dayEvents.length > 0 && (
-                    <div className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
-                      {dayEvents.length} event{dayEvents.length !== 1 ? "s" : ""}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Time grid - time column sticky left when scrolling horizontally */}
-          <div className="relative grid calendar-grid" style={{ minHeight: "1440px" }}>
-            {/* Time column (first column, 80px) - sticky left, z-20 so labels sit above hour-line overlay */}
-            <div
-              className="sticky left-0 relative min-w-0 w-[80px] flex-shrink-0 border-r z-20"
-              style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
-            >
-              {timeSlots.map((slot, index) => {
-                const hour = index
-                const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-                const ampm = hour >= 12 ? "PM" : "AM"
-                return (
-                  <div
-                    key={slot.toISOString()}
-                    className="absolute text-right whitespace-nowrap"
-                    style={{
-                      top: `${index * 60}px`,
-                      left: 0,
-                      right: 0,
-                      maxWidth: "80px",
-                      transform: "translateY(-50%)",
-                    }}
-                  >
-                    <span
-                      className="relative z-10 bg-white px-2 text-sm"
-                      style={{ color: "rgb(var(--text2))" }}
-                    >
-                      {`${displayHour} ${ampm}`}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Day columns (7 columns) - events */}
-            {weekDays.map((day) => {
-                const dayEvents = getEventsForDate(day).sort(
-                  (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
-                )
-                return (
-                  <div
-                    key={day.toISOString()}
-                    className="border-r relative min-w-0"
-                    style={{ borderColor: "rgb(var(--border))", minHeight: "1440px" }}
-                  >
-                    {dayEvents.map((event) => {
-                      const eventStart = new Date(event.start)
-                      const eventEnd = new Date(event.end)
-                      const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
-                      const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
-                      const duration = endMinutes - startMinutes
-                      const height = Math.max(duration, 30)
-
+                    {timeSlots.map((slot, index) => {
+                      const hour = index
+                      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+                      const ampm = hour >= 12 ? "PM" : "AM"
                       return (
                         <div
-                          key={event.id}
-                          onClick={() => handleEventClick(event)}
-                          className="absolute left-1 right-1 p-1 rounded text-xs cursor-pointer hover:shadow-md border-l-2"
+                          key={`${copyIndex}-${slot.toISOString()}`}
+                          className="absolute text-right whitespace-nowrap"
                           style={{
-                            top: `${startMinutes}px`,
-                            height: `${height}px`,
-                            backgroundColor: "#FFFFFF",
-                            borderLeftColor: event.color || "#3B82F6",
-                            borderColor: "rgb(var(--border))",
-                            overflow: "hidden",
+                            top: `${index * 60}px`,
+                            left: 0,
+                            right: 0,
+                            maxWidth: "80px",
+                            transform: "translateY(-50%)",
                           }}
                         >
-                          <div className="font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
-                            {format(eventStart, "h:mm a")}
-                          </div>
-                          <div className="truncate" style={{ color: "rgb(var(--text))" }}>
-                            {event.title}
-                          </div>
+                          <span
+                            className="relative z-10 bg-white px-2 text-sm"
+                            style={{ color: "rgb(var(--text2))" }}
+                          >
+                            {`${displayHour} ${ampm}`}
+                          </span>
                         </div>
                       )
                     })}
                   </div>
-                )
-              })}
 
-            {/* Overlay: hour lines (z-10) and current time - below time column (z-20) so labels render above lines */}
-            <div
-              className="absolute top-0 bottom-0 left-[80px] right-0 pointer-events-none z-10"
-              aria-hidden
-            >
-              {timeSlots.map((slot, index) => (
-                <div
-                  key={`line-${slot.toISOString()}`}
-                  className="absolute border-t z-0"
-                  style={{
-                    top: `${index * 60}px`,
-                    left: 0,
-                    right: 0,
-                    borderColor: "rgb(var(--border))",
-                    opacity: 0.3,
-                  }}
-                />
-              ))}
-              {isCurrentWeek && currentTimePosition !== null && (
-                <div
-                  className="absolute left-0 right-0 z-30"
-                  style={{ top: `${currentTimePosition}px` }}
-                >
-                  <div className="flex items-center">
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{
-                        backgroundColor: "#EA4335",
-                        marginLeft: "-6px",
-                        boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
-                      }}
-                    />
-                    <div className="flex-1 h-0.5" style={{ backgroundColor: "#EA4335" }} />
+                  {/* Day columns — events */}
+                  {weekDays.map((day) => {
+                    const dayEvents = getEventsForDate(day).sort(
+                      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+                    )
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        className="relative min-w-0 border-r"
+                        style={{ borderColor: "rgb(var(--border))", minHeight: DAY_VIEW_DAY_HEIGHT }}
+                      >
+                        {dayEvents.map((event) => {
+                          const eventStart = new Date(event.start)
+                          const eventEnd = new Date(event.end)
+                          const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
+                          const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
+                          const duration = endMinutes - startMinutes
+                          const height = Math.max(duration, 30)
+                          return (
+                            <div
+                              key={`${copyIndex}-${event.id}`}
+                              onClick={() => handleEventClick(event)}
+                              className="absolute left-1 right-1 cursor-pointer rounded p-1 text-xs shadow-md hover:shadow-md border-l-2"
+                              style={{
+                                top: `${startMinutes}px`,
+                                height: `${height}px`,
+                                backgroundColor: "#FFFFFF",
+                                borderLeftColor: event.color || "#3B82F6",
+                                borderColor: "rgb(var(--border))",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div className="font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
+                                {format(eventStart, "h:mm a")}
+                              </div>
+                              <div className="truncate" style={{ color: "rgb(var(--text))" }}>
+                                {event.title}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+
+                  {/* Overlay: hour lines and now line — in every copy so now line stays visible while scrolling */}
+                  <div
+                    className="pointer-events-none absolute top-0 bottom-0 left-[80px] right-0 z-10"
+                    aria-hidden
+                  >
+                    {timeSlots.map((slot, index) => (
+                      <div
+                        key={`line-${copyIndex}-${slot.toISOString()}`}
+                        className="absolute border-t z-0"
+                        style={{
+                          top: `${index * 60}px`,
+                          left: 0,
+                          right: 0,
+                          borderColor: "rgb(var(--border))",
+                          opacity: 0.3,
+                        }}
+                      />
+                    ))}
+                    {isCurrentWeek && currentTimePosition !== null && (
+                      <div
+                        className="absolute left-0 right-0 z-30"
+                        style={{ top: `${currentTimePosition}px` }}
+                      >
+                        <div className="flex items-center">
+                          <div
+                            className="h-3 w-3 flex-shrink-0 rounded-full"
+                            style={{
+                              backgroundColor: "#EA4335",
+                              marginLeft: "-6px",
+                              boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
+                            }}
+                          />
+                          <div className="h-0.5 flex-1" style={{ backgroundColor: "#EA4335" }} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -652,7 +662,7 @@ export function CalendarWidgetEnhanced({
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+          className="scrollbar-hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
           onScroll={handleDayViewScroll}
         >
           <div className="relative" style={{ height: totalHeight }}>
@@ -1027,7 +1037,7 @@ export function CalendarWidgetEnhanced({
         {/* Main Content Area - flex row: sidebar fixed width, right pane gets remainder and contains the only scroll (time grid) */}
         <div className="flex flex-1 min-h-0 overflow-hidden min-w-0">
           {/* Left Sidebar - fixed width so right pane height/width is bounded */}
-          <div className="w-64 flex-shrink-0 border-r p-4 overflow-y-auto overflow-x-hidden" style={{ borderColor: "rgb(var(--border))" }}>
+          <div className="scrollbar-hidden w-64 flex-shrink-0 border-r p-4 overflow-y-auto overflow-x-hidden" style={{ borderColor: "rgb(var(--border))" }}>
             <div className="space-y-6">
               {/* Mini Calendar */}
               <div>
@@ -1100,7 +1110,7 @@ export function CalendarWidgetEnhanced({
             className={
               view === "day" || view === "week"
                 ? "flex-1 flex flex-col min-h-0 overflow-hidden min-w-0"
-                : "flex-1 overflow-y-auto min-w-0"
+                : "scrollbar-hidden flex-1 overflow-y-auto min-w-0"
             }
           >
             <div className={view === "day" || view === "week" ? "flex-1 flex flex-col min-h-0 p-4 min-w-0" : "p-4"}>

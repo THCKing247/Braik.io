@@ -188,6 +188,15 @@
   }
 }
 
+/* Hide scrollbar while keeping scroll (calendar and other pages) */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* Layout Structure - Rail Offset */
 /* Root shell */
 .app-shell {

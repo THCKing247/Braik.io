@@ -1,10 +1,13 @@
 "use client"
 
-import { useEffect, useCallback, useMemo } from "react"
-import { X, ChevronLeft, ChevronRight } from "lucide-react"
+import { useEffect, useCallback, useMemo, useRef, useState } from "react"
+import { X, ChevronLeft, ChevronRight, Pencil, Eraser } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
+import { clientToViewBox } from "@/lib/utils/canvas-coords"
 import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint } from "@/types/playbook"
+
+type PresenterTool = "none" | "marker"
 
 const FIELD_WIDTH_YARDS = 53.33
 const VISIBLE_YARDS = 35
@@ -69,6 +72,64 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange }: 
   const play = plays[currentIndex]
   const canvasData = play?.canvasData as PlayCanvasData | null
   const players = getPlayersFromCanvas(canvasData, coord)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [tool, setTool] = useState<PresenterTool>("none")
+  const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([])
+  const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[] | null>(null)
+
+  const clientToViewBoxPoint = useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
+    if (!svgRef.current) return null
+    const rect = svgRef.current.getBoundingClientRect()
+    const pt = clientToViewBox(clientX, clientY, rect, VIEWBOX_W, VIEWBOX_H)
+    return { x: Math.max(0, Math.min(VIEWBOX_W, pt.x)), y: Math.max(0, Math.min(VIEWBOX_H, pt.y)) }
+  }, [])
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (tool !== "marker") return
+      e.preventDefault()
+      const pt = clientToViewBoxPoint(e.clientX, e.clientY)
+      if (pt) {
+        setActiveStroke([pt])
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }
+    },
+    [tool, clientToViewBoxPoint]
+  )
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (tool !== "marker" || !activeStroke) return
+      e.preventDefault()
+      const pt = clientToViewBoxPoint(e.clientX, e.clientY)
+      if (pt) setActiveStroke((prev) => (prev ? [...prev, pt] : [pt]))
+    },
+    [tool, activeStroke, clientToViewBoxPoint]
+  )
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+      if (tool === "marker" && activeStroke && activeStroke.length > 0) {
+        setStrokes((prev) => [...prev, activeStroke])
+        setActiveStroke(null)
+      }
+    },
+    [tool, activeStroke]
+  )
+
+  const handlePointerLeave = useCallback(() => {
+    if (tool === "marker" && activeStroke && activeStroke.length > 0) {
+      setStrokes((prev) => [...prev, activeStroke])
+      setActiveStroke(null)
+    }
+  }, [tool, activeStroke])
+
+  const clearDrawings = useCallback(() => {
+    setStrokes([])
+    setActiveStroke(null)
+    setTool("none")
+  }, [])
 
   const goPrev = useCallback(() => {
     onIndexChange(Math.max(0, currentIndex - 1))
@@ -122,16 +183,34 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange }: 
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <div className="w-24" />
+        <div className="flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg">
+          <Button
+            variant={tool === "marker" ? "secondary" : "outline"}
+            size="icon"
+            onClick={() => setTool((t) => (t === "marker" ? "none" : "marker"))}
+            title="Draw on play"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={clearDrawings} title="Clear drawings">
+            <Eraser className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-4xl aspect-[53.33/35] max-h-[85vh] rounded-lg overflow-hidden shadow-2xl border border-border">
           <svg
+            ref={svgRef}
             viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
-            className="w-full h-full"
+            className="w-full h-full touch-none"
             preserveAspectRatio="xMidYMid meet"
             style={{ background: "#2d5016" }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerLeave}
+            onPointerCancel={handlePointerUp}
           >
             <PlaybookFieldSurface width={VIEWBOX_W} height={VIEWBOX_H} yardStart={YARD_START} yardEnd={YARD_END} />
             {/* Routes and blocking lines first so they render under players */}
@@ -229,6 +308,37 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange }: 
                 </text>
               </g>
             ))}
+            {/* Marker strokes (presenter drawings) */}
+            {strokes.map((stroke, i) =>
+              stroke.length > 1 ? (
+                <polyline
+                  key={i}
+                  points={stroke.map((p) => `${p.x},${p.y}`).join(" ")}
+                  fill="none"
+                  stroke="#FBBF24"
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ) : null
+            )}
+            {activeStroke && activeStroke.length > 1 && (
+              <polyline
+                points={activeStroke.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill="none"
+                stroke="#FBBF24"
+                strokeWidth={3}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+            {/* Overlay to capture pointer when marker is active */}
+            <rect
+              width={VIEWBOX_W}
+              height={VIEWBOX_H}
+              fill="transparent"
+              pointerEvents={tool === "marker" ? "all" : "none"}
+            />
           </svg>
         </div>
       </div>

@@ -67,12 +67,12 @@ export function PlayCard({
         onClick={() => onOpen(play)}
         onKeyDown={(e) => e.key === "Enter" && onOpen(play)}
         className={`
-          flex items-center gap-4 p-3 rounded-xl border transition-all cursor-pointer
-          hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20
-          ${isSelected ? "ring-2 ring-primary bg-primary/5 border-primary/30" : "border-border bg-card"}
+          flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer
+          hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300
+          ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/50 border-blue-200" : "border-slate-200 bg-white"}
         `}
       >
-        <div className="w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-[#2d5016]">
+        <div className="w-20 h-14 flex-shrink-0 rounded-md overflow-hidden bg-[#2d5016]">
           <PlayCardThumbnail canvasData={canvasData} className="w-full h-full" />
         </div>
         <div className="flex-1 min-w-0">
@@ -93,14 +93,14 @@ export function PlayCard({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <p className="font-medium text-foreground truncate">{play.name}</p>
+            <p className="font-medium text-slate-800 truncate">{play.name}</p>
           )}
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             {sideLabel(play.side)} · {play.formation}
             {play.subcategory ? ` · ${play.subcategory}` : ""}
           </p>
         </div>
-        <p className="text-xs text-muted-foreground flex-shrink-0 hidden sm:block">{formatDate(play.updatedAt)}</p>
+        <p className="text-xs text-slate-500 flex-shrink-0 hidden sm:block">{formatDate(play.updatedAt)}</p>
         {canEdit && (
           <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpen(play)} title="Open">
@@ -124,10 +124,11 @@ export function PlayCard({
   return (
     <Card
       className={`
-        cursor-pointer overflow-hidden transition-all
-        hover:shadow-md focus-within:ring-2 focus-within:ring-primary/20
-        ${isSelected ? "ring-2 ring-primary shadow-md" : ""}
+        cursor-pointer overflow-hidden transition-all border border-slate-200 bg-white
+        hover:shadow-md hover:border-slate-300 focus-within:ring-2 focus-within:ring-slate-300
+        ${isSelected ? "ring-2 ring-blue-500 border-blue-200 shadow-md" : ""}
       `}
+      style={{ background: "white", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
       onClick={() => onOpen(play)}
     >
       <div className="p-0">
@@ -146,38 +147,38 @@ export function PlayCard({
                 setIsRenaming(false)
               }
             }}
-            className="h-8 text-sm font-medium"
+            className="h-8 text-sm font-medium border-slate-200"
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <p className="font-semibold text-foreground truncate" title={play.name}>
+          <p className="font-semibold text-slate-800 truncate" title={play.name}>
             {play.name}
           </p>
         )}
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-slate-500 mt-1">
           {sideLabel(play.side)} · {play.formation}
         </p>
         {play.subcategory && (
-          <p className="text-xs text-muted-foreground truncate" title={play.subcategory}>
+          <p className="text-xs text-slate-500 truncate" title={play.subcategory}>
             {play.subcategory}
           </p>
         )}
-        <p className="text-[10px] text-muted-foreground mt-1">{formatDate(play.updatedAt)}</p>
+        <p className="text-[10px] text-slate-400 mt-1">{formatDate(play.updatedAt)}</p>
       </CardContent>
-      <CardFooter className="p-2 pt-0 flex flex-wrap gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+      <CardFooter className="p-2 pt-0 flex flex-wrap gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
         {canEdit && (
           <>
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpen(play)}>
               Open
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onDuplicate(play.id)} title="Duplicate">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700" onClick={() => onDuplicate(play.id)} title="Duplicate">
               <Copy className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setIsRenaming(true)} title="Rename">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700" onClick={() => setIsRenaming(true)} title="Rename">
               <Pencil className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => confirm("Delete this play?") && onDelete(play.id)} title="Delete">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:text-red-700" onClick={() => confirm("Delete this play?") && onDelete(play.id)} title="Delete">
               <Trash2 className="h-3 w-3" />
             </Button>
           </>

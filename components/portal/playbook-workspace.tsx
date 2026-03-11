@@ -379,14 +379,14 @@ export function PlaybookWorkspace({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Loading playbooks...</div>
+      <div className="flex items-center justify-center h-full bg-slate-50">
+        <p className="text-sm text-slate-500">Loading playbooks...</p>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-slate-50">
       {playcallerMode ? (
         <PlaycallerView
           plays={plays}
@@ -396,8 +396,8 @@ export function PlaybookWorkspace({
         />
       ) : null}
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-[380px] lg:w-[420px] flex-shrink-0 flex flex-col border-r border-border overflow-hidden">
+      <div className="flex flex-1 overflow-hidden gap-px">
+        <div className="w-[360px] lg:w-[400px] flex-shrink-0 flex flex-col overflow-hidden rounded-l-lg border border-slate-200 bg-white shadow-sm">
           <PlaybookBrowser
             plays={plays}
             formations={formations}
@@ -420,7 +420,7 @@ export function PlaybookWorkspace({
           />
         </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden bg-muted/30">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm">
           {(designerMode === "play" || designerMode === "formation") && canEditSide(selectedSide) ? (
             <PlaybookBuilder
               playId={designerMode === "play" ? selectedPlayId : null}
@@ -435,23 +435,33 @@ export function PlaybookWorkspace({
               templateName={editingFormation?.name ?? ""}
             />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <p className="text-sm">Select a play to edit, or create a new formation / play from the tree.</p>
-                <p className="text-xs mt-2">Use &quot;New Formation&quot; to save a reusable alignment, then &quot;New play&quot; to draw from it.</p>
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="max-w-sm rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center shadow-sm">
+                <p className="text-sm font-medium text-slate-700">Select a play to start editing</p>
+                <p className="text-sm text-slate-500 mt-2">Or create a new formation or play from the catalog.</p>
+                <div className="flex flex-wrap justify-center gap-3 mt-6">
+                  <Button size="sm" variant="default" onClick={() => handleNewPlay("offense", null, "Custom")}>
+                    New Play
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleNewFormation("offense")}>
+                    New Formation
+                  </Button>
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        <PlaybookInspector
-          play={selectedPlay ?? null}
-          selectedObject={inspectorSelection}
-          selectedPlayer={selectedPlayerInspector}
-          selectedZone={selectedZoneInspector}
-          onPlayNameChange={selectedPlay ? (name) => handleRenamePlay(selectedPlay.id, name) : undefined}
-          canEdit={canEdit}
-        />
+        <div className="w-72 flex-shrink-0 flex flex-col overflow-hidden rounded-r-lg border border-slate-200 bg-white shadow-sm">
+          <PlaybookInspector
+            play={selectedPlay ?? null}
+            selectedObject={inspectorSelection}
+            selectedPlayer={selectedPlayerInspector}
+            selectedZone={selectedZoneInspector}
+            onPlayNameChange={selectedPlay ? (name) => handleRenamePlay(selectedPlay.id, name) : undefined}
+            canEdit={canEdit}
+          />
+        </div>
       </div>
     </div>
   )

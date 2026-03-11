@@ -114,23 +114,23 @@ export function PlaybookBrowser({
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Top bar: search, filters, sort, actions */}
-      <div className="flex-shrink-0 border-b border-border p-3 space-y-3">
+    <div className="flex flex-col h-full bg-white">
+      {/* Top bar: Row 1 = search + filters + sort; Row 2 = view toggle + actions */}
+      <div className="flex-shrink-0 border-b border-slate-200 px-4 py-3 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[180px] max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="relative flex-1 min-w-[160px] max-w-[220px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
               placeholder="Search plays..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9"
+              className="pl-8 h-9 rounded-md border-slate-200 bg-slate-50 text-sm placeholder:text-slate-400"
             />
           </div>
           <select
             value={sideFilter}
             onChange={(e) => setSideFilter(e.target.value as SideOfBall | "")}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
             <option value="">All sides</option>
             {SIDES.map((s) => (
@@ -140,7 +140,7 @@ export function PlaybookBrowser({
           <select
             value={formationFilter}
             onChange={(e) => setFormationFilter(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[120px]"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[110px]"
           >
             <option value="">All formations</option>
             {formationNames.map((name) => (
@@ -150,7 +150,7 @@ export function PlaybookBrowser({
           <select
             value={tagFilter}
             onChange={(e) => setTagFilter(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[100px]"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[90px]"
           >
             <option value="">All tags</option>
             {tagNames.map((name) => (
@@ -160,17 +160,19 @@ export function PlaybookBrowser({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortKey)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
             <option value="updated">Last updated</option>
             <option value="name">Name</option>
             <option value="formation">Formation</option>
           </select>
-          <div className="flex items-center gap-1">
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border border-slate-200 p-0.5 bg-slate-50/80">
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-9 w-9"
+              size="sm"
+              className="h-8 w-8 p-0"
               onClick={() => setViewMode("grid")}
               title="Grid view"
             >
@@ -178,16 +180,14 @@ export function PlaybookBrowser({
             </Button>
             <Button
               variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-9 w-9"
+              size="sm"
+              className="h-8 w-8 p-0"
               onClick={() => setViewMode("list")}
               title="List view"
             >
               <List className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
           {canEdit && (
             <>
               <div className="relative">
@@ -197,12 +197,12 @@ export function PlaybookBrowser({
                 </Button>
                 {newPlayMenuOpen && (
                   <>
-                    <div className="absolute left-0 top-full mt-1 z-20 py-1 rounded-md border border-border bg-popover shadow-lg min-w-[180px]">
-                      <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground">From side</p>
+                    <div className="absolute left-0 top-full mt-1 z-20 py-1 rounded-lg border border-slate-200 bg-white shadow-lg min-w-[180px]">
+                      <p className="px-3 py-1.5 text-xs font-medium text-slate-500">From side</p>
                       {SIDES.map((s) => (
                         <button
                           key={s.value}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           onClick={() => {
                             onNewPlay(s.value, null, "Custom")
                             setNewPlayMenuOpen(false)
@@ -213,11 +213,11 @@ export function PlaybookBrowser({
                       ))}
                       {formations.length > 0 && (
                         <>
-                          <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground mt-2 border-t border-border">From formation</p>
+                          <p className="px-3 py-1.5 text-xs font-medium text-slate-500 mt-2 border-t border-slate-200">From formation</p>
                           {formations.slice(0, 8).map((f) => (
                             <button
                               key={f.id}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted truncate"
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 truncate"
                               onClick={() => {
                                 onNewPlayFromFormation(f)
                                 setNewPlayMenuOpen(false)
@@ -240,11 +240,11 @@ export function PlaybookBrowser({
                 </Button>
                 {newFormationMenuOpen && (
                   <>
-                    <div className="absolute left-0 top-full mt-1 z-20 py-1 rounded-md border border-border bg-popover shadow-lg min-w-[140px]">
+                    <div className="absolute left-0 top-full mt-1 z-20 py-1 rounded-lg border border-slate-200 bg-white shadow-lg min-w-[140px]">
                       {SIDES.map((s) => (
                         <button
                           key={s.value}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                           disabled={!canEditSide(s.value)}
                           onClick={() => {
                             onNewFormation(s.value)
@@ -273,11 +273,11 @@ export function PlaybookBrowser({
       {/* Main content: card grid or list, grouped by formation */}
       <div className="flex-1 overflow-y-auto p-4">
         {filteredAndSortedPlays.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-muted-foreground font-medium">
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-slate-700 font-medium">
               {plays.length === 0 ? "No plays yet" : "No plays match your filters"}
             </p>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-slate-500 mt-1">
               {plays.length === 0 ? "Create a formation or add a new play to get started." : "Try changing search or filters."}
             </p>
             {canEdit && plays.length === 0 && (
@@ -293,17 +293,17 @@ export function PlaybookBrowser({
             )}
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {playsByFormation.keys.map((formationName) => {
               const sectionPlays = playsByFormation.map.get(formationName) ?? []
               return (
                 <section key={formationName}>
-                  <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                    <span className="text-muted-foreground">{formationName}</span>
-                    <span className="text-xs font-normal text-muted-foreground">({sectionPlays.length})</span>
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2">
+                    {formationName}
+                    <span className="text-slate-400 font-normal">({sectionPlays.length})</span>
                   </h2>
                   {viewMode === "grid" ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       {sectionPlays.map((play) => (
                         <PlayCard
                           key={play.id}

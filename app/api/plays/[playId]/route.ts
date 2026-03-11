@@ -174,7 +174,7 @@ export async function PATCH(
     console.error("[PATCH /api/plays/[playId]]", error)
     return NextResponse.json(
       { error: err?.message ?? "Failed to update play" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
+      { status: err?.message?.includes("Access denied") ? 403 : 500 }
     )
   }
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Presentation } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookTree } from "@/components/portal/playbook-tree"
-import { PlaybookBuilder } from "@/components/portal/playbook-builder"
+import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
 import { PlaybookInspector } from "@/components/portal/playbook-inspector"
 import { PlaycallerView } from "@/components/portal/playcaller-view"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
@@ -217,7 +217,33 @@ export function PlaybookWorkspace({
     }
   }
 
-  const handleSave = (canvasData: PlayCanvasData, name: string) => {
+  const handleSaveFromBuilder = (data: CanvasData, name: string) => {
+    const canvasData: PlayCanvasData = {
+      players: data.players.map((p) => ({
+        id: p.id,
+        x: p.x,
+        y: p.y,
+        xYards: p.xYards ?? 0,
+        yYards: p.yYards ?? 0,
+        label: p.label,
+        shape: p.shape,
+        playerType: p.playerType,
+        technique: p.technique,
+        gap: p.gap,
+      })),
+      zones: data.zones.map((z) => ({
+        id: z.id,
+        x: z.x,
+        y: z.y,
+        xYards: z.xYards,
+        yYards: z.yYards,
+        size: z.size,
+        type: z.type,
+      })),
+      manCoverages: data.manCoverages ?? [],
+      fieldType: data.fieldType ?? "half",
+      side: data.side,
+    }
     if (designerMode === "formation") {
       handleSaveFormation(canvasData, name)
     } else {
@@ -316,14 +342,24 @@ export function PlaybookWorkspace({
       ? templateDataToCanvasData(selectedFormation.templateData, selectedSide)
       : selectedPlay?.canvasData ?? null
 
-  const initialCanvasDataForDesigner = rawCanvasData
+  const initialCanvasDataForDesigner: CanvasData | null = rawCanvasData
     ? (() => {
         const coord = new FieldCoordinateSystem(800, 600, 15, 50)
         const playersWithPixels = rawCanvasData.players.map((p) => {
           const pixel = coord.yardToPixel(p.xYards, p.yYards)
-          return { ...p, x: pixel.x, y: pixel.y }
+          return { ...p, x: pixel.x, y: pixel.y, xYards: p.xYards, yYards: p.yYards }
         })
-        return { ...rawCanvasData, players: playersWithPixels }
+        const zonesWithPixels = (rawCanvasData.zones ?? []).map((z) => {
+          const xY = z.xYards != null && z.yYards != null ? coord.yardToPixel(z.xYards, z.yYards) : { x: z.x ?? 0, y: z.y ?? 0 }
+          return { ...z, x: xY.x, y: xY.y, xYards: z.xYards ?? 0, yYards: z.yYards ?? 0 }
+        })
+        return {
+          players: playersWithPixels,
+          zones: zonesWithPixels,
+          manCoverages: rawCanvasData.manCoverages ?? [],
+          fieldType: rawCanvasData.fieldType ?? "half",
+          side: rawCanvasData.side,
+        }
       })()
     : null
 
@@ -401,7 +437,7 @@ export function PlaybookWorkspace({
               playName={initialNameForDesigner}
               side={selectedSide}
               formation={designerMode === "formation" ? (editingFormation?.name ?? "New Formation") : (selectedFormationName || "Custom")}
-              onSave={handleSave}
+              onSave={handleSaveFromBuilder}
               onClose={handleCloseDesigner}
               canEdit={canEditSide(selectedSide)}
               isTemplateMode={designerMode === "formation"}

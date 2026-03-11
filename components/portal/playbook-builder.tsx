@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -40,7 +40,7 @@ interface ManCoverage {
   receiverId: string
 }
 
-interface CanvasData {
+export interface CanvasData {
   players: Player[]
   zones: Zone[]
   manCoverages: ManCoverage[]

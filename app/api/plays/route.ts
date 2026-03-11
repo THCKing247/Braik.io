@@ -194,10 +194,11 @@ export async function POST(request: Request) {
       updatedAt: play.updated_at,
     })
   } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error("[POST /api/plays]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to create play" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    return NextResponse.json(
+      { error: err?.message ?? "Failed to create play" },
+      { status: err?.message?.includes("Access denied") ? 403 : 500 }
+    )
   }
 }

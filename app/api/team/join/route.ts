@@ -33,10 +33,20 @@ export async function POST(request: Request) {
 
     const userId = session.user.id
 
+    // Prevent head coaches from joining other teams (they create their own)
+    const userRole = session.user.role?.toUpperCase() || ""
+    if (userRole === "HEAD_COACH") {
+      return NextResponse.json(
+        { success: false, error: "Head coaches cannot join other teams. Create your own team instead." },
+        { status: 403 }
+      )
+    }
+
     let teamId: string | null = null
     let usedPlayerInvite = false
 
-    // Prefer linking to an existing coach-created player (by players.invite_code) to avoid duplicate roster rows
+    // Priority 1: Check for player-specific invite code (players.invite_code)
+    // This links the user to an existing coach-created player record
     const { data: existingPlayer, error: playerLookupErr } = await supabase
       .from("players")
       .select("id, team_id")
@@ -63,8 +73,26 @@ export async function POST(request: Request) {
       }
     }
 
+    // Priority 2: Check for head coach's team code (teams.team_id_code)
+    // This is the main team code that head coaches generate and share
     if (!teamId) {
-      // Fall back to team invite code (invites.code)
+      const { data: teamByCode, error: teamCodeError } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("team_id_code", normalizedCode)
+        .maybeSingle()
+
+      if (teamCodeError) {
+        return NextResponse.json({ success: false, error: "Could not validate the code." }, { status: 500 })
+      }
+
+      if (teamByCode?.id) {
+        teamId = teamByCode.id as string
+      }
+    }
+
+    // Priority 3: Fall back to legacy team invite code (invites.code)
+    if (!teamId) {
       const { data: invite, error: lookupError } = await supabase
         .from("invites")
         .select("id, team_id, uses, max_uses, expires_at")
@@ -107,6 +135,14 @@ export async function POST(request: Request) {
         .from("invites")
         .update({ uses: uses + 1 })
         .eq("id", invite.id)
+    }
+
+    // If no team found after all checks, return error
+    if (!teamId) {
+      return NextResponse.json(
+        { success: false, error: "That code is not valid. Double-check it with your coach." },
+        { status: 400 }
+      )
     }
 
     try {

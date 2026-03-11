@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { 
   format, 
   startOfWeek, 
@@ -52,6 +52,12 @@ interface CalendarWidgetProps {
 }
 
 type CalendarView = "day" | "week" | "month" | "year"
+
+/** Day view infinite scroll: 3 stacked copies of the day; we keep scroll in the middle copy and jump when near edges. */
+const DAY_VIEW_HOUR_HEIGHT = 60
+const DAY_VIEW_HOURS_PER_DAY = 24
+const DAY_VIEW_DAY_HEIGHT = DAY_VIEW_HOUR_HEIGHT * DAY_VIEW_HOURS_PER_DAY
+const DAY_VIEW_COPIES = 3
 
 interface CalendarFilter {
   id: string
@@ -112,15 +118,31 @@ export function CalendarWidgetEnhanced({
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-scroll to current hour when opening Day or Week view (60px per hour)
+  // Auto-scroll to current hour when opening Day or Week view. Day view: start in middle copy for infinite scroll.
   useEffect(() => {
     if ((view !== "day" && view !== "week") || !timeGridScrollRef.current) return
     const el = timeGridScrollRef.current
-    const now = new Date()
-    const minutesFromMidnight = now.getHours() * 60 + now.getMinutes()
-    const scrollTop = Math.max(0, minutesFromMidnight - 90) // ~1.5 hours above so current time is visible
-    el.scrollTop = scrollTop
+    if (view === "day") {
+      const now = new Date()
+      const minutesFromMidnight = now.getHours() * 60 + now.getMinutes()
+      el.scrollTop = DAY_VIEW_DAY_HEIGHT + minutesFromMidnight
+    } else {
+      const minutesFromMidnight = new Date().getHours() * 60 + new Date().getMinutes()
+      el.scrollTop = Math.max(0, minutesFromMidnight - 90)
+    }
   }, [view])
+
+  // Day view infinite scroll: when user scrolls near top or bottom of the middle copy, reposition so we stay in the middle (no state, direct scrollTop).
+  const handleDayViewScroll = useCallback(() => {
+    const el = timeGridScrollRef.current
+    if (!el) return
+    const scrollTop = el.scrollTop
+    if (scrollTop < DAY_VIEW_DAY_HEIGHT * 0.5) {
+      el.scrollTop += DAY_VIEW_DAY_HEIGHT
+    } else if (scrollTop > DAY_VIEW_DAY_HEIGHT * 2.5) {
+      el.scrollTop -= DAY_VIEW_DAY_HEIGHT
+    }
+  }, [])
 
   const getEventsForDate = (date: Date) => {
     return filteredEvents.filter((event) => {
@@ -591,14 +613,14 @@ export function CalendarWidgetEnhanced({
     )
   }
 
-  // Render Day View (enhanced)
+  // Render Day View (enhanced) — infinite vertical scroll via 3 stacked copies of the day
   const renderDayView = () => {
     const dayEvents = getEventsForDate(currentDate).sort(
       (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
     )
 
     const timeSlots: Date[] = []
-    for (let hour = 0; hour < 24; hour++) {
+    for (let hour = 0; hour < DAY_VIEW_HOURS_PER_DAY; hour++) {
       const slot = new Date(currentDate)
       slot.setHours(hour, 0, 0, 0)
       timeSlots.push(slot)
@@ -608,12 +630,13 @@ export function CalendarWidgetEnhanced({
     const getCurrentTimePosition = () => {
       if (!isToday) return null
       const now = currentTime
-      const currentHour = now.getHours()
-      const currentMinute = now.getMinutes()
-      return currentHour * 60 + currentMinute
+      return now.getHours() * 60 + now.getMinutes()
     }
-
     const currentTimePosition = getCurrentTimePosition()
+
+    // We render 3 copies of the day timeline and reposition scrollTop when the user
+    // approaches the top or bottom. This creates the illusion of infinite vertical scrolling.
+    const totalHeight = DAY_VIEW_DAY_HEIGHT * DAY_VIEW_COPIES
 
     return (
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
@@ -622,124 +645,133 @@ export function CalendarWidgetEnhanced({
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
           className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+          onScroll={handleDayViewScroll}
         >
-          <div className="relative" style={{ minHeight: "1440px" }}>
-            {/* Time column - z-20 so labels sit above hour lines */}
-          <div className="absolute left-0 top-0 bottom-0 w-20 border-r z-20" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
-            {timeSlots.map((slot, index) => {
-              const hour = index
-              const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-              const ampm = hour >= 12 ? "PM" : "AM"
-              return (
-                <div
-                  key={slot.toISOString()}
-                  className="absolute"
-                  style={{
-                    top: `${index * 60}px`,
-                    left: 0,
-                    right: 0,
-                    height: "60px",
-                  }}
-                >
-                  <span
-                    className="relative z-10 bg-white px-2 text-sm font-medium"
-                    style={{
-                      color: "rgb(var(--text2))",
-                      transform: "translateY(-50%)",
-                      display: "inline-block",
-                    }}
+          <div className="relative" style={{ height: totalHeight }}>
+            {[0, 1, 2].map((copyIndex) => (
+              <div
+                key={copyIndex}
+                className="absolute left-0 right-0"
+                style={{
+                  top: copyIndex * DAY_VIEW_DAY_HEIGHT,
+                  height: DAY_VIEW_DAY_HEIGHT,
+                }}
+              >
+                <div className="relative w-full h-full">
+                  {/* Time column - z-20 so labels sit above hour lines */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-20 border-r z-20"
+                    style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
                   >
-                    {displayHour}:00 {ampm}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Hour lines - z-0 so time labels render above */}
-          {timeSlots.map((slot, index) => (
-            <div
-              key={`line-${slot.toISOString()}`}
-              className="absolute border-t z-0"
-              style={{
-                top: `${index * 60}px`,
-                left: "80px", // After time column
-                right: "0",
-                borderColor: "rgb(var(--border))",
-                opacity: 0.3, // Reduced opacity
-              }}
-            />
-          ))}
-
-          {/* Current time indicator */}
-          {isToday && currentTimePosition !== null && (
-            <div
-              className="absolute left-20 right-0 z-10"
-              style={{
-                top: `${currentTimePosition}px`,
-              }}
-            >
-              <div className="flex items-center">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{
-                    backgroundColor: "#EA4335",
-                    marginLeft: "-6px",
-                    boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
-                  }}
-                />
-                <div
-                  className="flex-1 h-0.5"
-                  style={{
-                    backgroundColor: "#EA4335",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Events */}
-          <div className="ml-20 pr-4">
-            {dayEvents.map((event) => {
-              const eventStart = new Date(event.start)
-              const eventEnd = new Date(event.end)
-              const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
-              const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
-              const duration = endMinutes - startMinutes
-              const height = Math.max(duration, 30)
-
-              return (
-                <div
-                  key={event.id}
-                  onClick={() => handleEventClick(event)}
-                  className="absolute left-0 right-0 p-2 rounded cursor-pointer hover:shadow-md border-l-4"
-                  style={{
-                    top: `${startMinutes}px`,
-                    height: `${height}px`,
-                    minHeight: "30px",
-                    backgroundColor: "#FFFFFF",
-                    borderLeftColor: event.color || "#3B82F6",
-                    borderColor: "rgb(var(--border))",
-                    borderWidth: "1px",
-                    borderLeftWidth: "4px",
-                  }}
-                >
-                  <div className="font-semibold text-sm" style={{ color: "rgb(var(--text))" }}>
-                    {format(eventStart, "h:mm a")} - {format(eventEnd, "h:mm a")}
+                    {timeSlots.map((slot, index) => {
+                      const hour = index
+                      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+                      const ampm = hour >= 12 ? "PM" : "AM"
+                      return (
+                        <div
+                          key={`${copyIndex}-${slot.toISOString()}`}
+                          className="absolute"
+                          style={{
+                            top: `${index * DAY_VIEW_HOUR_HEIGHT}px`,
+                            left: 0,
+                            right: 0,
+                            height: `${DAY_VIEW_HOUR_HEIGHT}px`,
+                          }}
+                        >
+                          <span
+                            className="relative z-10 bg-white px-2 text-sm font-medium"
+                            style={{
+                              color: "rgb(var(--text2))",
+                              transform: "translateY(-50%)",
+                              display: "inline-block",
+                            }}
+                          >
+                            {displayHour}:00 {ampm}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
-                  <div className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
-                    {event.title}
-                  </div>
-                  {event.location && (
-                    <div className="text-xs mt-1 truncate" style={{ color: "rgb(var(--text2))" }}>
-                      📍 {event.location}
+
+                  {/* Hour lines */}
+                  {timeSlots.map((slot, index) => (
+                    <div
+                      key={`line-${copyIndex}-${slot.toISOString()}`}
+                      className="absolute border-t z-0"
+                      style={{
+                        top: `${index * DAY_VIEW_HOUR_HEIGHT}px`,
+                        left: "80px",
+                        right: 0,
+                        borderColor: "rgb(var(--border))",
+                        opacity: 0.3,
+                      }}
+                    />
+                  ))}
+
+                  {/* Current time indicator — only in the middle copy */}
+                  {copyIndex === 1 && isToday && currentTimePosition !== null && (
+                    <div
+                      className="absolute left-20 right-0 z-10"
+                      style={{ top: `${currentTimePosition}px` }}
+                    >
+                      <div className="flex items-center">
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{
+                            backgroundColor: "#EA4335",
+                            marginLeft: "-6px",
+                            boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
+                          }}
+                        />
+                        <div className="flex-1 h-0.5" style={{ backgroundColor: "#EA4335" }} />
+                      </div>
                     </div>
                   )}
+
+                  {/* Events — same events in each copy for visual continuity */}
+                  <div className="absolute inset-0 ml-20 pr-4">
+                    {dayEvents.map((event) => {
+                      const eventStart = new Date(event.start)
+                      const eventEnd = new Date(event.end)
+                      const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
+                      const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
+                      const duration = endMinutes - startMinutes
+                      const height = Math.max(duration, 30)
+                      return (
+                        <div
+                          key={`${copyIndex}-${event.id}`}
+                          onClick={() => handleEventClick(event)}
+                          className="absolute left-0 right-0 p-2 rounded cursor-pointer hover:shadow-md border-l-4"
+                          style={{
+                            top: `${startMinutes}px`,
+                            height: `${height}px`,
+                            minHeight: "30px",
+                            backgroundColor: "#FFFFFF",
+                            borderLeftColor: event.color || "#3B82F6",
+                            borderColor: "rgb(var(--border))",
+                            borderWidth: "1px",
+                            borderLeftWidth: "4px",
+                          }}
+                        >
+                          <div className="font-semibold text-sm" style={{ color: "rgb(var(--text))" }}>
+                            {format(eventStart, "h:mm a")} - {format(eventEnd, "h:mm a")}
+                          </div>
+                          <div className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
+                            {event.title}
+                          </div>
+                          {event.location && (
+                            <div className="text-xs mt-1 truncate" style={{ color: "rgb(var(--text2))" }}>
+                              📍 {event.location}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
-        </div>
         </div>
       </div>
     )

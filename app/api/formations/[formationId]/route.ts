@@ -118,6 +118,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Failed to update formation" }, { status: 500 })
     }
 
+    if (body.name !== undefined) {
+      const { error: playsUpdateError } = await supabase
+        .from("plays")
+        .update({ formation: formation.name, updated_at: new Date().toISOString() })
+        .eq("formation_id", formationId)
+      if (playsUpdateError) {
+        console.error("[PATCH /api/formations/[formationId]] sync plays.formation", playsUpdateError)
+      }
+    }
+
     return NextResponse.json({
       id: formation.id,
       teamId: formation.team_id,

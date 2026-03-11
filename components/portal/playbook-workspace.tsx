@@ -81,7 +81,10 @@ export function PlaybookWorkspace({
   const handleSelectPlay = (play: PlayRecord) => {
     setSelectedPlayId(play.id)
     setSelectedFormationId(play.formationId ?? null)
-    setSelectedFormationName(play.formation ?? "")
+    setSelectedFormationName(
+      play.formationId ? (formations.find((f) => f.id === play.formationId)?.name ?? play.formation ?? "") : (play.formation ?? "")
+    )
+    setSelectedSubcategory(play.subcategory ?? null)
     setSelectedSide(play.side as SideOfBall)
     setEditingFormation(null)
     setDesignerMode("play")
@@ -153,7 +156,11 @@ export function PlaybookWorkspace({
   }
 
   const handleSavePlay = async (canvasData: PlayCanvasData, playName: string) => {
-    const formation = selectedFormationName?.trim() || "Custom"
+    // When linked to a formation, use the formation's name for denormalized play.formation (search/compat). Otherwise use current name or Custom.
+    const formation =
+      selectedFormationId && selectedFormationName?.trim()
+        ? selectedFormationName.trim()
+        : (selectedFormationName?.trim() || "Custom")
     try {
       if (selectedPlayId) {
         const res = await fetch(`/api/plays/${selectedPlayId}`, {
@@ -436,6 +443,7 @@ export function PlaybookWorkspace({
           currentIndex={playcallerIndex}
           onClose={() => setPlaycallerMode(false)}
           onIndexChange={setPlaycallerIndex}
+          formations={formations}
         />
       ) : null}
 
@@ -498,6 +506,7 @@ export function PlaybookWorkspace({
         <div className="w-72 flex-shrink-0 flex flex-col overflow-hidden rounded-r-lg border border-slate-200 bg-white shadow-sm">
           <PlaybookInspector
             play={selectedPlay ?? null}
+            formations={formations}
             selectedObject={inspectorSelection}
             selectedPlayer={selectedPlayerInspector}
             selectedZone={selectedZoneInspector}

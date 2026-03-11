@@ -5,7 +5,8 @@ import { X, ChevronLeft, ChevronRight, Pencil, Eraser } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox } from "@/lib/utils/canvas-coords"
-import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint } from "@/types/playbook"
+import { getPlayFormationDisplayName } from "@/lib/utils/playbook-formation"
+import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint, FormationRecord } from "@/types/playbook"
 
 type PresenterTool = "none" | "marker"
 
@@ -21,6 +22,8 @@ interface PlaycallerViewProps {
   currentIndex: number
   onClose: () => void
   onIndexChange: (index: number) => void
+  /** When provided, formation name is resolved from the record (formationId-first). */
+  formations?: FormationRecord[] | null
 }
 
 /** Same coordinate system as editor; routes/blocks use normalized yard coords converted to pixels for consistent rendering. */
@@ -67,7 +70,7 @@ function getPlayersFromCanvas(
   })
 }
 
-export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange }: PlaycallerViewProps) {
+export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, formations }: PlaycallerViewProps) {
   const coord = usePresenterCoord()
   const play = plays[currentIndex]
   const canvasData = play?.canvasData as PlayCanvasData | null
@@ -346,7 +349,7 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange }: 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur px-4 py-2 rounded-lg shadow-lg">
         <p className="text-sm font-semibold text-foreground">{play.name}</p>
         <p className="text-xs text-muted-foreground">
-          {play.formation} · {play.side.replace("_", " ")}
+          {getPlayFormationDisplayName(play, formations)} · {play.side.replace("_", " ")}
         </p>
       </div>
     </div>

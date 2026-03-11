@@ -136,6 +136,16 @@ export async function PATCH(
     }
     if (body.formationId !== undefined) {
       updateData.formation_id = body.formationId
+      // Keep denormalized formation name in sync from the formation record when formationId is set
+      if (body.formationId != null) {
+        const { data: formationRow } = await supabase
+          .from("formations")
+          .select("name")
+          .eq("id", body.formationId)
+          .eq("team_id", existingPlay.team_id)
+          .maybeSingle()
+        if (formationRow?.name) updateData.formation = formationRow.name.trim()
+      }
     }
     if (body.subcategory !== undefined) {
       updateData.subcategory = body.subcategory?.trim() ?? null
@@ -185,7 +195,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/plays/[playId]
- * Deletes a play.
+ * Deletes a play. Formations are not modified or auto-deleted (they are first-class records).
  */
 export async function DELETE(
   _request: Request,

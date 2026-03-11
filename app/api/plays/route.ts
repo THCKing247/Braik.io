@@ -106,10 +106,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "side must be offense, defense, or special_teams" }, { status: 400 })
     }
 
-    if (!formation || !formation.trim()) {
-      return NextResponse.json({ error: "formation is required" }, { status: 400 })
-    }
-
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "name is required" }, { status: 400 })
     }
@@ -144,24 +140,29 @@ export async function POST(request: Request) {
       }
     }
 
-    // Verify formation exists and belongs to team if provided
+    // Verify formation exists and belong to team if provided; use its name for denormalized play.formation
+    let formationNameForInsert = formation?.trim() ?? ""
     if (formationId) {
       const { data: formationRow } = await supabase
         .from("formations")
-        .select("id")
+        .select("id, name")
         .eq("id", formationId)
         .eq("team_id", teamId)
         .maybeSingle()
       if (!formationRow) {
         return NextResponse.json({ error: "Formation not found" }, { status: 404 })
       }
+      formationNameForInsert = formationRow.name?.trim() ?? formationNameForInsert
+    }
+    if (!formationNameForInsert) {
+      return NextResponse.json({ error: "formation is required" }, { status: 400 })
     }
 
     const insertPayload: Record<string, unknown> = {
       team_id: teamId,
       playbook_id: playbookId ?? null,
       side,
-      formation: formation.trim(),
+      formation: formationNameForInsert,
       subcategory: subcategory?.trim() ?? null,
       name: name.trim(),
       canvas_data: canvasData ?? null,

@@ -2,10 +2,13 @@
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import type { PlayRecord } from "@/types/playbook"
+import { getPlayFormationDisplayName, isPlayFormationOrphan } from "@/lib/utils/playbook-formation"
+import type { PlayRecord, FormationRecord } from "@/types/playbook"
 
 interface PlaybookInspectorProps {
   play: PlayRecord | null
+  /** When provided, formation is resolved from the record (formationId-first). */
+  formations?: FormationRecord[] | null
   selectedObject: "play" | "player" | "zone" | "route" | null
   selectedPlayer?: { id: string; label: string; shape: string } | null
   selectedZone?: { id: string; type: string; size: string } | null
@@ -16,6 +19,7 @@ interface PlaybookInspectorProps {
 
 export function PlaybookInspector({
   play,
+  formations,
   selectedObject,
   selectedPlayer,
   selectedZone,
@@ -51,7 +55,12 @@ export function PlaybookInspector({
             )}
             <div className="text-xs text-slate-500 space-y-1">
               <p>Side: <span className="capitalize text-slate-800">{play.side.replace("_", " ")}</span></p>
-              <p>Formation: <span className="text-slate-800">{play.formation || "—"}</span></p>
+              <p>
+                Formation: <span className="text-slate-800">{getPlayFormationDisplayName(play, formations)}</span>
+                {isPlayFormationOrphan(play) && (
+                  <span className="ml-1 text-slate-400" title="Play is not linked to a formation record">(name only)</span>
+                )}
+              </p>
               {play.subcategory && (
                 <p>Subcategory: <span className="text-slate-800">{play.subcategory}</span></p>
               )}

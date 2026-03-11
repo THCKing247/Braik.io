@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * Playbook browser: formations are first-class (from GET /api/formations).
+ * Section headers and formation filter use only API formations so deleting all plays
+ * does not remove any formation from the UI. Plays are grouped under formations by
+ * formationId or by matching play.formation to formation.name; plays that match no
+ * formation appear under "Other".
+ */
 import { useState, useMemo } from "react"
 import { Search, Plus, LayoutGrid, List, Presentation } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -60,12 +67,10 @@ export function PlaybookBrowser({
   const [newPlayMenuOpen, setNewPlayMenuOpen] = useState(false)
   const [newFormationMenuOpen, setNewFormationMenuOpen] = useState(false)
 
+  // Single source of truth: formation names from API only (so filter and sections stay consistent when plays are deleted)
   const formationNames = useMemo(() => {
-    const set = new Set<string>()
-    plays.forEach((p) => p.formation?.trim() && set.add(p.formation.trim()))
-    formations.forEach((f) => set.add(f.name.trim()))
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [plays, formations])
+    return [...formations].map((f) => f.name.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b))
+  }, [formations])
 
   const tagNames = useMemo(() => {
     const set = new Set<string>()
@@ -85,7 +90,14 @@ export function PlaybookBrowser({
       )
     }
     if (sideFilter) list = list.filter((p) => p.side === sideFilter)
-    if (formationFilter) list = list.filter((p) => (p.formation?.trim() ?? "") === formationFilter)
+    if (formationFilter) {
+      const formationByName = formations.find((f) => f.name.trim() === formationFilter)
+      list = list.filter((p) =>
+        formationByName
+          ? p.formationId === formationByName.id || (p.formation?.trim() ?? "") === formationFilter
+          : (p.formation?.trim() ?? "") === formationFilter
+      )
+    }
     if (tagFilter) list = list.filter((p) => (p.subcategory?.trim() ?? "") === tagFilter)
 
     const sorted = [...list].sort((a, b) => {
@@ -96,16 +108,31 @@ export function PlaybookBrowser({
     return sorted
   }, [plays, search, sideFilter, formationFilter, tagFilter, sortBy])
 
-  const playsByFormation = useMemo(() => {
-    const map = new Map<string, PlayRecord[]>()
-    filteredAndSortedPlays.forEach((p) => {
-      const key = p.formation?.trim() || "Other"
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(p)
+  // Sections from formations API only (first-class). Plays grouped under formation by formationId or formation name match. "Other" for plays that match no formation.
+  const formationsForSections = useMemo(() => {
+    if (sideFilter) return formations.filter((f) => f.side === sideFilter)
+    return formations
+  }, [formations, sideFilter])
+
+  const playsByFormationSection = useMemo(() => {
+    const sections: { formation: FormationRecord | null; plays: PlayRecord[] }[] = []
+    formationsForSections.forEach((formation) => {
+      const sectionPlays = filteredAndSortedPlays.filter(
+        (p) => p.formationId === formation.id || (p.formationId == null && (p.formation?.trim() ?? "") === formation.name)
+      )
+      sections.push({ formation, plays: sectionPlays })
     })
-    const keys = Array.from(map.keys()).sort((a, b) => (a === "Other" ? 1 : b === "Other" ? -1 : a.localeCompare(b)))
-    return { keys, map }
-  }, [filteredAndSortedPlays])
+    const otherPlays = filteredAndSortedPlays.filter(
+      (p) =>
+        !formationsForSections.some(
+          (f) => p.formationId === f.id || (p.formationId == null && (p.formation?.trim() ?? "") === f.name)
+        )
+    )
+    if (otherPlays.length > 0) {
+      sections.push({ formation: null, plays: otherPlays })
+    }
+    return sections
+  }, [formationsForSections, filteredAndSortedPlays])
 
   const canEditSide = (side: SideOfBall) => {
     if (side === "offense") return canEdit && canEditOffense
@@ -270,12 +297,12 @@ export function PlaybookBrowser({
         </div>
       </div>
 
-      {/* Main content: card grid or list, grouped by formation */}
+      {/* Main content: sections from formations API (first-class). Empty formations still show so delete-all-plays doesn't remove them. */}
       <div className="flex-1 overflow-y-auto p-4">
-        {filteredAndSortedPlays.length === 0 ? (
+        {formationsForSections.length === 0 && filteredAndSortedPlays.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-slate-700 font-medium">
-              {plays.length === 0 ? "No plays yet" : "No plays match your filters"}
+              {plays.length === 0 ? "No plays or formations yet" : "No plays match your filters"}
             </p>
             <p className="text-sm text-slate-500 mt-1">
               {plays.length === 0 ? "Create a formation or add a new play to get started." : "Try changing search or filters."}
@@ -294,12 +321,13 @@ export function PlaybookBrowser({
           </div>
         ) : (
           <div className="space-y-6">
-            {playsByFormation.keys.map((formationName) => {
-              const sectionPlays = playsByFormation.map.get(formationName) ?? []
+            {playsByFormationSection.map(({ formation, plays: sectionPlays }) => {
+              const sectionLabel = formation ? formation.name : "Other"
+              const sectionKey = formation ? formation.id : "__other__"
               return (
-                <section key={formationName}>
+                <section key={sectionKey}>
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2">
-                    {formationName}
+                    {sectionLabel}
                     <span className="text-slate-400 font-normal">({sectionPlays.length})</span>
                   </h2>
                   {viewMode === "grid" ? (
@@ -308,6 +336,7 @@ export function PlaybookBrowser({
                         <PlayCard
                           key={play.id}
                           play={play}
+                          formations={formations}
                           isSelected={selectedPlayId === play.id}
                           onOpen={onSelectPlay}
                           onDuplicate={onDuplicatePlay}
@@ -324,6 +353,7 @@ export function PlaybookBrowser({
                         <PlayCard
                           key={play.id}
                           play={play}
+                          formations={formations}
                           isSelected={selectedPlayId === play.id}
                           onOpen={onSelectPlay}
                           onDuplicate={onDuplicatePlay}

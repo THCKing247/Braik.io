@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { PlayCardThumbnail } from "@/components/portal/play-card-thumbnail"
-import type { PlayRecord } from "@/types/playbook"
+import { getPlayFormationDisplayName } from "@/lib/utils/playbook-formation"
+import type { PlayRecord, FormationRecord } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 
 interface PlayCardProps {
   play: PlayRecord
+  /** When provided, formation name is resolved from the record (formationId-first); otherwise fallback to play.formation */
+  formations?: FormationRecord[] | null
   isSelected?: boolean
   onOpen: (play: PlayRecord) => void
   onDuplicate: (playId: string) => void
@@ -38,6 +41,7 @@ function sideLabel(side: string): string {
 
 export function PlayCard({
   play,
+  formations,
   isSelected,
   onOpen,
   onDuplicate,
@@ -48,6 +52,7 @@ export function PlayCard({
 }: PlayCardProps) {
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(play.name)
+  const formationDisplayName = getPlayFormationDisplayName(play, formations)
 
   const handleRenameSubmit = () => {
     const trimmed = renameValue.trim()
@@ -96,7 +101,7 @@ export function PlayCard({
             <p className="font-medium text-slate-800 truncate">{play.name}</p>
           )}
           <p className="text-xs text-slate-500 mt-0.5">
-            {sideLabel(play.side)} · {play.formation}
+            {sideLabel(play.side)} · {formationDisplayName}
             {play.subcategory ? ` · ${play.subcategory}` : ""}
           </p>
         </div>
@@ -157,7 +162,7 @@ export function PlayCard({
           </p>
         )}
         <p className="text-xs text-slate-500 mt-1">
-          {sideLabel(play.side)} · {play.formation}
+          {sideLabel(play.side)} · {formationDisplayName}
         </p>
         {play.subcategory && (
           <p className="text-xs text-slate-500 truncate" title={play.subcategory}>

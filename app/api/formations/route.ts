@@ -6,6 +6,7 @@ import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 /**
  * GET /api/formations?teamId=xxx&side=xxx
  * Returns formations for the team, optionally filtered by side.
+ * Formations are first-class records; deleting plays never deletes formations.
  */
 export async function GET(request: Request) {
   try {

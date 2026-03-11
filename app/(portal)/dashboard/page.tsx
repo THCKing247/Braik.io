@@ -29,11 +29,6 @@ export default function DashboardPage() {
     )
   }
 
-  // Non-head-coach users who haven't entered a team code yet see the connect screen
-  if (status === "authenticated" && !isHeadCoach && !hasTeam) {
-    return <ConnectToTeam role={role || "PLAYER"} />
-  }
-
   // Authenticated but missing user payload (e.g. session API returned incomplete data)
   if (status === "authenticated" && !session?.user) {
     return (

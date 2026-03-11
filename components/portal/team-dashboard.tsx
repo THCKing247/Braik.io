@@ -258,6 +258,7 @@ function TeamBanner({ user }: { user: SessionUser }) {
   const teamName = user.teamName || user.organizationName || "Your Team"
   const lastName = user?.name?.split(" ").slice(-1)[0] || ""
   const roleLabel = getRoleLabel(user.role)
+  const hasTeam = Boolean(user.teamId)
 
   // Placeholder record — will be populated from real season data
   const wins = 0
@@ -293,19 +294,20 @@ function TeamBanner({ user }: { user: SessionUser }) {
 
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">
-              Welcome back, Coach{lastName ? ` ${lastName}` : ""}
+              {hasTeam ? `Welcome back, ${roleLabel === "Head Coach" ? "Coach" : roleLabel}${lastName ? ` ${lastName}` : ""}` : `Welcome, ${user.name || roleLabel}`}
             </p>
             <h1
               className="text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl"
               style={{ fontFamily: "var(--font-teko, var(--font-oswald, sans-serif))" }}
             >
-              {teamName}
+              {hasTeam ? teamName : "Welcome to Your Portal"}
             </h1>
-            <p className="mt-0.5 text-xs text-white/50">{roleLabel}</p>
+            <p className="mt-0.5 text-xs text-white/50">{hasTeam ? roleLabel : "Connect to a team to get started"}</p>
           </div>
         </div>
 
-        {/* Right: Record */}
+        {/* Right: Record (only show if has team) */}
+        {hasTeam && (
         <div className="flex items-center gap-5">
           {/* Overall record */}
           <div className="text-center">
@@ -338,6 +340,7 @@ function TeamBanner({ user }: { user: SessionUser }) {
             <p className="text-[10px] text-white/40">W – L</p>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
@@ -501,20 +504,55 @@ export function TeamDashboard({ session }: TeamDashboardProps) {
     )
   }
 
+  const hasTeam = Boolean(user.teamId)
+
   return (
     <div className="space-y-6 pb-8">
 
       {/* ── Team Banner ── */}
       <TeamBanner user={user} />
 
-      {/* ── Full-width Calendar ── */}
-      <DashboardCalendar teamId={user.teamId} />
+      {/* ── Connect to Team Card (if no team) ── */}
+      {!hasTeam && (
+        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+          <CardContent className="flex flex-col items-center gap-4 py-8 px-6 text-center">
+            <div
+              className="flex h-16 w-16 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: "rgb(var(--platinum))" }}
+            >
+              <Users className="h-8 w-8" style={{ color: "rgb(var(--accent))" }} />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold" style={{ color: "rgb(var(--text))" }}>
+                Connect to Your Team
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
+                Enter your Team Code to access team schedules, roster, messages, and more.
+              </p>
+            </div>
+            <Link href="/dashboard?connect=true">
+              <Button
+                size="lg"
+                className="font-semibold text-white"
+                style={{ backgroundColor: "rgb(var(--accent))" }}
+              >
+                Connect to Team
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Full-width Calendar (only show if has team) ── */}
+      {hasTeam && <DashboardCalendar teamId={user.teamId} />}
 
       {/* ── Updates + Notifications side by side ── */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <UpdatesCard />
-        <NotificationsCard />
-      </div>
+      {hasTeam && (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <UpdatesCard />
+          <NotificationsCard />
+        </div>
+      )}
 
     </div>
   )

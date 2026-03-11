@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox } from "@/lib/utils/canvas-coords"
 import { getPlayFormationDisplayName } from "@/lib/utils/playbook-formation"
+import { markerMatchesDepthSlot, type DepthChartSlot } from "@/lib/constants/playbook-positions"
 import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint, FormationRecord } from "@/types/playbook"
 
 type PresenterTool = "none" | "marker"
@@ -22,8 +23,9 @@ interface PlaycallerViewProps {
   currentIndex: number
   onClose: () => void
   onIndexChange: (index: number) => void
-  /** When provided, formation name is resolved from the record (formationId-first). */
   formations?: FormationRecord[] | null
+  /** Depth chart entries for "View as player" and role-to-player resolution. */
+  depthChartEntries?: DepthChartSlot[] | null
 }
 
 /** Same coordinate system as editor; routes/blocks use normalized yard coords converted to pixels for consistent rendering. */
@@ -54,7 +56,17 @@ function blockEndToPixel(
 function getPlayersFromCanvas(
   canvasData: PlayCanvasData | null,
   coord: FieldCoordinateSystem
-): Array<{ id: string; x: number; y: number; label: string; shape: string; route?: RoutePoint[]; blockingLine?: BlockEndPoint }> {
+): Array<{
+  id: string
+  x: number
+  y: number
+  label: string
+  shape: string
+  positionCode?: string | null
+  positionNumber?: number | null
+  route?: RoutePoint[]
+  blockingLine?: BlockEndPoint
+}> {
   if (!canvasData?.players?.length) return []
   return canvasData.players.map((p) => {
     const pixel = coord.yardToPixel(p.xYards, p.yYards)
@@ -64,13 +76,22 @@ function getPlayersFromCanvas(
       y: pixel.y,
       label: p.label,
       shape: p.shape,
+      positionCode: p.positionCode ?? undefined,
+      positionNumber: p.positionNumber ?? undefined,
       route: p.route,
       blockingLine: p.blockingLine,
     }
   })
 }
 
-export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, formations }: PlaycallerViewProps) {
+export function PlaycallerView({
+  plays,
+  currentIndex,
+  onClose,
+  onIndexChange,
+  formations,
+  depthChartEntries,
+}: PlaycallerViewProps) {
   const coord = usePresenterCoord()
   const play = plays[currentIndex]
   const canvasData = play?.canvasData as PlayCanvasData | null
@@ -79,6 +100,51 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
   const [tool, setTool] = useState<PresenterTool>("none")
   const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([])
   const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[] | null>(null)
+  const [viewAsRoleId, setViewAsRoleId] = useState<string | null>(null)
+  const [viewAsRosterPlayerId, setViewAsRosterPlayerId] = useState<string | null>(null)
+  useEffect(() => {
+    setViewAsRoleId(null)
+    setViewAsRosterPlayerId(null)
+  }, [currentIndex])
+  const playSide = play?.side ?? "offense"
+  const viewAsRoleOptions = useMemo(() => {
+    return players.map((p) => {
+      const sameLabel = players.filter((x) => x.label === p.label)
+      const needDisambiguate = sameLabel.length > 1
+      const idx = sameLabel.indexOf(p) + 1
+      const displayLabel = needDisambiguate ? `${p.label} (${idx})` : p.label
+      return { id: p.id, displayLabel }
+    })
+  }, [players])
+  const viewAsPlayerOptions = useMemo(() => {
+    if (!depthChartEntries?.length) return []
+    const byId = new Map<string, { id: string; displayLabel: string }>()
+    for (const e of depthChartEntries) {
+      if (!e.playerId) continue
+      const p = e.player
+      if (!p || byId.has(e.playerId)) continue
+      const name = [p.firstName, p.lastName].filter(Boolean).join(" ") || "Unknown"
+      const jersey = p.jerseyNumber != null ? `#${p.jerseyNumber} ` : ""
+      byId.set(e.playerId, { id: e.playerId, displayLabel: `${jersey}${name}`.trim() })
+    }
+    return Array.from(byId.values()).sort((a, b) => a.displayLabel.localeCompare(b.displayLabel))
+  }, [depthChartEntries])
+  const highlightedMarkerIds = useMemo(() => {
+    if (viewAsRosterPlayerId && depthChartEntries?.length && play) {
+      const playerSlots = depthChartEntries.filter((e) => e.playerId === viewAsRosterPlayerId)
+      if (!playerSlots.length) return new Set<string>()
+      const ids = new Set<string>()
+      for (const marker of players) {
+        const matches = playerSlots.some((slot) =>
+          markerMatchesDepthSlot(playSide, marker.positionCode, marker.positionNumber, slot)
+        )
+        if (matches) ids.add(marker.id)
+      }
+      return ids
+    }
+    if (viewAsRoleId) return new Set<string>([viewAsRoleId])
+    return new Set<string>()
+  }, [viewAsRosterPlayerId, viewAsRoleId, depthChartEntries, players, playSide, play])
 
   const clientToViewBoxPoint = useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
     if (!svgRef.current) return null
@@ -167,21 +233,22 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
   const markerSize = coord.getMarkerSize()
   const isOffense = play.side === "offense" || play.side === "special_teams"
   const playerColor = isOffense ? "#3B82F6" : "#DC2626"
-  const [viewAsPlayerId, setViewAsPlayerId] = useState<string | null>(null)
-  useEffect(() => {
-    setViewAsPlayerId(null)
-  }, [currentIndex])
-  // View as: options keyed by player.id so highlighting is by marker identity, not label (avoids drift/duplicates).
-  const viewAsOptions = useMemo(() => {
-    return players.map((p) => {
-      const sameLabel = players.filter((x) => x.label === p.label)
-      const needDisambiguate = sameLabel.length > 1
-      const idx = sameLabel.indexOf(p) + 1
-      const displayLabel = needDisambiguate ? `${p.label} (${idx})` : p.label
-      return { id: p.id, displayLabel }
-    })
-  }, [players])
-  const highlightedPlayerId = viewAsPlayerId
+  const viewAsValue =
+    viewAsRoleId ? `role:${viewAsRoleId}` : viewAsRosterPlayerId ? `player:${viewAsRosterPlayerId}` : ""
+  const setViewAsValue = (raw: string) => {
+    if (!raw) {
+      setViewAsRoleId(null)
+      setViewAsRosterPlayerId(null)
+      return
+    }
+    if (raw.startsWith("role:")) {
+      setViewAsRoleId(raw.slice(5) || null)
+      setViewAsRosterPlayerId(null)
+    } else if (raw.startsWith("player:")) {
+      setViewAsRosterPlayerId(raw.slice(7) || null)
+      setViewAsRoleId(null)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -205,14 +272,25 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
           <label className="text-xs text-muted-foreground flex items-center gap-1.5">
             View as:
             <select
-              value={viewAsPlayerId ?? ""}
-              onChange={(e) => setViewAsPlayerId(e.target.value || null)}
-              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[88px]"
+              value={viewAsValue}
+              onChange={(e) => setViewAsValue(e.target.value)}
+              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[140px]"
             >
               <option value="">All</option>
-              {viewAsOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>{opt.displayLabel}</option>
-              ))}
+              {viewAsRoleOptions.length > 0 && (
+                <optgroup label="By role">
+                  {viewAsRoleOptions.map((opt) => (
+                    <option key={opt.id} value={`role:${opt.id}`}>{opt.displayLabel}</option>
+                  ))}
+                </optgroup>
+              )}
+              {viewAsPlayerOptions.length > 0 && (
+                <optgroup label="By player">
+                  {viewAsPlayerOptions.map((opt) => (
+                    <option key={opt.id} value={`player:${opt.id}`}>{opt.displayLabel}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </label>
           <Button
@@ -246,7 +324,7 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
             <PlaybookFieldSurface width={VIEWBOX_W} height={VIEWBOX_H} yardStart={YARD_START} yardEnd={YARD_END} />
             {/* Routes and blocking lines first so they render under players */}
             {players.map((p) => {
-              const isHighlighted = !highlightedPlayerId || p.id === highlightedPlayerId
+              const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
               const routeOpacity = isHighlighted ? 1 : 0.4
               return (
               <g key={`routes-${p.id}`} style={{ opacity: routeOpacity }}>
@@ -301,7 +379,7 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
             )
             })}
             {players.map((p) => {
-              const isHighlighted = !highlightedPlayerId || p.id === highlightedPlayerId
+              const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
               const markerOpacity = isHighlighted ? 1 : 0.45
               return (
               <g key={p.id} style={{ opacity: markerOpacity }}>

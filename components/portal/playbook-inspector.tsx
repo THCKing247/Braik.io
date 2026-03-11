@@ -3,7 +3,7 @@
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { getPlayFormationDisplayName, isPlayFormationOrphan } from "@/lib/utils/playbook-formation"
-import { getDisplayLabel } from "@/lib/constants/playbook-positions"
+import { getDisplayLabel, getPlayerForSlot, type DepthChartSlot } from "@/lib/constants/playbook-positions"
 import type { PlayRecord, FormationRecord } from "@/types/playbook"
 
 /** Selected marker: label is derived from positionCode+positionNumber when positionCode is set (read-only). */
@@ -19,11 +19,12 @@ export interface InspectorSelectedPlayer {
 interface PlaybookInspectorProps {
   play: PlayRecord | null
   formations?: FormationRecord[] | null
+  /** Depth chart entries for showing which roster player is assigned to the selected role. */
+  depthChartEntries?: DepthChartSlot[] | null
   selectedObject: "play" | "player" | "zone" | "route" | null
   selectedPlayer?: InspectorSelectedPlayer | null
   selectedZone?: { id: string; type: string; size: string } | null
   onPlayNameChange?: (name: string) => void
-  /** Only used for legacy markers (no positionCode); position-based labels are derived and not editable here. */
   onPlayerLabelChange?: (playerId: string, label: string) => void
   canEdit: boolean
 }
@@ -31,6 +32,7 @@ interface PlaybookInspectorProps {
 export function PlaybookInspector({
   play,
   formations,
+  depthChartEntries,
   selectedObject,
   selectedPlayer,
   selectedZone,
@@ -91,6 +93,30 @@ export function PlaybookInspector({
                 {selectedPlayer.positionNumber != null && (
                   <p className="text-xs text-slate-500">Number: {selectedPlayer.positionNumber}</p>
                 )}
+                {play && depthChartEntries?.length ? (
+                  (() => {
+                    const slotNum = selectedPlayer.positionNumber ?? 1
+                    const assigned = getPlayerForSlot(
+                      depthChartEntries,
+                      play.side,
+                      selectedPlayer.positionCode!,
+                      slotNum
+                    )
+                    return (
+                      <p className="text-xs text-slate-500">
+                        Assigned:{" "}
+                        {assigned ? (
+                          <span className="text-slate-800">
+                            {assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}
+                            {[assigned.firstName, assigned.lastName].filter(Boolean).join(" ") || "—"}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Unassigned</span>
+                        )}
+                      </p>
+                    )
+                  })()
+                ) : null}
                 <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
                 {selectedPlayer.hasDuplicateRole && (
                   <p className="text-xs text-amber-600" title="Another marker has the same role label on this play">

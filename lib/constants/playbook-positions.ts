@@ -101,3 +101,44 @@ export function hasDuplicateRoleLabel(
   if (!player?.label) return false
   return players.some((p) => p.id !== playerId && p.label === player.label)
 }
+
+/** Depth chart slot (from GET /api/roster/depth-chart). Used to link playbook roles to roster. */
+export interface DepthChartSlot {
+  unit: string
+  position: string
+  string: number
+  playerId?: string | null
+  player?: { id: string; firstName: string; lastName: string; jerseyNumber?: number | null } | null
+}
+
+/**
+ * True if a playbook marker (side, positionCode, positionNumber) matches a depth chart slot.
+ * Play side must match unit; positionCode must match position; positionNumber must match string (or string 1 when positionNumber is null).
+ */
+export function markerMatchesDepthSlot(
+  playSide: string,
+  positionCode: string | null | undefined,
+  positionNumber: number | null | undefined,
+  slot: DepthChartSlot
+): boolean {
+  if (!positionCode || playSide !== slot.unit) return false
+  if (positionCode.toUpperCase() !== slot.position.toUpperCase()) return false
+  const slotString = slot.string
+  if (positionNumber != null) return positionNumber === slotString
+  return slotString === 1
+}
+
+/**
+ * Get the roster player assigned to a depth slot for (unit, position, string), if any.
+ */
+export function getPlayerForSlot(
+  entries: DepthChartSlot[],
+  unit: string,
+  position: string,
+  stringNum: number
+): DepthChartSlot["player"] | null {
+  const entry = entries.find(
+    (e) => e.unit === unit && e.position.toUpperCase() === position.toUpperCase() && e.string === stringNum
+  )
+  return entry?.player ?? null
+}

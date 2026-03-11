@@ -10,6 +10,7 @@ import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/uti
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import type { FormationRecord, PlayRecord, SideOfBall, RoutePoint, BlockEndPoint } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
+import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 
 interface PlaybookWorkspaceProps {
   teamId: string
@@ -43,6 +44,7 @@ export function PlaybookWorkspace({
   const [inspectorSelection, setInspectorSelection] = useState<"play" | "player" | "zone" | "route" | null>(null)
   const [selectedPlayerInspector, setSelectedPlayerInspector] = useState<InspectorSelectedPlayer | null>(null)
   const [selectedZoneInspector, setSelectedZoneInspector] = useState<{ id: string; type: string; size: string } | null>(null)
+  const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
 
   const fetchFormations = useCallback(async () => {
     const res = await fetch(`/api/formations?teamId=${teamId}`)
@@ -60,10 +62,18 @@ export function PlaybookWorkspace({
     }
   }, [teamId])
 
+  const fetchDepthChart = useCallback(async () => {
+    const res = await fetch(`/api/roster/depth-chart?teamId=${teamId}`, { credentials: "same-origin" })
+    if (res.ok) {
+      const data = await res.json()
+      setDepthChartEntries(data.entries ?? [])
+    }
+  }, [teamId])
+
   const loadAll = useCallback(() => {
     setLoading(true)
-    Promise.all([fetchFormations(), fetchPlays()]).finally(() => setLoading(false))
-  }, [fetchFormations, fetchPlays])
+    Promise.all([fetchFormations(), fetchPlays(), fetchDepthChart()]).finally(() => setLoading(false))
+  }, [fetchFormations, fetchPlays, fetchDepthChart])
 
   useEffect(() => {
     loadAll()
@@ -448,6 +458,7 @@ export function PlaybookWorkspace({
           onClose={() => setPlaycallerMode(false)}
           onIndexChange={setPlaycallerIndex}
           formations={formations}
+          depthChartEntries={depthChartEntries}
         />
       ) : null}
 
@@ -515,6 +526,7 @@ export function PlaybookWorkspace({
           <PlaybookInspector
             play={selectedPlay ?? null}
             formations={formations}
+            depthChartEntries={depthChartEntries}
             selectedObject={inspectorSelection}
             selectedPlayer={selectedPlayerInspector}
             selectedZone={selectedZoneInspector}

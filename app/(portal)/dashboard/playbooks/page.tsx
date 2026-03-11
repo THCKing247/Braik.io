@@ -1,22 +1,18 @@
 "use client"
 
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { PlaybooksPageClient } from "@/components/portal/playbooks-page-client"
+import { PlaybookWorkspace } from "@/components/portal/playbook-workspace"
 
 export default function PlaybooksPage() {
   return (
     <DashboardPageShell>
-      {({ teamId, userRole, canEdit }) => (
-        <PlaybooksPageClient
+      {({ teamId, canEdit }) => (
+        <PlaybookWorkspace
           teamId={teamId}
-          fileBasedPlaybooks={[]}
-          builderPlays={[]}
-          canUpload={canEdit}
-          canEditAll={canEdit}
+          canEdit={canEdit}
           canEditOffense={canEdit}
           canEditDefense={canEdit}
           canEditSpecialTeams={canEdit}
-          userRole={userRole}
         />
       )}
     </DashboardPageShell>

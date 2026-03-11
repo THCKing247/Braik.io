@@ -101,3 +101,59 @@ export type DraftTemplateSession = {
 export type BuilderMode = "TEMPLATE_EDIT" | "PLAY_EDIT" | "VIEW_ONLY"
 
 export type Tab = "LIBRARY" | "BUILDER"
+
+// API response types for formations and plays (align with DB)
+export type FormationRecord = {
+  id: string
+  teamId: string
+  playbookId: string | null
+  side: SideOfBall
+  name: string
+  parentFormationId: string | null
+  templateData: TemplateData
+  createdAt: string
+  updatedAt: string
+}
+
+export type PlayRecord = {
+  id: string
+  teamId: string
+  playbookId: string | null
+  formationId: string | null
+  side: SideOfBall
+  formation: string
+  subcategory: string | null
+  name: string
+  canvasData: PlayCanvasData | null
+  createdAt: string
+  updatedAt: string
+}
+
+// Builder canvas format (players array with pixel/yard coords, zones, man coverage)
+export type PlayCanvasData = {
+  fieldView?: "HALF"
+  players: Array<{
+    id: string
+    x?: number
+    y?: number
+    xYards: number
+    yYards: number
+    label: string
+    shape: "circle" | "square" | "triangle"
+    playerType?: "skill" | "lineman"
+    technique?: string
+    gap?: string
+  }>
+  zones: Array<{
+    id: string
+    x?: number
+    y?: number
+    xYards?: number
+    yYards?: number
+    size: "small" | "large"
+    type: "hook" | "spot" | "deep"
+  }>
+  manCoverages?: Array<{ id: string; defenderId: string; receiverId: string }>
+  fieldType?: "half" | "full"
+  side: SideOfBall
+}

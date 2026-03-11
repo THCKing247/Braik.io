@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("plays")
-      .select("id, team_id, playbook_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .eq("team_id", teamId)
 
     if (side) {
@@ -50,10 +50,11 @@ export async function GET(request: Request) {
     const formatted = (plays ?? []).map((p) => ({
       id: p.id,
       teamId: p.team_id,
-      playbookId: p.playbook_id || null,
+      playbookId: p.playbook_id ?? null,
+      formationId: (p as { formation_id?: string }).formation_id ?? null,
       side: p.side,
       formation: p.formation,
-      subcategory: p.subcategory || null,
+      subcategory: p.subcategory ?? null,
       name: p.name,
       canvasData: p.canvas_data,
       createdAt: p.created_at,
@@ -61,11 +62,12 @@ export async function GET(request: Request) {
     }))
 
     return NextResponse.json(formatted)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error("[GET /api/plays]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to load plays" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
+    return NextResponse.json(
+      { error: err?.message ?? "Failed to load plays" },
+      { status: err?.message?.includes("Access denied") ? 403 : 500 }
     )
   }
 }
@@ -84,14 +86,15 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       teamId?: string
       playbookId?: string | null
+      formationId?: string | null
       side?: string
       formation?: string
       subcategory?: string | null
       name?: string
-      canvasData?: any
+      canvasData?: unknown
     }
 
-    const { teamId, playbookId, side, formation, subcategory, name, canvasData } = body
+    const { teamId, playbookId, formationId, side, formation, subcategory, name, canvasData } = body
 
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -139,19 +142,37 @@ export async function POST(request: Request) {
       }
     }
 
+    // Verify formation exists and belongs to team if provided
+    if (formationId) {
+      const { data: formationRow } = await supabase
+        .from("formations")
+        .select("id")
+        .eq("id", formationId)
+        .eq("team_id", teamId)
+        .maybeSingle()
+      if (!formationRow) {
+        return NextResponse.json({ error: "Formation not found" }, { status: 404 })
+      }
+    }
+
+    const insertPayload: Record<string, unknown> = {
+      team_id: teamId,
+      playbook_id: playbookId ?? null,
+      side,
+      formation: formation.trim(),
+      subcategory: subcategory?.trim() ?? null,
+      name: name.trim(),
+      canvas_data: canvasData ?? null,
+    }
+    if (formationId != null) {
+      insertPayload.formation_id = formationId
+    }
+
     // Create play
     const { data: play, error: playError } = await supabase
       .from("plays")
-      .insert({
-        team_id: teamId,
-        playbook_id: playbookId || null,
-        side,
-        formation: formation.trim(),
-        subcategory: subcategory?.trim() || null,
-        name: name.trim(),
-        canvas_data: canvasData || null,
-      })
-      .select("id, team_id, playbook_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .insert(insertPayload)
+      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .single()
 
     if (playError || !play) {
@@ -162,16 +183,17 @@ export async function POST(request: Request) {
     return NextResponse.json({
       id: play.id,
       teamId: play.team_id,
-      playbookId: play.playbook_id || null,
+      playbookId: play.playbook_id ?? null,
+      formationId: (play as { formation_id?: string }).formation_id ?? null,
       side: play.side,
       formation: play.formation,
-      subcategory: play.subcategory || null,
+      subcategory: play.subcategory ?? null,
       name: play.name,
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/plays]", error)
   return NextResponse.json(
       { error: error.message || "Failed to create play" },

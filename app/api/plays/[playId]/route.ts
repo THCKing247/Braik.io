@@ -27,7 +27,7 @@ export async function GET(
     // Get play
     const { data: play, error: playError } = await supabase
       .from("plays")
-      .select("id, team_id, playbook_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .eq("id", playId)
       .maybeSingle()
 
@@ -40,20 +40,22 @@ export async function GET(
     return NextResponse.json({
       id: play.id,
       teamId: play.team_id,
-      playbookId: play.playbook_id || null,
+      playbookId: play.playbook_id ?? null,
+      formationId: (play as { formation_id?: string }).formation_id ?? null,
       side: play.side,
       formation: play.formation,
-      subcategory: play.subcategory || null,
+      subcategory: play.subcategory ?? null,
       name: play.name,
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error("[GET /api/plays/[playId]]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to load play" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
+    return NextResponse.json(
+      { error: err?.message ?? "Failed to load play" },
+      { status: err?.message?.includes("Access denied") ? 403 : 500 }
     )
   }
 }
@@ -79,10 +81,11 @@ export async function PATCH(
 
     const body = (await request.json()) as {
       name?: string
-      canvasData?: any
+      canvasData?: unknown
       formation?: string
       subcategory?: string | null
       side?: string
+      formationId?: string | null
     }
 
     const supabase = getSupabaseServer()
@@ -112,8 +115,9 @@ export async function PATCH(
     // Build update data
     const updateData: {
       name?: string
-      canvas_data?: any
+      canvas_data?: unknown
       formation?: string
+      formation_id?: string | null
       subcategory?: string | null
       side?: string
       updated_at?: string
@@ -121,15 +125,18 @@ export async function PATCH(
 
     if (body.name !== undefined) {
       updateData.name = body.name.trim()
-}
+    }
     if (body.canvasData !== undefined) {
       updateData.canvas_data = body.canvasData
     }
     if (body.formation !== undefined) {
       updateData.formation = body.formation.trim()
     }
+    if (body.formationId !== undefined) {
+      updateData.formation_id = body.formationId
+    }
     if (body.subcategory !== undefined) {
-      updateData.subcategory = body.subcategory?.trim() || null
+      updateData.subcategory = body.subcategory?.trim() ?? null
     }
     if (body.side !== undefined) {
       updateData.side = body.side
@@ -141,7 +148,7 @@ export async function PATCH(
       .from("plays")
       .update(updateData)
       .eq("id", playId)
-      .select("id, team_id, playbook_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .single()
 
     if (updateError || !play) {
@@ -152,19 +159,21 @@ export async function PATCH(
     return NextResponse.json({
       id: play.id,
       teamId: play.team_id,
-      playbookId: play.playbook_id || null,
+      playbookId: play.playbook_id ?? null,
+      formationId: (play as { formation_id?: string }).formation_id ?? null,
       side: play.side,
       formation: play.formation,
-      subcategory: play.subcategory || null,
+      subcategory: play.subcategory ?? null,
       name: play.name,
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error("[PATCH /api/plays/[playId]]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to update play" },
+    return NextResponse.json(
+      { error: err?.message ?? "Failed to update play" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
     )
   }
@@ -220,11 +229,12 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error("[DELETE /api/plays/[playId]]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to delete play" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    return NextResponse.json(
+      { error: err?.message ?? "Failed to delete play" },
+      { status: err?.message?.includes("Access denied") ? 403 : 500 }
+    )
   }
 }

@@ -129,7 +129,7 @@ create policy message_threads_team_member_read on public.message_threads
   for select
   using (
     public.is_team_member(team_id)
-    and public.is_thread_participant(id)
+    and public.is_thread_participant(message_threads.id)
   );
 
 -- Insert: Team members can create threads for their team
@@ -549,7 +549,7 @@ create policy guardians_team_coach_read on public.guardians
       from public.guardian_links gl
       join public.players p on p.id = gl.player_id
       join public.team_members tm on tm.team_id = p.team_id
-      where gl.guardian_id = id
+      where gl.guardian_id = guardians.id
         and tm.user_id = auth.uid()
         and tm.active = true
         and tm.role in ('HEAD_COACH', 'ASSISTANT_COACH')
@@ -680,7 +680,7 @@ create policy players_team_member_read on public.players
   for select
   using (
     public.is_team_member(team_id)
-    or public.can_access_player(id)
+    or public.can_access_player(players.id)
   );
 
 -- Players: Coaches can insert players

@@ -6,6 +6,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff } from "lucide-react"
 
 export function HeroLoginForm() {
@@ -13,6 +14,7 @@ export function HeroLoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -56,6 +58,7 @@ export function HeroLoginForm() {
         password,
         redirect: false,
         callbackUrl,
+        rememberMe,
       })
 
       if (result?.error) {
@@ -136,6 +139,20 @@ export function HeroLoginForm() {
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="remember-me"
+            checked={rememberMe}
+            onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <Label
+            htmlFor="remember-me"
+            className="text-sm font-medium text-[#495057] cursor-pointer"
+          >
+            Remember me
+          </Label>
         </div>
         {error && (
           <div

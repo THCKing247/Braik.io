@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import { FileText } from "lucide-react"
+import { PlayerFormsModal } from "./player-forms-modal"
 
 export interface Player {
   id: string
@@ -18,6 +20,7 @@ export interface Player {
   inviteCode?: string | null
   inviteStatus?: "not_invited" | "invited" | "joined"
   healthStatus?: "active" | "injured" | "unavailable"
+  missingForms?: string[]
   weight?: number | null
   height?: string | null
   user?: { email: string } | null
@@ -45,7 +48,51 @@ export function RosterListView({
   onSendInvite,
   onDeletePlayer,
 }: RosterListViewProps) {
+  const [playersState, setPlayersState] = useState<Player[]>(players)
+  const [formsModalPlayer, setFormsModalPlayer] = useState<Player | null>(null)
+
+  // Update local state when players prop changes
+  useEffect(() => {
+    setPlayersState(players)
+  }, [players])
+
+  const handleFormsUpdate = async (playerId: string, formsComplete: boolean, missingForms: string[]) => {
+    try {
+      const response = await fetch(`/api/roster/${playerId}/forms`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          formsComplete,
+          missingForms,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error?.error || "Failed to update forms")
+      }
+
+      const updated = await response.json()
+      
+      // Update local state
+      setPlayersState(prev => prev.map(p => 
+        p.id === playerId 
+          ? { ...p, missingForms: updated.missingForms || [], healthStatus: updated.healthStatus }
+          : p
+      ))
+
+      // Trigger parent refresh
+      window.location.reload()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to update forms")
+      throw error
+    }
+  }
+
   return (
+    <>
     <div
       className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white overflow-x-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       style={{ minHeight: "420px", maxHeight: "800px" }}
@@ -68,7 +115,7 @@ export function RosterListView({
             </tr>
           </thead>
           <tbody>
-            {players.map((player) => (
+            {playersState.map((player) => (
               <RosterListRow
                 key={player.id}
                 player={player}
@@ -76,17 +123,27 @@ export function RosterListView({
                 onEditPlayer={onEditPlayer}
                 onSendInvite={onSendInvite}
                 onDeletePlayer={onDeletePlayer}
+                onOpenFormsModal={() => setFormsModalPlayer(player)}
               />
             ))}
           </tbody>
         </table>
       </div>
-      {players.length === 0 && (
+      {playersState.length === 0 && (
         <div className="py-12 text-center text-[#64748B]">
           No players in roster
         </div>
       )}
     </div>
+    {formsModalPlayer && (
+      <PlayerFormsModal
+        player={formsModalPlayer}
+        isOpen={!!formsModalPlayer}
+        onClose={() => setFormsModalPlayer(null)}
+        onFormsUpdate={canEdit ? handleFormsUpdate : undefined}
+      />
+    )}
+    </>
   )
 }
 
@@ -96,14 +153,30 @@ function RosterListRow({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  onOpenFormsModal,
 }: {
   player: Player
   canEdit: boolean
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
+  onOpenFormsModal?: () => void
 }) {
   const [imageError, setImageError] = useState(false)
+
+  const getStatusDisplay = () => {
+    const status = player.healthStatus || (player.status === "active" ? "active" : "inactive")
+    switch (status) {
+      case "active":
+        return { text: "Active", color: "text-green-600", bgColor: "bg-green-100" }
+      case "injured":
+        return { text: "Injured", color: "text-red-600", bgColor: "bg-red-100" }
+      case "unavailable":
+        return { text: "Inactive", color: "text-orange-600", bgColor: "bg-orange-100" }
+      default:
+        return { text: "Inactive", color: "text-orange-600", bgColor: "bg-orange-100" }
+    }
+  }
 
   return (
     <tr className="border-b border-[#E5E7EB] hover:bg-[#F8FAFC]/60 transition-colors">
@@ -146,20 +219,25 @@ function RosterListRow({
       </td>
       <td className="px-4 py-2">
         <span
-          className="text-[10px] px-2 py-0.5 rounded font-semibold uppercase tracking-wide"
-          style={{
-            backgroundColor: "rgb(var(--platinum))",
-            borderColor: "rgb(var(--border))",
-            borderWidth: "1px",
-            color: "#0F172A",
-          }}
+          className={`text-[10px] px-2 py-0.5 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
         >
-          {player.status === "active" ? "Active" : "Inactive"}
+          {getStatusDisplay().text}
         </span>
       </td>
       {canEdit && (onEditPlayer || onSendInvite || onDeletePlayer) && (
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap gap-1 justify-end">
+            {canEdit && onOpenFormsModal && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7"
+                onClick={onOpenFormsModal}
+                title="Manage Forms"
+              >
+                <FileText className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {onEditPlayer && (
               <Button
                 variant="outline"

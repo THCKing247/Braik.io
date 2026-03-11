@@ -22,6 +22,7 @@ type SignInOptions = {
   password?: string
   callbackUrl?: string
   redirect?: boolean
+  rememberMe?: boolean
 }
 
 function getRedirectFromRole(role?: string) {
@@ -51,6 +52,7 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
       email: options.email,
       password: options.password,
       callbackUrl: options.callbackUrl || undefined,
+      rememberMe: options.rememberMe || false,
     }),
     credentials: "include",
   })

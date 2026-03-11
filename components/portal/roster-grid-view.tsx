@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { PlayerCard } from "./player-card"
 import { Button } from "@/components/ui/button"
 
@@ -18,6 +18,7 @@ export interface Player {
   inviteCode?: string | null
   inviteStatus?: "not_invited" | "invited" | "joined"
   healthStatus?: "active" | "injured" | "unavailable"
+  missingForms?: string[]
   user?: { email: string } | null
   guardianLinks?: Array<{ guardian: { user: { email: string } } }>
 }
@@ -40,6 +41,50 @@ export function RosterGridView({
   onImageUploadSuccess,
 }: RosterGridViewProps) {
   const [uploadingPlayerId, setUploadingPlayerId] = useState<string | null>(null)
+  const [playersState, setPlayersState] = useState<Player[]>(players)
+
+  // Update local state when players prop changes
+  useEffect(() => {
+    setPlayersState(players)
+  }, [players])
+
+  const handleFormsUpdate = async (playerId: string, formsComplete: boolean, missingForms: string[]) => {
+    try {
+      const response = await fetch(`/api/roster/${playerId}/forms`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          formsComplete,
+          missingForms,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error?.error || "Failed to update forms")
+      }
+
+      const updated = await response.json()
+      
+      // Update local state
+      setPlayersState(prev => prev.map(p => 
+        p.id === playerId 
+          ? { ...p, missingForms: updated.missingForms || [], healthStatus: updated.healthStatus }
+          : p
+      ))
+
+      // Trigger parent refresh if callback exists
+      if (onImageUploadSuccess) {
+        // Re-fetch roster to get updated data
+        window.location.reload()
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to update forms")
+      throw error
+    }
+  }
 
   const handleImageUpload = async (playerId: string, file: File) => {
     setUploadingPlayerId(playerId)
@@ -73,7 +118,7 @@ export function RosterGridView({
       aria-label="Roster cards grid"
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
-      {players.map((player) => (
+      {playersState.map((player) => (
         <div key={player.id} className="flex flex-col gap-2">
           <PlayerCard
             player={player}
@@ -84,6 +129,7 @@ export function RosterGridView({
               e.dataTransfer.effectAllowed = "move"
             }}
             onImageUpload={canEdit ? handleImageUpload : undefined}
+            onFormsUpdate={canEdit ? handleFormsUpdate : undefined}
           />
           {canEdit && (onEditPlayer || onSendInvite || onDeletePlayer) && (
             <div className="flex flex-wrap gap-1">
@@ -124,7 +170,7 @@ export function RosterGridView({
           )}
         </div>
       ))}
-      {players.length === 0 && (
+      {playersState.length === 0 && (
         <div className="col-span-full text-center py-12" style={{ color: "#000000" }}>
           No players in roster
         </div>

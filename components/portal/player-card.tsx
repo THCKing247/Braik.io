@@ -3,6 +3,8 @@
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import { useState } from "react"
+import { FileText } from "lucide-react"
+import { PlayerFormsModal } from "./player-forms-modal"
 
 interface PlayerCardProps {
   player: {
@@ -14,6 +16,7 @@ interface PlayerCardProps {
     status: string
     imageUrl?: string | null
     healthStatus?: "active" | "injured" | "unavailable"
+    missingForms?: string[]
   }
   canEdit?: boolean
   size?: "small" | "medium" | "large"
@@ -22,6 +25,7 @@ interface PlayerCardProps {
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
   onImageUpload?: (playerId: string, file: File) => void
+  onFormsUpdate?: (playerId: string, formsComplete: boolean, missingForms: string[]) => void | Promise<void>
 }
 
 export function PlayerCard({
@@ -31,9 +35,11 @@ export function PlayerCard({
   draggable = false,
   onDragStart,
   onImageUpload,
+  onFormsUpdate,
 }: PlayerCardProps) {
   const [imageError, setImageError] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [showFormsModal, setShowFormsModal] = useState(false)
 
   const getInitials = () => {
     const first = (player.firstName || "")[0] || ""
@@ -52,6 +58,20 @@ export function PlayerCard({
         return "bg-orange-500"
       default:
         return "bg-gray-500"
+    }
+  }
+
+  const getStatusDisplay = () => {
+    const status = player.healthStatus || (player.status === "active" ? "active" : "inactive")
+    switch (status) {
+      case "active":
+        return { text: "Active", color: "text-green-600", bgColor: "bg-green-100" }
+      case "injured":
+        return { text: "Injured", color: "text-red-600", bgColor: "bg-red-100" }
+      case "unavailable":
+        return { text: "Inactive", color: "text-orange-600", bgColor: "bg-orange-100" }
+      default:
+        return { text: "Inactive", color: "text-orange-600", bgColor: "bg-orange-100" }
     }
   }
 
@@ -139,19 +159,38 @@ export function PlayerCard({
               {player.positionGroup && <span>{player.positionGroup}</span>}
             </div>
           </div>
-          <span
-            className="text-[10px] px-2 py-1 rounded font-semibold uppercase tracking-wide inline-block"
-            style={{
-              backgroundColor: "rgb(var(--platinum))",
-              borderColor: "rgb(var(--border))",
-              borderWidth: "1px",
-              color: "#000000"
-            }}
-          >
-            {player.status === "active" ? "A" : "I"}
-          </span>
+          <div className="flex items-center justify-between w-full mt-2">
+            {/* Forms Icon - Bottom Left */}
+            {canEdit && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowFormsModal(true)
+                }}
+                className="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                title="Manage Forms"
+              >
+                <FileText className="h-4 w-4 text-gray-600" />
+              </button>
+            )}
+            {!canEdit && <div />}
+            {/* Status Badge - Bottom Right */}
+            <span
+              className={`text-[10px] px-2 py-1 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
+            >
+              {getStatusDisplay().text}
+            </span>
+          </div>
         </div>
       </CardContent>
+      {showFormsModal && (
+        <PlayerFormsModal
+          player={player}
+          isOpen={showFormsModal}
+          onClose={() => setShowFormsModal(false)}
+          onFormsUpdate={onFormsUpdate}
+        />
+      )}
     </Card>
   )
 }

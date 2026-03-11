@@ -42,10 +42,11 @@ export async function POST(request: Request) {
 
     const supabaseServerClient = getSupabaseServer()
 
-    const { email, password, callbackUrl: requestedCallbackUrl } = (await request.json()) as {
+    const { email, password, callbackUrl: requestedCallbackUrl, rememberMe } = (await request.json()) as {
       email?: string
       password?: string
       callbackUrl?: string
+      rememberMe?: boolean
     }
     const normalizedEmail = email?.trim().toLowerCase()
     if (!normalizedEmail || !password) {
@@ -151,19 +152,29 @@ export async function POST(request: Request) {
       redirectTo,
     })
 
+    // Set cookie expiration based on "Remember me" option
+    // If rememberMe is true, use longer expiration (90 days for refresh token, 7 days for access token)
+    // Otherwise, use default expiration (30 days for refresh token, 1 hour for access token)
+    const accessTokenMaxAge = rememberMe
+      ? 60 * 60 * 24 * 7 // 7 days
+      : data.session.expires_in || 3600 // 1 hour default
+    const refreshTokenMaxAge = rememberMe
+      ? 60 * 60 * 24 * 90 // 90 days
+      : 60 * 60 * 24 * 30 // 30 days
+
     response.cookies.set("sb-access-token", data.session.access_token, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: data.session.expires_in || 3600,
+      maxAge: accessTokenMaxAge,
     })
     response.cookies.set("sb-refresh-token", data.session.refresh_token, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: refreshTokenMaxAge,
     })
 
     return response

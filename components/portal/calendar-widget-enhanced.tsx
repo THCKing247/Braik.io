@@ -304,8 +304,12 @@ export function CalendarWidgetEnhanced({
 
     return (
       <div className="flex-1 flex flex-col min-h-0 min-w-full">
-        {/* ONLY vertical scroll region: sticky day headers + time grid; parent chain must have flex-1 min-h-0 so this gets a bounded height */}
-        <div ref={timeGridScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
+        {/* Only vertical scroll region: sticky day headers + time grid */}
+        <div
+          ref={timeGridScrollRef}
+          data-schedule-scroll="time-grid"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-auto"
+        >
           {/* Day headers - sticky at top of scroll area, aligned with columns */}
           <div
             className="grid calendar-grid border-b bg-white z-20 sticky top-0 flex-shrink-0 shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
@@ -613,8 +617,12 @@ export function CalendarWidgetEnhanced({
 
     return (
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        {/* ONLY vertical scroll region for day view; parent chain must have flex-1 min-h-0 so this gets a bounded height */}
-        <div ref={timeGridScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        {/* Only vertical scroll region for day view */}
+        <div
+          ref={timeGridScrollRef}
+          data-schedule-scroll="time-grid"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+        >
           <div className="relative" style={{ minHeight: "1440px" }}>
             {/* Time column - z-20 so labels sit above hour lines */}
           <div className="absolute left-0 top-0 bottom-0 w-20 border-r z-20" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>

@@ -159,7 +159,15 @@ export default async function DashboardLayout({
     // ──────────────────────────────────────────────────────────────────────
 
     return (
-      <div className="app-shell flex flex-col min-h-screen" style={{ backgroundColor: "rgb(var(--snow))" }}>
+      <div
+        className="app-shell flex flex-col min-h-screen"
+        style={{
+          backgroundColor: "rgb(var(--snow))",
+          height: "100vh",
+          maxHeight: "100vh",
+          overflow: "hidden",
+        }}
+      >
         <header className="flex-shrink-0">
           <Suspense fallback={
             <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />

@@ -45,7 +45,7 @@ export function DashboardLayoutClient({
             <DashboardSidebar teams={teams} />
           )}
           {!isDesktop && <QuickActionsSidebar />}
-          {/* On schedule: main must NOT scroll (overflow-hidden) so only the time grid scrolls. Previously overflow-auto here was the scroll stealer. */}
+          {/* On schedule: main must NOT scroll (overflow-hidden) so only the time grid scrolls. */}
           <main
             className={cn(
               "flex-1 min-w-0 min-h-0",

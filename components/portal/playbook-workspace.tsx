@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { PlaybookBrowser } from "@/components/portal/playbook-browser"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
@@ -446,43 +446,47 @@ export function PlaybookWorkspace({
       ? templateDataToCanvasData(selectedFormation.templateData, selectedSide)
       : selectedPlay?.canvasData ?? null
 
-  const initialCanvasDataForDesigner: CanvasData | null = rawCanvasData
-    ? (() => {
-        const coord = new FieldCoordinateSystem(800, 600, 15, 50)
-        const playersWithPixels = rawCanvasData.players.map((p) => {
-          const pixel = coord.yardToPixel(p.xYards, p.yYards)
-          const base = { ...p, x: pixel.x, y: pixel.y, xYards: p.xYards, yYards: p.yYards }
-          // Normalize route points to have x,y for rendering (API may store only xYards/yYards)
-          if (p.route?.length) {
-            base.route = p.route.map((pt): RoutePoint => {
-              const xYards = "xYards" in pt ? (pt as { xYards: number }).xYards : coord.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).xYards
-              const yYards = "yYards" in pt ? (pt as { yYards: number }).yYards : coord.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).yYards
-              const px = coord.yardToPixel(xYards, yYards)
-              return { x: px.x, y: px.y, xYards, yYards, t: "t" in pt ? (pt as { t: number }).t : 0 }
-            })
-          }
-          if (p.blockingLine) {
-            const bl = p.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
-            const xYards = bl.xYards ?? (bl.x != null ? coord.pixelToYard(bl.x, bl.y ?? 0).xYards : 0)
-            const yYards = bl.yYards ?? (bl.y != null ? coord.pixelToYard(bl.x ?? 0, bl.y).yYards : 0)
-            const bp = coord.yardToPixel(xYards, yYards)
-            base.blockingLine = { x: bp.x, y: bp.y, xYards, yYards } as BlockEndPoint
-          }
-          return base as CanvasData["players"][number]
+  // Memoize so the builder receives a stable playData reference. Otherwise every workspace re-render
+  // would pass a new object and the builder's playData sync effect would overwrite local state (e.g. a
+  // just-finished route) with the old saved data, causing routes to appear lost before save.
+  const initialCanvasDataForDesigner: CanvasData | null = useMemo(() => {
+    if (!rawCanvasData) return null
+    const coord = new FieldCoordinateSystem(800, 600, 15, 50)
+    const playersWithPixels = rawCanvasData.players.map((p) => {
+      const base = { ...p, x: 0, y: 0, xYards: p.xYards, yYards: p.yYards } as CanvasData["players"][number]
+      const pixel = coord.yardToPixel(p.xYards, p.yYards)
+      base.x = pixel.x
+      base.y = pixel.y
+      // Normalize route points to have x,y for rendering (API may store only xYards/yYards)
+      if (p.route?.length) {
+        base.route = p.route.map((pt): RoutePoint => {
+          const xYards = "xYards" in pt ? (pt as { xYards: number }).xYards : coord.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).xYards
+          const yYards = "yYards" in pt ? (pt as { yYards: number }).yYards : coord.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).yYards
+          const px = coord.yardToPixel(xYards, yYards)
+          return { x: px.x, y: px.y, xYards, yYards, t: "t" in pt ? (pt as { t: number }).t : 0 }
         })
-        const zonesWithPixels = (rawCanvasData.zones ?? []).map((z) => {
-          const xY = z.xYards != null && z.yYards != null ? coord.yardToPixel(z.xYards, z.yYards) : { x: z.x ?? 0, y: z.y ?? 0 }
-          return { ...z, x: xY.x, y: xY.y, xYards: z.xYards ?? 0, yYards: z.yYards ?? 0 }
-        })
-        return {
-          players: playersWithPixels,
-          zones: zonesWithPixels,
-          manCoverages: rawCanvasData.manCoverages ?? [],
-          fieldType: rawCanvasData.fieldType ?? "half",
-          side: rawCanvasData.side,
-        }
-      })()
-    : null
+      }
+      if (p.blockingLine) {
+        const bl = p.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
+        const xYards = bl.xYards ?? (bl.x != null ? coord.pixelToYard(bl.x, bl.y ?? 0).xYards : 0)
+        const yYards = bl.yYards ?? (bl.y != null ? coord.pixelToYard(bl.x ?? 0, bl.y).yYards : 0)
+        const bp = coord.yardToPixel(xYards, yYards)
+        base.blockingLine = { x: bp.x, y: bp.y, xYards, yYards } as BlockEndPoint
+      }
+      return base
+    })
+    const zonesWithPixels = (rawCanvasData.zones ?? []).map((z) => {
+      const xY = z.xYards != null && z.yYards != null ? coord.yardToPixel(z.xYards, z.yYards) : { x: z.x ?? 0, y: z.y ?? 0 }
+      return { ...z, x: xY.x, y: xY.y, xYards: z.xYards ?? 0, yYards: z.yYards ?? 0 }
+    })
+    return {
+      players: playersWithPixels,
+      zones: zonesWithPixels,
+      manCoverages: rawCanvasData.manCoverages ?? [],
+      fieldType: rawCanvasData.fieldType ?? "half",
+      side: rawCanvasData.side,
+    }
+  }, [rawCanvasData])
 
   const initialNameForDesigner =
     designerMode === "formation"

@@ -357,6 +357,7 @@ export function PlaybookBuilder({
     return () => window.removeEventListener("keydown", handleKey)
   }, [routeDraft, blockDraft, finishRouteDraft, finishBlockDraft, cancelRouteDraft, cancelBlockDraft, undo, redo])
 
+  // Sync from prop only when playData reference changes. Workspace memoizes playData so we don't overwrite local edits (e.g. just-finished route) on parent re-renders.
   useEffect(() => {
     if (playData) {
       // Source of truth: yard coordinates. For position-based markers, label is derived from positionCode/positionNumber to prevent drift.
@@ -761,10 +762,12 @@ export function PlaybookBuilder({
   }
 
   const handleSave = () => {
+    // Use ref so we always serialize the latest state (avoids stale closure if save runs before re-render after finish route).
+    const latestPlayers = playersRef.current
     // Template mode: validate 11 players required
     if (isTemplateMode) {
-      if (players.length !== 11) {
-        alert(`Template requires exactly 11 players. Currently have ${players.length}.`)
+      if (latestPlayers.length !== 11) {
+        alert(`Template requires exactly 11 players. Currently have ${latestPlayers.length}.`)
         return
       }
       if (!templateNameState.trim()) {
@@ -779,7 +782,7 @@ export function PlaybookBuilder({
     }
 
     // Persistence: route/blockingLine are included; for position-based markers, label is derived to avoid drift.
-    const playersWithYards = players.map((p) => {
+    const playersWithYards = latestPlayers.map((p) => {
       const derivedLabel = p.positionCode ? getDisplayLabel(p.positionCode, p.positionNumber) : p.label
       let out: Player = p.xYards !== undefined && p.yYards !== undefined
         ? { ...p, label: derivedLabel }

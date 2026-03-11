@@ -24,7 +24,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
-  const userRole = session?.user?.role
   const isPlatformOwner = session?.user?.isPlatformOwner || false
 
   // Dashboard, Invoice, and Settings live in the left sidebar; only Admin remains in top nav for Platform Owners
@@ -90,23 +89,11 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               </Link>
             )}
             <ThemeToggle />
-            {userRole && (
-              <span 
-                className="text-xs px-2 py-1 border rounded"
-                style={{
-                  color: "rgb(var(--text2))",
-                  backgroundColor: "#FFFFFF",
-                  borderColor: "rgb(var(--border))"
-                }}
-                title={isPlatformOwner ? "Platform Owner" : undefined}
-              >
-                {userRole.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                {isPlatformOwner && (
-                  <span className="ml-1" style={{ color: "rgb(var(--accent))" }} title="Platform Owner">⚙️</span>
-                )}
-              </span>
-            )}
-            <span className="text-sm hidden sm:inline" style={{ color: "rgb(var(--text))" }}>{session?.user?.email}</span>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={currentTeamId ? `/dashboard/invites?teamId=${currentTeamId}` : "/dashboard/invites"}>
+                Invite
+              </Link>
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/" })} style={{ color: "rgb(var(--text))" }}>
               Sign Out
             </Button>

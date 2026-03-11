@@ -292,44 +292,43 @@ export function CalendarWidgetEnhanced({
     const currentTimePosition = getCurrentTimePosition()
 
     return (
-      <div className="flex-1 flex flex-col min-h-0 overflow-x-auto">
-        <div className="min-w-full flex flex-col min-h-0">
-          {/* Day headers - fixed so grid scrolls independently below */}
-          <div className="flex-shrink-0 grid calendar-grid border-b bg-white z-20" style={{ borderColor: "rgb(var(--border))" }}>
-            <div className="p-2 border-r min-w-0 w-[80px] flex-shrink-0" style={{ borderColor: "rgb(var(--border))" }} aria-hidden />
-            {weekDays.map((day) => {
-              const isToday = isTodayDate(day)
-              const dayEvents = getEventsForDate(day)
-              return (
-                <div
-                  key={day.toISOString()}
-                  className="p-2 border-r text-center min-w-0"
-                  style={{ borderColor: "rgb(var(--border))" }}
-                >
-                  <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
-                    {format(day, "EEE")}
-                  </div>
-                  <div
-                    className={`text-lg font-semibold mt-1 ${
-                      isToday ? "bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
-                    }`}
-                    style={!isToday ? { color: "rgb(var(--text))" } : {}}
-                  >
-                    {format(day, "d")}
-                  </div>
-                  {dayEvents.length > 0 && (
-                    <div className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
-                      {dayEvents.length} event{dayEvents.length !== 1 ? "s" : ""}
-                    </div>
-                  )}
+      <div className="flex-1 flex flex-col min-h-0 min-w-full">
+        {/* Day headers - fixed, no scroll */}
+        <div className="grid calendar-grid border-b flex-shrink-0 bg-white z-20" style={{ borderColor: "rgb(var(--border))" }}>
+          <div className="p-2 border-r min-w-0 w-[80px] flex-shrink-0" style={{ borderColor: "rgb(var(--border))" }} aria-hidden />
+          {weekDays.map((day) => {
+            const isToday = isTodayDate(day)
+            const dayEvents = getEventsForDate(day)
+            return (
+              <div
+                key={day.toISOString()}
+                className="p-2 border-r text-center min-w-0"
+                style={{ borderColor: "rgb(var(--border))" }}
+              >
+                <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
+                  {format(day, "EEE")}
                 </div>
-              )
-            })}
-          </div>
+                <div
+                  className={`text-lg font-semibold mt-1 ${
+                    isToday ? "bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
+                  }`}
+                  style={!isToday ? { color: "rgb(var(--text))" } : {}}
+                >
+                  {format(day, "d")}
+                </div>
+                {dayEvents.length > 0 && (
+                  <div className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
+                    {dayEvents.length} event{dayEvents.length !== 1 ? "s" : ""}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
 
-          {/* Time grid - scrolls independently within this container */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto [scrollbar-gutter:stable]">
-            <div className="relative grid calendar-grid min-w-full" style={{ minHeight: "1440px" }}>
+        {/* Time grid - scrollable only this section */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
+          <div className="relative grid calendar-grid" style={{ minHeight: "1440px" }}>
             {/* Time column (first column, 80px) - z-20 so labels sit above hour-line overlay */}
             <div
               className="relative min-w-0 w-[80px] flex-shrink-0 border-r z-20"
@@ -426,7 +425,6 @@ export function CalendarWidgetEnhanced({
                   }}
                 />
               ))}
-            </div>
               {isCurrentWeek && currentTimePosition !== null && (
                 <div
                   className="absolute left-0 right-0 z-30"
@@ -447,6 +445,7 @@ export function CalendarWidgetEnhanced({
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
     )
@@ -1030,9 +1029,15 @@ export function CalendarWidgetEnhanced({
             </div>
           </div>
 
-          {/* Main Calendar View - flex column so week view grid can scroll independently */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex-1 min-h-0 flex flex-col p-4">
+          {/* Main Calendar View - week view: only the grid scrolls; other views: whole area scrolls */}
+          <div
+            className={
+              view === "week"
+                ? "flex-1 flex flex-col min-h-0 overflow-hidden"
+                : "flex-1 overflow-y-auto"
+            }
+          >
+            <div className={view === "week" ? "flex-1 flex flex-col min-h-0 p-4" : "p-4"}>
               {view === "day" && renderDayView()}
               {view === "week" && renderWeekView()}
               {view === "month" && renderMonthView()}

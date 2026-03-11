@@ -11,7 +11,10 @@
     "start": "next start",
     "lint": "next lint",
     "seed:users": "tsx scripts/seed-users.ts",
-    "verify:separation": "tsx scripts/verify-separation.ts"
+    "verify:separation": "tsx scripts/verify-separation.ts",
+    "test:coords": "tsx tests/playbook-canvas-coords.test.ts",
+    "test:draft": "tsx tests/playbook-draft.test.ts",
+    "test:playbook": "tsx tests/playbook-canvas-coords.test.ts && tsx tests/playbook-draft.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.0.4",

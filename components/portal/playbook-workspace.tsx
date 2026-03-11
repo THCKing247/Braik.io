@@ -226,6 +226,7 @@ export function PlaybookWorkspace({
     }
   }
 
+  /** Persistence path: builder canvasData (incl. route/blockingLine) → PlayCanvasData (normalized) → handleSavePlay → API PATCH/POST canvasData → DB canvas_data. Load: API → selectedPlay.canvasData → initialCanvasDataForDesigner (route/block normalized for render). */
   const handleSaveFromBuilder = (data: CanvasData, name: string) => {
     const coord = new FieldCoordinateSystem(800, 600, 15, 50)
     const canvasData: PlayCanvasData = {

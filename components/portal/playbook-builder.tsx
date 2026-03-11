@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban } from "lucide-react"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
+import { clientToViewBox as clientToViewBoxLib } from "@/lib/utils/canvas-coords"
+import { canFinishRouteDraft as canFinishRouteDraftLib } from "@/lib/utils/playbook-draft"
 import { PlaybookFileTree } from "@/components/portal/playbook-file-tree"
 import { PlaybookShapePalette } from "@/components/portal/playbook-shape-palette"
 import { validateTemplateSave } from "@/lib/utils/playbook-validation"
@@ -131,6 +133,7 @@ export function PlaybookBuilder({
   const [routeDraft, setRouteDraft] = useState<{ playerId: string; points: PointPX[] } | null>(null)
   const [blockDraft, setBlockDraft] = useState<{ playerId: string; endPoint: PointPX } | null>(null)
   const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null)
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null)
 
   // Undo/redo: undo stack holds past states; redo stack holds states we undid from
   const [undoStack, setUndoStack] = useState<{ players: Player[]; zones: Zone[]; manCoverages: ManCoverage[] }[]>([])
@@ -227,7 +230,7 @@ export function PlaybookBuilder({
 
   // Finish/Cancel drawing and tool shortcuts
   const finishRouteDraft = useCallback(() => {
-    if (!routeDraft || routeDraft.points.length < 2) return
+    if (!routeDraft || !canFinishRouteDraftLib(routeDraft)) return
     const pts = routeDraft.points
     setPlayers((prev) =>
       prev.map((p) =>
@@ -289,7 +292,7 @@ export function PlaybookBuilder({
         return
       }
       if (e.key === "Enter") {
-        if (routeDraft && routeDraft.points.length >= 2) {
+        if (canFinishRouteDraftLib(routeDraft)) {
           e.preventDefault()
           finishRouteDraft()
         } else if (blockDraft) {
@@ -347,68 +350,22 @@ export function PlaybookBuilder({
     }
   }, [playData, side, initialPlayName, coordSystem])
 
-  const getCanvasPoint = (e: React.MouseEvent<SVGSVGElement | Element>) => {
-    if (!canvasRef.current) return { x: 0, y: 0, xYards: 0, yYards: 0 }
+  /** Uses lib/utils/canvas-coords (xMidYMid meet). All pointer tools depend on this. See tests/playbook-canvas-coords.test.ts. */
+  const clientToViewBox = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    if (!canvasRef.current) return null
     const rect = canvasRef.current.getBoundingClientRect()
-    const svg = canvasRef.current
-    
-    // Get the SVG viewBox dimensions
-    const viewBox = svg.viewBox.baseVal
-    const viewBoxWidth = viewBox.width || fieldDimensions.width
-    const viewBoxHeight = viewBox.height || fieldDimensions.height
-    
-    // Calculate the scale factor (actual rendered size vs viewBox)
-    const scaleX = rect.width / viewBoxWidth
-    const scaleY = rect.height / viewBoxHeight
-    
-    // Get mouse position relative to SVG element
-    const clientX = e.clientX - rect.left
-    const clientY = e.clientY - rect.top
-    
-    // Convert to viewBox coordinates (accounting for preserveAspectRatio)
-    // If preserveAspectRatio is "xMidYMid meet", the SVG is centered
-    const actualWidth = rect.width
-    const actualHeight = rect.height
-    const aspectRatio = viewBoxWidth / viewBoxHeight
-    const containerAspectRatio = actualWidth / actualHeight
-    
-    let x, y
-    if (containerAspectRatio > aspectRatio) {
-      // Container is wider - letterboxing on sides
-      const scaledHeight = actualHeight
-      const scaledWidth = scaledHeight * aspectRatio
-      const offsetX = (actualWidth - scaledWidth) / 2
-      x = (clientX - offsetX) / scaleX
-      y = clientY / scaleY
-    } else {
-      // Container is taller - letterboxing on top/bottom
-      const scaledWidth = actualWidth
-      const scaledHeight = scaledWidth / aspectRatio
-      const offsetY = (actualHeight - scaledHeight) / 2
-      x = clientX / scaleX
-      y = (clientY - offsetY) / scaleY
-    }
-    
-    // Clamp to viewBox bounds
-    x = Math.max(0, Math.min(viewBoxWidth, x))
-    y = Math.max(0, Math.min(viewBoxHeight, y))
+    return clientToViewBoxLib(clientX, clientY, rect, fieldDimensions.width, fieldDimensions.height)
+  }
 
-    // Convert to yard coordinates
-    const { xYards, yYards } = coordSystem.pixelToYard(x, y)
-
-    // Apply snapping if enabled
+  /** Screen → viewBox → snapped yard → pixel. Used by: route, block, zone, erase, man, place shapes. Drag uses clientToViewBox in move handler. */
+  const getCanvasPoint = (e: React.MouseEvent<SVGSVGElement | Element>) => {
+    const vb = clientToViewBox(e.clientX, e.clientY)
+    if (!vb) return { x: 0, y: 0, xYards: 0, yYards: 0 }
+    const { xYards, yYards } = coordSystem.pixelToYard(vb.x, vb.y)
     const snappedY = snapEnabled ? coordSystem.snapY(yYards) : yYards
     const snappedX = snapEnabled ? coordSystem.snapX(xYards) : xYards
-
-    // Convert back to pixels for rendering
     const pixel = coordSystem.yardToPixel(snappedX, snappedY)
-
-    return {
-      x: pixel.x,
-      y: pixel.y,
-      xYards: snappedX,
-      yYards: snappedY,
-    }
+    return { x: pixel.x, y: pixel.y, xYards: snappedX, yYards: snappedY }
   }
 
   const getPlayerShape = (side: string, label: string): "circle" | "square" | "triangle" => {
@@ -424,6 +381,15 @@ export function PlaybookBuilder({
     }
     if (label.toUpperCase().match(/C|G|T|LT|RT|LG|RG/)) return "lineman"
     return "skill"
+  }
+
+  /** Hit-test: find player whose center is within radius of point. Use 1.5x for route/block start for easier targeting. */
+  const HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK = 1.5
+  const getPlayerAtPoint = (point: { x: number; y: number }, hitRadiusMultiplier = 1) => {
+    const radius = coordSystem.getMarkerSize() * hitRadiusMultiplier
+    return players.find(
+      (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < radius
+    )
   }
 
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -455,17 +421,13 @@ export function PlaybookBuilder({
       pushHistory()
       setPlayers([...players, newPlayer])
     } else if (tool === "erase") {
-      const clickedPlayer = players.find(
-        (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
-      )
+      const clickedPlayer = getPlayerAtPoint(point)
       if (clickedPlayer) {
         setPlayers(players.filter((p) => p.id !== clickedPlayer.id))
         pushHistory()
       }
     } else if (tool === "route") {
-      const clickedPlayer = players.find(
-        (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
-      )
+      const clickedPlayer = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
       if (routeDraft) {
         if (clickedPlayer && clickedPlayer.id === routeDraft.playerId) return
         setRouteDraft((prev) =>
@@ -482,9 +444,7 @@ export function PlaybookBuilder({
         setSelectedPlayerId(clickedPlayer.id)
       }
     } else if (tool === "block") {
-      const clickedPlayer = players.find(
-        (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
-      )
+      const clickedPlayer = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
       if (blockDraft) {
         setBlockDraft((prev) => (prev ? { ...prev, endPoint: { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards } } : null))
       } else if (clickedPlayer) {
@@ -511,16 +471,12 @@ export function PlaybookBuilder({
       setZones([...zones, newZone])
     } else if (tool === "man" && currentSide === "defense") {
       if (!manCoverageStart) {
-        const clickedPlayer = players.find(
-          (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
-        )
+        const clickedPlayer = getPlayerAtPoint(point)
         if (clickedPlayer) {
           setManCoverageStart(clickedPlayer.id)
         }
       } else {
-        const clickedPlayer = players.find(
-          (p) => Math.sqrt(Math.pow(p.x - point.x, 2) + Math.pow(p.y - point.y, 2)) < coordSystem.getMarkerSize()
-        )
+        const clickedPlayer = getPlayerAtPoint(point)
         if (clickedPlayer && clickedPlayer.id !== manCoverageStart) {
           pushHistory()
           setManCoverages([
@@ -542,17 +498,25 @@ export function PlaybookBuilder({
     const point = getCanvasPoint(e)
     if ((tool === "route" && routeDraft) || (tool === "block" && blockDraft)) {
       setCursorPosition({ x: point.x, y: point.y })
+      setHoveredPlayerId(null)
     } else {
       setCursorPosition(null)
+      if ((tool === "route" || tool === "block") && !routeDraft && !blockDraft) {
+        const player = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
+        setHoveredPlayerId(player?.id ?? null)
+      } else {
+        setHoveredPlayerId(null)
+      }
     }
   }
 
   const handleCanvasMouseLeave = () => {
     setCursorPosition(null)
+    setHoveredPlayerId(null)
   }
 
   const handleCanvasDoubleClick = () => {
-    if (tool === "route" && routeDraft && routeDraft.points.length >= 2) {
+    if (tool === "route" && canFinishRouteDraftLib(routeDraft)) {
       finishRouteDraft()
     } else if (tool === "block" && blockDraft) {
       finishBlockDraft()
@@ -562,23 +526,19 @@ export function PlaybookBuilder({
   const handlePlayerDrag = (playerId: string, e: React.MouseEvent) => {
     if (!canEdit || tool !== "select") return
     e.preventDefault()
-    const startPoint = getCanvasPoint(e)
     const player = players.find((p) => p.id === playerId)
     if (!player) return
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!canvasRef.current) return
-      const rect = canvasRef.current.getBoundingClientRect()
-      const x = moveEvent.clientX - rect.left
-      const y = moveEvent.clientY - rect.top
-
-      const { xYards, yYards } = coordSystem.pixelToYard(x, y)
+      const vb = clientToViewBox(moveEvent.clientX, moveEvent.clientY)
+      if (!vb) return
+      const { xYards, yYards } = coordSystem.pixelToYard(vb.x, vb.y)
       const snappedY = snapEnabled ? coordSystem.snapY(yYards) : yYards
       const snappedX = snapEnabled ? coordSystem.snapX(xYards) : xYards
       const pixel = coordSystem.yardToPixel(snappedX, snappedY)
 
-      setPlayers(
-        players.map((p) =>
+      setPlayers((prev) =>
+        prev.map((p) =>
           p.id === playerId
             ? {
                 ...p,
@@ -712,6 +672,7 @@ export function PlaybookBuilder({
       }
     }
 
+    // Persistence: route/blockingLine are included in canvasData → onSave → workspace → API canvas_data → DB. Reload normalizes and re-renders.
     // Convert players to yard coordinates for saving; normalize route/blockingLine to include xYards/yYards
     const playersWithYards = players.map((p) => {
       let out: Player = p.xYards !== undefined && p.yYards !== undefined
@@ -816,8 +777,11 @@ export function PlaybookBuilder({
                 <>
                   <Button
                     size="sm"
-                    onClick={routeDraft && routeDraft.points.length >= 2 ? finishRouteDraft : blockDraft ? finishBlockDraft : undefined}
-                    disabled={routeDraft ? routeDraft.points.length < 2 : !blockDraft}
+                    onClick={() => {
+                      if (canFinishRouteDraftLib(routeDraft)) finishRouteDraft()
+                      else if (blockDraft) finishBlockDraft()
+                    }}
+                    disabled={routeDraft ? !canFinishRouteDraftLib(routeDraft) : false}
                     title="Finish (Enter)"
                   >
                     <Check className="h-4 w-4 mr-1" />
@@ -863,14 +827,28 @@ export function PlaybookBuilder({
         </div>
       </div>
 
-      {/* Drawing helper text */}
+      {/* Drawing helper text — whiteboard-style hints */}
       {canEdit && !isTemplateMode && (
-        <div className="flex-shrink-0 px-2 py-1 border-b text-xs text-slate-600 bg-slate-50" style={{ borderColor: "#E5E7EB" }}>
-          {tool === "route" && !routeDraft && "Click a player to start a route."}
-          {tool === "route" && routeDraft && "Click to add points, double-click or Enter to finish, Esc to cancel."}
-          {tool === "block" && !blockDraft && "Click a player to start a block."}
-          {tool === "block" && blockDraft && "Click to set block target, or Enter to finish, Esc to cancel."}
-          {tool === "select" && !routeDraft && !blockDraft && "Select and drag players. V = Select, R = Route, B = Block, Z = Zone, E = Erase."}
+        <div className="flex-shrink-0 px-3 py-2 border-b text-sm text-slate-700 bg-slate-100/90" style={{ borderColor: "#E5E7EB", minHeight: "40px" }}>
+          {tool === "route" && !routeDraft && (
+            <span>Route: <strong>Click a player</strong> to start, then add waypoints. Enter to finish, Esc to cancel.</span>
+          )}
+          {tool === "route" && routeDraft && (
+            <span>Route: Click to add points · <strong>Double-click</strong> or <strong>Enter</strong> to finish · <strong>Esc</strong> to cancel.</span>
+          )}
+          {tool === "block" && !blockDraft && (
+            <span>Block: <strong>Click a player</strong> to start, then click target. Enter to finish, Esc to cancel.</span>
+          )}
+          {tool === "block" && blockDraft && (
+            <span>Block: Click to set target · <strong>Enter</strong> to finish · <strong>Esc</strong> to cancel.</span>
+          )}
+          {tool === "zone" && "Zone: Click on the field to place a zone. Switch to Select to move or remove."}
+          {tool === "man" && currentSide === "defense" && "Man: Click defender, then receiver to assign coverage."}
+          {tool === "erase" && "Erase: Click a player to remove from the field."}
+          {(tool === "circle" || tool === "square" || tool === "triangle") && "Click on the field to place a player."}
+          {tool === "select" && !routeDraft && !blockDraft && (
+            <span>Select: Drag players to move. <strong>R</strong> Route · <strong>B</strong> Block · <strong>Z</strong> Zone · <strong>E</strong> Erase.</span>
+          )}
         </div>
       )}
 
@@ -902,6 +880,7 @@ export function PlaybookBuilder({
             onSelectTool={(newTool) => {
               cancelRouteDraft()
               cancelBlockDraft()
+              setHoveredPlayerId(null)
               setTool(newTool as typeof tool)
               if (newTool === "select") setSelectedPlayerId(null)
               else if (newTool === "man") setManCoverageStart(null)
@@ -924,7 +903,16 @@ export function PlaybookBuilder({
             viewBox={`0 0 ${fieldDimensions.width} ${fieldDimensions.height}`}
             preserveAspectRatio="xMidYMid meet"
             style={{
-              cursor: tool === "circle" || tool === "square" || tool === "triangle" || tool === "route" || tool === "block" || tool === "zone" || tool === "erase" ? "crosshair" : tool === "select" ? "move" : "default",
+              cursor:
+                routeDraft || blockDraft
+                  ? "crosshair"
+                  : tool === "route" || tool === "block"
+                    ? "pointer"
+                    : tool === "circle" || tool === "square" || tool === "triangle" || tool === "zone" || tool === "erase"
+                      ? "crosshair"
+                      : tool === "select"
+                        ? "move"
+                        : "default",
             }}
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
@@ -939,9 +927,9 @@ export function PlaybookBuilder({
               yardEnd={yardLineEnd}
             />
 
-            {/* Route draft: committed points + live cursor preview */}
+            {/* Route draft: dashed blue, larger waypoints — clearly distinct from saved routes */}
             {routeDraft && routeDraft.points.length > 0 && (
-              <g>
+              <g className="route-draft">
                 <polyline
                   points={
                     cursorPosition
@@ -949,36 +937,40 @@ export function PlaybookBuilder({
                       : routeDraft.points.map((p) => `${p.x},${p.y}`).join(" ")
                   }
                   fill="none"
-                  stroke="#3B82F6"
-                  strokeWidth="3"
-                  strokeDasharray="6,4"
+                  stroke="#2563EB"
+                  strokeWidth="4"
+                  strokeDasharray="8,5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  opacity={cursorPosition ? 1 : 0.9}
                 />
                 {routeDraft.points.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r="4" fill="#3B82F6" stroke="white" strokeWidth="1.5" />
+                  <circle key={i} cx={pt.x} cy={pt.y} r="6" fill="#2563EB" stroke="white" strokeWidth="2" />
                 ))}
+                {cursorPosition && (
+                  <circle cx={cursorPosition.x} cy={cursorPosition.y} r="5" fill="none" stroke="#2563EB" strokeWidth="2" strokeDasharray="3,3" />
+                )}
               </g>
             )}
 
-            {/* Block draft: line from player to endPoint or cursor */}
+            {/* Block draft: orange/amber, thick dashed — distinct from route and saved blocks */}
             {blockDraft && (() => {
               const blocker = players.find((p) => p.id === blockDraft.playerId)
               if (!blocker) return null
               const end = cursorPosition ?? { x: blockDraft.endPoint.x, y: blockDraft.endPoint.y }
               return (
-                <g>
+                <g className="block-draft">
                   <line
                     x1={blocker.x}
                     y1={blocker.y}
                     x2={end.x}
                     y2={end.y}
-                    stroke="#F59E0B"
-                    strokeWidth="3"
-                    strokeDasharray="6,4"
+                    stroke="#D97706"
+                    strokeWidth="4"
+                    strokeDasharray="10,6"
                     strokeLinecap="round"
                   />
-                  <circle cx={end.x} cy={end.y} r="5" fill="#F59E0B" stroke="white" strokeWidth="1.5" />
+                  <circle cx={end.x} cy={end.y} r="7" fill="#F59E0B" stroke="white" strokeWidth="2" />
                 </g>
               )
             })()}
@@ -1039,11 +1031,28 @@ export function PlaybookBuilder({
             {/* Players */}
             {players.map((player) => {
               const isSelected = selectedPlayerId === player.id
+              const isHoveredAsOrigin =
+                hoveredPlayerId === player.id &&
+                (tool === "route" || tool === "block") &&
+                !routeDraft &&
+                !blockDraft
               const isOffense = currentSide === "offense" || currentSide === "special_teams"
               const playerColor = isOffense ? "#3B82F6" : "#DC2626"
 
               return (
                 <g key={player.id}>
+                  {/* Hover "start here" ring when Route/Block tool and no draft */}
+                  {isHoveredAsOrigin && (
+                    <circle
+                      cx={player.x}
+                      cy={player.y}
+                      r={markerSize / 2 + 6}
+                      fill="none"
+                      stroke="rgba(255,255,255,0.9)"
+                      strokeWidth="2"
+                      strokeDasharray="4,4"
+                    />
+                  )}
                   {/* Player route */}
                   {player.route && player.route.length > 1 && (
                     <g>
@@ -1097,8 +1106,8 @@ export function PlaybookBuilder({
                       r={markerSize / 2}
                       fill={playerColor}
                       stroke={isSelected ? "#0B2A5B" : "white"}
-                      strokeWidth={isSelected ? "3" : "2"}
-                      style={{ cursor: canEdit && tool === "select" ? "move" : "pointer" }}
+                      strokeWidth={isSelected ? "4" : "2"}
+                      style={{ cursor: canEdit ? (tool === "select" ? "move" : "pointer") : "default" }}
                       onClick={() => {
                         if (tool === "select" || tool === "route" || tool === "block") {
                           setSelectedPlayerId(player.id)
@@ -1119,8 +1128,8 @@ export function PlaybookBuilder({
                       height={markerSize}
                       fill={playerColor}
                       stroke={isSelected ? "#0B2A5B" : "white"}
-                      strokeWidth={isSelected ? "3" : "2"}
-                      style={{ cursor: canEdit && tool === "select" ? "move" : "pointer" }}
+                      strokeWidth={isSelected ? "4" : "2"}
+                      style={{ cursor: canEdit ? (tool === "select" ? "move" : "pointer") : "default" }}
                       onClick={() => {
                         if (tool === "select" || tool === "route" || tool === "block") {
                           setSelectedPlayerId(player.id)
@@ -1138,8 +1147,8 @@ export function PlaybookBuilder({
                       points={`${player.x},${player.y + markerSize / 2} ${player.x - markerSize / 2},${player.y - markerSize / 2} ${player.x + markerSize / 2},${player.y - markerSize / 2}`}
                       fill={playerColor}
                       stroke={isSelected ? "#0B2A5B" : "white"}
-                      strokeWidth={isSelected ? "3" : "2"}
-                      style={{ cursor: canEdit && tool === "select" ? "move" : "pointer" }}
+                      strokeWidth={isSelected ? "4" : "2"}
+                      style={{ cursor: canEdit ? (tool === "select" ? "move" : "pointer") : "default" }}
                       onClick={() => {
                         if (tool === "select" || tool === "route" || tool === "block") {
                           setSelectedPlayerId(player.id)

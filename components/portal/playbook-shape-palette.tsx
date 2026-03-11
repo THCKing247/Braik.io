@@ -68,7 +68,7 @@ export function PlaybookShapePalette({
               key={shape.id}
               variant={selectedTool === shape.id ? "default" : "outline"}
               size="sm"
-              className="w-full justify-start h-8 px-2"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === shape.id ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
               onClick={() => canEdit && shape.available && onSelectTool(shape.id)}
               disabled={!canEdit || !shape.available}
               style={{
@@ -91,22 +91,22 @@ export function PlaybookShapePalette({
           </h3>
           <div className="flex flex-col gap-1">
             {lines.map((line) => (
-              <Button
-                key={line.id}
-                variant={selectedTool === line.id ? "default" : "outline"}
-                size="sm"
-                className="w-full justify-start h-8 px-2"
-                onClick={() => canEdit && line.available && onSelectTool(line.id)}
-                disabled={!canEdit || !line.available}
-                style={{
-                  opacity: line.available ? 1 : 0.4,
-                  cursor: line.available && canEdit ? "pointer" : "not-allowed",
-                }}
-                title={line.label}
-              >
-                <line.icon className="h-3.5 w-3.5 mr-1.5" />
-                <span className="text-xs">{line.label}</span>
-              </Button>
+            <Button
+              key={line.id}
+              variant={selectedTool === line.id ? "default" : "outline"}
+              size="sm"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === line.id ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && line.available && onSelectTool(line.id)}
+              disabled={!canEdit || !line.available}
+              style={{
+                opacity: line.available ? 1 : 0.4,
+                cursor: line.available && canEdit ? "pointer" : "not-allowed",
+              }}
+              title={line.label}
+            >
+              <line.icon className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">{line.label}</span>
+            </Button>
             ))}
           </div>
         </div>
@@ -120,7 +120,7 @@ export function PlaybookShapePalette({
           <Button
             variant={selectedTool === "select" ? "default" : "outline"}
             size="sm"
-            className="w-full justify-start h-8 px-2"
+            className={`w-full justify-start h-8 px-2 ${selectedTool === "select" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
             onClick={() => canEdit && onSelectTool("select")}
             disabled={!canEdit}
             title="Select"
@@ -133,7 +133,7 @@ export function PlaybookShapePalette({
           <Button
             variant={selectedTool === "erase" ? "default" : "outline"}
             size="sm"
-            className="w-full justify-start h-8 px-2"
+            className={`w-full justify-start h-8 px-2 ${selectedTool === "erase" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
             onClick={() => canEdit && onSelectTool("erase")}
             disabled={!canEdit}
             title="Erase"

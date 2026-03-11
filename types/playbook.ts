@@ -134,6 +134,7 @@ export type RoutePoint = { x?: number; y?: number; xYards: number; yYards: numbe
 export type BlockEndPoint = { x?: number; y?: number; xYards: number; yYards: number }
 
 // Builder canvas format (players array with pixel/yard coords, zones, man coverage, routes, blocks)
+// positionCode + positionNumber define football role (e.g. WR, 2 → WR2); label is display string (kept for legacy).
 export type PlayCanvasData = {
   fieldView?: "HALF"
   players: Array<{
@@ -149,6 +150,10 @@ export type PlayCanvasData = {
     gap?: string
     route?: RoutePoint[]
     blockingLine?: BlockEndPoint
+    /** Football position code (QB, WR, LT, CB, GUN, etc.). */
+    positionCode?: string | null
+    /** Depth/slot number for numberable positions (WR1, WR2, GUN1). */
+    positionNumber?: number | null
   }>
   zones: Array<{
     id: string

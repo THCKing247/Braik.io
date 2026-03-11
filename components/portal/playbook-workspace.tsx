@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { PlaybookBrowser } from "@/components/portal/playbook-browser"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
-import { PlaybookInspector } from "@/components/portal/playbook-inspector"
+import { PlaybookInspector, type InspectorSelectedPlayer } from "@/components/portal/playbook-inspector"
 import { PlaycallerView } from "@/components/portal/playcaller-view"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
@@ -41,7 +41,7 @@ export function PlaybookWorkspace({
   const [playcallerMode, setPlaycallerMode] = useState(false)
   const [playcallerIndex, setPlaycallerIndex] = useState(0)
   const [inspectorSelection, setInspectorSelection] = useState<"play" | "player" | "zone" | "route" | null>(null)
-  const [selectedPlayerInspector, setSelectedPlayerInspector] = useState<{ id: string; label: string; shape: string } | null>(null)
+  const [selectedPlayerInspector, setSelectedPlayerInspector] = useState<InspectorSelectedPlayer | null>(null)
   const [selectedZoneInspector, setSelectedZoneInspector] = useState<{ id: string; type: string; size: string } | null>(null)
 
   const fetchFormations = useCallback(async () => {
@@ -251,6 +251,8 @@ export function PlaybookWorkspace({
           playerType: p.playerType,
           technique: p.technique,
           gap: p.gap,
+          positionCode: (p as { positionCode?: string | null }).positionCode ?? undefined,
+          positionNumber: (p as { positionNumber?: number | null }).positionNumber ?? undefined,
         }
         const route: RoutePoint[] | undefined = p.route?.length
           ? p.route.map((pt, i) => {
@@ -375,6 +377,8 @@ export function PlaybookWorkspace({
   const handleCloseDesigner = () => {
     setDesignerMode("idle")
     setEditingFormation(null)
+    setSelectedPlayerInspector(null)
+    setInspectorSelection(null)
   }
 
   const rawCanvasData =
@@ -484,6 +488,10 @@ export function PlaybookWorkspace({
               canEdit={canEditSide(selectedSide)}
               isTemplateMode={designerMode === "formation"}
               templateName={editingFormation?.name ?? ""}
+              onSelectPlayer={(player) => {
+                setSelectedPlayerInspector(player)
+                setInspectorSelection(player ? "player" : null)
+              }}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center p-8">

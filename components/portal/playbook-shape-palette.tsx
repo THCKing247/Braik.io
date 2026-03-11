@@ -1,10 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Circle, Square, Triangle, Pencil, X } from "lucide-react"
+import { Pencil, Square, Circle, X } from "lucide-react"
 import type { SideOfBall } from "@/types/playbook"
+import { OFFENSE_POSITIONS, DEFENSE_POSITIONS, SPECIAL_POSITIONS } from "@/lib/constants/playbook-positions"
 
-// Custom upside-down triangle icon for defense
 const TriangleDown = ({ className }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path d="M12 2L2 22h20L12 2z" />
@@ -26,88 +26,113 @@ export function PlaybookShapePalette({
   isTemplateMode,
   canEdit,
 }: PlaybookShapePaletteProps) {
-  // Determine which shapes are available for the current side
-  const getShapeAvailability = (shapeType: string) => {
-    if (!isTemplateMode) return true // In play mode, all shapes available
-    
-    // In template mode, only show shapes for current side
-    if (currentSide === "offense") {
-      return shapeType === "circle" || shapeType === "square"
-    }
-    if (currentSide === "defense") {
-      return shapeType === "triangle"
-    }
-    if (currentSide === "special_teams") {
-      return true // Special teams can use all shapes
-    }
-    return false
+  const offensePositions = OFFENSE_POSITIONS
+  const defensePositions = DEFENSE_POSITIONS
+  const specialPositions = SPECIAL_POSITIONS
+
+  const renderPositionButton = (code: string, label: string, shape: "circle" | "square" | "triangle") => {
+    const selected = selectedTool === code
+    const Icon =
+      shape === "square"
+        ? Square
+        : shape === "triangle"
+          ? TriangleDown
+          : Circle
+    return (
+      <Button
+        key={code}
+        variant={selected ? "default" : "outline"}
+        size="sm"
+        className={`w-full justify-start h-8 px-2 ${selected ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+        onClick={() => canEdit && onSelectTool(code)}
+        disabled={!canEdit}
+        title={label}
+      >
+        <Icon className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
+        <span className="text-xs truncate">{label}</span>
+      </Button>
+    )
   }
 
-  const shapes = [
-    { id: "circle", label: "Circle", icon: Circle, available: getShapeAvailability("circle") },
-    { id: "square", label: "Square", icon: Square, available: getShapeAvailability("square") },
-    { id: "triangle", label: "Triangle", icon: TriangleDown, available: getShapeAvailability("triangle") },
-  ]
-
-  const lines = [
-    { id: "route", label: "Route", icon: Pencil, available: !isTemplateMode && currentSide === "offense" },
-    { id: "block", label: "Block", icon: Square, available: !isTemplateMode && currentSide === "offense" },
-    { id: "zone", label: "Zone", icon: Circle, available: !isTemplateMode && currentSide === "defense" },
-    { id: "man", label: "Man", icon: X, available: !isTemplateMode && currentSide === "defense" },
-  ]
-
   return (
-    <div className="w-48 border-r-2 p-2 flex flex-col gap-2 flex-shrink-0" style={{ borderRightColor: "#0B2A5B", backgroundColor: "#FFFFFF" }}>
+    <div
+      className="w-52 border-r-2 p-2 flex flex-col gap-3 flex-shrink-0 overflow-y-auto"
+      style={{ borderRightColor: "#0B2A5B", backgroundColor: "#FFFFFF" }}
+    >
       <div>
         <h3 className="text-xs font-semibold mb-1.5" style={{ color: "#0B2A5B" }}>
-          Shapes
+          Positions
         </h3>
-        <div className="flex flex-col gap-1">
-          {shapes.map((shape) => (
-            <Button
-              key={shape.id}
-              variant={selectedTool === shape.id ? "default" : "outline"}
-              size="sm"
-              className={`w-full justify-start h-8 px-2 ${selectedTool === shape.id ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
-              onClick={() => canEdit && shape.available && onSelectTool(shape.id)}
-              disabled={!canEdit || !shape.available}
-              style={{
-                opacity: shape.available ? 1 : 0.4,
-                cursor: shape.available && canEdit ? "pointer" : "not-allowed",
-              }}
-              title={shape.label}
-            >
-              <shape.icon className="h-3.5 w-3.5 mr-1.5" />
-              <span className="text-xs">{shape.label}</span>
-            </Button>
-          ))}
-        </div>
+        {currentSide === "offense" && (
+          <div className="flex flex-col gap-1">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5">Offense</p>
+            {offensePositions.map((p) => renderPositionButton(p.code, p.label, p.shape))}
+          </div>
+        )}
+        {currentSide === "defense" && (
+          <div className="flex flex-col gap-1">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5">Defense</p>
+            {defensePositions.map((p) => renderPositionButton(p.code, p.label, p.shape))}
+          </div>
+        )}
+        {currentSide === "special_teams" && (
+          <div className="flex flex-col gap-1">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5">Special Teams</p>
+            {specialPositions.map((p) => renderPositionButton(p.code, p.label, p.shape))}
+          </div>
+        )}
       </div>
 
       {!isTemplateMode && (
         <div>
           <h3 className="text-xs font-semibold mb-1.5" style={{ color: "#0B2A5B" }}>
-            Lines
+            Lines / Assignments
           </h3>
           <div className="flex flex-col gap-1">
-            {lines.map((line) => (
             <Button
-              key={line.id}
-              variant={selectedTool === line.id ? "default" : "outline"}
+              variant={selectedTool === "route" ? "default" : "outline"}
               size="sm"
-              className={`w-full justify-start h-8 px-2 ${selectedTool === line.id ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
-              onClick={() => canEdit && line.available && onSelectTool(line.id)}
-              disabled={!canEdit || !line.available}
-              style={{
-                opacity: line.available ? 1 : 0.4,
-                cursor: line.available && canEdit ? "pointer" : "not-allowed",
-              }}
-              title={line.label}
+              className={`w-full justify-start h-8 px-2 ${selectedTool === "route" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && currentSide === "offense" && onSelectTool("route")}
+              disabled={!canEdit || currentSide !== "offense"}
+              title="Route"
             >
-              <line.icon className="h-3.5 w-3.5 mr-1.5" />
-              <span className="text-xs">{line.label}</span>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">Route</span>
             </Button>
-            ))}
+            <Button
+              variant={selectedTool === "block" ? "default" : "outline"}
+              size="sm"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === "block" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && currentSide === "offense" && onSelectTool("block")}
+              disabled={!canEdit || currentSide !== "offense"}
+              title="Block"
+            >
+              <Square className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">Block</span>
+            </Button>
+            <Button
+              variant={selectedTool === "zone" ? "default" : "outline"}
+              size="sm"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === "zone" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && currentSide === "defense" && onSelectTool("zone")}
+              disabled={!canEdit || currentSide !== "defense"}
+              title="Zone"
+            >
+              <Circle className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">Zone</span>
+            </Button>
+            <Button
+              variant={selectedTool === "man" ? "default" : "outline"}
+              size="sm"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === "man" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && currentSide === "defense" && onSelectTool("man")}
+              disabled={!canEdit || currentSide !== "defense"}
+              title="Man"
+            >
+              <X className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">Man</span>
+            </Button>
           </div>
         </div>
       )}

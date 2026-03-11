@@ -3,16 +3,27 @@
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { getPlayFormationDisplayName, isPlayFormationOrphan } from "@/lib/utils/playbook-formation"
+import { getDisplayLabel } from "@/lib/constants/playbook-positions"
 import type { PlayRecord, FormationRecord } from "@/types/playbook"
+
+/** Selected marker: label is derived from positionCode+positionNumber when positionCode is set (read-only). */
+export interface InspectorSelectedPlayer {
+  id: string
+  label: string
+  shape: string
+  positionCode?: string | null
+  positionNumber?: number | null
+  hasDuplicateRole?: boolean
+}
 
 interface PlaybookInspectorProps {
   play: PlayRecord | null
-  /** When provided, formation is resolved from the record (formationId-first). */
   formations?: FormationRecord[] | null
   selectedObject: "play" | "player" | "zone" | "route" | null
-  selectedPlayer?: { id: string; label: string; shape: string } | null
+  selectedPlayer?: InspectorSelectedPlayer | null
   selectedZone?: { id: string; type: string; size: string } | null
   onPlayNameChange?: (name: string) => void
+  /** Only used for legacy markers (no positionCode); position-based labels are derived and not editable here. */
   onPlayerLabelChange?: (playerId: string, label: string) => void
   canEdit: boolean
 }
@@ -68,20 +79,41 @@ export function PlaybookInspector({
           </div>
         )}
 
-        {selectedObject === "player" && selectedPlayer && onPlayerLabelChange && (
+        {selectedObject === "player" && selectedPlayer && (
           <div className="space-y-2">
-            <Label className="text-xs text-slate-500">Player label</Label>
-            {canEdit ? (
-              <Input
-                value={selectedPlayer.label}
-                onChange={(e) => onPlayerLabelChange(selectedPlayer.id, e.target.value.toUpperCase().slice(0, 2))}
-                className="h-8 text-sm border-slate-200"
-                maxLength={2}
-              />
+            {selectedPlayer.positionCode != null && selectedPlayer.positionCode !== "" ? (
+              <>
+                <Label className="text-xs text-slate-500">Role</Label>
+                <p className="text-sm font-medium text-slate-800">
+                  {getDisplayLabel(selectedPlayer.positionCode, selectedPlayer.positionNumber)}
+                </p>
+                <p className="text-xs text-slate-500">Position: {selectedPlayer.positionCode}</p>
+                {selectedPlayer.positionNumber != null && (
+                  <p className="text-xs text-slate-500">Number: {selectedPlayer.positionNumber}</p>
+                )}
+                <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
+                {selectedPlayer.hasDuplicateRole && (
+                  <p className="text-xs text-amber-600" title="Another marker has the same role label on this play">
+                    Duplicate role on this play
+                  </p>
+                )}
+              </>
             ) : (
-              <p className="text-sm font-medium text-slate-800">{selectedPlayer.label}</p>
+              <>
+                <Label className="text-xs text-slate-500">Player label</Label>
+                {canEdit && onPlayerLabelChange ? (
+                  <Input
+                    value={selectedPlayer.label}
+                    onChange={(e) => onPlayerLabelChange(selectedPlayer.id, e.target.value.toUpperCase().slice(0, 2))}
+                    className="h-8 text-sm border-slate-200"
+                    maxLength={2}
+                  />
+                ) : (
+                  <p className="text-sm font-medium text-slate-800">{selectedPlayer.label}</p>
+                )}
+                <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
+              </>
             )}
-            <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
           </div>
         )}
 

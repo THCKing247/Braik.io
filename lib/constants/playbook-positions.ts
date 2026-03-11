@@ -1,0 +1,103 @@
+/**
+ * Football position definitions for the playbook editor.
+ * Each position has a code, display label, shape (for rendering), and whether it supports depth numbering (WR1, WR2, etc.).
+ */
+
+import type { SideOfBall } from "@/types/playbook"
+
+export type PositionShape = "circle" | "square" | "triangle"
+
+export interface PositionDef {
+  code: string
+  label: string
+  shape: PositionShape
+  /** If true, marker supports depth/slot number: WR1, WR2, CB1, GUN1, etc. */
+  numberable: boolean
+  unit: SideOfBall
+}
+
+export const OFFENSE_POSITIONS: PositionDef[] = [
+  { code: "QB", label: "QB", shape: "circle", numberable: false, unit: "offense" },
+  { code: "RB", label: "RB", shape: "circle", numberable: true, unit: "offense" },
+  { code: "FB", label: "FB", shape: "circle", numberable: false, unit: "offense" },
+  { code: "WR", label: "WR", shape: "circle", numberable: true, unit: "offense" },
+  { code: "TE", label: "TE", shape: "circle", numberable: true, unit: "offense" },
+  { code: "LT", label: "LT", shape: "circle", numberable: false, unit: "offense" },
+  { code: "LG", label: "LG", shape: "circle", numberable: false, unit: "offense" },
+  { code: "C", label: "C", shape: "square", numberable: false, unit: "offense" },
+  { code: "RG", label: "RG", shape: "circle", numberable: false, unit: "offense" },
+  { code: "RT", label: "RT", shape: "circle", numberable: false, unit: "offense" },
+]
+
+export const DEFENSE_POSITIONS: PositionDef[] = [
+  { code: "CB", label: "CB", shape: "triangle", numberable: true, unit: "defense" },
+  { code: "SS", label: "SS", shape: "triangle", numberable: false, unit: "defense" },
+  { code: "FS", label: "FS", shape: "triangle", numberable: false, unit: "defense" },
+  { code: "S", label: "S", shape: "triangle", numberable: true, unit: "defense" },
+  { code: "MLB", label: "MLB", shape: "triangle", numberable: false, unit: "defense" },
+  { code: "OLB", label: "OLB", shape: "triangle", numberable: true, unit: "defense" },
+  { code: "ILB", label: "ILB", shape: "triangle", numberable: true, unit: "defense" },
+  { code: "LB", label: "LB", shape: "triangle", numberable: true, unit: "defense" },
+  { code: "DE", label: "DE", shape: "triangle", numberable: true, unit: "defense" },
+  { code: "DT", label: "DT", shape: "triangle", numberable: true, unit: "defense" },
+  { code: "NT", label: "NT", shape: "triangle", numberable: false, unit: "defense" },
+  { code: "EDGE", label: "EDGE", shape: "triangle", numberable: true, unit: "defense" },
+]
+
+export const SPECIAL_POSITIONS: PositionDef[] = [
+  { code: "K", label: "K", shape: "circle", numberable: false, unit: "special_teams" },
+  { code: "P", label: "P", shape: "circle", numberable: false, unit: "special_teams" },
+  { code: "LS", label: "LS", shape: "circle", numberable: false, unit: "special_teams" },
+  { code: "H", label: "H", shape: "circle", numberable: false, unit: "special_teams" },
+  { code: "PR", label: "PR", shape: "circle", numberable: false, unit: "special_teams" },
+  { code: "KR", label: "KR", shape: "circle", numberable: false, unit: "special_teams" },
+  { code: "GUN", label: "GUN", shape: "circle", numberable: true, unit: "special_teams" },
+  { code: "JAM", label: "JAM", shape: "circle", numberable: true, unit: "special_teams" },
+  { code: "PP", label: "PP", shape: "circle", numberable: true, unit: "special_teams" },
+]
+
+const ALL_POSITIONS = [...OFFENSE_POSITIONS, ...DEFENSE_POSITIONS, ...SPECIAL_POSITIONS]
+
+export function getPositionByCode(code: string): PositionDef | undefined {
+  return ALL_POSITIONS.find((p) => p.code === code)
+}
+
+export function getPositionsForUnit(unit: SideOfBall): PositionDef[] {
+  if (unit === "offense") return OFFENSE_POSITIONS
+  if (unit === "defense") return DEFENSE_POSITIONS
+  return SPECIAL_POSITIONS
+}
+
+/** Display label for a marker: "WR2", "QB", "LT", "GUN1". */
+export function getDisplayLabel(positionCode: string, positionNumber: number | null | undefined): string {
+  const def = getPositionByCode(positionCode)
+  if (!def) return positionCode
+  if (def.numberable && positionNumber != null && positionNumber > 0) {
+    return `${def.label}${positionNumber}`
+  }
+  return def.label
+}
+
+/** Next depth number for a position (e.g. existing WR1, WR2 → 3). */
+export function getNextPositionNumber(
+  players: Array<{ positionCode?: string | null; positionNumber?: number | null }>,
+  positionCode: string
+): number | null {
+  const def = getPositionByCode(positionCode)
+  if (!def?.numberable) return null
+  const sameCode = players.filter(
+    (p) => (p.positionCode ?? "").toUpperCase() === positionCode.toUpperCase() && p.positionNumber != null
+  )
+  const maxNum = sameCode.reduce((m, p) => Math.max(m, p.positionNumber ?? 0), 0)
+  return maxNum + 1
+}
+
+/** True if another marker on the play has the same role label (shared for builder strip and inspector). */
+export function hasDuplicateRoleLabel(
+  players: Array<{ id: string; label?: string | null }>,
+  playerId: string
+): boolean {
+  const player = players.find((p) => p.id === playerId)
+  if (!player?.label) return false
+  return players.some((p) => p.id !== playerId && p.label === player.label)
+}

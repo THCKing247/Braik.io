@@ -10,6 +10,13 @@ import { canFinishRouteDraft as canFinishRouteDraftLib } from "@/lib/utils/playb
 import { PlaybookFileTree } from "@/components/portal/playbook-file-tree"
 import { PlaybookShapePalette } from "@/components/portal/playbook-shape-palette"
 import { validateTemplateSave } from "@/lib/utils/playbook-validation"
+import {
+  getPositionByCode,
+  getDisplayLabel,
+  getNextPositionNumber,
+  getPositionsForUnit,
+  hasDuplicateRoleLabel,
+} from "@/lib/constants/playbook-positions"
 
 type CanvasMode =
   | "idle"
@@ -31,10 +38,10 @@ interface PointPX {
 
 interface Player {
   id: string
-  x: number // pixel X (for rendering)
-  y: number // pixel Y (for rendering)
-  xYards?: number // yard X coordinate (0 to 53.33) - preferred
-  yYards?: number // yard Y coordinate (0 to 35) - preferred
+  x: number
+  y: number
+  xYards?: number
+  yYards?: number
   label: string
   shape: "circle" | "square" | "triangle"
   playerType?: "skill" | "lineman"
@@ -42,6 +49,8 @@ interface Player {
   blockingLine?: { x: number; y: number } | { xYards: number; yYards: number }
   technique?: string
   gap?: string
+  positionCode?: string | null
+  positionNumber?: number | null
 }
 
 interface Zone {
@@ -89,6 +98,15 @@ interface PlaybookBuilderProps {
   pendingFormations?: Array<{ side: string; formation: string }>
   isTemplateMode?: boolean
   templateName?: string
+  /** When selection changes, report selected marker for inspector (role, positionCode, positionNumber, hasDuplicateRole). */
+  onSelectPlayer?: (player: {
+    id: string
+    label: string
+    shape: string
+    positionCode?: string | null
+    positionNumber?: number | null
+    hasDuplicateRole?: boolean
+  } | null) => void
 }
 
 export function PlaybookBuilder({
@@ -112,8 +130,9 @@ export function PlaybookBuilder({
   pendingFormations = [],
   isTemplateMode = false,
   templateName = "",
+  onSelectPlayer,
 }: PlaybookBuilderProps) {
-  const [tool, setTool] = useState<"select" | "circle" | "square" | "triangle" | "route" | "block" | "zone" | "man" | "erase">("select")
+  const [tool, setTool] = useState<string>("select")
   const [currentSide, setCurrentSide] = useState(side)
   const [playName, setPlayName] = useState(initialPlayName || "")
   const [templateNameState, setTemplateNameState] = useState(templateName || formation || "")
@@ -327,11 +346,14 @@ export function PlaybookBuilder({
 
   useEffect(() => {
     if (playData) {
-      // Source of truth: yard coordinates. Convert to current viewBox pixels so routes/blockingLine stay aligned on resize.
+      // Source of truth: yard coordinates. For position-based markers, label is derived from positionCode/positionNumber to prevent drift.
       const convertedPlayers = playData.players.map((p) => {
         if (p.xYards !== undefined && p.yYards !== undefined) {
           const pixel = coordSystem.yardToPixel(p.xYards, p.yYards)
-          let out: Player = { ...p, x: pixel.x, y: pixel.y }
+          const posCode = (p as Player).positionCode
+          const posNum = (p as Player).positionNumber
+          const derivedLabel = posCode ? getDisplayLabel(posCode, posNum) : p.label
+          let out: Player = { ...p, x: pixel.x, y: pixel.y, label: derivedLabel }
           // Route: derive pixel from yards so resize doesn't detach the path (source of truth: xYards/yYards)
           if (p.route?.length) {
             out = {
@@ -381,6 +403,27 @@ export function PlaybookBuilder({
     }
   }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height])
 
+  useEffect(() => {
+    if (!onSelectPlayer) return
+    if (!selectedPlayerId) {
+      onSelectPlayer(null)
+      return
+    }
+    const p = players.find((x) => x.id === selectedPlayerId)
+    if (!p) {
+      onSelectPlayer(null)
+      return
+    }
+    onSelectPlayer({
+      id: p.id,
+      label: p.label,
+      shape: p.shape,
+      positionCode: p.positionCode ?? undefined,
+      positionNumber: p.positionNumber ?? undefined,
+      hasDuplicateRole: hasDuplicateRoleLabel(players, p.id),
+    })
+  }, [selectedPlayerId, players, onSelectPlayer])
+
   /** Uses lib/utils/canvas-coords (xMidYMid meet). All pointer tools depend on this. See tests/playbook-canvas-coords.test.ts. */
   const clientToViewBox = (clientX: number, clientY: number): { x: number; y: number } | null => {
     if (!canvasRef.current) return null
@@ -399,7 +442,13 @@ export function PlaybookBuilder({
     return { x: pixel.x, y: pixel.y, xYards: snappedX, yYards: snappedY }
   }
 
-  const getPlayerShape = (side: string, label: string): "circle" | "square" | "triangle" => {
+  const getPlayerShape = (player: Player): "circle" | "square" | "triangle" => {
+    if (player.positionCode) {
+      const def = getPositionByCode(player.positionCode)
+      if (def) return def.shape
+    }
+    const side = currentSide
+    const label = player.label
     if (side === "defense") return "triangle"
     if (label.toUpperCase() === "C" || label.toUpperCase().includes("CENTER")) return "square"
     return "circle"
@@ -428,17 +477,10 @@ export function PlaybookBuilder({
 
     const point = getCanvasPoint(e)
 
-    if (tool === "circle" || tool === "square" || tool === "triangle") {
-      // In template mode, only allow shapes for current side
-      if (isTemplateMode) {
-        if (currentSide === "offense" && tool !== "circle" && tool !== "square") return
-        if (currentSide === "defense" && tool !== "triangle") return
-      }
-      
-      const shape = tool === "circle" ? "circle" : tool === "square" ? "square" : "triangle"
-      const playerType = getPlayerType("X", currentSide)
-      const label = tool === "square" && currentSide === "offense" ? "C" : "X"
-      
+    const positionDef = getPositionByCode(tool)
+    if (positionDef && positionDef.unit === currentSide) {
+      const nextNum = getNextPositionNumber(players, positionDef.code)
+      const label = getDisplayLabel(positionDef.code, nextNum)
       const newPlayer: Player = {
         id: Date.now().toString(),
         x: point.x,
@@ -446,8 +488,10 @@ export function PlaybookBuilder({
         xYards: point.xYards,
         yYards: point.yYards,
         label,
-        shape,
-        playerType,
+        shape: positionDef.shape,
+        playerType: positionDef.shape === "triangle" ? (["DE", "DT", "NT", "EDGE"].includes(positionDef.code) ? "lineman" : "skill") : (["C", "LG", "RG", "LT", "RT"].includes(positionDef.code) ? "lineman" : "skill"),
+        positionCode: positionDef.code,
+        positionNumber: nextNum ?? undefined,
       }
       pushHistory()
       setPlayers([...players, newPlayer])
@@ -703,12 +747,12 @@ export function PlaybookBuilder({
       }
     }
 
-    // Persistence: route/blockingLine are included in canvasData → onSave → workspace → API canvas_data → DB. Reload normalizes and re-renders.
-    // Convert players to yard coordinates for saving; normalize route/blockingLine to include xYards/yYards
+    // Persistence: route/blockingLine are included; for position-based markers, label is derived to avoid drift.
     const playersWithYards = players.map((p) => {
+      const derivedLabel = p.positionCode ? getDisplayLabel(p.positionCode, p.positionNumber) : p.label
       let out: Player = p.xYards !== undefined && p.yYards !== undefined
-        ? { ...p }
-        : { ...p, xYards: coordSystem.pixelToYard(p.x, p.y).xYards, yYards: coordSystem.pixelToYard(p.x, p.y).yYards }
+        ? { ...p, label: derivedLabel }
+        : { ...p, xYards: coordSystem.pixelToYard(p.x, p.y).xYards, yYards: coordSystem.pixelToYard(p.x, p.y).yYards, label: derivedLabel }
       if (out.route?.length) {
         const routeArr = out.route
         out = {
@@ -876,12 +920,83 @@ export function PlaybookBuilder({
           {tool === "zone" && "Zone: Click on the field to place a zone. Switch to Select to move or remove."}
           {tool === "man" && currentSide === "defense" && "Man: Click defender, then receiver to assign coverage."}
           {tool === "erase" && "Erase: Click a player to remove from the field."}
-          {(tool === "circle" || tool === "square" || tool === "triangle") && "Click on the field to place a player."}
+          {getPositionByCode(tool) && getPositionByCode(tool)?.unit === currentSide && (
+            <span>Position: Click on the field to place <strong>{getPositionByCode(tool)?.label}</strong>.</span>
+          )}
           {tool === "select" && !routeDraft && !blockDraft && (
             <span>Select: Drag players to move. <strong>R</strong> Route · <strong>B</strong> Block · <strong>Z</strong> Zone · <strong>E</strong> Erase.</span>
           )}
         </div>
       )}
+
+      {/* Selected player: position and depth number editor */}
+      {canEdit && selectedPlayerId && (() => {
+        const sel = players.find((p) => p.id === selectedPlayerId)
+        if (!sel) return null
+        const positions = getPositionsForUnit(currentSide)
+        const def = sel.positionCode ? getPositionByCode(sel.positionCode) : null
+        return (
+          <div className="flex-shrink-0 px-3 py-2 border-b border-slate-200 bg-white flex flex-wrap items-center gap-3">
+            <span className="text-xs font-medium text-slate-600">Marker:</span>
+            <select
+              value={sel.positionCode ?? ""}
+              onChange={(e) => {
+                const code = e.target.value || null
+                const newDef = code ? getPositionByCode(code) : null
+                const num = newDef?.numberable ? (sel.positionNumber ?? 1) : null
+                const label = newDef && code ? getDisplayLabel(code, num) : sel.label
+                setPlayers((prev) =>
+                  prev.map((p) =>
+                    p.id === selectedPlayerId
+                      ? {
+                          ...p,
+                          positionCode: code,
+                          positionNumber: num ?? undefined,
+                          label,
+                          shape: newDef?.shape ?? p.shape,
+                        }
+                      : p
+                  )
+                )
+              }}
+              className="h-8 rounded border border-slate-200 px-2 text-sm min-w-[72px]"
+            >
+              <option value="">—</option>
+              {positions.map((p) => (
+                <option key={p.code} value={p.code}>{p.label}</option>
+              ))}
+            </select>
+            {def?.numberable && (
+              <>
+                <span className="text-xs text-slate-500">#</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={sel.positionNumber ?? 1}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10)
+                    const num = isNaN(n) || n < 1 ? 1 : Math.min(99, n)
+                    const label = getDisplayLabel(sel.positionCode ?? "", num)
+                    setPlayers((prev) =>
+                      prev.map((p) =>
+                        p.id === selectedPlayerId ? { ...p, positionNumber: num, label } : p
+                      )
+                    )
+                  }}
+                  className="h-8 w-14 rounded border border-slate-200 px-2 text-sm text-center"
+                />
+              </>
+            )}
+            <span className="text-xs text-slate-500">→ {sel.label}</span>
+            {sel.positionCode && hasDuplicateRoleLabel(players, sel.id) && (
+              <span className="text-xs text-amber-600" title="Another marker has the same role label on this play">
+                Duplicate role
+              </span>
+            )}
+          </div>
+        )
+      })()}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: File Tree */}
@@ -912,7 +1027,7 @@ export function PlaybookBuilder({
               cancelRouteDraft()
               cancelBlockDraft()
               setHoveredPlayerId(null)
-              setTool(newTool as typeof tool)
+              setTool(newTool)
               if (newTool === "select") setSelectedPlayerId(null)
               else if (newTool === "man") setManCoverageStart(null)
             }}
@@ -939,7 +1054,7 @@ export function PlaybookBuilder({
                   ? "crosshair"
                   : tool === "route" || tool === "block"
                     ? "pointer"
-                    : tool === "circle" || tool === "square" || tool === "triangle" || tool === "zone" || tool === "erase"
+                    : (getPositionByCode(tool) && getPositionByCode(tool)?.unit === currentSide) || tool === "zone" || tool === "erase"
                       ? "crosshair"
                       : tool === "select"
                         ? "move"
@@ -1193,8 +1308,8 @@ export function PlaybookBuilder({
                     />
                   )}
 
-                  {/* Player label - editable */}
-                  {editingLabelId === player.id ? (
+                  {/* Player label: derived for position-based markers (not editable); legacy markers can edit inline */}
+                  {editingLabelId === player.id && !player.positionCode ? (
                     <foreignObject
                       x={player.x - 20}
                       y={player.y + markerSize / 2 + 5}
@@ -1205,7 +1320,7 @@ export function PlaybookBuilder({
                         type="text"
                         value={editingLabelValue}
                         onChange={(e) => {
-                          const val = e.target.value.toUpperCase().slice(0, 2) // Max 2 characters
+                          const val = e.target.value.toUpperCase().slice(0, 2)
                           setEditingLabelValue(val)
                         }}
                         onBlur={() => {
@@ -1220,9 +1335,8 @@ export function PlaybookBuilder({
                           setEditingLabelValue("")
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.currentTarget.blur()
-                          } else if (e.key === "Escape") {
+                          if (e.key === "Enter") e.currentTarget.blur()
+                          else if (e.key === "Escape") {
                             setEditingLabelId(null)
                             setEditingLabelValue("")
                           }
@@ -1249,9 +1363,11 @@ export function PlaybookBuilder({
                       fill="white"
                       fontSize="12"
                       fontWeight="bold"
-                      style={{ cursor: canEdit && tool === "select" ? "pointer" : "default" }}
+                      style={{
+                        cursor: canEdit && tool === "select" && !player.positionCode ? "pointer" : "default",
+                      }}
                       onClick={() => {
-                        if (canEdit && tool === "select") {
+                        if (canEdit && tool === "select" && !player.positionCode) {
                           setEditingLabelId(player.id)
                           setEditingLabelValue(player.label)
                         }

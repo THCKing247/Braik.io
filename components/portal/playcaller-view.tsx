@@ -167,6 +167,21 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
   const markerSize = coord.getMarkerSize()
   const isOffense = play.side === "offense" || play.side === "special_teams"
   const playerColor = isOffense ? "#3B82F6" : "#DC2626"
+  const [viewAsPlayerId, setViewAsPlayerId] = useState<string | null>(null)
+  useEffect(() => {
+    setViewAsPlayerId(null)
+  }, [currentIndex])
+  // View as: options keyed by player.id so highlighting is by marker identity, not label (avoids drift/duplicates).
+  const viewAsOptions = useMemo(() => {
+    return players.map((p) => {
+      const sameLabel = players.filter((x) => x.label === p.label)
+      const needDisambiguate = sameLabel.length > 1
+      const idx = sameLabel.indexOf(p) + 1
+      const displayLabel = needDisambiguate ? `${p.label} (${idx})` : p.label
+      return { id: p.id, displayLabel }
+    })
+  }, [players])
+  const highlightedPlayerId = viewAsPlayerId
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -187,6 +202,19 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
           </Button>
         </div>
         <div className="flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg">
+          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            View as:
+            <select
+              value={viewAsPlayerId ?? ""}
+              onChange={(e) => setViewAsPlayerId(e.target.value || null)}
+              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[88px]"
+            >
+              <option value="">All</option>
+              {viewAsOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.displayLabel}</option>
+              ))}
+            </select>
+          </label>
           <Button
             variant={tool === "marker" ? "secondary" : "outline"}
             size="icon"
@@ -217,8 +245,11 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
           >
             <PlaybookFieldSurface width={VIEWBOX_W} height={VIEWBOX_H} yardStart={YARD_START} yardEnd={YARD_END} />
             {/* Routes and blocking lines first so they render under players */}
-            {players.map((p) => (
-              <g key={`routes-${p.id}`}>
+            {players.map((p) => {
+              const isHighlighted = !highlightedPlayerId || p.id === highlightedPlayerId
+              const routeOpacity = isHighlighted ? 1 : 0.4
+              return (
+              <g key={`routes-${p.id}`} style={{ opacity: routeOpacity }}>
                 {p.route && p.route.length > 1 && (
                   <>
                     <polyline
@@ -228,7 +259,7 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
                       }).join(" ")}
                       fill="none"
                       stroke={playerColor}
-                      strokeWidth={2}
+                      strokeWidth={isHighlighted ? 2.5 : 2}
                     />
                     {p.route.length > 1 && (() => {
                       const last = routePointToPixel(p.route![p.route!.length - 1], coord)
@@ -267,9 +298,13 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
                   </>
                 )}
               </g>
-            ))}
-            {players.map((p) => (
-              <g key={p.id}>
+            )
+            })}
+            {players.map((p) => {
+              const isHighlighted = !highlightedPlayerId || p.id === highlightedPlayerId
+              const markerOpacity = isHighlighted ? 1 : 0.45
+              return (
+              <g key={p.id} style={{ opacity: markerOpacity }}>
                 {p.shape === "circle" && (
                   <circle
                     cx={p.x}
@@ -310,7 +345,8 @@ export function PlaycallerView({ plays, currentIndex, onClose, onIndexChange, fo
                   {p.label}
                 </text>
               </g>
-            ))}
+            )
+            })}
             {/* Marker strokes (presenter drawings) */}
             {strokes.map((stroke, i) =>
               stroke.length > 1 ? (

@@ -546,6 +546,7 @@ export function PlaybookWorkspace({
               playId={designerMode === "play" ? selectedPlayId : null}
               playData={initialCanvasDataForDesigner}
               playName={initialNameForDesigner}
+              editorSourceKey={designerMode === "play" ? (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}`) : `formation-${editingFormation?.id ?? "new"}`}
               side={selectedSide}
               formation={designerMode === "formation" ? (editingFormation?.name ?? "New Formation") : (selectedFormationName || "Custom")}
               onSave={handleSaveFromBuilder}

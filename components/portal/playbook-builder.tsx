@@ -115,6 +115,8 @@ interface PlaybookBuilderProps {
   focusUnassignedOnce?: boolean
   /** Call after focusing first unassigned so the flag is cleared. */
   onClearFocusUnassigned?: () => void
+  /** Stable key for the play/formation being edited. When this changes we sync from playData; when it doesn't we keep local state (e.g. just-finished route/block). */
+  editorSourceKey?: string | null
 }
 
 export function PlaybookBuilder({
@@ -142,6 +144,7 @@ export function PlaybookBuilder({
   depthChartEntries,
   focusUnassignedOnce = false,
   onClearFocusUnassigned,
+  editorSourceKey,
 }: PlaybookBuilderProps) {
   const [tool, setTool] = useState<string>("select")
   const [currentSide, setCurrentSide] = useState(side)
@@ -357,11 +360,18 @@ export function PlaybookBuilder({
     return () => window.removeEventListener("keydown", handleKey)
   }, [routeDraft, blockDraft, finishRouteDraft, finishBlockDraft, cancelRouteDraft, cancelBlockDraft, undo, redo])
 
-  // Sync from prop only when playData reference changes. Workspace memoizes playData so we don't overwrite local edits (e.g. just-finished route) on parent re-renders.
+  // Sync from prop only when we switch to a different play/formation (editorSourceKey change). Otherwise we'd overwrite local edits (e.g. just-finished route/block) whenever the parent re-renders with a new playData reference (e.g. new play or formation mode).
+  const lastSyncedSourceKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (playData) {
-      // Source of truth: yard coordinates. For position-based markers, label is derived from positionCode/positionNumber to prevent drift.
-      const convertedPlayers = playData.players.map((p) => {
+    const sourceKey = editorSourceKey ?? playId ?? (isTemplateMode ? `formation-${templateName}` : "new-play")
+    if (!playData) {
+      lastSyncedSourceKeyRef.current = null
+      return
+    }
+    if (lastSyncedSourceKeyRef.current === sourceKey) return
+    lastSyncedSourceKeyRef.current = sourceKey
+    // Source of truth: yard coordinates. For position-based markers, label is derived from positionCode/positionNumber to prevent drift.
+    const convertedPlayers = playData.players.map((p) => {
         if (p.xYards !== undefined && p.yYards !== undefined) {
           const pixel = coordSystem.yardToPixel(p.xYards, p.yYards)
           const posCode = (p as Player).positionCode
@@ -410,12 +420,9 @@ export function PlaybookBuilder({
       setPlayers(convertedPlayers)
       setZones(playData.zones || [])
       setManCoverages(playData.manCoverages || [])
-      setCurrentSide(playData.side || side)
-    }
-    if (initialPlayName) {
-      setPlayName(initialPlayName)
-    }
-  }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height])
+    setCurrentSide(playData.side || side)
+    if (initialPlayName) setPlayName(initialPlayName)
+  }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height, editorSourceKey, playId, isTemplateMode, templateName])
 
   useEffect(() => {
     if (!onSelectPlayer) return

@@ -197,9 +197,9 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
   }))
 
   return (
-    <div>
+    <div className="flex flex-col h-full min-h-0">
       {canEdit && (
-        <div className="mb-6">
+        <div className="mb-6 flex-shrink-0">
           {!showAddForm ? (
             <Button onClick={() => setShowAddForm(true)}>Add Event</Button>
           ) : (
@@ -325,6 +325,7 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
         </div>
       )}
 
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
       <CalendarWidgetEnhanced
         teamId={teamId}
         events={calendarEvents}
@@ -332,6 +333,7 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
         defaultView={defaultView}
         onCreateEvent={canEdit ? () => setShowAddForm(true) : undefined}
       />
+      </div>
     </div>
   )
 }

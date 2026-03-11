@@ -75,11 +75,13 @@ function SchedulePageContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   }))
 
   return (
-    <ScheduleManager
-      teamId={teamId}
-      events={eventsWithDates}
-      canEdit={canEdit}
-      defaultView="week"
-    />
+    <div className="flex flex-col h-full min-h-0 overflow-hidden" aria-label="Schedule page root">
+      <ScheduleManager
+        teamId={teamId}
+        events={eventsWithDates}
+        canEdit={canEdit}
+        defaultView="week"
+      />
+    </div>
   )
 }

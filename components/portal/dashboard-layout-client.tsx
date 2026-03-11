@@ -45,9 +45,13 @@ export function DashboardLayoutClient({
             <DashboardSidebar teams={teams} />
           )}
           {!isDesktop && <QuickActionsSidebar />}
+          {/* On schedule: main must NOT scroll (overflow-hidden) so only the time grid scrolls. Previously overflow-auto here was the scroll stealer. */}
           <main
             className={cn(
-              "flex-1 min-w-0 overflow-auto",
+              "flex-1 min-w-0 min-h-0",
+              isSchedulePage
+                ? "overflow-hidden flex flex-col"
+                : "overflow-auto",
               !isDesktop && "app-content"
             )}
             style={{
@@ -55,18 +59,23 @@ export function DashboardLayoutClient({
               paddingLeft: isDesktop ? SIDEBAR_GAP : undefined,
             }}
           >
-            {/* Schedule page: full-height flex container so only the calendar time grid scrolls. Other pages: scrollable box. */}
-            <div className="h-full min-h-0 flex flex-col px-4 py-6">
+            {/* Schedule: flex chain so only time grid scrolls. Other pages: scrollable area. */}
+            <div
+              className={cn(
+                "min-h-0 flex flex-col px-4 py-6",
+                isSchedulePage ? "flex-1" : "h-full"
+              )}
+            >
               <div
                 className={cn(
-                  "flex-1 min-w-0 rounded-lg border-2 border-[#E5E7EB] bg-white shadow-sm",
+                  "min-w-0 rounded-lg border-2 border-[#E5E7EB] bg-white shadow-sm",
                   isSchedulePage
-                    ? "min-h-0 overflow-hidden flex flex-col [scrollbar-gutter:stable]"
-                    : "min-h-[420px] max-h-[800px] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                    ? "flex-1 min-h-0 overflow-hidden flex flex-col [scrollbar-gutter:stable]"
+                    : "flex-1 min-h-[420px] max-h-[800px] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
                 )}
                 aria-label="Page content"
               >
-                <div className={cn("p-4", isSchedulePage && "h-full min-h-0 flex flex-col")}>
+                <div className={cn("p-4", isSchedulePage && "flex-1 min-h-0 flex flex-col")}>
                   {children}
                 </div>
               </div>

@@ -304,7 +304,7 @@ export function CalendarWidgetEnhanced({
 
     return (
       <div className="flex-1 flex flex-col min-h-0 min-w-full">
-        {/* Scrollable area: sticky day headers + time grid; only this section scrolls */}
+        {/* ONLY vertical scroll region: sticky day headers + time grid; parent chain must have flex-1 min-h-0 so this gets a bounded height */}
         <div ref={timeGridScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
           {/* Day headers - sticky at top of scroll area, aligned with columns */}
           <div
@@ -612,7 +612,8 @@ export function CalendarWidgetEnhanced({
     const currentTimePosition = getCurrentTimePosition()
 
     return (
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        {/* ONLY vertical scroll region for day view; parent chain must have flex-1 min-h-0 so this gets a bounded height */}
         <div ref={timeGridScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <div className="relative" style={{ minHeight: "1440px" }}>
             {/* Time column - z-20 so labels sit above hour lines */}
@@ -974,10 +975,10 @@ export function CalendarWidgetEnhanced({
           </div>
         </div>
 
-        {/* Main Content Area - takes remaining height so day/week grid can scroll internally */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Left Sidebar */}
-          <div className="w-64 border-r p-4 overflow-y-auto" style={{ borderColor: "rgb(var(--border))" }}>
+        {/* Main Content Area - flex row: sidebar fixed width, right pane gets remainder and contains the only scroll (time grid) */}
+        <div className="flex flex-1 min-h-0 overflow-hidden min-w-0">
+          {/* Left Sidebar - fixed width so right pane height/width is bounded */}
+          <div className="w-64 flex-shrink-0 border-r p-4 overflow-y-auto overflow-x-hidden" style={{ borderColor: "rgb(var(--border))" }}>
             <div className="space-y-6">
               {/* Mini Calendar */}
               <div>

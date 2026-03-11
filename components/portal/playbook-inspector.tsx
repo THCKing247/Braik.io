@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { getPlayFormationDisplayName, isPlayFormationOrphan } from "@/lib/utils/playbook-formation"
@@ -16,11 +17,67 @@ export interface InspectorSelectedPlayer {
   hasDuplicateRole?: boolean
 }
 
+export type RosterPlayerForAssign = { id: string; firstName: string; lastName: string; jerseyNumber: number | null }
+
+function AssignToControl({
+  playSide,
+  positionCode,
+  positionNumber,
+  currentPlayerId,
+  rosterPlayers,
+  onAssign,
+}: {
+  playSide: string
+  positionCode: string
+  positionNumber: number
+  currentPlayerId: string
+  rosterPlayers: RosterPlayerForAssign[]
+  onAssign: (unit: string, position: string, stringNum: number, playerId: string | null) => Promise<boolean>
+}) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const handleChange = async (value: string) => {
+    const playerId = value || null
+    setError(null)
+    setSaving(true)
+    try {
+      const ok = await onAssign(playSide, positionCode, positionNumber, playerId)
+      if (!ok) setError("Could not update depth chart. You may need roster edit permission.")
+    } finally {
+      setSaving(false)
+    }
+  }
+  const displayLabel = (p: RosterPlayerForAssign) =>
+    [p.jerseyNumber != null ? `#${p.jerseyNumber}` : "", p.firstName, p.lastName].filter(Boolean).join(" ").trim() || p.id
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-slate-500">Assign to</Label>
+      <div className="flex flex-col gap-1.5">
+        <select
+          value={currentPlayerId}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={saving}
+          className="h-8 w-full rounded border border-slate-200 bg-white px-2 text-sm text-slate-800 disabled:opacity-50"
+        >
+          <option value="">Unassigned</option>
+          {rosterPlayers.map((p) => (
+            <option key={p.id} value={p.id}>{displayLabel(p)}</option>
+          ))}
+        </select>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </div>
+    </div>
+  )
+}
+
 interface PlaybookInspectorProps {
   play: PlayRecord | null
   formations?: FormationRecord[] | null
-  /** Depth chart entries for showing which roster player is assigned to the selected role. */
   depthChartEntries?: DepthChartSlot[] | null
+  /** Roster players for "Assign to" dropdown when assigning a role from the inspector. */
+  rosterPlayers?: RosterPlayerForAssign[] | null
+  /** Callback to set/clear the depth chart slot for (unit, position, string). Updates depth chart only. */
+  onAssignSlot?: (unit: string, position: string, stringNum: number, playerId: string | null) => Promise<boolean>
   selectedObject: "play" | "player" | "zone" | "route" | null
   selectedPlayer?: InspectorSelectedPlayer | null
   selectedZone?: { id: string; type: string; size: string } | null
@@ -33,6 +90,8 @@ export function PlaybookInspector({
   play,
   formations,
   depthChartEntries,
+  rosterPlayers,
+  onAssignSlot,
   selectedObject,
   selectedPlayer,
   selectedZone,
@@ -117,6 +176,25 @@ export function PlaybookInspector({
                     )
                   })()
                 ) : null}
+                {play && canEdit && onAssignSlot && rosterPlayers && (
+                  <AssignToControl
+                    playSide={play.side}
+                    positionCode={selectedPlayer.positionCode!}
+                    positionNumber={selectedPlayer.positionNumber ?? 1}
+                    currentPlayerId={(() => {
+                      const slotNum = selectedPlayer.positionNumber ?? 1
+                      const a = getPlayerForSlot(
+                        depthChartEntries ?? [],
+                        play.side,
+                        selectedPlayer.positionCode!,
+                        slotNum
+                      )
+                      return a?.id ?? ""
+                    })()}
+                    rosterPlayers={rosterPlayers}
+                    onAssign={onAssignSlot}
+                  />
+                )}
                 <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
                 {selectedPlayer.hasDuplicateRole && (
                   <p className="text-xs text-amber-600" title="Another marker has the same role label on this play">

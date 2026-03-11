@@ -71,7 +71,7 @@ export function DashboardLayoutClient({
                   "min-w-0 rounded-lg border-2 border-[#E5E7EB] bg-white shadow-sm",
                   isSchedulePage
                     ? "flex-1 min-h-0 overflow-hidden flex flex-col [scrollbar-gutter:stable]"
-                    : "flex-1 min-h-[420px] max-h-[800px] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                    : "flex-1 min-h-[775px] max-h-[800px] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
                 )}
                 aria-label="Page content"
               >

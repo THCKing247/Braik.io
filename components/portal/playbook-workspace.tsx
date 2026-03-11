@@ -45,6 +45,8 @@ export function PlaybookWorkspace({
   const [selectedPlayerInspector, setSelectedPlayerInspector] = useState<InspectorSelectedPlayer | null>(null)
   const [selectedZoneInspector, setSelectedZoneInspector] = useState<{ id: string; type: string; size: string } | null>(null)
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
+  type RosterPlayer = { id: string; firstName: string; lastName: string; jerseyNumber: number | null }
+  const [rosterPlayers, setRosterPlayers] = useState<RosterPlayer[]>([])
 
   const fetchFormations = useCallback(async () => {
     const res = await fetch(`/api/formations?teamId=${teamId}`)
@@ -70,10 +72,48 @@ export function PlaybookWorkspace({
     }
   }, [teamId])
 
+  const fetchRoster = useCallback(async () => {
+    const res = await fetch(`/api/roster?teamId=${teamId}`, { credentials: "same-origin" })
+    if (res.ok) {
+      const data = await res.json()
+      setRosterPlayers(
+        (data ?? []).map((p: { id: string; firstName?: string; lastName?: string; jerseyNumber?: number | null }) => ({
+          id: p.id,
+          firstName: p.firstName ?? "",
+          lastName: p.lastName ?? "",
+          jerseyNumber: p.jerseyNumber ?? null,
+        }))
+      )
+    }
+  }, [teamId])
+
   const loadAll = useCallback(() => {
     setLoading(true)
-    Promise.all([fetchFormations(), fetchPlays(), fetchDepthChart()]).finally(() => setLoading(false))
-  }, [fetchFormations, fetchPlays, fetchDepthChart])
+    Promise.all([fetchFormations(), fetchPlays(), fetchDepthChart(), fetchRoster()]).finally(() => setLoading(false))
+  }, [fetchFormations, fetchPlays, fetchDepthChart, fetchRoster])
+
+  const onAssignSlot = useCallback(
+    async (unit: string, position: string, stringNum: number, playerId: string | null) => {
+      const current = depthChartEntries
+        .filter((e) => e.unit === unit && e.position.toUpperCase() === position.toUpperCase())
+        .sort((a, b) => a.string - b.string)
+      const map = new Map<number, string | null>()
+      for (const e of current) map.set(e.string, e.playerId ?? null)
+      map.set(stringNum, playerId)
+      const updates = Array.from(map.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([str, pid]) => ({ unit, position, string: str, playerId: pid }))
+      const res = await fetch(`/api/roster/depth-chart?teamId=${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+        credentials: "same-origin",
+      })
+      if (res.ok) await fetchDepthChart()
+      return res.ok
+    },
+    [teamId, depthChartEntries, fetchDepthChart]
+  )
 
   useEffect(() => {
     loadAll()
@@ -450,7 +490,7 @@ export function PlaybookWorkspace({
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full min-h-[775px] bg-slate-50">
       {playcallerMode ? (
         <PlaycallerView
           plays={plays}
@@ -527,6 +567,8 @@ export function PlaybookWorkspace({
             play={selectedPlay ?? null}
             formations={formations}
             depthChartEntries={depthChartEntries}
+            rosterPlayers={rosterPlayers}
+            onAssignSlot={onAssignSlot}
             selectedObject={inspectorSelection}
             selectedPlayer={selectedPlayerInspector}
             selectedZone={selectedZoneInspector}

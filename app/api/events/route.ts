@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       meeting: "MEETING",
       other: "CUSTOM",
     }
-    const eventType = eventTypeMap[type] || "CUSTOM"
+    const eventType = eventTypeMap[typeof type === "string" ? type : ""] || "CUSTOM"
 
     const visibilityMap: Record<string, string> = {
       all: "PARENTS_AND_TEAM",
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       parents: "PARENTS_AND_TEAM",
       staff: "COACHES_ONLY",
     }
-    const visibility = visibilityMap[audience] || "TEAM"
+    const visibility = visibilityMap[typeof audience === "string" ? audience : ""] || "TEAM"
 
     const supabase = getSupabaseServer()
     const { data: event, error: eventError } = await supabase

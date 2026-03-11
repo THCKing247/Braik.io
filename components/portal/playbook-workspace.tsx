@@ -53,7 +53,7 @@ export function PlaybookWorkspace({
   }, [teamId])
 
   const fetchPlays = useCallback(async () => {
-    const res = await fetch(`/api/plays?teamId=${teamId}`)
+    const res = await fetch(`/api/plays?teamId=${teamId}`, { credentials: "same-origin" })
     if (res.ok) {
       const data = await res.json()
       setPlays(data)
@@ -158,6 +158,7 @@ export function PlaybookWorkspace({
       if (selectedPlayId) {
         const res = await fetch(`/api/plays/${selectedPlayId}`, {
           method: "PATCH",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: playName,
@@ -171,6 +172,7 @@ export function PlaybookWorkspace({
       } else {
         const res = await fetch("/api/plays", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             teamId,
@@ -186,7 +188,7 @@ export function PlaybookWorkspace({
       }
       await fetchPlays()
       if (!selectedPlayId) {
-        const data = await (await fetch(`/api/plays?teamId=${teamId}`)).json()
+        const data = await (await fetch(`/api/plays?teamId=${teamId}`, { credentials: "same-origin" })).json()
         const created = data.find((p: PlayRecord) => p.name === playName)
         if (created) setSelectedPlayId(created.id)
       }
@@ -314,6 +316,7 @@ export function PlaybookWorkspace({
     try {
       const res = await fetch(`/api/plays/${playId}`, {
         method: "PATCH",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName.trim() }),
       })
@@ -330,6 +333,7 @@ export function PlaybookWorkspace({
     try {
       const res = await fetch("/api/plays", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teamId,
@@ -349,7 +353,7 @@ export function PlaybookWorkspace({
 
   const handleDeletePlay = async (playId: string) => {
     try {
-      const res = await fetch(`/api/plays/${playId}`, { method: "DELETE" })
+      const res = await fetch(`/api/plays/${playId}`, { method: "DELETE", credentials: "same-origin" })
       if (!res.ok) throw new Error("Failed to delete")
       await fetchPlays()
       if (selectedPlayId === playId) {

@@ -1,6 +1,5 @@
-﻿import { NextResponse } from "next/server"
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getServerSession } from "@/lib/auth/server-auth"
+import { NextResponse } from "next/server"
+import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
 
 export async function GET() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -9,7 +8,7 @@ export async function GET() {
 
   const session = await getServerSession()
   if (session?.user) {
-    return NextResponse.json({
+    const res = NextResponse.json({
       user: {
         id: session.user.id,
         email: session.user.email,
@@ -23,6 +22,8 @@ export async function GET() {
         isPlatformOwner: session.user.isPlatformOwner,
       },
     })
+    if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
+    return res
   }
 
   return NextResponse.json({ user: null })

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
+import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 
@@ -37,7 +37,7 @@ export async function GET(
 
     await requireTeamAccess(play.team_id)
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
@@ -50,6 +50,8 @@ export async function GET(
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
+    if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
+    return res
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error("[GET /api/plays/[playId]]", error)
@@ -156,7 +158,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Failed to update play" }, { status: 500 })
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
@@ -169,6 +171,8 @@ export async function PATCH(
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
+    if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
+    return res
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error("[PATCH /api/plays/[playId]]", error)
@@ -228,7 +232,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Failed to delete play" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    const res = NextResponse.json({ success: true })
+    if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
+    return res
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error("[DELETE /api/plays/[playId]]", error)

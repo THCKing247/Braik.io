@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
+import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 
@@ -61,7 +61,9 @@ export async function GET(request: Request) {
       updatedAt: p.updated_at,
     }))
 
-    return NextResponse.json(formatted)
+    const res = NextResponse.json(formatted)
+    if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
+    return res
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error("[GET /api/plays]", error)
@@ -180,7 +182,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create play" }, { status: 500 })
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
@@ -193,6 +195,8 @@ export async function POST(request: Request) {
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
+    if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
+    return res
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error("[POST /api/plays]", error)

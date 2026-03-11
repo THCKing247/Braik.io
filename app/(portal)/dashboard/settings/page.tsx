@@ -34,7 +34,29 @@ export default async function SettingsPage() {
   }
 
   // Fetch team data if user has a team
-  let team = null
+  let team: {
+    id: string
+    name: string
+    slogan: string | null
+    sport: string
+    seasonName: string
+    seasonStart: Date
+    seasonEnd: Date
+    rosterCap: number
+    duesAmount: number
+    duesDueDate: Date | null
+    logoUrl: string | null
+    organization: { name: string }
+    calendarSettings: {
+      id: string
+      defaultView: string
+      assistantsCanAddMeetings: boolean
+      assistantsCanAddPractices: boolean
+      assistantsCanEditNonlocked: boolean
+      compactView: boolean
+    } | null
+    players: Array<{ id: string }>
+  } | null = null
   if (teamId) {
     const { data: teamData } = await supabase
       .from("teams")
@@ -66,8 +88,6 @@ export default async function SettingsPage() {
         duesAmount: 0,
         duesDueDate: null,
         logoUrl: teamData.logo_url,
-        primaryColor: null,
-        secondaryColor: null,
         organization: { name: teamData.name || "" },
         calendarSettings: calendarSettings
           ? {
@@ -92,7 +112,7 @@ export default async function SettingsPage() {
   return (
     <SettingsLayout
       user={user}
-      team={team || {
+      team={team ?? {
         id: "",
         name: "",
         slogan: null,
@@ -104,8 +124,6 @@ export default async function SettingsPage() {
         duesAmount: 0,
         duesDueDate: null,
         logoUrl: null,
-        primaryColor: null,
-        secondaryColor: null,
         organization: { name: "" },
         calendarSettings: null,
         players: [],

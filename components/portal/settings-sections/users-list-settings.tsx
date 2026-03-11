@@ -313,7 +313,7 @@ function UserCard({
         </div>
         <div className="flex items-center gap-2">
           {currentCoordinatorRole && (
-            <Badge style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}>
+            <Badge>
               {COORDINATOR_ROLES.find((r) => r.value === currentCoordinatorRole)?.label}
             </Badge>
           )}
@@ -349,7 +349,7 @@ function UserCard({
               }}
             >
               {COORDINATOR_ROLES.map((role) => {
-                const isTaken = role.value && existingCoordinators.includes(role.value)
+                const isTaken = role.value ? existingCoordinators.includes(role.value) : false
                 const isDisabled = isTaken && role.value !== currentCoordinatorRole
                 return (
                   <option

@@ -62,10 +62,7 @@ function SchedulePageContent({ teamId, canEdit }: { teamId: string; canEdit: boo
 
   if (loading) {
     return (
-      <div
-        className="min-h-[420px] flex items-center justify-center rounded-lg border border-[#E5E7EB] bg-white/50"
-        aria-label="Schedule content"
-      >
+      <div className="flex min-h-[40vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
       </div>
     )
@@ -78,18 +75,11 @@ function SchedulePageContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   }))
 
   return (
-    <div
-      className="min-h-[420px] overflow-y-auto overflow-x-hidden rounded-lg border border-[#E5E7EB] bg-white/50 [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-      aria-label="Schedule content"
-    >
-      <div className="p-4">
-        <ScheduleManager
-          teamId={teamId}
-          events={eventsWithDates}
-          canEdit={canEdit}
-          defaultView="week"
-        />
-      </div>
-    </div>
+    <ScheduleManager
+      teamId={teamId}
+      events={eventsWithDates}
+      canEdit={canEdit}
+      defaultView="week"
+    />
   )
 }

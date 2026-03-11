@@ -597,9 +597,10 @@ export function CalendarWidgetEnhanced({
     const currentTimePosition = getCurrentTimePosition()
 
     return (
-      <div className="flex-1 overflow-y-auto">
-        <div className="relative" style={{ minHeight: "1440px" }}>
-          {/* Time column - z-20 so labels sit above hour lines */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="relative" style={{ minHeight: "1440px" }}>
+            {/* Time column - z-20 so labels sit above hour lines */}
           <div className="absolute left-0 top-0 bottom-0 w-20 border-r z-20" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
             {timeSlots.map((slot, index) => {
               const hour = index
@@ -714,6 +715,7 @@ export function CalendarWidgetEnhanced({
               )
             })}
           </div>
+        </div>
         </div>
       </div>
     )
@@ -1028,15 +1030,15 @@ export function CalendarWidgetEnhanced({
             </div>
           </div>
 
-          {/* Main Calendar View - week view: only the grid scrolls; other views: whole area scrolls */}
+          {/* Main Calendar View - day/week: only the time grid scrolls; month/year: whole area scrolls */}
           <div
             className={
-              view === "week"
+              view === "day" || view === "week"
                 ? "flex-1 flex flex-col min-h-0 overflow-hidden"
                 : "flex-1 overflow-y-auto"
             }
           >
-            <div className={view === "week" ? "flex-1 flex flex-col min-h-0 p-4" : "p-4"}>
+            <div className={view === "day" || view === "week" ? "flex-1 flex flex-col min-h-0 p-4" : "p-4"}>
               {view === "day" && renderDayView()}
               {view === "week" && renderWeekView()}
               {view === "month" && renderMonthView()}

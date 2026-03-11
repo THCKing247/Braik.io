@@ -24,9 +24,14 @@ export default function SettingsPage() {
   return (
     <DashboardPageShell>
       {({ teamId, userRole }) => (
-        <div className="space-y-6">
-          <TeamCodeSettingsCard teamId={teamId} isHeadCoach={userRole === "HEAD_COACH"} />
-          <TeamSettings team={{ ...defaultTeam, id: teamId }} />
+        <div
+          className="min-h-[420px] overflow-y-auto overflow-x-hidden rounded-lg border border-[#E5E7EB] bg-white/50 [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          aria-label="Settings content"
+        >
+          <div className="p-4 space-y-6">
+            <TeamCodeSettingsCard teamId={teamId} isHeadCoach={userRole === "HEAD_COACH"} />
+            <TeamSettings team={{ ...defaultTeam, id: teamId }} />
+          </div>
         </div>
       )}
     </DashboardPageShell>

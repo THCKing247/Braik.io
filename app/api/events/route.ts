@@ -1,3 +1,7 @@
+/**
+ * App Router API route: app/api/events/route.ts
+ * Canonical endpoint: POST /api/events (create event). GET returns 405.
+ */
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
@@ -10,8 +14,15 @@ import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeam
 
 /** Ensures this route is always run as a serverless function (e.g. on Netlify). */
 export const dynamic = "force-dynamic"
+/** Use Node runtime so POST is handled consistently on Netlify. */
+export const runtime = "nodejs"
 
-/** GET not supported; use POST to create. Enables checking that the route exists (405 vs 404). */
+/** OPTIONS: allow preflight to succeed so POST is not blocked. */
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: { Allow: "GET, POST, OPTIONS" } })
+}
+
+/** GET not supported; use POST to create. Proves route is deployed (405 vs 404). */
 export async function GET() {
   return NextResponse.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "POST" } })
 }
@@ -196,7 +207,7 @@ export async function POST(req: Request) {
       // Event was inserted; do not fail the request
     }
     console.log("[api/events] success")
-    return NextResponse.json(event)
+    return NextResponse.json(event, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
     console.log("[api/events] error", { stage, message })

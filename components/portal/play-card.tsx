@@ -7,13 +7,16 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { PlayCardThumbnail } from "@/components/portal/play-card-thumbnail"
 import { getPlayFormationDisplayName } from "@/lib/utils/playbook-formation"
+import { type DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { getAssignmentSummary, getAssignmentStatus, type AssignmentStatus } from "@/lib/utils/playbook-assignment"
 import type { PlayRecord, FormationRecord } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 
 interface PlayCardProps {
   play: PlayRecord
-  /** When provided, formation name is resolved from the record (formationId-first); otherwise fallback to play.formation */
   formations?: FormationRecord[] | null
+  /** When provided, card can show assignment summary (e.g. 9/11 assigned). */
+  depthChartEntries?: DepthChartSlot[] | null
   isSelected?: boolean
   onOpen: (play: PlayRecord) => void
   onDuplicate: (playId: string) => void
@@ -21,6 +24,8 @@ interface PlayCardProps {
   onDelete: (playId: string) => void
   canEdit: boolean
   viewMode?: "grid" | "list"
+  /** When provided and play is incomplete, card can show "Review assignments" and call this to open + focus first unassigned. */
+  onReviewAssignments?: (play: PlayRecord) => void
 }
 
 function formatDate(s: string | undefined): string {
@@ -39,9 +44,32 @@ function sideLabel(side: string): string {
   return "Special Teams"
 }
 
+function AssignmentBadge({ status }: { status: AssignmentStatus }) {
+  if (status === "none") {
+    return (
+      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500">
+        No role markers
+      </span>
+    )
+  }
+  if (status === "complete") {
+    return (
+      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700">
+        Complete
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700">
+      Incomplete
+    </span>
+  )
+}
+
 export function PlayCard({
   play,
   formations,
+  depthChartEntries,
   isSelected,
   onOpen,
   onDuplicate,
@@ -49,10 +77,13 @@ export function PlayCard({
   onDelete,
   canEdit,
   viewMode = "grid",
+  onReviewAssignments,
 }: PlayCardProps) {
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(play.name)
   const formationDisplayName = getPlayFormationDisplayName(play, formations)
+  const assignmentSummary = getAssignmentSummary(play, depthChartEntries)
+  const assignmentStatus = getAssignmentStatus(play, depthChartEntries)
 
   const handleRenameSubmit = () => {
     const trimmed = renameValue.trim()
@@ -104,10 +135,26 @@ export function PlayCard({
             {sideLabel(play.side)} · {formationDisplayName}
             {play.subcategory ? ` · ${play.subcategory}` : ""}
           </p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <AssignmentBadge status={assignmentStatus} />
+            {assignmentSummary && assignmentSummary.total > 0 && (
+              <span className="text-[10px] text-slate-500">
+                {assignmentSummary.assigned}/{assignmentSummary.total} assigned
+                {assignmentSummary.assigned < assignmentSummary.total && (
+                  <span className="text-amber-600"> · {assignmentSummary.total - assignmentSummary.assigned} unassigned</span>
+                )}
+              </span>
+            )}
+          </div>
         </div>
         <p className="text-xs text-slate-500 flex-shrink-0 hidden sm:block">{formatDate(play.updatedAt)}</p>
         {canEdit && (
           <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            {assignmentStatus === "incomplete" && onReviewAssignments && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-amber-700 hover:text-amber-800" onClick={() => onReviewAssignments(play)} title="Review assignments">
+                Review
+              </Button>
+            )}
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpen(play)} title="Open">
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -169,11 +216,27 @@ export function PlayCard({
             {play.subcategory}
           </p>
         )}
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <AssignmentBadge status={assignmentStatus} />
+          {assignmentSummary && assignmentSummary.total > 0 && (
+            <span className="text-[10px] text-slate-500" title={assignmentSummary.assigned < assignmentSummary.total ? `${assignmentSummary.total - assignmentSummary.assigned} unassigned` : "All roles assigned"}>
+              {assignmentSummary.assigned}/{assignmentSummary.total} assigned
+              {assignmentSummary.assigned < assignmentSummary.total && (
+                <span className="text-amber-600 ml-0.5">({assignmentSummary.total - assignmentSummary.assigned} unassigned)</span>
+              )}
+            </span>
+          )}
+        </div>
         <p className="text-[10px] text-slate-400 mt-1">{formatDate(play.updatedAt)}</p>
       </CardContent>
       <CardFooter className="p-2 pt-0 flex flex-wrap gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
         {canEdit && (
           <>
+            {assignmentStatus === "incomplete" && onReviewAssignments && (
+              <Button variant="secondary" size="sm" className="h-7 text-xs" onClick={() => onReviewAssignments(play)}>
+                Review assignments
+              </Button>
+            )}
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpen(play)}>
               Open
             </Button>

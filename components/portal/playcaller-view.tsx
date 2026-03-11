@@ -146,6 +146,14 @@ export function PlaycallerView({
     return new Set<string>()
   }, [viewAsRosterPlayerId, viewAsRoleId, depthChartEntries, players, playSide, play])
 
+  const viewAsRosterPlayerLabel = viewAsRosterPlayerId
+    ? viewAsPlayerOptions.find((o) => o.id === viewAsRosterPlayerId)?.displayLabel ?? "Unknown"
+    : null
+  const highlightedRoleLabels = useMemo(() => {
+    if (highlightedMarkerIds.size === 0) return []
+    return [...new Set(players.filter((p) => highlightedMarkerIds.has(p.id)).map((p) => p.label))]
+  }, [players, highlightedMarkerIds])
+
   const clientToViewBoxPoint = useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
     if (!svgRef.current) return null
     const rect = svgRef.current.getBoundingClientRect()
@@ -306,6 +314,29 @@ export function PlaycallerView({
           </Button>
         </div>
       </div>
+
+      {/* Resolved "Viewing as" label and no-roles message */}
+      {viewAsRosterPlayerId && viewAsRosterPlayerLabel && (
+        <div className="px-4 py-2 flex justify-center">
+          {highlightedRoleLabels.length > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Viewing as: <span className="font-medium text-foreground">{viewAsRosterPlayerLabel}</span>
+              <span className="text-foreground/80"> ({highlightedRoleLabels.join(", ")})</span>
+            </p>
+          ) : (
+            <p className="text-sm text-amber-600/90">
+              No roles on this play for <span className="font-medium">{viewAsRosterPlayerLabel}</span>
+            </p>
+          )}
+        </div>
+      )}
+      {viewAsRoleId && highlightedRoleLabels.length > 0 && (
+        <div className="px-4 py-1 flex justify-center">
+          <p className="text-xs text-muted-foreground">
+            Viewing as role: <span className="font-medium text-foreground">{highlightedRoleLabels[0]}</span>
+          </p>
+        </div>
+      )}
 
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-4xl aspect-[53.33/35] max-h-[85vh] rounded-lg overflow-hidden shadow-2xl border border-border">

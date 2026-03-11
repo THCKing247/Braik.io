@@ -16,6 +16,8 @@ import {
   getNextPositionNumber,
   getPositionsForUnit,
   hasDuplicateRoleLabel,
+  getPlayerForSlot,
+  type DepthChartSlot,
 } from "@/lib/constants/playbook-positions"
 
 type CanvasMode =
@@ -107,6 +109,12 @@ interface PlaybookBuilderProps {
     positionNumber?: number | null
     hasDuplicateRole?: boolean
   } | null) => void
+  /** Depth chart for assignment status indicators on markers (assigned / unassigned). */
+  depthChartEntries?: DepthChartSlot[] | null
+  /** When true, select the first unassigned position-based marker once (e.g. from "Review assignments"). */
+  focusUnassignedOnce?: boolean
+  /** Call after focusing first unassigned so the flag is cleared. */
+  onClearFocusUnassigned?: () => void
 }
 
 export function PlaybookBuilder({
@@ -131,6 +139,9 @@ export function PlaybookBuilder({
   isTemplateMode = false,
   templateName = "",
   onSelectPlayer,
+  depthChartEntries,
+  focusUnassignedOnce = false,
+  onClearFocusUnassigned,
 }: PlaybookBuilderProps) {
   const [tool, setTool] = useState<string>("select")
   const [currentSide, setCurrentSide] = useState(side)
@@ -147,6 +158,8 @@ export function PlaybookBuilder({
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState("")
+  const playersRef = useRef<Player[]>(players)
+  playersRef.current = players
 
   // Draft state: in-progress route/block (never saved until Finish)
   const [routeDraft, setRouteDraft] = useState<{ playerId: string; points: PointPX[] } | null>(null)
@@ -423,6 +436,24 @@ export function PlaybookBuilder({
       hasDuplicateRole: hasDuplicateRoleLabel(players, p.id),
     })
   }, [selectedPlayerId, players, onSelectPlayer])
+
+  useEffect(() => {
+    if (!focusUnassignedOnce || !depthChartEntries?.length) return
+    const entries = depthChartEntries
+    const side = currentSide
+    const clear = onClearFocusUnassigned
+    const id = setTimeout(() => {
+      const list = playersRef.current
+      const firstUnassigned = list.find(
+        (p) =>
+          p.positionCode &&
+          !getPlayerForSlot(entries, side, p.positionCode!, p.positionNumber ?? 1)
+      )
+      if (firstUnassigned) setSelectedPlayerId(firstUnassigned.id)
+      clear?.()
+    }, 50)
+    return () => clearTimeout(id)
+  }, [focusUnassignedOnce, depthChartEntries, currentSide, onClearFocusUnassigned])
 
   /** Uses lib/utils/canvas-coords (xMidYMid meet). All pointer tools depend on this. See tests/playbook-canvas-coords.test.ts. */
   const clientToViewBox = (clientX: number, clientY: number): { x: number; y: number } | null => {
@@ -989,6 +1020,19 @@ export function PlaybookBuilder({
               </>
             )}
             <span className="text-xs text-slate-500">→ {sel.label}</span>
+            {sel.positionCode && depthChartEntries?.length && (() => {
+              const slotNum = sel.positionNumber ?? 1
+              const assigned = getPlayerForSlot(depthChartEntries, currentSide, sel.positionCode, slotNum)
+              return (
+                <span className="text-xs font-medium text-slate-700">
+                  {assigned ? (
+                    <>Assigned: {assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}{[assigned.firstName, assigned.lastName].filter(Boolean).join(" ")}</>
+                  ) : (
+                    <span className="text-slate-500">Unassigned</span>
+                  )}
+                </span>
+              )
+            })()}
             {sel.positionCode && hasDuplicateRoleLabel(players, sel.id) && (
               <span className="text-xs text-amber-600" title="Another marker has the same role label on this play">
                 Duplicate role
@@ -1184,9 +1228,20 @@ export function PlaybookBuilder({
                 !blockDraft
               const isOffense = currentSide === "offense" || currentSide === "special_teams"
               const playerColor = isOffense ? "#3B82F6" : "#DC2626"
+              const assigned =
+                player.positionCode && depthChartEntries?.length
+                  ? getPlayerForSlot(depthChartEntries, currentSide, player.positionCode, player.positionNumber ?? 1)
+                  : null
+              const assignTip =
+                assigned
+                  ? `Assigned: ${assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}${[assigned.firstName, assigned.lastName].filter(Boolean).join(" ")}`
+                  : "Unassigned"
 
               return (
                 <g key={player.id}>
+                  {player.positionCode && depthChartEntries?.length ? (
+                    <title>{assignTip}</title>
+                  ) : null}
                   {/* Hover "start here" ring when Route/Block tool and no draft */}
                   {isHoveredAsOrigin && (
                     <circle
@@ -1375,6 +1430,18 @@ export function PlaybookBuilder({
                     >
                       {player.label}
                     </text>
+                  )}
+
+                  {/* Assignment status dot (position-based markers only) */}
+                  {player.positionCode && depthChartEntries?.length && (
+                    <circle
+                      cx={player.x + markerSize / 2 - 5}
+                      cy={player.y - markerSize / 2 + 5}
+                      r={4}
+                      fill={assigned ? "#22c55e" : "#94a3b8"}
+                      stroke="white"
+                      strokeWidth={1.5}
+                    />
                   )}
 
                   {/* Technique/Gap (defense) */}

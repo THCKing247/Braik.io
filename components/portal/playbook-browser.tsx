@@ -13,9 +13,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PlayCard } from "@/components/portal/play-card"
 import type { PlayRecord, FormationRecord, SideOfBall } from "@/types/playbook"
+import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { getAssignmentSummary, type AssignmentSummary } from "@/lib/utils/playbook-assignment"
 
 type ViewMode = "grid" | "list"
-type SortKey = "name" | "updated" | "formation"
+type SortKey = "name" | "updated" | "formation" | "unassigned_desc" | "unassigned_asc" | "complete_desc"
+type AssignmentFilter = "all" | "fully" | "partial" | "unassigned"
 
 const SIDES: { value: SideOfBall; label: string }[] = [
   { value: "offense", label: "Offense" },
@@ -26,6 +29,8 @@ const SIDES: { value: SideOfBall; label: string }[] = [
 interface PlaybookBrowserProps {
   plays: PlayRecord[]
   formations: FormationRecord[]
+  /** Depth chart for assignment summary on play cards (e.g. 9/11 assigned). */
+  depthChartEntries?: DepthChartSlot[] | null
   selectedPlayId: string | null
   onSelectPlay: (play: PlayRecord) => void
   onNewPlay: (side: SideOfBall, formationId: string | null, formationName: string) => void
@@ -35,6 +40,8 @@ interface PlaybookBrowserProps {
   onRenamePlay: (playId: string, newName: string) => void
   onDeletePlay: (playId: string) => void
   onStartPlaycaller: () => void
+  /** When provided, incomplete cards show "Review assignments" and call this to open play and focus first unassigned role. */
+  onReviewAssignments?: (play: PlayRecord) => void
   canEdit: boolean
   canEditOffense: boolean
   canEditDefense: boolean
@@ -44,6 +51,7 @@ interface PlaybookBrowserProps {
 export function PlaybookBrowser({
   plays,
   formations,
+  depthChartEntries,
   selectedPlayId,
   onSelectPlay,
   onNewPlay,
@@ -53,6 +61,7 @@ export function PlaybookBrowser({
   onRenamePlay,
   onDeletePlay,
   onStartPlaycaller,
+  onReviewAssignments,
   canEdit,
   canEditOffense,
   canEditDefense,
@@ -62,6 +71,7 @@ export function PlaybookBrowser({
   const [sideFilter, setSideFilter] = useState<SideOfBall | "">("")
   const [formationFilter, setFormationFilter] = useState("")
   const [tagFilter, setTagFilter] = useState("")
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all")
   const [sortBy, setSortBy] = useState<SortKey>("updated")
   const [viewMode, setViewMode] = useState<ViewMode>("grid")
   const [newPlayMenuOpen, setNewPlayMenuOpen] = useState(false)
@@ -100,13 +110,39 @@ export function PlaybookBrowser({
     }
     if (tagFilter) list = list.filter((p) => (p.subcategory?.trim() ?? "") === tagFilter)
 
+    if (assignmentFilter !== "all" && depthChartEntries?.length) {
+      list = list.filter((p) => {
+        const sum = getAssignmentSummary(p, depthChartEntries)
+        if (!sum || sum.total === 0) return false
+        if (assignmentFilter === "fully") return sum.assigned === sum.total
+        if (assignmentFilter === "partial") return sum.assigned > 0 && sum.assigned < sum.total
+        if (assignmentFilter === "unassigned") return sum.assigned < sum.total
+        return true
+      })
+    }
+
+    const summaryMap = new Map<string, AssignmentSummary | null>()
+    list.forEach((p) => summaryMap.set(p.id, getAssignmentSummary(p, depthChartEntries)))
+
     const sorted = [...list].sort((a, b) => {
       if (sortBy === "name") return (a.name ?? "").localeCompare(b.name ?? "")
       if (sortBy === "formation") return (a.formation ?? "").localeCompare(b.formation ?? "") || (a.name ?? "").localeCompare(b.name ?? "")
-      return new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
+      if (sortBy === "updated") return new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
+      const sa = summaryMap.get(a.id)
+      const sb = summaryMap.get(b.id)
+      const unassignedA = sa ? sa.total - sa.assigned : 0
+      const unassignedB = sb ? sb.total - sb.assigned : 0
+      if (sortBy === "unassigned_desc") return unassignedB - unassignedA
+      if (sortBy === "unassigned_asc") return unassignedA - unassignedB
+      if (sortBy === "complete_desc") {
+        const ratioA = sa && sa.total ? sa.assigned / sa.total : 1
+        const ratioB = sb && sb.total ? sb.assigned / sb.total : 1
+        return ratioB - ratioA
+      }
+      return 0
     })
     return sorted
-  }, [plays, search, sideFilter, formationFilter, tagFilter, sortBy])
+  }, [plays, search, sideFilter, formationFilter, tagFilter, assignmentFilter, sortBy, depthChartEntries])
 
   // Sections from formations API only (first-class). Plays grouped under formation by formationId or formation name match. "Other" for plays that match no formation.
   const formationsForSections = useMemo(() => {
@@ -184,14 +220,33 @@ export function PlaybookBrowser({
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
+          {depthChartEntries?.length ? (
+            <select
+              value={assignmentFilter}
+              onChange={(e) => setAssignmentFilter(e.target.value as AssignmentFilter)}
+              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[140px]"
+            >
+              <option value="all">All plays</option>
+              <option value="fully">Fully assigned</option>
+              <option value="partial">Partially assigned</option>
+              <option value="unassigned">Unassigned roles</option>
+            </select>
+          ) : null}
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortKey)}
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[160px]"
           >
             <option value="updated">Last updated</option>
             <option value="name">Name</option>
             <option value="formation">Formation</option>
+            {depthChartEntries?.length ? (
+              <>
+                <option value="unassigned_desc">Most unassigned first</option>
+                <option value="unassigned_asc">Least unassigned first</option>
+                <option value="complete_desc">Most complete first</option>
+              </>
+            ) : null}
           </select>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -337,11 +392,13 @@ export function PlaybookBrowser({
                           key={play.id}
                           play={play}
                           formations={formations}
+                          depthChartEntries={depthChartEntries}
                           isSelected={selectedPlayId === play.id}
                           onOpen={onSelectPlay}
                           onDuplicate={onDuplicatePlay}
                           onRename={onRenamePlay}
                           onDelete={onDeletePlay}
+                          onReviewAssignments={onReviewAssignments}
                           canEdit={canEdit}
                           viewMode="grid"
                         />
@@ -354,11 +411,13 @@ export function PlaybookBrowser({
                           key={play.id}
                           play={play}
                           formations={formations}
+                          depthChartEntries={depthChartEntries}
                           isSelected={selectedPlayId === play.id}
                           onOpen={onSelectPlay}
                           onDuplicate={onDuplicatePlay}
                           onRename={onRenamePlay}
                           onDelete={onDeletePlay}
+                          onReviewAssignments={onReviewAssignments}
                           canEdit={canEdit}
                           viewMode="list"
                         />

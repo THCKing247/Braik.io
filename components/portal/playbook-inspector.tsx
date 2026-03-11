@@ -4,7 +4,13 @@ import { useState } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { getPlayFormationDisplayName, isPlayFormationOrphan } from "@/lib/utils/playbook-formation"
-import { getDisplayLabel, getPlayerForSlot, type DepthChartSlot } from "@/lib/constants/playbook-positions"
+import {
+  getDisplayLabel,
+  getPlayerForSlot,
+  getRoleLabelsForPlayer,
+  getSameUnitRoleLabelsForPlayer,
+  type DepthChartSlot,
+} from "@/lib/constants/playbook-positions"
 import type { PlayRecord, FormationRecord } from "@/types/playbook"
 
 /** Selected marker: label is derived from positionCode+positionNumber when positionCode is set (read-only). */
@@ -17,7 +23,28 @@ export interface InspectorSelectedPlayer {
   hasDuplicateRole?: boolean
 }
 
-export type RosterPlayerForAssign = { id: string; firstName: string; lastName: string; jerseyNumber: number | null }
+export type RosterPlayerForAssign = {
+  id: string
+  firstName: string
+  lastName: string
+  jerseyNumber: number | null
+  positionGroup?: string | null
+}
+
+function formatPlayerLabel(p: RosterPlayerForAssign, suffix = ""): string {
+  const jersey = p.jerseyNumber != null ? `#${p.jerseyNumber}` : ""
+  const name = [p.firstName, p.lastName].filter(Boolean).join(" ")
+  const base = [jersey, name].filter(Boolean).join(" ").trim() || p.id
+  return suffix ? `${base} ${suffix}` : base
+}
+
+/** True if roster positionGroup is a reasonable match for playbook positionCode (e.g. WR, OLB). */
+function positionMatchesRole(positionGroup: string | null | undefined, positionCode: string): boolean {
+  if (!positionGroup?.trim()) return false
+  const g = positionGroup.trim().toUpperCase()
+  const c = positionCode.trim().toUpperCase()
+  return g === c || g.startsWith(c) || c.startsWith(g) || g.includes(c) || c.includes(g)
+}
 
 function AssignToControl({
   playSide,
@@ -25,6 +52,8 @@ function AssignToControl({
   positionNumber,
   currentPlayerId,
   rosterPlayers,
+  depthChartEntries,
+  hasDuplicateRole,
   onAssign,
 }: {
   playSide: string
@@ -32,12 +61,49 @@ function AssignToControl({
   positionNumber: number
   currentPlayerId: string
   rosterPlayers: RosterPlayerForAssign[]
+  depthChartEntries: DepthChartSlot[]
+  hasDuplicateRole: boolean
   onAssign: (unit: string, position: string, stringNum: number, playerId: string | null) => Promise<boolean>
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const sortedRoster = [...rosterPlayers].sort((a, b) => {
+    const aMatch = positionMatchesRole(a.positionGroup, positionCode)
+    const bMatch = positionMatchesRole(b.positionGroup, positionCode)
+    if (aMatch && !bMatch) return -1
+    if (!aMatch && bMatch) return 1
+    const aLast = (a.lastName || a.firstName || "").toLowerCase()
+    const bLast = (b.lastName || b.firstName || "").toLowerCase()
+    if (aLast !== bLast) return aLast.localeCompare(bLast)
+    return (a.firstName || "").toLowerCase().localeCompare((b.firstName || "").toLowerCase())
+  })
+
+  const currentRoles = currentPlayerId
+    ? getRoleLabelsForPlayer(depthChartEntries, currentPlayerId)
+    : []
+  const sameUnitOtherRoles = currentPlayerId
+    ? getSameUnitRoleLabelsForPlayer(depthChartEntries, currentPlayerId, playSide, positionCode, positionNumber)
+    : []
+  const currentRosterPlayer = rosterPlayers.find((p) => p.id === currentPlayerId)
+  const positionMismatch =
+    currentRosterPlayer?.positionGroup &&
+    !positionMatchesRole(currentRosterPlayer.positionGroup, positionCode)
+
   const handleChange = async (value: string) => {
     const playerId = value || null
+    const replacing = currentPlayerId && playerId && playerId !== currentPlayerId
+    const newPlayer = playerId ? rosterPlayers.find((p) => p.id === playerId) : null
+    const newPlayerSameUnitRoles =
+      newPlayer && playerId ? getSameUnitRoleLabelsForPlayer(depthChartEntries, playerId, playSide) : []
+
+    if (replacing && currentRosterPlayer && newPlayer) {
+      const confirmMsg = newPlayerSameUnitRoles.length
+        ? `Replace ${formatPlayerLabel(currentRosterPlayer)} with ${formatPlayerLabel(newPlayer)}? This player already has: ${newPlayerSameUnitRoles.join(", ")}.`
+        : `Replace ${formatPlayerLabel(currentRosterPlayer)} with ${formatPlayerLabel(newPlayer)}?`
+      if (!confirm(confirmMsg)) return
+    }
+
     setError(null)
     setSaving(true)
     try {
@@ -47,8 +113,7 @@ function AssignToControl({
       setSaving(false)
     }
   }
-  const displayLabel = (p: RosterPlayerForAssign) =>
-    [p.jerseyNumber != null ? `#${p.jerseyNumber}` : "", p.firstName, p.lastName].filter(Boolean).join(" ").trim() || p.id
+
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-slate-500">Assign to</Label>
@@ -60,10 +125,33 @@ function AssignToControl({
           className="h-8 w-full rounded border border-slate-200 bg-white px-2 text-sm text-slate-800 disabled:opacity-50"
         >
           <option value="">Unassigned</option>
-          {rosterPlayers.map((p) => (
-            <option key={p.id} value={p.id}>{displayLabel(p)}</option>
+          {sortedRoster.map((p) => (
+            <option key={p.id} value={p.id}>
+              {formatPlayerLabel(p, p.id === currentPlayerId ? "(current)" : "")}
+            </option>
           ))}
         </select>
+        {currentPlayerId && currentRoles.length > 0 && (
+          <p className="text-xs text-slate-500">
+            Current roles: <span className="text-slate-700">{currentRoles.join(", ")}</span>
+          </p>
+        )}
+        {hasDuplicateRole && (
+          <p className="text-xs text-amber-600" title="Another marker has the same role label on this play">
+            Duplicate role on this play — two markers share this role label.
+          </p>
+        )}
+        {sameUnitOtherRoles.length > 0 && (
+          <p className="text-xs text-amber-600">
+            This player also has in this unit: <span className="font-medium">{sameUnitOtherRoles.join(", ")}</span>
+          </p>
+        )}
+        {positionMismatch && currentRosterPlayer && (
+          <p className="text-xs text-amber-600">
+            Roster position (<span className="font-medium">{currentRosterPlayer.positionGroup}</span>) may not match
+            role (<span className="font-medium">{positionCode}</span>).
+          </p>
+        )}
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
     </div>
@@ -192,11 +280,13 @@ export function PlaybookInspector({
                       return a?.id ?? ""
                     })()}
                     rosterPlayers={rosterPlayers}
+                    depthChartEntries={depthChartEntries ?? []}
+                    hasDuplicateRole={!!selectedPlayer.hasDuplicateRole}
                     onAssign={onAssignSlot}
                   />
                 )}
                 <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
-                {selectedPlayer.hasDuplicateRole && (
+                {!rosterPlayers?.length && selectedPlayer.hasDuplicateRole && (
                   <p className="text-xs text-amber-600" title="Another marker has the same role label on this play">
                     Duplicate role on this play
                   </p>

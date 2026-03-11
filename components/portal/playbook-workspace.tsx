@@ -45,7 +45,8 @@ export function PlaybookWorkspace({
   const [selectedPlayerInspector, setSelectedPlayerInspector] = useState<InspectorSelectedPlayer | null>(null)
   const [selectedZoneInspector, setSelectedZoneInspector] = useState<{ id: string; type: string; size: string } | null>(null)
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
-  type RosterPlayer = { id: string; firstName: string; lastName: string; jerseyNumber: number | null }
+  const [focusUnassignedOnce, setFocusUnassignedOnce] = useState(false)
+  type RosterPlayer = { id: string; firstName: string; lastName: string; jerseyNumber: number | null; positionGroup: string | null }
   const [rosterPlayers, setRosterPlayers] = useState<RosterPlayer[]>([])
 
   const fetchFormations = useCallback(async () => {
@@ -77,11 +78,12 @@ export function PlaybookWorkspace({
     if (res.ok) {
       const data = await res.json()
       setRosterPlayers(
-        (data ?? []).map((p: { id: string; firstName?: string; lastName?: string; jerseyNumber?: number | null }) => ({
+        (data ?? []).map((p: { id: string; firstName?: string; lastName?: string; jerseyNumber?: number | null; positionGroup?: string | null }) => ({
           id: p.id,
           firstName: p.firstName ?? "",
           lastName: p.lastName ?? "",
           jerseyNumber: p.jerseyNumber ?? null,
+          positionGroup: p.positionGroup ?? null,
         }))
       )
     }
@@ -138,6 +140,11 @@ export function PlaybookWorkspace({
     setSelectedSide(play.side as SideOfBall)
     setEditingFormation(null)
     setDesignerMode("play")
+  }
+
+  const handleReviewAssignments = (play: PlayRecord) => {
+    handleSelectPlay(play)
+    setFocusUnassignedOnce(true)
   }
 
   const handleSelectFormation = (formationId: string | null, formationName: string, side: SideOfBall) => {
@@ -429,6 +436,7 @@ export function PlaybookWorkspace({
     setEditingFormation(null)
     setSelectedPlayerInspector(null)
     setInspectorSelection(null)
+    setFocusUnassignedOnce(false)
   }
 
   const rawCanvasData =
@@ -507,6 +515,7 @@ export function PlaybookWorkspace({
           <PlaybookBrowser
             plays={plays}
             formations={formations}
+            depthChartEntries={depthChartEntries}
             selectedPlayId={selectedPlayId}
             onSelectPlay={handleSelectPlay}
             onNewPlay={handleNewPlay}
@@ -519,6 +528,7 @@ export function PlaybookWorkspace({
               setPlaycallerMode(true)
               setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
             }}
+            onReviewAssignments={handleReviewAssignments}
             canEdit={canEdit}
             canEditOffense={canEditOffense}
             canEditDefense={canEditDefense}
@@ -543,6 +553,9 @@ export function PlaybookWorkspace({
                 setSelectedPlayerInspector(player)
                 setInspectorSelection(player ? "player" : null)
               }}
+              depthChartEntries={depthChartEntries}
+              focusUnassignedOnce={focusUnassignedOnce}
+              onClearFocusUnassigned={() => setFocusUnassignedOnce(false)}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center p-8">

@@ -142,3 +142,37 @@ export function getPlayerForSlot(
   )
   return entry?.player ?? null
 }
+
+/**
+ * Get human-readable role labels for a player from depth chart (e.g. ["WR2", "GUN1"]).
+ * Used to show "Currently assigned: WR2, GUN1" in the inspector.
+ */
+export function getRoleLabelsForPlayer(
+  entries: DepthChartSlot[],
+  playerId: string
+): string[] {
+  const slots = entries.filter((e) => e.playerId === playerId)
+  return slots.map((e) => getDisplayLabel(e.position, e.string)).filter(Boolean)
+}
+
+/**
+ * Get same-unit role labels for a player (excluding a specific slot if needed).
+ * Used to warn when a player already has other roles in the same unit.
+ */
+export function getSameUnitRoleLabelsForPlayer(
+  entries: DepthChartSlot[],
+  playerId: string,
+  unit: string,
+  excludePosition?: string,
+  excludeString?: number
+): string[] {
+  return entries
+    .filter(
+      (e) =>
+        e.playerId === playerId &&
+        e.unit === unit &&
+        !(excludePosition && e.position.toUpperCase() === excludePosition.toUpperCase() && e.string === excludeString)
+    )
+    .map((e) => getDisplayLabel(e.position, e.string))
+    .filter(Boolean)
+}

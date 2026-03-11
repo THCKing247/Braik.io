@@ -77,8 +77,8 @@ export function SubscriptionManager({
                 <p className="text-sm text-[#FFFFFF]/70 mt-1">Your subscription is fully paid and active.</p>
               </div>
             ) : (
-              <div className="p-4 bg-yellow-500/20 border border-yellow-500/30 rounded">
-                <p className="text-yellow-400 font-semibold">⚠ Subscription Pending</p>
+              <div className="p-4 bg-black/20 border border-black/30 rounded">
+                <p className="text-gray-300 font-semibold">⚠ Subscription Pending</p>
                 <p className="text-sm text-[#FFFFFF]/70 mt-1">
                   Please complete payment to access all features. Remaining balance: ${remainingBalance.toFixed(2)}
                 </p>

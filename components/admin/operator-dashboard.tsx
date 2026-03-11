@@ -31,7 +31,7 @@ interface Props {
 const colorMap = {
   red: "border-red-400/40 bg-red-500/10 text-red-100",
   orange: "border-orange-400/40 bg-orange-500/10 text-orange-100",
-  yellow: "border-yellow-400/40 bg-yellow-500/10 text-yellow-100",
+  yellow: "border-black/40 bg-black/10 text-gray-200",
   green: "border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
   blue: "border-sky-400/40 bg-sky-500/10 text-sky-100",
   purple: "border-purple-400/40 bg-purple-500/10 text-purple-100",
@@ -72,9 +72,9 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
           <p className="text-xs text-orange-100/80">Grace Period Teams</p>
           <p className="text-xl font-semibold text-orange-100">{metrics.gracePeriodTeams}</p>
         </button>
-        <button onClick={() => setOpenModal("ai-near-limit")} className="rounded border border-yellow-500/30 bg-yellow-500/10 px-3 py-3 text-left">
-          <p className="text-xs text-yellow-100/80">AI Near Limit</p>
-          <p className="text-xl font-semibold text-yellow-100">0</p>
+        <button onClick={() => setOpenModal("ai-near-limit")} className="rounded border border-black/30 bg-black/10 px-3 py-3 text-left">
+          <p className="text-xs text-gray-200/80">AI Near Limit</p>
+          <p className="text-xl font-semibold text-gray-200">0</p>
         </button>
         <button onClick={() => setOpenModal("refunds")} className="rounded border border-sky-500/30 bg-sky-500/10 px-3 py-3 text-left">
           <p className="text-xs text-sky-100/80">Pending Refunds</p>

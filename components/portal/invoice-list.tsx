@@ -52,7 +52,7 @@ export function InvoiceList({ teamId, collectionId, collectionType }: InvoiceLis
       case "paid":
         return "text-green-400 bg-green-500/20"
       case "partial":
-        return "text-yellow-400 bg-yellow-500/20"
+        return "text-gray-300 bg-black/20"
       case "unpaid":
         return "text-red-400 bg-red-500/20"
       default:

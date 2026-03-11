@@ -21,7 +21,7 @@ function chipClass(status: string): string {
   const value = status.toLowerCase()
   if (value.includes("active")) return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
   if (value.includes("suspend")) return "bg-red-500/20 text-red-200 border-red-400/40"
-  if (value.includes("deactiv")) return "bg-yellow-500/20 text-yellow-200 border-yellow-400/40"
+  if (value.includes("deactiv")) return "bg-black/20 text-gray-200 border-black/40"
   return "bg-white/10 text-white/80 border-white/20"
 }
 

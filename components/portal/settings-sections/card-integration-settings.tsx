@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -110,7 +110,7 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-yellow-400">
+              <div className="flex items-center gap-2 text-black">
                 <XCircle className="h-5 w-5" />
                 <span className="font-medium">No payment account connected</span>
               </div>

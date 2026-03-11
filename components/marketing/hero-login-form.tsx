@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { signIn } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"
@@ -163,7 +163,7 @@ export function HeroLoginForm() {
             {error}
           </div>
         )}
-        <Button type="submit" className="w-full font-athletic uppercase tracking-wide" disabled={loading} size="lg">
+        <Button type="submit" className="w-full font-athletic uppercase tracking-wide bg-red-600 text-white hover:bg-red-700 border-0" disabled={loading} size="lg">
           {loading ? "Logging in..." : "Login"}
         </Button>
       </form>

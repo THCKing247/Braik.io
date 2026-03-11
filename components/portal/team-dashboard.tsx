@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import {
   Trophy,
@@ -487,6 +489,156 @@ function NotificationsCard() {
   )
 }
 
+// ─── Connect to Team Card Component ───────────────────────────────────────────
+
+function ConnectToTeamCard({ user }: { user: SessionUser }) {
+  const [code, setCode] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    if (!code.trim()) {
+      setError("Please enter your team code.")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch("/api/team/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim() }),
+        credentials: "include",
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string; teamName?: string }
+
+      if (!res.ok || !data.success) {
+        setError(data.error || "Something went wrong. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      setSuccess(true)
+      setLoading(false)
+
+      // Reload the page after a short delay so the dashboard refreshes with team data
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
+    } catch {
+      setError("A network error occurred. Please check your connection and try again.")
+      setLoading(false)
+    }
+  }
+
+  if (success) {
+    return (
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+        <CardContent className="flex flex-col items-center gap-4 py-8 px-6 text-center">
+          <div
+            className="flex h-16 w-16 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: "rgba(34,197,94,0.1)" }}
+          >
+            <Users className="h-8 w-8" style={{ color: "#22C55E" }} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold" style={{ color: "rgb(var(--text))" }}>
+              Successfully Connected!
+            </h2>
+            <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
+              Loading your team dashboard...
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <CardContent className="flex flex-col gap-4 py-8 px-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div
+            className="flex h-16 w-16 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: "rgb(var(--platinum))" }}
+          >
+            <Users className="h-8 w-8" style={{ color: "rgb(var(--accent))" }} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold" style={{ color: "rgb(var(--text))" }}>
+              Connect to Your Team
+            </h2>
+            <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
+              Enter your Team Code to access team schedules, roster, messages, and more.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label
+              htmlFor="team-code-input"
+              className="text-sm font-semibold"
+              style={{ color: "rgb(var(--text))" }}
+            >
+              Team Code
+            </Label>
+            <Input
+              id="team-code-input"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="Enter Team Code (e.g. ABC12345)"
+              maxLength={8}
+              className="font-mono text-lg tracking-widest text-center"
+              style={{
+                color: "rgb(var(--text))",
+                borderColor: error ? "#EF4444" : "rgb(var(--border))",
+              }}
+              autoFocus
+            />
+            <p className="text-xs text-center" style={{ color: "rgb(var(--muted))" }}>
+              Get your Team Code from your Head Coach.
+            </p>
+          </div>
+
+          {error && (
+            <div
+              className="flex items-start gap-2 rounded-lg border p-3 text-sm"
+              style={{
+                backgroundColor: "rgba(239,68,68,0.06)",
+                borderColor: "rgba(239,68,68,0.25)",
+                color: "#EF4444",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={loading || !code.trim()}
+            size="lg"
+            className="w-full font-semibold text-white"
+            style={{ backgroundColor: "rgb(var(--accent))" }}
+          >
+            {loading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                Connecting...
+              </>
+            ) : (
+              "Connect to Team"
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function TeamDashboard({ session }: TeamDashboardProps) {
@@ -505,6 +657,7 @@ export function TeamDashboard({ session }: TeamDashboardProps) {
   }
 
   const hasTeam = Boolean(user.teamId)
+  const isHeadCoach = user.role?.toUpperCase() === "HEAD_COACH"
 
   return (
     <div className="space-y-6 pb-8">
@@ -512,36 +665,8 @@ export function TeamDashboard({ session }: TeamDashboardProps) {
       {/* ── Team Banner ── */}
       <TeamBanner user={user} />
 
-      {/* ── Connect to Team Card (if no team) ── */}
-      {!hasTeam && (
-        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-          <CardContent className="flex flex-col items-center gap-4 py-8 px-6 text-center">
-            <div
-              className="flex h-16 w-16 items-center justify-center rounded-2xl"
-              style={{ backgroundColor: "rgb(var(--platinum))" }}
-            >
-              <Users className="h-8 w-8" style={{ color: "rgb(var(--accent))" }} />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold" style={{ color: "rgb(var(--text))" }}>
-                Connect to Your Team
-              </h2>
-              <p className="text-sm leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
-                Enter your Team Code to access team schedules, roster, messages, and more.
-              </p>
-            </div>
-            <Link href="/dashboard?connect=true">
-              <Button
-                size="lg"
-                className="font-semibold text-white"
-                style={{ backgroundColor: "rgb(var(--accent))" }}
-              >
-                Connect to Team
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      )}
+      {/* ── Connect to Team Card (if no team and not head coach) ── */}
+      {!hasTeam && !isHeadCoach && <ConnectToTeamCard user={user} />}
 
       {/* ── Full-width Calendar (only show if has team) ── */}
       {hasTeam && <DashboardCalendar teamId={user.teamId} />}

@@ -118,21 +118,34 @@ export function CalendarWidgetEnhanced({
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-scroll to current hour when opening Day or Week view. Day view: start in middle copy for infinite scroll.
+  // Helper: current time offset in pixels (60px per hour). Used for now-line position and initial scroll.
+  const getNowOffsetPx = useCallback(() => {
+    const now = currentTime
+    const nowMinutes = now.getHours() * 60 + now.getMinutes()
+    return (nowMinutes / 60) * DAY_VIEW_HOUR_HEIGHT
+  }, [currentTime])
+
+  // Auto-scroll: Day view places now line ~30% from top in middle copy; Week view scrolls to current hour.
   useEffect(() => {
     if ((view !== "day" && view !== "week") || !timeGridScrollRef.current) return
     const el = timeGridScrollRef.current
     if (view === "day") {
       const now = new Date()
-      const minutesFromMidnight = now.getHours() * 60 + now.getMinutes()
-      el.scrollTop = DAY_VIEW_DAY_HEIGHT + minutesFromMidnight
+      const nowMinutes = now.getHours() * 60 + now.getMinutes()
+      const nowOffset = (nowMinutes / 60) * DAY_VIEW_HOUR_HEIGHT
+      const desiredViewportOffset = 0.3 * el.clientHeight
+      const targetScroll = DAY_VIEW_DAY_HEIGHT + nowOffset - desiredViewportOffset
+      const minScroll = DAY_VIEW_DAY_HEIGHT
+      const maxScroll = Math.max(minScroll, 2 * DAY_VIEW_DAY_HEIGHT - el.clientHeight)
+      el.scrollTop = Math.max(minScroll, Math.min(maxScroll, targetScroll))
     } else {
       const minutesFromMidnight = new Date().getHours() * 60 + new Date().getMinutes()
       el.scrollTop = Math.max(0, minutesFromMidnight - 90)
     }
   }, [view])
 
-  // Day view infinite scroll: when user scrolls near top or bottom of the middle copy, reposition so we stay in the middle (no state, direct scrollTop).
+  // Day view infinite scroll: shift by exactly one DAY_HEIGHT when nearing edges so we stay in the middle copy.
+  // Because all three copies are identical, this preserves the now-line (and everything else) at the same viewport position—reset is invisible.
   const handleDayViewScroll = useCallback(() => {
     const el = timeGridScrollRef.current
     if (!el) return
@@ -627,12 +640,7 @@ export function CalendarWidgetEnhanced({
     }
 
     const isToday = isTodayDate(currentDate)
-    const getCurrentTimePosition = () => {
-      if (!isToday) return null
-      const now = currentTime
-      return now.getHours() * 60 + now.getMinutes()
-    }
-    const currentTimePosition = getCurrentTimePosition()
+    const nowOffsetPx = getNowOffsetPx()
 
     // We render 3 copies of the day timeline and reposition scrollTop when the user
     // approaches the top or bottom. This creates the illusion of infinite vertical scrolling.
@@ -708,11 +716,12 @@ export function CalendarWidgetEnhanced({
                     />
                   ))}
 
-                  {/* Current time indicator — only in the middle copy */}
-                  {copyIndex === 1 && isToday && currentTimePosition !== null && (
+                  {/* Current time (now) line — in every copy so it stays visible while scrolling; z-30 above grid/events */}
+                  {isToday && (
                     <div
-                      className="absolute left-20 right-0 z-10"
-                      style={{ top: `${currentTimePosition}px` }}
+                      className="absolute left-20 right-0 pointer-events-none z-30"
+                      style={{ top: `${nowOffsetPx}px` }}
+                      aria-hidden
                     >
                       <div className="flex items-center">
                         <div

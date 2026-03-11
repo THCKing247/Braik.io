@@ -18,26 +18,21 @@ export async function GET() {
 
 /** Create a calendar event. Path must be app/api/events/route.ts for POST /api/events. */
 export async function POST(req: Request) {
-  if (process.env.NODE_ENV !== "test") {
-    console.log("[POST /api/events] request received")
-  }
+  let stage = "entry"
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] validation failed: unauthorized")
-      }
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    console.log("[api/events] POST reached")
+    stage = "body_parse"
 
     let rawBody: unknown
     try {
       rawBody = await req.json()
-    } catch {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] validation failed: invalid JSON")
-      }
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Invalid JSON"
+      console.log("[api/events] error", { stage: "body_parse", message })
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "body_parse", message },
+        { status: 400 }
+      )
     }
     const body = rawBody as Record<string, unknown>
 
@@ -45,40 +40,33 @@ export async function POST(req: Request) {
     const title = typeof body.title === "string" ? body.title.trim() : ""
     const startVal = body.start ?? body.startAt
     const endVal = body.end ?? body.endAt
-
     if (!teamId) {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] validation failed: missing or invalid teamId")
-      }
-      return NextResponse.json({ error: "teamId is required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "validation", message: "teamId is required" },
+        { status: 400 }
+      )
     }
     if (!title) {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] validation failed: missing or invalid title")
-      }
-      return NextResponse.json({ error: "title is required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "validation", message: "title is required" },
+        { status: 400 }
+      )
     }
     if (!startVal || (typeof startVal !== "string" && typeof startVal !== "number")) {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] validation failed: missing or invalid start/startAt")
-      }
-      return NextResponse.json({ error: "start or startAt is required (ISO string)" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "validation", message: "start or startAt is required" },
+        { status: 400 }
+      )
     }
     if (!endVal || (typeof endVal !== "string" && typeof endVal !== "number")) {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] validation failed: missing or invalid end/endAt")
-      }
-      return NextResponse.json({ error: "end or endAt is required (ISO string)" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "validation", message: "end or endAt is required" },
+        { status: 400 }
+      )
     }
 
     const startStr = typeof startVal === "string" ? startVal : new Date(startVal).toISOString()
     const endStr = typeof endVal === "string" ? endVal : new Date(endVal).toISOString()
-
-    await requireTeamPermission(teamId, "post_announcements")
-    await requireTeamOperationAccess(teamId, "write")
-    await auditImpersonatedActionFromRequest(req, "event_create", { teamId })
-
-    await requireBillingPermission(teamId, "editEvents")
 
     const typeStr = typeof body.type === "string" ? body.type : ""
     const eventTypeMap: Record<string, string> = {
@@ -88,7 +76,6 @@ export async function POST(req: Request) {
       other: "CUSTOM",
     }
     const eventType = eventTypeMap[typeStr] || "CUSTOM"
-
     const audienceStr = typeof body.audience === "string" ? body.audience : ""
     const visibilityMap: Record<string, string> = {
       all: "PARENTS_AND_TEAM",
@@ -98,9 +85,48 @@ export async function POST(req: Request) {
     }
     const visibility = visibilityMap[audienceStr] || "TEAM"
 
+    console.log("[api/events] body parsed", {
+      teamId,
+      title,
+      start: startStr,
+      end: endStr,
+      type: eventType,
+      visibility,
+    })
+    console.log("[api/events] normalized payload")
+
+    stage = "auth"
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      console.log("[api/events] error", { stage: "auth", message: "unauthorized" })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    console.log("[api/events] auth ok")
+
+    stage = "access_check"
+    try {
+      await requireTeamPermission(teamId, "post_announcements")
+      await requireTeamOperationAccess(teamId, "write")
+      await auditImpersonatedActionFromRequest(req, "event_create", { teamId })
+      await requireBillingPermission(teamId, "editEvents")
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error"
+      console.log("[api/events] error", { stage: "access_check", message })
+      if (e instanceof TeamOperationBlockedError) {
+        return NextResponse.json(toStructuredTeamAccessError(e), { status: e.statusCode })
+      }
+      const status = message.includes("Forbidden") || message.includes("Not a member") ? 403 : 500
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "access_check", message },
+        { status }
+      )
+    }
+    console.log("[api/events] access ok")
+
     const notesVal = typeof body.notes === "string" ? body.notes : null
     const locationVal = typeof body.location === "string" ? body.location : null
 
+    stage = "insert"
     const supabase = getSupabaseServer()
     const { data: event, error: eventError } = await supabase
       .from("events")
@@ -119,67 +145,68 @@ export async function POST(req: Request) {
       .single()
 
     if (eventError || !event) {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] Supabase insert error:", eventError?.message ?? "no event returned")
-      }
+      const message = eventError?.message ?? "no event returned"
+      console.log("[api/events] error", { stage: "insert", message })
       return NextResponse.json(
-        { error: eventError?.message ?? "Failed to create event" },
+        { error: "Event creation failed", stage: "insert", message },
         { status: 500 }
       )
     }
+    console.log("[api/events] insert ok")
 
-    await supabase.from("audit_logs").insert({
-      actor_id: session.user.id,
-      action: "event_created",
-      target_type: "event",
-      target_id: event.id,
-      metadata: { teamId, title },
-    })
-
-    const membership = await getUserMembership(teamId)
-    logEventAction("event_created", {
-      userId: session.user.id,
-      teamId,
-      role: membership?.role,
-      eventId: event.id,
-      eventType,
-      title,
-    })
-
-    await createNotifications({
-      type: "event_created",
-      teamId,
-      title: `New event: ${title}`,
-      body: `${eventType} - ${new Date(startStr).toLocaleDateString()} at ${new Date(startStr).toLocaleTimeString()}`,
-      linkUrl: `/dashboard/schedule`,
-      linkType: "event",
-      linkId: event.id,
-      metadata: {
+    stage = "notifying"
+    console.log("[api/events] notifying")
+    try {
+      await supabase.from("audit_logs").insert({
+        actor_id: session.user.id,
+        action: "event_created",
+        target_type: "event",
+        target_id: event.id,
+        metadata: { teamId, title },
+      })
+      const membership = await getUserMembership(teamId)
+      logEventAction("event_created", {
+        userId: session.user.id,
+        teamId,
+        role: membership?.role,
         eventId: event.id,
         eventType,
-        start: event.start,
-        end: event.end,
-        location: event.location,
-      },
-      excludeUserIds: [session.user.id],
-    })
-
-    if (process.env.NODE_ENV !== "test") {
-      console.log("[POST /api/events] event created id:", event.id)
+        title,
+      })
+      await createNotifications({
+        type: "event_created",
+        teamId,
+        title: `New event: ${title}`,
+        body: `${eventType} - ${new Date(startStr).toLocaleDateString()} at ${new Date(startStr).toLocaleTimeString()}`,
+        linkUrl: `/dashboard/schedule`,
+        linkType: "event",
+        linkId: event.id,
+        metadata: {
+          eventId: event.id,
+          eventType,
+          start: event.start,
+          end: event.end,
+          location: event.location,
+        },
+        excludeUserIds: [session.user.id],
+      })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error"
+      console.log("[api/events] error", { stage: "notifying", message })
+      // Event was inserted; do not fail the request
     }
+    console.log("[api/events] success")
     return NextResponse.json(event)
   } catch (error: unknown) {
-    if (error instanceof TeamOperationBlockedError) {
-      if (process.env.NODE_ENV !== "test") {
-        console.log("[POST /api/events] team operation blocked:", error.statusCode)
-      }
-      return NextResponse.json(toStructuredTeamAccessError(error), { status: error.statusCode })
-    }
-    if (process.env.NODE_ENV !== "test") {
-      console.error("[POST /api/events] error:", error instanceof Error ? error.message : error)
-    }
-    const message = error instanceof Error ? error.message : "Internal server error"
-    const status = message.includes("Forbidden") || message.includes("Not a member") ? 403 : 500
-    return NextResponse.json({ error: message }, { status })
+    const message = error instanceof Error ? error.message : "Unknown error"
+    console.log("[api/events] error", { stage, message })
+    return NextResponse.json(
+      {
+        error: "Event creation failed",
+        stage,
+        message,
+      },
+      { status: 500 }
+    )
   }
 }

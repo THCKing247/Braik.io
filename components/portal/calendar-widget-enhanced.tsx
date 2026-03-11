@@ -697,7 +697,7 @@ export function CalendarWidgetEnhanced({
                           }}
                         >
                           <span
-                            className="relative z-10 bg-white px-2 text-sm font-medium"
+                            className="relative z-10 whitespace-nowrap bg-white px-2 text-sm font-medium"
                             style={{
                               color: "rgb(var(--text2))",
                               transform: "translateY(-50%)",

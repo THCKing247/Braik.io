@@ -446,7 +446,6 @@ export function CalendarWidgetEnhanced({
             </div>
           </div>
         </div>
-        </div>
       </div>
     )
   }

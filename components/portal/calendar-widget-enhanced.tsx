@@ -335,7 +335,7 @@ export function CalendarWidgetEnhanced({
               style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
             >
               {timeSlots.map((slot, index) => {
-                const hour = slot.getHours()
+                const hour = index
                 const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
                 const ampm = hour >= 12 ? "PM" : "AM"
                 return (
@@ -602,7 +602,7 @@ export function CalendarWidgetEnhanced({
           {/* Time column - z-20 so labels sit above hour lines */}
           <div className="absolute left-0 top-0 bottom-0 w-20 border-r z-20" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
             {timeSlots.map((slot, index) => {
-              const hour = slot.getHours()
+              const hour = index
               const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
               const ampm = hour >= 12 ? "PM" : "AM"
               return (

@@ -30,7 +30,7 @@ export function SuspensionBanner({ teamStatus, role }: SuspensionBannerProps) {
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-black/40 bg-black/15 px-4 py-3 text-sm text-gray-200">
+    <div className="mb-4 rounded-lg border border-[#000000]/40 bg-[#000000]/15 px-4 py-3 text-sm text-[#e5e7eb]">
       <p className="font-semibold">⏳ Program Pending Action - Access Limited</p>
     </div>
   )

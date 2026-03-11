@@ -72,7 +72,7 @@ export function SiteHeader() {
               </Link>
             ))}
             <Link href="/login">
-              <Button size="sm" className="font-athletic uppercase tracking-wide px-5 bg-red-600 text-white hover:bg-red-700 border-0">
+              <Button variant="signIn" size="sm" className="font-athletic uppercase tracking-wide px-5">
                 Sign in
               </Button>
             </Link>
@@ -81,7 +81,7 @@ export function SiteHeader() {
           {/* Mobile: sign-in + hamburger */}
           <div className="flex md:hidden items-center gap-2">
             <Link href="/login">
-              <Button size="sm" className="font-athletic uppercase tracking-wide px-4 text-xs bg-red-600 text-white hover:bg-red-700 border-0">
+              <Button variant="signIn" size="sm" className="font-athletic uppercase tracking-wide px-4 text-xs">
                 Sign in
               </Button>
             </Link>
@@ -152,7 +152,7 @@ export function SiteHeader() {
             </Button>
           </Link>
           <Link href="/login" className="block">
-            <Button variant="outline" className="w-full border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700" size="lg">
+            <Button variant="outline" className="w-full border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 border-2" size="lg">
               Sign In
             </Button>
           </Link>

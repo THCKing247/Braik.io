@@ -137,7 +137,7 @@ export function CollectionDetail({
                 className={`px-3 py-1 rounded-full text-sm font-medium ${
                   collection.status === "closed"
                     ? "bg-green-500/20 text-green-400"
-                    : "bg-black/20 text-gray-300"
+                    : "bg-[#000000]/20 text-[#d1d5db]"
                 }`}
               >
                 {collection.status === "closed" ? "Closed" : "Open"}

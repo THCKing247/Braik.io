@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Sign-in button: red (applies regardless of Tailwind order) */
+@layer components {
+  .btn-signin-red {
+    background-color: #dc2626 !important;
+    color: white !important;
+  }
+  .btn-signin-red:hover:not(:disabled) {
+    background-color: #b91c1c !important;
+  }
+}
+
 @layer base {
   :root {
     /* Layout Rail Dimensions */

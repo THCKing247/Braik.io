@@ -8,12 +8,16 @@ import { logEventAction } from "@/lib/audit/structured-logger"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
 
+/** Ensures this route is always run as a serverless function (e.g. on Netlify). */
+export const dynamic = "force-dynamic"
+
 /** GET not supported; use POST to create. Enables checking that the route exists (405 vs 404). */
 export async function GET() {
   return NextResponse.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "POST" } })
 }
 
-export async function POST(request: Request) {
+/** Create a calendar event. Path must be app/api/events/route.ts for POST /api/events. */
+export async function POST(req: Request) {
   if (process.env.NODE_ENV !== "test") {
     console.log("[POST /api/events] request received")
   }
@@ -28,7 +32,7 @@ export async function POST(request: Request) {
 
     let body: unknown
     try {
-      body = await request.json()
+      body = await req.json()
     } catch {
       if (process.env.NODE_ENV !== "test") {
         console.log("[POST /api/events] validation failed: invalid JSON")
@@ -70,7 +74,7 @@ export async function POST(request: Request) {
 
     await requireTeamPermission(teamId, "post_announcements")
     await requireTeamOperationAccess(teamId, "write")
-    await auditImpersonatedActionFromRequest(request, "event_create", { teamId })
+    await auditImpersonatedActionFromRequest(req, "event_create", { teamId })
 
     await requireBillingPermission(teamId, "editEvents")
 

@@ -6,7 +6,7 @@
  * Card-based, not tree. Breadcrumb and back for navigation.
  */
 import { useState, useMemo } from "react"
-import { Search, Plus, LayoutGrid, List, Presentation, ChevronRight, ArrowLeft, FolderOpen, Layers, FileText } from "lucide-react"
+import { Search, Plus, LayoutGrid, List, Presentation, ChevronRight, ArrowLeft, FolderOpen, Layers, FileText, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -388,12 +388,12 @@ export function PlaybookBrowser({
                 {formationCardsFiltered.map((f) => (
                   <Card
                     key={f.id}
-                    className="cursor-pointer hover:border-slate-400 hover:shadow-md transition-colors border-2"
+                    className="cursor-pointer hover:border-slate-400 hover:shadow-md transition-colors border-2 relative"
                     onClick={() => onSelectFormation(f.id, f.name, f.side)}
                   >
                     <CardContent className="p-4 flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <FolderOpen className="h-5 w-5 text-slate-500" />
+                      <div className="flex items-center gap-2 pr-8">
+                        <FolderOpen className="h-5 w-5 text-slate-500 flex-shrink-0" />
                         <span className="font-medium text-slate-800 truncate">{f.name}</span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-slate-500">
@@ -401,6 +401,22 @@ export function PlaybookBrowser({
                         <span>{formationPlayCount(f.id)} plays</span>
                       </div>
                       <span className="text-[10px] uppercase tracking-wide text-slate-400">{f.side.replace("_", " ")}</span>
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 h-8 w-8 text-slate-400 hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm(`Delete formation "${f.name}"? This will not delete sub-formations or plays; you can reassign them later.`)) {
+                              onDeleteFormation(f.id)
+                            }
+                          }}
+                          title="Delete formation"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -415,15 +431,31 @@ export function PlaybookBrowser({
               {subFormationsForSelectedFormation.map((s) => (
                 <Card
                   key={s.id}
-                  className="cursor-pointer hover:border-slate-400 hover:shadow-md transition-colors border-2"
+                  className="cursor-pointer hover:border-slate-400 hover:shadow-md transition-colors border-2 relative"
                   onClick={() => onSelectSubFormation(s.id, s.name)}
                 >
                   <CardContent className="p-4 flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <Layers className="h-5 w-5 text-slate-500" />
+                    <div className="flex items-center gap-2 pr-8">
+                      <Layers className="h-5 w-5 text-slate-500 flex-shrink-0" />
                       <span className="font-medium text-slate-800 truncate">{s.name}</span>
                     </div>
                     <span className="text-xs text-slate-500">{subFormationPlayCount(s.id)} plays</span>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-8 w-8 text-slate-400 hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm(`Delete sub-formation "${s.name}"? Plays in this sub-formation will become uncategorized.`)) {
+                            onDeleteSubFormation(s.id)
+                          }
+                        }}
+                        title="Delete sub-formation"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Pencil, Copy, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +25,7 @@ interface PlayCardProps {
   canEdit: boolean
   viewMode?: "grid" | "list"
   onReviewAssignments?: (play: PlayRecord) => void
-  /** When set, "Open" opens this URL (e.g. in new tab) instead of calling onOpen. */
+  /** When set, "Open" navigates to this URL in the same tab instead of calling onOpen. */
   playEditorPath?: (playId: string) => string
 }
 
@@ -97,6 +98,7 @@ export function PlayCard({
   onReviewAssignments,
   playEditorPath,
 }: PlayCardProps) {
+  const router = useRouter()
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(play.name)
   const formationDisplayName = getPlayFormationDisplayName(play, formations)
@@ -115,8 +117,7 @@ export function PlayCard({
     e?.preventDefault()
     e?.stopPropagation()
     if (playEditorPath) {
-      const path = playEditorPath(play.id)
-      window.open(path, "_blank", "noopener,noreferrer")
+      router.push(playEditorPath(play.id))
     } else {
       onOpen(play)
     }

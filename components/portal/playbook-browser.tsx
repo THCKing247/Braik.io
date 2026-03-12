@@ -85,7 +85,7 @@ interface PlaybookBrowserProps {
   onEditSubFormationTemplate?: (sub: SubFormationRecord) => void
   onStartPlaycaller: () => void
   onReviewAssignments?: (play: PlayRecord) => void
-  /** When provided, "Open" on a play navigates to this URL with playId (e.g. open in new window). */
+  /** When provided, "Open" on a play navigates in-app to this URL (same tab). */
   playEditorPath?: (playId: string) => string
   canEdit: boolean
   canEditOffense: boolean

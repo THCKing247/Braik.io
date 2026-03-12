@@ -58,10 +58,10 @@ export function PlaybookWorkspace({
   const BROWSER_HEIGHT_KEY = "braik.playbook.browserHeight"
   const INSPECTOR_HEIGHT_KEY = "braik.playbook.inspectorHeight"
   const BROWSER_MIN = 160
-  const BROWSER_MAX = 420
+  const BROWSER_MAX = 560
   const INSPECTOR_MIN = 160
   const INSPECTOR_MAX = 360
-  const DEFAULT_BROWSER_HEIGHT = 240
+  const DEFAULT_BROWSER_HEIGHT = 525
   const DEFAULT_INSPECTOR_HEIGHT = 220
 
   function getStoredPanelHeight(key: string, defaultVal: number, min: number, max: number): number {

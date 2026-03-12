@@ -11,7 +11,7 @@ import { PlaycallerView } from "@/components/portal/playcaller-view"
 import { ResizableHorizontalHandle } from "@/components/portal/resizable-horizontal-handle"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
-import type { FormationRecord, SubFormationRecord, PlayRecord, SideOfBall, PlayType, RoutePoint, BlockEndPoint } from "@/types/playbook"
+import type { FormationRecord, SubFormationRecord, PlayRecord, SideOfBall, PlayType, RoutePoint, BlockEndPoint, TemplateData } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 
@@ -44,6 +44,7 @@ export function PlaybookWorkspace({
   const [selectedSide, setSelectedSide] = useState<SideOfBall | null>(null)
   const [designerMode, setDesignerMode] = useState<DesignerMode>("idle")
   const [editingFormation, setEditingFormation] = useState<FormationRecord | null>(null)
+  const [editingSubFormation, setEditingSubFormation] = useState<SubFormationRecord | null>(null)
   const [playcallerMode, setPlaycallerMode] = useState(false)
   const [playcallerIndex, setPlaycallerIndex] = useState(0)
   const [inspectorSelection, setInspectorSelection] = useState<"play" | "player" | "zone" | "route" | null>(null)
@@ -77,9 +78,18 @@ export function PlaybookWorkspace({
     }
   }
 
-  const [browserHeight, setBrowserHeightState] = useState(() =>
-    getStoredPanelHeight(BROWSER_HEIGHT_KEY, DEFAULT_BROWSER_HEIGHT, BROWSER_MIN, BROWSER_MAX)
-  )
+  const [browserHeight, setBrowserHeightState] = useState(() => {
+    const stored = getStoredPanelHeight(BROWSER_HEIGHT_KEY, DEFAULT_BROWSER_HEIGHT, BROWSER_MIN, BROWSER_MAX)
+    if (stored === 415) {
+      try {
+        localStorage.setItem(BROWSER_HEIGHT_KEY, "525")
+      } catch {
+        /* ignore */
+      }
+      return 525
+    }
+    return stored
+  })
   const [inspectorHeight, setInspectorHeightState] = useState(() =>
     getStoredPanelHeight(INSPECTOR_HEIGHT_KEY, DEFAULT_INSPECTOR_HEIGHT, INSPECTOR_MIN, INSPECTOR_MAX)
   )
@@ -257,24 +267,35 @@ export function PlaybookWorkspace({
     }
   }
 
-  const handleNewFormation = (side: SideOfBall) => {
+  const handleNewFormation = async (side: SideOfBall) => {
+    const name = window.prompt("Formation name (e.g. Singleback, I-Form):", "New Formation")?.trim()
+    if (!name) return
     setSelectedPlayId(null)
     setSelectedFormationId(null)
     setSelectedSubFormationId(null)
     setSelectedFormationName("")
     setSelectedSide(side)
-    setEditingFormation({
-      id: "",
-      teamId,
-      playbookId: null,
-      side,
-      name: "New Formation",
-      parentFormationId: null,
-      templateData: { fieldView: "HALF", shapes: [], paths: [] },
-      createdAt: "",
-      updatedAt: "",
-    })
-    setDesignerMode("formation")
+    setEditingFormation(null)
+    setEditingSubFormation(null)
+    try {
+      const res = await fetch("/api/formations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId,
+          side,
+          name,
+          templateData: { fieldView: "HALF", shapes: [], paths: [] },
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to create formation")
+      await fetchFormations()
+      const created = await res.json()
+      setSelectedFormationId(created.id)
+      setSelectedFormationName(created.name)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to create formation")
+    }
   }
 
   const handleNewPlay = (side: SideOfBall, formationId: string | null, formationName: string, subFormationId?: string | null) => {
@@ -285,6 +306,7 @@ export function PlaybookWorkspace({
     setSelectedSubcategory(null)
     setSelectedSide(side)
     setEditingFormation(null)
+    setEditingSubFormation(null)
     setEditingPlayType(null)
     setDesignerMode("play")
   }
@@ -297,6 +319,7 @@ export function PlaybookWorkspace({
     setSelectedSubcategory(null)
     setSelectedSide(formation.side)
     setEditingFormation(null)
+    setEditingSubFormation(null)
     setDesignerMode("play")
   }
 
@@ -324,11 +347,20 @@ export function PlaybookWorkspace({
     }
   }
 
-  const handleEditFormation = (formation: FormationRecord) => {
+  const handleEditFormation = (_formation: FormationRecord) => {
     setSelectedPlayId(null)
-    setEditingFormation(formation)
-    setSelectedSide(formation.side)
-    setDesignerMode("formation")
+    setEditingFormation(null)
+    setEditingSubFormation(null)
+  }
+
+  const handleEditSubFormationTemplate = (sub: SubFormationRecord) => {
+    setSelectedPlayId(null)
+    setEditingFormation(null)
+    setEditingSubFormation(sub)
+    setSelectedFormationId(sub.formationId)
+    setSelectedSubFormationId(sub.id)
+    setSelectedFormationName(formations.find((f) => f.id === sub.formationId)?.name ?? "")
+    setSelectedSide(sub.side)
   }
 
   const handleSavePlay = async (canvasData: PlayCanvasData, playName: string) => {
@@ -385,35 +417,20 @@ export function PlaybookWorkspace({
     }
   }
 
-  const handleSaveFormation = async (canvasData: PlayCanvasData, formationName: string) => {
-    const sideForFormation = editingFormation?.side ?? selectedSide ?? selectedFormation?.side ?? "offense"
-    const templateData = canvasPlayersToTemplateData(canvasData.players, sideForFormation)
+  const handleSaveSubFormationTemplate = async (canvasData: PlayCanvasData, _name: string) => {
+    if (!editingSubFormation) return
+    const templateData = canvasPlayersToTemplateData(canvasData.players, editingSubFormation.side)
     try {
-      if (editingFormation?.id) {
-        const res = await fetch(`/api/formations/${editingFormation.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: formationName.trim(), templateData }),
-        })
-        if (!res.ok) throw new Error("Failed to update formation")
-      } else {
-        const res = await fetch("/api/formations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            teamId,
-            side: sideForFormation,
-            name: formationName.trim(),
-            templateData,
-          }),
-        })
-        if (!res.ok) throw new Error("Failed to create formation")
-      }
-      await fetchFormations()
-      setEditingFormation(null)
-      setDesignerMode("idle")
+      const res = await fetch(`/api/sub-formations/${editingSubFormation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateData }),
+      })
+      if (!res.ok) throw new Error("Failed to update sub-formation diagram")
+      await fetchSubFormations()
+      setEditingSubFormation(null)
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to save formation")
+      alert(e instanceof Error ? e.message : "Failed to save formation diagram")
     }
   }
 
@@ -476,8 +493,8 @@ export function PlaybookWorkspace({
       fieldType: data.fieldType ?? "half",
       side: data.side,
     }
-    if (designerMode === "formation") {
-      handleSaveFormation(canvasData, name)
+    if (editingSubFormation) {
+      handleSaveSubFormationTemplate(canvasData, name)
     } else {
       handleSavePlay(canvasData, name)
     }
@@ -506,6 +523,9 @@ export function PlaybookWorkspace({
       if (editingFormation?.id === formationId) {
         setEditingFormation(null)
         setDesignerMode("idle")
+      }
+      if (editingSubFormation?.formationId === formationId) {
+        setEditingSubFormation(null)
       }
       if (selectedFormationId === formationId) {
         setSelectedFormationId(null)
@@ -536,6 +556,9 @@ export function PlaybookWorkspace({
       const res = await fetch(`/api/sub-formations/${subFormationId}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Failed to delete")
       await fetchSubFormations()
+      if (editingSubFormation?.id === subFormationId) {
+        setEditingSubFormation(null)
+      }
       if (selectedSubFormationId === subFormationId) {
         setSelectedSubFormationId(null)
       }
@@ -602,6 +625,7 @@ export function PlaybookWorkspace({
   const handleCloseDesigner = () => {
     setDesignerMode("idle")
     setEditingFormation(null)
+    setEditingSubFormation(null)
     setEditingPlayType(null)
     setSelectedPlayerInspector(null)
     setInspectorSelection(null)
@@ -609,12 +633,15 @@ export function PlaybookWorkspace({
   }
 
   const effectiveSide = selectedSide ?? selectedFormation?.side ?? "offense"
-  const rawCanvasData =
-    designerMode === "formation" && editingFormation
-      ? templateDataToCanvasData(editingFormation.templateData, editingFormation.side)
-      : designerMode === "play" && !selectedPlayId && selectedFormation
-      ? templateDataToCanvasData(selectedFormation.templateData, effectiveSide)
-      : selectedPlay?.canvasData ?? null
+  const selectedSubFormation = selectedSubFormationId && selectedSubFormationId !== "__uncategorized__"
+    ? subFormations.find((s) => s.id === selectedSubFormationId) ?? null
+    : null
+  const defaultTemplate: TemplateData = { fieldView: "HALF", shapes: [], paths: [] }
+  const rawCanvasData = editingSubFormation
+    ? templateDataToCanvasData(editingSubFormation.templateData ?? defaultTemplate, editingSubFormation.side)
+    : designerMode === "play" && !selectedPlayId && selectedFormation
+    ? templateDataToCanvasData(selectedSubFormation?.templateData ?? defaultTemplate, effectiveSide)
+    : selectedPlay?.canvasData ?? null
 
   // Memoize so the builder receives a stable playData reference. Otherwise every workspace re-render
   // would pass a new object and the builder's playData sync effect would overwrite local state (e.g. a
@@ -661,10 +688,9 @@ export function PlaybookWorkspace({
     }
   }, [rawCanvasData])
 
-  const initialNameForDesigner =
-    designerMode === "formation"
-      ? editingFormation?.name ?? "New Formation"
-      : selectedPlay?.name ?? ""
+  const initialNameForDesigner = editingSubFormation
+    ? editingSubFormation.name
+    : selectedPlay?.name ?? ""
 
   const formationCountBySide = useMemo(
     () => ({
@@ -712,6 +738,7 @@ export function PlaybookWorkspace({
     onDeletePlay: handleDeletePlay,
     onDeleteFormation: handleDeleteFormation,
     onDeleteSubFormation: handleDeleteSubFormation,
+    onEditSubFormationTemplate: handleEditSubFormationTemplate,
     onStartPlaycaller: () => {
       setPlaycallerMode(true)
       setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
@@ -798,19 +825,19 @@ export function PlaybookWorkspace({
 
               {/* Canvas panel — takes remaining space */}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white border-x border-slate-200">
-                {((designerMode === "formation" && editingFormation) || (designerMode === "play" && !selectedPlayId && selectedFormation)) && canEditSide(effectiveSide) ? (
+                {(editingSubFormation || (designerMode === "play" && !selectedPlayId && selectedFormation)) && canEditSide(effectiveSide) ? (
                   <PlaybookBuilder
                     playId={designerMode === "play" ? selectedPlayId : null}
                     playData={initialCanvasDataForDesigner}
                     playName={initialNameForDesigner}
-                    editorSourceKey={designerMode === "play" ? (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}-${selectedSubFormationId ?? "none"}`) : `formation-${editingFormation?.id ?? "new"}`}
+                    editorSourceKey={editingSubFormation ? `subformation-${editingSubFormation.id}` : (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}-${selectedSubFormationId ?? "none"}`)}
                     side={effectiveSide}
-                    formation={designerMode === "formation" ? (editingFormation?.name ?? "New Formation") : (selectedFormationName || "Custom")}
+                    formation={editingSubFormation ? editingSubFormation.name : (selectedFormationName || "Custom")}
                     onSave={handleSaveFromBuilder}
                     onClose={handleCloseDesigner}
                     canEdit={canEditSide(effectiveSide)}
-                    isTemplateMode={designerMode === "formation"}
-                    templateName={editingFormation?.name ?? ""}
+                    isTemplateMode={!!editingSubFormation}
+                    templateName={editingSubFormation?.name ?? ""}
                     onSelectPlayer={(player) => {
                       setSelectedPlayerInspector(player)
                       setInspectorSelection(player ? "player" : null)

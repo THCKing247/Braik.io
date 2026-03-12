@@ -115,13 +115,14 @@ export type FormationRecord = {
   updatedAt: string
 }
 
-/** Sub-formation: category under a formation (e.g. Singleback > Deuce Close). */
+/** Sub-formation: category under a formation; holds the actual formation diagram (template). */
 export type SubFormationRecord = {
   id: string
   teamId: string
   formationId: string
   side: SideOfBall
   name: string
+  templateData?: TemplateData
   createdAt: string
   updatedAt: string
 }

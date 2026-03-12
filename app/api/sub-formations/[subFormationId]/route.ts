@@ -25,7 +25,7 @@ export async function GET(
 
     const { data: subFormation, error } = await supabase
       .from("sub_formations")
-      .select("id, team_id, formation_id, side, name, created_at, updated_at")
+      .select("id, team_id, formation_id, side, name, template_data, created_at, updated_at")
       .eq("id", subFormationId)
       .maybeSingle()
 
@@ -35,12 +35,14 @@ export async function GET(
 
     await requireTeamAccess(subFormation.team_id)
 
+    const defaultTemplate = { fieldView: "HALF", shapes: [], paths: [] }
     return NextResponse.json({
       id: subFormation.id,
       teamId: subFormation.team_id,
       formationId: subFormation.formation_id,
       side: subFormation.side,
       name: subFormation.name,
+      templateData: (subFormation as { template_data?: unknown }).template_data ?? defaultTemplate,
       createdAt: subFormation.created_at,
       updatedAt: subFormation.updated_at,
     })
@@ -72,7 +74,7 @@ export async function PATCH(
       return NextResponse.json({ error: "subFormationId is required" }, { status: 400 })
     }
 
-    const body = (await request.json()) as { name?: string }
+    const body = (await request.json()) as { name?: string; templateData?: unknown }
 
     const supabase = getSupabaseServer()
 
@@ -97,12 +99,13 @@ export async function PATCH(
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (body.name !== undefined) updateData.name = body.name.trim()
+    if (body.templateData !== undefined) updateData.template_data = body.templateData
 
     const { data: subFormation, error: updateError } = await supabase
       .from("sub_formations")
       .update(updateData)
       .eq("id", subFormationId)
-      .select("id, team_id, formation_id, side, name, created_at, updated_at")
+      .select("id, team_id, formation_id, side, name, template_data, created_at, updated_at")
       .single()
 
     if (updateError || !subFormation) {
@@ -110,12 +113,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Failed to update sub-formation" }, { status: 500 })
     }
 
+    const defaultTemplate = { fieldView: "HALF", shapes: [], paths: [] }
     return NextResponse.json({
       id: subFormation.id,
       teamId: subFormation.team_id,
       formationId: subFormation.formation_id,
       side: subFormation.side,
       name: subFormation.name,
+      templateData: (subFormation as { template_data?: unknown }).template_data ?? defaultTemplate,
       createdAt: subFormation.created_at,
       updatedAt: subFormation.updated_at,
     })

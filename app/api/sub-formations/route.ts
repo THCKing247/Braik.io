@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("sub_formations")
-      .select("id, team_id, formation_id, side, name, created_at, updated_at")
+      .select("id, team_id, formation_id, side, name, template_data, created_at, updated_at")
       .eq("team_id", teamId)
 
     if (formationId) {
@@ -50,12 +50,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to load sub-formations" }, { status: 500 })
     }
 
+    const defaultTemplate = { fieldView: "HALF", shapes: [], paths: [] }
     const formatted = (subFormations ?? []).map((s) => ({
       id: s.id,
       teamId: s.team_id,
       formationId: s.formation_id,
       side: s.side,
       name: s.name,
+      templateData: (s as { template_data?: unknown }).template_data ?? defaultTemplate,
       createdAt: s.created_at,
       updatedAt: s.updated_at,
     }))
@@ -87,9 +89,10 @@ export async function POST(request: Request) {
       formationId?: string
       side?: string
       name?: string
+      templateData?: unknown
     }
 
-    const { teamId, formationId, side, name } = body
+    const { teamId, formationId, side, name, templateData } = body
 
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -129,6 +132,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Formation not found" }, { status: 404 })
     }
 
+    const defaultTemplate = { fieldView: "HALF", shapes: [], paths: [] }
     const { data: subFormation, error: insertError } = await supabase
       .from("sub_formations")
       .insert({
@@ -136,8 +140,9 @@ export async function POST(request: Request) {
         formation_id: formationId,
         side: formation.side,
         name: name.trim(),
+        template_data: templateData ?? defaultTemplate,
       })
-      .select("id, team_id, formation_id, side, name, created_at, updated_at")
+      .select("id, team_id, formation_id, side, name, template_data, created_at, updated_at")
       .single()
 
     if (insertError || !subFormation) {
@@ -151,6 +156,7 @@ export async function POST(request: Request) {
       formationId: subFormation.formation_id,
       side: subFormation.side,
       name: subFormation.name,
+      templateData: (subFormation as { template_data?: unknown }).template_data ?? defaultTemplate,
       createdAt: subFormation.created_at,
       updatedAt: subFormation.updated_at,
     })

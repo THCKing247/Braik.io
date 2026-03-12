@@ -9,7 +9,7 @@
  * Card-based, not tree. Breadcrumb and back for navigation.
  */
 import { useState, useMemo } from "react"
-import { Search, Plus, LayoutGrid, List, Presentation, ChevronRight, ArrowLeft, FolderOpen, FileText, Trash2, Pencil } from "lucide-react"
+import { Search, Plus, LayoutGrid, List, Presentation, ChevronRight, ArrowLeft, FolderOpen, FileText, Trash2, Pencil, PenTool } from "lucide-react"
 
 /** Football-style icon (oval with laces) for playbook side cards. */
 function FootballIcon({ className }: { className?: string }) {
@@ -82,6 +82,7 @@ interface PlaybookBrowserProps {
   onDeletePlay: (playId: string) => void
   onDeleteFormation: (formationId: string) => void
   onDeleteSubFormation: (subFormationId: string) => void
+  onEditSubFormationTemplate?: (sub: SubFormationRecord) => void
   onStartPlaycaller: () => void
   onReviewAssignments?: (play: PlayRecord) => void
   /** When provided, "Open" on a play navigates to this URL with playId (e.g. open in new window). */
@@ -117,6 +118,7 @@ export function PlaybookBrowser({
   onDeletePlay,
   onDeleteFormation,
   onDeleteSubFormation,
+  onEditSubFormationTemplate,
   onStartPlaycaller,
   onReviewAssignments,
   playEditorPath,
@@ -646,7 +648,7 @@ export function PlaybookBrowser({
                     className="min-w-[200px] cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-xl transition-all p-0 relative"
                     onClick={() => !isEditing && onSelectSubFormation(s.id, s.name)}
                   >
-                    <FormationThumbnail templateData={selectedFormation.templateData} side={selectedFormation.side} />
+                    <FormationThumbnail templateData={s.templateData ?? selectedFormation.templateData} side={selectedFormation.side} />
                     <div className="bg-[#1e40af] px-4 py-4 text-center">
                       {isEditing ? (
                         <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -680,6 +682,20 @@ export function PlaybookBrowser({
                       <div className="absolute top-2 right-2 flex gap-1 z-10">
                         {!isEditing ? (
                           <>
+                            {onEditSubFormationTemplate && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 bg-white/90 hover:bg-blue-100 rounded-full shadow-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onEditSubFormationTemplate(s)
+                                }}
+                                title="Edit formation diagram"
+                              >
+                                <PenTool className="h-3.5 w-3.5 text-slate-700" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

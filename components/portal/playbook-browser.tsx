@@ -457,7 +457,7 @@ export function PlaybookBrowser({
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 md:gap-5 min-w-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 md:gap-5">
               {SIDES.map((s, idx) => {
                 const stats = sideStats[idx]
                 const formationCount = stats?.formationCount ?? 0
@@ -466,6 +466,7 @@ export function PlaybookBrowser({
                 return (
                   <PlaybookCategoryCard
                     key={s.value}
+                    className="min-w-[220px] w-full"
                     side={s.value}
                     label={s.label}
                     description={s.description}
@@ -517,7 +518,7 @@ export function PlaybookBrowser({
                   return (
                     <Card
                       key={f.id}
-                      className={`cursor-pointer overflow-hidden border-2 transition-all shadow-sm p-0 relative ${accentBg}`}
+                      className={`min-w-[220px] cursor-pointer overflow-hidden border-2 transition-all shadow-sm p-0 relative ${accentBg}`}
                       onClick={() => onSelectFormation(f.id, f.name, f.side)}
                     >
                       {hasTemplate ? (
@@ -529,8 +530,8 @@ export function PlaybookBrowser({
                           />
                         </div>
                       )}
-                      <div className={`${barBg} px-4 py-3 text-center`}>
-                        <span className="font-bold text-white text-lg tracking-tight">{f.name}</span>
+                      <div className={`${barBg} px-4 py-3 text-center min-w-0`}>
+                        <span className="font-bold text-white text-lg tracking-tight block truncate" title={f.name}>{f.name}</span>
                       </div>
                       <CardContent className="p-4 flex flex-col min-h-[100px]">
                         <div className="flex items-center justify-between gap-4 mb-3">
@@ -635,14 +636,14 @@ export function PlaybookBrowser({
                 </div>
               </Card>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {subFormationsForSelectedFormation.map((s) => {
                 const playCount = subFormationPlayCount(s.id)
                 const isEditing = editingSubFormationId === s.id
                 return (
                   <Card
                     key={s.id}
-                    className="cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-xl transition-all p-0 relative"
+                    className="min-w-[200px] cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-xl transition-all p-0 relative"
                     onClick={() => !isEditing && onSelectSubFormation(s.id, s.name)}
                   >
                     <FormationThumbnail templateData={selectedFormation.templateData} side={selectedFormation.side} />
@@ -670,7 +671,7 @@ export function PlaybookBrowser({
                         </div>
                       ) : (
                         <>
-                          <span className="font-bold text-white text-base block tracking-tight">{s.name}</span>
+                          <span className="font-bold text-white text-base block tracking-tight truncate" title={s.name}>{s.name}</span>
                           <span className="text-white/90 text-sm font-medium mt-0.5 block">{playCount} play{playCount !== 1 ? "s" : ""}</span>
                         </>
                       )}
@@ -738,7 +739,7 @@ export function PlaybookBrowser({
               })}
               {uncategorizedCount > 0 && (
                 <Card
-                  className="cursor-pointer overflow-hidden border-2 border-dashed border-slate-300 hover:border-slate-500 hover:shadow-lg transition-all p-0"
+                  className="min-w-[200px] cursor-pointer overflow-hidden border-2 border-dashed border-slate-300 hover:border-slate-500 hover:shadow-lg transition-all p-0"
                   onClick={() => onSelectSubFormation(UNCATEGORIZED_ID, "Uncategorized")}
                 >
                   <div className="aspect-[200/140] bg-slate-100 flex items-center justify-center rounded-t-lg">
@@ -784,23 +785,24 @@ export function PlaybookBrowser({
             ) : (
               <div className="space-y-4">
                 {viewMode === "grid" ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                     {filteredAndSortedPlays.map((play) => (
-                      <PlayCard
-                        key={play.id}
-                        play={play}
-                        formations={formations}
-                        depthChartEntries={depthChartEntries}
-                        isSelected={selectedPlayId === play.id}
-                        onOpen={onSelectPlay}
-                        onDuplicate={onDuplicatePlay}
-                        onRename={onRenamePlay}
-                        onDelete={onDeletePlay}
-                        onReviewAssignments={onReviewAssignments}
-                        canEdit={canEdit}
-                        viewMode="grid"
-                        playEditorPath={playEditorPath}
-                      />
+                      <div key={play.id} className="min-w-[200px] w-full">
+                        <PlayCard
+                          play={play}
+                          formations={formations}
+                          depthChartEntries={depthChartEntries}
+                          isSelected={selectedPlayId === play.id}
+                          onOpen={onSelectPlay}
+                          onDuplicate={onDuplicatePlay}
+                          onRename={onRenamePlay}
+                          onDelete={onDeletePlay}
+                          onReviewAssignments={onReviewAssignments}
+                          canEdit={canEdit}
+                          viewMode="grid"
+                          playEditorPath={playEditorPath}
+                        />
+                      </div>
                     ))}
                   </div>
                 ) : (

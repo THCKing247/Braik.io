@@ -1022,9 +1022,9 @@ export function PlaybookBuilder({
         </div>
       </div>
 
-      {/* Drawing helper text — whiteboard-style hints */}
+      {/* Drawing helper text — wraps with toolbar strip styling */}
       {canEdit && !isTemplateMode && (
-        <div className="flex-shrink-0 px-3 py-2 border-b text-sm text-slate-700 bg-slate-100/90" style={{ borderColor: "#E5E7EB", minHeight: "40px" }}>
+        <div className="flex-shrink-0 flex flex-wrap items-center gap-3 py-2 px-3 border-b border-slate-200 bg-slate-50/50 text-sm text-slate-600">
           {tool === "route" && !routeDraft && (
             <span>Route: <strong>Click a player</strong> to start, then add waypoints. Enter to finish, Esc to cancel.</span>
           )}
@@ -1049,156 +1049,175 @@ export function PlaybookBuilder({
         </div>
       )}
 
-      {/* Selected player: position and depth number editor */}
+      {/* Selected player: position and depth number editor — wrapping toolbar with logical groups */}
       {canEdit && selectedPlayerId && (() => {
         const sel = players.find((p) => p.id === selectedPlayerId)
         if (!sel) return null
         const positions = getPositionsForUnit(currentSide)
         const def = sel.positionCode ? getPositionByCode(sel.positionCode) : null
+        const inputClass = "h-8 min-w-[70px] px-2 rounded-md border border-slate-200 text-sm"
         return (
-          <div className="flex-shrink-0 px-3 py-2 border-b border-slate-200 bg-white flex flex-wrap items-center gap-3">
-            <span className="text-xs font-medium text-slate-600">Marker:</span>
-            <select
-              value={sel.positionCode ?? ""}
-              onChange={(e) => {
-                const code = e.target.value || null
-                const newDef = code ? getPositionByCode(code) : null
-                const num = newDef?.numberable ? (sel.positionNumber ?? 1) : null
-                const label = newDef && code ? getDisplayLabel(code, num) : sel.label
-                setPlayers((prev) =>
-                  prev.map((p) =>
-                    p.id === selectedPlayerId
-                      ? {
-                          ...p,
-                          positionCode: code,
-                          positionNumber: num ?? undefined,
-                          label,
-                          shape: newDef?.shape ?? p.shape,
-                        }
-                      : p
-                  )
-                )
-              }}
-              className="h-8 rounded border border-slate-200 px-2 text-sm min-w-[72px]"
-            >
-              <option value="">—</option>
-              {positions.map((p) => (
-                <option key={p.code} value={p.code}>{p.label}</option>
-              ))}
-            </select>
-            {def?.numberable && (
-              <>
-                <span className="text-xs text-slate-500">#</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={sel.positionNumber ?? 1}
+          <div className="flex-shrink-0 py-2 px-3 border-b border-slate-200 bg-slate-50/50">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              {/* Group 1: Marker selector */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium text-slate-600">Marker:</span>
+                <select
+                  value={sel.positionCode ?? ""}
                   onChange={(e) => {
-                    const n = parseInt(e.target.value, 10)
-                    const num = isNaN(n) || n < 1 ? 1 : Math.min(99, n)
-                    const label = getDisplayLabel(sel.positionCode ?? "", num)
+                    const code = e.target.value || null
+                    const newDef = code ? getPositionByCode(code) : null
+                    const num = newDef?.numberable ? (sel.positionNumber ?? 1) : null
+                    const label = newDef && code ? getDisplayLabel(code, num) : sel.label
                     setPlayers((prev) =>
                       prev.map((p) =>
-                        p.id === selectedPlayerId ? { ...p, positionNumber: num, label } : p
+                        p.id === selectedPlayerId
+                          ? {
+                              ...p,
+                              positionCode: code,
+                              positionNumber: num ?? undefined,
+                              label,
+                              shape: newDef?.shape ?? p.shape,
+                            }
+                          : p
                       )
                     )
                   }}
-                  className="h-8 w-14 rounded border border-slate-200 px-2 text-sm text-center"
-                />
-              </>
-            )}
-            <span className="text-xs text-slate-500">→ {sel.label}</span>
-            {sel.positionCode && depthChartEntries?.length && (() => {
-              const slotNum = sel.positionNumber ?? 1
-              const assigned = getPlayerForSlot(depthChartEntries, currentSide, sel.positionCode, slotNum)
-              return (
-                <span className="text-xs font-medium text-slate-700">
-                  {assigned ? (
-                    <>Assigned: {assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}{[assigned.firstName, assigned.lastName].filter(Boolean).join(" ")}</>
-                  ) : (
-                    <span className="text-slate-500">Unassigned</span>
-                  )}
-                </span>
-              )
-            })()}
-            {sel.positionCode && hasDuplicateRoleLabel(players, sel.id) && (
-              <span className="text-xs text-amber-600" title="Another marker has the same role label on this play">
-                Duplicate role
-              </span>
-            )}
-            {!isTemplateMode && (
-              <>
-                <div className="w-px h-6 bg-slate-200" aria-hidden />
-                <span className="text-xs font-medium text-slate-600">Animation:</span>
-                {hasCustomAnimationTiming(sel.animationTiming) ? (
-                  <span className="text-xs font-medium text-amber-700 flex items-center gap-1" title="This marker has custom animation timing">
-                    <Clock className="h-3.5 w-3.5" />
-                    Custom timing: {formatAnimationTimingSummary(sel.animationTiming)}
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400">Default timing</span>
+                  className={`${inputClass} min-w-[72px]`}
+                >
+                  <option value="">—</option>
+                  {positions.map((p) => (
+                    <option key={p.code} value={p.code}>{p.label}</option>
+                  ))}
+                </select>
+                {def?.numberable && (
+                  <>
+                    <span className="text-xs text-slate-500">#</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={sel.positionNumber ?? 1}
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10)
+                        const num = isNaN(n) || n < 1 ? 1 : Math.min(99, n)
+                        const label = getDisplayLabel(sel.positionCode ?? "", num)
+                        setPlayers((prev) =>
+                          prev.map((p) =>
+                            p.id === selectedPlayerId ? { ...p, positionNumber: num, label } : p
+                          )
+                        )
+                      }}
+                      className={`${inputClass} w-14 text-center`}
+                    />
+                  </>
                 )}
-                <label className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-500 whitespace-nowrap">Start delay</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={sel.animationTiming?.startDelay ?? 0}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value)
-                      const startDelay = isNaN(v) ? 0 : Math.max(0, Math.min(1, v))
-                      setPlayers((prev) =>
-                        prev.map((p) => {
-                          if (p.id !== selectedPlayerId) return p
-                          const next = {
-                            ...p.animationTiming,
-                            startDelay: startDelay === 0 ? undefined : startDelay,
-                          }
-                          const timing =
-                            next.startDelay != null || next.durationScale != null ? next : undefined
-                          return { ...p, animationTiming: timing }
-                        })
-                      )
-                    }}
-                    title="0 = starts immediately, 0.2 = after 20% of the play"
-                    className="h-8 w-16 rounded border border-slate-200 px-2 text-sm text-right"
-                  />
-                </label>
-                <label className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-500 whitespace-nowrap">Duration scale</span>
-                  <input
-                    type="number"
-                    min={0.1}
-                    max={3}
-                    step={0.1}
-                    value={sel.animationTiming?.durationScale ?? 1}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value)
-                      const durationScale = isNaN(v) ? 1 : Math.max(0.1, Math.min(3, v))
-                      setPlayers((prev) =>
-                        prev.map((p) => {
-                          if (p.id !== selectedPlayerId) return p
-                          const next = {
-                            ...p.animationTiming,
-                            durationScale: durationScale === 1 ? undefined : durationScale,
-                          }
-                          const timing =
-                            next.startDelay != null || next.durationScale != null ? next : undefined
-                          return { ...p, animationTiming: timing }
-                        })
-                      )
-                    }}
-                    title="1 = normal speed, 0.5 = faster, 2 = slower"
-                    className="h-8 w-16 rounded border border-slate-200 px-2 text-sm text-right"
-                  />
-                </label>
+                <span className="text-xs text-slate-500">→ {sel.label}</span>
+                {sel.positionCode && depthChartEntries?.length && (() => {
+                  const slotNum = sel.positionNumber ?? 1
+                  const assigned = getPlayerForSlot(depthChartEntries, currentSide, sel.positionCode, slotNum)
+                  return (
+                    <span className="text-xs font-medium text-slate-700">
+                      {assigned ? (
+                        <>Assigned: {assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}{[assigned.firstName, assigned.lastName].filter(Boolean).join(" ")}</>
+                      ) : (
+                        <span className="text-slate-500">Unassigned</span>
+                      )}
+                    </span>
+                  )
+                })()}
+                {sel.positionCode && hasDuplicateRoleLabel(players, sel.id) && (
+                  <span className="text-xs text-amber-600" title="Another marker has the same role label on this play">
+                    Duplicate role
+                  </span>
+                )}
+              </div>
+
+              {/* Group 2: Animation status */}
+              {!isTemplateMode && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-600">Animation:</span>
+                  {hasCustomAnimationTiming(sel.animationTiming) ? (
+                    <span className="text-xs font-medium text-amber-700 flex items-center gap-1" title="This marker has custom animation timing">
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      Custom timing: {formatAnimationTimingSummary(sel.animationTiming)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400">Default timing</span>
+                  )}
+                </div>
+              )}
+
+              {/* Group 3: Timing controls */}
+              {!isTemplateMode && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <span className="text-slate-500 whitespace-nowrap">Start delay</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={sel.animationTiming?.startDelay ?? 0}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value)
+                        const startDelay = isNaN(v) ? 0 : Math.max(0, Math.min(1, v))
+                        setPlayers((prev) =>
+                          prev.map((p) => {
+                            if (p.id !== selectedPlayerId) return p
+                            const next = {
+                              ...p.animationTiming,
+                              startDelay: startDelay === 0 ? undefined : startDelay,
+                            }
+                            const timing =
+                              next.startDelay != null || next.durationScale != null ? next : undefined
+                            return { ...p, animationTiming: timing }
+                          })
+                        )
+                      }}
+                      title="0 = starts immediately, 0.2 = after 20% of the play"
+                      className={`${inputClass} text-right w-16`}
+                    />
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <span className="text-slate-500 whitespace-nowrap">Duration scale</span>
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={3}
+                      step={0.1}
+                      value={sel.animationTiming?.durationScale ?? 1}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value)
+                        const durationScale = isNaN(v) ? 1 : Math.max(0.1, Math.min(3, v))
+                        setPlayers((prev) =>
+                          prev.map((p) => {
+                            if (p.id !== selectedPlayerId) return p
+                            const next = {
+                              ...p.animationTiming,
+                              durationScale: durationScale === 1 ? undefined : durationScale,
+                            }
+                            const timing =
+                              next.startDelay != null || next.durationScale != null ? next : undefined
+                            return { ...p, animationTiming: timing }
+                          })
+                        )
+                      }}
+                      title="1 = normal speed, 0.5 = faster, 2 = slower"
+                      className={`${inputClass} text-right w-16`}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Row 2: Reset timing + hint */}
+            {!isTemplateMode && (
+              <div className="w-full text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Button
                   variant={hasCustomAnimationTiming(sel.animationTiming) ? "outline" : "ghost"}
                   size="sm"
-                  className="h-8 text-xs gap-1"
+                  className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:underline"
                   onClick={() =>
                     setPlayers((prev) =>
                       prev.map((p) =>
@@ -1212,10 +1231,10 @@ export function PlaybookBuilder({
                   <RotateCcw className="h-3.5 w-3.5" />
                   Reset timing
                 </Button>
-                <span className="text-xs text-slate-400 max-w-[200px]">
-                  0 = now · 0.2 = 20% in · 0.5 scale = faster, 2 = slower
+                <span className="text-slate-400">
+                  0 = now · 0.2 = 20% in · 0.5 scale = faster · 2 = slower
                 </span>
-              </>
+              </div>
             )}
           </div>
         )

@@ -692,8 +692,8 @@ export function PlaybookWorkspace({
       <div className="flex-1 overflow-hidden p-4 md:p-5 lg:p-6">
         <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
           {atHub ? (
-            <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,2.1fr)_minmax(320px,1fr)] gap-5 xl:gap-6 p-5 xl:p-6 overflow-hidden min-h-0">
-              <div className="min-w-0 overflow-hidden flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(280px,2.1fr)_minmax(320px,1fr)] gap-5 xl:gap-6 p-5 xl:p-6 overflow-hidden min-h-0">
+              <div className="min-w-[280px] overflow-hidden flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
                 <PlaybookBrowser {...browserProps} />
               </div>
               <div className="min-w-0 overflow-y-auto flex flex-col xl:pl-0 pt-4 xl:pt-0 border-t xl:border-t-0 border-slate-200/80">
@@ -708,8 +708,8 @@ export function PlaybookWorkspace({
               </div>
             </div>
           ) : (
-            <div className="flex-1 grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1.6fr)_minmax(280px,0.9fr)] overflow-hidden min-h-0 items-stretch">
-              <div className="min-w-0 flex flex-col overflow-hidden border-r border-slate-200 bg-white">
+            <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(280px,320px)_minmax(0,1.6fr)_minmax(280px,0.9fr)] overflow-hidden min-h-0 items-stretch">
+              <div className="min-w-[280px] flex flex-col overflow-hidden border-r border-slate-200 bg-white flex-shrink-0">
                 <PlaybookBrowser {...browserProps} />
               </div>
               <div className="min-w-0 flex flex-col overflow-hidden bg-white">

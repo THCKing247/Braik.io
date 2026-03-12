@@ -3,6 +3,20 @@ import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/serve
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 
+const LOG_PREFIX = "[api/plays][POST]"
+
+function safeString(val: unknown): string | undefined {
+  if (val == null) return undefined
+  if (typeof val === "string") return val
+  return undefined
+}
+
+function safeObject(val: unknown): Record<string, unknown> | null {
+  if (val == null) return null
+  if (typeof val === "object" && !Array.isArray(val) && val !== null) return val as Record<string, unknown>
+  return null
+}
+
 /**
  * GET /api/plays?teamId=xxx&side=xxx
  * Returns plays for the team, optionally filtered by side.
@@ -87,67 +101,106 @@ export async function GET(request: Request) {
   }
 }
 
+const VALID_SIDES = ["offense", "defense", "special_teams"] as const
+const VALID_PLAY_TYPES = ["run", "pass", "rpo", "screen"] as const
+
 /**
  * POST /api/plays
  * Creates a new play.
  */
 export async function POST(request: Request) {
   try {
+    console.log(`${LOG_PREFIX} request received`)
+
     const session = await getServerSession()
     if (!session?.user?.id) {
+      console.log(`${LOG_PREFIX} unauthenticated`)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    console.log(`${LOG_PREFIX} authenticated user: ${session.user.id}`)
 
-    let body: {
-      teamId?: string
-      playbookId?: string | null
-      formationId?: string | null
-      subFormationId?: string | null
-      side?: string
-      formation?: string
-      subcategory?: string | null
-      name?: string
-      playType?: "run" | "pass" | "rpo" | "screen" | null
-      canvasData?: unknown
-    }
+    let rawBody: unknown
     try {
-      body = (await request.json()) as typeof body
+      rawBody = await request.json()
     } catch {
+      console.log(`${LOG_PREFIX} invalid JSON body`)
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    const { teamId, playbookId, formationId, subFormationId, side, formation, subcategory, name, playType, canvasData } = body
+    const body = typeof rawBody === "object" && rawBody !== null && !Array.isArray(rawBody)
+      ? (rawBody as Record<string, unknown>)
+      : {}
+    console.log(`${LOG_PREFIX} parsed body keys: ${Object.keys(body).join(", ")}`)
+
+    const teamId = safeString(body.teamId)
+    const playbookId = body.playbookId != null ? safeString(body.playbookId) ?? null : null
+    const formationId = body.formationId != null ? safeString(body.formationId) ?? null : null
+    const subFormationId = body.subFormationId != null ? safeString(body.subFormationId) ?? null : null
+    const side = safeString(body.side)
+    const formation = safeString(body.formation)
+    const subcategory = body.subcategory != null ? safeString(body.subcategory) ?? null : null
+    const name = safeString(body.name)
+    const playTypeRaw = safeString(body.playType)
+    const playType =
+      playTypeRaw && VALID_PLAY_TYPES.includes(playTypeRaw as (typeof VALID_PLAY_TYPES)[number])
+        ? (playTypeRaw as (typeof VALID_PLAY_TYPES)[number])
+        : null
+    const canvasData = body.canvasData !== undefined ? (safeObject(body.canvasData) ?? body.canvasData) : undefined
+
+    const normalized = {
+      teamId,
+      playbookId,
+      formationId,
+      subFormationId,
+      side,
+      formation: formation?.trim() ?? "",
+      subcategory,
+      name: name?.trim() ?? "",
+      playType,
+      hasCanvasData: canvasData !== undefined,
+    }
+    console.log(`${LOG_PREFIX} normalized payload:`, JSON.stringify(normalized))
 
     if (!teamId) {
-      return NextResponse.json({ error: "teamId is required" }, { status: 400 })
+      console.log(`${LOG_PREFIX} validation failed: missing teamId`)
+      return NextResponse.json({ error: "Missing teamId" }, { status: 400 })
+    }
+    if (!side || !VALID_SIDES.includes(side as (typeof VALID_SIDES)[number])) {
+      console.log(`${LOG_PREFIX} validation failed: invalid or missing side`)
+      return NextResponse.json(
+        { error: "side must be offense, defense, or special_teams" },
+        { status: 400 }
+      )
+    }
+    if (!normalized.name) {
+      console.log(`${LOG_PREFIX} validation failed: missing play name/title`)
+      return NextResponse.json({ error: "Missing play name/title" }, { status: 400 })
     }
 
-    if (!side || !["offense", "defense", "special_teams"].includes(side)) {
-      return NextResponse.json({ error: "side must be offense, defense, or special_teams" }, { status: 400 })
-    }
+    console.log(`${LOG_PREFIX} validation pass`)
 
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: "name is required" }, { status: 400 })
-    }
-
-    // Check permissions based on side
-    if (side === "offense") {
-      await requireTeamPermission(teamId, "edit_offense_plays")
-    } else if (side === "defense") {
-      await requireTeamPermission(teamId, "edit_defense_plays")
-    } else {
-      await requireTeamPermission(teamId, "edit_special_teams_plays")
+    try {
+      if (side === "offense") {
+        await requireTeamPermission(teamId, "edit_offense_plays")
+      } else if (side === "defense") {
+        await requireTeamPermission(teamId, "edit_defense_plays")
+      } else {
+        await requireTeamPermission(teamId, "edit_special_teams_plays")
+      }
+    } catch (permErr) {
+      console.error(`${LOG_PREFIX} permission check failed`, permErr)
+      const msg = permErr instanceof Error ? permErr.message : "Access denied"
+      return NextResponse.json({ error: msg }, { status: 403 })
     }
 
     const supabase = getSupabaseServer()
 
-    // Verify team exists
     const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
     if (!team) {
+      console.log(`${LOG_PREFIX} team not found: ${teamId}`)
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
-    // Verify playbook exists if provided
     if (playbookId) {
       const { data: playbook } = await supabase
         .from("playbooks")
@@ -156,12 +209,12 @@ export async function POST(request: Request) {
         .eq("team_id", teamId)
         .maybeSingle()
       if (!playbook) {
+        console.log(`${LOG_PREFIX} playbook not found: ${playbookId}`)
         return NextResponse.json({ error: "Playbook not found" }, { status: 404 })
       }
     }
 
-    // Verify formation exists and belong to team if provided; use its name for denormalized play.formation
-    let formationNameForInsert = formation?.trim() ?? ""
+    let formationNameForInsert = normalized.formation
     if (formationId) {
       const { data: formationRow } = await supabase
         .from("formations")
@@ -170,12 +223,14 @@ export async function POST(request: Request) {
         .eq("team_id", teamId)
         .maybeSingle()
       if (!formationRow) {
+        console.log(`${LOG_PREFIX} formation not found: ${formationId}`)
         return NextResponse.json({ error: "Formation not found" }, { status: 404 })
       }
       formationNameForInsert = formationRow.name?.trim() ?? formationNameForInsert
     }
     if (!formationNameForInsert) {
-      return NextResponse.json({ error: "formation is required" }, { status: 400 })
+      console.log(`${LOG_PREFIX} validation failed: formation name required (formation or formationId)`)
+      return NextResponse.json({ error: "formation is required (provide formation name or formationId)" }, { status: 400 })
     }
 
     let subFormationNameForInsert: string | null = null
@@ -187,10 +242,15 @@ export async function POST(request: Request) {
         .eq("team_id", teamId)
         .maybeSingle()
       if (!subRow) {
+        console.log(`${LOG_PREFIX} sub-formation not found: ${subFormationId}`)
         return NextResponse.json({ error: "Sub-formation not found" }, { status: 404 })
       }
       if (formationId && subRow.formation_id !== formationId) {
-        return NextResponse.json({ error: "Sub-formation does not belong to the given formation" }, { status: 400 })
+        console.log(`${LOG_PREFIX} sub-formation does not belong to formation`)
+        return NextResponse.json(
+          { error: "Sub-formation does not belong to the given formation" },
+          { status: 400 }
+        )
       }
       subFormationNameForInsert = subRow.name?.trim() ?? null
     }
@@ -200,8 +260,8 @@ export async function POST(request: Request) {
       playbook_id: playbookId ?? null,
       side,
       formation: formationNameForInsert,
-      subcategory: subcategory?.trim() ?? null,
-      name: name.trim(),
+      subcategory: subcategory ?? null,
+      name: normalized.name,
       canvas_data: canvasData ?? null,
     }
     if (formationId != null) {
@@ -210,25 +270,31 @@ export async function POST(request: Request) {
     if (subFormationId != null) {
       insertPayload.sub_formation_id = subFormationId
     }
-    if (playType != null && ["run", "pass", "rpo", "screen"].includes(playType)) {
+    if (playType != null) {
       insertPayload.play_type = playType
     }
 
-    // Create play
+    console.log(`${LOG_PREFIX} insert attempt: team_id, formation, name present`)
+
     const { data: play, error: playError } = await supabase
       .from("plays")
       .insert(insertPayload)
       .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at")
       .single()
 
-    if (playError || !play) {
-      console.error("[POST /api/plays]", playError)
-      const message = playError?.message ?? "Failed to create play"
+    if (playError) {
+      console.error(`${LOG_PREFIX} insert failed:`, playError.code, playError.message, playError.details)
       return NextResponse.json(
-        { error: "Failed to create play", details: message },
+        { error: "Failed to create play", details: playError.message },
         { status: 500 }
       )
     }
+    if (!play) {
+      console.error(`${LOG_PREFIX} insert returned no row`)
+      return NextResponse.json({ error: "Failed to create play" }, { status: 500 })
+    }
+
+    console.log(`${LOG_PREFIX} insert result id: ${play.id}`)
 
     const res = NextResponse.json({
       id: play.id,
@@ -249,8 +315,8 @@ export async function POST(request: Request) {
     if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
     return res
   } catch (error: unknown) {
-    const err = error as { message?: string }
-    console.error("[POST /api/plays]", error)
+    const err = error as Error & { message?: string }
+    console.error(`${LOG_PREFIX} unexpected error:`, err?.message ?? error)
     const message = err?.message ?? "Failed to create play"
     const status = message.includes("Access denied") ? 403 : 500
     return NextResponse.json({ error: message }, { status })

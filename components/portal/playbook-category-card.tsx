@@ -46,6 +46,7 @@ interface PlaybookCategoryCardProps {
   browseLabel: string
   onCreateFormation?: () => void
   canEdit: boolean
+  className?: string
 }
 
 const ACCENT = {
@@ -83,12 +84,13 @@ export function PlaybookCategoryCard({
   browseLabel,
   onCreateFormation,
   canEdit,
+  className,
 }: PlaybookCategoryCardProps) {
   const accent = ACCENT[side]
 
   return (
     <Card
-      className={`cursor-pointer overflow-hidden rounded-xl border-2 transition-all duration-200 ease-out ${accent.card}`}
+      className={`cursor-pointer overflow-hidden rounded-xl border-2 transition-all duration-200 ease-out min-w-[220px] ${accent.card} ${className ?? ""}`}
       onClick={onSelect}
     >
       <CardContent className="p-5 flex flex-col min-h-[220px]">

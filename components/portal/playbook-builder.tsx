@@ -446,15 +446,35 @@ export function PlaybookBuilder({
     if (initialPlayName) setPlayName(initialPlayName)
   }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height, editorSourceKey, playId, isTemplateMode, templateName])
 
-  // When canvas is resized, recompute x,y from yards so in-state pixels match current dimensions (animation, etc. use p.x/p.y).
+  // When canvas is resized, recompute all display pixels from stable yard coords so routes/blocks stay anchored.
+  // Do NOT mutate stored yard values; only update x,y for player, route points, and blockingLine.
   useEffect(() => {
     setPlayers((prev) =>
       prev.map((p) => {
+        let out = p
         if (p.xYards != null && p.yYards != null) {
           const pixel = coordSystem.yardToPixel(p.xYards, p.yYards)
-          return { ...p, x: pixel.x, y: pixel.y }
+          out = { ...out, x: pixel.x, y: pixel.y }
         }
-        return p
+        if (out.route?.length) {
+          out = {
+            ...out,
+            route: out.route.map((pt) => {
+              const hasYards = "xYards" in pt && typeof (pt as { xYards: number }).xYards === "number" && "yYards" in pt && typeof (pt as { yYards: number }).yYards === "number"
+              if (!hasYards) return pt
+              const px = coordSystem.yardToPixel((pt as { xYards: number }).xYards, (pt as { yYards: number }).yYards)
+              return { ...pt, x: px.x, y: px.y }
+            }),
+          }
+        }
+        if (out.blockingLine) {
+          const bl = out.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
+          if (typeof bl.xYards === "number" && typeof bl.yYards === "number") {
+            const bp = coordSystem.yardToPixel(bl.xYards, bl.yYards)
+            out = { ...out, blockingLine: { ...bl, x: bp.x, y: bp.y } }
+          }
+        }
+        return out
       })
     )
   }, [coordSystem, fieldDimensions.width, fieldDimensions.height])

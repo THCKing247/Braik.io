@@ -113,15 +113,15 @@ export default async function SettingsPage() {
     <SettingsLayout
       user={user}
       team={team ?? {
-        id: "",
+  id: "",
         name: "",
         slogan: null,
-        sport: "football",
-        seasonName: "",
-        seasonStart: new Date(),
-        seasonEnd: new Date(),
-        rosterCap: 0,
-        duesAmount: 0,
+  sport: "football",
+  seasonName: "",
+  seasonStart: new Date(),
+  seasonEnd: new Date(),
+  rosterCap: 0,
+  duesAmount: 0,
         duesDueDate: null,
         logoUrl: null,
         organization: { name: "" },

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Edit, Trash2, Package, Grid3x3, List } from "lucide-react"
+import { Plus, Edit, Trash2, Package, ChevronDown, ChevronUp, Folder } from "lucide-react"
 import { AddItemModal } from "./add-item-modal"
 
 interface InventoryItem {
@@ -61,8 +61,9 @@ export function InventoryManager({
   const [showAddModal, setShowAddModal] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false) // For editing only
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
+  const [editingGroup, setEditingGroup] = useState<string | null>(null) // equipmentType being edited
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
 
   const [formData, setFormData] = useState({
     category: "",
@@ -90,6 +91,7 @@ export function InventoryManager({
     setFiles([])
     setShowAddModal(false)
     setEditingItem(null)
+    setEditingGroup(null)
   }
 
   const handleAddItem = async (data: {
@@ -297,42 +299,121 @@ export function InventoryManager({
     }
   }
 
-  const categories = Array.from(new Set(items.map((item) => item.category)))
+  // Group items by equipment type
+  const groupedItems = items.reduce((acc, item) => {
+    const key = item.equipmentType || item.category || "UNKNOWN"
+    if (!acc[key]) {
+      acc[key] = []
+    }
+    acc[key].push(item)
+    return acc
+  }, {} as Record<string, InventoryItem[]>)
+
+  const toggleGroup = (equipmentType: string) => {
+    const newExpanded = new Set(expandedGroups)
+    if (newExpanded.has(equipmentType)) {
+      newExpanded.delete(equipmentType)
+    } else {
+      newExpanded.add(equipmentType)
+    }
+    setExpandedGroups(newExpanded)
+  }
+
+  const handleEditGroup = (equipmentType: string) => {
+    const groupItems = groupedItems[equipmentType] || []
+    if (groupItems.length === 0) return
+    
+    // Use the first item as a template for editing the group
+    const firstItem = groupItems[0]
+    setEditingGroup(equipmentType)
+    setFormData({
+      category: firstItem.category,
+      name: firstItem.equipmentType || firstItem.category,
+      quantityTotal: groupItems.length.toString(),
+      quantityAvailable: groupItems.filter(i => !i.assignedToPlayerId).length.toString(),
+      condition: firstItem.condition,
+      assignedToPlayerId: "",
+      notes: firstItem.notes || "",
+      status: firstItem.status,
+    })
+    setShowAddForm(true)
+  }
+
+  const handleDeleteGroup = async (equipmentType: string) => {
+    const groupItems = groupedItems[equipmentType] || []
+    if (groupItems.length === 0) return
+
+    if (!confirm(`Are you sure you want to delete all ${groupItems.length} items of type "${equipmentType}"?`)) return
+
+    setLoading(true)
+    try {
+      // Delete all items in the group
+      await Promise.all(
+        groupItems.map((item) =>
+          fetch(`/api/teams/${teamId}/inventory/${item.id}`, {
+            method: "DELETE",
+          })
+        )
+      )
+
+      // Reload items
+      const res = await fetch(`/api/teams/${teamId}/inventory`)
+      if (res.ok) {
+        const data = await res.json()
+        setItems(data.items || [])
+      }
+    } catch (error: any) {
+      alert(error.message || "Error deleting items")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAssignItem = async (itemId: string, playerId: string | null) => {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/teams/${teamId}/inventory/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignedToPlayerId: playerId,
+          quantityAvailable: playerId ? 0 : 1,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to assign item")
+      }
+
+      // Reload items
+      const res = await fetch(`/api/teams/${teamId}/inventory`)
+      if (res.ok) {
+        const data = await res.json()
+        setItems(data.items || [])
+      }
+    } catch (error: any) {
+      alert(error.message || "Error assigning item")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
-          Inventory Items ({items.length})
+          Inventory Items ({Object.keys(groupedItems).length} types, {items.length} total items)
         </h2>
-        <div className="flex items-center gap-3">
-          {/* View Toggle */}
-          <div className="flex items-center gap-1 border rounded-lg p-1" style={{ borderColor: "rgb(var(--border))" }}>
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={`p-2 rounded ${viewMode === "grid" ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--muted))]"}`}
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={`p-2 rounded ${viewMode === "list" ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--muted))]"}`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-          {permissions.canCreate && (
-            <Button
-              onClick={() => setShowAddModal(true)}
-              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
-            </Button>
-          )}
-        </div>
+        {permissions.canCreate && (
+          <Button
+            onClick={() => setShowAddModal(true)}
+            style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Equipment
+          </Button>
+        )}
       </div>
 
       {/* Add Item Modal */}
@@ -349,20 +430,86 @@ export function InventoryManager({
         />
       )}
 
-      {/* Legacy form for editing - keeping for backward compatibility */}
-      {showAddForm && editingItem && (
-        <Card>
+      {/* Edit Form - for editing groups or individual items */}
+      {showAddForm && (editingItem || editingGroup) && (
+        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
           <CardHeader>
-            <CardTitle>{editingItem ? "Edit Item" : "Add Inventory Item"}</CardTitle>
+            <CardTitle style={{ color: "rgb(var(--text))" }}>
+              {editingGroup ? `Edit Equipment Type: ${editingGroup}` : editingItem ? "Edit Item" : "Add Inventory Item"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Only show full edit fields if user can edit, otherwise only show assignment */}
-              {permissions.canEdit && !(editingItem && permissions.canAssign && !permissions.canEdit) ? (
-                <>
+              {/* Group editing - only show condition, status, and notes */}
+              {editingGroup ? (
+                <div className="space-y-4">
+                  <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                    Editing all items of type <strong>{editingGroup}</strong>. Changes will apply to all {groupedItems[editingGroup]?.length || 0} items.
+                  </p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="category">Category *</Label>
+                      <Label htmlFor="condition" style={{ color: "rgb(var(--text))" }}>Condition</Label>
+                      <select
+                        id="condition"
+                        value={formData.condition}
+                        onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                        style={{
+                          backgroundColor: "#FFFFFF",
+                          borderColor: "rgb(var(--border))",
+                          color: "rgb(var(--text))",
+                        }}
+                      >
+                        <option value="EXCELLENT">Excellent</option>
+                        <option value="GOOD">Good</option>
+                        <option value="FAIR">Fair</option>
+                        <option value="NEEDS_REPAIR">Needs Repair</option>
+                        <option value="REPLACE">Replace</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="status" style={{ color: "rgb(var(--text))" }}>Status</Label>
+                      <select
+                        id="status"
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                        style={{
+                          backgroundColor: "#FFFFFF",
+                          borderColor: "rgb(var(--border))",
+                          color: "rgb(var(--text))",
+                        }}
+                      >
+                        <option value="AVAILABLE">Available</option>
+                        <option value="ASSIGNED">Assigned</option>
+                        <option value="MISSING">Missing</option>
+                        <option value="NEEDS_REPLACEMENT">Needs Replacement</option>
+                        <option value="DAMAGED">Damaged</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes" style={{ color: "rgb(var(--text))" }}>Notes</Label>
+                    <textarea
+                      id="notes"
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      className="flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm resize-none"
+                      style={{
+                        backgroundColor: "#FFFFFF",
+                        borderColor: "rgb(var(--border))",
+                        color: "rgb(var(--text))",
+                      }}
+                      placeholder="Additional notes for this equipment type..."
+                    />
+                  </div>
+                </div>
+              ) : permissions.canEdit && !(editingItem && permissions.canAssign && !permissions.canEdit) ? (
+                <>
+                  {/* Individual item editing - legacy support */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="category" style={{ color: "rgb(var(--text))" }}>Category *</Label>
                       <Input
                         id="category"
                         value={formData.category}
@@ -370,10 +517,15 @@ export function InventoryManager({
                         placeholder="e.g., Helmets, Jerseys, Pads"
                         required
                         disabled={!!editingItem}
+                        style={{
+                          backgroundColor: "#FFFFFF",
+                          borderColor: "rgb(var(--border))",
+                          color: "rgb(var(--text))",
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="name">Item Name *</Label>
+                      <Label htmlFor="name" style={{ color: "rgb(var(--text))" }}>Item Name *</Label>
                       <Input
                         id="name"
                         value={formData.name}
@@ -381,6 +533,11 @@ export function InventoryManager({
                         placeholder="e.g., Helmet #12"
                         required
                         disabled={!!editingItem}
+                        style={{
+                          backgroundColor: "#FFFFFF",
+                          borderColor: "rgb(var(--border))",
+                          color: "rgb(var(--text))",
+                        }}
                       />
                     </div>
                   </div>
@@ -571,7 +728,7 @@ export function InventoryManager({
         </Card>
       )}
 
-      {/* Inventory Display */}
+      {/* Inventory Display - Grouped by Equipment Type */}
       {items.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
@@ -583,182 +740,171 @@ export function InventoryManager({
                 className="mt-4"
                 style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
               >
-                Add Your First Item
+                Add Your First Equipment
               </Button>
             )}
           </CardContent>
         </Card>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => (
-            <Card key={item.id} className="border" style={{ borderColor: "rgb(var(--border))" }}>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg mb-1" style={{ color: "rgb(var(--text))" }}>
-                        {item.name}
-                      </h3>
-                      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-                        {item.category}
-                        {item.equipmentType && item.equipmentType !== "CUSTOM" && (
-                          <span className="ml-2 text-xs">({item.equipmentType})</span>
-                        )}
-                      </p>
-                    </div>
-                    {(permissions.canEdit || permissions.canAssign || permissions.canDelete) && (
-                      <div className="flex gap-1">
-                        {(permissions.canEdit || permissions.canAssign) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(item)}
-                            disabled={loading}
-                            title="Edit Item"
-                          >
-                            <Edit className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
-                          </Button>
-                        )}
-                        {permissions.canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(item.id)}
-                            disabled={loading}
-                          >
-                            <Trash2 className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <span
-                      className="text-xs px-2 py-1 rounded border"
-                      style={getStatusColor(item.status)}
-                    >
-                      {item.status.replace("_", " ")}
-                    </span>
-                    <span className="text-xs font-medium" style={getConditionColor(item.condition)}>
-                      {item.condition.replace("_", " ")}
-                    </span>
-                  </div>
-                  <div className="text-sm space-y-1" style={{ color: "rgb(var(--text2))" }}>
-                    <p>
-                      <span className="font-medium">Quantity:</span> {item.quantityAvailable} / {item.quantityTotal} available
-                    </p>
-                    {item.assignedPlayer ? (
-                      <p>
-                        <span className="font-medium">Assigned to:</span> {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
-                        {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                      </p>
-                    ) : permissions.canAssign ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditingItem(item)
-                          setFormData({
-                            category: item.category,
-                            name: item.name,
-                            quantityTotal: item.quantityTotal.toString(),
-                            quantityAvailable: item.quantityAvailable.toString(),
-                            condition: item.condition,
-                            assignedToPlayerId: "",
-                            notes: item.notes || "",
-                            status: item.status,
-                          })
-                          setShowAddForm(true)
-                        }}
-                        className="w-full mt-2"
-                        style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-                      >
-                        Assign to Player
-                      </Button>
-                    ) : null}
-                    {item.notes && (
-                      <p className="text-xs mt-2" style={{ color: "rgb(var(--muted))" }}>
-                        {item.notes}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       ) : (
         <div className="space-y-4">
-          {items.map((item) => (
-            <Card key={item.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>{item.name}</h3>
-                      <span
-                        className="text-xs px-2 py-1 rounded border"
-                        style={getStatusColor(item.status)}
-                      >
-                        {item.status.replace("_", " ")}
-                      </span>
-                      <span className="text-sm font-medium" style={getConditionColor(item.condition)}>
-                        {item.condition.replace("_", " ")}
-                      </span>
-                    </div>
-                    <div className="text-sm space-y-1" style={{ color: "rgb(var(--text2))" }}>
-                      <p>
-                        <span className="font-medium">Category:</span> {item.category}
-                      </p>
-                      <p>
-                        <span className="font-medium">Quantity:</span> {item.quantityAvailable} /{" "}
-                        {item.quantityTotal} available
-                      </p>
-                      {item.assignedPlayer && (
-                        <p>
-                          <span className="font-medium">Assigned to:</span>{" "}
-                          {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
-                          {item.assignedPlayer.jerseyNumber
-                            ? ` (#${item.assignedPlayer.jerseyNumber})`
-                            : ""}
-                        </p>
-                      )}
-                      {item.notes && (
-                        <p>
-                          <span className="font-medium">Notes:</span> {item.notes}
-                        </p>
-                      )}
+          {Object.entries(groupedItems).map(([equipmentType, groupItems]) => {
+            const totalItems = groupItems.length
+            const availableItems = groupItems.filter(i => !i.assignedToPlayerId).length
+            const assignedItems = groupItems.filter(i => i.assignedToPlayerId).length
+            const isExpanded = expandedGroups.has(equipmentType)
+            const firstItem = groupItems[0]
+            
+            // Get most common condition and status
+            const conditions = groupItems.map(i => i.condition)
+            const mostCommonCondition = conditions.sort((a, b) =>
+              conditions.filter(v => v === a).length - conditions.filter(v => v === b).length
+            ).pop() || "GOOD"
+            
+            const statuses = groupItems.map(i => i.status)
+            const mostCommonStatus = statuses.sort((a, b) =>
+              statuses.filter(v => v === a).length - statuses.filter(v => v === b).length
+            ).pop() || "AVAILABLE"
+
+            return (
+              <Card key={equipmentType} className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+                <CardContent className="p-0">
+                  {/* Group Header - Always Visible */}
+                  <div
+                    className="p-4 cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
+                    onClick={() => toggleGroup(equipmentType)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <Folder className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>
+                            {equipmentType}
+                          </h3>
+                          <div className="flex items-center gap-4 mt-1">
+                            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                              {totalItems} item{totalItems !== 1 ? "s" : ""} • {availableItems} available • {assignedItems} assigned
+                            </p>
+                            <span
+                              className="text-xs px-2 py-1 rounded border"
+                              style={getStatusColor(mostCommonStatus)}
+                            >
+                              {mostCommonStatus.replace("_", " ")}
+                            </span>
+                            <span className="text-xs font-medium" style={getConditionColor(mostCommonCondition)}>
+                              {mostCommonCondition.replace("_", " ")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(permissions.canEdit || permissions.canDelete) && (
+                          <>
+                            {permissions.canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditGroup(equipmentType)
+                                }}
+                                disabled={loading}
+                                title="Edit Equipment Type"
+                              >
+                                <Edit className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                              </Button>
+                            )}
+                            {permissions.canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteGroup(equipmentType)
+                                }}
+                                disabled={loading}
+                                title="Delete All Items"
+                              >
+                                <Trash2 className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                              </Button>
+                            )}
+                          </>
+                        )}
+                        {isExpanded ? (
+                          <ChevronUp className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
+                        ) : (
+                          <ChevronDown className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
+                        )}
+                      </div>
                     </div>
                   </div>
-                  {(permissions.canEdit || permissions.canAssign || permissions.canDelete) && (
-                    <div className="flex gap-2">
-                      {(permissions.canEdit || permissions.canAssign) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(item)}
-                          disabled={loading}
-                          title={permissions.canAssign && !permissions.canEdit ? "Assign/Return Item" : "Edit Item"}
+
+                  {/* Expanded Items List */}
+                  {isExpanded && (
+                    <div className="border-t p-4 space-y-3" style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}>
+                      <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>
+                        Individual Items ({totalItems})
+                      </p>
+                      {groupItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-3 rounded-lg border bg-white"
+                          style={{ borderColor: "rgb(var(--border))" }}
                         >
-                          <Edit className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
-                        </Button>
-                      )}
-                      {permissions.canDelete && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(item.id)}
-                          disabled={loading}
-                        >
-                          <Trash2 className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
-                        </Button>
-                      )}
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                                {item.name}
+                              </p>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span
+                                  className="text-xs px-2 py-1 rounded border"
+                                  style={getStatusColor(item.status)}
+                                >
+                                  {item.status.replace("_", " ")}
+                                </span>
+                                <span className="text-xs" style={getConditionColor(item.condition)}>
+                                  {item.condition.replace("_", " ")}
+                                </span>
+                                {item.assignedPlayer && (
+                                  <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                                    Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
+                                    {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {permissions.canAssign && (
+                              <div className="ml-4">
+                                <select
+                                  value={item.assignedToPlayerId || ""}
+                                  onChange={(e) => handleAssignItem(item.id, e.target.value || null)}
+                                  className="px-3 py-1.5 text-sm border rounded-md"
+                                  style={{
+                                    backgroundColor: "#FFFFFF",
+                                    borderColor: "rgb(var(--border))",
+                                    color: "rgb(var(--text))",
+                                  }}
+                                  disabled={loading}
+                                >
+                                  <option value="">Unassigned</option>
+                                  {players.map((player) => (
+                                    <option key={player.id} value={player.id}>
+                                      {player.firstName} {player.lastName}
+                                      {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>

@@ -160,15 +160,24 @@ export async function POST(
 
     // Determine category and name
     const category = equipmentType === "CUSTOM" ? "Custom Equipment" : equipmentType
-    const name = equipmentType === "CUSTOM" && customEquipmentName
+    const baseName = equipmentType === "CUSTOM" && customEquipmentName
       ? customEquipmentName
       : equipmentType
 
-    // Create inventory item(s) - if quantity > 1, create multiple items
-    const itemsToCreate = Array.from({ length: quantity }, () => ({
+    // Get count of existing items of this type to number sequentially
+    const { count: existingCount } = await supabase
+      .from("inventory_items")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", teamId)
+      .eq("equipment_type", equipmentType)
+
+    const startNumber = (existingCount || 0) + 1
+
+    // Create inventory item(s) - if quantity > 1, create multiple items with sequential numbering
+    const itemsToCreate = Array.from({ length: quantity }, (_, index) => ({
       team_id: teamId,
       category,
-      name: quantity === 1 ? name : `${name} #${Math.random().toString(36).substr(2, 9)}`,
+      name: quantity === 1 ? baseName : `${baseName} #${startNumber + index}`,
       quantity_total: 1,
       quantity_available: assignedToPlayerId ? 0 : 1,
       condition: condition || "GOOD",

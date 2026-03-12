@@ -5,6 +5,8 @@ import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 
 const LOG_PREFIX = "[api/plays][POST]"
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 function safeString(val: unknown): string | undefined {
   if (val == null) return undefined
   if (typeof val === "string") return val
@@ -15,6 +17,10 @@ function safeObject(val: unknown): Record<string, unknown> | null {
   if (val == null) return null
   if (typeof val === "object" && !Array.isArray(val) && val !== null) return val as Record<string, unknown>
   return null
+}
+
+function isValidUuid(s: string): boolean {
+  return s.length > 0 && UUID_REGEX.test(s)
 }
 
 /**
@@ -165,6 +171,10 @@ export async function POST(request: Request) {
       console.log(`${LOG_PREFIX} validation failed: missing teamId`)
       return NextResponse.json({ error: "Missing teamId" }, { status: 400 })
     }
+    if (!isValidUuid(teamId)) {
+      console.log(`${LOG_PREFIX} validation failed: teamId is not a valid UUID`)
+      return NextResponse.json({ error: "teamId must be a valid UUID" }, { status: 400 })
+    }
     if (!side || !VALID_SIDES.includes(side as (typeof VALID_SIDES)[number])) {
       console.log(`${LOG_PREFIX} validation failed: invalid or missing side`)
       return NextResponse.json(
@@ -175,6 +185,18 @@ export async function POST(request: Request) {
     if (!normalized.name) {
       console.log(`${LOG_PREFIX} validation failed: missing play name/title`)
       return NextResponse.json({ error: "Missing play name/title" }, { status: 400 })
+    }
+    if (formationId != null && formationId !== "" && !isValidUuid(formationId)) {
+      console.log(`${LOG_PREFIX} validation failed: formationId is not a valid UUID`)
+      return NextResponse.json({ error: "formationId must be a valid UUID" }, { status: 400 })
+    }
+    if (subFormationId != null && subFormationId !== "" && !isValidUuid(subFormationId)) {
+      console.log(`${LOG_PREFIX} validation failed: subFormationId is not a valid UUID`)
+      return NextResponse.json({ error: "subFormationId must be a valid UUID" }, { status: 400 })
+    }
+    if (playbookId != null && playbookId !== "" && !isValidUuid(playbookId)) {
+      console.log(`${LOG_PREFIX} validation failed: playbookId is not a valid UUID`)
+      return NextResponse.json({ error: "playbookId must be a valid UUID" }, { status: 400 })
     }
 
     console.log(`${LOG_PREFIX} validation pass`)
@@ -257,17 +279,17 @@ export async function POST(request: Request) {
 
     const insertPayload: Record<string, unknown> = {
       team_id: teamId,
-      playbook_id: playbookId ?? null,
+      playbook_id: playbookId && playbookId.trim() !== "" ? playbookId : null,
       side,
       formation: formationNameForInsert,
       subcategory: subcategory ?? null,
       name: normalized.name,
       canvas_data: canvasData ?? null,
     }
-    if (formationId != null) {
+    if (formationId != null && formationId.trim() !== "") {
       insertPayload.formation_id = formationId
     }
-    if (subFormationId != null) {
+    if (subFormationId != null && subFormationId.trim() !== "") {
       insertPayload.sub_formation_id = subFormationId
     }
     if (playType != null) {
@@ -284,8 +306,9 @@ export async function POST(request: Request) {
 
     if (playError) {
       console.error(`${LOG_PREFIX} insert failed:`, playError.code, playError.message, playError.details)
+      const message = playError.message?.trim() || "Failed to create play"
       return NextResponse.json(
-        { error: "Failed to create play", details: playError.message },
+        { error: message, details: playError.details },
         { status: 500 }
       )
     }

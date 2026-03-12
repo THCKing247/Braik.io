@@ -2,14 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Sign-in button: red (applies regardless of Tailwind order) */
+/* Sign-in button: navy blue with electric blue hover */
 @layer components {
   .btn-signin-red {
-    background-color: #dc2626 !important;
+    /* Legacy class name kept for compatibility, but now uses navy blue */
+    background-color: #1E293B !important;
     color: white !important;
   }
   .btn-signin-red:hover:not(:disabled) {
-    background-color: #b91c1c !important;
+    background-color: #3B82F6 !important;
   }
 }
 

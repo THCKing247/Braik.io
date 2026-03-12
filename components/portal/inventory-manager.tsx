@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Edit, Trash2, Package } from "lucide-react"
+import { Plus, Edit, Trash2, Package, Grid3x3, List } from "lucide-react"
+import { AddItemModal } from "./add-item-modal"
 
 interface InventoryItem {
   id: string
@@ -17,6 +18,7 @@ interface InventoryItem {
   assignedToPlayerId?: string | null
   notes?: string | null
   status: string
+  equipmentType?: string | null
   assignedPlayer?: {
     id: string
     firstName: string
@@ -56,9 +58,11 @@ export function InventoryManager({
   permissions,
 }: InventoryManagerProps) {
   const [items, setItems] = useState(initialItems)
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false) // For editing only
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
 
   const [formData, setFormData] = useState({
     category: "",
@@ -84,8 +88,51 @@ export function InventoryManager({
       status: "AVAILABLE",
     })
     setFiles([])
-    setShowAddForm(false)
+    setShowAddModal(false)
     setEditingItem(null)
+  }
+
+  const handleAddItem = async (data: {
+    equipmentType: string
+    customEquipmentName?: string
+    quantity: number
+    condition: string
+    availability: string
+    assignedToPlayerId?: string | null
+    notes?: string
+  }) => {
+    if (!permissions.canCreate) {
+      throw new Error("You do not have permission to create items")
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/teams/${teamId}/inventory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to create item")
+      }
+
+      const newItem = await response.json()
+      // Reload items to get all created items (if quantity > 1)
+      const itemsResponse = await fetch(`/api/teams/${teamId}/inventory`)
+      if (itemsResponse.ok) {
+        const itemsData = await itemsResponse.json()
+        setItems(itemsData.items || [])
+      } else {
+        setItems([newItem, ...items])
+      }
+    } catch (error: any) {
+      alert(error.message || "Error creating item")
+      throw error
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -229,6 +276,7 @@ export function InventoryManager({
       notes: item.notes || "",
       status: item.status,
     })
+    // For now, use the legacy form for editing - can be updated to use modal later
     setShowAddForm(true)
   }
 
@@ -253,17 +301,56 @@ export function InventoryManager({
 
   return (
     <div className="space-y-6">
-      {permissions.canCreate && (
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Inventory Items</h2>
-          <Button onClick={() => setShowAddForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
+          Inventory Items ({items.length})
+        </h2>
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 border rounded-lg p-1" style={{ borderColor: "rgb(var(--border))" }}>
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`p-2 rounded ${viewMode === "grid" ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--muted))]"}`}
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded ${viewMode === "list" ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--muted))]"}`}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+          {permissions.canCreate && (
+            <Button
+              onClick={() => setShowAddModal(true)}
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item
+            </Button>
+          )}
         </div>
+      </div>
+
+      {/* Add Item Modal */}
+      {permissions.canCreate && (
+        <AddItemModal
+          open={showAddModal}
+          onClose={() => {
+            setShowAddModal(false)
+            resetForm()
+          }}
+          onSubmit={handleAddItem}
+          players={players}
+          loading={loading}
+        />
       )}
 
-      {showAddForm && (
+      {/* Legacy form for editing - keeping for backward compatibility */}
+      {showAddForm && editingItem && (
         <Card>
           <CardHeader>
             <CardTitle>{editingItem ? "Edit Item" : "Add Inventory Item"}</CardTitle>
@@ -484,22 +571,125 @@ export function InventoryManager({
         </Card>
       )}
 
-      {/* Inventory List */}
-      <div className="grid gap-4">
-        {items.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center text-muted">
-              <Package className="h-12 w-12 mx-auto mb-4 text-muted" />
-              <p>No inventory items yet</p>
-              {permissions.canCreate && (
-                <Button onClick={() => setShowAddForm(true)} className="mt-4">
-                  Add Your First Item
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          items.map((item) => (
+      {/* Inventory Display */}
+      {items.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
+            <Package className="h-12 w-12 mx-auto mb-4" style={{ color: "rgb(var(--muted))" }} />
+            <p>No inventory items yet</p>
+            {permissions.canCreate && (
+              <Button
+                onClick={() => setShowAddModal(true)}
+                className="mt-4"
+                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              >
+                Add Your First Item
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {items.map((item) => (
+            <Card key={item.id} className="border" style={{ borderColor: "rgb(var(--border))" }}>
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg mb-1" style={{ color: "rgb(var(--text))" }}>
+                        {item.name}
+                      </h3>
+                      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                        {item.category}
+                        {item.equipmentType && item.equipmentType !== "CUSTOM" && (
+                          <span className="ml-2 text-xs">({item.equipmentType})</span>
+                        )}
+                      </p>
+                    </div>
+                    {(permissions.canEdit || permissions.canAssign || permissions.canDelete) && (
+                      <div className="flex gap-1">
+                        {(permissions.canEdit || permissions.canAssign) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(item)}
+                            disabled={loading}
+                            title="Edit Item"
+                          >
+                            <Edit className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                          </Button>
+                        )}
+                        {permissions.canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={loading}
+                          >
+                            <Trash2 className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <span
+                      className="text-xs px-2 py-1 rounded border"
+                      style={getStatusColor(item.status)}
+                    >
+                      {item.status.replace("_", " ")}
+                    </span>
+                    <span className="text-xs font-medium" style={getConditionColor(item.condition)}>
+                      {item.condition.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div className="text-sm space-y-1" style={{ color: "rgb(var(--text2))" }}>
+                    <p>
+                      <span className="font-medium">Quantity:</span> {item.quantityAvailable} / {item.quantityTotal} available
+                    </p>
+                    {item.assignedPlayer ? (
+                      <p>
+                        <span className="font-medium">Assigned to:</span> {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
+                        {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
+                      </p>
+                    ) : permissions.canAssign ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingItem(item)
+                          setFormData({
+                            category: item.category,
+                            name: item.name,
+                            quantityTotal: item.quantityTotal.toString(),
+                            quantityAvailable: item.quantityAvailable.toString(),
+                            condition: item.condition,
+                            assignedToPlayerId: "",
+                            notes: item.notes || "",
+                            status: item.status,
+                          })
+                          setShowAddForm(true)
+                        }}
+                        className="w-full mt-2"
+                        style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                      >
+                        Assign to Player
+                      </Button>
+                    ) : null}
+                    {item.notes && (
+                      <p className="text-xs mt-2" style={{ color: "rgb(var(--muted))" }}>
+                        {item.notes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {items.map((item) => (
             <Card key={item.id}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">

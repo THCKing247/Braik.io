@@ -134,8 +134,8 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           onClick={() => signOut({ callbackUrl: "/" })}
           className={cn(
             "w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium",
-            "text-white/90 hover:bg-white/15 hover:text-white transition-colors",
-            "focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
+            "bg-[#EF4444] text-white hover:bg-[#DC2626] transition-colors shadow-md",
+            "focus:outline-none focus:ring-2 focus:ring-[#EF4444]/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
           )}
           aria-label="Sign out"
         >

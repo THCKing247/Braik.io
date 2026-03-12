@@ -13,7 +13,7 @@ const buttonVariants = cva(
         destructive:
           "bg-[#EF4444] text-white hover:bg-[#EF4444]/90 hover:shadow-lg",
         signIn:
-          "btn-signin-red bg-[#dc2626] text-white hover:bg-[#b91c1c] border-0 shadow-md",
+          "bg-[#1E293B] text-white hover:bg-[#3B82F6] border-0 shadow-md hover:shadow-lg",
         outline:
           "border-2 border-[#3B82F6] bg-transparent text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white",
         secondary:

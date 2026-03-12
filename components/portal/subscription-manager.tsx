@@ -45,41 +45,43 @@ export function SubscriptionManager({
   return (
     <div className="space-y-6">
       {/* Subscription Status */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
-          <CardTitle className="text-[#FFFFFF]">Subscription Status</CardTitle>
+          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+            SUBSCRIPTION STATUS
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-[#FFFFFF]/70 mb-1">Player Count</p>
-              <p className="text-2xl font-bold text-[#FFFFFF]">{playerCount}</p>
+              <p className="text-sm mb-1" style={{ color: "rgb(var(--muted))" }}>Player Count</p>
+              <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{playerCount}</p>
             </div>
             <div>
-              <p className="text-sm text-[#FFFFFF]/70 mb-1">Subscription Amount</p>
-              <p className="text-2xl font-bold text-[#FFFFFF]">${subscriptionAmount.toFixed(2)}</p>
-              <p className="text-xs text-[#FFFFFF]/70">$5.00 per player</p>
+              <p className="text-sm mb-1" style={{ color: "rgb(var(--muted))" }}>Subscription Amount</p>
+              <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>${subscriptionAmount.toFixed(2)}</p>
+              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>$5.00 per player</p>
             </div>
             <div>
-              <p className="text-sm text-[#FFFFFF]/70 mb-1">Amount Paid</p>
-              <p className="text-2xl font-bold text-green-400">${amountPaid.toFixed(2)}</p>
+              <p className="text-sm mb-1" style={{ color: "rgb(var(--muted))" }}>Amount Paid</p>
+              <p className="text-2xl font-bold" style={{ color: "#10b981" }}>${amountPaid.toFixed(2)}</p>
             </div>
             <div>
-              <p className="text-sm text-[#FFFFFF]/70 mb-1">Remaining Balance</p>
-              <p className="text-2xl font-bold text-red-400">${remainingBalance.toFixed(2)}</p>
+              <p className="text-sm mb-1" style={{ color: "rgb(var(--muted))" }}>Remaining Balance</p>
+              <p className="text-2xl font-bold" style={{ color: "#ef4444" }}>${remainingBalance.toFixed(2)}</p>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#FFFFFF]/20">
+          <div className="pt-4 border-t" style={{ borderColor: "rgb(var(--border))" }}>
             {subscriptionPaid ? (
-              <div className="p-4 bg-green-500/20 border border-green-500/30 rounded">
-                <p className="text-green-400 font-semibold">✓ Subscription Active</p>
-                <p className="text-sm text-[#FFFFFF]/70 mt-1">Your subscription is fully paid and active.</p>
+              <div className="p-4 rounded border" style={{ backgroundColor: "#d1fae5", borderColor: "#10b981" }}>
+                <p className="font-semibold" style={{ color: "#059669" }}>✓ Subscription Active</p>
+                <p className="text-sm mt-1" style={{ color: "rgb(var(--muted))" }}>Your subscription is fully paid and active.</p>
               </div>
             ) : (
-              <div className="p-4 bg-[#000000]/20 border border-[#000000]/30 rounded">
-                <p className="text-[#d1d5db] font-semibold">⚠ Subscription Pending</p>
-                <p className="text-sm text-[#FFFFFF]/70 mt-1">
+              <div className="p-4 rounded border" style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
+                <p className="font-semibold" style={{ color: "#d97706" }}>⚠ Subscription Pending</p>
+                <p className="text-sm mt-1" style={{ color: "rgb(var(--muted))" }}>
                   Please complete payment to access all features. Remaining balance: ${remainingBalance.toFixed(2)}
                 </p>
               </div>
@@ -89,7 +91,7 @@ export function SubscriptionManager({
           {isHeadCoach && (
             <div className="flex gap-4">
               <Link href="/dashboard/collections">
-                <Button className="bg-[#1e3a5f] text-[#FFFFFF] hover:bg-[#2d4a6f]">
+                <Button style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}>
                   Manage Payments
                 </Button>
               </Link>
@@ -97,7 +99,7 @@ export function SubscriptionManager({
                 <Button
                   variant="outline"
                   onClick={handleUpdatePayment}
-                  className="bg-[#FFFFFF] text-[#1e3a5f] hover:bg-[#F1F5F9]"
+                  style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                 >
                   Update Payment Information
                 </Button>
@@ -106,8 +108,8 @@ export function SubscriptionManager({
           )}
           
           {!isHeadCoach && (
-            <div className="p-4 bg-[#FFFFFF]/10 rounded border border-[#FFFFFF]/20">
-              <p className="text-sm text-[#FFFFFF]/70">
+            <div className="p-4 rounded border" style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}>
+              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
                 Only Head Coaches can manage payments. Contact your Head Coach for payment updates.
               </p>
             </div>
@@ -117,31 +119,33 @@ export function SubscriptionManager({
 
       {/* Team Code - Head Coach Only */}
       {isHeadCoach && (
-        <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
           <CardHeader>
-            <CardTitle className="text-[#FFFFFF]">Team Code</CardTitle>
+            <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+              TEAM CODE
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {teamIdCode ? (
               <>
-                <p className="text-[#FFFFFF]/80">
+                <p style={{ color: "rgb(var(--muted))" }}>
                   Share this team code with Assistant Coaches, Players, and Parents so they can join your team.
                 </p>
-                <div className="p-6 bg-[#FFFFFF]/10 rounded-lg border border-[#FFFFFF]/20">
-                  <p className="text-sm text-[#FFFFFF]/70 mb-2">Team Code</p>
-                  <p className="text-4xl font-bold text-[#FFFFFF] font-mono tracking-wider">{teamIdCode}</p>
+                <div className="p-6 rounded-lg border" style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}>
+                  <p className="text-sm mb-2" style={{ color: "rgb(var(--muted))" }}>Team Code</p>
+                  <p className="text-4xl font-bold font-mono tracking-wider" style={{ color: "rgb(var(--text))" }}>{teamIdCode}</p>
                 </div>
-                <p className="text-xs text-[#FFFFFF]/70">
+                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
                   This code is required when other users sign up to join your team. You can also manage it in Settings.
                 </p>
               </>
             ) : (
               <>
-                <p className="text-[#FFFFFF]/80">
+                <p style={{ color: "rgb(var(--muted))" }}>
                   No team code has been generated yet. Generate one in Settings so others can join your team.
                 </p>
                 <Link href="/dashboard/settings">
-                  <Button variant="outline" className="bg-[#FFFFFF] text-[#1e3a5f] hover:bg-[#F1F5F9]">
+                  <Button variant="outline" style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}>
                     Go to Settings to generate Team Code
                   </Button>
                 </Link>
@@ -153,16 +157,18 @@ export function SubscriptionManager({
 
       {/* Payment Information - Head Coach Only */}
       {isHeadCoach && (
-        <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
           <CardHeader>
-            <CardTitle className="text-[#FFFFFF]">Payment Information</CardTitle>
+            <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+              PAYMENT INFORMATION
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-[#FFFFFF]/80 mb-4">
+            <p className="mb-4" style={{ color: "rgb(var(--muted))" }}>
               Stripe payment integration coming soon. For now, you can track payments through the Collections page.
             </p>
             <Link href="/dashboard/collections">
-              <Button variant="outline" className="bg-[#FFFFFF] text-[#1e3a5f] hover:bg-[#F1F5F9]">
+              <Button variant="outline" style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}>
                 Go to Collections
               </Button>
             </Link>

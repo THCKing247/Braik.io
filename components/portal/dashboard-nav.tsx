@@ -94,7 +94,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 Invite
               </Link>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/" })} style={{ color: "rgb(var(--text))" }}>
+            <Button variant="destructive" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
               Sign Out
             </Button>
           </div>

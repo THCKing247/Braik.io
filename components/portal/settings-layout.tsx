@@ -13,6 +13,7 @@ import { SupportSettings } from "./settings-sections/support-settings"
 import { ComplianceLegalSettings } from "./settings-sections/compliance-legal-settings"
 import { RosterTemplateSettings } from "./settings-sections/roster-template-settings"
 import { UsersListSettings } from "./settings-sections/users-list-settings"
+import { SubscriptionSettings } from "./settings-sections/subscription-settings"
 
 interface User {
   id: string
@@ -59,6 +60,7 @@ type SettingsSection =
   | "compliance"
   | "rosterTemplate"
   | "users"
+  | "subscription"
 
 interface SettingsLayoutProps {
   user: User
@@ -82,6 +84,7 @@ const SETTINGS_SECTIONS: Array<{
   { id: "compliance", label: "Compliance & Legal", icon: ShieldCheck, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
   { id: "rosterTemplate", label: "Roster Template", icon: Users, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
   { id: "users", label: "Users", icon: UserCog, visible: (role) => role === "HEAD_COACH" },
+  { id: "subscription", label: "Subscription", icon: CreditCard, visible: (role) => role === "HEAD_COACH" },
   { id: "support", label: "Support", icon: HelpCircle, visible: () => true },
 ]
 
@@ -116,6 +119,8 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
         return <RosterTemplateSettings teamId={team.id} />
       case "users":
         return <UsersListSettings teamId={team.id} />
+      case "subscription":
+        return <SubscriptionSettings teamId={team.id} />
       default:
         return <AccountSettings user={user} />
     }

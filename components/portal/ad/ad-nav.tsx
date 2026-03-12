@@ -42,10 +42,9 @@ export function AdNav({ userEmail }: { userEmail?: string | null }) {
               <span className="text-sm text-[#6B7280] truncate max-w-[180px]">{userEmail}</span>
             )}
             <Button
-              variant="ghost"
+              variant="destructive"
               size="sm"
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="text-[#6B7280]"
             >
               Sign out
             </Button>

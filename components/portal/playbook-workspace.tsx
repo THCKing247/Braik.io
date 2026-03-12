@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { PlaybookBrowser } from "@/components/portal/playbook-browser"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
@@ -8,6 +8,7 @@ import { PlaybookInspector, type InspectorSelectedPlayer } from "@/components/po
 import { PlaybookHeader } from "@/components/portal/playbook-header"
 import { PlaybookSidebar } from "@/components/portal/playbook-sidebar"
 import { PlaycallerView } from "@/components/portal/playcaller-view"
+import { ResizableHorizontalHandle } from "@/components/portal/resizable-horizontal-handle"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import type { FormationRecord, SubFormationRecord, PlayRecord, SideOfBall, PlayType, RoutePoint, BlockEndPoint } from "@/types/playbook"
@@ -53,6 +54,73 @@ export function PlaybookWorkspace({
   const [editingPlayType, setEditingPlayType] = useState<PlayType | null>(null)
   type RosterPlayer = { id: string; firstName: string; lastName: string; jerseyNumber: number | null; positionGroup: string | null }
   const [rosterPlayers, setRosterPlayers] = useState<RosterPlayer[]>([])
+
+  const BROWSER_HEIGHT_KEY = "braik.playbook.browserHeight"
+  const INSPECTOR_HEIGHT_KEY = "braik.playbook.inspectorHeight"
+  const BROWSER_MIN = 160
+  const BROWSER_MAX = 420
+  const INSPECTOR_MIN = 160
+  const INSPECTOR_MAX = 360
+  const DEFAULT_BROWSER_HEIGHT = 240
+  const DEFAULT_INSPECTOR_HEIGHT = 220
+
+  function getStoredPanelHeight(key: string, defaultVal: number, min: number, max: number): number {
+    if (typeof window === "undefined") return defaultVal
+    try {
+      const s = localStorage.getItem(key)
+      if (s == null) return defaultVal
+      const n = parseInt(s, 10)
+      if (!Number.isFinite(n)) return defaultVal
+      return Math.min(max, Math.max(min, n))
+    } catch {
+      return defaultVal
+    }
+  }
+
+  const [browserHeight, setBrowserHeightState] = useState(() =>
+    getStoredPanelHeight(BROWSER_HEIGHT_KEY, DEFAULT_BROWSER_HEIGHT, BROWSER_MIN, BROWSER_MAX)
+  )
+  const [inspectorHeight, setInspectorHeightState] = useState(() =>
+    getStoredPanelHeight(INSPECTOR_HEIGHT_KEY, DEFAULT_INSPECTOR_HEIGHT, INSPECTOR_MIN, INSPECTOR_MAX)
+  )
+  const startBrowserHeightRef = useRef(browserHeight)
+  const startInspectorHeightRef = useRef(inspectorHeight)
+
+  const setBrowserHeight = useCallback(
+    (value: number | ((prev: number) => number)) => {
+      setBrowserHeightState((prev) => {
+        const next = typeof value === "function" ? value(prev) : value
+        const clamped = Math.min(BROWSER_MAX, Math.max(BROWSER_MIN, next))
+        return clamped
+      })
+    },
+    []
+  )
+  const setInspectorHeight = useCallback(
+    (value: number | ((prev: number) => number)) => {
+      setInspectorHeightState((prev) => {
+        const next = typeof value === "function" ? value(prev) : value
+        const clamped = Math.min(INSPECTOR_MAX, Math.max(INSPECTOR_MIN, next))
+        return clamped
+      })
+    },
+    []
+  )
+
+  const persistBrowserHeight = useCallback(() => {
+    try {
+      localStorage.setItem(BROWSER_HEIGHT_KEY, String(browserHeight))
+    } catch {
+      /* ignore */
+    }
+  }, [browserHeight])
+  const persistInspectorHeight = useCallback(() => {
+    try {
+      localStorage.setItem(INSPECTOR_HEIGHT_KEY, String(inspectorHeight))
+    } catch {
+      /* ignore */
+    }
+  }, [inspectorHeight])
 
   const fetchFormations = useCallback(async () => {
     const res = await fetch(`/api/formations?teamId=${teamId}`)
@@ -708,11 +776,28 @@ export function PlaybookWorkspace({
               </div>
             </div>
           ) : (
-            <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(280px,320px)_minmax(0,1.6fr)_minmax(280px,0.9fr)] overflow-hidden min-h-0 items-stretch">
-              <div className="min-w-[280px] flex flex-col overflow-hidden border-r border-slate-200 bg-white flex-shrink-0">
+            /* Editor mode: stacked resizable panels — Browser (top) | Canvas (middle) | Inspector (bottom) */
+            <div className="flex-1 flex flex-col min-h-0 gap-0">
+              {/* Browser panel */}
+              <div
+                className="flex-shrink-0 overflow-y-auto min-h-0 rounded-t-xl border border-slate-200 bg-white shadow-sm"
+                style={{ height: browserHeight }}
+              >
                 <PlaybookBrowser {...browserProps} />
               </div>
-              <div className="min-w-0 flex flex-col overflow-hidden bg-white">
+
+              <ResizableHorizontalHandle
+                onDragStart={() => {
+                  startBrowserHeightRef.current = browserHeight
+                }}
+                onDrag={(totalDeltaY) => {
+                  setBrowserHeight(startBrowserHeightRef.current + totalDeltaY)
+                }}
+                onDragEnd={persistBrowserHeight}
+              />
+
+              {/* Canvas panel — takes remaining space */}
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white border-x border-slate-200">
                 {((designerMode === "formation" && editingFormation) || (designerMode === "play" && !selectedPlayId && selectedFormation)) && canEditSide(effectiveSide) ? (
                   <PlaybookBuilder
                     playId={designerMode === "play" ? selectedPlayId : null}
@@ -743,7 +828,22 @@ export function PlaybookWorkspace({
                   </div>
                 )}
               </div>
-              <div className="min-w-0 flex flex-col overflow-hidden border-l border-slate-200 bg-slate-50/50">
+
+              <ResizableHorizontalHandle
+                onDragStart={() => {
+                  startInspectorHeightRef.current = inspectorHeight
+                }}
+                onDrag={(totalDeltaY) => {
+                  setInspectorHeight(startInspectorHeightRef.current + totalDeltaY)
+                }}
+                onDragEnd={persistInspectorHeight}
+              />
+
+              {/* Inspector panel */}
+              <div
+                className="flex-shrink-0 overflow-y-auto min-h-0 rounded-b-xl border border-slate-200 bg-slate-50/50 shadow-sm"
+                style={{ height: inspectorHeight }}
+              >
                 <PlaybookInspector
                   play={selectedPlay ?? null}
                   formations={formations}

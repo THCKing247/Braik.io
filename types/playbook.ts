@@ -151,6 +151,14 @@ export type PlayRecord = {
 export type RoutePoint = { x?: number; y?: number; xYards: number; yYards: number; t: number }
 export type BlockEndPoint = { x?: number; y?: number; xYards: number; yYards: number }
 
+/** Per-player animation timing. Omit for default (global progress = player progress). */
+export type AnimationTiming = {
+  /** Fraction of global timeline [0, 1] before this player starts moving. Default 0. */
+  startDelay?: number
+  /** Scale for duration: 1 = same as global, 0.5 = finish in half the remaining time, 2 = need twice the remaining time. Default 1. */
+  durationScale?: number
+}
+
 // Builder canvas format (players array with pixel/yard coords, zones, man coverage, routes, blocks)
 // positionCode + positionNumber define football role (e.g. WR, 2 → WR2); label is display string (kept for legacy).
 export type PlayCanvasData = {
@@ -172,6 +180,8 @@ export type PlayCanvasData = {
     positionCode?: string | null
     /** Depth/slot number for numberable positions (WR1, WR2, GUN1). */
     positionNumber?: number | null
+    /** Optional per-player animation timing (delayed release, play-action, etc.). Omit for default global progress. */
+    animationTiming?: AnimationTiming
   }>
   zones: Array<{
     id: string

@@ -5,27 +5,35 @@ import { useState, useCallback, useRef, useEffect } from "react"
 /** Duration in ms for a full play at 1x speed. */
 const BASE_DURATION_MS = 4000
 
+/** Progress delta per frame step (e.g. 0.02 = 2% of play). */
+export const FRAME_STEP = 0.02
+
 export const SPEED_OPTIONS = [0.5, 1, 1.5, 2] as const
 export type PlaybackSpeed = (typeof SPEED_OPTIONS)[number]
 
 export type PlayAnimationState = "idle" | "playing" | "paused" | "ended"
 
 export function usePlayAnimation() {
-  const [progress, setProgress] = useState(0)
+  const [progress, setProgressState] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeedState] = useState<PlaybackSpeed>(1)
+  const [loop, setLoop] = useState(false)
   const rafRef = useRef<number | null>(null)
   const lastTimeRef = useRef<number>(0)
 
+  const setProgress = useCallback((value: number) => {
+    setProgressState((prev) => Math.max(0, Math.min(1, value)))
+  }, [])
+
   const restart = useCallback(() => {
-    setProgress(0)
+    setProgressState(0)
     lastTimeRef.current = 0
     setIsPlaying(true)
   }, [])
 
   const play = useCallback(() => {
     if (progress >= 1) {
-      setProgress(0)
+      setProgressState(0)
       lastTimeRef.current = 0
     }
     setIsPlaying(true)
@@ -41,8 +49,18 @@ export function usePlayAnimation() {
 
   const stepToStart = useCallback(() => {
     setIsPlaying(false)
-    setProgress(0)
+    setProgressState(0)
     lastTimeRef.current = 0
+  }, [])
+
+  const stepForward = useCallback(() => {
+    setIsPlaying(false)
+    setProgressState((prev) => Math.min(1, prev + FRAME_STEP))
+  }, [])
+
+  const stepBackward = useCallback(() => {
+    setIsPlaying(false)
+    setProgressState((prev) => Math.max(0, prev - FRAME_STEP))
   }, [])
 
   useEffect(() => {
@@ -61,11 +79,16 @@ export function usePlayAnimation() {
       const delta = now - lastTimeRef.current
       lastTimeRef.current = now
 
-      setProgress((prev) => {
+      setProgressState((prev) => {
         const next = Math.min(1, prev + (delta / durationMs))
         if (next >= 1) {
+          if (loop) {
+            lastTimeRef.current = now
+            return 0
+          }
           setIsPlaying(false)
           lastTimeRef.current = 0
+          return 1
         }
         return next
       })
@@ -79,7 +102,7 @@ export function usePlayAnimation() {
         rafRef.current = null
       }
     }
-  }, [isPlaying, speed])
+  }, [isPlaying, speed, loop])
 
   const state: PlayAnimationState =
     progress >= 1 ? "ended" : isPlaying ? "playing" : progress > 0 ? "paused" : "idle"
@@ -89,10 +112,15 @@ export function usePlayAnimation() {
     isPlaying,
     speed,
     state,
+    loop,
+    setLoop,
+    setProgress,
     play,
     pause,
     restart,
     setSpeed,
     stepToStart,
+    stepForward,
+    stepBackward,
   }
 }

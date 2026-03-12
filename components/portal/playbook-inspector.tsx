@@ -11,6 +11,7 @@ import {
   getSameUnitRoleLabelsForPlayer,
   type DepthChartSlot,
 } from "@/lib/constants/playbook-positions"
+import { hasCustomAnimationTiming, formatAnimationTimingSummary } from "@/lib/utils/play-animation"
 import type { PlayRecord, FormationRecord, PlayType } from "@/types/playbook"
 
 /** Selected marker: label is derived from positionCode+positionNumber when positionCode is set (read-only). */
@@ -21,6 +22,8 @@ export interface InspectorSelectedPlayer {
   positionCode?: string | null
   positionNumber?: number | null
   hasDuplicateRole?: boolean
+  /** When set, this marker has custom animation timing (read-only in inspector). */
+  animationTiming?: { startDelay?: number; durationScale?: number } | null
 }
 
 export type RosterPlayerForAssign = {
@@ -354,6 +357,12 @@ export function PlaybookInspector({
                 )}
                 <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
               </>
+            )}
+            {hasCustomAnimationTiming(selectedPlayer.animationTiming) && (
+              <p className="text-xs text-slate-600 pt-1 border-t border-slate-100 mt-1">
+                Animation timing: <span className="font-medium text-amber-700">customized</span>
+                <span className="text-slate-500"> ({formatAnimationTimingSummary(selectedPlayer.animationTiming)})</span>
+              </p>
             )}
           </div>
         )}

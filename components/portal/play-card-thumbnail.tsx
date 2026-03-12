@@ -45,12 +45,15 @@ export function PlayCardThumbnail({ canvasData, className = "" }: PlayCardThumbn
             return xY
           })
         : undefined
-      const blockEnd =
-        p.blockingLine && "xYards" in p.blockingLine
-          ? coord.yardToPixel(p.blockingLine.xYards, p.blockingLine.yYards)
-          : p.blockingLine && "x" in p.blockingLine && p.blockingLine.x != null
-          ? { x: p.blockingLine.x, y: (p.blockingLine as { y?: number }).y ?? y }
-          : undefined
+      const blockEnd = (() => {
+        const bl = p.blockingLine
+        if (!bl) return undefined
+        if ("xYards" in bl && bl.xYards != null) return coord.yardToPixel(bl.xYards, bl.yYards)
+        const px = (bl as { x?: number; y?: number }).x
+        const py = (bl as { x?: number; y?: number }).y
+        if (px != null) return { x: px, y: py ?? y }
+        return undefined
+      })()
       return {
         x,
         y,

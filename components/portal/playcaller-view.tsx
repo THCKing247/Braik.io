@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react"
-import { X, ChevronLeft, ChevronRight, Pencil, Eraser, Play, Pause, RotateCcw, SkipBack } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Pencil, Eraser, Play, Pause, RotateCcw, SkipBack, Repeat, ChevronsLeft, ChevronsRight, Route } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox } from "@/lib/utils/canvas-coords"
@@ -109,12 +109,59 @@ export function PlaycallerView({
     isPlaying: isAnimationPlaying,
     speed: animationSpeed,
     state: animationState,
+    loop: animationLoop,
+    setLoop: setAnimationLoop,
+    setProgress: setAnimationProgress,
     play: animationPlay,
     pause: animationPause,
     restart: animationRestart,
     setSpeed: setAnimationSpeed,
     stepToStart: animationStepToStart,
+    stepForward: animationStepForward,
+    stepBackward: animationStepBackward,
   } = usePlayAnimation()
+  const [showRoutes, setShowRoutes] = useState(true)
+  const timelineRef = useRef<HTMLDivElement>(null)
+  const [isScrubbing, setIsScrubbing] = useState(false)
+
+  const updateProgressFromClientX = useCallback(
+    (clientX: number) => {
+      const el = timelineRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const x = clientX - rect.left
+      const p = Math.max(0, Math.min(1, x / rect.width))
+      setAnimationProgress(p)
+    },
+    [setAnimationProgress]
+  )
+
+  const handleTimelinePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      animationPause()
+      setIsScrubbing(true)
+      updateProgressFromClientX(e.clientX)
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [animationPause, updateProgressFromClientX]
+  )
+
+  const handleTimelinePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isScrubbing) return
+      updateProgressFromClientX(e.clientX)
+    },
+    [isScrubbing, updateProgressFromClientX]
+  )
+
+  const handleTimelinePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      setIsScrubbing(false)
+    },
+    []
+  )
 
   useEffect(() => {
     setViewAsRoleId(null)
@@ -372,62 +419,63 @@ export function PlaycallerView({
             onPointerCancel={handlePointerUp}
           >
             <PlaybookFieldSurface width={VIEWBOX_W} height={VIEWBOX_H} yardStart={YARD_START} yardEnd={YARD_END} />
-            {/* Routes and blocking lines first so they render under players */}
-            {players.map((p) => {
-              const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
-              const routeOpacity = isHighlighted ? 1 : 0.4
-              return (
-              <g key={`routes-${p.id}`} style={{ opacity: routeOpacity }}>
-                {p.route && p.route.length > 1 && (
-                  <>
-                    <polyline
-                      points={p.route.map((pt) => {
-                        const px = routePointToPixel(pt, coord)
-                        return `${px.x},${px.y}`
-                      }).join(" ")}
-                      fill="none"
-                      stroke={playerColor}
-                      strokeWidth={isHighlighted ? 2.5 : 2}
-                    />
-                    {p.route.length > 1 && (() => {
-                      const last = routePointToPixel(p.route![p.route!.length - 1], coord)
-                      return (
-                        <polygon
-                          points={`${last.x},${last.y} ${last.x - 5},${last.y - 8} ${last.x + 5},${last.y - 8}`}
-                          fill={playerColor}
-                        />
-                      )
-                    })()}
-                  </>
-                )}
-                {p.blockingLine && (
-                  <>
-                    <line
-                      x1={p.x}
-                      y1={p.y}
-                      x2={blockEndToPixel(p.blockingLine, coord).x}
-                      y2={blockEndToPixel(p.blockingLine, coord).y}
-                      stroke={playerColor}
-                      strokeWidth={3}
-                    />
-                    {(() => {
-                      const end = blockEndToPixel(p.blockingLine!, coord)
-                      return (
-                        <line
-                          x1={end.x - 5}
-                          y1={end.y - 5}
-                          x2={end.x + 5}
-                          y2={end.y + 5}
-                          stroke={playerColor}
-                          strokeWidth={3}
-                        />
-                      )
-                    })()}
-                  </>
-                )}
-              </g>
-            )
-            })}
+            {/* Routes and blocking lines (hidden when showRoutes is off); markers still animate along paths */}
+            {showRoutes &&
+              players.map((p) => {
+                const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
+                const routeOpacity = isHighlighted ? 1 : 0.4
+                return (
+                <g key={`routes-${p.id}`} style={{ opacity: routeOpacity }}>
+                  {p.route && p.route.length > 1 && (
+                    <>
+                      <polyline
+                        points={p.route.map((pt) => {
+                          const px = routePointToPixel(pt, coord)
+                          return `${px.x},${px.y}`
+                        }).join(" ")}
+                        fill="none"
+                        stroke={playerColor}
+                        strokeWidth={isHighlighted ? 2.5 : 2}
+                      />
+                      {p.route.length > 1 && (() => {
+                        const last = routePointToPixel(p.route![p.route!.length - 1], coord)
+                        return (
+                          <polygon
+                            points={`${last.x},${last.y} ${last.x - 5},${last.y - 8} ${last.x + 5},${last.y - 8}`}
+                            fill={playerColor}
+                          />
+                        )
+                      })()}
+                    </>
+                  )}
+                  {p.blockingLine && (
+                    <>
+                      <line
+                        x1={p.x}
+                        y1={p.y}
+                        x2={blockEndToPixel(p.blockingLine, coord).x}
+                        y2={blockEndToPixel(p.blockingLine, coord).y}
+                        stroke={playerColor}
+                        strokeWidth={3}
+                      />
+                      {(() => {
+                        const end = blockEndToPixel(p.blockingLine!, coord)
+                        return (
+                          <line
+                            x1={end.x - 5}
+                            y1={end.y - 5}
+                            x2={end.x + 5}
+                            y2={end.y + 5}
+                            stroke={playerColor}
+                            strokeWidth={3}
+                          />
+                        )
+                      })()}
+                    </>
+                  )}
+                </g>
+              )
+              })}
             {players.map((p) => {
               const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
               const markerOpacity = isHighlighted ? 1 : 0.45
@@ -521,7 +569,34 @@ export function PlaycallerView({
       </div>
 
       {/* Animation controls */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-full max-w-xl px-4">
+        {/* Timeline scrubber */}
+        <div className="w-full flex flex-col gap-1">
+          <div
+            ref={timelineRef}
+            role="slider"
+            aria-label="Playback position"
+            aria-valuemin={0}
+            aria-valuemax={1}
+            aria-valuenow={animationProgress}
+            tabIndex={0}
+            className="relative h-6 w-full rounded bg-muted/80 cursor-pointer touch-none flex items-center overflow-visible"
+            onPointerDown={handleTimelinePointerDown}
+            onPointerMove={handleTimelinePointerMove}
+            onPointerUp={handleTimelinePointerUp}
+            onPointerLeave={handleTimelinePointerUp}
+            onPointerCancel={handleTimelinePointerUp}
+          >
+            <div
+              className="h-full rounded-l bg-primary/70 transition-none pointer-events-none"
+              style={{ width: `${animationProgress * 100}%` }}
+            />
+            <div
+              className="absolute top-1/2 w-3 h-3 rounded-full bg-primary border-2 border-background shadow -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+              style={{ left: `${animationProgress * 100}%` }}
+            />
+          </div>
+        </div>
         <div className="flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg">
           <Button
             variant="outline"
@@ -534,10 +609,10 @@ export function PlaycallerView({
           <Button
             variant="outline"
             size="icon"
-            onClick={animationRestart}
-            title="Restart"
+            onClick={animationStepBackward}
+            title="Step backward (one frame)"
           >
-            <RotateCcw className="h-4 w-4" />
+            <ChevronsLeft className="h-4 w-4" />
           </Button>
           {isAnimationPlaying ? (
             <Button variant="secondary" size="icon" onClick={animationPause} title="Pause">
@@ -548,6 +623,38 @@ export function PlaycallerView({
               <Play className="h-4 w-4" />
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={animationStepForward}
+            title="Step forward (one frame)"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={animationRestart}
+            title="Restart"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={animationLoop ? "secondary" : "outline"}
+            size="icon"
+            onClick={() => setAnimationLoop(!animationLoop)}
+            title={animationLoop ? "Loop on" : "Loop off"}
+          >
+            <Repeat className={`h-4 w-4 ${animationLoop ? "text-primary" : ""}`} />
+          </Button>
+          <Button
+            variant={showRoutes ? "secondary" : "outline"}
+            size="icon"
+            onClick={() => setShowRoutes((v) => !v)}
+            title={showRoutes ? "Hide routes" : "Show routes"}
+          >
+            <Route className={`h-4 w-4 ${showRoutes ? "text-primary" : ""}`} />
+          </Button>
           <select
             value={animationSpeed}
             onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
@@ -569,6 +676,9 @@ export function PlaycallerView({
                 : "Ready"}
           {" · "}
           Speed: {animationSpeed}x
+          {animationLoop ? " · Loop on" : ""}
+          {" · "}
+          Routes: {showRoutes ? "on" : "off"}
         </p>
       </div>
 

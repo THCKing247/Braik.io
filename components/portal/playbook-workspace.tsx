@@ -383,7 +383,8 @@ export function PlaybookWorkspace({
               return { x: bl.x, y: bl.y, xYards, yYards }
             })()
           : undefined
-        return { ...base, route, blockingLine }
+        const animationTiming = (p as { animationTiming?: PlayCanvasData["players"][0]["animationTiming"] }).animationTiming
+        return { ...base, route, blockingLine, ...(animationTiming != null ? { animationTiming } : {}) }
       }),
       zones: data.zones.map((z) => ({
         id: z.id,

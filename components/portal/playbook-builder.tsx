@@ -3,10 +3,16 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban } from "lucide-react"
+import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban, Clock } from "lucide-react"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox as clientToViewBoxLib } from "@/lib/utils/canvas-coords"
 import { canFinishRouteDraft as canFinishRouteDraftLib } from "@/lib/utils/playbook-draft"
+import {
+  getAnimatedPlayerPosition,
+  hasCustomAnimationTiming,
+  formatAnimationTimingSummary,
+  type PlayerPathSource,
+} from "@/lib/utils/play-animation"
 import { PlaybookFileTree } from "@/components/portal/playbook-file-tree"
 import { PlaybookShapePalette } from "@/components/portal/playbook-shape-palette"
 import { validateTemplateSave } from "@/lib/utils/playbook-validation"
@@ -53,6 +59,7 @@ interface Player {
   gap?: string
   positionCode?: string | null
   positionNumber?: number | null
+  animationTiming?: { startDelay?: number; durationScale?: number }
 }
 
 interface Zone {
@@ -100,7 +107,7 @@ interface PlaybookBuilderProps {
   pendingFormations?: Array<{ side: string; formation: string }>
   isTemplateMode?: boolean
   templateName?: string
-  /** When selection changes, report selected marker for inspector (role, positionCode, positionNumber, hasDuplicateRole). */
+  /** When selection changes, report selected marker for inspector (role, positionCode, positionNumber, hasDuplicateRole, animationTiming). */
   onSelectPlayer?: (player: {
     id: string
     label: string
@@ -108,6 +115,7 @@ interface PlaybookBuilderProps {
     positionCode?: string | null
     positionNumber?: number | null
     hasDuplicateRole?: boolean
+    animationTiming?: { startDelay?: number; durationScale?: number }
   } | null) => void
   /** Depth chart for assignment status indicators on markers (assigned / unassigned). */
   depthChartEntries?: DepthChartSlot[] | null
@@ -117,6 +125,12 @@ interface PlaybookBuilderProps {
   onClearFocusUnassigned?: () => void
   /** Stable key for the play/formation being edited. When this changes we sync from playData; when it doesn't we keep local state (e.g. just-finished route/block). */
   editorSourceKey?: string | null
+  /** When true, show animation preview: markers at derived positions, optional route visibility, editing disabled. */
+  previewMode?: boolean
+  /** Animation progress in [0, 1]. Used only when previewMode is true. */
+  animationProgress?: number
+  /** When false and previewMode, hide route and blocking lines. Used only when previewMode is true. */
+  showRoutesInPreview?: boolean
 }
 
 export function PlaybookBuilder({
@@ -145,6 +159,9 @@ export function PlaybookBuilder({
   focusUnassignedOnce = false,
   onClearFocusUnassigned,
   editorSourceKey,
+  previewMode = false,
+  animationProgress: previewProgress = 0,
+  showRoutesInPreview = true,
 }: PlaybookBuilderProps) {
   const [tool, setTool] = useState<string>("select")
   const [currentSide, setCurrentSide] = useState(side)
@@ -455,6 +472,7 @@ export function PlaybookBuilder({
       positionCode: p.positionCode ?? undefined,
       positionNumber: p.positionNumber ?? undefined,
       hasDuplicateRole: hasDuplicateRoleLabel(players, p.id),
+      animationTiming: p.animationTiming ?? undefined,
     })
   }, [selectedPlayerId, players, onSelectPlayer])
 
@@ -521,6 +539,44 @@ export function PlaybookBuilder({
     return { x: p.x, y: p.y }
   }
 
+  /** Convert builder Player to PlayerPathSource for play-animation (yards-based). */
+  const playerToPathSource = (p: Player): PlayerPathSource => {
+    const xYards = p.xYards ?? coordSystem.pixelToYard(p.x, p.y).xYards
+    const yYards = p.yYards ?? coordSystem.pixelToYard(p.x, p.y).yYards
+    const route = p.route?.map((pt) => {
+      const hasYards = "xYards" in pt && typeof (pt as { xYards: number }).xYards === "number"
+      const xY = hasYards ? (pt as { xYards: number }).xYards : coordSystem.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).xYards
+      const yY = hasYards ? (pt as { yYards: number }).yYards : coordSystem.pixelToYard((pt as { x: number }).x, (pt as { y: number }).y).yYards
+      return { xYards: xY, yYards: yY, t: "t" in pt ? (pt as { t: number }).t : 0 }
+    })
+    const blockingLine = p.blockingLine
+      ? (() => {
+          const bl = p.blockingLine as { x?: number; y?: number; xYards?: number; yYards?: number }
+          const hasYards = typeof bl.xYards === "number" && typeof bl.yYards === "number"
+          return {
+            xYards: hasYards ? bl.xYards! : coordSystem.pixelToYard(bl.x ?? 0, bl.y ?? 0).xYards,
+            yYards: hasYards ? bl.yYards! : coordSystem.pixelToYard(bl.x ?? 0, bl.y ?? 0).yYards,
+          }
+        })()
+      : undefined
+    return {
+      xYards,
+      yYards,
+      route: route ?? undefined,
+      blockingLine,
+      animationTiming: p.animationTiming ?? undefined,
+    }
+  }
+
+  /** Resolved position for a player: animated when in preview, else display position. */
+  const getPlayerPos = (p: Player): { x: number; y: number } => {
+    if (previewMode) {
+      const yard = getAnimatedPlayerPosition(playerToPathSource(p), previewProgress)
+      return coordSystem.yardToPixel(yard.xYards, yard.yYards)
+    }
+    return getPlayerDisplayPos(p)
+  }
+
   /** Hit-test: find player whose center is within radius of point. Use 1.5x for route/block start for easier targeting. */
   const HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK = 1.5
   const getPlayerAtPoint = (point: { x: number; y: number }, hitRadiusMultiplier = 1) => {
@@ -532,7 +588,7 @@ export function PlaybookBuilder({
   }
 
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!canEdit) return
+    if (!canEdit || previewMode) return
 
     const point = getCanvasPoint(e)
 
@@ -628,7 +684,7 @@ export function PlaybookBuilder({
   }
 
   const handleCanvasMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!canEdit) return
+    if (!canEdit || previewMode) return
     const point = getCanvasPoint(e)
     if ((tool === "route" && routeDraft) || (tool === "block" && blockDraft)) {
       setCursorPosition({ x: point.x, y: point.y })
@@ -650,6 +706,7 @@ export function PlaybookBuilder({
   }
 
   const handleCanvasDoubleClick = () => {
+    if (previewMode) return
     if (tool === "route" && canFinishRouteDraftLib(routeDraft)) {
       finishRouteDraft()
     } else if (tool === "block" && blockDraft) {
@@ -1068,6 +1125,96 @@ export function PlaybookBuilder({
                 Duplicate role
               </span>
             )}
+            {!isTemplateMode && (
+              <>
+                <div className="w-px h-6 bg-slate-200" aria-hidden />
+                <span className="text-xs font-medium text-slate-600">Animation:</span>
+                {hasCustomAnimationTiming(sel.animationTiming) ? (
+                  <span className="text-xs font-medium text-amber-700 flex items-center gap-1" title="This marker has custom animation timing">
+                    <Clock className="h-3.5 w-3.5" />
+                    Custom timing: {formatAnimationTimingSummary(sel.animationTiming)}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">Default timing</span>
+                )}
+                <label className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-500 whitespace-nowrap">Start delay</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={sel.animationTiming?.startDelay ?? 0}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      const startDelay = isNaN(v) ? 0 : Math.max(0, Math.min(1, v))
+                      setPlayers((prev) =>
+                        prev.map((p) => {
+                          if (p.id !== selectedPlayerId) return p
+                          const next = {
+                            ...p.animationTiming,
+                            startDelay: startDelay === 0 ? undefined : startDelay,
+                          }
+                          const timing =
+                            next.startDelay != null || next.durationScale != null ? next : undefined
+                          return { ...p, animationTiming: timing }
+                        })
+                      )
+                    }}
+                    title="0 = starts immediately, 0.2 = after 20% of the play"
+                    className="h-8 w-16 rounded border border-slate-200 px-2 text-sm text-right"
+                  />
+                </label>
+                <label className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-500 whitespace-nowrap">Duration scale</span>
+                  <input
+                    type="number"
+                    min={0.1}
+                    max={3}
+                    step={0.1}
+                    value={sel.animationTiming?.durationScale ?? 1}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      const durationScale = isNaN(v) ? 1 : Math.max(0.1, Math.min(3, v))
+                      setPlayers((prev) =>
+                        prev.map((p) => {
+                          if (p.id !== selectedPlayerId) return p
+                          const next = {
+                            ...p.animationTiming,
+                            durationScale: durationScale === 1 ? undefined : durationScale,
+                          }
+                          const timing =
+                            next.startDelay != null || next.durationScale != null ? next : undefined
+                          return { ...p, animationTiming: timing }
+                        })
+                      )
+                    }}
+                    title="1 = normal speed, 0.5 = faster, 2 = slower"
+                    className="h-8 w-16 rounded border border-slate-200 px-2 text-sm text-right"
+                  />
+                </label>
+                <Button
+                  variant={hasCustomAnimationTiming(sel.animationTiming) ? "outline" : "ghost"}
+                  size="sm"
+                  className="h-8 text-xs gap-1"
+                  onClick={() =>
+                    setPlayers((prev) =>
+                      prev.map((p) =>
+                        p.id === selectedPlayerId ? { ...p, animationTiming: undefined } : p
+                      )
+                    )
+                  }
+                  title="Reset to default (starts immediately, normal speed)"
+                  disabled={!hasCustomAnimationTiming(sel.animationTiming)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reset timing
+                </Button>
+                <span className="text-xs text-slate-400 max-w-[200px]">
+                  0 = now · 0.2 = 20% in · 0.5 scale = faster, 2 = slower
+                </span>
+              </>
+            )}
           </div>
         )
       })()}
@@ -1233,14 +1380,15 @@ export function PlaybookBuilder({
               const defender = players.find((p) => p.id === coverage.defenderId)
               const receiver = players.find((p) => p.id === coverage.receiverId)
               if (!defender || !receiver) return null
-
+              const dPos = getPlayerPos(defender)
+              const rPos = getPlayerPos(receiver)
               return (
                 <line
                   key={coverage.id}
-                  x1={defender.x}
-                  y1={defender.y}
-                  x2={receiver.x}
-                  y2={receiver.y}
+                  x1={dPos.x}
+                  y1={dPos.y}
+                  x2={rPos.x}
+                  y2={rPos.y}
                   stroke="#DC2626"
                   strokeWidth="2"
                   strokeDasharray="3,3"
@@ -1252,6 +1400,7 @@ export function PlaybookBuilder({
             {players.map((player) => {
               const isSelected = selectedPlayerId === player.id
               const isHoveredAsOrigin =
+                !previewMode &&
                 hoveredPlayerId === player.id &&
                 (tool === "route" || tool === "block") &&
                 !routeDraft &&
@@ -1267,13 +1416,31 @@ export function PlaybookBuilder({
                   ? `Assigned: ${assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}${[assigned.firstName, assigned.lastName].filter(Boolean).join(" ")}`
                   : "Unassigned"
 
-              const pos = getPlayerDisplayPos(player)
+              const pos = getPlayerPos(player)
+              const customTiming = hasCustomAnimationTiming(player.animationTiming)
+              const timingTooltip = customTiming
+                ? `Custom timing: ${formatAnimationTimingSummary(player.animationTiming).replace(" · ", " / ")}`
+                : null
               return (
-                <g key={player.id}>
+                <g key={player.id} style={previewMode ? { pointerEvents: "none" } : undefined}>
                   {player.positionCode && depthChartEntries?.length ? (
                     <title>{assignTip}</title>
                   ) : null}
-                  {/* Hover "start here" ring when Route/Block tool and no draft */}
+                  {customTiming && (
+                    <g>
+                      <title>{timingTooltip ?? "Custom timing"}</title>
+                      <circle
+                        cx={pos.x - markerSize / 2 + 10}
+                        cy={pos.y - markerSize / 2 + 10}
+                        r={5}
+                        fill="#F59E0B"
+                        stroke="white"
+                        strokeWidth={1.5}
+                        opacity={0.95}
+                      />
+                    </g>
+                  )}
+                  {/* Hover "start here" ring when Route/Block tool and no draft (hidden in preview) */}
                   {isHoveredAsOrigin && (
                     <circle
                       cx={pos.x}
@@ -1285,8 +1452,8 @@ export function PlaybookBuilder({
                       strokeDasharray="4,4"
                     />
                   )}
-                  {/* Player route — x,y kept in sync from xYards/yYards when coordSystem/fieldDimensions change (resize-safe) */}
-                  {player.route && player.route.length > 1 && (
+                  {/* Player route — hidden in preview when showRoutesInPreview is false */}
+                  {(showRoutesInPreview || !previewMode) && player.route && player.route.length > 1 && (
                     <g>
                       <polyline
                         points={player.route.map((p) => {
@@ -1307,8 +1474,8 @@ export function PlaybookBuilder({
                     </g>
                   )}
 
-                  {/* Blocking line */}
-                  {player.blockingLine && (
+                  {/* Blocking line — hidden in preview when showRoutesInPreview is false */}
+                  {(showRoutesInPreview || !previewMode) && player.blockingLine && (
                     <g>
                       <line
                         x1={pos.x}

@@ -757,8 +757,8 @@ export function PlaybookWorkspace({
         canEditSpecialTeams={canEditSpecialTeams}
       />
 
-      <div className="flex-1 overflow-hidden p-4 md:p-5 lg:p-6">
-        <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 overflow-hidden pt-4 px-4 md:pt-5 md:px-5 lg:pt-6 lg:px-6 pb-0">
+        <div className="h-full min-h-0 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
           {atHub ? (
             <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(280px,2.1fr)_minmax(320px,1fr)] gap-5 xl:gap-6 p-5 xl:p-6 overflow-hidden min-h-0">
               <div className="min-w-[280px] overflow-hidden flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">

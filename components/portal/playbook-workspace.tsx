@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { PlaybookBrowser } from "@/components/portal/playbook-browser"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
@@ -53,8 +54,12 @@ export function PlaybookWorkspace({
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [focusUnassignedOnce, setFocusUnassignedOnce] = useState(false)
   const [editingPlayType, setEditingPlayType] = useState<PlayType | null>(null)
+  const [creatingPlay, setCreatingPlay] = useState(false)
+  const [newPlayError, setNewPlayError] = useState<string | null>(null)
   type RosterPlayer = { id: string; firstName: string; lastName: string; jerseyNumber: number | null; positionGroup: string | null }
   const [rosterPlayers, setRosterPlayers] = useState<RosterPlayer[]>([])
+  const router = useRouter()
+  const creatingPlayRef = useRef(false)
 
   const BROWSER_HEIGHT_KEY = "braik.playbook.browserHeight"
   const INSPECTOR_HEIGHT_KEY = "braik.playbook.inspectorHeight"
@@ -298,30 +303,96 @@ export function PlaybookWorkspace({
     }
   }
 
-  const handleNewPlay = (side: SideOfBall, formationId: string | null, formationName: string, subFormationId?: string | null) => {
-    setSelectedPlayId(null)
-    setSelectedFormationId(formationId)
-    setSelectedSubFormationId(subFormationId ?? null)
-    setSelectedFormationName(formationName || "Custom")
-    setSelectedSubcategory(null)
-    setSelectedSide(side)
-    setEditingFormation(null)
-    setEditingSubFormation(null)
-    setEditingPlayType(null)
-    setDesignerMode("play")
-  }
+  const handleNewPlay = useCallback(
+    async (side: SideOfBall, formationId: string | null, formationName: string, subFormationId?: string | null) => {
+      if (creatingPlayRef.current) return
+      creatingPlayRef.current = true
+      setNewPlayError(null)
+      setCreatingPlay(true)
+      try {
+        const formation = formationName?.trim() || "Custom"
+        const subId = subFormationId && subFormationId !== "__uncategorized__" ? subFormationId : null
+        const subFormation = subId ? subFormations.find((s) => s.id === subId) ?? null : null
+        const defaultTemplate: TemplateData = { fieldView: "HALF", shapes: [], paths: [] }
+        const templateData = subFormation?.templateData ?? defaultTemplate
+        const canvasData = templateDataToCanvasData(templateData, side)
 
-  const handleNewPlayFromFormation = (formation: FormationRecord) => {
-    setSelectedPlayId(null)
-    setSelectedFormationId(formation.id)
-    setSelectedSubFormationId(null)
-    setSelectedFormationName(formation.name)
-    setSelectedSubcategory(null)
-    setSelectedSide(formation.side)
-    setEditingFormation(null)
-    setEditingSubFormation(null)
-    setDesignerMode("play")
-  }
+        const res = await fetch("/api/plays", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teamId,
+            side,
+            formation,
+            formationId: formationId ?? undefined,
+            subFormationId: subId ?? undefined,
+            name: "New Play",
+            canvasData,
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(typeof body?.error === "string" ? body.error : "Failed to create play")
+        }
+        const created = await res.json()
+        const playId = created?.id
+        if (!playId) throw new Error("No play ID returned")
+        router.push(`/dashboard/playbooks/play/${playId}`)
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed to create play"
+        setNewPlayError(message)
+        alert(message)
+      } finally {
+        creatingPlayRef.current = false
+        setCreatingPlay(false)
+      }
+    },
+    [teamId, subFormations, router]
+  )
+
+  const handleNewPlayFromFormation = useCallback(
+    async (formation: FormationRecord) => {
+      if (creatingPlayRef.current) return
+      creatingPlayRef.current = true
+      setNewPlayError(null)
+      setCreatingPlay(true)
+      try {
+        const defaultTemplate: TemplateData = { fieldView: "HALF", shapes: [], paths: [] }
+        const canvasData = templateDataToCanvasData(defaultTemplate, formation.side)
+
+        const res = await fetch("/api/plays", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teamId,
+            side: formation.side,
+            formation: formation.name,
+            formationId: formation.id,
+            name: "New Play",
+            canvasData,
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(typeof body?.error === "string" ? body.error : "Failed to create play")
+        }
+        const created = await res.json()
+        const playId = created?.id
+        if (!playId) throw new Error("No play ID returned")
+        router.push(`/dashboard/playbooks/play/${playId}`)
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed to create play"
+        setNewPlayError(message)
+        alert(message)
+      } finally {
+        creatingPlayRef.current = false
+        setCreatingPlay(false)
+      }
+    },
+    [teamId, router]
+  )
 
   const handleNewSubFormation = async (formationId: string, formationName: string, side: SideOfBall, name: string) => {
     try {
@@ -639,8 +710,6 @@ export function PlaybookWorkspace({
   const defaultTemplate: TemplateData = { fieldView: "HALF", shapes: [], paths: [] }
   const rawCanvasData = editingSubFormation
     ? templateDataToCanvasData(editingSubFormation.templateData ?? defaultTemplate, editingSubFormation.side)
-    : designerMode === "play" && !selectedPlayId && selectedFormation
-    ? templateDataToCanvasData(selectedSubFormation?.templateData ?? defaultTemplate, effectiveSide)
     : selectedPlay?.canvasData ?? null
 
   // Memoize so the builder receives a stable playData reference. Otherwise every workspace re-render
@@ -767,7 +836,7 @@ export function PlaybookWorkspace({
       <PlaybookHeader
         onNewFormation={handleNewFormation}
         onNewPlay={
-          selectedFormation
+          selectedFormation && !creatingPlay
             ? () =>
                 handleNewPlay(
                   selectedFormation.side,
@@ -778,7 +847,7 @@ export function PlaybookWorkspace({
             : undefined
         }
         canEdit={canEdit}
-        showNewPlay={showNewPlayInHeader}
+        showNewPlay={showNewPlayInHeader && !creatingPlay}
         canEditOffense={canEditOffense}
         canEditDefense={canEditDefense}
         canEditSpecialTeams={canEditSpecialTeams}
@@ -825,12 +894,12 @@ export function PlaybookWorkspace({
 
               {/* Canvas panel — takes remaining space */}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white border-x border-slate-200">
-                {(editingSubFormation || (designerMode === "play" && !selectedPlayId && selectedFormation)) && canEditSide(effectiveSide) ? (
+                {(editingSubFormation || (designerMode === "play" && selectedPlayId)) && canEditSide(effectiveSide) ? (
                   <PlaybookBuilder
-                    playId={designerMode === "play" ? selectedPlayId : null}
+                    playId={selectedPlayId}
                     playData={initialCanvasDataForDesigner}
                     playName={initialNameForDesigner}
-                    editorSourceKey={editingSubFormation ? `subformation-${editingSubFormation.id}` : (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}-${selectedSubFormationId ?? "none"}`)}
+                    editorSourceKey={editingSubFormation ? `subformation-${editingSubFormation.id}` : `play-${selectedPlayId}`}
                     side={effectiveSide}
                     formation={editingSubFormation ? editingSubFormation.name : (selectedFormationName || "Custom")}
                     onSave={handleSaveFromBuilder}
@@ -847,7 +916,7 @@ export function PlaybookWorkspace({
                     onClearFocusUnassigned={() => setFocusUnassignedOnce(false)}
                   />
                 ) : (
-                  /* No play selected and no new-play flow: leave canvas empty so the browser (play selector) is the focus */
+                  /* No sub-formation template or play selected: leave canvas empty so the browser is the focus */
                   <div className="flex-1 min-h-0 bg-slate-50/30" aria-hidden />
                 )}
               </div>

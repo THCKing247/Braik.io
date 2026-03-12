@@ -55,7 +55,7 @@ function PlayTypeBadge({ playType }: { playType: PlayType | null }) {
   if (!playType || !PLAY_TYPE_STYLE[playType]) return null
   const { bg, label } = PLAY_TYPE_STYLE[playType]
   return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide ${bg}`}>
+    <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-bold text-white uppercase tracking-wide shadow-md ${bg}`}>
       {label}
     </span>
   )
@@ -205,31 +205,33 @@ export function PlayCard({
     )
   }
 
-  // Grid: large preview + blue footer (reference style)
+  // Grid: preview-dominant, strong blue footer, clear actions (Open > Review > icons)
   return (
     <Card
       className={`
         cursor-pointer overflow-hidden transition-all border-2 border-slate-200 bg-white
-        hover:shadow-lg hover:border-blue-400 focus-within:ring-2 focus-within:ring-blue-300
-        ${isSelected ? "ring-2 ring-blue-500 border-blue-500 shadow-md" : ""}
+        hover:shadow-xl hover:border-blue-400 hover:-translate-y-0.5 focus-within:ring-2 focus-within:ring-blue-300
+        ${isSelected ? "ring-2 ring-blue-500 border-blue-500 shadow-lg" : ""}
       `}
       onClick={handleOpen}
     >
+      {/* Preview: main focus — thumbnail fills top, rounded-t only (footer connects cleanly) */}
       <div className="relative">
-        <PlayCardThumbnail canvasData={canvasData} className="w-full aspect-[200/140]" />
-        <div className="absolute top-2 left-2">
+        <PlayCardThumbnail canvasData={canvasData} className="w-full aspect-[200/140] flex-shrink-0" />
+        <div className="absolute top-2 left-2 z-10 shadow-md">
           <PlayTypeBadge playType={play.playType ?? null} />
         </div>
         {assignmentSummary && assignmentSummary.total > 0 && (
-          <div className="absolute bottom-2 right-2 text-[10px] text-white/90 bg-black/40 rounded px-1.5 py-0.5">
-            {assignmentSummary.assigned}/{assignmentSummary.total} assigned
+          <div className="absolute bottom-2 right-2 z-10 text-[10px] font-medium text-white/95 bg-black/50 backdrop-blur-sm rounded-md px-2 py-1">
+            {assignmentSummary.assigned}/{assignmentSummary.total}
             {assignmentSummary.assigned < assignmentSummary.total && (
-              <span className="text-amber-300"> · {assignmentSummary.total - assignmentSummary.assigned} unassigned</span>
+              <span className="text-amber-300 ml-0.5">({assignmentSummary.total - assignmentSummary.assigned} open)</span>
             )}
           </div>
         )}
       </div>
-      <div className="bg-[#1e40af] px-4 py-3">
+      {/* Blue footer: play name primary, sub-formation secondary */}
+      <div className="bg-[#1e40af] px-4 py-3.5 flex-shrink-0">
         {isRenaming ? (
           <Input
             value={renameValue}
@@ -242,42 +244,51 @@ export function PlayCard({
                 setIsRenaming(false)
               }
             }}
-            className="h-8 text-sm font-semibold text-white bg-white/20 border-white/40 placeholder:text-white/70"
+            className="h-8 text-sm font-bold text-white bg-white/20 border-white/40 placeholder:text-white/70"
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <p className="font-semibold text-white text-center truncate" title={play.name}>
-            {play.name}
-          </p>
-        )}
-        {play.subFormation && (
-          <p className="text-xs text-white/80 text-center mt-0.5 truncate">
-            {play.subFormation}
-          </p>
+          <>
+            <p className="font-bold text-white text-center truncate text-base" title={play.name}>
+              {play.name}
+            </p>
+            {play.subFormation && (
+              <p className="text-xs text-white/80 text-center mt-0.5 truncate">
+                {play.subFormation}
+              </p>
+            )}
+          </>
         )}
       </div>
-      <CardFooter className="p-2 flex flex-wrap gap-1.5 justify-end bg-slate-50 border-t border-slate-200" onClick={(e) => e.stopPropagation()}>
-        {canEdit && (
-          <>
+      {/* Actions: Open primary, Review when needed, then icon row — no clutter */}
+      <CardFooter className="p-2.5 flex items-center justify-between gap-2 bg-slate-50/95 border-t border-slate-200 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        {canEdit ? (
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <Button variant="default" size="sm" className="h-8 px-3 text-xs font-semibold bg-[#1e40af] hover:bg-[#1e3a8a] shrink-0" onClick={handleOpen}>
+              Open
+            </Button>
             {assignmentStatus === "incomplete" && onReviewAssignments && (
-              <Button variant="secondary" size="sm" className="h-7 text-xs" onClick={() => onReviewAssignments(play)}>
+              <Button variant="secondary" size="sm" className="h-8 px-2.5 text-xs text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100 shrink-0" onClick={() => onReviewAssignments(play)}>
                 Review
               </Button>
             )}
-            <Button variant="default" size="sm" className="h-7 text-xs bg-[#1e40af] hover:bg-[#1e3a8a]" onClick={handleOpen}>
-              Open
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700" onClick={() => onDuplicate(play.id)} title="Duplicate">
-              <Copy className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700" onClick={() => setIsRenaming(true)} title="Rename">
-              <Pencil className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:text-red-700" onClick={() => confirm("Delete this play?") && onDelete(play.id)} title="Delete">
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </>
+            <div className="flex items-center gap-0.5 ml-auto shrink-0">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-700" onClick={() => onDuplicate(play.id)} title="Duplicate">
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-700" onClick={() => setIsRenaming(true)} title="Rename">
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => confirm("Delete this play?") && onDelete(play.id)} title="Delete">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="default" size="sm" className="h-8 px-3 text-xs font-semibold bg-[#1e40af] hover:bg-[#1e3a8a]" onClick={handleOpen}>
+            Open
+          </Button>
         )}
       </CardFooter>
     </Card>

@@ -1,12 +1,14 @@
 "use client"
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react"
-import { X, ChevronLeft, ChevronRight, Pencil, Eraser } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Pencil, Eraser, Play, Pause, RotateCcw, SkipBack } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox } from "@/lib/utils/canvas-coords"
 import { getPlayFormationDisplayName } from "@/lib/utils/playbook-formation"
 import { markerMatchesDepthSlot, type DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { getAnimatedPlayerPosition } from "@/lib/utils/play-animation"
+import { usePlayAnimation, SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/hooks/use-play-animation"
 import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint, FormationRecord } from "@/types/playbook"
 
 type PresenterTool = "none" | "marker"
@@ -102,10 +104,27 @@ export function PlaycallerView({
   const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[] | null>(null)
   const [viewAsRoleId, setViewAsRoleId] = useState<string | null>(null)
   const [viewAsRosterPlayerId, setViewAsRosterPlayerId] = useState<string | null>(null)
+  const {
+    progress: animationProgress,
+    isPlaying: isAnimationPlaying,
+    speed: animationSpeed,
+    state: animationState,
+    play: animationPlay,
+    pause: animationPause,
+    restart: animationRestart,
+    setSpeed: setAnimationSpeed,
+    stepToStart: animationStepToStart,
+  } = usePlayAnimation()
+
   useEffect(() => {
     setViewAsRoleId(null)
     setViewAsRosterPlayerId(null)
   }, [currentIndex])
+
+  // Reset animation when switching to another play
+  useEffect(() => {
+    animationStepToStart()
+  }, [currentIndex, animationStepToStart])
   const playSide = play?.side ?? "offense"
   const viewAsRoleOptions = useMemo(() => {
     return players.map((p) => {
@@ -412,12 +431,20 @@ export function PlaycallerView({
             {players.map((p) => {
               const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
               const markerOpacity = isHighlighted ? 1 : 0.45
+              const rawPlayer = canvasData?.players?.find((c) => c.id === p.id)
+              const yardPos =
+                rawPlayer && animationProgress > 0
+                  ? getAnimatedPlayerPosition(rawPlayer, animationProgress)
+                  : null
+              const animPos = yardPos
+                ? coord.yardToPixel(yardPos.xYards, yardPos.yYards)
+                : { x: p.x, y: p.y }
               return (
               <g key={p.id} style={{ opacity: markerOpacity }}>
                 {p.shape === "circle" && (
                   <circle
-                    cx={p.x}
-                    cy={p.y}
+                    cx={animPos.x}
+                    cy={animPos.y}
                     r={markerSize / 2}
                     fill={playerColor}
                     stroke="white"
@@ -426,8 +453,8 @@ export function PlaycallerView({
                 )}
                 {p.shape === "square" && (
                   <rect
-                    x={p.x - markerSize / 2}
-                    y={p.y - markerSize / 2}
+                    x={animPos.x - markerSize / 2}
+                    y={animPos.y - markerSize / 2}
                     width={markerSize}
                     height={markerSize}
                     fill={playerColor}
@@ -437,15 +464,15 @@ export function PlaycallerView({
                 )}
                 {p.shape === "triangle" && (
                   <polygon
-                    points={`${p.x},${p.y + markerSize / 2} ${p.x - markerSize / 2},${p.y - markerSize / 2} ${p.x + markerSize / 2},${p.y - markerSize / 2}`}
+                    points={`${animPos.x},${animPos.y + markerSize / 2} ${animPos.x - markerSize / 2},${animPos.y - markerSize / 2} ${animPos.x + markerSize / 2},${animPos.y - markerSize / 2}`}
                     fill={playerColor}
                     stroke="white"
                     strokeWidth={2}
                   />
                 )}
                 <text
-                  x={p.x}
-                  y={p.y}
+                  x={animPos.x}
+                  y={animPos.y}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fill="white"
@@ -491,6 +518,58 @@ export function PlaycallerView({
             />
           </svg>
         </div>
+      </div>
+
+      {/* Animation controls */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+        <div className="flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={animationStepToStart}
+            title="Step back to start"
+          >
+            <SkipBack className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={animationRestart}
+            title="Restart"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          {isAnimationPlaying ? (
+            <Button variant="secondary" size="icon" onClick={animationPause} title="Pause">
+              <Pause className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button variant="secondary" size="icon" onClick={animationPlay} title="Play">
+              <Play className="h-4 w-4" />
+            </Button>
+          )}
+          <select
+            value={animationSpeed}
+            onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
+            className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[64px]"
+            title="Speed"
+          >
+            {SPEED_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s}x</option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {animationState === "playing"
+            ? "Playing"
+            : animationState === "paused"
+              ? "Paused"
+              : animationState === "ended"
+                ? "Ended"
+                : "Ready"}
+          {" · "}
+          Speed: {animationSpeed}x
+        </p>
       </div>
 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur px-4 py-2 rounded-lg shadow-lg">

@@ -10,6 +10,28 @@
  */
 import { useState, useMemo } from "react"
 import { Search, Plus, LayoutGrid, List, Presentation, ChevronRight, ArrowLeft, FolderOpen, FileText, Trash2 } from "lucide-react"
+
+/** Football-style icon (oval with laces) for playbook side cards. */
+function FootballIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 48 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      <ellipse cx="24" cy="14" rx="22" ry="12" stroke="currentColor" strokeWidth="2" fill="currentColor" fillOpacity="0.12" />
+      <path
+        d="M8 14h32M24 6v16M14 8l20 12M14 20l20-12M18 10l12 8M18 18l12-8"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        opacity="0.85"
+      />
+    </svg>
+  )
+}
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,6 +44,8 @@ import { getAssignmentSummary, type AssignmentSummary } from "@/lib/utils/playbo
 type ViewMode = "grid" | "list"
 type SortKey = "name" | "updated" | "formation" | "unassigned_desc" | "unassigned_asc" | "complete_desc"
 type AssignmentFilter = "all" | "fully" | "partial" | "unassigned"
+/** Level 4 only: filter by play type. Empty string = All (includes plays with no playType). */
+type PlayTypeFilter = "" | "run" | "pass" | "rpo" | "screen"
 
 const SIDES: { value: SideOfBall; label: string }[] = [
   { value: "offense", label: "Offense" },
@@ -104,6 +128,7 @@ export function PlaybookBrowser({
   const [viewMode, setViewMode] = useState<ViewMode>("grid")
   const [sortBy, setSortBy] = useState<SortKey>("updated")
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all")
+  const [playTypeFilter, setPlayTypeFilter] = useState<PlayTypeFilter>("")
   const [newFormationMenuOpen, setNewFormationMenuOpen] = useState(false)
 
   const selectedFormation = formations.find((f) => f.id === selectedFormationId) ?? null
@@ -167,6 +192,9 @@ export function PlaybookBrowser({
           (p.subcategory?.toLowerCase().includes(q))
       )
     }
+    if (playTypeFilter) {
+      list = list.filter((p) => p.playType === playTypeFilter)
+    }
     if (assignmentFilter !== "all" && depthChartEntries?.length) {
       list = list.filter((p) => {
         const sum = getAssignmentSummary(p, depthChartEntries)
@@ -196,7 +224,7 @@ export function PlaybookBrowser({
       }
       return 0
     })
-  }, [playsForSubFormation, search, assignmentFilter, sortBy, depthChartEntries])
+  }, [playsForSubFormation, search, playTypeFilter, assignmentFilter, sortBy, depthChartEntries])
 
   const subFormationPlayCount = (subId: string | null) => {
     if (!subId || subId === UNCATEGORIZED_ID) return playsForFormation.filter((p) => !p.subFormationId).length
@@ -205,6 +233,21 @@ export function PlaybookBrowser({
 
   const formationSubCount = (formationId: string) => subFormations.filter((s) => s.formationId === formationId).length
   const formationPlayCount = (formationId: string) => plays.filter((p) => p.formationId === formationId).length
+
+  /** Per-side stats for Level 1: formation count, play count, and formation names for preview. */
+  const sideStats = useMemo(() => {
+    return SIDES.map((s) => {
+      const sideFormations = formations.filter((f) => f.side === s.value)
+      const sidePlays = plays.filter((p) => p.side === s.value)
+      const formationNames = sideFormations.slice(0, 5).map((f) => f.name)
+      return {
+        side: s.value,
+        formationCount: sideFormations.length,
+        playCount: sidePlays.length,
+        formationNames,
+      }
+    })
+  }, [formations, plays])
 
   const handleBack = () => {
     onBack()
@@ -274,6 +317,20 @@ export function PlaybookBrowser({
                 className="pl-8 h-9 rounded-md border-slate-200 bg-slate-50 text-sm"
               />
             </div>
+          )}
+          {atPlayLevel && (
+            <select
+              value={playTypeFilter}
+              onChange={(e) => setPlayTypeFilter(e.target.value as PlayTypeFilter)}
+              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[100px]"
+              title="Filter by play type"
+            >
+              <option value="">All</option>
+              <option value="run">Run</option>
+              <option value="pass">Pass</option>
+              <option value="rpo">RPO</option>
+              <option value="screen">Screen</option>
+            </select>
           )}
           {atPlayLevel && (
             <>
@@ -389,30 +446,77 @@ export function PlaybookBrowser({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {/* Level 1: Side selection */}
+        {/* Level 1: Side selection — modern sports coaching style */}
         {atSideLevel && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
-            {SIDES.map((s) => (
-              <Card
-                key={s.value}
-                className="cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-lg transition-all bg-slate-50/50"
-                onClick={() => onSelectSide(s.value)}
-              >
-                <CardContent className="p-8 flex flex-col items-center justify-center min-h-[140px]">
-                  <div className="rounded-full bg-slate-200 p-4 mb-3">
-                    <FolderOpen className="h-10 w-10 text-slate-600" />
-                  </div>
-                  <span className="font-semibold text-lg text-slate-800">{s.label}</span>
-                  <span className="text-xs text-slate-500 mt-1 uppercase tracking-wide">
-                    {s.value.replace("_", " ")}
-                  </span>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-5xl mx-auto">
+            {SIDES.map((s, idx) => {
+              const stats = sideStats[idx]
+              const formationCount = stats?.formationCount ?? 0
+              const playCount = stats?.playCount ?? 0
+              const previewFormations = stats?.formationNames ?? []
+              const isOffense = s.value === "offense"
+              const isDefense = s.value === "defense"
+              const isSpecial = s.value === "special_teams"
+              const accentBg = isOffense
+                ? "bg-blue-500/10 border-blue-300 hover:border-blue-500 hover:bg-blue-500/15"
+                : isDefense
+                ? "bg-red-500/10 border-red-200 hover:border-red-500 hover:bg-red-500/15"
+                : "bg-amber-500/10 border-amber-200 hover:border-amber-500 hover:bg-amber-500/15"
+              const accentText = isOffense ? "text-blue-700" : isDefense ? "text-red-700" : "text-amber-800"
+              const iconColor = isOffense ? "text-blue-600" : isDefense ? "text-red-600" : "text-amber-600"
+              return (
+                <Card
+                  key={s.value}
+                  className={`cursor-pointer overflow-hidden border-2 transition-all shadow-sm hover:shadow-xl ${accentBg}`}
+                  onClick={() => onSelectSide(s.value)}
+                >
+                  <CardContent className="p-6 flex flex-col min-h-[200px]">
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className={`rounded-xl p-3 ${isOffense ? "bg-blue-500/20" : isDefense ? "bg-red-500/20" : "bg-amber-500/20"}`}>
+                        <FootballIcon className={`h-10 w-10 ${iconColor}`} />
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Formations</p>
+                        <p className={`text-xl font-bold ${accentText}`}>{formationCount}</p>
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mt-1">Plays</p>
+                        <p className={`text-xl font-bold ${accentText}`}>{playCount}</p>
+                      </div>
+                    </div>
+                    <h3 className="font-bold text-lg text-slate-800 mb-1">{s.label}</h3>
+                    <p className="text-xs text-slate-500 mb-3">Select to browse formations and plays</p>
+                    {previewFormations.length > 0 ? (
+                      <div className="mt-auto pt-3 border-t border-slate-200/80">
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">Formations</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {previewFormations.map((name) => (
+                            <span
+                              key={name}
+                              className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+                            >
+                              {name}
+                            </span>
+                          ))}
+                          {formationCount > previewFormations.length && (
+                            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400">
+                              +{formationCount - previewFormations.length}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-auto pt-3 border-t border-slate-200/80">
+                        <p className="text-xs text-slate-400">No formations yet</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Add formations to build your playbook</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
 
-        {/* Level 2: Formation cards */}
+        {/* Level 2: Formation cards — same polish as Level 1, thumbnail + counts + preview */}
         {atFormationLevel && selectedSide && (
           <>
             {formationCardsFiltered.length === 0 ? (
@@ -429,28 +533,74 @@ export function PlaybookBrowser({
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {formationCardsFiltered.map((f) => (
-                  <Card
-                    key={f.id}
-                    className="cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-md transition-all relative"
-                    onClick={() => onSelectFormation(f.id, f.name, f.side)}
-                  >
-                    <CardContent className="p-5 flex flex-col gap-2 min-h-[120px] justify-center relative">
-                      <div className="flex items-center justify-center gap-2">
-                        <FolderOpen className="h-6 w-6 text-slate-500 flex-shrink-0" />
-                        <span className="font-semibold text-slate-800 text-center truncate">{f.name}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
+                {formationCardsFiltered.map((f) => {
+                  const subCount = formationSubCount(f.id)
+                  const playCount = formationPlayCount(f.id)
+                  const subNames = subFormations.filter((s) => s.formationId === f.id).slice(0, 4).map((s) => s.name)
+                  const isOffense = f.side === "offense"
+                  const isDefense = f.side === "defense"
+                  const accentBg = isOffense
+                    ? "bg-blue-500/10 border-blue-200 hover:border-blue-500 hover:shadow-xl"
+                    : isDefense
+                    ? "bg-red-500/10 border-red-200 hover:border-red-500 hover:shadow-xl"
+                    : "bg-amber-500/10 border-amber-200 hover:border-amber-500 hover:shadow-xl"
+                  const barBg = isOffense ? "bg-blue-600" : isDefense ? "bg-red-600" : "bg-amber-600"
+                  const hasTemplate = f.templateData?.shapes?.length > 0
+                  return (
+                    <Card
+                      key={f.id}
+                      className={`cursor-pointer overflow-hidden border-2 transition-all shadow-sm p-0 relative ${accentBg}`}
+                      onClick={() => onSelectFormation(f.id, f.name, f.side)}
+                    >
+                      {hasTemplate ? (
+                        <FormationThumbnail templateData={f.templateData} side={f.side} className="rounded-t-lg" />
+                      ) : (
+                        <div className="aspect-[200/140] bg-slate-100 rounded-t-lg flex items-center justify-center">
+                          <FootballIcon
+                            className={`h-14 w-14 ${isOffense ? "text-blue-500/50" : isDefense ? "text-red-500/50" : "text-amber-500/50"}`}
+                          />
+                        </div>
+                      )}
+                      <div className={`${barBg} px-4 py-3 text-center`}>
+                        <span className="font-bold text-white text-lg tracking-tight">{f.name}</span>
                       </div>
-                      <div className="flex items-center justify-center gap-4 text-sm text-slate-500">
-                        <span>{formationSubCount(f.id)} sub-formations</span>
-                        <span>{formationPlayCount(f.id)} plays</span>
-                      </div>
-                      <span className="text-[10px] uppercase tracking-wide text-slate-400 text-center">{f.side.replace("_", " ")}</span>
+                      <CardContent className="p-4 flex flex-col min-h-[100px]">
+                        <div className="flex items-center justify-between gap-4 mb-3">
+                          <div>
+                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Sub-formations</p>
+                            <p className="text-xl font-bold text-slate-800">{subCount}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Plays</p>
+                            <p className="text-xl font-bold text-slate-800">{playCount}</p>
+                          </div>
+                        </div>
+                        {subNames.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 mt-auto">
+                            {subNames.map((name) => (
+                              <span
+                                key={name}
+                                className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+                              >
+                                {name}
+                              </span>
+                            ))}
+                            {subCount > subNames.length && (
+                              <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400">
+                                +{subCount - subNames.length}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 mt-auto">No sub-formations yet</p>
+                        )}
+                      </CardContent>
                       {canEdit && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="absolute top-2 right-2 h-8 w-8 text-slate-400 hover:text-destructive hover:bg-destructive/10"
+                          className="absolute top-2 right-2 h-8 w-8 z-10 bg-white/90 hover:bg-destructive/20 hover:text-destructive rounded-full shadow-sm"
                           onClick={(e) => {
                             e.stopPropagation()
                             if (confirm(`Delete formation "${f.name}"? This will not delete sub-formations or plays; you can reassign them later.`)) {
@@ -462,38 +612,40 @@ export function PlaybookBrowser({
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
-                    </CardContent>
-                  </Card>
-                ))}
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </>
         )}
 
-        {/* Level 3: Sub-formation cards */}
+        {/* Level 3: Sub-formation cards — formation tiles: preview + strong blue footer + play count */}
         {atSubFormationLevel && selectedFormation && (
           <>
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-800 text-center">{selectedFormation.name}</h2>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-slate-800 text-center">{selectedFormation.name}</h2>
+              <p className="text-sm text-slate-500 text-center mt-1">Select a sub-formation to view plays</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {subFormationsForSelectedFormation.map((s) => (
-                <Card
-                  key={s.id}
-                  className="cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-md transition-all p-0"
-                  onClick={() => onSelectSubFormation(s.id, s.name)}
-                >
-                  <FormationThumbnail templateData={selectedFormation.templateData} side={selectedFormation.side} />
-                  <div className="bg-[#1e40af] px-4 py-3 text-center">
-                    <span className="font-semibold text-white uppercase tracking-wide">{s.name}</span>
-                  </div>
-                  <CardContent className="p-2 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">{subFormationPlayCount(s.id)} plays</span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 max-w-5xl mx-auto">
+              {subFormationsForSelectedFormation.map((s) => {
+                const playCount = subFormationPlayCount(s.id)
+                return (
+                  <Card
+                    key={s.id}
+                    className="cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-xl transition-all p-0 relative"
+                    onClick={() => onSelectSubFormation(s.id, s.name)}
+                  >
+                    <FormationThumbnail templateData={selectedFormation.templateData} side={selectedFormation.side} />
+                    <div className="bg-[#1e40af] px-4 py-4 text-center">
+                      <span className="font-bold text-white text-base block tracking-tight">{s.name}</span>
+                      <span className="text-white/90 text-sm font-medium mt-0.5 block">{playCount} play{playCount !== 1 ? "s" : ""}</span>
+                    </div>
                     {canEdit && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-slate-400 hover:text-destructive hover:bg-destructive/10"
+                        className="absolute top-2 right-2 h-8 w-8 z-10 bg-white/90 hover:bg-destructive/20 hover:text-destructive rounded-full shadow-sm"
                         onClick={(e) => {
                           e.stopPropagation()
                           if (confirm(`Delete sub-formation "${s.name}"? Plays in this sub-formation will become uncategorized.`)) {
@@ -502,26 +654,24 @@ export function PlaybookBrowser({
                         }}
                         title="Delete sub-formation"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
-                  </CardContent>
-                </Card>
-              ))}
+                  </Card>
+                )
+              })}
               {uncategorizedCount > 0 && (
                 <Card
-                  className="cursor-pointer overflow-hidden border-2 border-dashed border-slate-300 hover:border-slate-400 transition-all p-0"
+                  className="cursor-pointer overflow-hidden border-2 border-dashed border-slate-300 hover:border-slate-500 hover:shadow-lg transition-all p-0"
                   onClick={() => onSelectSubFormation(UNCATEGORIZED_ID, "Uncategorized")}
                 >
-                  <div className="aspect-[200/140] bg-slate-100 flex items-center justify-center">
-                    <FileText className="h-12 w-12 text-slate-400" />
+                  <div className="aspect-[200/140] bg-slate-100 flex items-center justify-center rounded-t-lg">
+                    <FileText className="h-14 w-14 text-slate-400" />
                   </div>
-                  <div className="bg-slate-600 px-4 py-3 text-center">
-                    <span className="font-semibold text-white">Uncategorized</span>
+                  <div className="bg-slate-600 px-4 py-4 text-center">
+                    <span className="font-bold text-white text-base block tracking-tight">Uncategorized</span>
+                    <span className="text-white/90 text-sm font-medium mt-0.5 block">{uncategorizedCount} play{uncategorizedCount !== 1 ? "s" : ""}</span>
                   </div>
-                  <CardContent className="p-2">
-                    <span className="text-xs text-slate-500">Plays with no sub-formation ({uncategorizedCount})</span>
-                  </CardContent>
                 </Card>
               )}
             </div>
@@ -558,7 +708,7 @@ export function PlaybookBrowser({
             ) : (
               <div className="space-y-4">
                 {viewMode === "grid" ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 max-w-5xl mx-auto">
                     {filteredAndSortedPlays.map((play) => (
                       <PlayCard
                         key={play.id}

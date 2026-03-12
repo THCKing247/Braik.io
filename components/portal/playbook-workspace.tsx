@@ -824,6 +824,13 @@ export function PlaybookWorkspace({
                     <div className="max-w-sm rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                       <p className="text-sm font-semibold text-slate-800">Browse by side → formation → sub-formation</p>
                       <p className="text-sm text-slate-600 mt-2 leading-relaxed">Open a play to edit, or create a new formation or play from the browser.</p>
+                      <button
+                        type="button"
+                        className="mt-4 text-sm text-blue-600 hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+                        onClick={() => typeof window !== "undefined" && window.open(window.location.href, "_blank", "noopener,noreferrer")}
+                      >
+                        Open in new tab
+                      </button>
                     </div>
                   </div>
                 )}

@@ -233,14 +233,18 @@ export function PlaybookBuilder({
   )
   const [fieldDimensions, setFieldDimensions] = useState({ width: 800, height: 600 })
 
-  // Update coordinate system and field dimensions when container or window size changes.
-  // Routes/blocks stay aligned because playData sync converts yard coords to current pixels (see effect below).
+  // Update coordinate system and field dimensions from the actual canvas (SVG) size so pointer math
+  // and viewBox stay in sync. Use the SVG's getBoundingClientRect() when available so we use the
+  // same element for both dimension updates and clientToViewBox (avoids offset/stretch after stacked layout).
   useEffect(() => {
     const updateDimensions = () => {
-      if (containerRef.current) {
-        const container = containerRef.current
-        const availableWidth = container.clientWidth
-        const availableHeight = container.clientHeight
+      requestAnimationFrame(() => {
+        const canvasEl = canvasRef.current
+        const containerEl = containerRef.current
+        if (!canvasEl && !containerEl) return
+        const rect = canvasEl ? canvasEl.getBoundingClientRect() : { width: containerEl!.clientWidth, height: containerEl!.clientHeight }
+        const availableWidth = rect.width
+        const availableHeight = rect.height
         const fieldAspectRatio = FIELD_WIDTH_YARDS / VISIBLE_YARDS
         let width = availableWidth
         let height = availableHeight
@@ -251,7 +255,7 @@ export function PlaybookBuilder({
         }
         setFieldDimensions({ width, height })
         setCoordSystem(new FieldCoordinateSystem(width, height, yardLineStart, yardLineEnd))
-      }
+      })
     }
 
     updateDimensions()
@@ -626,11 +630,12 @@ export function PlaybookBuilder({
           prev ? { ...prev, points: [...prev.points, { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards }] } : null
         )
       } else if (clickedPlayer) {
+        const displayPos = getPlayerDisplayPos(clickedPlayer)
         const origin: PointPX = {
-          x: clickedPlayer.x,
-          y: clickedPlayer.y,
-          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).xYards,
-          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).yYards,
+          x: displayPos.x,
+          y: displayPos.y,
+          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).xYards,
+          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).yYards,
         }
         setRouteDraft({ playerId: clickedPlayer.id, points: [origin] })
         setSelectedPlayerId(clickedPlayer.id)
@@ -640,11 +645,12 @@ export function PlaybookBuilder({
       if (blockDraft) {
         setBlockDraft((prev) => (prev ? { ...prev, endPoint: { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards } } : null))
       } else if (clickedPlayer) {
+        const displayPos = getPlayerDisplayPos(clickedPlayer)
         const origin: PointPX = {
-          x: clickedPlayer.x,
-          y: clickedPlayer.y,
-          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).xYards,
-          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(clickedPlayer.x, clickedPlayer.y).yYards,
+          x: displayPos.x,
+          y: displayPos.y,
+          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).xYards,
+          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).yYards,
         }
         setBlockDraft({ playerId: clickedPlayer.id, endPoint: origin })
         setSelectedPlayerId(clickedPlayer.id)
@@ -1345,12 +1351,13 @@ export function PlaybookBuilder({
             {blockDraft && (() => {
               const blocker = players.find((p) => p.id === blockDraft.playerId)
               if (!blocker) return null
+              const start = getPlayerDisplayPos(blocker)
               const end = cursorPosition ?? { x: blockDraft.endPoint.x, y: blockDraft.endPoint.y }
               return (
                 <g className="block-draft">
                   <line
-                    x1={blocker.x}
-                    y1={blocker.y}
+                    x1={start.x}
+                    y1={start.y}
                     x2={end.x}
                     y2={end.y}
                     stroke="#D97706"

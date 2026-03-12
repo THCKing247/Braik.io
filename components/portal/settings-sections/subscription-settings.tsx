@@ -14,6 +14,7 @@ export function SubscriptionSettings({ teamId }: SubscriptionSettingsProps) {
     name: "",
     amountPaid: 0,
     subscriptionPaid: false,
+    subscriptionAmount: 0,
     teamIdCode: "",
   })
   const [players, setPlayers] = useState<any[]>([])
@@ -41,6 +42,7 @@ export function SubscriptionSettings({ teamId }: SubscriptionSettingsProps) {
           id: teamId,
           name: codesData.teamName || prev.name,
           teamIdCode: codesData.teamIdCode || "",
+          subscriptionAmount: 0, // Will be calculated from player count
         }))
 
         if (rosterRes.ok) {

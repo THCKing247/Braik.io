@@ -3,6 +3,15 @@ import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/serve
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 
+const VALID_PLAY_TYPES = ["run", "pass", "rpo", "screen"] as const
+
+function safePlayTypeFromRow(row: Record<string, unknown> | null): (typeof VALID_PLAY_TYPES)[number] | null {
+  if (!row) return null
+  const raw = row.play_type
+  if (typeof raw !== "string" || !VALID_PLAY_TYPES.includes(raw as (typeof VALID_PLAY_TYPES)[number])) return null
+  return raw as (typeof VALID_PLAY_TYPES)[number]
+}
+
 /**
  * GET /api/plays/[playId]
  * Returns a single play by ID.
@@ -24,10 +33,10 @@ export async function GET(
 
     const supabase = getSupabaseServer()
 
-    // Get play
+    // Get play (play_type omitted until migration 20260322000000_plays_play_type.sql is applied)
     const { data: play, error: playError } = await supabase
       .from("plays")
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .eq("id", playId)
       .maybeSingle()
 
@@ -55,7 +64,7 @@ export async function GET(
       subFormation: subFormationName,
       subcategory: play.subcategory ?? null,
       name: play.name,
-      playType: (play as { play_type?: string | null }).play_type ?? null,
+      playType: safePlayTypeFromRow(play as Record<string, unknown>),
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,
@@ -135,7 +144,6 @@ export async function PATCH(
       sub_formation_id?: string | null
       subcategory?: string | null
       side?: string
-      play_type?: string | null
       updated_at?: string
     } = {}
 
@@ -169,17 +177,15 @@ export async function PATCH(
     if (body.side !== undefined) {
       updateData.side = body.side
     }
-    if (body.playType !== undefined) {
-      updateData.play_type = body.playType && ["run", "pass", "rpo", "screen"].includes(body.playType) ? body.playType : null
-    }
+    // play_type omitted until migration 20260322000000_plays_play_type.sql is applied
     updateData.updated_at = new Date().toISOString()
 
-    // Update play
+    // Update play (play_type omitted from select until migration 20260322000000_plays_play_type.sql is applied)
     const { data: play, error: updateError } = await supabase
       .from("plays")
       .update(updateData)
       .eq("id", playId)
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
       .single()
 
     if (updateError || !play) {
@@ -205,7 +211,7 @@ export async function PATCH(
       subFormation: subFormationName,
       subcategory: play.subcategory ?? null,
       name: play.name,
-      playType: (play as { play_type?: string | null }).play_type ?? null,
+      playType: safePlayTypeFromRow(play as Record<string, unknown>),
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,

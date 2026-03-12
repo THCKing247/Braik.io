@@ -89,6 +89,7 @@ function isValidUuid(s: string): boolean {
   return s.length > 0 && UUID_REGEX.test(s)
 }
 
+/** DB column play_type may be missing until migration 20260322000000_plays_play_type.sql is applied. */
 type PlayRow = {
   id: string
   team_id: string
@@ -105,6 +106,14 @@ type PlayRow = {
   updated_at?: string
 }
 
+const VALID_PLAY_TYPES_SET = new Set<string>(["run", "pass", "rpo", "screen"])
+
+function getPlayTypeFromRow(row: PlayRow): "run" | "pass" | "rpo" | "screen" | null {
+  const raw = (row as Record<string, unknown>).play_type
+  if (typeof raw !== "string" || !VALID_PLAY_TYPES_SET.has(raw)) return null
+  return raw as "run" | "pass" | "rpo" | "screen"
+}
+
 function formatPlayForResponse(
   p: PlayRow,
   subFormationNameMap: Map<string, string>
@@ -115,9 +124,7 @@ function formatPlayForResponse(
       ? (canvasData as Record<string, unknown>)
       : null
   const sfId = p.sub_formation_id ?? null
-  const playType = p.play_type ?? null
-  const validPlayType =
-    playType && ["run", "pass", "rpo", "screen"].includes(playType) ? playType : null
+  const playType = getPlayTypeFromRow(p)
   return {
     id: p.id,
     teamId: p.team_id,
@@ -129,7 +136,7 @@ function formatPlayForResponse(
     subFormation: sfId ? subFormationNameMap.get(sfId) ?? null : null,
     subcategory: p.subcategory ?? null,
     name: p.name,
-    playType: validPlayType,
+    playType,
     canvasData: safeCanvas,
     createdAt: p.created_at ?? null,
     updatedAt: p.updated_at ?? null,
@@ -269,7 +276,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("plays")
       .select(
-        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at"
+        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at"
       )
       .eq("team_id", teamId)
 
@@ -661,15 +668,13 @@ export async function POST(request: Request) {
     if (subFormationId != null && subFormationId.trim() !== "") {
       insertPayload.sub_formation_id = subFormationId
     }
-    if (playType != null) {
-      insertPayload.play_type = playType
-    }
+    // play_type omitted until migration 20260322000000_plays_play_type.sql is applied in production
 
     const { data: play, error: playError } = await supabase
       .from("plays")
       .insert(insertPayload)
       .select(
-        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at"
+        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at"
       )
       .single()
 
@@ -722,7 +727,7 @@ export async function POST(request: Request) {
       subFormation: subFormationNameForInsert,
       subcategory: (play as PlayRow).subcategory ?? null,
       name: (play as PlayRow).name,
-      playType: (play as PlayRow).play_type ?? null,
+      playType: getPlayTypeFromRow(play as PlayRow),
       canvasData: (play as PlayRow).canvas_data ?? null,
       createdAt: (play as PlayRow).created_at ?? null,
       updatedAt: (play as PlayRow).updated_at ?? null,

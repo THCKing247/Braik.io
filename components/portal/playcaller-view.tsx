@@ -445,11 +445,13 @@ export function PlaycallerView({
                 )}
                 <text
                   x={p.x}
-                  y={p.y + markerSize / 2 + 12}
+                  y={p.y}
                   textAnchor="middle"
+                  dominantBaseline="middle"
                   fill="white"
-                  fontSize={12}
+                  fontSize={Math.max(7, Math.min(11, Math.round(markerSize * 0.28)))}
                   fontWeight="bold"
+                  style={{ pointerEvents: "none" }}
                 >
                   {p.label}
                 </text>

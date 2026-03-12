@@ -27,7 +27,7 @@ export async function GET(
     // Get play
     const { data: play, error: playError } = await supabase
       .from("plays")
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at")
       .eq("id", playId)
       .maybeSingle()
 
@@ -55,6 +55,7 @@ export async function GET(
       subFormation: subFormationName,
       subcategory: play.subcategory ?? null,
       name: play.name,
+      playType: (play as { play_type?: string | null }).play_type ?? null,
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,
@@ -98,6 +99,7 @@ export async function PATCH(
       subFormationId?: string | null
       side?: string
       formationId?: string | null
+      playType?: "run" | "pass" | "rpo" | "screen" | null
     }
 
     const supabase = getSupabaseServer()
@@ -133,6 +135,7 @@ export async function PATCH(
       sub_formation_id?: string | null
       subcategory?: string | null
       side?: string
+      play_type?: string | null
       updated_at?: string
     } = {}
 
@@ -166,6 +169,9 @@ export async function PATCH(
     if (body.side !== undefined) {
       updateData.side = body.side
     }
+    if (body.playType !== undefined) {
+      updateData.play_type = body.playType && ["run", "pass", "rpo", "screen"].includes(body.playType) ? body.playType : null
+    }
     updateData.updated_at = new Date().toISOString()
 
     // Update play
@@ -173,7 +179,7 @@ export async function PATCH(
       .from("plays")
       .update(updateData)
       .eq("id", playId)
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at")
       .single()
 
     if (updateError || !play) {
@@ -199,6 +205,7 @@ export async function PATCH(
       subFormation: subFormationName,
       subcategory: play.subcategory ?? null,
       name: play.name,
+      playType: (play as { play_type?: string | null }).play_type ?? null,
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,

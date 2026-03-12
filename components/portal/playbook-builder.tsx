@@ -1394,11 +1394,11 @@ export function PlaybookBuilder({
                     />
                   )}
 
-                  {/* Player label: derived for position-based markers (not editable); legacy markers can edit inline */}
+                  {/* Player label: centered inside marker (position-based read-only; legacy editable via overlay) */}
                   {editingLabelId === player.id && !player.positionCode ? (
                     <foreignObject
                       x={pos.x - 20}
-                      y={pos.y + markerSize / 2 + 5}
+                      y={pos.y - 10}
                       width="40"
                       height="20"
                     >
@@ -1444,15 +1444,17 @@ export function PlaybookBuilder({
                   ) : (
                     <text
                       x={pos.x}
-                      y={pos.y + markerSize / 2 + 12}
+                      y={pos.y}
                       textAnchor="middle"
+                      dominantBaseline="middle"
                       fill="white"
-                      fontSize="12"
+                      fontSize={Math.max(7, Math.min(11, Math.round(markerSize * 0.28)))}
                       fontWeight="bold"
                       style={{
                         cursor: canEdit && tool === "select" && !player.positionCode ? "pointer" : "default",
                       }}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation()
                         if (canEdit && tool === "select" && !player.positionCode) {
                           setEditingLabelId(player.id)
                           setEditingLabelValue(player.label)
@@ -1475,15 +1477,17 @@ export function PlaybookBuilder({
                     />
                   )}
 
-                  {/* Technique/Gap (defense) */}
+                  {/* Technique/Gap (defense) — secondary, below triangle */}
                   {player.shape === "triangle" && (player.technique || player.gap) && (
                     <text
                       x={pos.x}
-                      y={pos.y + markerSize / 2 + 15}
+                      y={pos.y + markerSize / 2 + 10}
                       textAnchor="middle"
+                      dominantBaseline="hanging"
                       fill="white"
-                      fontSize="10"
-                      fontWeight="bold"
+                      fillOpacity={0.85}
+                      fontSize={8}
+                      fontWeight="normal"
                       style={{ pointerEvents: "none" }}
                     >
                       {player.technique && player.gap ? `${player.technique}/${player.gap}` : player.technique || player.gap}

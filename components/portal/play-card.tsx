@@ -9,13 +9,12 @@ import { PlayCardThumbnail } from "@/components/portal/play-card-thumbnail"
 import { getPlayFormationDisplayName } from "@/lib/utils/playbook-formation"
 import { type DepthChartSlot } from "@/lib/constants/playbook-positions"
 import { getAssignmentSummary, getAssignmentStatus, type AssignmentStatus } from "@/lib/utils/playbook-assignment"
-import type { PlayRecord, FormationRecord } from "@/types/playbook"
+import type { PlayRecord, FormationRecord, PlayType } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 
 interface PlayCardProps {
   play: PlayRecord
   formations?: FormationRecord[] | null
-  /** When provided, card can show assignment summary (e.g. 9/11 assigned). */
   depthChartEntries?: DepthChartSlot[] | null
   isSelected?: boolean
   onOpen: (play: PlayRecord) => void
@@ -24,8 +23,9 @@ interface PlayCardProps {
   onDelete: (playId: string) => void
   canEdit: boolean
   viewMode?: "grid" | "list"
-  /** When provided and play is incomplete, card can show "Review assignments" and call this to open + focus first unassigned. */
   onReviewAssignments?: (play: PlayRecord) => void
+  /** When set, "Open" opens this URL (e.g. in new tab) instead of calling onOpen. */
+  playEditorPath?: (playId: string) => string
 }
 
 function formatDate(s: string | undefined): string {
@@ -42,6 +42,23 @@ function sideLabel(side: string): string {
   if (side === "offense") return "Offense"
   if (side === "defense") return "Defense"
   return "Special Teams"
+}
+
+const PLAY_TYPE_STYLE: Record<PlayType, { bg: string; label: string }> = {
+  run: { bg: "bg-red-600", label: "RUN" },
+  pass: { bg: "bg-blue-600", label: "PASS" },
+  rpo: { bg: "bg-amber-600", label: "RPO" },
+  screen: { bg: "bg-emerald-600", label: "SCREEN" },
+}
+
+function PlayTypeBadge({ playType }: { playType: PlayType | null }) {
+  if (!playType || !PLAY_TYPE_STYLE[playType]) return null
+  const { bg, label } = PLAY_TYPE_STYLE[playType]
+  return (
+    <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide ${bg}`}>
+      {label}
+    </span>
+  )
 }
 
 function AssignmentBadge({ status }: { status: AssignmentStatus }) {
@@ -78,6 +95,7 @@ export function PlayCard({
   canEdit,
   viewMode = "grid",
   onReviewAssignments,
+  playEditorPath,
 }: PlayCardProps) {
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(play.name)
@@ -93,6 +111,17 @@ export function PlayCard({
     setIsRenaming(false)
   }
 
+  const handleOpen = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
+    if (playEditorPath) {
+      const path = playEditorPath(play.id)
+      window.open(path, "_blank", "noopener,noreferrer")
+    } else {
+      onOpen(play)
+    }
+  }
+
   const canvasData = play.canvasData as PlayCanvasData | null
 
   if (viewMode === "list") {
@@ -100,16 +129,19 @@ export function PlayCard({
       <div
         role="button"
         tabIndex={0}
-        onClick={() => onOpen(play)}
-        onKeyDown={(e) => e.key === "Enter" && onOpen(play)}
+        onClick={() => (playEditorPath ? handleOpen() : onOpen(play))}
+        onKeyDown={(e) => e.key === "Enter" && (playEditorPath ? handleOpen() : onOpen(play))}
         className={`
           flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer
           hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300
           ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/50 border-blue-200" : "border-slate-200 bg-white"}
         `}
       >
-        <div className="w-20 h-14 flex-shrink-0 rounded-md overflow-hidden bg-[#2d5016]">
+        <div className="w-20 h-14 flex-shrink-0 rounded-md overflow-hidden bg-[#2d5016] relative">
           <PlayCardThumbnail canvasData={canvasData} className="w-full h-full" />
+          <div className="absolute top-0.5 left-0.5">
+            <PlayTypeBadge playType={play.playType ?? null} />
+          </div>
         </div>
         <div className="flex-1 min-w-0">
           {isRenaming ? (
@@ -155,16 +187,16 @@ export function PlayCard({
                 Review
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpen(play)} title="Open">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleOpen} title="Open">
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDuplicate(play.id)} title="Duplicate">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onDuplicate(play.id); }} title="Duplicate">
               <Copy className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsRenaming(true)} title="Rename">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setIsRenaming(true); }} title="Rename">
               <span className="text-xs">Rename</span>
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => confirm("Delete this play?") && onDelete(play.id)} title="Delete">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); confirm("Delete this play?") && onDelete(play.id); }} title="Delete">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -173,20 +205,31 @@ export function PlayCard({
     )
   }
 
+  // Grid: large preview + blue footer (reference style)
   return (
     <Card
       className={`
-        cursor-pointer overflow-hidden transition-all border border-slate-200 bg-white
-        hover:shadow-md hover:border-slate-300 focus-within:ring-2 focus-within:ring-slate-300
-        ${isSelected ? "ring-2 ring-blue-500 border-blue-200 shadow-md" : ""}
+        cursor-pointer overflow-hidden transition-all border-2 border-slate-200 bg-white
+        hover:shadow-lg hover:border-blue-400 focus-within:ring-2 focus-within:ring-blue-300
+        ${isSelected ? "ring-2 ring-blue-500 border-blue-500 shadow-md" : ""}
       `}
-      style={{ background: "white", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
-      onClick={() => onOpen(play)}
+      onClick={handleOpen}
     >
-      <div className="p-0">
-        <PlayCardThumbnail canvasData={canvasData} className="w-full" />
+      <div className="relative">
+        <PlayCardThumbnail canvasData={canvasData} className="w-full aspect-[200/140]" />
+        <div className="absolute top-2 left-2">
+          <PlayTypeBadge playType={play.playType ?? null} />
+        </div>
+        {assignmentSummary && assignmentSummary.total > 0 && (
+          <div className="absolute bottom-2 right-2 text-[10px] text-white/90 bg-black/40 rounded px-1.5 py-0.5">
+            {assignmentSummary.assigned}/{assignmentSummary.total} assigned
+            {assignmentSummary.assigned < assignmentSummary.total && (
+              <span className="text-amber-300"> · {assignmentSummary.total - assignmentSummary.assigned} unassigned</span>
+            )}
+          </div>
+        )}
       </div>
-      <CardContent className="p-3">
+      <div className="bg-[#1e40af] px-4 py-3">
         {isRenaming ? (
           <Input
             value={renameValue}
@@ -199,41 +242,30 @@ export function PlayCard({
                 setIsRenaming(false)
               }
             }}
-            className="h-8 text-sm font-medium border-slate-200"
+            className="h-8 text-sm font-semibold text-white bg-white/20 border-white/40 placeholder:text-white/70"
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <p className="font-semibold text-slate-800 truncate" title={play.name}>
+          <p className="font-semibold text-white text-center truncate" title={play.name}>
             {play.name}
           </p>
         )}
-        <p className="text-xs text-slate-500 mt-1">
-          {sideLabel(play.side)} · {formationDisplayName}
-          {play.subFormation ? ` · ${play.subFormation}` : play.subcategory ? ` · ${play.subcategory}` : ""}
-        </p>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <AssignmentBadge status={assignmentStatus} />
-          {assignmentSummary && assignmentSummary.total > 0 && (
-            <span className="text-[10px] text-slate-500" title={assignmentSummary.assigned < assignmentSummary.total ? `${assignmentSummary.total - assignmentSummary.assigned} unassigned` : "All roles assigned"}>
-              {assignmentSummary.assigned}/{assignmentSummary.total} assigned
-              {assignmentSummary.assigned < assignmentSummary.total && (
-                <span className="text-amber-600 ml-0.5">({assignmentSummary.total - assignmentSummary.assigned} unassigned)</span>
-              )}
-            </span>
-          )}
-        </div>
-        <p className="text-[10px] text-slate-400 mt-1">{formatDate(play.updatedAt)}</p>
-      </CardContent>
-      <CardFooter className="p-2 pt-0 flex flex-wrap gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
+        {play.subFormation && (
+          <p className="text-xs text-white/80 text-center mt-0.5 truncate">
+            {play.subFormation}
+          </p>
+        )}
+      </div>
+      <CardFooter className="p-2 flex flex-wrap gap-1.5 justify-end bg-slate-50 border-t border-slate-200" onClick={(e) => e.stopPropagation()}>
         {canEdit && (
           <>
             {assignmentStatus === "incomplete" && onReviewAssignments && (
               <Button variant="secondary" size="sm" className="h-7 text-xs" onClick={() => onReviewAssignments(play)}>
-                Review assignments
+                Review
               </Button>
             )}
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onOpen(play)}>
+            <Button variant="default" size="sm" className="h-7 text-xs bg-[#1e40af] hover:bg-[#1e3a8a]" onClick={handleOpen}>
               Open
             </Button>
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700" onClick={() => onDuplicate(play.id)} title="Duplicate">

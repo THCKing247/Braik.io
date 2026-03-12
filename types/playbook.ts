@@ -126,6 +126,9 @@ export type SubFormationRecord = {
   updatedAt: string
 }
 
+/** Play type classification for filtering and display. */
+export type PlayType = "run" | "pass" | "rpo" | "screen"
+
 export type PlayRecord = {
   id: string
   teamId: string
@@ -137,6 +140,8 @@ export type PlayRecord = {
   subFormation: string | null
   subcategory: string | null
   name: string
+  /** Play classification. Null for legacy plays. */
+  playType: PlayType | null
   canvasData: PlayCanvasData | null
   createdAt: string
   updatedAt: string

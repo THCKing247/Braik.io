@@ -11,7 +11,7 @@ import {
   getSameUnitRoleLabelsForPlayer,
   type DepthChartSlot,
 } from "@/lib/constants/playbook-positions"
-import type { PlayRecord, FormationRecord } from "@/types/playbook"
+import type { PlayRecord, FormationRecord, PlayType } from "@/types/playbook"
 
 /** Selected marker: label is derived from positionCode+positionNumber when positionCode is set (read-only). */
 export interface InspectorSelectedPlayer {
@@ -170,6 +170,9 @@ interface PlaybookInspectorProps {
   selectedPlayer?: InspectorSelectedPlayer | null
   selectedZone?: { id: string; type: string; size: string } | null
   onPlayNameChange?: (name: string) => void
+  /** Current play type (may be unsaved). When user changes, parent should update and pass back on save. */
+  playType?: PlayType | null
+  onPlayTypeChange?: (playType: PlayType | null) => void
   onPlayerLabelChange?: (playerId: string, label: string) => void
   canEdit: boolean
 }
@@ -184,10 +187,12 @@ export function PlaybookInspector({
   selectedPlayer,
   selectedZone,
   onPlayNameChange,
+  playType: displayPlayType,
+  onPlayTypeChange,
   onPlayerLabelChange,
   canEdit,
 }: PlaybookInspectorProps) {
-  if (!play && !selectedObject) {
+  if (!play && !selectedObject && !onPlayTypeChange) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
         <p className="text-sm text-slate-500">Select a play or an object on the field</p>
@@ -201,6 +206,26 @@ export function PlaybookInspector({
         <h3 className="text-sm font-semibold text-slate-800">Properties</h3>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* New play: show play type when creating (no play yet) */}
+        {!play && canEdit && onPlayTypeChange && (selectedObject === "play" || !selectedObject) && (
+          <div className="space-y-2">
+            <Label className="text-xs text-slate-500">New play</Label>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Play type</Label>
+              <select
+                value={displayPlayType ?? ""}
+                onChange={(e) => onPlayTypeChange((e.target.value || null) as PlayType | null)}
+                className="h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800"
+              >
+                <option value="">—</option>
+                <option value="run">Run</option>
+                <option value="pass">Pass</option>
+                <option value="rpo">RPO</option>
+                <option value="screen">Screen</option>
+              </select>
+            </div>
+          </div>
+        )}
         {play && (selectedObject === "play" || !selectedObject) && (
           <div className="space-y-2">
             <Label className="text-xs text-slate-500">Play name</Label>
@@ -212,6 +237,28 @@ export function PlaybookInspector({
               />
             ) : (
               <p className="text-sm font-medium text-slate-800">{play.name}</p>
+            )}
+            {canEdit && onPlayTypeChange ? (
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Play type</Label>
+                <select
+                  value={displayPlayType ?? ""}
+                  onChange={(e) => onPlayTypeChange((e.target.value || null) as PlayType | null)}
+                  className="h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800"
+                >
+                  <option value="">—</option>
+                  <option value="run">Run</option>
+                  <option value="pass">Pass</option>
+                  <option value="rpo">RPO</option>
+                  <option value="screen">Screen</option>
+                </select>
+              </div>
+            ) : (
+              (displayPlayType ?? play.playType) && (
+                <p className="text-xs text-slate-500">
+                  Type: <span className="capitalize text-slate-800">{(displayPlayType ?? play.playType) ?? ""}</span>
+                </p>
+              )
             )}
             <div className="text-xs text-slate-500 space-y-1">
               <p>Side: <span className="capitalize text-slate-800">{play.side.replace("_", " ")}</span></p>

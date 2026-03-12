@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -483,10 +483,11 @@ export function PlaybookBuilderV2({
                   ) : null}
                   <text
                     x={pixel.x}
-                    y={pixel.y + markerSize / 2 + 12}
+                    y={pixel.y}
                     textAnchor="middle"
+                    dominantBaseline="middle"
                     fill="white"
-                    fontSize="12"
+                    fontSize={Math.max(7, Math.min(11, Math.round(markerSize * 0.28)))}
                     fontWeight="bold"
                     style={{ pointerEvents: "none" }}
                   >

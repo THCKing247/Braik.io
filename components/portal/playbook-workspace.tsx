@@ -8,7 +8,7 @@ import { PlaybookInspector, type InspectorSelectedPlayer } from "@/components/po
 import { PlaycallerView } from "@/components/portal/playcaller-view"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
-import type { FormationRecord, SubFormationRecord, PlayRecord, SideOfBall, RoutePoint, BlockEndPoint } from "@/types/playbook"
+import type { FormationRecord, SubFormationRecord, PlayRecord, SideOfBall, PlayType, RoutePoint, BlockEndPoint } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 
@@ -38,7 +38,7 @@ export function PlaybookWorkspace({
   const [selectedFormationName, setSelectedFormationName] = useState<string>("")
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null)
   const [subFormations, setSubFormations] = useState<SubFormationRecord[]>([])
-  const [selectedSide, setSelectedSide] = useState<SideOfBall>("offense")
+  const [selectedSide, setSelectedSide] = useState<SideOfBall | null>(null)
   const [designerMode, setDesignerMode] = useState<DesignerMode>("idle")
   const [editingFormation, setEditingFormation] = useState<FormationRecord | null>(null)
   const [playcallerMode, setPlaycallerMode] = useState(false)
@@ -48,6 +48,7 @@ export function PlaybookWorkspace({
   const [selectedZoneInspector, setSelectedZoneInspector] = useState<{ id: string; type: string; size: string } | null>(null)
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [focusUnassignedOnce, setFocusUnassignedOnce] = useState(false)
+  const [editingPlayType, setEditingPlayType] = useState<PlayType | null>(null)
   type RosterPlayer = { id: string; firstName: string; lastName: string; jerseyNumber: number | null; positionGroup: string | null }
   const [rosterPlayers, setRosterPlayers] = useState<RosterPlayer[]>([])
 
@@ -150,6 +151,7 @@ export function PlaybookWorkspace({
     setSelectedSubcategory(play.subcategory ?? null)
     setSelectedSide(play.side as SideOfBall)
     setEditingFormation(null)
+    setEditingPlayType(play.playType ?? null)
     setDesignerMode("play")
   }
 
@@ -163,7 +165,7 @@ export function PlaybookWorkspace({
     setSelectedSubFormationId(null)
     setSelectedFormationId(formationId)
     setSelectedFormationName(formationName)
-    setSelectedSide(side)
+    if (side) setSelectedSide(side)
     setEditingFormation(null)
     setDesignerMode("idle")
   }
@@ -180,12 +182,15 @@ export function PlaybookWorkspace({
     } else if (selectedFormationId != null) {
       setSelectedFormationId(null)
       setSelectedFormationName("")
+    } else if (selectedSide != null) {
+      setSelectedSide(null)
     }
   }
 
   const handleNewFormation = (side: SideOfBall) => {
     setSelectedPlayId(null)
     setSelectedFormationId(null)
+    setSelectedSubFormationId(null)
     setSelectedFormationName("")
     setSelectedSide(side)
     setEditingFormation({
@@ -210,6 +215,7 @@ export function PlaybookWorkspace({
     setSelectedSubcategory(null)
     setSelectedSide(side)
     setEditingFormation(null)
+    setEditingPlayType(null)
     setDesignerMode("play")
   }
 
@@ -261,6 +267,7 @@ export function PlaybookWorkspace({
         ? selectedFormationName.trim()
         : (selectedFormationName?.trim() || "Custom")
     const subFormationIdToSave = selectedSubFormationId && selectedSubFormationId !== "__uncategorized__" ? selectedSubFormationId : null
+    const playTypeToSave = editingPlayType ?? selectedPlay?.playType ?? null
     try {
       if (selectedPlayId) {
         const res = await fetch(`/api/plays/${selectedPlayId}`, {
@@ -273,6 +280,7 @@ export function PlaybookWorkspace({
             formationId: selectedFormationId,
             subFormationId: subFormationIdToSave,
             subcategory: selectedSubcategory,
+            playType: playTypeToSave,
             canvasData,
           }),
         })
@@ -284,12 +292,13 @@ export function PlaybookWorkspace({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             teamId,
-            side: selectedSide,
+            side: effectiveSide,
             formation,
             formationId: selectedFormationId ?? undefined,
             subFormationId: subFormationIdToSave ?? undefined,
             subcategory: selectedSubcategory ?? undefined,
             name: playName,
+            playType: playTypeToSave ?? undefined,
             canvasData,
           }),
         })
@@ -307,7 +316,8 @@ export function PlaybookWorkspace({
   }
 
   const handleSaveFormation = async (canvasData: PlayCanvasData, formationName: string) => {
-    const templateData = canvasPlayersToTemplateData(canvasData.players, selectedSide)
+    const sideForFormation = editingFormation?.side ?? selectedSide ?? selectedFormation?.side ?? "offense"
+    const templateData = canvasPlayersToTemplateData(canvasData.players, sideForFormation)
     try {
       if (editingFormation?.id) {
         const res = await fetch(`/api/formations/${editingFormation.id}`, {
@@ -322,7 +332,7 @@ export function PlaybookWorkspace({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             teamId,
-            side: selectedSide,
+            side: sideForFormation,
             name: formationName.trim(),
             templateData,
           }),
@@ -486,6 +496,7 @@ export function PlaybookWorkspace({
           formationId: play.formationId ?? undefined,
           subFormationId: play.subFormationId ?? undefined,
           name: `${play.name} (copy)`,
+          playType: play.playType ?? undefined,
           canvasData: play.canvasData,
         }),
       })
@@ -513,16 +524,18 @@ export function PlaybookWorkspace({
   const handleCloseDesigner = () => {
     setDesignerMode("idle")
     setEditingFormation(null)
+    setEditingPlayType(null)
     setSelectedPlayerInspector(null)
     setInspectorSelection(null)
     setFocusUnassignedOnce(false)
   }
 
+  const effectiveSide = selectedSide ?? selectedFormation?.side ?? "offense"
   const rawCanvasData =
     designerMode === "formation" && editingFormation
       ? templateDataToCanvasData(editingFormation.templateData, editingFormation.side)
       : designerMode === "play" && !selectedPlayId && selectedFormation
-      ? templateDataToCanvasData(selectedFormation.templateData, selectedSide)
+      ? templateDataToCanvasData(selectedFormation.templateData, effectiveSide)
       : selectedPlay?.canvasData ?? null
 
   // Memoize so the builder receives a stable playData reference. Otherwise every workspace re-render
@@ -603,9 +616,11 @@ export function PlaybookWorkspace({
             formations={formations}
             subFormations={subFormations}
             depthChartEntries={depthChartEntries}
+            selectedSide={selectedSide}
             selectedFormationId={selectedFormationId}
             selectedSubFormationId={selectedSubFormationId}
             selectedPlayId={selectedPlayId}
+            onSelectSide={setSelectedSide}
             onSelectFormation={handleSelectFormation}
             onSelectSubFormation={handleSelectSubFormation}
             onSelectPlay={handleSelectPlay}
@@ -626,6 +641,7 @@ export function PlaybookWorkspace({
               setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
             }}
             onReviewAssignments={handleReviewAssignments}
+            playEditorPath={(playId) => `/dashboard/playbooks/play/${playId}`}
             canEdit={canEdit}
             canEditOffense={canEditOffense}
             canEditDefense={canEditDefense}
@@ -634,17 +650,17 @@ export function PlaybookWorkspace({
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm">
-          {(designerMode === "play" || designerMode === "formation") && canEditSide(selectedSide) ? (
+          {((designerMode === "formation" && editingFormation) || (designerMode === "play" && !selectedPlayId && selectedFormation)) && canEditSide(effectiveSide) ? (
             <PlaybookBuilder
               playId={designerMode === "play" ? selectedPlayId : null}
               playData={initialCanvasDataForDesigner}
               playName={initialNameForDesigner}
               editorSourceKey={designerMode === "play" ? (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}-${selectedSubFormationId ?? "none"}`) : `formation-${editingFormation?.id ?? "new"}`}
-              side={selectedSide}
+              side={effectiveSide}
               formation={designerMode === "formation" ? (editingFormation?.name ?? "New Formation") : (selectedFormationName || "Custom")}
               onSave={handleSaveFromBuilder}
               onClose={handleCloseDesigner}
-              canEdit={canEditSide(selectedSide)}
+              canEdit={canEditSide(effectiveSide)}
               isTemplateMode={designerMode === "formation"}
               templateName={editingFormation?.name ?? ""}
               onSelectPlayer={(player) => {
@@ -658,14 +674,17 @@ export function PlaybookWorkspace({
           ) : (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="max-w-sm rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center shadow-sm">
-                <p className="text-sm font-medium text-slate-700">Select a play to start editing</p>
-                <p className="text-sm text-slate-500 mt-2">Or create a new formation or play from the catalog.</p>
+                <p className="text-sm font-medium text-slate-700">Browse by side → formation → sub-formation</p>
+                <p className="text-sm text-slate-500 mt-2">Open a play to edit it in a new tab. Create a new formation or go to a sub-formation and add a new play.</p>
                 <div className="flex flex-wrap justify-center gap-3 mt-6">
-                  <Button size="sm" variant="default" onClick={() => handleNewPlay("offense", null, "Custom")}>
-                    New Play
+                  <Button size="sm" variant="outline" onClick={() => setSelectedSide("offense")}>
+                    Browse Offense
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleNewFormation("offense")}>
-                    New Formation
+                  <Button size="sm" variant="outline" onClick={() => setSelectedSide("defense")}>
+                    Browse Defense
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setSelectedSide("special_teams")}>
+                    Browse Special Teams
                   </Button>
                 </div>
               </div>
@@ -684,6 +703,8 @@ export function PlaybookWorkspace({
             selectedPlayer={selectedPlayerInspector}
             selectedZone={selectedZoneInspector}
             onPlayNameChange={selectedPlay ? (name) => handleRenamePlay(selectedPlay.id, name) : undefined}
+            playType={editingPlayType ?? selectedPlay?.playType ?? null}
+            onPlayTypeChange={setEditingPlayType}
             canEdit={canEdit}
           />
         </div>

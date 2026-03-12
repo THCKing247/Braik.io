@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("plays")
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at")
       .eq("team_id", teamId)
 
     if (side) {
@@ -55,6 +55,7 @@ export async function GET(request: Request) {
 
     const formatted = (plays ?? []).map((p) => {
       const sfId = (p as { sub_formation_id?: string }).sub_formation_id ?? null
+      const playType = (p as { play_type?: string | null }).play_type ?? null
       return {
         id: p.id,
         teamId: p.team_id,
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
         subFormation: sfId ? subFormationNameMap.get(sfId) ?? null : null,
         subcategory: p.subcategory ?? null,
         name: p.name,
+        playType: playType && ["run", "pass", "rpo", "screen"].includes(playType) ? playType : null,
         canvasData: p.canvas_data,
         createdAt: p.created_at,
         updatedAt: p.updated_at,
@@ -105,10 +107,11 @@ export async function POST(request: Request) {
       formation?: string
       subcategory?: string | null
       name?: string
+      playType?: "run" | "pass" | "rpo" | "screen" | null
       canvasData?: unknown
     }
 
-    const { teamId, playbookId, formationId, subFormationId, side, formation, subcategory, name, canvasData } = body
+    const { teamId, playbookId, formationId, subFormationId, side, formation, subcategory, name, playType, canvasData } = body
 
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -202,12 +205,15 @@ export async function POST(request: Request) {
     if (subFormationId != null) {
       insertPayload.sub_formation_id = subFormationId
     }
+    if (playType != null && ["run", "pass", "rpo", "screen"].includes(playType)) {
+      insertPayload.play_type = playType
+    }
 
     // Create play
     const { data: play, error: playError } = await supabase
       .from("plays")
       .insert(insertPayload)
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, play_type, canvas_data, created_at, updated_at")
       .single()
 
     if (playError || !play) {
@@ -226,6 +232,7 @@ export async function POST(request: Request) {
       subFormation: subFormationNameForInsert,
       subcategory: play.subcategory ?? null,
       name: play.name,
+      playType: (play as { play_type?: string | null }).play_type ?? null,
       canvasData: play.canvas_data,
       createdAt: play.created_at,
       updatedAt: play.updated_at,

@@ -222,7 +222,7 @@ export async function GET(request: Request) {
         details: se.details,
         hint: se.hint,
       })
-      return errorResponse(debugId, "database", "Failed to load team", 500, se)
+      return errorResponse(debugId, "database", "Failed to load team", 500, { ...se })
     }
 
     if (!team) {
@@ -294,7 +294,7 @@ export async function GET(request: Request) {
         details: se.details,
         hint: se.hint,
       })
-      return errorResponse(debugId, "database", "Failed to load plays", 500, se)
+      return errorResponse(debugId, "database", "Failed to load plays", 500, { ...se })
     }
 
     const playsList = Array.isArray(plays) ? plays : []
@@ -322,7 +322,7 @@ export async function GET(request: Request) {
           message: se.message,
           code: se.code,
         })
-        return errorResponse(debugId, "database", "Failed to load sub-formations", 500, se)
+        return errorResponse(debugId, "database", "Failed to load sub-formations", 500, { ...se })
       }
       const rows = Array.isArray(subRows) ? subRows : []
       rows.forEach((r) => subFormationNameMap.set(r.id, (r.name ?? "").trim()))
@@ -543,7 +543,7 @@ export async function POST(request: Request) {
         details: se.details,
         hint: se.hint,
       })
-      return errorResponse(debugId, "database", "Failed to load team", 500, se)
+      return errorResponse(debugId, "database", "Failed to load team", 500, { ...se })
     }
 
     if (!team) {
@@ -568,7 +568,7 @@ export async function POST(request: Request) {
           message: se.message,
           code: se.code,
         })
-        return errorResponse(debugId, "database", "Failed to load playbook", 500, se)
+        return errorResponse(debugId, "database", "Failed to load playbook", 500, { ...se })
       }
       if (!playbook) {
         return errorResponse(debugId, "database", "Playbook not found", 404)
@@ -594,7 +594,7 @@ export async function POST(request: Request) {
           message: se.message,
           code: se.code,
         })
-        return errorResponse(debugId, "database", "Failed to load formation", 500, se)
+        return errorResponse(debugId, "database", "Failed to load formation", 500, { ...se })
       }
       if (!formationRow) {
         return errorResponse(debugId, "database", "Formation not found", 404)
@@ -629,7 +629,7 @@ export async function POST(request: Request) {
           message: se.message,
           code: se.code,
         })
-        return errorResponse(debugId, "database", "Failed to load sub-formation", 500, se)
+        return errorResponse(debugId, "database", "Failed to load sub-formation", 500, { ...se })
       }
       if (!subRow) {
         return errorResponse(debugId, "database", "Sub-formation not found", 404)
@@ -687,7 +687,7 @@ export async function POST(request: Request) {
         hint: se.hint,
       })
       const safeMessage = (se.message ?? "Failed to create play").trim() || "Failed to create play"
-      return errorResponse(debugId, "database", safeMessage, 500, se)
+      return errorResponse(debugId, "database", safeMessage, 500, { ...se })
     }
 
     if (!play) {

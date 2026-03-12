@@ -9,7 +9,7 @@
  * Card-based, not tree. Breadcrumb and back for navigation.
  */
 import { useState, useMemo } from "react"
-import { Search, Plus, LayoutGrid, List, Presentation, ChevronRight, ArrowLeft, FolderOpen, FileText, Trash2 } from "lucide-react"
+import { Search, Plus, LayoutGrid, List, Presentation, ChevronRight, ArrowLeft, FolderOpen, FileText, Trash2, Pencil } from "lucide-react"
 
 /** Football-style icon (oval with laces) for playbook side cards. */
 function FootballIcon({ className }: { className?: string }) {
@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { PlayCard } from "@/components/portal/play-card"
 import { FormationThumbnail } from "@/components/portal/formation-thumbnail"
+import { PlaybookCategoryCard } from "@/components/portal/playbook-category-card"
 import type { PlayRecord, FormationRecord, SubFormationRecord, SideOfBall } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 import { getAssignmentSummary, type AssignmentSummary } from "@/lib/utils/playbook-assignment"
@@ -47,10 +48,10 @@ type AssignmentFilter = "all" | "fully" | "partial" | "unassigned"
 /** Level 4 only: filter by play type. Empty string = All (includes plays with no playType). */
 type PlayTypeFilter = "" | "run" | "pass" | "rpo" | "screen"
 
-const SIDES: { value: SideOfBall; label: string }[] = [
-  { value: "offense", label: "Offense" },
-  { value: "defense", label: "Defense" },
-  { value: "special_teams", label: "Special Teams" },
+const SIDES: { value: SideOfBall; label: string; description: string }[] = [
+  { value: "offense", label: "Offense", description: "Core offensive structures and families" },
+  { value: "defense", label: "Defense", description: "Fronts, coverages, and situational packages" },
+  { value: "special_teams", label: "Special Teams", description: "Kicking, return, and field-position units" },
 ]
 
 const UNCATEGORIZED_ID = "__uncategorized__"
@@ -72,7 +73,7 @@ interface PlaybookBrowserProps {
   onBack: () => void
   onNewPlay: (side: SideOfBall, formationId: string | null, formationName: string, subFormationId?: string | null) => void
   onNewFormation: (side: SideOfBall) => void
-  onNewSubFormation: (formationId: string, formationName: string, side: SideOfBall) => void
+  onNewSubFormation: (formationId: string, formationName: string, side: SideOfBall, name: string) => void
   onNewPlayFromFormation: (formation: FormationRecord) => void
   onDuplicatePlay: (playId: string) => void
   onRenamePlay: (playId: string, newName: string) => void
@@ -129,7 +130,14 @@ export function PlaybookBrowser({
   const [sortBy, setSortBy] = useState<SortKey>("updated")
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all")
   const [playTypeFilter, setPlayTypeFilter] = useState<PlayTypeFilter>("")
-  const [newFormationMenuOpen, setNewFormationMenuOpen] = useState(false)
+  const [newSubFormationPrompt, setNewSubFormationPrompt] = useState<{
+    formationId: string
+    formationName: string
+    side: SideOfBall
+  } | null>(null)
+  const [newSubFormationName, setNewSubFormationName] = useState("")
+  const [editingSubFormationId, setEditingSubFormationId] = useState<string | null>(null)
+  const [editingSubFormationValue, setEditingSubFormationValue] = useState("")
 
   const selectedFormation = formations.find((f) => f.id === selectedFormationId) ?? null
   const selectedSubFormation = selectedSubFormationId && selectedSubFormationId !== UNCATEGORIZED_ID
@@ -258,7 +266,7 @@ export function PlaybookBrowser({
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Breadcrumb + top bar */}
-      <div className="flex-shrink-0 border-b border-slate-200 px-4 py-3 space-y-3">
+      <div className="flex-shrink-0 border-b border-slate-200 px-4 py-3 space-y-3 rounded-t-xl">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-slate-500">Playbook</span>
           {selectedSide != null && (
@@ -386,39 +394,14 @@ export function PlaybookBrowser({
           </div>
           {canEdit && (
             <>
-              {atSideLevel && (
-                <div className="relative">
-                  <Button size="sm" onClick={() => { setNewFormationMenuOpen(!newFormationMenuOpen); }}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    New Formation
-                  </Button>
-                  {newFormationMenuOpen && (
-                    <>
-                      <div className="absolute left-0 top-full mt-1 z-20 py-1 rounded-lg border border-slate-200 bg-white shadow-lg min-w-[140px]">
-                        {SIDES.map((s) => (
-                          <button
-                            key={s.value}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                            disabled={!canEditSide(s.value)}
-                            onClick={() => { onNewFormation(s.value); setNewFormationMenuOpen(false); }}
-                          >
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="fixed inset-0 z-10" onClick={() => setNewFormationMenuOpen(false)} aria-hidden />
-                    </>
-                  )}
-                </div>
-              )}
               {atFormationLevel && selectedSide && (
                 <Button size="sm" onClick={() => onNewFormation(selectedSide)}>
                   <Plus className="h-4 w-4 mr-1" />
                   New Formation
                 </Button>
               )}
-              {atSubFormationLevel && selectedFormation && (
-                <Button size="sm" onClick={() => onNewSubFormation(selectedFormation.id, selectedFormation.name, selectedFormation.side)}>
+              {atSubFormationLevel && selectedFormation && !newSubFormationPrompt && (
+                <Button size="sm" onClick={() => { setNewSubFormationPrompt({ formationId: selectedFormation.id, formationName: selectedFormation.name, side: selectedFormation.side }); setNewSubFormationName(""); }}>
                   <Plus className="h-4 w-4 mr-1" />
                   New Sub-Formation
                 </Button>
@@ -445,74 +428,58 @@ export function PlaybookBrowser({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Level 1: Side selection — modern sports coaching style */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-5">
+        {/* Level 1: Side selection — Playbook Hub category cards */}
         {atSideLevel && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-5xl mx-auto">
-            {SIDES.map((s, idx) => {
-              const stats = sideStats[idx]
-              const formationCount = stats?.formationCount ?? 0
-              const playCount = stats?.playCount ?? 0
-              const previewFormations = stats?.formationNames ?? []
-              const isOffense = s.value === "offense"
-              const isDefense = s.value === "defense"
-              const isSpecial = s.value === "special_teams"
-              const accentBg = isOffense
-                ? "bg-blue-500/10 border-blue-300 hover:border-blue-500 hover:bg-blue-500/15"
-                : isDefense
-                ? "bg-red-500/10 border-red-200 hover:border-red-500 hover:bg-red-500/15"
-                : "bg-amber-500/10 border-amber-200 hover:border-amber-500 hover:bg-amber-500/15"
-              const accentText = isOffense ? "text-blue-700" : isDefense ? "text-red-700" : "text-amber-800"
-              const iconColor = isOffense ? "text-blue-600" : isDefense ? "text-red-600" : "text-amber-600"
-              return (
-                <Card
-                  key={s.value}
-                  className={`cursor-pointer overflow-hidden border-2 transition-all shadow-sm hover:shadow-xl ${accentBg}`}
-                  onClick={() => onSelectSide(s.value)}
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                Playbook Browser
+              </h2>
+              <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 p-1 bg-slate-50/80">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-md"
+                  onClick={() => setViewMode("grid")}
+                  title="Grid view"
                 >
-                  <CardContent className="p-6 flex flex-col min-h-[200px]">
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className={`rounded-xl p-3 ${isOffense ? "bg-blue-500/20" : isDefense ? "bg-red-500/20" : "bg-amber-500/20"}`}>
-                        <FootballIcon className={`h-10 w-10 ${iconColor}`} />
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Formations</p>
-                        <p className={`text-xl font-bold ${accentText}`}>{formationCount}</p>
-                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mt-1">Plays</p>
-                        <p className={`text-xl font-bold ${accentText}`}>{playCount}</p>
-                      </div>
-                    </div>
-                    <h3 className="font-bold text-lg text-slate-800 mb-1">{s.label}</h3>
-                    <p className="text-xs text-slate-500 mb-3">Select to browse formations and plays</p>
-                    {previewFormations.length > 0 ? (
-                      <div className="mt-auto pt-3 border-t border-slate-200/80">
-                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">Formations</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {previewFormations.map((name) => (
-                            <span
-                              key={name}
-                              className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
-                            >
-                              {name}
-                            </span>
-                          ))}
-                          {formationCount > previewFormations.length && (
-                            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400">
-                              +{formationCount - previewFormations.length}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-auto pt-3 border-t border-slate-200/80">
-                        <p className="text-xs text-slate-400">No formations yet</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Add formations to build your playbook</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-md"
+                  onClick={() => setViewMode("list")}
+                  title="List view"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 md:gap-5 min-w-0">
+              {SIDES.map((s, idx) => {
+                const stats = sideStats[idx]
+                const formationCount = stats?.formationCount ?? 0
+                const playCount = stats?.playCount ?? 0
+                const formationNames = stats?.formationNames ?? []
+                return (
+                  <PlaybookCategoryCard
+                    key={s.value}
+                    side={s.value}
+                    label={s.label}
+                    description={s.description}
+                    formationCount={formationCount}
+                    playCount={playCount}
+                    formationNames={formationNames}
+                    onSelect={() => onSelectSide(s.value)}
+                    browseLabel={`Browse ${s.label}`}
+                    onCreateFormation={canEditSide(s.value) ? () => onNewFormation(s.value) : undefined}
+                    canEdit={canEditSide(s.value)}
+                  />
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -533,7 +500,7 @@ export function PlaybookBrowser({
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
                 {formationCardsFiltered.map((f) => {
                   const subCount = formationSubCount(f.id)
                   const playCount = formationPlayCount(f.id)
@@ -627,35 +594,144 @@ export function PlaybookBrowser({
               <h2 className="text-xl font-bold text-slate-800 text-center">{selectedFormation.name}</h2>
               <p className="text-sm text-slate-500 text-center mt-1">Select a sub-formation to view plays</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 max-w-5xl mx-auto">
+            {newSubFormationPrompt && newSubFormationPrompt.formationId === selectedFormation.id && (
+              <Card className="mb-5 p-4 border-2 border-blue-200 bg-blue-50/50 max-w-md mx-auto">
+                <p className="text-sm font-medium text-slate-700 mb-2">New sub-formation name</p>
+                <div className="flex gap-2 flex-wrap">
+                  <Input
+                    value={newSubFormationName}
+                    onChange={(e) => setNewSubFormationName(e.target.value)}
+                    placeholder="e.g. Deuce Close"
+                    className="flex-1 min-w-[180px]"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newSubFormationName.trim()) {
+                        onNewSubFormation(newSubFormationPrompt.formationId, newSubFormationPrompt.formationName, newSubFormationPrompt.side, newSubFormationName.trim())
+                        setNewSubFormationPrompt(null)
+                        setNewSubFormationName("")
+                      }
+                      if (e.key === "Escape") {
+                        setNewSubFormationPrompt(null)
+                        setNewSubFormationName("")
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (newSubFormationName.trim()) {
+                        onNewSubFormation(newSubFormationPrompt.formationId, newSubFormationPrompt.formationName, newSubFormationPrompt.side, newSubFormationName.trim())
+                        setNewSubFormationPrompt(null)
+                        setNewSubFormationName("")
+                      }
+                    }}
+                    disabled={!newSubFormationName.trim()}
+                  >
+                    Create
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setNewSubFormationPrompt(null); setNewSubFormationName("") }}>
+                    Cancel
+                  </Button>
+                </div>
+              </Card>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
               {subFormationsForSelectedFormation.map((s) => {
                 const playCount = subFormationPlayCount(s.id)
+                const isEditing = editingSubFormationId === s.id
                 return (
                   <Card
                     key={s.id}
                     className="cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-blue-500 hover:shadow-xl transition-all p-0 relative"
-                    onClick={() => onSelectSubFormation(s.id, s.name)}
+                    onClick={() => !isEditing && onSelectSubFormation(s.id, s.name)}
                   >
                     <FormationThumbnail templateData={selectedFormation.templateData} side={selectedFormation.side} />
                     <div className="bg-[#1e40af] px-4 py-4 text-center">
-                      <span className="font-bold text-white text-base block tracking-tight">{s.name}</span>
-                      <span className="text-white/90 text-sm font-medium mt-0.5 block">{playCount} play{playCount !== 1 ? "s" : ""}</span>
+                      {isEditing ? (
+                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={editingSubFormationValue}
+                            onChange={(e) => setEditingSubFormationValue(e.target.value)}
+                            className="h-8 text-base font-bold text-slate-800 bg-white"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                if (editingSubFormationValue.trim()) onRenameSubFormation(s.id, s.name, editingSubFormationValue.trim())
+                                setEditingSubFormationId(null)
+                                setEditingSubFormationValue("")
+                              }
+                              if (e.key === "Escape") {
+                                setEditingSubFormationId(null)
+                                setEditingSubFormationValue("")
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <span className="text-white/90 text-sm font-medium block">{playCount} play{playCount !== 1 ? "s" : ""}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="font-bold text-white text-base block tracking-tight">{s.name}</span>
+                          <span className="text-white/90 text-sm font-medium mt-0.5 block">{playCount} play{playCount !== 1 ? "s" : ""}</span>
+                        </>
+                      )}
                     </div>
                     {canEdit && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 h-8 w-8 z-10 bg-white/90 hover:bg-destructive/20 hover:text-destructive rounded-full shadow-sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (confirm(`Delete sub-formation "${s.name}"? Plays in this sub-formation will become uncategorized.`)) {
-                            onDeleteSubFormation(s.id)
-                          }
-                        }}
-                        title="Delete sub-formation"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="absolute top-2 right-2 flex gap-1 z-10">
+                        {!isEditing ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 bg-white/90 hover:bg-slate-200 rounded-full shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingSubFormationId(s.id)
+                                setEditingSubFormationValue(s.name)
+                              }}
+                              title="Rename sub-formation"
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-slate-700" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 bg-white/90 hover:bg-destructive/20 hover:text-destructive rounded-full shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (confirm(`Delete sub-formation "${s.name}"? Plays in this sub-formation will become uncategorized.`)) {
+                                  onDeleteSubFormation(s.id)
+                                }
+                              }}
+                              title="Delete sub-formation"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              className="h-8 bg-white/90 text-slate-800"
+                              onClick={() => {
+                                if (editingSubFormationValue.trim()) onRenameSubFormation(s.id, s.name, editingSubFormationValue.trim())
+                                setEditingSubFormationId(null)
+                                setEditingSubFormationValue("")
+                              }}
+                              disabled={!editingSubFormationValue.trim()}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 bg-white/90 text-slate-700"
+                              onClick={() => { setEditingSubFormationId(null); setEditingSubFormationValue("") }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </Card>
                 )
@@ -675,12 +751,12 @@ export function PlaybookBrowser({
                 </Card>
               )}
             </div>
-            {subFormationsForSelectedFormation.length === 0 && uncategorizedCount === 0 && (
+            {subFormationsForSelectedFormation.length === 0 && uncategorizedCount === 0 && !newSubFormationPrompt && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <p className="text-slate-700 font-medium">No sub-formations yet</p>
                 <p className="text-sm text-slate-500 mt-1">Create a sub-formation or add plays directly (they will appear under Uncategorized).</p>
                 {canEdit && (
-                  <Button size="sm" className="mt-4" onClick={() => onNewSubFormation(selectedFormation.id, selectedFormation.name, selectedFormation.side)}>
+                  <Button size="sm" className="mt-4" onClick={() => { setNewSubFormationPrompt({ formationId: selectedFormation.id, formationName: selectedFormation.name, side: selectedFormation.side }); setNewSubFormationName(""); }}>
                     <Plus className="h-4 w-4 mr-1" />
                     New Sub-Formation
                   </Button>
@@ -708,7 +784,7 @@ export function PlaybookBrowser({
             ) : (
               <div className="space-y-4">
                 {viewMode === "grid" ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 max-w-5xl mx-auto">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
                     {filteredAndSortedPlays.map((play) => (
                       <PlayCard
                         key={play.id}

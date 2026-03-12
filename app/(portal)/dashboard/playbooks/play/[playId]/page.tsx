@@ -189,7 +189,14 @@ function PlayEditorContent() {
               })()
             : undefined
           const animationTiming = (p as { animationTiming?: PlayCanvasData["players"][0]["animationTiming"] }).animationTiming
-          return { ...base, route, blockingLine, ...(animationTiming != null ? { animationTiming } : {}) }
+          const preSnapMotion = (p as { preSnapMotion?: PlayCanvasData["players"][0]["preSnapMotion"] }).preSnapMotion
+          return {
+            ...base,
+            route,
+            blockingLine,
+            ...(animationTiming != null ? { animationTiming } : {}),
+            ...(preSnapMotion != null ? { preSnapMotion } : {}),
+          }
         }),
         zones: data.zones.map((z) => ({
           id: z.id,

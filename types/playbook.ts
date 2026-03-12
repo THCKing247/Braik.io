@@ -159,6 +159,14 @@ export type AnimationTiming = {
   durationScale?: number
 }
 
+/** Pre-snap motion (jet, orbit, shift) before the main play. Runs in the first fraction of the animation timeline. */
+export type PreSnapMotion = {
+  /** Path in yard coordinates (formation position is implicit start). */
+  points: RoutePoint[]
+  /** Optional: normalized share [0, 1] of the pre-snap phase this motion uses; default 1 (full phase). */
+  duration?: number
+}
+
 // Builder canvas format (players array with pixel/yard coords, zones, man coverage, routes, blocks)
 // positionCode + positionNumber define football role (e.g. WR, 2 → WR2); label is display string (kept for legacy).
 export type PlayCanvasData = {
@@ -182,6 +190,8 @@ export type PlayCanvasData = {
     positionNumber?: number | null
     /** Optional per-player animation timing (delayed release, play-action, etc.). Omit for default global progress. */
     animationTiming?: AnimationTiming
+    /** Optional pre-snap motion (jet, orbit, shift). Runs before the main route/block. */
+    preSnapMotion?: PreSnapMotion
   }>
   zones: Array<{
     id: string

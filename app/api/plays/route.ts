@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = (await request.json()) as {
+    let body: {
       teamId?: string
       playbookId?: string | null
       formationId?: string | null
@@ -109,6 +109,11 @@ export async function POST(request: Request) {
       name?: string
       playType?: "run" | "pass" | "rpo" | "screen" | null
       canvasData?: unknown
+    }
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
     const { teamId, playbookId, formationId, subFormationId, side, formation, subcategory, name, playType, canvasData } = body
@@ -218,7 +223,11 @@ export async function POST(request: Request) {
 
     if (playError || !play) {
       console.error("[POST /api/plays]", playError)
-      return NextResponse.json({ error: "Failed to create play" }, { status: 500 })
+      const message = playError?.message ?? "Failed to create play"
+      return NextResponse.json(
+        { error: "Failed to create play", details: message },
+        { status: 500 }
+      )
     }
 
     const res = NextResponse.json({
@@ -242,9 +251,8 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error("[POST /api/plays]", error)
-    return NextResponse.json(
-      { error: err?.message ?? "Failed to create play" },
-      { status: err?.message?.includes("Access denied") ? 403 : 500 }
-    )
+    const message = err?.message ?? "Failed to create play"
+    const status = message.includes("Access denied") ? 403 : 500
+    return NextResponse.json({ error: message }, { status })
   }
 }

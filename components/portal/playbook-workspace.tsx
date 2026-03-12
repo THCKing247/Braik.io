@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { PlaybookBrowser } from "@/components/portal/playbook-browser"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
 import { PlaybookInspector, type InspectorSelectedPlayer } from "@/components/portal/playbook-inspector"
+import { PlaybookHeader } from "@/components/portal/playbook-header"
+import { PlaybookSidebar } from "@/components/portal/playbook-sidebar"
 import { PlaycallerView } from "@/components/portal/playcaller-view"
 import { templateDataToCanvasData, canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
@@ -230,7 +232,7 @@ export function PlaybookWorkspace({
     setDesignerMode("play")
   }
 
-  const handleNewSubFormation = async (formationId: string, formationName: string, side: SideOfBall) => {
+  const handleNewSubFormation = async (formationId: string, formationName: string, side: SideOfBall, name: string) => {
     try {
       const res = await fetch("/api/sub-formations", {
         method: "POST",
@@ -239,7 +241,7 @@ export function PlaybookWorkspace({
           teamId,
           formationId,
           side,
-          name: "New Sub-Formation",
+          name: (name || "New Sub-Formation").trim(),
         }),
       })
       if (!res.ok) throw new Error("Failed to create sub-formation")
@@ -384,7 +386,14 @@ export function PlaybookWorkspace({
             })()
           : undefined
         const animationTiming = (p as { animationTiming?: PlayCanvasData["players"][0]["animationTiming"] }).animationTiming
-        return { ...base, route, blockingLine, ...(animationTiming != null ? { animationTiming } : {}) }
+        const preSnapMotion = (p as { preSnapMotion?: PlayCanvasData["players"][0]["preSnapMotion"] }).preSnapMotion
+        return {
+          ...base,
+          route,
+          blockingLine,
+          ...(animationTiming != null ? { animationTiming } : {}),
+          ...(preSnapMotion != null ? { preSnapMotion } : {}),
+        }
       }),
       zones: data.zones.map((z) => ({
         id: z.id,
@@ -589,12 +598,62 @@ export function PlaybookWorkspace({
       ? editingFormation?.name ?? "New Formation"
       : selectedPlay?.name ?? ""
 
+  const formationCountBySide = useMemo(
+    () => ({
+      offense: formations.filter((f) => f.side === "offense").length,
+      defense: formations.filter((f) => f.side === "defense").length,
+      special_teams: formations.filter((f) => f.side === "special_teams").length,
+    }),
+    [formations]
+  )
+
+  const atHub = !designerMode
+  const showNewPlayInHeader =
+    selectedSide != null && selectedFormationId != null && canEdit
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full bg-slate-50">
         <p className="text-sm text-slate-500">Loading playbooks...</p>
       </div>
     )
+  }
+
+  const browserProps = {
+    plays,
+    formations,
+    subFormations,
+    depthChartEntries,
+    selectedSide,
+    selectedFormationId,
+    selectedSubFormationId,
+    selectedPlayId,
+    onSelectSide: setSelectedSide,
+    onSelectFormation: handleSelectFormation,
+    onSelectSubFormation: handleSelectSubFormation,
+    onSelectPlay: handleSelectPlay,
+    onBack: handleBrowserBack,
+    onNewPlay: handleNewPlay,
+    onNewFormation: handleNewFormation,
+    onNewSubFormation: handleNewSubFormation,
+    onNewPlayFromFormation: handleNewPlayFromFormation,
+    onDuplicatePlay: handleDuplicatePlay,
+    onRenamePlay: handleRenamePlay,
+    onRenameFormation: handleRenameFormation,
+    onRenameSubFormation: handleRenameSubFormation,
+    onDeletePlay: handleDeletePlay,
+    onDeleteFormation: handleDeleteFormation,
+    onDeleteSubFormation: handleDeleteSubFormation,
+    onStartPlaycaller: () => {
+      setPlaycallerMode(true)
+      setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
+    },
+    onReviewAssignments: handleReviewAssignments,
+    playEditorPath: (playId: string) => `/dashboard/playbooks/play/${playId}`,
+    canEdit,
+    canEditOffense,
+    canEditDefense,
+    canEditSpecialTeams,
   }
 
   return (
@@ -610,104 +669,98 @@ export function PlaybookWorkspace({
         />
       ) : null}
 
-      <div className="flex flex-1 overflow-hidden gap-px">
-        <div className="w-[360px] lg:w-[400px] flex-shrink-0 flex flex-col overflow-hidden rounded-l-lg border border-slate-200 bg-white shadow-sm">
-          <PlaybookBrowser
-            plays={plays}
-            formations={formations}
-            subFormations={subFormations}
-            depthChartEntries={depthChartEntries}
-            selectedSide={selectedSide}
-            selectedFormationId={selectedFormationId}
-            selectedSubFormationId={selectedSubFormationId}
-            selectedPlayId={selectedPlayId}
-            onSelectSide={setSelectedSide}
-            onSelectFormation={handleSelectFormation}
-            onSelectSubFormation={handleSelectSubFormation}
-            onSelectPlay={handleSelectPlay}
-            onBack={handleBrowserBack}
-            onNewPlay={handleNewPlay}
-            onNewFormation={handleNewFormation}
-            onNewSubFormation={handleNewSubFormation}
-            onNewPlayFromFormation={handleNewPlayFromFormation}
-            onDuplicatePlay={handleDuplicatePlay}
-            onRenamePlay={handleRenamePlay}
-            onRenameFormation={handleRenameFormation}
-            onRenameSubFormation={handleRenameSubFormation}
-            onDeletePlay={handleDeletePlay}
-            onDeleteFormation={handleDeleteFormation}
-            onDeleteSubFormation={handleDeleteSubFormation}
-            onStartPlaycaller={() => {
-              setPlaycallerMode(true)
-              setPlaycallerIndex(selectedPlayId ? plays.findIndex((p) => p.id === selectedPlayId) || 0 : 0)
-            }}
-            onReviewAssignments={handleReviewAssignments}
-            playEditorPath={(playId) => `/dashboard/playbooks/play/${playId}`}
-            canEdit={canEdit}
-            canEditOffense={canEditOffense}
-            canEditDefense={canEditDefense}
-            canEditSpecialTeams={canEditSpecialTeams}
-          />
-        </div>
+      <PlaybookHeader
+        onNewFormation={handleNewFormation}
+        onNewPlay={
+          selectedFormation
+            ? () =>
+                handleNewPlay(
+                  selectedFormation.side,
+                  selectedFormation.id,
+                  selectedFormation.name,
+                  selectedSubFormationId === "__uncategorized__" ? null : selectedSubFormationId ?? undefined
+                )
+            : undefined
+        }
+        canEdit={canEdit}
+        showNewPlay={showNewPlayInHeader}
+        canEditOffense={canEditOffense}
+        canEditDefense={canEditDefense}
+        canEditSpecialTeams={canEditSpecialTeams}
+      />
 
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm">
-          {((designerMode === "formation" && editingFormation) || (designerMode === "play" && !selectedPlayId && selectedFormation)) && canEditSide(effectiveSide) ? (
-            <PlaybookBuilder
-              playId={designerMode === "play" ? selectedPlayId : null}
-              playData={initialCanvasDataForDesigner}
-              playName={initialNameForDesigner}
-              editorSourceKey={designerMode === "play" ? (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}-${selectedSubFormationId ?? "none"}`) : `formation-${editingFormation?.id ?? "new"}`}
-              side={effectiveSide}
-              formation={designerMode === "formation" ? (editingFormation?.name ?? "New Formation") : (selectedFormationName || "Custom")}
-              onSave={handleSaveFromBuilder}
-              onClose={handleCloseDesigner}
-              canEdit={canEditSide(effectiveSide)}
-              isTemplateMode={designerMode === "formation"}
-              templateName={editingFormation?.name ?? ""}
-              onSelectPlayer={(player) => {
-                setSelectedPlayerInspector(player)
-                setInspectorSelection(player ? "player" : null)
-              }}
-              depthChartEntries={depthChartEntries}
-              focusUnassignedOnce={focusUnassignedOnce}
-              onClearFocusUnassigned={() => setFocusUnassignedOnce(false)}
-            />
+      <div className="flex-1 overflow-hidden p-4 md:p-5 lg:p-6">
+        <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
+          {atHub ? (
+            <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,2.1fr)_minmax(320px,1fr)] gap-5 xl:gap-6 p-5 xl:p-6 overflow-hidden min-h-0">
+              <div className="min-w-0 overflow-hidden flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+                <PlaybookBrowser {...browserProps} />
+              </div>
+              <div className="min-w-0 overflow-y-auto flex flex-col xl:pl-0 pt-4 xl:pt-0 border-t xl:border-t-0 border-slate-200/80">
+                <PlaybookSidebar
+                  formationCountBySide={formationCountBySide}
+                  onBrowseOffense={() => setSelectedSide("offense")}
+                  onBrowseDefense={() => setSelectedSide("defense")}
+                  onBrowseSpecialTeams={() => setSelectedSide("special_teams")}
+                  onNewFormation={handleNewFormation}
+                  canEdit={canEdit}
+                />
+              </div>
+            </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="max-w-sm rounded-xl border border-slate-200 bg-slate-50/80 p-8 text-center shadow-sm">
-                <p className="text-sm font-medium text-slate-700">Browse by side → formation → sub-formation</p>
-                <p className="text-sm text-slate-500 mt-2">Open a play to edit it in a new tab. Create a new formation or go to a sub-formation and add a new play.</p>
-                <div className="flex flex-wrap justify-center gap-3 mt-6">
-                  <Button size="sm" variant="outline" onClick={() => setSelectedSide("offense")}>
-                    Browse Offense
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setSelectedSide("defense")}>
-                    Browse Defense
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setSelectedSide("special_teams")}>
-                    Browse Special Teams
-                  </Button>
-                </div>
+            <div className="flex-1 grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1.6fr)_minmax(280px,0.9fr)] overflow-hidden min-h-0 items-stretch">
+              <div className="min-w-0 flex flex-col overflow-hidden border-r border-slate-200 bg-white">
+                <PlaybookBrowser {...browserProps} />
+              </div>
+              <div className="min-w-0 flex flex-col overflow-hidden bg-white">
+                {((designerMode === "formation" && editingFormation) || (designerMode === "play" && !selectedPlayId && selectedFormation)) && canEditSide(effectiveSide) ? (
+                  <PlaybookBuilder
+                    playId={designerMode === "play" ? selectedPlayId : null}
+                    playData={initialCanvasDataForDesigner}
+                    playName={initialNameForDesigner}
+                    editorSourceKey={designerMode === "play" ? (selectedPlayId ?? `new-${selectedFormationId ?? "custom"}-${selectedSubFormationId ?? "none"}`) : `formation-${editingFormation?.id ?? "new"}`}
+                    side={effectiveSide}
+                    formation={designerMode === "formation" ? (editingFormation?.name ?? "New Formation") : (selectedFormationName || "Custom")}
+                    onSave={handleSaveFromBuilder}
+                    onClose={handleCloseDesigner}
+                    canEdit={canEditSide(effectiveSide)}
+                    isTemplateMode={designerMode === "formation"}
+                    templateName={editingFormation?.name ?? ""}
+                    onSelectPlayer={(player) => {
+                      setSelectedPlayerInspector(player)
+                      setInspectorSelection(player ? "player" : null)
+                    }}
+                    depthChartEntries={depthChartEntries}
+                    focusUnassignedOnce={focusUnassignedOnce}
+                    onClearFocusUnassigned={() => setFocusUnassignedOnce(false)}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center p-8 bg-slate-50/30">
+                    <div className="max-w-sm rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                      <p className="text-sm font-semibold text-slate-800">Browse by side → formation → sub-formation</p>
+                      <p className="text-sm text-slate-600 mt-2 leading-relaxed">Open a play to edit, or create a new formation or play from the browser.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex flex-col overflow-hidden border-l border-slate-200 bg-slate-50/50">
+                <PlaybookInspector
+                  play={selectedPlay ?? null}
+                  formations={formations}
+                  depthChartEntries={depthChartEntries}
+                  rosterPlayers={rosterPlayers}
+                  onAssignSlot={onAssignSlot}
+                  selectedObject={inspectorSelection}
+                  selectedPlayer={selectedPlayerInspector}
+                  selectedZone={selectedZoneInspector}
+                  onPlayNameChange={selectedPlay ? (name) => handleRenamePlay(selectedPlay.id, name) : undefined}
+                  playType={editingPlayType ?? selectedPlay?.playType ?? null}
+                  onPlayTypeChange={setEditingPlayType}
+                  canEdit={canEdit}
+                />
               </div>
             </div>
           )}
-        </div>
-
-        <div className="w-72 flex-shrink-0 flex flex-col overflow-hidden rounded-r-lg border border-slate-200 bg-white shadow-sm">
-          <PlaybookInspector
-            play={selectedPlay ?? null}
-            formations={formations}
-            depthChartEntries={depthChartEntries}
-            rosterPlayers={rosterPlayers}
-            onAssignSlot={onAssignSlot}
-            selectedObject={inspectorSelection}
-            selectedPlayer={selectedPlayerInspector}
-            selectedZone={selectedZoneInspector}
-            onPlayNameChange={selectedPlay ? (name) => handleRenamePlay(selectedPlay.id, name) : undefined}
-            playType={editingPlayType ?? selectedPlay?.playType ?? null}
-            onPlayTypeChange={setEditingPlayType}
-            canEdit={canEdit}
-          />
         </div>
       </div>
     </div>

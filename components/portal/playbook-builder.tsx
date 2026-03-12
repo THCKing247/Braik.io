@@ -60,6 +60,7 @@ interface Player {
   positionCode?: string | null
   positionNumber?: number | null
   animationTiming?: { startDelay?: number; durationScale?: number }
+  preSnapMotion?: { points: Array<{ x?: number; y?: number; xYards: number; yYards: number; t: number }>; duration?: number }
 }
 
 interface Zone {
@@ -565,6 +566,7 @@ export function PlaybookBuilder({
       route: route ?? undefined,
       blockingLine,
       animationTiming: p.animationTiming ?? undefined,
+      preSnapMotion: p.preSnapMotion ?? undefined,
     }
   }
 

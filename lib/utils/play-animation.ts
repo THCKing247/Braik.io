@@ -3,9 +3,12 @@
  * data without mutating play state. Used by Presenter and optionally by the editor.
  */
 
-import type { RoutePoint, BlockEndPoint, AnimationTiming } from "@/types/playbook"
+import type { RoutePoint, BlockEndPoint, AnimationTiming, PreSnapMotion } from "@/types/playbook"
 
 export type YardPoint = { xYards: number; yYards: number }
+
+/** Fraction of the full animation timeline [0, 1] reserved for pre-snap motion. Main play runs from this to 1. */
+export const PRE_SNAP_PHASE = 0.2
 
 /**
  * Timing is default when: no animationTiming, or startDelay is 0/unset and durationScale is 1/unset.
@@ -36,8 +39,10 @@ export type PlayerPathSource = {
   yYards: number
   route?: RoutePoint[] | null
   blockingLine?: BlockEndPoint | null
-  /** Optional per-player timing. When absent, global progress is used directly. */
+  /** Optional per-player timing (applies to main phase only). When absent, global progress is used directly. */
   animationTiming?: AnimationTiming | null
+  /** Optional pre-snap motion. Runs in [0, PRE_SNAP_PHASE]; main route/block runs after. */
+  preSnapMotion?: PreSnapMotion | null
 }
 
 /**
@@ -133,15 +138,56 @@ export function getPointAtProgress(points: YardPoint[], progress: number): YardP
 }
 
 /**
+ * Build pre-snap path: [formation start, ...points] in yard space.
+ */
+function getPreSnapPath(player: PlayerPathSource): YardPoint[] {
+  const start: YardPoint = { xYards: player.xYards, yYards: player.yYards }
+  const motion = player.preSnapMotion
+  if (!motion?.points?.length) return [start]
+  return [start, ...motion.points.map((p) => ({ xYards: p.xYards, yYards: p.yYards }))]
+}
+
+/**
+ * Get the end point of pre-snap motion (formation position if no motion).
+ */
+function getPreSnapEndPoint(player: PlayerPathSource): YardPoint {
+  const path = getPreSnapPath(player)
+  return path.length > 0 ? { ...path[path.length - 1] } : { xYards: player.xYards, yYards: player.yYards }
+}
+
+/**
  * Get animated position for a player at global progress in [0, 1].
- * Uses per-player animationTiming when present; otherwise progress is used directly.
+ * - If globalProgress <= PRE_SNAP_PHASE: pre-snap phase. Players with preSnapMotion move along it; others stay at formation.
+ * - If globalProgress > PRE_SNAP_PHASE: main phase. Progress mapped to [0,1]; players with preSnapMotion start from end of motion; animationTiming applies to main phase only.
  * Does not mutate the player; returns yard coordinates.
  */
 export function getAnimatedPlayerPosition(
   player: PlayerPathSource,
   globalProgress: number
 ): YardPoint {
-  const effectiveProgress = getEffectiveProgress(globalProgress, player.animationTiming)
-  const path = normalizeRoutePath(player)
-  return getPointAtProgress(path, effectiveProgress)
+  if (globalProgress <= PRE_SNAP_PHASE) {
+    if (!player.preSnapMotion?.points?.length) {
+      return { xYards: player.xYards, yYards: player.yYards }
+    }
+    const preSnapPath = getPreSnapPath(player)
+    const preSnapProgress = globalProgress / PRE_SNAP_PHASE
+    const duration = player.preSnapMotion.duration ?? 1
+    const effectivePreSnap = duration > 0 ? Math.min(1, preSnapProgress / duration) : 1
+    return getPointAtProgress(preSnapPath, effectivePreSnap)
+  }
+
+  const mainPhaseLength = 1 - PRE_SNAP_PHASE
+  const mainProgress = (globalProgress - PRE_SNAP_PHASE) / mainPhaseLength
+  const effectiveMain = getEffectiveProgress(mainProgress, player.animationTiming)
+
+  const startForMain = player.preSnapMotion?.points?.length
+    ? getPreSnapEndPoint(player)
+    : { xYards: player.xYards, yYards: player.yYards }
+  const virtualPlayer: PlayerPathSource = {
+    ...player,
+    xYards: startForMain.xYards,
+    yYards: startForMain.yYards,
+  }
+  const path = normalizeRoutePath(virtualPlayer)
+  return getPointAtProgress(path, effectiveMain)
 }

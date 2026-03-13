@@ -203,7 +203,7 @@ export function PlayerProfileView({
     } finally {
       setSaving(false)
     }
-  }, [playerId, profile, canEditProfile, canEdit, editDraft])
+  }
 
   const getDisplayName = () => {
     if (!profile) return ""

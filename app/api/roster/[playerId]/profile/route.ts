@@ -3,97 +3,15 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
-import { normalizePlayerImageUrl } from "@/lib/player-image-url"
-import type { PlayerProfile, PlayerProfileUpdateBody } from "@/types/player-profile"
-
-type DbPlayer = {
-  id: string
-  team_id: string
-  first_name: string
-  last_name: string
-  grade: number | null
-  jersey_number: number | null
-  position_group: string | null
-  status: string
-  notes: string | null
-  image_url: string | null
-  user_id: string | null
-  email: string | null
-  weight: number | null
-  height: string | null
-  health_status?: string | null
-  preferred_name?: string | null
-  secondary_position?: string | null
-  graduation_year?: number | null
-  date_of_birth?: string | null
-  school?: string | null
-  parent_guardian_contact?: string | null
-  player_phone?: string | null
-  address?: string | null
-  emergency_contact?: string | null
-  medical_notes?: string | null
-  eligibility_status?: string | null
-  role_depth_notes?: string | null
-  season_stats?: unknown
-  game_stats?: unknown
-  practice_metrics?: unknown
-  coach_notes?: string | null
-  assigned_equipment?: unknown
-  equipment_issue_return_notes?: string | null
-  profile_tags?: unknown
-  profile_notes?: string | null
-  document_refs?: unknown
-}
-
-function mapRowToProfile(row: DbPlayer, teamName: string | null, assignedEquipmentItems: { id: string; category: string | null; name: string; condition: string | null; status: string | null; notes: string | null }[]): PlayerProfile {
-  const tags = Array.isArray(row.profile_tags) ? row.profile_tags : []
-  return {
-    id: row.id,
-    teamId: row.team_id,
-    teamName: teamName ?? null,
-    firstName: row.first_name ?? "",
-    lastName: row.last_name ?? "",
-    preferredName: row.preferred_name ?? null,
-    jerseyNumber: row.jersey_number ?? null,
-    position: row.position_group ?? null,
-    secondaryPosition: row.secondary_position ?? null,
-    graduationYear: row.graduation_year ?? null,
-    height: row.height ?? null,
-    weight: row.weight ?? null,
-    dateOfBirth: row.date_of_birth != null ? String(row.date_of_birth) : null,
-    school: row.school ?? null,
-    parentGuardianContact: row.parent_guardian_contact ?? null,
-    playerEmail: row.email ?? null,
-    playerPhone: row.player_phone ?? null,
-    address: row.address ?? null,
-    emergencyContact: row.emergency_contact ?? null,
-    medicalNotes: row.medical_notes ?? null,
-    activeStatus: row.status ?? "active",
-    roleDepthNotes: row.role_depth_notes ?? null,
-    eligibilityStatus: row.eligibility_status ?? null,
-    seasonStats: (row.season_stats as Record<string, unknown>) ?? {},
-    gameStats: Array.isArray(row.game_stats) ? row.game_stats : [],
-    practiceMetrics: (row.practice_metrics as Record<string, unknown>) ?? {},
-    coachNotes: row.coach_notes ?? null,
-    assignedItems: assignedEquipmentItems.map((i) => ({
-      id: i.id,
-      category: i.category ?? undefined,
-      name: i.name ?? "",
-      condition: i.condition ?? undefined,
-      status: i.status ?? undefined,
-      notes: i.notes ?? null,
-    })),
-    assignedEquipment: (row.assigned_equipment as Record<string, unknown>) ?? {},
-    equipmentIssueReturnNotes: row.equipment_issue_return_notes ?? null,
-    notes: row.notes ?? null,
-    profileNotes: row.profile_notes ?? null,
-    tags,
-    documentRefs: Array.isArray(row.document_refs) ? row.document_refs : [],
-    imageUrl: normalizePlayerImageUrl(row.image_url) ?? null,
-    healthStatus: (row.health_status as "active" | "injured" | "unavailable") ?? "active",
-    userId: row.user_id ?? null,
-  }
-}
+import {
+  mapRowToProfile,
+  validateDateOfBirth,
+  filterBodyForPlayerSelfEdit,
+  type DbPlayerRow,
+  type AssignedEquipmentItemRow,
+} from "@/lib/player-profile-api"
+import type { PlayerProfileUpdateBody } from "@/types/player-profile"
+import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 
 /**
  * GET /api/roster/[playerId]/profile?teamId=xxx
@@ -139,8 +57,9 @@ export async function GET(
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    const row = player as DbPlayer
-    if (!isCoach && row.user_id !== session.user.id) {
+    const row = player as DbPlayerRow
+    const isOwnProfile = row.user_id === session.user.id
+    if (!isCoach && !isOwnProfile) {
       return NextResponse.json(
         { error: "You can only view your own profile." },
         { status: 403 }
@@ -154,7 +73,7 @@ export async function GET(
       .eq("team_id", teamId)
       .eq("assigned_to_player_id", playerId)
 
-    const assignedEquipmentItems = (invItems ?? []).map((i) => ({
+    const assignedEquipmentItems: AssignedEquipmentItemRow[] = (invItems ?? []).map((i) => ({
       id: i.id,
       category: i.category ?? null,
       name: i.name ?? "",
@@ -171,8 +90,8 @@ export async function GET(
 
     return NextResponse.json({
       profile,
-      canEdit: isCoach,
-      isOwnProfile: row.user_id === session.user.id,
+      canEdit: isCoach || isOwnProfile,
+      isOwnProfile,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"
@@ -231,41 +150,45 @@ export async function PATCH(
       )
     }
 
+    const bodyToUse = isCoach
+      ? (body as Record<string, unknown>)
+      : filterBodyForPlayerSelfEdit(body as Record<string, unknown>)
+
     const updates: Record<string, unknown> = {}
 
     if (isCoach) {
-      if (body.firstName !== undefined) updates.first_name = body.firstName?.trim() ?? null
-      if (body.lastName !== undefined) updates.last_name = body.lastName?.trim() ?? null
-      if (body.jerseyNumber !== undefined) updates.jersey_number = body.jerseyNumber ?? null
-      if (body.position !== undefined) updates.position_group = body.position?.trim() ?? null
-      if (body.secondaryPosition !== undefined) updates.secondary_position = body.secondaryPosition?.trim() ?? null
-      if (body.graduationYear !== undefined) updates.graduation_year = body.graduationYear ?? null
-      if (body.height !== undefined) updates.height = body.height?.trim() ?? null
-      if (body.weight !== undefined) updates.weight = body.weight ?? null
-      if (body.dateOfBirth !== undefined) updates.date_of_birth = body.dateOfBirth?.trim() || null
-      if (body.school !== undefined) updates.school = body.school?.trim() ?? null
-      if (body.parentGuardianContact !== undefined) updates.parent_guardian_contact = body.parentGuardianContact?.trim() ?? null
-      if (body.medicalNotes !== undefined) updates.medical_notes = body.medicalNotes?.trim() ?? null
-      if (body.activeStatus !== undefined) updates.status = body.activeStatus ?? "active"
-      if (body.eligibilityStatus !== undefined) updates.eligibility_status = body.eligibilityStatus?.trim() ?? null
-      if (body.roleDepthNotes !== undefined) updates.role_depth_notes = body.roleDepthNotes?.trim() ?? null
-      if (body.seasonStats !== undefined) updates.season_stats = body.seasonStats ?? {}
-      if (body.gameStats !== undefined) updates.game_stats = body.gameStats ?? []
-      if (body.practiceMetrics !== undefined) updates.practice_metrics = body.practiceMetrics ?? {}
-      if (body.coachNotes !== undefined) updates.coach_notes = body.coachNotes?.trim() ?? null
-      if (body.assignedEquipment !== undefined) updates.assigned_equipment = body.assignedEquipment ?? {}
-      if (body.equipmentIssueReturnNotes !== undefined) updates.equipment_issue_return_notes = body.equipmentIssueReturnNotes?.trim() ?? null
-      if (body.profileNotes !== undefined) updates.profile_notes = body.profileNotes?.trim() ?? null
-      if (body.profileTags !== undefined) updates.profile_tags = body.profileTags ?? []
-      if (body.notes !== undefined) updates.notes = body.notes?.trim() ?? null
+      if (bodyToUse.firstName !== undefined) updates.first_name = (bodyToUse.firstName as string)?.trim() ?? null
+      if (bodyToUse.lastName !== undefined) updates.last_name = (bodyToUse.lastName as string)?.trim() ?? null
+      if (bodyToUse.jerseyNumber !== undefined) updates.jersey_number = bodyToUse.jerseyNumber ?? null
+      if (bodyToUse.position !== undefined) updates.position_group = (bodyToUse.position as string)?.trim() ?? null
+      if (bodyToUse.secondaryPosition !== undefined) updates.secondary_position = (bodyToUse.secondaryPosition as string)?.trim() ?? null
+      if (bodyToUse.graduationYear !== undefined) updates.graduation_year = bodyToUse.graduationYear ?? null
+      if (bodyToUse.height !== undefined) updates.height = (bodyToUse.height as string)?.trim() ?? null
+      if (bodyToUse.weight !== undefined) updates.weight = bodyToUse.weight ?? null
+      if (bodyToUse.dateOfBirth !== undefined) updates.date_of_birth = validateDateOfBirth(bodyToUse.dateOfBirth)
+      if (bodyToUse.school !== undefined) updates.school = (bodyToUse.school as string)?.trim() ?? null
+      if (bodyToUse.parentGuardianContact !== undefined) updates.parent_guardian_contact = (bodyToUse.parentGuardianContact as string)?.trim() ?? null
+      if (bodyToUse.medicalNotes !== undefined) updates.medical_notes = (bodyToUse.medicalNotes as string)?.trim() ?? null
+      if (bodyToUse.activeStatus !== undefined) updates.status = (bodyToUse.activeStatus as string) ?? "active"
+      if (bodyToUse.eligibilityStatus !== undefined) updates.eligibility_status = (bodyToUse.eligibilityStatus as string)?.trim() ?? null
+      if (bodyToUse.roleDepthNotes !== undefined) updates.role_depth_notes = (bodyToUse.roleDepthNotes as string)?.trim() ?? null
+      if (bodyToUse.seasonStats !== undefined) updates.season_stats = bodyToUse.seasonStats ?? {}
+      if (bodyToUse.gameStats !== undefined) updates.game_stats = bodyToUse.gameStats ?? []
+      if (bodyToUse.practiceMetrics !== undefined) updates.practice_metrics = bodyToUse.practiceMetrics ?? {}
+      if (bodyToUse.coachNotes !== undefined) updates.coach_notes = (bodyToUse.coachNotes as string)?.trim() ?? null
+      if (bodyToUse.assignedEquipment !== undefined) updates.assigned_equipment = bodyToUse.assignedEquipment ?? {}
+      if (bodyToUse.equipmentIssueReturnNotes !== undefined) updates.equipment_issue_return_notes = (bodyToUse.equipmentIssueReturnNotes as string)?.trim() ?? null
+      if (bodyToUse.profileNotes !== undefined) updates.profile_notes = (bodyToUse.profileNotes as string)?.trim() ?? null
+      if (bodyToUse.profileTags !== undefined) updates.profile_tags = Array.isArray(bodyToUse.profileTags) ? (bodyToUse.profileTags as unknown[]).filter((t): t is string => typeof t === "string") : []
+      if (bodyToUse.notes !== undefined) updates.notes = (bodyToUse.notes as string)?.trim() ?? null
     }
 
     // Self-edit fields (both coach and player when editing own)
-    if (body.preferredName !== undefined) updates.preferred_name = body.preferredName?.trim() ?? null
-    if (body.playerEmail !== undefined) updates.email = body.playerEmail?.trim()?.toLowerCase() ?? null
-    if (body.playerPhone !== undefined) updates.player_phone = body.playerPhone?.trim() ?? null
-    if (body.address !== undefined) updates.address = body.address?.trim() ?? null
-    if (body.emergencyContact !== undefined) updates.emergency_contact = body.emergencyContact?.trim() ?? null
+    if (bodyToUse.preferredName !== undefined) updates.preferred_name = (bodyToUse.preferredName as string)?.trim() ?? null
+    if (bodyToUse.playerEmail !== undefined) updates.email = (bodyToUse.playerEmail as string)?.trim()?.toLowerCase() ?? null
+    if (bodyToUse.playerPhone !== undefined) updates.player_phone = (bodyToUse.playerPhone as string)?.trim() ?? null
+    if (bodyToUse.address !== undefined) updates.address = (bodyToUse.address as string)?.trim() ?? null
+    if (bodyToUse.emergencyContact !== undefined) updates.emergency_contact = (bodyToUse.emergencyContact as string)?.trim() ?? null
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
@@ -292,18 +215,34 @@ export async function PATCH(
       .eq("team_id", teamId)
       .eq("assigned_to_player_id", playerId)
 
+    const assignedEquipmentItems: AssignedEquipmentItemRow[] = (invItems ?? []).map((i) => ({
+      id: i.id,
+      category: i.category ?? null,
+      name: i.name ?? "",
+      condition: i.condition ?? null,
+      status: i.status ?? null,
+      notes: i.notes ?? null,
+    }))
+
     const profile = mapRowToProfile(
-      updated as DbPlayer,
+      updated as DbPlayerRow,
       (team as { name?: string } | null)?.name ?? null,
-      (invItems ?? []).map((i) => ({
-        id: i.id,
-        category: i.category ?? null,
-        name: i.name ?? "",
-        condition: i.condition ?? null,
-        status: i.status ?? null,
-        notes: i.notes ?? null,
-      }))
+      assignedEquipmentItems
     )
+
+    const hadStats =
+      bodyToUse.seasonStats !== undefined ||
+      bodyToUse.gameStats !== undefined ||
+      bodyToUse.practiceMetrics !== undefined
+    await logPlayerProfileActivity({
+      playerId,
+      teamId,
+      actorId: session.user.id,
+      actionType: hadStats ? PLAYER_PROFILE_ACTION_TYPES.STATS_UPDATED : PLAYER_PROFILE_ACTION_TYPES.PROFILE_UPDATED,
+      targetType: "player",
+      targetId: playerId,
+      metadata: hadStats ? { updatedFields: ["stats"] } : {},
+    })
 
     return NextResponse.json({ profile })
   } catch (err) {

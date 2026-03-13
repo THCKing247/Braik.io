@@ -3,6 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { FileText } from "lucide-react"
 import { PlayerFormsModal } from "./player-forms-modal"
 
@@ -26,6 +27,8 @@ interface PlayerCardProps {
   onDragStart?: (e: React.DragEvent) => void
   onImageUpload?: (playerId: string, file: File) => void
   onFormsUpdate?: (playerId: string, formsComplete: boolean, missingForms: string[]) => void | Promise<void>
+  /** When set, clicking the card (excluding forms/image upload) opens the player profile. */
+  profileHref?: string
 }
 
 export function PlayerCard({
@@ -36,10 +39,16 @@ export function PlayerCard({
   onDragStart,
   onImageUpload,
   onFormsUpdate,
+  profileHref,
 }: PlayerCardProps) {
+  const router = useRouter()
   const [imageError, setImageError] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [showFormsModal, setShowFormsModal] = useState(false)
+
+  const handleCardClick = () => {
+    if (profileHref && !draggable) router.push(profileHref)
+  }
 
   const getInitials = () => {
     const first = (player.firstName || "")[0] || ""
@@ -92,9 +101,9 @@ export function PlayerCard({
 
   return (
     <Card
-      className={`cursor-pointer hover:shadow-sm transition-all duration-200 border overflow-hidden relative ${
-        draggable ? "cursor-move" : ""
-      }`}
+      className={`hover:shadow-sm transition-all duration-200 border overflow-hidden relative ${
+        profileHref && !draggable ? "cursor-pointer" : ""
+      } ${draggable ? "cursor-move" : ""}`}
       style={{
         borderColor: player.healthStatus === "injured" ? "#EF4444" : player.healthStatus === "unavailable" ? "#F97316" : "rgb(var(--border))",
         borderWidth: player.healthStatus && player.healthStatus !== "active" ? "2px" : "1px",
@@ -104,13 +113,17 @@ export function PlayerCard({
       onDragStart={onDragStart}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={handleCardClick}
+      role={profileHref && !draggable ? "button" : undefined}
+      tabIndex={profileHref && !draggable ? 0 : undefined}
+      onKeyDown={profileHref && !draggable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push(profileHref) } } : undefined}
     >
       {/* Health Status Indicator */}
       {player.healthStatus && player.healthStatus !== "active" && (
         <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getHealthStatusColor()}`} title={player.healthStatus === "injured" ? "Injured" : "Unavailable"} />
       )}
       <CardContent className="p-3 flex flex-col items-center h-full">
-        {/* Player Image / Placeholder */}
+        {/* Player Image / Placeholder - stop propagation so upload works without navigating */}
         <div
           className={`w-20 h-28 relative mb-3 rounded border overflow-hidden ${
             canEdit && onImageUpload ? "cursor-pointer" : ""
@@ -120,7 +133,7 @@ export function PlayerCard({
             backgroundColor: "rgb(var(--platinum))",
             borderWidth: "1px"
           }}
-          onClick={handleImageClick}
+          onClick={(e) => { e.stopPropagation(); handleImageClick() }}
           title={canEdit && onImageUpload ? "Click to upload image" : ""}
         >
           {player.imageUrl && !imageError && player.imageUrl.trim() !== "" ? (
@@ -163,6 +176,7 @@ export function PlayerCard({
             {/* Forms Icon - Bottom Left */}
             {canEdit && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation()
                   setShowFormsModal(true)

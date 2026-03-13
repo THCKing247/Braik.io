@@ -235,7 +235,7 @@ function RosterListRow({
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap gap-1 justify-end">
             {profileHref && (
-              <Link href={profileHref}>
+              <Link href={profileHref} aria-label={`View ${player.firstName} ${player.lastName} profile`}>
                 <Button
                   variant="outline"
                   size="sm"

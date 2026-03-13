@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { RosterManagerEnhanced } from "@/components/portal/roster-manager-enhanced"
 
@@ -23,6 +24,10 @@ function RosterPageContent({
   canEdit: boolean
   userRole: string
 }) {
+  const searchParams = useSearchParams()
+  const initialView = (searchParams.get("view") === "list" ? "list" : "card") as "card" | "list"
+  const initialSearch = searchParams.get("q") ?? ""
+  const initialPosition = searchParams.get("position") ?? ""
   type PlayerItem = {
     id: string
     firstName: string
@@ -81,6 +86,9 @@ function RosterPageContent({
       canEdit={canEdit}
       teamSport="football"
       userRole={userRole}
+      initialView={initialView}
+      initialSearch={initialSearch}
+      initialPosition={initialPosition}
     />
   )
 }

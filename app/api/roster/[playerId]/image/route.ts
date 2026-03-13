@@ -3,11 +3,13 @@ import { writeFile, mkdir, unlink } from "fs/promises"
 import { join } from "path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamPermission } from "@/lib/auth/rbac"
+import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
+import { canEditRoster } from "@/lib/auth/roles"
+import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 
 /**
  * POST /api/roster/[playerId]/image
- * Uploads a player image.
+ * Uploads a player image. Coaches can upload for any player; players can upload only their own photo.
  */
 export async function POST(
   request: Request,
@@ -26,10 +28,9 @@ export async function POST(
 
     const supabase = getSupabaseServer()
 
-    // Get player to verify team access
     const { data: player, error: playerError } = await supabase
       .from("players")
-      .select("id, team_id")
+      .select("id, team_id, user_id")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -37,7 +38,13 @@ export async function POST(
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    await requireTeamPermission(player.team_id, "edit_roster")
+    await requireTeamAccess((player as { team_id: string }).team_id)
+    const membership = await getUserMembership((player as { team_id: string }).team_id)
+    const isCoach = membership ? canEditRoster(membership.role) : false
+    const isOwnProfile = (player as { user_id: string | null }).user_id === session.user.id
+    if (!isCoach && !isOwnProfile) {
+      return NextResponse.json({ error: "You can only update your own photo." }, { status: 403 })
+    }
 
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -82,6 +89,15 @@ export async function POST(
       return NextResponse.json({ error: "Failed to update player image" }, { status: 500 })
     }
 
+    await logPlayerProfileActivity({
+      playerId,
+      teamId: (player as { team_id: string }).team_id,
+      actorId: session.user.id,
+      actionType: PLAYER_PROFILE_ACTION_TYPES.PHOTO_CHANGED,
+      targetType: "player",
+      targetId: playerId,
+    })
+
     return NextResponse.json({ imageUrl: fileUrl })
   } catch (error: any) {
     console.error("[POST /api/roster/[playerId]/image]", error)
@@ -94,7 +110,7 @@ export async function POST(
 
 /**
  * DELETE /api/roster/[playerId]/image
- * Removes a player image.
+ * Removes a player image. Coaches can remove any; players can remove only their own.
  */
 export async function DELETE(
   _request: Request,
@@ -113,10 +129,9 @@ export async function DELETE(
 
     const supabase = getSupabaseServer()
 
-    // Get player to verify team access
     const { data: player, error: playerError } = await supabase
       .from("players")
-      .select("id, team_id, image_url")
+      .select("id, team_id, user_id, image_url")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -124,10 +139,17 @@ export async function DELETE(
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    await requireTeamPermission(player.team_id, "edit_roster")
+    await requireTeamAccess((player as { team_id: string }).team_id)
+    const membership = await getUserMembership((player as { team_id: string }).team_id)
+    const isCoach = membership ? canEditRoster(membership.role) : false
+    const isOwnProfile = (player as { user_id: string | null }).user_id === session.user.id
+    if (!isCoach && !isOwnProfile) {
+      return NextResponse.json({ error: "You can only remove your own photo." }, { status: 403 })
+    }
 
-    if (player.image_url?.startsWith("/api/uploads/players/")) {
-      const fileName = player.image_url.replace("/api/uploads/players/", "")
+    const imageUrl = (player as { image_url?: string }).image_url
+    if (imageUrl?.startsWith("/api/uploads/players/")) {
+      const fileName = imageUrl.replace("/api/uploads/players/", "")
       const filePath = join(process.cwd(), "uploads", "players", fileName)
       try {
         await unlink(filePath)
@@ -146,6 +168,15 @@ export async function DELETE(
       console.error("[DELETE /api/roster/[playerId]/image]", updateError)
       return NextResponse.json({ error: "Failed to remove player image" }, { status: 500 })
     }
+
+    await logPlayerProfileActivity({
+      playerId,
+      teamId: (player as { team_id: string }).team_id,
+      actorId: session.user.id,
+      actionType: PLAYER_PROFILE_ACTION_TYPES.PHOTO_REMOVED,
+      targetType: "player",
+      targetId: playerId,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

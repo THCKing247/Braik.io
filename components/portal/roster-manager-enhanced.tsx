@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import Link from "next/link"
+import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { LayoutGrid, List } from "lucide-react"
+import { LayoutGrid, List, ClipboardCheck, AlertCircle, History } from "lucide-react"
 import { RosterGridView } from "./roster-grid-view"
 import { RosterListView } from "./roster-list-view"
 import { DepthChartView } from "./depth-chart-view"
@@ -58,6 +60,50 @@ interface RosterManagerEnhancedProps {
   canEdit: boolean
   teamSport: string
   userRole?: string
+  initialView?: "card" | "list"
+  initialSearch?: string
+  initialPosition?: string
+}
+
+type TeamReadinessSummary = {
+  total: number
+  readyCount: number
+  incompleteCount: number
+  missingPhysicalCount: number
+  missingWaiverCount: number
+  incompleteProfileCount: number
+  noEquipmentCount: number
+  eligibilityMissingCount: number
+  noGuardiansCount: number
+}
+
+type PlayerReadinessItem = {
+  playerId: string
+  firstName: string
+  lastName: string
+  ready: boolean
+  profileComplete: boolean
+  physicalOnFile: boolean
+  waiverOnFile: boolean
+  requiredDocsComplete: boolean
+  equipmentAssigned: boolean
+  assignedEquipmentCount: number
+  eligibilityStatus: string | null
+  hasGuardians: boolean
+  missingItems: string[]
+}
+
+const TEAM_ACTIVITY_LABELS: Record<string, string> = {
+  profile_updated: "Profile updated",
+  stats_updated: "Stats updated",
+  photo_changed: "Photo changed",
+  photo_removed: "Photo removed",
+  document_uploaded: "Document uploaded",
+  document_deleted: "Document removed",
+  equipment_assigned: "Equipment assigned",
+  equipment_unassigned: "Equipment unassigned",
+  follow_up_created: "Follow-up added",
+  follow_up_resolved: "Follow-up resolved",
 }
 
 function EditPlayerModal({
@@ -459,10 +505,30 @@ export function RosterManagerEnhanced({
   players: initialPlayers, 
   canEdit,
   teamSport,
-  userRole
+  userRole,
+  initialView = "card",
+  initialSearch = "",
+  initialPosition = "",
 }: RosterManagerEnhancedProps) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [players, setPlayers] = useState(initialPlayers)
-  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart">("roster")
+  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart" | "readiness">("roster")
+  const [teamReadiness, setTeamReadiness] = useState<{
+    summary: TeamReadinessSummary
+    players: PlayerReadinessItem[]
+  } | null>(null)
+  const [readinessFilter, setReadinessFilter] = useState<string>("all")
+  const [teamActivity, setTeamActivity] = useState<Array<{
+    id: string
+    playerId: string
+    playerName: string
+    actionType: string
+    createdAt: string
+    actor: { name: string | null; email: string } | null
+  }>>([])
+  const [teamActivityLoading, setTeamActivityLoading] = useState(false)
+  const [teamOpenFollowUps, setTeamOpenFollowUps] = useState<Array<{ id: string; playerId: string; category: string }>>([])
   const [depthChart, setDepthChart] = useState<DepthChartEntry[]>([])
   const [depthChartSnapshot, setDepthChartSnapshot] = useState<DepthChartEntry[]>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -488,14 +554,85 @@ export function RosterManagerEnhanced({
   const [inviteLoading, setInviteLoading] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
-  const [rosterViewMode, setRosterViewMode] = useState<"card" | "list">("card")
-  const [rosterSearchQuery, setRosterSearchQuery] = useState("")
-  const [rosterPositionFilter, setRosterPositionFilter] = useState<string>("")
+  const [rosterViewMode, setRosterViewMode] = useState<"card" | "list">(initialView)
+  const [rosterSearchQuery, setRosterSearchQuery] = useState(initialSearch)
+  const [rosterPositionFilter, setRosterPositionFilter] = useState<string>(initialPosition)
+
+  useEffect(() => {
+    setRosterViewMode(initialView)
+    setRosterSearchQuery(initialSearch)
+    setRosterPositionFilter(initialPosition)
+  }, [initialView, initialSearch, initialPosition])
+
+  const syncRosterParamsToUrl = useMemo(() => {
+    return (view: "card" | "list", q: string, position: string) => {
+      const p = new URLSearchParams()
+      p.set("teamId", teamId)
+      if (view) p.set("view", view)
+      if (q) p.set("q", q)
+      if (position) p.set("position", position)
+      const query = p.toString()
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+    }
+  }, [teamId, pathname, router])
+
+  useEffect(() => {
+    syncRosterParamsToUrl(rosterViewMode, rosterSearchQuery.trim(), rosterPositionFilter)
+  }, [rosterViewMode, rosterPositionFilter, syncRosterParamsToUrl])
+
+  useEffect(() => {
+    if (!canEdit || !teamId) return
+    fetch(`/api/teams/${teamId}/readiness`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { summary: TeamReadinessSummary; players: PlayerReadinessItem[] } | null) =>
+        data ? setTeamReadiness({ summary: data.summary, players: data.players }) : setTeamReadiness(null)
+      )
+      .catch(() => setTeamReadiness(null))
+  }, [canEdit, teamId, players.length])
+
+  useEffect(() => {
+    if (!canEdit || !teamId || activeTab !== "readiness") return
+    setTeamActivityLoading(true)
+    fetch(`/api/teams/${teamId}/activity?limit=15`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: Array<{ id: string; playerId: string; playerName: string; actionType: string; createdAt: string; actor: { name: string | null; email: string } | null }>) =>
+        setTeamActivity(Array.isArray(data) ? data : [])
+      )
+      .catch(() => setTeamActivity([]))
+      .finally(() => setTeamActivityLoading(false))
+  }, [canEdit, teamId, activeTab])
+
+  useEffect(() => {
+    if (!canEdit || !teamId || activeTab !== "readiness") return
+    fetch(`/api/teams/${teamId}/follow-ups?status=open`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: Array<{ id: string; playerId: string; category: string }>) =>
+        setTeamOpenFollowUps(Array.isArray(data) ? data : [])
+      )
+      .catch(() => setTeamOpenFollowUps([]))
+  }, [canEdit, teamId, activeTab])
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
+  const readinessFilteredPlayerIds = useMemo(() => {
+    if (!teamReadiness || readinessFilter === "all") return null
+    const list = teamReadiness.players
+    if (readinessFilter === "ready") return new Set(list.filter((p) => p.ready).map((p) => p.playerId))
+    if (readinessFilter === "incomplete") return new Set(list.filter((p) => !p.ready).map((p) => p.playerId))
+    if (readinessFilter === "missing_physical") return new Set(list.filter((p) => !p.physicalOnFile).map((p) => p.playerId))
+    if (readinessFilter === "missing_waiver") return new Set(list.filter((p) => !p.waiverOnFile).map((p) => p.playerId))
+    if (readinessFilter === "incomplete_profile") return new Set(list.filter((p) => !p.profileComplete).map((p) => p.playerId))
+    if (readinessFilter === "no_equipment") return new Set(list.filter((p) => !p.equipmentAssigned).map((p) => p.playerId))
+    if (readinessFilter === "no_guardians") return new Set(list.filter((p) => !p.hasGuardians).map((p) => p.playerId))
+    if (readinessFilter === "eligibility_missing") return new Set(list.filter((p) => !p.eligibilityStatus?.trim()).map((p) => p.playerId))
+    return null
+  }, [teamReadiness, readinessFilter])
+
   const filteredRosterPlayers = useMemo(() => {
     let list = players
+    if (readinessFilteredPlayerIds) {
+      list = list.filter((p) => readinessFilteredPlayerIds.has(p.id))
+    }
     const q = rosterSearchQuery.trim().toLowerCase()
     if (q) {
       list = list.filter(
@@ -510,7 +647,7 @@ export function RosterManagerEnhanced({
       list = list.filter((p) => (p.positionGroup?.toUpperCase() ?? "") === rosterPositionFilter.toUpperCase())
     }
     return list
-  }, [players, rosterSearchQuery, rosterPositionFilter])
+  }, [players, rosterSearchQuery, rosterPositionFilter, readinessFilteredPlayerIds])
 
   // Load depth chart data when modal opens
   useEffect(() => {
@@ -856,7 +993,7 @@ export function RosterManagerEnhanced({
     <div>
       {/* Tab Navigation */}
       <div className="mb-6 border-b border-[#64748B]">
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <button
             onClick={() => setActiveTab("roster")}
             className={`px-4 py-2 font-semibold transition-colors ${
@@ -868,6 +1005,20 @@ export function RosterManagerEnhanced({
           >
             Roster View
           </button>
+          {canEdit && (
+            <button
+              onClick={() => setActiveTab("readiness")}
+              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors ${
+                activeTab === "readiness"
+                  ? "border-b-2"
+                  : "opacity-60 hover:opacity-100"
+              }`}
+              style={activeTab === "readiness" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+            >
+              <ClipboardCheck className="h-4 w-4" />
+              Readiness
+            </button>
+          )}
           {isFootball && (
             <button
               onClick={handleOpenDepthChart}
@@ -919,6 +1070,24 @@ export function RosterManagerEnhanced({
                 <option value="P">P</option>
               </optgroup>
             </select>
+            {canEdit && teamReadiness && (
+              <select
+                value={readinessFilter}
+                onChange={(e) => setReadinessFilter(e.target.value)}
+                className="h-9 rounded-md border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                aria-label="Filter by readiness"
+              >
+                <option value="all">All readiness</option>
+                <option value="ready">Ready</option>
+                <option value="incomplete">Incomplete</option>
+                <option value="missing_physical">Missing physical</option>
+                <option value="missing_waiver">Missing waiver</option>
+                <option value="incomplete_profile">Incomplete profile</option>
+                <option value="no_equipment">No equipment</option>
+                <option value="no_guardians">No guardians linked</option>
+                <option value="eligibility_missing">Eligibility not set</option>
+              </select>
+            )}
             <span className="text-sm font-medium text-[#64748B]">View:</span>
             <div className="flex rounded-lg border border-[#E5E7EB] bg-white p-0.5">
               <button
@@ -956,6 +1125,302 @@ export function RosterManagerEnhanced({
               <Button variant="outline" onClick={() => setShowPrintModal(true)}>Print Roster</Button>
               <Button variant="outline" onClick={() => setShowEmailModal(true)}>Email Roster</Button>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Team Readiness Dashboard */}
+      {activeTab === "readiness" && (
+        <div className="space-y-6">
+          {!teamReadiness ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#3B82F6] border-t-transparent" />
+            </div>
+          ) : teamReadiness.summary.total === 0 ? (
+            <Card className="border border-[#E5E7EB] bg-white">
+              <CardContent className="py-12 text-center">
+                <ClipboardCheck className="mx-auto h-12 w-12 text-[#94A3B8]" />
+                <p className="mt-4 text-sm font-medium text-[#64748B]">No players on roster</p>
+                <p className="mt-1 text-sm text-[#94A3B8]">Add players to see readiness summary.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Total</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.total}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-emerald-200 bg-emerald-50/50">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Ready</p>
+                    <p className="mt-1 text-2xl font-semibold text-emerald-800">{teamReadiness.summary.readyCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-amber-200 bg-amber-50/50">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Incomplete</p>
+                    <p className="mt-1 text-2xl font-semibold text-amber-800">{teamReadiness.summary.incompleteCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Missing physical</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.missingPhysicalCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Missing waiver</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.missingWaiverCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Incomplete profile</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.incompleteProfileCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">No equipment</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.noEquipmentCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">No guardians</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.noGuardiansCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Eligibility not set</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.eligibilityMissingCount}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-[#E5E7EB] bg-white">
+                  <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Open follow-ups</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamOpenFollowUps.length}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="border border-[#E5E7EB] bg-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[#0F172A]">
+                    <AlertCircle className="h-5 w-5 text-amber-500" />
+                    Needs attention
+                  </CardTitle>
+                  <p className="text-sm text-[#64748B]">Players with missing items. Click a row to open profile.</p>
+                </CardHeader>
+                <CardContent>
+                  {teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length === 0 ? (
+                    <p className="py-6 text-center text-sm text-[#64748B]">All players are ready.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-[#E5E7EB] text-left text-[#64748B]">
+                            <th className="pb-2 pr-4 font-medium">Player</th>
+                            <th className="pb-2 pr-4 font-medium">Status</th>
+                            <th className="pb-2 pr-4 font-medium">Missing</th>
+                            {canEdit && <th className="pb-2 font-medium">Follow-ups</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teamReadiness.players
+                            .filter((p) => !p.ready || p.missingItems.length > 0)
+                            .map((p) => {
+                              const params = new URLSearchParams()
+                              params.set("teamId", teamId)
+                              const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                              const openCount = teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length
+                              return (
+                                <tr
+                                  key={p.playerId}
+                                  className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC]"
+                                >
+                                  <td className="py-3 pr-4">
+                                    <Link
+                                      href={profileHref}
+                                      className="font-medium text-[#3B82F6] hover:underline"
+                                    >
+                                      {p.firstName} {p.lastName}
+                                    </Link>
+                                    {!p.hasGuardians && (
+                                      <span className="ml-1.5 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800" title="No guardians linked">No guardians</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 pr-4">
+                                    {p.ready ? (
+                                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Ready</span>
+                                    ) : (
+                                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Incomplete</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 pr-4 text-[#64748B]">{p.missingItems.join(", ") || "—"}</td>
+                                  {canEdit && (
+                                    <td className="py-3">
+                                      {openCount > 0 ? (
+                                        <span className="text-amber-700 text-xs font-medium">{openCount} open</span>
+                                      ) : null}
+                                      <Link
+                                        href={profileHref}
+                                        className="ml-2 text-xs text-[#3B82F6] hover:underline"
+                                      >
+                                        Add follow-up
+                                      </Link>
+                                    </td>
+                                  )}
+                                </tr>
+                              )
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!teamReadiness) return
+                    const headers = ["First Name", "Last Name", "Ready", "Profile Complete", "Physical", "Waiver", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
+                    const rows = teamReadiness.players.map((p) => [
+                      p.firstName,
+                      p.lastName,
+                      p.ready ? "Yes" : "No",
+                      p.profileComplete ? "Yes" : "No",
+                      p.physicalOnFile ? "Yes" : "No",
+                      p.waiverOnFile ? "Yes" : "No",
+                      p.equipmentAssigned ? "Yes" : "No",
+                      p.hasGuardians ? "Yes" : "No",
+                      p.eligibilityStatus ?? "",
+                      String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                      p.missingItems.join("; ") || "",
+                    ])
+                    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `roster-readiness-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                >
+                  Export readiness (CSV)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!teamReadiness) return
+                    const incomplete = teamReadiness.players.filter((p) => !p.ready)
+                    const headers = ["First Name", "Last Name", "Profile Complete", "Physical", "Waiver", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
+                    const rows = incomplete.map((p) => [
+                      p.firstName,
+                      p.lastName,
+                      p.profileComplete ? "Yes" : "No",
+                      p.physicalOnFile ? "Yes" : "No",
+                      p.waiverOnFile ? "Yes" : "No",
+                      p.equipmentAssigned ? "Yes" : "No",
+                      p.hasGuardians ? "Yes" : "No",
+                      p.eligibilityStatus ?? "",
+                      String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                      p.missingItems.join("; ") || "",
+                    ])
+                    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `roster-incomplete-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                >
+                  Export incomplete only (CSV)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setReadinessFilter("incomplete")
+                    setActiveTab("roster")
+                  }}
+                >
+                  Show incomplete in roster
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setReadinessFilter("all")
+                    setActiveTab("roster")
+                  }}
+                >
+                  Back to full roster
+                </Button>
+              </div>
+
+              <Card className="border border-[#E5E7EB] bg-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[#0F172A]">
+                    <History className="h-5 w-5 text-[#64748B]" />
+                    Recent team activity
+                  </CardTitle>
+                  <p className="text-sm text-[#64748B]">Latest profile changes across the roster.</p>
+                </CardHeader>
+                <CardContent>
+                  {teamActivityLoading ? (
+                    <div className="flex justify-center py-6">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#3B82F6] border-t-transparent" />
+                    </div>
+                  ) : teamActivity.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-[#64748B]">No recent activity.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {teamActivity.map((a) => {
+                        const profileHref = `/dashboard/roster/${a.playerId}?teamId=${encodeURIComponent(teamId)}`
+                        const label = TEAM_ACTIVITY_LABELS[a.actionType] ?? a.actionType
+                        const timeAgo = (() => {
+                          const d = new Date(a.createdAt)
+                          const now = new Date()
+                          const diffMins = Math.floor((now.getTime() - d.getTime()) / 60000)
+                          const diffHours = Math.floor(diffMins / 60)
+                          const diffDays = Math.floor(diffHours / 24)
+                          if (diffMins < 1) return "Just now"
+                          if (diffMins < 60) return `${diffMins}m ago`
+                          if (diffHours < 24) return `${diffHours}h ago`
+                          if (diffDays < 7) return `${diffDays}d ago`
+                          return d.toLocaleDateString()
+                        })()
+                        return (
+                          <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#F1F5F9] px-3 py-2 text-sm">
+                            <div className="min-w-0">
+                              <Link href={profileHref} className="font-medium text-[#3B82F6] hover:underline">
+                                {a.playerName}
+                              </Link>
+                              <span className="ml-2 text-[#64748B]">— {label}</span>
+                              {a.actor?.name && <span className="ml-1 text-xs text-[#94A3B8]">by {a.actor.name}</span>}
+                            </div>
+                            <span className="text-xs text-[#94A3B8] shrink-0">{timeAgo}</span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       )}
@@ -1090,7 +1555,15 @@ export function RosterManagerEnhanced({
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
             onImageUploadSuccess={handlePlayerImageUploaded}
-            getProfileHref={(p) => `/dashboard/roster/${p.id}?teamId=${encodeURIComponent(teamId)}`}
+            getProfileHref={(p) => {
+              const params = new URLSearchParams()
+              params.set("teamId", teamId)
+              if (rosterViewMode) params.set("view", rosterViewMode)
+              if (rosterSearchQuery.trim()) params.set("q", rosterSearchQuery.trim())
+              if (rosterPositionFilter) params.set("position", rosterPositionFilter)
+              const q = params.toString()
+              return `/dashboard/roster/${p.id}${q ? `?${q}` : ""}`
+            }}
           />
         ) : (
           <RosterListView
@@ -1099,7 +1572,15 @@ export function RosterManagerEnhanced({
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
-            getProfileHref={(p) => `/dashboard/roster/${p.id}?teamId=${encodeURIComponent(teamId)}`}
+            getProfileHref={(p) => {
+              const params = new URLSearchParams()
+              params.set("teamId", teamId)
+              if (rosterViewMode) params.set("view", rosterViewMode)
+              if (rosterSearchQuery.trim()) params.set("q", rosterSearchQuery.trim())
+              if (rosterPositionFilter) params.set("position", rosterPositionFilter)
+              const q = params.toString()
+              return `/dashboard/roster/${p.id}${q ? `?${q}` : ""}`
+            }}
           />
         )
       )}

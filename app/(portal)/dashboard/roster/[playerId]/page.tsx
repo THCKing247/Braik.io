@@ -25,9 +25,15 @@ function PlayerProfilePageContent({
   const searchParams = useSearchParams()
   const playerId = (params?.playerId as string) ?? ""
   const resolvedTeamId = searchParams.get("teamId") || teamId
-  const backHref = resolvedTeamId
-    ? `/dashboard/roster?teamId=${encodeURIComponent(resolvedTeamId)}`
-    : "/dashboard/roster"
+  const view = searchParams.get("view")
+  const q = searchParams.get("q")
+  const position = searchParams.get("position")
+  const rosterParams = new URLSearchParams()
+  if (resolvedTeamId) rosterParams.set("teamId", resolvedTeamId)
+  if (view) rosterParams.set("view", view)
+  if (q) rosterParams.set("q", q)
+  if (position) rosterParams.set("position", position)
+  const backHref = `/dashboard/roster${rosterParams.toString() ? `?${rosterParams.toString()}` : ""}`
 
   if (!playerId) {
     return (

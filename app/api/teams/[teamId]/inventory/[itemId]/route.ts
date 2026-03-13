@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
+import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 
 /**
  * PATCH /api/teams/[teamId]/inventory/[itemId] - Update inventory item
@@ -26,10 +27,10 @@ export async function PATCH(
     const body = await request.json()
     const supabase = getSupabaseServer()
 
-    // Verify item belongs to team
+    // Verify item belongs to team and get current assignment
     const { data: existingItem } = await supabase
       .from("inventory_items")
-      .select("id, team_id")
+      .select("id, team_id, assigned_to_player_id")
       .eq("id", itemId)
       .eq("team_id", teamId)
       .maybeSingle()
@@ -37,6 +38,9 @@ export async function PATCH(
     if (!existingItem) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 })
     }
+
+    const previousPlayerId = (existingItem as { assigned_to_player_id?: string | null }).assigned_to_player_id ?? null
+    const newPlayerId = body.assignedToPlayerId ?? null
 
     // Build update object
     const updateData: any = {}
@@ -66,6 +70,29 @@ export async function PATCH(
     if (updateError) {
       console.error("[PATCH /api/teams/.../inventory/[itemId]]", updateError)
       return NextResponse.json({ error: "Failed to update item" }, { status: 500 })
+    }
+
+    if (newPlayerId && newPlayerId !== previousPlayerId) {
+      await logPlayerProfileActivity({
+        playerId: newPlayerId,
+        teamId,
+        actorId: session.user.id,
+        actionType: PLAYER_PROFILE_ACTION_TYPES.EQUIPMENT_ASSIGNED,
+        targetType: "inventory_item",
+        targetId: itemId,
+        metadata: { itemName: updatedItem.name ?? "" },
+      })
+    }
+    if (previousPlayerId && previousPlayerId !== newPlayerId) {
+      await logPlayerProfileActivity({
+        playerId: previousPlayerId,
+        teamId,
+        actorId: session.user.id,
+        actionType: PLAYER_PROFILE_ACTION_TYPES.EQUIPMENT_UNASSIGNED,
+        targetType: "inventory_item",
+        targetId: itemId,
+        metadata: { itemName: updatedItem.name ?? "" },
+      })
     }
 
     // Fetch player info if assigned

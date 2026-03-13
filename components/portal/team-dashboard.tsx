@@ -17,6 +17,7 @@ import {
   ImageIcon,
   MapPin,
   Clock,
+  ClipboardCheck,
 } from "lucide-react"
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths } from "date-fns"
 // Calendar widget removed - using inline component instead
@@ -418,6 +419,78 @@ function UpdatesCard() {
   )
 }
 
+// ─── Readiness Summary Card (coach only; fetches team readiness) ───────────────
+
+function ReadinessSummaryCard({ teamId }: { teamId: string }) {
+  const [summary, setSummary] = useState<{ total: number; incompleteCount: number; readyCount: number } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [forbidden, setForbidden] = useState(false)
+
+  useEffect(() => {
+    if (!teamId) return
+    setLoading(true)
+    setForbidden(false)
+    fetch(`/api/teams/${teamId}/readiness`)
+      .then((res) => {
+        if (res.status === 403) {
+          setForbidden(true)
+          return null
+        }
+        return res.ok ? res.json() : null
+      })
+      .then((data: { summary?: { total?: number; incompleteCount?: number; readyCount?: number } } | null) => {
+        if (data?.summary) {
+          setSummary({
+            total: data.summary.total ?? 0,
+            incompleteCount: data.summary.incompleteCount ?? 0,
+            readyCount: data.summary.readyCount ?? 0,
+          })
+        } else {
+          setSummary(null)
+        }
+      })
+      .catch(() => setSummary(null))
+      .finally(() => setLoading(false))
+  }, [teamId])
+
+  if (forbidden || loading || !summary) return null
+
+  return (
+    <Card className="border h-full" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
+          <ClipboardCheck className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+          Roster Readiness
+        </CardTitle>
+        <Link href={`/dashboard/roster?teamId=${teamId}`}>
+          <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
+            View
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{summary.total}</span>
+          <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>players</span>
+        </div>
+        <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+          <span className="font-medium text-green-600">{summary.readyCount} ready</span>
+          {summary.incompleteCount > 0 && (
+            <> · <span className="font-medium text-amber-600">{summary.incompleteCount} need attention</span></>
+          )}
+        </p>
+        {summary.incompleteCount > 0 && (
+          <Link href={`/dashboard/roster?teamId=${teamId}`}>
+            <Button size="sm" variant="outline" className="mt-2 text-xs">
+              Open Readiness tab
+            </Button>
+          </Link>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Notifications Card ───────────────────────────────────────────────────────
 
 function NotificationsCard() {
@@ -671,11 +744,12 @@ export function TeamDashboard({ session }: TeamDashboardProps) {
       {/* ── Full-width Calendar (only show if has team) ── */}
       {hasTeam && <DashboardCalendar teamId={user.teamId} />}
 
-      {/* ── Updates + Notifications side by side ── */}
+      {/* ── Updates + Notifications + Readiness (coach) ── */}
       {hasTeam && (
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <UpdatesCard />
         <NotificationsCard />
+        <ReadinessSummaryCard teamId={user.teamId!} />
       </div>
       )}
 

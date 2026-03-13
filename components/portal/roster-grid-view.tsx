@@ -135,6 +135,7 @@ export function RosterGridView({
             }}
             onImageUpload={canEdit ? handleImageUpload : undefined}
             onFormsUpdate={canEdit ? handleFormsUpdate : undefined}
+            profileHref={getProfileHref?.(player)}
           />
           {(getProfileHref || canEdit) && (getProfileHref || onEditPlayer || onSendInvite || onDeletePlayer) && (
             <div className="flex flex-wrap gap-1">

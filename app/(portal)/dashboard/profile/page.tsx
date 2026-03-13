@@ -1,14 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { User } from "lucide-react"
 
 /**
  * My Profile: redirects players to their own roster profile when they have a claimed roster record.
- * If no team or no player record, shows connect-to-team or empty state.
+ * If no team, DashboardPageShell shows ConnectToTeam. If no player record or error, shows clear empty/error state.
  */
 export default function MyProfilePage() {
   return (
@@ -22,8 +23,8 @@ export default function MyProfilePage() {
 
 function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [status, setStatus] = useState<"loading" | "found" | "not_found" | "error">("loading")
+  const replaceStarted = useRef(false)
 
   useEffect(() => {
     if (!teamId || !userId) {
@@ -34,12 +35,18 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
     setStatus("loading")
     fetch(`/api/roster/me?teamId=${encodeURIComponent(teamId)}`)
       .then((res) => {
+        if (cancelled) return
+        if (res.status === 403) {
+          setStatus("not_found")
+          return
+        }
         if (!res.ok) throw new Error("Failed to load")
         return res.json()
       })
-      .then((data: { playerId: string | null; teamId: string }) => {
-        if (cancelled) return
-        if (data.playerId) {
+      .then((data: { playerId: string | null; teamId: string } | void) => {
+        if (cancelled || !data) return
+        if (data.playerId && !replaceStarted.current) {
+          replaceStarted.current = true
           setStatus("found")
           const url = `/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`
           router.replace(url)
@@ -53,37 +60,41 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
     return () => { cancelled = true }
   }, [teamId, userId, router])
 
-  if (status === "loading") {
+  if (status === "loading" || status === "found") {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
-  }
-
-  if (status === "found") {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+        {status === "found" && (
+          <p className="text-sm text-[#64748B]">Opening your profile...</p>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-lg border border-[rgb(var(--border))] bg-white p-6 text-center">
-      <h2 className="text-lg font-semibold text-[#0F172A]">My Profile</h2>
-      <p className="mt-2 text-sm text-[#64748B]">
-        {status === "not_found"
-          ? "You don't have a player profile on this team yet. Ask your coach to add you to the roster and send you an invite to claim your profile."
-          : "Something went wrong. Please try again."}
-      </p>
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-        <Link href={teamId ? `/dashboard/roster?teamId=${encodeURIComponent(teamId)}` : "/dashboard/roster"}>
-          <Button variant="outline">View Roster</Button>
-        </Link>
-        <Link href="/dashboard">
-          <Button variant="ghost">Back to Dashboard</Button>
-        </Link>
+    <div className="mx-auto max-w-lg rounded-xl border border-[rgb(var(--border))] bg-white p-8 shadow-sm">
+      <div className="flex flex-col items-center text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#F1F5F9]">
+          <User className="h-7 w-7 text-[#64748B]" />
+        </div>
+        <h2 className="text-xl font-semibold text-[#0F172A]">My Profile</h2>
+        <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
+          {status === "not_found"
+            ? "You don't have a player profile on this team yet. Ask your coach to add you to the roster and send you an invite link to claim your profile. Once you've joined, you can view and update your info here."
+            : "Something went wrong loading your profile. Please try again or go back to the dashboard."}
+        </p>
+        <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+          <Link href={teamId ? `/dashboard/roster?teamId=${encodeURIComponent(teamId)}` : "/dashboard/roster"} className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full sm:w-auto">
+              View Roster
+            </Button>
+          </Link>
+          <Link href="/dashboard" className="w-full sm:w-auto">
+            <Button variant="ghost" className="w-full sm:w-auto">
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
       </div>
     </div>
   )

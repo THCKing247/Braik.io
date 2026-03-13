@@ -15,6 +15,7 @@ export interface PlayerProfileBasic {
   weight?: number | null
   dateOfBirth?: string | null
   school?: string | null
+  /** Plain-text contact info. For relational parent/guardian linkage use guardians + guardian_links (see Docs/PLAYER_PROFILE_PARENT_GUARDIAN.md). */
   parentGuardianContact?: string | null
   playerEmail?: string | null
   playerPhone?: string | null
@@ -114,4 +115,19 @@ export interface PlayerProfileUpdateBody {
   profileNotes?: string | null
   profileTags?: string[]
   notes?: string | null
+}
+
+/**
+ * Guardian linkage (product-level). One guardian can be linked to many players;
+ * one player can have many guardians. Use guardians + guardian_links tables.
+ * GUARDIAN_ACCESS_HOOK: When allowing profile read for a user, check guardian_links
+ * where guardian_id = (guardian row for this user) and player_id = profile player.
+ */
+export interface GuardianLinkSummary {
+  guardianId: string
+  playerId: string
+  relationship?: string | null
+  verified?: boolean
+  /** Resolved from guardians.user_id -> users.name */
+  guardianName?: string | null
 }

@@ -1090,6 +1090,7 @@ export function RosterManagerEnhanced({
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
             onImageUploadSuccess={handlePlayerImageUploaded}
+            getProfileHref={(p) => `/dashboard/roster/${p.id}?teamId=${encodeURIComponent(teamId)}`}
           />
         ) : (
           <RosterListView
@@ -1098,6 +1099,7 @@ export function RosterManagerEnhanced({
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+            getProfileHref={(p) => `/dashboard/roster/${p.id}?teamId=${encodeURIComponent(teamId)}`}
           />
         )
       )}

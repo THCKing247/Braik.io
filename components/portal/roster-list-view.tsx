@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { FileText } from "lucide-react"
+import { FileText, User } from "lucide-react"
 import { PlayerFormsModal } from "./player-forms-modal"
 
 export interface Player {
@@ -33,6 +34,8 @@ interface RosterListViewProps {
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
+  /** If provided, each row gets a "View Profile" link. */
+  getProfileHref?: (player: Player) => string
 }
 
 function getInitials(firstName: string, lastName: string) {
@@ -47,6 +50,7 @@ export function RosterListView({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  getProfileHref,
 }: RosterListViewProps) {
   const [playersState, setPlayersState] = useState<Player[]>(players)
   const [formsModalPlayer, setFormsModalPlayer] = useState<Player | null>(null)
@@ -109,7 +113,7 @@ export function RosterListView({
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Weight</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Height</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Status</th>
-              {canEdit && (onEditPlayer || onSendInvite || onDeletePlayer) && (
+              {(getProfileHref || (canEdit && (onEditPlayer || onSendInvite || onDeletePlayer))) && (
                 <th className="px-4 py-3 font-semibold text-[#0F172A] text-right">Actions</th>
               )}
             </tr>
@@ -124,6 +128,7 @@ export function RosterListView({
                 onSendInvite={onSendInvite}
                 onDeletePlayer={onDeletePlayer}
                 onOpenFormsModal={() => setFormsModalPlayer(player)}
+                profileHref={getProfileHref?.(player)}
               />
             ))}
           </tbody>
@@ -154,6 +159,7 @@ function RosterListRow({
   onSendInvite,
   onDeletePlayer,
   onOpenFormsModal,
+  profileHref,
 }: {
   player: Player
   canEdit: boolean
@@ -161,6 +167,7 @@ function RosterListRow({
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
   onOpenFormsModal?: () => void
+  profileHref?: string
 }) {
   const [imageError, setImageError] = useState(false)
 
@@ -224,9 +231,21 @@ function RosterListRow({
           {getStatusDisplay().text}
         </span>
       </td>
-      {canEdit && (onEditPlayer || onSendInvite || onDeletePlayer) && (
+      {(profileHref || canEdit) && (profileHref || onEditPlayer || onSendInvite || onDeletePlayer) && (
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap gap-1 justify-end">
+            {profileHref && (
+              <Link href={profileHref}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7"
+                  title="View profile"
+                >
+                  <User className="h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            )}
             {canEdit && onOpenFormsModal && (
               <Button
                 variant="outline"

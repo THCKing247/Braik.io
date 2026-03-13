@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { PlayerCard } from "./player-card"
 import { Button } from "@/components/ui/button"
+import { User } from "lucide-react"
 
 export interface Player {
   id: string
@@ -30,6 +32,8 @@ interface RosterGridViewProps {
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
   onImageUploadSuccess?: (playerId: string, imageUrl: string) => void
+  /** If provided, each player card gets a "View Profile" link to this URL (e.g. /dashboard/roster/[playerId]?teamId=xxx). */
+  getProfileHref?: (player: Player) => string
 }
 
 export function RosterGridView({
@@ -39,6 +43,7 @@ export function RosterGridView({
   onSendInvite,
   onDeletePlayer,
   onImageUploadSuccess,
+  getProfileHref,
 }: RosterGridViewProps) {
   const [uploadingPlayerId, setUploadingPlayerId] = useState<string | null>(null)
   const [playersState, setPlayersState] = useState<Player[]>(players)
@@ -131,9 +136,22 @@ export function RosterGridView({
             onImageUpload={canEdit ? handleImageUpload : undefined}
             onFormsUpdate={canEdit ? handleFormsUpdate : undefined}
           />
-          {canEdit && (onEditPlayer || onSendInvite || onDeletePlayer) && (
+          {(getProfileHref || canEdit) && (getProfileHref || onEditPlayer || onSendInvite || onDeletePlayer) && (
             <div className="flex flex-wrap gap-1">
-              {onEditPlayer && (
+              {getProfileHref && (
+                <Link href={getProfileHref(player)} className="flex-1 min-w-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 w-full"
+                    title="View profile"
+                  >
+                    <User className="h-3.5 w-3.5 mr-1" />
+                    Profile
+                  </Button>
+                </Link>
+              )}
+              {canEdit && onEditPlayer && (
                 <Button
                   variant="outline"
                   size="sm"

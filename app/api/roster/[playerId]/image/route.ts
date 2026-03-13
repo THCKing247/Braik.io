@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { writeFile, mkdir, unlink } from "fs/promises"
 import { join } from "path"
+import { getUploadRoot } from "@/lib/upload-path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
@@ -70,7 +71,7 @@ export async function POST(
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
     const secureFileName = `${timestamp}-${random}-${sanitizedName}`
 
-    const uploadsDir = join(process.cwd(), "uploads", "players")
+    const uploadsDir = join(getUploadRoot(), "uploads", "players")
     await mkdir(uploadsDir, { recursive: true })
     const filePath = join(uploadsDir, secureFileName)
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -150,7 +151,7 @@ export async function DELETE(
     const imageUrl = (player as { image_url?: string }).image_url
     if (imageUrl?.startsWith("/api/uploads/players/")) {
       const fileName = imageUrl.replace("/api/uploads/players/", "")
-      const filePath = join(process.cwd(), "uploads", "players", fileName)
+      const filePath = join(getUploadRoot(), "uploads", "players", fileName)
       try {
         await unlink(filePath)
       } catch {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { unlink } from "fs/promises"
 import { join } from "path"
+import { getUploadRoot } from "@/lib/upload-path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
@@ -141,7 +142,7 @@ export async function DELETE(
     const fileUrl = (doc as { file_url?: string }).file_url
     if (fileUrl?.startsWith("/api/uploads/player-documents/")) {
       const fileName = fileUrl.replace("/api/uploads/player-documents/", "")
-      const filePath = join(process.cwd(), "uploads", "player-documents", fileName)
+      const filePath = join(getUploadRoot(), "uploads", "player-documents", fileName)
       try {
         await unlink(filePath)
       } catch {

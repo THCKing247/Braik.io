@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { writeFile, mkdir, unlink } from "fs/promises"
 import { join } from "path"
+import { getUploadRoot } from "@/lib/upload-path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
@@ -175,7 +176,7 @@ export async function POST(
     const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
     const secureName = `${timestamp}-${random}-${sanitized}`
 
-    const uploadsDir = join(process.cwd(), "uploads", "player-documents")
+    const uploadsDir = join(getUploadRoot(), "uploads", "player-documents")
     await mkdir(uploadsDir, { recursive: true })
     const filePath = join(uploadsDir, secureName)
     const buffer = Buffer.from(await file.arrayBuffer())

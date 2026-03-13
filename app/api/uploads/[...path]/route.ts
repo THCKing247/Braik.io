@@ -2,13 +2,14 @@ import { NextResponse } from "next/server"
 import { readFile } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
+import { getUploadRoot } from "@/lib/upload-path"
 
 export async function GET(
   request: Request,
   { params }: { params: { path: string[] } }
 ) {
   try {
-    const filePath = join(process.cwd(), "uploads", ...params.path)
+    const filePath = join(getUploadRoot(), "uploads", ...params.path)
 
     if (!existsSync(filePath)) {
       return NextResponse.json({ error: "File not found" }, { status: 404 })

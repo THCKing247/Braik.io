@@ -188,13 +188,16 @@ export function HealthManager({ teamId }: HealthManagerProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-3xl font-bold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
             <Stethoscope className="h-8 w-8" />
             Injury Report
           </h1>
-          <p className="text-white/70 mt-1">Track player injuries and health status</p>
+          <p className="mt-1" style={{ color: "rgb(var(--muted))" }}>Track player injuries and health status</p>
         </div>
-        <Button onClick={() => setShowInjuryModal(true)}>
+        <Button 
+          onClick={() => setShowInjuryModal(true)}
+          style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Record Injury
         </Button>
@@ -203,16 +206,17 @@ export function HealthManager({ teamId }: HealthManagerProps) {
       {/* Injury Modal */}
       {showInjuryModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md bg-[#1e3a5f] border-[#1e3a5f]">
+          <Card className="w-full max-w-md border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-white">Record Injury</CardTitle>
+                <CardTitle style={{ color: "rgb(var(--text))" }}>Record Injury</CardTitle>
                 <button
                   onClick={() => {
                     setShowInjuryModal(false)
                     resetForm()
                   }}
-                  className="text-white/70 hover:text-white"
+                  style={{ color: "rgb(var(--muted))" }}
+                  className="hover:opacity-70"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -220,12 +224,17 @@ export function HealthManager({ teamId }: HealthManagerProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="player" className="text-white">Player *</Label>
+                <Label htmlFor="player" style={{ color: "rgb(var(--text))" }}>Player *</Label>
                 <select
                   id="player"
                   value={selectedPlayerId}
                   onChange={(e) => setSelectedPlayerId(e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 text-white rounded-md px-3 py-2"
+                  className="w-full rounded-md px-3 py-2 border"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
+                  }}
                 >
                   <option value="">Select a player</option>
                   {players.map((p) => (
@@ -238,54 +247,76 @@ export function HealthManager({ teamId }: HealthManagerProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="reason" className="text-white">Injury Reason *</Label>
+                <Label htmlFor="reason" style={{ color: "rgb(var(--text))" }}>Injury Reason *</Label>
                 <Input
                   id="reason"
                   value={injuryReason}
                   onChange={(e) => setInjuryReason(e.target.value)}
                   placeholder="e.g., Sprained ankle, Concussion"
-                  className="bg-white/10 border-white/20 text-white"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
+                  }}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="injuryDate" className="text-white">Injury Date</Label>
+                <Label htmlFor="injuryDate" style={{ color: "rgb(var(--text))" }}>Injury Date</Label>
                 <Input
                   id="injuryDate"
                   type="date"
                   value={injuryDate}
                   onChange={(e) => setInjuryDate(e.target.value)}
-                  className="bg-white/10 border-white/20 text-white"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
+                  }}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="returnDate" className="text-white">Expected Return Date</Label>
+                <Label htmlFor="returnDate" style={{ color: "rgb(var(--text))" }}>Expected Return Date</Label>
                 <Input
                   id="returnDate"
                   type="date"
                   value={expectedReturnDate}
                   onChange={(e) => setExpectedReturnDate(e.target.value)}
-                  className="bg-white/10 border-white/20 text-white"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
+                  }}
                 />
-                <p className="text-xs text-white/60">
+                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
                   This will create a calendar event for the expected return date
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes" className="text-white">Notes (Optional)</Label>
+                <Label htmlFor="notes" style={{ color: "rgb(var(--text))" }}>Notes (Optional)</Label>
                 <textarea
                   id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Additional details about the injury"
-                  className="w-full bg-white/10 border border-white/20 text-white rounded-md px-3 py-2 min-h-[80px]"
+                  className="w-full rounded-md px-3 py-2 min-h-[80px] border"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
+                  }}
                 />
               </div>
 
               <div className="flex gap-2 pt-2">
-                <Button onClick={handleCreateInjury} disabled={submitting} className="flex-1">
+                <Button 
+                  onClick={handleCreateInjury} 
+                  disabled={submitting} 
+                  className="flex-1"
+                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                >
                   {submitting ? "Recording..." : "Record Injury"}
                 </Button>
                 <Button
@@ -294,6 +325,7 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                     setShowInjuryModal(false)
                     resetForm()
                   }}
+                  style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                 >
                   Cancel
                 </Button>
@@ -304,16 +336,18 @@ export function HealthManager({ teamId }: HealthManagerProps) {
       )}
 
       {/* Active Injuries */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
-          <CardTitle className="text-white">Active Injuries</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+            ACTIVE INJURIES
+          </CardTitle>
+          <CardDescription style={{ color: "rgb(var(--muted))" }}>
             Currently injured players
           </CardDescription>
         </CardHeader>
         <CardContent>
           {activeInjuries.length === 0 ? (
-            <p className="text-white/70">No active injuries</p>
+            <p style={{ color: "rgb(var(--muted))" }}>No active injuries</p>
           ) : (
             <div className="space-y-4">
               {activeInjuries.map((injury) => {
@@ -321,37 +355,39 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                 return (
                   <div
                     key={injury.id}
-                    className="bg-white/5 rounded-lg p-4 border border-white/10"
+                    className="rounded-lg p-4 border"
+                    style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-red-500 font-bold">●</span>
-                          <h3 className="text-white font-semibold">
+                          <h3 className="font-semibold" style={{ color: "rgb(var(--text))" }}>
                             {player.jersey_number ? `#${player.jersey_number} ` : ""}
                             {player.first_name} {player.last_name}
                           </h3>
                         </div>
-                        <p className="text-white/90 mb-1">
+                        <p className="mb-1" style={{ color: "rgb(var(--text))" }}>
                           <strong>Injury:</strong> {injury.injury_reason}
                         </p>
-                        <p className="text-white/70 text-sm">
+                        <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
                           <strong>Date:</strong> {new Date(injury.injury_date).toLocaleDateString()}
                         </p>
                         {injury.expected_return_date && (
-                          <p className="text-white/70 text-sm">
+                          <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
                             <strong>Expected Return:</strong>{" "}
                             {new Date(injury.expected_return_date).toLocaleDateString()}
                           </p>
                         )}
                         {injury.notes && (
-                          <p className="text-white/70 text-sm mt-2">{injury.notes}</p>
+                          <p className="text-sm mt-2" style={{ color: "rgb(var(--muted))" }}>{injury.notes}</p>
                         )}
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleResolveInjury(injury.id)}
+                        style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                       >
                         Mark Resolved
                       </Button>
@@ -365,10 +401,12 @@ export function HealthManager({ teamId }: HealthManagerProps) {
       </Card>
 
       {/* Player Health Status Summary */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
-          <CardTitle className="text-white">Player Health Status</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+            PLAYER HEALTH STATUS
+          </CardTitle>
+          <CardDescription style={{ color: "rgb(var(--muted))" }}>
             Overview of all player health statuses
           </CardDescription>
         </CardHeader>
@@ -379,22 +417,23 @@ export function HealthManager({ teamId }: HealthManagerProps) {
               return (
                 <div
                   key={player.id}
-                  className="bg-white/5 rounded-lg p-3 border border-white/10"
+                  className="rounded-lg p-3 border"
+                  style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <div
                       className={`w-3 h-3 rounded-full ${getStatusColor(player.healthStatus)}`}
                     />
-                    <span className="text-white font-medium">
+                    <span className="font-medium" style={{ color: "rgb(var(--text))" }}>
                       {player.jerseyNumber ? `#${player.jerseyNumber} ` : ""}
                       {player.firstName} {player.lastName}
                     </span>
                   </div>
-                  <p className="text-white/70 text-sm">
+                  <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
                     Status: {getStatusLabel(player.healthStatus)}
                   </p>
                   {playerInjury && (
-                    <p className="text-red-400 text-sm mt-1">
+                    <p className="text-red-600 text-sm mt-1">
                       {playerInjury.injury_reason}
                     </p>
                   )}
@@ -407,10 +446,12 @@ export function HealthManager({ teamId }: HealthManagerProps) {
 
       {/* Resolved Injuries */}
       {resolvedInjuries.length > 0 && (
-        <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
           <CardHeader>
-            <CardTitle className="text-white">Resolved Injuries</CardTitle>
-            <CardDescription className="text-white/70">
+            <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+              RESOLVED INJURIES
+            </CardTitle>
+            <CardDescription style={{ color: "rgb(var(--muted))" }}>
               Recently resolved injuries
             </CardDescription>
           </CardHeader>
@@ -421,15 +462,16 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                 return (
                   <div
                     key={injury.id}
-                    className="bg-white/5 rounded-lg p-3 border border-white/10"
+                    className="rounded-lg p-3 border"
+                    style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-green-500">✓</span>
-                      <span className="text-white/90">
+                      <span className="text-green-600">✓</span>
+                      <span style={{ color: "rgb(var(--text))" }}>
                         {player.jersey_number ? `#${player.jersey_number} ` : ""}
                         {player.first_name} {player.last_name}
                       </span>
-                      <span className="text-white/70 text-sm">
+                      <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>
                         - {injury.injury_reason} (Resolved{" "}
                         {injury.actual_return_date
                           ? new Date(injury.actual_return_date).toLocaleDateString()

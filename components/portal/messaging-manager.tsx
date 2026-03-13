@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
-import { MessageSquare, Plus, Paperclip, Send, Lock } from "lucide-react"
+import { MessageSquare, Plus, Paperclip, Send, Lock, Search, Users, X } from "lucide-react"
 import { getMessagingPermissions, getUserType } from "@/lib/enforcement/messaging-permissions"
 
 interface Message {
@@ -65,6 +66,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [showCreateThread, setShowCreateThread] = useState(false)
   const [newThreadSubject, setNewThreadSubject] = useState("")
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filteredThreads, setFilteredThreads] = useState<Thread[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const permissions = getMessagingPermissions(userRole as any)
@@ -76,6 +80,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }, [teamId])
 
   useEffect(() => {
+    // Initialize filtered threads when threads change
+    setFilteredThreads(threads)
+  }, [threads])
+
+  useEffect(() => {
     if (selectedThread) {
       loadMessages(selectedThread.id)
     }
@@ -84,6 +93,20 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    // Filter threads based on search query
+    if (searchQuery.trim()) {
+      const filtered = threads.filter(thread => {
+        const displayName = getThreadDisplayName(thread).toLowerCase()
+        const lastMessage = thread.messages[0]?.body?.toLowerCase() || ""
+        return displayName.includes(searchQuery.toLowerCase()) || lastMessage.includes(searchQuery.toLowerCase())
+      })
+      setFilteredThreads(filtered)
+    } else {
+      setFilteredThreads(threads)
+    }
+  }, [searchQuery, threads])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -284,63 +307,119 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }
 
   return (
-    <div className="flex h-[calc(100vh-200px)] rounded-lg overflow-hidden" style={{ backgroundColor: "#FFFFFF", border: "2px solid #0B2A5B", outline: "none" }}>
+    <div className="flex h-[calc(100vh-200px)] rounded-lg overflow-hidden border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
       {/* Thread List Sidebar */}
-      <div className="w-80 border-r-2 flex flex-col" style={{ backgroundColor: "#FFFFFF", borderRightColor: "#0B2A5B" }}>
-        <div className="p-4 border-b-2 flex items-center justify-between" style={{ borderBottomColor: "#0B2A5B" }}>
+      <div className="w-80 border-r flex flex-col h-full" style={{ backgroundColor: "#FFFFFF", borderRightColor: "rgb(var(--border))" }}>
+        <div className="p-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
           <h2 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>Messages</h2>
           {canCreateThread && (
             <Button
               size="sm"
               onClick={() => setShowCreateThread(!showCreateThread)}
               className="h-8 w-8 p-0"
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
             >
               <Plus className="h-4 w-4" />
             </Button>
           )}
         </div>
 
+        {/* Search Bar */}
+        <div className="p-4 border-b flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4" style={{ color: "rgb(var(--muted))" }} />
+            <Input
+              type="text"
+              placeholder="Search messages..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-9 text-sm"
+              style={{
+                backgroundColor: "#FFFFFF",
+                borderColor: "rgb(var(--border))",
+                color: "rgb(var(--text))",
+              }}
+            />
+          </div>
+        </div>
+
         {showCreateThread && (
-          <div className="p-4" style={{ backgroundColor: "#FFFFFF", borderBottom: "2px solid #0B2A5B" }}>
+          <div className="p-4 border-b flex-shrink-0" style={{ backgroundColor: "rgb(var(--platinum))", borderBottomColor: "rgb(var(--border))" }}>
             <div className="space-y-3">
               <div>
-                <Label className="text-xs">Subject</Label>
+                <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>Subject</Label>
                 <Input
                   value={newThreadSubject}
                   onChange={(e) => setNewThreadSubject(e.target.value)}
                   placeholder="Thread subject"
-                  className="h-8 text-sm border-2 focus:border-[#0B2A5B] focus:ring-2 focus:ring-[#0B2A5B]"
+                  className="h-8 text-sm"
                   style={{
-                    borderColor: "#0B2A5B",
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
                   }}
                 />
               </div>
               <div>
-                <Label className="text-xs">Participants</Label>
-                <div className="max-h-32 overflow-y-auto border-2 rounded p-2 space-y-1" style={{ borderColor: "#0B2A5B" }}>
-                  {contacts.map((contact) => (
-                    <label key={contact.id} className="flex items-center space-x-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedContacts.includes(contact.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedContacts([...selectedContacts, contact.id])
-                          } else {
-                            setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
-                          }
-                        }}
-                      />
-                      <span style={{ color: "rgb(var(--text))" }}>{contact.name}</span>
-                    </label>
-                  ))}
-                </div>
+                <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>Participants</Label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowParticipantsModal(true)}
+                  className="w-full justify-start"
+                  style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  {selectedContacts.length > 0 
+                    ? `${selectedContacts.length} selected` 
+                    : "Select participants"}
+                </Button>
+                {selectedContacts.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedContacts.map(contactId => {
+                      const contact = contacts.find(c => c.id === contactId)
+                      return contact ? (
+                        <div
+                          key={contactId}
+                          className="text-xs px-2 py-1 rounded border flex items-center gap-1"
+                          style={{
+                            backgroundColor: "rgb(var(--platinum))",
+                            borderColor: "rgb(var(--border))",
+                            color: "rgb(var(--text))",
+                          }}
+                        >
+                          <span>{contact.name}</span>
+                          <button
+                            onClick={() => setSelectedContacts(selectedContacts.filter(id => id !== contactId))}
+                            className="hover:opacity-70"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : null
+                    })}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleCreateThread} disabled={loading}>
+                <Button 
+                  size="sm" 
+                  onClick={handleCreateThread} 
+                  disabled={loading || !newThreadSubject.trim() || selectedContacts.length === 0}
+                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                >
                   Create
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowCreateThread(false)}>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowCreateThread(false)
+                    setNewThreadSubject("")
+                    setSelectedContacts([])
+                  }}
+                  style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                >
                   Cancel
                 </Button>
               </div>
@@ -349,7 +428,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         )}
 
         <div className="flex-1 overflow-y-auto">
-          {threads.map((thread) => {
+          {(searchQuery ? filteredThreads : threads).map((thread) => {
             const isSelected = selectedThread?.id === thread.id
             const lastMessage = thread.messages[0]
             const isReadOnly = thread.isReadOnly || false
@@ -362,9 +441,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                   isSelected ? "" : ""
                 }`}
                 style={{
-                  backgroundColor: isSelected ? "transparent" : "transparent",
-                  borderLeft: isSelected ? "4px solid #0B2A5B" : "4px solid transparent",
-                  borderBottom: "2px solid #0B2A5B",
+                  backgroundColor: isSelected ? "rgb(var(--platinum))" : "transparent",
+                  borderLeft: isSelected ? "4px solid rgb(var(--accent))" : "4px solid transparent",
+                  borderBottom: "1px solid rgb(var(--border))",
                 }}
               >
                 <div className="flex items-start gap-2">
@@ -394,26 +473,42 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       </div>
 
       {/* Message View */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {selectedThread ? (
           <>
             {/* Thread Header */}
-            <div className="p-4" style={{ borderBottom: "2px solid #0B2A5B" }}>
-              <h2 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>
-                {getThreadDisplayName(selectedThread)}
-                {selectedThread.isReadOnly && (
-                  <span className="ml-2 text-xs font-normal" style={{ color: "rgb(var(--muted))" }}>
-                    (Read-only)
-                  </span>
-                )}
-              </h2>
-              <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
-                {selectedThread.participants.length} participant{selectedThread.participants.length !== 1 ? "s" : ""}
-              </p>
+            <div className="p-4 border-b flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h2 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>
+                    {getThreadDisplayName(selectedThread)}
+                    {selectedThread.isReadOnly && (
+                      <span className="ml-2 text-xs font-normal" style={{ color: "rgb(var(--muted))" }}>
+                        (Read-only)
+                      </span>
+                    )}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                      {selectedThread.participants.length} participant{selectedThread.participants.length !== 1 ? "s" : ""}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowParticipantsModal(true)}
+                      className="h-6 px-2 text-xs"
+                      style={{ color: "rgb(var(--accent))" }}
+                    >
+                      <Users className="h-3 w-3 mr-1" />
+                      Manage
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
               {messages.map((message) => {
                 const isOwnMessage = message.creator.id === userId
                 return (
@@ -476,7 +571,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
             {/* Message Input */}
             {!selectedThread.isReadOnly && (
-              <div className="p-4" style={{ borderTop: "2px solid #0B2A5B" }}>
+              <div className="p-4 border-t flex-shrink-0" style={{ borderTopColor: "rgb(var(--border))" }}>
                 {attachments.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {attachments.map((att, idx) => (
@@ -534,7 +629,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                       e.currentTarget.style.boxShadow = "none"
                     }}
                   />
-                  <Button onClick={handleSendMessage} disabled={loading || !messageBody.trim()}>
+                  <Button 
+                    onClick={handleSendMessage} 
+                    disabled={loading || !messageBody.trim()}
+                    style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                  >
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
@@ -547,6 +646,61 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         )}
       </div>
+
+      {/* Participants Modal */}
+      <Dialog open={showParticipantsModal} onOpenChange={setShowParticipantsModal}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Select Participants</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {contacts.map((contact) => (
+                <label
+                  key={contact.id}
+                  className="flex items-center space-x-3 p-2 rounded cursor-pointer hover:bg-gray-100"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedContacts.includes(contact.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedContacts([...selectedContacts, contact.id])
+                      } else {
+                        setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
+                      }
+                    }}
+                    className="w-4 h-4"
+                    style={{ accentColor: "rgb(var(--accent))" }}
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                      {contact.name}
+                    </p>
+                    <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                      {contact.email} • {contact.role}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-4 border-t" style={{ borderTopColor: "rgb(var(--border))" }}>
+              <Button
+                onClick={() => {
+                  setShowParticipantsModal(false)
+                  if (showCreateThread && selectedContacts.length === 0) {
+                    setShowCreateThread(false)
+                  }
+                }}
+                variant="outline"
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

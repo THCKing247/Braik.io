@@ -251,7 +251,7 @@ export function PlayerProfileView({
     )
   }
 
-  const value = (key: keyof PlayerProfile) => (editDraft[key] !== undefined ? editDraft[key] : (profile as Record<string, unknown>)[key as string])
+  const value = (key: keyof PlayerProfile) => (editDraft[key] !== undefined ? editDraft[key] : (profile as unknown as Record<string, unknown>)[key as string])
 
   return (
     <div className="space-y-6 pb-8">
@@ -900,8 +900,8 @@ function InfoTab({
               )
             ) : (
               <p className="min-h-[2.5rem] rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">
-                {(profile as Record<string, unknown>)[key as string] != null && (profile as Record<string, unknown>)[key as string] !== ""
-                  ? String((profile as Record<string, unknown>)[key as string])
+                {(profile as unknown as Record<string, unknown>)[key as string] != null && (profile as unknown as Record<string, unknown>)[key as string] !== ""
+                  ? String((profile as unknown as Record<string, unknown>)[key as string])
                   : "—"}
               </p>
             )}
@@ -1023,12 +1023,15 @@ function StatsTab({
                         <span className="font-medium text-[#0F172A]">{date ? String(date) : "—"}</span>
                         <span className="text-sm text-[#64748B]">{opponent ? String(opponent) : "—"}</span>
                       </div>
-                      {notes && <p className="mt-1 text-sm text-[#475569]">{String(notes)}</p>}
+                      {notes != null && notes !== "" ? <p className="mt-1 text-sm text-[#475569]">{String(notes)}</p> : null}
                       {rest.length > 0 && (
                         <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
-                          {rest.map(([k, v]) => (
-                            <span key={k} className="text-[#64748B]">{k.replace(/_/g, " ")}: <span className="text-[#0F172A]">{v != null ? String(v) : "—"}</span></span>
-                          ))}
+                          {rest.map(([k, v]) => {
+                            const display = String(v ?? "—")
+                            return (
+                              <span key={k} className="text-[#64748B]">{k.replace(/_/g, " ")}: <span className="text-[#0F172A]">{display}</span></span>
+                            )
+                          })}
                         </dl>
                       )}
                     </div>
@@ -1087,9 +1090,9 @@ function EquipmentTab({
     fetch(`/api/roster/${playerId}/activity?teamId=${encodeURIComponent(teamId)}&limit=50`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data: { id: string; actionType: string; metadata?: Record<string, unknown>; createdAt: string }[]) => {
-        const equipment = (Array.isArray(data) ? data : []).filter(
-          (a) => a.actionType === "equipment_assigned" || a.actionType === "equipment_unassigned"
-        )
+        const equipment = (Array.isArray(data) ? data : [])
+          .filter((a) => a.actionType === "equipment_assigned" || a.actionType === "equipment_unassigned")
+          .map((a) => ({ ...a, metadata: a.metadata ?? {} }))
         setEquipmentActivity(equipment.slice(0, 15))
       })
       .catch(() => setEquipmentActivity([]))
@@ -1290,6 +1293,7 @@ type PlayerDocument = {
   fileName: string
   fileUrl: string | null
   fileSize: number | null
+  mimeType?: string | null
   category: string
   createdAt: string
   visibleToPlayer?: boolean
@@ -1368,7 +1372,7 @@ function DocumentsTab({
       }
       loadDocs()
       form.reset()
-      fileInputRef.current?.value = ""
+      if (fileInputRef.current) fileInputRef.current.value = ""
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed")
     } finally {
@@ -1660,11 +1664,11 @@ function ActivityTab({ playerId, teamId }: { playerId: string; teamId: string })
               <span className="font-medium text-[#0F172A]">
                 {ACTIVITY_LABELS[a.actionType] ?? a.actionType}
               </span>
-              {a.metadata?.title && typeof a.metadata.title === "string" && (
-                <span className="ml-2 text-sm text-[#64748B]">— {a.metadata.title}</span>
+              {a.metadata?.title != null && (
+                <span className="ml-2 text-sm text-[#64748B]">— {String(a.metadata.title)}</span>
               )}
-              {a.metadata?.itemName && typeof a.metadata.itemName === "string" && (
-                <span className="ml-2 text-sm text-[#64748B]">— {a.metadata.itemName}</span>
+              {a.metadata?.itemName != null && (
+                <span className="ml-2 text-sm text-[#64748B]">— {String(a.metadata.itemName)}</span>
               )}
               {a.actor?.name && (
                 <p className="mt-0.5 text-xs text-[#94A3B8]">by {a.actor.name}</p>

@@ -82,13 +82,14 @@ export async function GET(
     const result = (links ?? []).map((link) => {
       const g = guardianById.get((link as { guardian_id: string }).guardian_id) as {
         id: string
+        user_id: string | null
         first_name: string | null
         last_name: string | null
         email: string | null
         phone: string | null
         relationship: string | null
       } | undefined
-      const user = g ? userMap.get((g as { user_id: string }).user_id) : null
+      const user = g?.user_id ? userMap.get(g.user_id) : null
       const name = g
         ? [g.first_name, g.last_name].filter(Boolean).join(" ") || user?.name || "Guardian"
         : "Guardian"

@@ -36,6 +36,11 @@ export default function NewSubFormationPage() {
     if (!formationId || !name.trim() || !formation) return
     setSaving(true)
     setError(null)
+    const defaultTemplate = { fieldView: "HALF" as const, shapes: [], paths: [] }
+    const templateData =
+      formation.templateData != null && typeof formation.templateData === "object"
+        ? JSON.parse(JSON.stringify(formation.templateData))
+        : defaultTemplate
     try {
       const res = await fetch("/api/sub-formations", {
         method: "POST",
@@ -45,6 +50,7 @@ export default function NewSubFormationPage() {
           formationId,
           side: formation.side,
           name: name.trim(),
+          templateData,
         }),
       })
       if (!res.ok) {

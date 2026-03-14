@@ -23,7 +23,8 @@ function CreateFormationPlayRedirect({
     if (done.current) return
     done.current = true
     const defaultTemplate = { fieldView: "HALF" as const, shapes: [], paths: [] }
-    const canvasData = templateDataToCanvasData(formation.templateData ?? defaultTemplate, formation.side)
+    const template = formation.templateData ?? defaultTemplate
+    const canvasData = templateDataToCanvasData(template, formation.side)
     fetch("/api/plays", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

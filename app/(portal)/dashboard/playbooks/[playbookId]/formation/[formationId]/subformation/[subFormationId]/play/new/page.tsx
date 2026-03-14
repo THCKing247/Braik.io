@@ -28,7 +28,8 @@ function CreateSubFormationPlayRedirect({
     done.current = true
     const defaultTemplate = { fieldView: "HALF" as const, shapes: [], paths: [] }
     const template = subFormation.templateData ?? formation.templateData ?? defaultTemplate
-    const canvasData = templateDataToCanvasData(template, formation.side)
+    const side = subFormation.side ?? formation.side
+    const canvasData = templateDataToCanvasData(template, side)
     fetch("/api/plays", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37,7 +38,7 @@ function CreateSubFormationPlayRedirect({
         playbookId,
         formationId,
         subFormationId,
-        side: formation.side,
+        side,
         formation: formation.name,
         name: "New Play",
         canvasData,

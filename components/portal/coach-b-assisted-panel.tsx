@@ -86,13 +86,17 @@ export function CoachBAssistedPanel({
 
   const handleCopy = useCallback(
     (suggestion: PlaySuggestion) => {
+      const conceptLine =
+        "Concept: " +
+        suggestion.conceptType +
+        (suggestion.concept ? " (" + suggestion.concept + ")" : "")
       const parts = [
         suggestion.playName,
-        `Concept: ${suggestion.conceptType}${suggestion.concept ? ` (${suggestion.concept})` : ""},
-        ...suggestion.routesByRole.map((r) => `  ${r.role}: ${r.route}`),
+        conceptLine,
+        ...suggestion.routesByRole.map((r) => "  " + r.role + ": " + r.route),
         suggestion.rationale,
       ]
-      if (suggestion.tags?.length) parts.push(`Tags: ${suggestion.tags.join(", ")}`)
+      if (suggestion.tags?.length) parts.push("Tags: " + suggestion.tags.join(", "))
       void navigator.clipboard.writeText(parts.join("\n"))
       showToast("Copied to clipboard", "success")
     },
@@ -100,13 +104,17 @@ export function CoachBAssistedPanel({
   )
 
   const handleDismiss = useCallback((index: number) => {
-    setDismissedIds((prev) => new Set(prev).add(`s-${index}`))
+    setDismissedIds((prev) => new Set(prev).add("s-" + index))
   }, [])
 
-  const visibleSuggestions = suggestions.filter((_, i) => !dismissedIds.has(`s-${i}`))
+  const visibleSuggestions = suggestions.filter((_, i) => !dismissedIds.has("s-" + i))
 
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white overflow-hidden ${className}`}>
+    <div
+      className={
+        "rounded-xl border border-slate-200 bg-white overflow-hidden " + (className ?? "")
+      }
+    >
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/80">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-amber-500" />

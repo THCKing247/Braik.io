@@ -2,7 +2,14 @@
 
 import { useMemo } from "react"
 import { PositionColumn } from "./position-column"
-import type { FormationPreset, FormationSlot, DepthAssignment } from "@/lib/depth-chart/formation-presets"
+import type {
+  FormationPreset,
+  FormationRow,
+  FormationSlot,
+  DepthAssignment,
+  RowAlignment,
+} from "@/lib/depth-chart/formation-presets"
+import { getAcceptedGroupsDisplay } from "@/lib/depth-chart/eligibility"
 
 export interface RosterPlayerForGrid {
   id: string
@@ -19,35 +26,61 @@ export interface RosterPlayerForGrid {
 interface DepthChartGridProps {
   preset: FormationPreset
   assignments: DepthAssignment[]
-  /** Roster players; used to resolve player by playerId at render time (no stale copy in assignment). */
   playersById: Map<string, RosterPlayerForGrid>
   unit: string
   formation?: string | null
   specialTeamType?: string | null
   canEdit: boolean
-  /** When set, slot keys in this set are valid drop targets for the currently dragged player; others are dimmed. */
   validSlotKeysForDraggingPlayer: Set<string> | null
-  /** Called when drag starts from an assigned slot so valid/invalid slot guidance matches roster drag. */
   onDragStartPlayer?: (playerId: string) => void
   onDrop: (position: string, string: number, playerId: string) => void
   onRemove: (position: string, string: number) => void
   onReorder: (position: string, fromString: number, toString: number) => void
 }
 
-/** Group slots by row for display (top row = row 0, bottom = row 1). */
+/** Legacy: group slots by gridRow when preset has no rows. */
 function slotsByRow(slots: FormationSlot[]): FormationSlot[][] {
   const byRow = new Map<number, FormationSlot[]>()
   for (const s of slots) {
-    const row = byRow.get(s.gridRow) ?? []
+    const r = s.gridRow ?? 0
+    const row = byRow.get(r) ?? []
     row.push(s)
-    byRow.set(s.gridRow, row)
+    byRow.set(r, row)
   }
-  const rows: FormationSlot[][] = []
   const sortedRows = [...byRow.keys()].sort((a, b) => a - b)
-  for (const r of sortedRows) {
-    rows.push((byRow.get(r) ?? []).sort((a, b) => a.gridCol - b.gridCol))
+  return sortedRows.map((r) => (byRow.get(r) ?? []).sort((a, b) => (a.gridCol ?? 0) - (b.gridCol ?? 0)))
+}
+
+function rowAlignmentClass(alignment: RowAlignment): string {
+  switch (alignment) {
+    case "center":
+      return "justify-center"
+    case "spread":
+      return "justify-between"
+    case "left":
+      return "justify-start"
+    case "right":
+      return "justify-end"
+    default:
+      return "justify-center"
   }
-  return rows
+}
+
+/** Extra bottom spacing for row type to separate formation sections (trench / backfield / skill). */
+function rowTypeSpacingClass(rowType?: string): string {
+  switch (rowType) {
+    case "line":
+    case "front":
+      return "mb-3"
+    case "backfield":
+    case "second":
+      return "mb-4"
+    case "skill":
+    case "secondary":
+      return "mb-3"
+    default:
+      return "mb-2"
+  }
 }
 
 export function DepthChartGrid({
@@ -64,9 +97,16 @@ export function DepthChartGrid({
   onRemove,
   onReorder,
 }: DepthChartGridProps) {
-  const slotRows = useMemo(() => slotsByRow(preset.slots), [preset.slots])
+  const useRows = preset.rows && preset.rows.length > 0
+  const rowList: FormationRow[] = useMemo(() => {
+    if (useRows) return preset.rows!
+    const legacyRows = slotsByRow(preset.slots)
+    return legacyRows.map((slots) => ({
+      alignment: "center" as RowAlignment,
+      slots,
+    }))
+  }, [preset.rows, preset.slots, useRows])
 
-  /** Resolve players from roster by playerId only; never use entry.player. Missing/deleted players show as empty slot. */
   const getResolvedPlayersForSlot = (slotKey: string) => {
     return assignments
       .filter(
@@ -87,30 +127,39 @@ export function DepthChartGrid({
 
   return (
     <div className="w-full" style={{ backgroundColor: "rgb(var(--platinum))" }}>
-      <div className="flex flex-col gap-4 pb-4">
-        {slotRows.map((rowSlots, rowIdx) => (
-          <div key={rowIdx} className="flex gap-3 justify-center flex-wrap">
-            {rowSlots.map((slot, colIdx) => {
-              const players = getResolvedPlayersForSlot(slot.slotKey)
-              const isSlotValid =
-                validSlotKeysForDraggingPlayer === null || validSlotKeysForDraggingPlayer.has(slot.slotKey)
-              return (
-                <PositionColumn
-                  key={`${slot.slotKey}-${rowIdx}-${colIdx}`}
-                  position={slot.slotKey}
-                  positionLabel={slot.displayLabel}
-                  players={players}
-                  canEdit={canEdit}
-                  isSlotValidForDrop={validSlotKeysForDraggingPlayer === null ? null : isSlotValid}
-                  onDragStartPlayer={onDragStartPlayer}
-                  onDrop={onDrop}
-                  onRemove={onRemove}
-                  onReorder={onReorder}
-                />
-              )
-            })}
-          </div>
-        ))}
+      <div className="flex flex-col gap-1 pb-4">
+        {rowList.map((formationRow, rowIdx) => {
+          const alignClass = rowAlignmentClass(formationRow.alignment)
+          const spacingClass = rowTypeSpacingClass(formationRow.rowType)
+          return (
+            <div
+              key={formationRow.id ?? rowIdx}
+              className={`flex flex-wrap gap-3 items-start ${alignClass} ${spacingClass} px-2`}
+            >
+              {formationRow.slots.map((slot, colIdx) => {
+                const players = getResolvedPlayersForSlot(slot.slotKey)
+                const isSlotValid =
+                  validSlotKeysForDraggingPlayer === null || validSlotKeysForDraggingPlayer.has(slot.slotKey)
+                return (
+                  <PositionColumn
+                    key={`${slot.slotKey}-${rowIdx}-${colIdx}`}
+                    position={slot.slotKey}
+                    positionLabel={slot.displayLabel}
+                    secondaryLabel={slot.alias && slot.positionGroup ? slot.positionGroup : undefined}
+                    emptySlotHint={getAcceptedGroupsDisplay(slot)}
+                    players={players}
+                    canEdit={canEdit}
+                    isSlotValidForDrop={validSlotKeysForDraggingPlayer === null ? null : isSlotValid}
+                    onDragStartPlayer={onDragStartPlayer}
+                    onDrop={onDrop}
+                    onRemove={onRemove}
+                    onReorder={onReorder}
+                  />
+                )
+              })}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

@@ -7,6 +7,10 @@ import type { RosterPlayerForSlot } from "@/lib/depth-chart/player-resolve"
 interface PositionColumnProps {
   position: string
   positionLabel: string
+  /** Optional secondary line (e.g. position group "WR", "LB") shown below primary when slot uses a coach alias. */
+  secondaryLabel?: string | null
+  /** Optional hint for empty slot (e.g. "Best fits: WR, Athlete"). Shown when starter is empty. */
+  emptySlotHint?: string | null
   players: Array<{ player: RosterPlayerForSlot; string: number }>
   canEdit: boolean
   /** When null: not dragging. When boolean: true = valid drop target, false = dimmed (invalid for dragged player). */
@@ -21,6 +25,8 @@ interface PositionColumnProps {
 export function PositionColumn({
   position,
   positionLabel,
+  secondaryLabel,
+  emptySlotHint,
   players,
   canEdit,
   isSlotValidForDrop = null,
@@ -73,11 +79,21 @@ export function PositionColumn({
 
   return (
     <div className="flex flex-col h-full min-w-[120px]">
-      <div
-        className="text-sm font-bold text-center py-2 mb-2 uppercase tracking-wide"
-        style={{ color: "#000000" }}
-      >
-        {positionLabel}
+      <div className="text-center py-2 mb-2">
+        <div
+          className="text-sm font-bold uppercase tracking-wide"
+          style={{ color: "#000000" }}
+        >
+          {positionLabel}
+        </div>
+        {secondaryLabel && (
+          <div
+            className="text-xs mt-0.5 font-normal normal-case opacity-80"
+            style={{ color: "#000000" }}
+          >
+            {secondaryLabel}
+          </div>
+        )}
       </div>
 
       <div
@@ -111,7 +127,7 @@ export function PositionColumn({
             />
           ) : (
             <div
-              className="w-full h-full border-2 border-dashed rounded flex items-center justify-center min-h-[100px]"
+              className="w-full h-full border-2 border-dashed rounded flex flex-col items-center justify-center min-h-[100px] gap-0.5 py-2"
               style={{
                 borderColor: "rgb(var(--focus))",
                 backgroundColor: "transparent",
@@ -120,6 +136,11 @@ export function PositionColumn({
               <span className="text-xs" style={{ color: "#000000" }}>
                 Empty
               </span>
+              {emptySlotHint && (
+                <span className="text-[10px] opacity-75 text-center px-1" style={{ color: "#64748b" }}>
+                  Best fits: {emptySlotHint}
+                </span>
+              )}
             </div>
           )}
         </div>

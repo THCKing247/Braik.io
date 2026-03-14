@@ -3,30 +3,62 @@
  * Assignments are stored by playerId only; player data is resolved from roster at render time.
  * Assignments are isolated per formation: offense/defense by formation id, special teams by specialTeamType.
  * Legacy entries with formation null are not shown in formation-specific views; re-assign in the desired formation if needed.
+ *
+ * Layout: presets can use a row-based layout (rows[]) for football-style positioning. Each row has
+ * alignment (center, spread, etc.) and rowType for visual grouping. Slots are ordered within each row.
+ * If rows are present, they are the source of truth; otherwise legacy gridRow/gridCol on slots is used.
  */
 
 export type DepthLevel = 1 | 2 | 3
 
 /** Single slot in a formation (position column with 1–3 depth strings). */
 export interface FormationSlot {
+  /** Stable key for assignments and save/load; never change. */
   slotKey: string
+  /** Default display label (e.g. "WR", "LB"); used when no alias and no custom label. */
   displayLabel: string
-  /** Allowed position group(s) for this slot (e.g. "QB", "WR"). */
+  /** Optional coach-friendly alias (e.g. "X", "Mike", "Holder"); shown as primary when no custom label. */
+  alias?: string | null
+  /** Allowed position group(s) for this slot (e.g. "QB", "WR"); used for eligibility and optional secondary label. */
   positionGroup: string | null
-  gridRow: number
-  gridCol: number
+  /** Legacy: used only when preset has no rows; row index for layout. */
+  gridRow?: number
+  /** Legacy: used only when preset has no rows; column index within row. */
+  gridCol?: number
   depthLevels: DepthLevel[]
 }
 
-/** Formation preset with optional display metadata. */
+/** Alignment of slots within a formation row. */
+export type RowAlignment = "center" | "spread" | "left" | "right"
+
+/** Semantic row type for spacing and visual grouping (e.g. trench, backfield, skill). */
+export type RowType =
+  | "line"      // OL / DL trench
+  | "skill"     // WR / DB wide
+  | "backfield" // QB / RB / FB
+  | "front"     // DL
+  | "second"    // LB
+  | "secondary" // DB
+  | "default"
+
+/** One row in a formation: slots and how they are laid out. */
+export interface FormationRow {
+  id?: string
+  alignment: RowAlignment
+  rowType?: RowType
+  slots: FormationSlot[]
+}
+
+/** Formation preset with optional display metadata. Supports row-based layout for football-style rendering. */
 export interface FormationPreset {
   id: string
   name: string
   side: "offense" | "defense" | "special_teams"
+  /** Legacy: flat slots when no rows; otherwise derived from rows. */
   slots: FormationSlot[]
-  /** Optional short subtitle for the selector. */
+  /** Row-based layout; when present, grid uses this and ignores gridRow/gridCol on slots. */
+  rows?: FormationRow[]
   subtitle?: string
-  /** Sort order within the side (lower first). */
   sortOrder?: number
 }
 
@@ -41,14 +73,25 @@ export interface DepthAssignment {
   specialTeamType?: string | null
 }
 
+/** Returns flat list of all slots in a preset (from rows or legacy slots). */
+export function getFormationSlots(preset: FormationPreset): FormationSlot[] {
+  if (preset.rows?.length) return preset.rows.flatMap((r) => r.slots)
+  return preset.slots ?? []
+}
+
 function slot(
   slotKey: string,
   displayLabel: string,
   positionGroup: string | null,
-  gridRow: number,
-  gridCol: number
+  alias?: string | null,
+  gridRow?: number,
+  gridCol?: number
 ): FormationSlot {
-  return { slotKey, displayLabel, positionGroup, gridRow, gridCol, depthLevels: [1, 2, 3] }
+  return { slotKey, displayLabel, positionGroup, alias: alias ?? undefined, gridRow, gridCol, depthLevels: [1, 2, 3] }
+}
+
+function row(alignment: RowAlignment, rowType: RowType | undefined, ...slots: FormationSlot[]): FormationRow {
+  return { alignment, rowType, slots }
 }
 
 // —— Offense ——
@@ -58,18 +101,13 @@ const OFFENSE_SPREAD: FormationPreset = {
   side: "offense",
   sortOrder: 0,
   subtitle: "4 WR set",
-  slots: [
-    slot("LT", "LT", "OL", 0, 0),
-    slot("LG", "LG", "OL", 0, 1),
-    slot("C", "C", "OL", 0, 2),
-    slot("RG", "RG", "OL", 0, 3),
-    slot("RT", "RT", "OL", 0, 4),
-    slot("QB", "QB", "QB", 0, 5),
-    slot("RB", "RB", "RB", 1, 0),
-    slot("WR1", "WR", "WR", 1, 1),
-    slot("WR2", "WR", "WR", 1, 2),
-    slot("WR3", "WR", "WR", 1, 3),
-    slot("WR4", "WR", "WR", 1, 4),
+  slots: [],
+  rows: [
+    row("spread", "skill", slot("WR1", "WR", "WR", "X"), slot("WR2", "WR", "WR", "Z")),
+    row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL")),
+    row("center", "backfield", slot("QB", "QB", "QB")),
+    row("center", "backfield", slot("RB", "RB", "RB")),
+    row("spread", "skill", slot("WR3", "WR", "WR", "H"), slot("WR4", "WR", "WR", "Y")),
   ],
 }
 
@@ -79,17 +117,12 @@ const OFFENSE_PRO: FormationPreset = {
   side: "offense",
   sortOrder: 1,
   subtitle: "Pro style",
-  slots: [
-    slot("LT", "LT", "OL", 0, 0),
-    slot("LG", "LG", "OL", 0, 1),
-    slot("C", "C", "OL", 0, 2),
-    slot("RG", "RG", "OL", 0, 3),
-    slot("RT", "RT", "OL", 0, 4),
-    slot("TE", "TE", "TE", 0, 5),
-    slot("QB", "QB", "QB", 1, 0),
-    slot("RB", "RB", "RB", 1, 1),
-    slot("WR1", "WR", "WR", 1, 2),
-    slot("WR2", "WR", "WR", 1, 3),
+  slots: [],
+  rows: [
+    row("spread", "skill", slot("WR1", "WR", "WR", "X"), slot("WR2", "WR", "WR", "Z")),
+    row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL"), slot("TE", "TE", "TE", "Y")),
+    row("center", "backfield", slot("QB", "QB", "QB")),
+    row("center", "backfield", slot("RB", "RB", "RB")),
   ],
 }
 
@@ -99,18 +132,12 @@ const OFFENSE_TRIPS: FormationPreset = {
   side: "offense",
   sortOrder: 2,
   subtitle: "3 WR one side",
-  slots: [
-    slot("LT", "LT", "OL", 0, 0),
-    slot("LG", "LG", "OL", 0, 1),
-    slot("C", "C", "OL", 0, 2),
-    slot("RG", "RG", "OL", 0, 3),
-    slot("RT", "RT", "OL", 0, 4),
-    slot("TE", "TE", "TE", 0, 5),
-    slot("QB", "QB", "QB", 1, 0),
-    slot("RB", "RB", "RB", 1, 1),
-    slot("WR1", "WR", "WR", 1, 2),
-    slot("WR2", "WR", "WR", 1, 3),
-    slot("WR3", "WR", "WR", 1, 4),
+  slots: [],
+  rows: [
+    row("spread", "skill", slot("WR1", "WR", "WR", "X"), slot("WR2", "WR", "WR", "Z"), slot("WR3", "WR", "WR", "H")),
+    row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL"), slot("TE", "TE", "TE", "Y")),
+    row("center", "backfield", slot("QB", "QB", "QB")),
+    row("center", "backfield", slot("RB", "RB", "RB")),
   ],
 }
 
@@ -120,18 +147,11 @@ const OFFENSE_EMPTY: FormationPreset = {
   side: "offense",
   sortOrder: 3,
   subtitle: "5 WR, no back",
-  slots: [
-    slot("LT", "LT", "OL", 0, 0),
-    slot("LG", "LG", "OL", 0, 1),
-    slot("C", "C", "OL", 0, 2),
-    slot("RG", "RG", "OL", 0, 3),
-    slot("RT", "RT", "OL", 0, 4),
-    slot("QB", "QB", "QB", 0, 5),
-    slot("WR1", "WR", "WR", 1, 0),
-    slot("WR2", "WR", "WR", 1, 1),
-    slot("WR3", "WR", "WR", 1, 2),
-    slot("WR4", "WR", "WR", 1, 3),
-    slot("WR5", "WR", "WR", 1, 4),
+  slots: [],
+  rows: [
+    row("spread", "skill", slot("WR1", "WR", "WR", "X"), slot("WR2", "WR", "WR", "H"), slot("WR3", "WR", "WR", "Y"), slot("WR4", "WR", "WR", "Z"), slot("WR5", "WR", "WR", "F")),
+    row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL")),
+    row("center", "backfield", slot("QB", "QB", "QB")),
   ],
 }
 
@@ -141,18 +161,12 @@ const OFFENSE_IFORM: FormationPreset = {
   side: "offense",
   sortOrder: 4,
   subtitle: "FB + RB",
-  slots: [
-    slot("LT", "LT", "OL", 0, 0),
-    slot("LG", "LG", "OL", 0, 1),
-    slot("C", "C", "OL", 0, 2),
-    slot("RG", "RG", "OL", 0, 3),
-    slot("RT", "RT", "OL", 0, 4),
-    slot("TE", "TE", "TE", 0, 5),
-    slot("QB", "QB", "QB", 1, 0),
-    slot("FB", "FB", "RB", 1, 1),
-    slot("RB", "RB", "RB", 1, 2),
-    slot("WR1", "WR", "WR", 1, 3),
-    slot("WR2", "WR", "WR", 1, 4),
+  slots: [],
+  rows: [
+    row("spread", "skill", slot("WR1", "WR", "WR", "X"), slot("WR2", "WR", "WR", "Z")),
+    row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL"), slot("TE", "TE", "TE", "Y")),
+    row("center", "backfield", slot("QB", "QB", "QB")),
+    row("center", "backfield", slot("FB", "FB", "RB"), slot("RB", "RB", "RB")),
   ],
 }
 
@@ -163,18 +177,11 @@ const DEFENSE_43: FormationPreset = {
   side: "defense",
   sortOrder: 0,
   subtitle: "4 DL, 3 LB",
-  slots: [
-    slot("DE", "DE", "DL", 0, 0),
-    slot("DT1", "DT", "DL", 0, 1),
-    slot("DT2", "DT", "DL", 0, 2),
-    slot("DE2", "DE", "DL", 0, 3),
-    slot("OLB", "OLB", "LB", 0, 4),
-    slot("MLB", "MLB", "LB", 0, 5),
-    slot("OLB2", "OLB", "LB", 1, 0),
-    slot("CB1", "CB", "DB", 1, 1),
-    slot("CB2", "CB", "DB", 1, 2),
-    slot("S1", "S", "DB", 1, 3),
-    slot("S2", "S", "DB", 1, 4),
+  slots: [],
+  rows: [
+    row("center", "front", slot("DE", "DE", "DL"), slot("DT1", "DT", "DL"), slot("DT2", "DT", "DL"), slot("DE2", "DE", "DL")),
+    row("center", "second", slot("OLB", "OLB", "LB", "Sam"), slot("MLB", "MLB", "LB", "Mike"), slot("OLB2", "OLB", "LB", "Will")),
+    row("spread", "secondary", slot("CB1", "CB", "DB"), slot("S1", "S", "DB", "FS"), slot("S2", "S", "DB", "SS"), slot("CB2", "CB", "DB")),
   ],
 }
 
@@ -184,18 +191,11 @@ const DEFENSE_34: FormationPreset = {
   side: "defense",
   sortOrder: 1,
   subtitle: "3 DL, 4 LB",
-  slots: [
-    slot("DE", "DE", "DL", 0, 0),
-    slot("NT", "NT", "DL", 0, 1),
-    slot("DE2", "DE", "DL", 0, 2),
-    slot("OLB", "OLB", "LB", 0, 3),
-    slot("ILB1", "ILB", "LB", 0, 4),
-    slot("ILB2", "ILB", "LB", 0, 5),
-    slot("OLB2", "OLB", "LB", 1, 0),
-    slot("CB1", "CB", "DB", 1, 1),
-    slot("CB2", "CB", "DB", 1, 2),
-    slot("S1", "S", "DB", 1, 3),
-    slot("S2", "S", "DB", 1, 4),
+  slots: [],
+  rows: [
+    row("center", "front", slot("DE", "DE", "DL"), slot("NT", "NT", "DL"), slot("DE2", "DE", "DL")),
+    row("center", "second", slot("OLB", "OLB", "LB", "Sam"), slot("ILB1", "ILB", "LB", "Mike"), slot("ILB2", "ILB", "LB", "Will"), slot("OLB2", "OLB", "LB", "Jack")),
+    row("spread", "secondary", slot("CB1", "CB", "DB"), slot("S1", "S", "DB", "FS"), slot("S2", "S", "DB", "SS"), slot("CB2", "CB", "DB")),
   ],
 }
 
@@ -205,18 +205,11 @@ const DEFENSE_NICKEL: FormationPreset = {
   side: "defense",
   sortOrder: 2,
   subtitle: "5 DB",
-  slots: [
-    slot("DE", "DE", "DL", 0, 0),
-    slot("DT1", "DT", "DL", 0, 1),
-    slot("DT2", "DT", "DL", 0, 2),
-    slot("DE2", "DE", "DL", 0, 3),
-    slot("ILB1", "ILB", "LB", 0, 4),
-    slot("ILB2", "ILB", "LB", 0, 5),
-    slot("CB1", "CB", "DB", 1, 0),
-    slot("CB2", "CB", "DB", 1, 1),
-    slot("NB", "NB", "DB", 1, 2),
-    slot("S1", "S", "DB", 1, 3),
-    slot("S2", "S", "DB", 1, 4),
+  slots: [],
+  rows: [
+    row("center", "front", slot("DE", "DE", "DL"), slot("DT1", "DT", "DL"), slot("DT2", "DT", "DL"), slot("DE2", "DE", "DL")),
+    row("center", "second", slot("ILB1", "ILB", "LB", "Mike"), slot("ILB2", "ILB", "LB", "Will")),
+    row("spread", "secondary", slot("CB1", "CB", "DB"), slot("NB", "NB", "DB"), slot("S1", "S", "DB", "FS"), slot("S2", "S", "DB", "SS"), slot("CB2", "CB", "DB")),
   ],
 }
 
@@ -226,18 +219,11 @@ const DEFENSE_DIME: FormationPreset = {
   side: "defense",
   sortOrder: 3,
   subtitle: "6 DB",
-  slots: [
-    slot("DE", "DE", "DL", 0, 0),
-    slot("DT", "DT", "DL", 0, 1),
-    slot("DE2", "DE", "DL", 0, 2),
-    slot("ILB1", "ILB", "LB", 0, 3),
-    slot("ILB2", "ILB", "LB", 0, 4),
-    slot("CB1", "CB", "DB", 1, 0),
-    slot("CB2", "CB", "DB", 1, 1),
-    slot("CB3", "CB", "DB", 1, 2),
-    slot("CB4", "CB", "DB", 1, 3),
-    slot("S1", "S", "DB", 1, 4),
-    slot("S2", "S", "DB", 1, 5),
+  slots: [],
+  rows: [
+    row("center", "front", slot("DE", "DE", "DL"), slot("DT", "DT", "DL"), slot("DE2", "DE", "DL")),
+    row("center", "second", slot("ILB1", "ILB", "LB", "Mike"), slot("ILB2", "ILB", "LB", "Will")),
+    row("spread", "secondary", slot("CB1", "CB", "DB"), slot("CB2", "CB", "DB"), slot("S1", "S", "DB", "FS"), slot("S2", "S", "DB", "SS"), slot("CB3", "CB", "DB", "Dime"), slot("CB4", "CB", "DB")),
   ],
 }
 
@@ -248,18 +234,11 @@ const ST_RETURN_UNIT: FormationPreset = {
   side: "special_teams",
   sortOrder: 0,
   subtitle: "Kick / punt return",
-  slots: [
-    slot("F1", "F1", null, 0, 0),
-    slot("F2", "F2", null, 0, 1),
-    slot("F3", "F3", null, 0, 2),
-    slot("F4", "F4", null, 0, 3),
-    slot("F5", "F5", null, 0, 4),
-    slot("B1", "B1", null, 0, 5),
-    slot("B2", "B2", null, 1, 0),
-    slot("B3", "B3", null, 1, 1),
-    slot("B4", "B4", null, 1, 2),
-    slot("KR1", "KR", null, 1, 3),
-    slot("KR2", "KR", null, 1, 4),
+  slots: [],
+  rows: [
+    row("center", "default", slot("F1", "F1", null), slot("F2", "F2", null), slot("F3", "F3", null), slot("F4", "F4", null), slot("F5", "F5", null), slot("B1", "B1", null, "Upback")),
+    row("center", "default", slot("B2", "B2", null), slot("B3", "B3", null), slot("B4", "B4", null)),
+    row("center", "default", slot("KR1", "KR", null, "Returner"), slot("KR2", "KR", null)),
   ],
 }
 
@@ -269,16 +248,10 @@ const ST_FIELD_GOAL: FormationPreset = {
   side: "special_teams",
   sortOrder: 1,
   subtitle: "Kick unit",
-  slots: [
-    slot("LT", "LT", "OL", 0, 0),
-    slot("LG", "LG", "OL", 0, 1),
-    slot("C", "C", "OL", 0, 2),
-    slot("RG", "RG", "OL", 0, 3),
-    slot("RT", "RT", "OL", 0, 4),
-    slot("TE", "TE", "TE", 0, 5),
-    slot("LS", "LS", "OL", 1, 0),
-    slot("Holder", "H", null, 1, 1),
-    slot("K", "K", null, 1, 2),
+  slots: [],
+  rows: [
+    row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL"), slot("TE", "TE", "TE", "Wing")),
+    row("center", "default", slot("LS", "LS", "OL", "LS"), slot("Holder", "H", null, "Holder"), slot("K", "K", null)),
   ],
 }
 
@@ -288,18 +261,11 @@ const ST_PUNT: FormationPreset = {
   side: "special_teams",
   sortOrder: 2,
   subtitle: "Punt unit",
-  slots: [
-    slot("LT", "LT", "OL", 0, 0),
-    slot("LG", "LG", "OL", 0, 1),
-    slot("C", "C", "OL", 0, 2),
-    slot("RG", "RG", "OL", 0, 3),
-    slot("RT", "RT", "OL", 0, 4),
-    slot("LS", "LS", "OL", 0, 5),
-    slot("P", "P", null, 1, 0),
-    slot("Wing1", "Wing", null, 1, 1),
-    slot("Wing2", "Wing", null, 1, 2),
-    slot("Gunner1", "Gunner", null, 1, 3),
-    slot("Gunner2", "Gunner", null, 1, 4),
+  slots: [],
+  rows: [
+    row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL"), slot("LS", "LS", "OL", "LS")),
+    row("center", "default", slot("P", "P", null), slot("Wing1", "Wing", null, "PP"), slot("Wing2", "Wing", null)),
+    row("spread", "default", slot("Gunner1", "Gunner", null, "Gunner"), slot("Gunner2", "Gunner", null, "Gunner")),
   ],
 }
 
@@ -309,18 +275,11 @@ const ST_KICKOFF_RETURN: FormationPreset = {
   side: "special_teams",
   sortOrder: 3,
   subtitle: "Return team",
-  slots: [
-    slot("L1", "L1", null, 0, 0),
-    slot("L2", "L2", null, 0, 1),
-    slot("L3", "L3", null, 0, 2),
-    slot("L4", "L4", null, 0, 3),
-    slot("L5", "L5", null, 0, 4),
-    slot("R1", "R1", null, 0, 5),
-    slot("R2", "R2", null, 1, 0),
-    slot("R3", "R3", null, 1, 1),
-    slot("R4", "R4", null, 1, 2),
-    slot("KR1", "KR", null, 1, 3),
-    slot("KR2", "KR", null, 1, 4),
+  slots: [],
+  rows: [
+    row("center", "default", slot("L1", "L1", null), slot("L2", "L2", null), slot("L3", "L3", null), slot("L4", "L4", null), slot("L5", "L5", null), slot("R1", "R1", null)),
+    row("center", "default", slot("R2", "R2", null), slot("R3", "R3", null), slot("R4", "R4", null)),
+    row("center", "default", slot("KR1", "KR", null, "Returner"), slot("KR2", "KR", null)),
   ],
 }
 
@@ -330,18 +289,10 @@ const ST_KICKOFF: FormationPreset = {
   side: "special_teams",
   sortOrder: 4,
   subtitle: "Coverage unit",
-  slots: [
-    slot("L1", "L1", null, 0, 0),
-    slot("L2", "L2", null, 0, 1),
-    slot("L3", "L3", null, 0, 2),
-    slot("L4", "L4", null, 0, 3),
-    slot("L5", "L5", null, 0, 4),
-    slot("K", "K", null, 0, 5),
-    slot("R1", "R1", null, 1, 0),
-    slot("R2", "R2", null, 1, 1),
-    slot("R3", "R3", null, 1, 2),
-    slot("R4", "R4", null, 1, 3),
-    slot("R5", "R5", null, 1, 4),
+  slots: [],
+  rows: [
+    row("center", "default", slot("K", "K", null)),
+    row("center", "default", slot("L1", "L1", null), slot("L2", "L2", null), slot("L3", "L3", null), slot("L4", "L4", null), slot("L5", "L5", null), slot("R1", "R1", null), slot("R2", "R2", null), slot("R3", "R3", null), slot("R4", "R4", null), slot("R5", "R5", null)),
   ],
 }
 

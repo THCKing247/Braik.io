@@ -48,6 +48,8 @@ interface PlayerCardProps {
   isUploading?: boolean
   /** Optional local preview URL (object URL) to show while upload is in progress. */
   previewImageUrl?: string | null
+  /** Optional eligibility hint for depth chart (e.g. "Best fit: X, Z"). Rendered as small muted text. */
+  eligibilityHint?: string | null
 }
 
 export function PlayerCard({
@@ -64,6 +66,7 @@ export function PlayerCard({
   onDeletePlayer,
   isUploading = false,
   previewImageUrl = null,
+  eligibilityHint,
 }: PlayerCardProps) {
   const router = useRouter()
   const [imageError, setImageError] = useState(false)
@@ -218,6 +221,11 @@ export function PlayerCard({
               {player.jerseyNumber && player.positionGroup && " • "}
               {player.positionGroup && <span>{player.positionGroup}</span>}
             </div>
+            {eligibilityHint && (
+              <div className="text-[10px] opacity-80 truncate" style={{ color: "#64748b" }} title={eligibilityHint}>
+                {eligibilityHint}
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-between w-full mt-2">
             {/* Forms and Profile Icons - Bottom Left */}

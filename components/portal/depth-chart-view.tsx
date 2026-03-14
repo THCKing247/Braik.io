@@ -12,10 +12,13 @@ import { Printer } from "lucide-react"
 import {
   getPresetsForSide,
   getPreset,
+  getFormationSlots,
   DEFAULT_PRESET_BY_SIDE,
   type DepthAssignment,
   type FormationPreset,
+  type FormationSlot,
 } from "@/lib/depth-chart/formation-presets"
+import { getValidSlotKeys, getBestFitSlotKeys } from "@/lib/depth-chart/eligibility"
 
 interface Player {
   id: string
@@ -157,14 +160,26 @@ export function DepthChartView({
     return customLabels[getLabelKey(position, unit, specialTeamType)] ?? defaultLabel
   }
 
-  const presetWithLabels = useMemo(() => {
+  const presetWithLabels = useMemo((): FormationPreset | null => {
     if (!preset) return null
+    const stType = selectedUnit === "special_teams" ? currentSpecialTeamType : null
+    const withLabel = (s: FormationSlot): FormationSlot => ({
+      ...s,
+      displayLabel: getLabel(s.slotKey, s.alias ?? s.displayLabel, selectedUnit, stType),
+    })
+    if (preset.rows?.length) {
+      return {
+        ...preset,
+        rows: preset.rows.map((r) => ({
+          ...r,
+          slots: r.slots.map(withLabel),
+        })),
+        slots: preset.rows.flatMap((r) => r.slots.map(withLabel)),
+      }
+    }
     return {
       ...preset,
-      slots: preset.slots.map((s) => ({
-        ...s,
-        displayLabel: getLabel(s.slotKey, s.displayLabel, selectedUnit, selectedUnit === "special_teams" ? currentSpecialTeamType : null),
-      })),
+      slots: preset.slots.map(withLabel),
     }
   }, [preset, customLabels, selectedUnit, currentSpecialTeamType])
 
@@ -283,14 +298,25 @@ export function DepthChartView({
 
   const validSlotKeysForDraggingPlayer = useMemo(() => {
     if (!draggingPlayerId || !preset) return null
+    const slots = getFormationSlots(preset)
     const player = playersById.get(draggingPlayerId)
-    if (!player) return new Set(preset.slots.map((s) => s.slotKey))
-    const pg = player.positionGroup
-    if (!pg) return new Set(preset.slots.map((s) => s.slotKey))
-    return new Set(
-      preset.slots.filter((s) => !s.positionGroup || s.positionGroup === pg).map((s) => s.slotKey)
-    )
+    if (!player) return new Set(slots.map((s) => s.slotKey))
+    return getValidSlotKeys(player.positionGroup, slots)
   }, [draggingPlayerId, playersById, preset])
+
+  const eligibilityHintsByPlayerId = useMemo(() => {
+    if (!preset || !presetWithLabels) return new Map<string, string>()
+    const slots = getFormationSlots(preset)
+    const slotsWithLabels = getFormationSlots(presetWithLabels)
+    const keyToLabel = new Map(slotsWithLabels.map((s) => [s.slotKey, s.displayLabel]))
+    const map = new Map<string, string>()
+    for (const p of players) {
+      const keys = getBestFitSlotKeys(p.positionGroup, slots)
+      const labels = keys.slice(0, 3).map((k) => keyToLabel.get(k) ?? k)
+      if (labels.length) map.set(p.id, `Best fit: ${labels.join(", ")}`)
+    }
+    return map
+  }, [preset, presetWithLabels, players])
 
   const handleDragStartPlayer = useCallback((playerId: string) => {
     setDraggingPlayerId(playerId)
@@ -533,7 +559,7 @@ export function DepthChartView({
         unitLabel={unitLabel}
         formationName={formationName}
         generatedDate={generatedDate}
-        slots={presetWithLabels.slots}
+        slots={getFormationSlots(presetWithLabels)}
         assignments={assignmentsForCurrentView}
         playersById={playersById}
       />
@@ -633,6 +659,7 @@ export function DepthChartView({
                   player={player}
                   canEdit={false}
                   draggable={canEdit}
+                  eligibilityHint={eligibilityHintsByPlayerId.get(player.id)}
                   onDragStart={(e) => {
                     e.dataTransfer.setData("playerId", player.id)
                     e.dataTransfer.effectAllowed = "move"
@@ -728,7 +755,10 @@ export function DepthChartView({
               <PositionLabelEditor
                 teamId={teamId}
                 unit={selectedUnit}
-                positions={preset.slots.map((s) => ({ position: s.slotKey, label: s.displayLabel }))}
+                positions={getFormationSlots(presetWithLabels ?? preset).map((s) => ({
+                  position: s.slotKey,
+                  label: s.displayLabel,
+                }))}
                 specialTeamType={selectedUnit === "special_teams" ? currentSpecialTeamType : null}
                 onLabelsUpdated={handleLabelsUpdated}
               />

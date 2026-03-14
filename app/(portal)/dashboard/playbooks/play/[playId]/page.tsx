@@ -54,6 +54,7 @@ function PlayEditorContent() {
   const {
     progress: animationProgress,
     isPlaying: isAnimationPlaying,
+    state: playbackState,
     speed: animationSpeed,
     setSpeed: setAnimationSpeed,
     play: animationPlay,
@@ -74,8 +75,11 @@ function PlayEditorContent() {
 
   const fetchPlay = useCallback(async (id: string) => {
     const res = await fetch(`/api/plays/${id}`, { credentials: "same-origin" })
-    if (!res.ok) throw new Error("Play not found")
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const message = typeof data?.error === "string" ? data.error : res.status === 404 ? "Play not found" : "Failed to load play"
+      throw new Error(message)
+    }
     setPlay(data)
     setEditingPlayType(data.playType ?? null)
     return data.teamId
@@ -413,13 +417,8 @@ function PlayEditorContent() {
           {previewMode && (
             <>
               <div className="h-6 w-px bg-slate-300" aria-hidden />
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={animationStepToStart} title="Step to start">
-                  <SkipBack className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={animationStepBackward} title="Step backward">
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
+              {/* Primary preview controls: Play, Pause, Restart — visible and grouped */}
+              <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1 py-0.5" role="group" aria-label="Preview playback">
                 {isAnimationPlaying ? (
                   <Button variant="secondary" size="icon" className="h-8 w-8" onClick={animationPause} title="Pause">
                     <Pause className="h-4 w-4" />
@@ -429,11 +428,22 @@ function PlayEditorContent() {
                     <Play className="h-4 w-4" />
                   </Button>
                 )}
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={animationRestart} title="Restart from beginning">
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
+              <span className="text-xs font-medium text-slate-600 capitalize tabular-nums" aria-live="polite">
+                {playbackState}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={animationStepToStart} title="Step to start">
+                  <SkipBack className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={animationStepBackward} title="Step backward">
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={animationStepForward} title="Step forward">
                   <ChevronsRight className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={animationRestart} title="Restart">
-                  <RotateCcw className="h-4 w-4" />
                 </Button>
               </div>
               <Button
@@ -465,7 +475,7 @@ function PlayEditorContent() {
                 ))}
               </select>
               <span className="text-xs text-muted-foreground">
-                {isAnimationPlaying ? "Playing" : "Paused"} · {animationSpeed}x · Routes {showRoutesInPreview ? "on" : "off"}
+                {animationSpeed}x · Routes {showRoutesInPreview ? "on" : "off"}
               </span>
             </>
           )}
@@ -486,6 +496,8 @@ function PlayEditorContent() {
                 <li><kbd className="px-1 rounded bg-slate-100 font-mono">Del</kbd>/<kbd className="px-1 rounded bg-slate-100 font-mono">Bksp</kbd> Delete selected</li>
                 <li><kbd className="px-1 rounded bg-slate-100 font-mono">Esc</kbd> Cancel / clear selection</li>
               </ul>
+              <p className="font-semibold text-slate-800 mb-2 mt-3">Preview</p>
+              <p className="text-xs text-slate-600">Use &quot;Preview Play&quot; then Play, Pause, and Restart in the toolbar. Pre-snap motion runs first, then routes.</p>
             </PopoverContent>
           </Popover>
           <Button

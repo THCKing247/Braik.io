@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, ArrowLeft, Search, FileText, Calendar, Smartphone } from "lucide-react"
+import { Plus, ArrowLeft, Search, FileText, Calendar, Smartphone, Presentation } from "lucide-react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
@@ -263,6 +263,9 @@ function PlaybookDetailContent({
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/game-day`)}>
                     <Smartphone className="h-4 w-4 mr-1" /> Game day
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/present`)}>
+                    <Presentation className="h-4 w-4 mr-1" /> Presenter
                   </Button>
                   {canEdit && (
                     <>

@@ -138,6 +138,7 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
                 formationCount={formationCountByPlaybook(pb.id)}
                 playCount={playCountByPlaybook(pb.id)}
                 onSelect={() => handleOpenPlaybook(pb.id)}
+                onPresenter={() => router.push(`/dashboard/playbooks/${pb.id}/present`)}
                 onEdit={canEdit ? () => router.push(`/dashboard/playbooks/${pb.id}/edit`) : undefined}
                 onDelete={canEdit ? () => handleDeletePlaybook(pb.id) : undefined}
                 canEdit={canEdit}

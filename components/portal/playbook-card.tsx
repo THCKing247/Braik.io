@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2, Presentation } from "lucide-react"
 import type { PlaybookRecord } from "@/types/playbook"
 
 interface PlaybookCardProps {
@@ -10,6 +10,7 @@ interface PlaybookCardProps {
   formationCount: number
   playCount: number
   onSelect: () => void
+  onPresenter?: () => void
   onEdit?: () => void
   onDelete?: () => void
   canEdit: boolean
@@ -21,6 +22,7 @@ export function PlaybookCard({
   formationCount,
   playCount,
   onSelect,
+  onPresenter,
   onEdit,
   onDelete,
   canEdit,
@@ -38,9 +40,20 @@ export function PlaybookCard({
               📋
             </span>
           </div>
-          {canEdit && (onEdit || onDelete) && (
+          {(onPresenter || (canEdit && (onEdit || onDelete))) && (
             <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-              {onEdit && (
+              {onPresenter && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={onPresenter}
+                  title="Presenter mode"
+                >
+                  <Presentation className="h-3.5 w-3.5 text-slate-600" />
+                </Button>
+              )}
+              {canEdit && onEdit && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -51,7 +64,7 @@ export function PlaybookCard({
                   <Pencil className="h-3.5 w-3.5 text-slate-600" />
                 </Button>
               )}
-              {onDelete && (
+              {canEdit && onDelete && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -74,8 +87,14 @@ export function PlaybookCard({
             {playCount} {playCount === 1 ? "play" : "plays"}
           </span>
         </div>
-        <div className="mt-auto pt-4 border-t border-slate-200/80">
-          <Button variant="outline" size="sm" className="w-full rounded-lg" onClick={(e) => { e.stopPropagation(); onSelect(); }}>
+        <div className="mt-auto pt-4 border-t border-slate-200/80 flex gap-2 flex-wrap">
+          {onPresenter && (
+            <Button variant="outline" size="sm" className="flex-1 min-w-[100px] rounded-lg" onClick={(e) => { e.stopPropagation(); onPresenter(); }}>
+              <Presentation className="h-4 w-4 mr-1" />
+              Presenter
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className={onPresenter ? "flex-1 min-w-[100px] rounded-lg" : "w-full rounded-lg"} onClick={(e) => { e.stopPropagation(); onSelect(); }}>
             Open playbook
           </Button>
         </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react"
-import { X, ChevronLeft, ChevronRight, Pencil, Eraser, Play, Pause, RotateCcw, SkipBack, Repeat, ChevronsLeft, ChevronsRight, Route } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Pencil, Eraser, Play, Pause, RotateCcw, SkipBack, Repeat, ChevronsLeft, ChevronsRight, Route, Circle, Flag, Star, Hand, ArrowRight, Triangle, Music2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox } from "@/lib/utils/canvas-coords"
@@ -11,7 +11,35 @@ import { getAnimatedPlayerPosition } from "@/lib/utils/play-animation"
 import { usePlayAnimation, SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/hooks/use-play-animation"
 import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint, FormationRecord } from "@/types/playbook"
 
-type PresenterTool = "none" | "marker"
+type PresenterTool = "none" | "marker" | "icon"
+
+export const ANNOTATION_ICON_TYPES = [
+  { id: "football", label: "Football", Icon: Circle },
+  { id: "cone", label: "Cone", Icon: Triangle },
+  { id: "hand", label: "Hand", Icon: Hand },
+  { id: "arrow", label: "Arrow", Icon: ArrowRight },
+  { id: "x", label: "X", Icon: X },
+  { id: "circle", label: "Circle", Icon: Circle },
+  { id: "flag", label: "Flag", Icon: Flag },
+  { id: "star", label: "Star", Icon: Star },
+  { id: "whistle", label: "Whistle", Icon: Music2 },
+] as const
+
+const MARKER_COLORS = [
+  { name: "Red", value: "#dc2626" },
+  { name: "Blue", value: "#2563eb" },
+  { name: "Green", value: "#16a34a" },
+  { name: "Orange", value: "#ea580c" },
+  { name: "Purple", value: "#9333ea" },
+  { name: "Teal", value: "#0d9488" },
+  { name: "Black", value: "#171717" },
+  { name: "White", value: "#fafafa" },
+  { name: "Gray", value: "#6b7280" },
+  { name: "Maroon", value: "#881337" },
+  { name: "Navy", value: "#1e3a8a" },
+  { name: "Gold", value: "#ca8a04" },
+  { name: "Slate", value: "#94a3b8" },
+] as const
 
 const FIELD_WIDTH_YARDS = 53.33
 const VISIBLE_YARDS = 35
@@ -28,6 +56,10 @@ interface PlaycallerViewProps {
   formations?: FormationRecord[] | null
   /** Depth chart entries for "View as player" and role-to-player resolution. */
   depthChartEntries?: DepthChartSlot[] | null
+  /** When true, fill container instead of full screen (for playbook presenter page). */
+  embedded?: boolean
+  /** When true (and embedded), use larger canvas for presentation mode. */
+  fullscreen?: boolean
 }
 
 /** Same coordinate system as editor; routes/blocks use normalized yard coords converted to pixels for consistent rendering. */
@@ -71,7 +103,11 @@ function getPlayersFromCanvas(
 }> {
   if (!canvasData?.players?.length) return []
   return canvasData.players.map((p) => {
-    const pixel = coord.yardToPixel(p.xYards, p.yYards)
+    const raw = p as { xYards?: number; yYards?: number; x?: number; y?: number }
+    const hasYards = typeof raw.xYards === "number" && typeof raw.yYards === "number"
+    const xYards = hasYards ? raw.xYards! : (typeof raw.x === "number" && typeof raw.y === "number" ? coord.pixelToYard(raw.x, raw.y).xYards : 0)
+    const yYards = hasYards ? raw.yYards! : (typeof raw.x === "number" && typeof raw.y === "number" ? coord.pixelToYard(raw.x, raw.y).yYards : 0)
+    const pixel = coord.yardToPixel(xYards, yYards)
     return {
       id: p.id,
       x: pixel.x,
@@ -93,6 +129,8 @@ export function PlaycallerView({
   onIndexChange,
   formations,
   depthChartEntries,
+  embedded = false,
+  fullscreen = false,
 }: PlaycallerViewProps) {
   const coord = usePresenterCoord()
   const play = plays[currentIndex]
@@ -100,10 +138,18 @@ export function PlaycallerView({
   const players = getPlayersFromCanvas(canvasData, coord)
   const svgRef = useRef<SVGSVGElement>(null)
   const [tool, setTool] = useState<PresenterTool>("none")
-  const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([])
+  const [markerColor, setMarkerColor] = useState(MARKER_COLORS[0].value)
+  const [strokes, setStrokes] = useState<{ points: { x: number; y: number }[]; color: string }[]>([])
   const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[] | null>(null)
+  const [annotations, setAnnotations] = useState<{ id: string; iconType: string; x: number; y: number }[]>([])
+  const [selectedIconType, setSelectedIconType] = useState<string>(ANNOTATION_ICON_TYPES[0].id)
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
+  const markerStrokeColor = markerColor
+  const annotationIdRef = useRef(0)
   const [viewAsRoleId, setViewAsRoleId] = useState<string | null>(null)
   const [viewAsRosterPlayerId, setViewAsRosterPlayerId] = useState<string | null>(null)
+  const [shiftHeld, setShiftHeld] = useState(false)
+  const [laserPosition, setLaserPosition] = useState<{ x: number; y: number } | null>(null)
   const {
     progress: animationProgress,
     isPlaying: isAnimationPlaying,
@@ -119,8 +165,9 @@ export function PlaycallerView({
     stepToStart: animationStepToStart,
     stepForward: animationStepForward,
     stepBackward: animationStepBackward,
-  } = usePlayAnimation()
+  } = usePlayAnimation(3000)
   const [showRoutes, setShowRoutes] = useState(true)
+  const isAnimating = isAnimationPlaying
   const timelineRef = useRef<HTMLDivElement>(null)
   const [isScrubbing, setIsScrubbing] = useState(false)
 
@@ -166,6 +213,8 @@ export function PlaycallerView({
   useEffect(() => {
     setViewAsRoleId(null)
     setViewAsRosterPlayerId(null)
+    setAnnotations([])
+    setSelectedAnnotationId(null)
   }, [currentIndex])
 
   // Reset animation when switching to another play
@@ -229,50 +278,71 @@ export function PlaycallerView({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (tool !== "marker") return
-      e.preventDefault()
       const pt = clientToViewBoxPoint(e.clientX, e.clientY)
-      if (pt) {
+      if (!pt) return
+      if (tool === "marker") {
+        e.preventDefault()
         setActiveStroke([pt])
         e.currentTarget.setPointerCapture(e.pointerId)
+      } else if (tool === "icon") {
+        e.preventDefault()
+        const id = `icon-${++annotationIdRef.current}`
+        setAnnotations((prev) => [...prev, { id, iconType: selectedIconType, x: pt.x, y: pt.y }])
+        setSelectedAnnotationId(id)
+      } else {
+        setSelectedAnnotationId(null)
       }
     },
-    [tool, clientToViewBoxPoint]
+    [tool, clientToViewBoxPoint, selectedIconType]
   )
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (shiftHeld) {
+        const pt = clientToViewBoxPoint(e.clientX, e.clientY)
+        if (pt) setLaserPosition(pt)
+        return
+      }
       if (tool !== "marker" || !activeStroke) return
       e.preventDefault()
       const pt = clientToViewBoxPoint(e.clientX, e.clientY)
       if (pt) setActiveStroke((prev) => (prev ? [...prev, pt] : [pt]))
     },
-    [tool, activeStroke, clientToViewBoxPoint]
+    [shiftHeld, tool, activeStroke, clientToViewBoxPoint]
   )
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
       e.currentTarget.releasePointerCapture(e.pointerId)
       if (tool === "marker" && activeStroke && activeStroke.length > 0) {
-        setStrokes((prev) => [...prev, activeStroke])
+        setStrokes((prev) => [...prev, { points: activeStroke, color: markerColor }])
         setActiveStroke(null)
       }
     },
-    [tool, activeStroke]
+    [tool, activeStroke, markerColor]
   )
 
   const handlePointerLeave = useCallback(() => {
     if (tool === "marker" && activeStroke && activeStroke.length > 0) {
-      setStrokes((prev) => [...prev, activeStroke])
+      setStrokes((prev) => [...prev, { points: activeStroke, color: markerColor }])
       setActiveStroke(null)
     }
-  }, [tool, activeStroke])
+  }, [tool, activeStroke, markerColor])
 
   const clearDrawings = useCallback(() => {
     setStrokes([])
     setActiveStroke(null)
+    setAnnotations([])
+    setSelectedAnnotationId(null)
     setTool("none")
   }, [])
+
+  const removeSelectedAnnotation = useCallback(() => {
+    if (selectedAnnotationId) {
+      setAnnotations((prev) => prev.filter((a) => a.id !== selectedAnnotationId))
+      setSelectedAnnotationId(null)
+    }
+  }, [selectedAnnotationId])
 
   const goPrev = useCallback(() => {
     onIndexChange(Math.max(0, currentIndex - 1))
@@ -283,14 +353,55 @@ export function PlaycallerView({
   }, [currentIndex, plays.length, onIndexChange])
 
   useEffect(() => {
+    const isFormField = (el: EventTarget | null) => {
+      if (!el || !(el instanceof HTMLElement)) return false
+      const tag = el.tagName.toLowerCase()
+      return tag === "input" || tag === "select" || tag === "textarea" || !!el.isContentEditable
+    }
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key === " ") {
+        if (!isFormField(e.target)) {
+          e.preventDefault()
+          if (isAnimating) {
+            animationStepToStart()
+          } else if (animationProgress >= 1 || animationProgress === 0) {
+            animationRestart()
+          }
+        }
+        return
+      }
+      if (e.key === "Escape") {
+        setSelectedAnnotationId(null)
+        onClose()
+      }
       if (e.key === "ArrowLeft") goPrev()
       if (e.key === "ArrowRight") goNext()
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedAnnotationId) {
+        e.preventDefault()
+        removeSelectedAnnotation()
+      }
     }
     window.addEventListener("keydown", handleKey)
     return () => window.removeEventListener("keydown", handleKey)
-  }, [onClose, goPrev, goNext])
+  }, [onClose, goPrev, goNext, selectedAnnotationId, removeSelectedAnnotation, isAnimating, animationProgress, animationStepToStart, animationRestart])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setShiftHeld(true)
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") {
+        setShiftHeld(false)
+        setLaserPosition(null)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("keyup", onKeyUp)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keyup", onKeyUp)
+    }
+  }, [])
 
   if (!play) {
     return (
@@ -325,7 +436,8 @@ export function PlaycallerView({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div className={`flex flex-col bg-slate-900 ${embedded ? "absolute inset-0 z-0" : "fixed inset-0 z-50"}`}>
+      {!embedded && (
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
         <Button variant="secondary" size="sm" onClick={onClose} className="shadow-lg">
           <X className="h-4 w-4 mr-2" />
@@ -367,6 +479,19 @@ export function PlaycallerView({
               )}
             </select>
           </label>
+          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            Color:
+            <select
+              value={markerColor}
+              onChange={(e) => setMarkerColor(e.target.value)}
+              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[90px]"
+              title="Marker color"
+            >
+              {MARKER_COLORS.map((c) => (
+                <option key={c.value} value={c.value}>{c.name}</option>
+              ))}
+            </select>
+          </label>
           <Button
             variant={tool === "marker" ? "secondary" : "outline"}
             size="icon"
@@ -375,14 +500,116 @@ export function PlaycallerView({
           >
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={clearDrawings} title="Clear drawings">
+          <Button variant="outline" size="icon" onClick={clearDrawings} title="Clear all drawings and icons">
             <Eraser className="h-4 w-4" />
           </Button>
+          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            Icon:
+            <select
+              value={selectedIconType}
+              onChange={(e) => setSelectedIconType(e.target.value)}
+              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[90px]"
+              title="Annotation icon"
+            >
+              {ANNOTATION_ICON_TYPES.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </label>
+          <Button
+            variant={tool === "icon" ? "secondary" : "outline"}
+            size="icon"
+            onClick={() => setTool((t) => (t === "icon" ? "none" : "icon"))}
+            title="Add icon (click on field)"
+          >
+            <Flag className="h-4 w-4" />
+          </Button>
+          {selectedAnnotationId && (
+            <Button variant="outline" size="sm" onClick={removeSelectedAnnotation} title="Remove selected icon (or press Delete)">
+              Remove icon
+            </Button>
+          )}
         </div>
       </div>
+      )}
+      {embedded && !fullscreen && (
+        <div className="flex-shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-slate-800/90 border-b border-slate-700">
+          <label className="text-xs text-slate-400 flex items-center gap-1.5">
+            View as:
+            <select
+              value={viewAsValue}
+              onChange={(e) => setViewAsValue(e.target.value)}
+              className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-2 text-xs min-w-[120px]"
+            >
+              <option value="">All</option>
+              {viewAsRoleOptions.length > 0 && (
+                <optgroup label="By role">
+                  {viewAsRoleOptions.map((opt) => (
+                    <option key={opt.id} value={`role:${opt.id}`}>{opt.displayLabel}</option>
+                  ))}
+                </optgroup>
+              )}
+              {viewAsPlayerOptions.length > 0 && (
+                <optgroup label="By player">
+                  {viewAsPlayerOptions.map((opt) => (
+                    <option key={opt.id} value={`player:${opt.id}`}>{opt.displayLabel}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+          <label className="text-xs text-slate-400 flex items-center gap-1">
+            Color:
+            <select
+              value={markerColor}
+              onChange={(e) => setMarkerColor(e.target.value)}
+              className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[80px]"
+              title="Marker color"
+            >
+              {MARKER_COLORS.map((c) => (
+                <option key={c.value} value={c.value}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+          <Button
+            variant={tool === "marker" ? "secondary" : "outline"}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setTool((t) => (t === "marker" ? "none" : "marker"))}
+            title="Draw on play"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={clearDrawings} title="Clear all">
+            <Eraser className="h-3.5 w-3.5" />
+          </Button>
+          <select
+            value={selectedIconType}
+            onChange={(e) => setSelectedIconType(e.target.value)}
+            className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[72px]"
+            title="Icon"
+          >
+            {ANNOTATION_ICON_TYPES.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+          <Button
+            variant={tool === "icon" ? "secondary" : "outline"}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setTool((t) => (t === "icon" ? "none" : "icon"))}
+            title="Add icon"
+          >
+            <Flag className="h-3.5 w-3.5" />
+          </Button>
+          {selectedAnnotationId && (
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={removeSelectedAnnotation}>Remove</Button>
+          )}
+        </div>
+      )}
 
-      {/* Resolved "Viewing as" label and no-roles message */}
-      {viewAsRosterPlayerId && viewAsRosterPlayerLabel && (
+      {/* Resolved "Viewing as" label and no-roles message (hidden in fullscreen) */}
+      {!fullscreen && viewAsRosterPlayerId && viewAsRosterPlayerLabel && (
         <div className="px-4 py-2 flex justify-center">
           {highlightedRoleLabels.length > 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -390,13 +617,13 @@ export function PlaycallerView({
               <span className="text-foreground/80"> ({highlightedRoleLabels.join(", ")})</span>
             </p>
           ) : (
-            <p className="text-sm text-amber-600/90">
-              No roles on this play for <span className="font-medium">{viewAsRosterPlayerLabel}</span>
+            <p className="text-sm text-slate-400">
+              No roles on this play for <span className="font-medium text-slate-300">{viewAsRosterPlayerLabel}</span>
             </p>
           )}
         </div>
       )}
-      {viewAsRoleId && highlightedRoleLabels.length > 0 && (
+      {!fullscreen && viewAsRoleId && highlightedRoleLabels.length > 0 && (
         <div className="px-4 py-1 flex justify-center">
           <p className="text-xs text-muted-foreground">
             Viewing as role: <span className="font-medium text-foreground">{highlightedRoleLabels[0]}</span>
@@ -404,8 +631,14 @@ export function PlaycallerView({
         </div>
       )}
 
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl aspect-[53.33/35] max-h-[85vh] rounded-lg overflow-hidden shadow-2xl border border-border">
+      <div className="flex-1 flex items-center justify-center min-h-0 p-4">
+        <div
+          className={`w-full aspect-[53.33/35] overflow-hidden ${
+            embedded && fullscreen
+              ? "max-w-[90vw] max-h-[85vh] rounded-lg border border-slate-700/50 shadow-2xl"
+              : "max-w-4xl max-h-[85vh] rounded-lg shadow-2xl border border-slate-300"
+          }`}
+        >
           <svg
             ref={svgRef}
             viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
@@ -418,6 +651,15 @@ export function PlaycallerView({
             onPointerLeave={handlePointerLeave}
             onPointerCancel={handlePointerUp}
           >
+            <defs>
+              <filter id="laser-pointer-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
             <PlaybookFieldSurface width={VIEWBOX_W} height={VIEWBOX_H} yardStart={YARD_START} yardEnd={YARD_END} />
             {/* Routes and blocking lines (hidden when showRoutes is off); markers still animate along paths */}
             {showRoutes &&
@@ -476,6 +718,33 @@ export function PlaycallerView({
                 </g>
               )
               })}
+            {/* Faint trail behind moving players during animation */}
+            {showRoutes && animationProgress > 0 && animationProgress < 1 && canvasData?.players?.map((raw) => {
+              const hasPath = (raw.route && raw.route.length > 1) || (raw.preSnapMotion?.points?.length)
+              if (!hasPath) return null
+              const steps = Math.max(2, Math.ceil((animationProgress * 20) + 1))
+              const trailPoints: string[] = []
+              for (let i = 0; i <= steps; i++) {
+                const t = (i / steps) * animationProgress
+                const pt = getAnimatedPlayerPosition(raw, t)
+                const px = coord.yardToPixel(pt.xYards, pt.yYards)
+                trailPoints.push(`${px.x},${px.y}`)
+              }
+              if (trailPoints.length < 2) return null
+              return (
+                <polyline
+                  key={`trail-${raw.id}`}
+                  points={trailPoints.join(" ")}
+                  fill="none"
+                  stroke={playerColor}
+                  strokeWidth={2}
+                  strokeOpacity={0.35}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ pointerEvents: "none" }}
+                />
+              )
+            })}
             {players.map((p) => {
               const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
               const markerOpacity = isHighlighted ? 1 : 0.45
@@ -487,13 +756,16 @@ export function PlaycallerView({
               const animPos = yardPos
                 ? coord.yardToPixel(yardPos.xYards, yardPos.yYards)
                 : { x: p.x, y: p.y }
+              const isMoving = animationProgress > 0 && animationProgress < 1
+              const sizeScale = isMoving ? 1.15 : 1
+              const r = (markerSize / 2) * sizeScale
               return (
               <g key={p.id} style={{ opacity: markerOpacity }}>
                 {p.shape === "circle" && (
                   <circle
                     cx={animPos.x}
                     cy={animPos.y}
-                    r={markerSize / 2}
+                    r={r}
                     fill={playerColor}
                     stroke="white"
                     strokeWidth={2}
@@ -501,10 +773,10 @@ export function PlaycallerView({
                 )}
                 {p.shape === "square" && (
                   <rect
-                    x={animPos.x - markerSize / 2}
-                    y={animPos.y - markerSize / 2}
-                    width={markerSize}
-                    height={markerSize}
+                    x={animPos.x - r}
+                    y={animPos.y - r}
+                    width={r * 2}
+                    height={r * 2}
                     fill={playerColor}
                     stroke="white"
                     strokeWidth={2}
@@ -512,7 +784,7 @@ export function PlaycallerView({
                 )}
                 {p.shape === "triangle" && (
                   <polygon
-                    points={`${animPos.x},${animPos.y + markerSize / 2} ${animPos.x - markerSize / 2},${animPos.y - markerSize / 2} ${animPos.x + markerSize / 2},${animPos.y - markerSize / 2}`}
+                    points={`${animPos.x},${animPos.y + r} ${animPos.x - r},${animPos.y - r} ${animPos.x + r},${animPos.y - r}`}
                     fill={playerColor}
                     stroke="white"
                     strokeWidth={2}
@@ -535,12 +807,12 @@ export function PlaycallerView({
             })}
             {/* Marker strokes (presenter drawings) */}
             {strokes.map((stroke, i) =>
-              stroke.length > 1 ? (
+              stroke.points.length > 1 ? (
                 <polyline
                   key={i}
-                  points={stroke.map((p) => `${p.x},${p.y}`).join(" ")}
+                  points={stroke.points.map((p) => `${p.x},${p.y}`).join(" ")}
                   fill="none"
-                  stroke="#FBBF24"
+                  stroke={stroke.color}
                   strokeWidth={3}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -551,24 +823,70 @@ export function PlaycallerView({
               <polyline
                 points={activeStroke.map((p) => `${p.x},${p.y}`).join(" ")}
                 fill="none"
-                stroke="#FBBF24"
+                stroke={markerStrokeColor}
                 strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             )}
-            {/* Overlay to capture pointer when marker is active */}
+            {/* Overlay to capture pointer when marker or icon tool is active (behind annotations so icon clicks work) */}
             <rect
               width={VIEWBOX_W}
               height={VIEWBOX_H}
               fill="transparent"
-              pointerEvents={tool === "marker" ? "all" : "none"}
+              pointerEvents={tool === "marker" || tool === "icon" ? "all" : "none"}
             />
+            {/* Annotation icons (on top so they receive clicks) */}
+            {annotations.map((a) => {
+              const def = ANNOTATION_ICON_TYPES.find((d) => d.id === a.iconType) ?? ANNOTATION_ICON_TYPES[0]
+              const IconComp = def.Icon
+              const isSelected = selectedAnnotationId === a.id
+              return (
+                <g
+                  key={a.id}
+                  transform={`translate(${a.x},${a.y})`}
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => { e.stopPropagation(); setSelectedAnnotationId(a.id); }}
+                >
+                  <circle
+                    r={14}
+                    fill={isSelected ? "rgba(59, 130, 246, 0.3)" : "transparent"}
+                    stroke={isSelected ? "#2563eb" : "transparent"}
+                    strokeWidth={2}
+                  />
+                  <foreignObject x={-12} y={-12} width={24} height={24}>
+                    <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#fafafa" }}>
+                      <IconComp size={18} strokeWidth={2.5} />
+                    </div>
+                  </foreignObject>
+                </g>
+              )
+            })}
+            {/* Laser pointer (hold Shift); pointer-events: none so it doesn't block interaction */}
+            {shiftHeld && laserPosition && (
+              <g pointerEvents="none">
+                <circle
+                  cx={laserPosition.x}
+                  cy={laserPosition.y}
+                  r={10}
+                  fill="#ef4444"
+                  fillOpacity={0.95}
+                  filter="url(#laser-pointer-glow)"
+                />
+                <circle
+                  cx={laserPosition.x}
+                  cy={laserPosition.y}
+                  r={6}
+                  fill="#dc2626"
+                />
+              </g>
+            )}
           </svg>
         </div>
       </div>
 
-      {/* Animation controls */}
+      {/* Animation controls (hidden in fullscreen for minimal presentation UI) */}
+      {!fullscreen && (
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-full max-w-xl px-4">
         {/* Timeline scrubber */}
         <div className="w-full flex flex-col gap-1">
@@ -681,10 +999,15 @@ export function PlaycallerView({
           Routes: {showRoutes ? "on" : "off"}
         </p>
       </div>
+      )}
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/90 backdrop-blur px-4 py-2 rounded-lg shadow-lg">
-        <p className="text-sm font-semibold text-foreground">{play.name}</p>
-        <p className="text-xs text-muted-foreground">
+      <div
+        className={`absolute left-1/2 -translate-x-1/2 px-4 py-2 ${
+          fullscreen ? "bottom-6 bg-slate-900/80 backdrop-blur rounded-md border border-slate-700/50" : "bottom-4 bg-background/90 backdrop-blur rounded-lg shadow-lg"
+        }`}
+      >
+        <p className={fullscreen ? "text-base font-semibold text-slate-100" : "text-sm font-semibold text-foreground"}>{play.name}</p>
+        <p className={fullscreen ? "text-sm text-slate-400" : "text-xs text-muted-foreground"}>
           {getPlayFormationDisplayName(play, formations)} · {play.side.replace("_", " ")}
         </p>
       </div>

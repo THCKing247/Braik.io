@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 
-/** Duration in ms for a full play at 1x speed. */
-const BASE_DURATION_MS = 4000
+/** Default duration in ms for a full play at 1x speed. */
+const DEFAULT_DURATION_MS = 4000
 
 /** Progress delta per frame step (e.g. 0.02 = 2% of play). */
 export const FRAME_STEP = 0.02
@@ -13,7 +13,8 @@ export type PlaybackSpeed = (typeof SPEED_OPTIONS)[number]
 
 export type PlayAnimationState = "idle" | "playing" | "paused" | "ended"
 
-export function usePlayAnimation() {
+export function usePlayAnimation(overrideDurationMs?: number) {
+  const durationMs = overrideDurationMs ?? DEFAULT_DURATION_MS
   const [progress, setProgressState] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeedState] = useState<PlaybackSpeed>(1)
@@ -72,7 +73,7 @@ export function usePlayAnimation() {
       return
     }
 
-    const durationMs = BASE_DURATION_MS / speed
+    const effectiveDurationMs = durationMs / speed
 
     const tick = (now: number) => {
       if (lastTimeRef.current === 0) lastTimeRef.current = now
@@ -80,7 +81,7 @@ export function usePlayAnimation() {
       lastTimeRef.current = now
 
       setProgressState((prev) => {
-        const next = Math.min(1, prev + (delta / durationMs))
+        const next = Math.min(1, prev + (delta / effectiveDurationMs))
         if (next >= 1) {
           if (loop) {
             lastTimeRef.current = now
@@ -102,7 +103,7 @@ export function usePlayAnimation() {
         rafRef.current = null
       }
     }
-  }, [isPlaying, speed, loop])
+  }, [isPlaying, speed, loop, durationMs])
 
   const state: PlayAnimationState =
     progress >= 1 ? "ended" : isPlaying ? "playing" : progress > 0 ? "paused" : "idle"

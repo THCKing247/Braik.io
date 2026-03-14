@@ -17,7 +17,7 @@ export interface RosterPlayerForSlot {
 
 export function getPlayerPhotoUrl(player: RosterPlayerForSlot | null | undefined): string | null {
   if (!player) return null
-  const p = player as Record<string, unknown>
+  const p = player as unknown as Record<string, unknown>
   const photo = p.photo_url ?? p.avatar_url ?? p.image_url ?? p.imageUrl
   if (typeof photo === "string" && photo.trim() !== "") return photo.trim()
   return null

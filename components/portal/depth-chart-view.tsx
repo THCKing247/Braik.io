@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { createPortal } from "react-dom"
 import { PlayerCard } from "./player-card"
 import { DepthChartGrid } from "./depth-chart-grid"
@@ -60,6 +60,41 @@ interface DepthChartViewProps {
 
 type Side = "offense" | "defense" | "special_teams"
 
+const DEPTH_CHART_PRINT_STYLES = `
+@media print {
+  @page {
+    margin: 0.5in !important;
+    size: auto;
+  }
+  body * {
+    display: none !important;
+  }
+  body > .depth-chart-print-portal {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+  }
+  body > .depth-chart-print-portal * {
+    display: revert !important;
+    visibility: visible !important;
+    color: black !important;
+  }
+  body > .depth-chart-print-portal .depth-chart-print-root {
+    display: block !important;
+    position: static !important;
+    margin: 0 auto !important;
+    padding: 0.5in !important;
+    color: black !important;
+    background: white !important;
+  }
+}
+`
+
 export function DepthChartView({
   teamId,
   players,
@@ -110,6 +145,10 @@ export function DepthChartView({
     }
   }, [selectedUnit, selectedPresetId])
 
+  // Formation/specialTeamType for current view (used when saving and filtering assignments)
+  const currentFormation = selectedUnit === "special_teams" ? null : selectedPresetId
+  const currentSpecialTeamType = selectedUnit === "special_teams" ? selectedPresetId : null
+
   const presetWithLabels = useMemo(() => {
     if (!preset) return null
     return {
@@ -120,10 +159,6 @@ export function DepthChartView({
       })),
     }
   }, [preset, customLabels, selectedUnit, currentSpecialTeamType])
-
-  // Formation/specialTeamType for current view (used when saving and filtering assignments)
-  const currentFormation = selectedUnit === "special_teams" ? null : selectedPresetId
-  const currentSpecialTeamType = selectedUnit === "special_teams" ? selectedPresetId : null
 
   // Load custom position labels
   useEffect(() => {
@@ -237,9 +272,9 @@ export function DepthChartView({
           {
             ...p,
             imageUrl: p.imageUrl ?? undefined,
-            image_url: (p as Record<string, unknown>).image_url,
-            avatar_url: (p as Record<string, unknown>).avatar_url,
-            photo_url: (p as Record<string, unknown>).photo_url,
+            image_url: (p as unknown as Record<string, unknown>).image_url as string | null | undefined,
+            avatar_url: (p as unknown as Record<string, unknown>).avatar_url as string | null | undefined,
+            photo_url: (p as unknown as Record<string, unknown>).photo_url as string | null | undefined,
           },
         ])
       ),
@@ -512,7 +547,7 @@ export function DepthChartView({
   }, [])
 
   return (
-    <>
+    <React.Fragment>
     <div
       className="rounded-lg"
       style={{
@@ -720,6 +755,7 @@ export function DepthChartView({
           </div>
         </div>
       </div>
+      </div>
 
       {/* Print preview modal */}
       {showPrintPreview && (
@@ -776,40 +812,7 @@ export function DepthChartView({
           document.body
         )}
 
-      <style jsx global>{`
-        @media print {
-          @page {
-            margin: 0.5in !important;
-            size: auto;
-          }
-          body * {
-            display: none !important;
-          }
-          body > .depth-chart-print-portal {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-            pointer-events: auto !important;
-          }
-          body > .depth-chart-print-portal * {
-            display: revert !important;
-            visibility: visible !important;
-            color: black !important;
-          }
-          body > .depth-chart-print-portal .depth-chart-print-root {
-            display: block !important;
-            position: static !important;
-            margin: 0 auto !important;
-            padding: 0.5in !important;
-            color: black !important;
-            background: white !important;
-          }
-        }
-      `}</style>
-    </>
+      <style dangerouslySetInnerHTML={{ __html: DEPTH_CHART_PRINT_STYLES }} />
+    </React.Fragment>
   )
 }

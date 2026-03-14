@@ -37,11 +37,13 @@ export function DepthChartPrintView({
   playersById,
 }: DepthChartPrintViewProps) {
   const getPlayersForSlot = (slotKey: string) => {
-    return assignments
-      .filter((e) => e.position === slotKey && e.playerId != null)
-      .map((e) => ({ string: e.string, player: playersById.get(e.playerId!) }))
-      .filter((x) => x.player != null) as Array<{ string: number; player: PrintViewPlayer }>
-      .sort((a, b) => a.string - b.string)
+    return (
+      assignments
+        .filter((e) => e.position === slotKey && e.playerId != null)
+        .map((e) => ({ string: e.string, player: playersById.get(e.playerId!) }))
+        .filter((x) => x.player != null)
+        .sort((a, b) => a.string - b.string) as Array<{ string: number; player: PrintViewPlayer }>
+    )
   }
 
   return (

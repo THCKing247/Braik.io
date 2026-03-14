@@ -1,9 +1,21 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { createPortal } from "react-dom"
 import { PlayerCard } from "./player-card"
 import { DepthChartGrid } from "./depth-chart-grid"
 import { PositionLabelEditor } from "./position-label-editor"
+import { DepthChartPrintView } from "./depth-chart-print-view"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Printer } from "lucide-react"
+import {
+  getPresetsForSide,
+  getPreset,
+  DEFAULT_PRESET_BY_SIDE,
+  type DepthAssignment,
+  type FormationPreset,
+} from "@/lib/depth-chart/formation-presets"
 
 interface Player {
   id: string
@@ -22,7 +34,6 @@ interface DepthChartEntry {
   position: string
   string: number
   playerId: string | null
-  player?: Player | null
   formation?: string | null
   specialTeamType?: string | null
 }
@@ -43,158 +54,11 @@ interface DepthChartViewProps {
   onUpdate: (updates: DepthChartUpdate[]) => void
   canEdit: boolean
   isHeadCoach?: boolean
+  /** Optional team name for print header */
+  teamName?: string | null
 }
 
-// Position definitions for each unit (always 11 positions split into 6 top, 5 bottom)
-const OFFENSE_POSITIONS = {
-  topRow: [
-    { position: "LT", label: "LT" },
-    { position: "LG", label: "LG" },
-    { position: "C", label: "C" },
-    { position: "RG", label: "RG" },
-    { position: "RT", label: "RT" },
-    { position: "TE", label: "TE" },
-  ],
-  bottomRow: [
-    { position: "QB", label: "QB" },
-    { position: "RB", label: "RB" },
-    { position: "WR", label: "WR" },
-    { position: "WR", label: "WR" },
-    { position: "FLEX", label: "FLEX" },
-  ],
-}
-
-const DEFENSE_POSITIONS = {
-  topRow: [
-    { position: "DE", label: "DE" },
-    { position: "DT", label: "DT" },
-    { position: "DT", label: "DT" },
-    { position: "DE", label: "DE" },
-    { position: "OLB", label: "OLB" },
-    { position: "MLB", label: "MLB" },
-  ],
-  bottomRow: [
-    { position: "OLB", label: "OLB" },
-    { position: "CB", label: "CB" },
-    { position: "CB", label: "CB" },
-    { position: "S", label: "S" },
-    { position: "FLEX", label: "FLEX" },
-  ],
-}
-
-const SPECIAL_TEAMS_POSITIONS: Record<string, { topRow: Array<{ position: string; label: string }>; bottomRow: Array<{ position: string; label: string }> }> = {
-  kickoff: {
-    topRow: [
-      { position: "L1", label: "L1" },
-      { position: "L2", label: "L2" },
-      { position: "L3", label: "L3" },
-      { position: "L4", label: "L4" },
-      { position: "L5", label: "L5" },
-      { position: "K", label: "K" },
-    ],
-    bottomRow: [
-      { position: "R1", label: "R1" },
-      { position: "R2", label: "R2" },
-      { position: "R3", label: "R3" },
-      { position: "R4", label: "R4" },
-      { position: "R5", label: "R5" },
-    ],
-  },
-  field_goal: {
-    topRow: [
-      { position: "T", label: "LT" },
-      { position: "G", label: "LG" },
-      { position: "LS", label: "LS" },
-      { position: "G", label: "RG" },
-      { position: "T", label: "RT" },
-      { position: "Holder", label: "Holder" },
-    ],
-    bottomRow: [
-      { position: "TE", label: "TE" },
-      { position: "TE", label: "TE" },
-      { position: "Wing", label: "Wing" },
-      { position: "Wing", label: "Wing" },
-      { position: "K", label: "K" },
-    ],
-  },
-  punt: {
-    topRow: [
-      { position: "T", label: "LT" },
-      { position: "G", label: "LG" },
-      { position: "LS", label: "LS" },
-      { position: "G", label: "RG" },
-      { position: "T", label: "RT" },
-      { position: "Back Guard", label: "Back Guard" },
-    ],
-    bottomRow: [
-      { position: "Wing", label: "Wing" },
-      { position: "Wing", label: "Wing" },
-      { position: "Wide Gunner", label: "Wide Gunner" },
-      { position: "Wide Gunner", label: "Wide Gunner" },
-      { position: "P", label: "P" },
-    ],
-  },
-  kick_return: {
-    topRow: [
-      { position: "F1", label: "F1" },
-      { position: "F2", label: "F2" },
-      { position: "F3", label: "F3" },
-      { position: "F4", label: "F4" },
-      { position: "F5", label: "F5" },
-      { position: "B1", label: "B1" },
-    ],
-    bottomRow: [
-      { position: "B2", label: "B2" },
-      { position: "B3", label: "B3" },
-      { position: "B4", label: "B4" },
-      { position: "Deep Back", label: "Deep Back" },
-      { position: "Deep Back", label: "Deep Back" },
-    ],
-  },
-  punt_return: {
-    topRow: [
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-      { position: "LB", label: "LB" },
-      { position: "LB", label: "LB" },
-    ],
-    bottomRow: [
-      { position: "LB", label: "LB" },
-      { position: "LB", label: "LB" },
-      { position: "CB", label: "CB" },
-      { position: "CB", label: "CB" },
-      { position: "Deep Returner", label: "Deep Returner" },
-    ],
-  },
-  field_goal_block: {
-    topRow: [
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-      { position: "DL", label: "DL" },
-    ],
-    bottomRow: [
-      { position: "LB", label: "LB" },
-      { position: "LB", label: "LB" },
-      { position: "LB", label: "LB" },
-      { position: "Safety", label: "Safety" },
-      { position: "Safety", label: "Safety" },
-    ],
-  },
-}
-
-const SPECIAL_TEAM_TYPES = [
-  { id: "kickoff", name: "Kickoff" },
-  { id: "field_goal", name: "Field Goal" },
-  { id: "punt", name: "Punt" },
-  { id: "kick_return", name: "Kick Return" },
-  { id: "punt_return", name: "Punt Return" },
-  { id: "field_goal_block", name: "Field Goal Block" },
-]
+type Side = "offense" | "defense" | "special_teams"
 
 export function DepthChartView({
   teamId,
@@ -203,16 +67,63 @@ export function DepthChartView({
   onUpdate,
   canEdit,
   isHeadCoach = false,
+  teamName = null,
 }: DepthChartViewProps) {
-  const [selectedUnit, setSelectedUnit] = useState<"offense" | "defense" | "special_teams">("offense")
-  const [selectedSpecialTeamType, setSelectedSpecialTeamType] = useState<string>("kickoff")
-  const [filters, setFilters] = useState({
-    offense: true,
-    defense: true,
-    athlete: true,
-  })
+  const printRef = useRef<HTMLDivElement>(null)
+  const [selectedUnit, setSelectedUnit] = useState<Side>("offense")
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const [selectedPresetByUnit, setSelectedPresetByUnit] = useState<Record<Side, string>>(() => ({
+    offense: DEFAULT_PRESET_BY_SIDE.offense,
+    defense: DEFAULT_PRESET_BY_SIDE.defense,
+    special_teams: DEFAULT_PRESET_BY_SIDE.special_teams,
+  }))
+  const selectedPresetId = selectedPresetByUnit[selectedUnit] ?? DEFAULT_PRESET_BY_SIDE[selectedUnit]
   const [customLabels, setCustomLabels] = useState<Record<string, string>>({})
   const [labelsLoaded, setLabelsLoaded] = useState(false)
+
+  // Roster list filters (only affect left sidebar, not slots)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [positionFilter, setPositionFilter] = useState<string>("")
+  const [sideOfBallFilter, setSideOfBallFilter] = useState<"all" | "offense" | "defense" | "athlete">("all")
+  const [activeOnly, setActiveOnly] = useState(false)
+  const [unassignedOnly, setUnassignedOnly] = useState(true)
+  const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
+
+  // Clear drag state on dragend (drop, cancel, or release outside) so UI never stays stuck
+  useEffect(() => {
+    const clearDrag = () => setDraggingPlayerId(null)
+    document.addEventListener("dragend", clearDrag)
+    return () => document.removeEventListener("dragend", clearDrag)
+  }, [])
+
+  // Clear drag state when switching unit/preset so valid-slot guidance is not stale
+  useEffect(() => {
+    setDraggingPlayerId(null)
+  }, [selectedUnit, selectedPresetId])
+
+  const preset = getPreset(selectedUnit, selectedPresetId) ?? getPreset(selectedUnit, DEFAULT_PRESET_BY_SIDE[selectedUnit]) ?? null
+  const presetsForSide = useMemo(() => getPresetsForSide(selectedUnit), [selectedUnit])
+
+  useEffect(() => {
+    if (selectedUnit && selectedPresetId && !getPreset(selectedUnit, selectedPresetId)) {
+      setSelectedPresetByUnit((prev) => ({ ...prev, [selectedUnit]: DEFAULT_PRESET_BY_SIDE[selectedUnit] }))
+    }
+  }, [selectedUnit, selectedPresetId])
+
+  const presetWithLabels = useMemo(() => {
+    if (!preset) return null
+    return {
+      ...preset,
+      slots: preset.slots.map((s) => ({
+        ...s,
+        displayLabel: getLabel(s.slotKey, s.displayLabel, selectedUnit, selectedUnit === "special_teams" ? currentSpecialTeamType : null),
+      })),
+    }
+  }, [preset, customLabels, selectedUnit, currentSpecialTeamType])
+
+  // Formation/specialTeamType for current view (used when saving and filtering assignments)
+  const currentFormation = selectedUnit === "special_teams" ? null : selectedPresetId
+  const currentSpecialTeamType = selectedUnit === "special_teams" ? selectedPresetId : null
 
   // Load custom position labels
   useEffect(() => {
@@ -232,45 +143,15 @@ export function DepthChartView({
     loadLabels()
   }, [teamId])
 
-  // Get label key for a position
   const getLabelKey = (position: string, unit: string, specialTeamType?: string | null) => {
-    return specialTeamType
-      ? `${unit}-${position}-${specialTeamType}`
-      : `${unit}-${position}`
+    return specialTeamType ? `${unit}-${position}-${specialTeamType}` : `${unit}-${position}`
   }
 
-  // Get custom label or fallback to default
   const getLabel = (position: string, defaultLabel: string, unit: string, specialTeamType?: string | null) => {
-    const key = getLabelKey(position, unit, specialTeamType)
-    return customLabels[key] || defaultLabel
-  }
-
-  // Get positions for current unit (returns both rows) with custom labels applied
-  const getPositions = () => {
-    let basePositions
-    if (selectedUnit === "offense") {
-      basePositions = OFFENSE_POSITIONS
-    } else if (selectedUnit === "defense") {
-      basePositions = DEFENSE_POSITIONS
-    } else {
-      basePositions = SPECIAL_TEAMS_POSITIONS[selectedSpecialTeamType] || SPECIAL_TEAMS_POSITIONS.kickoff
-    }
-
-    // Apply custom labels
-    return {
-      topRow: basePositions.topRow.map((pos) => ({
-        ...pos,
-        label: getLabel(pos.position, pos.label, selectedUnit, selectedUnit === "special_teams" ? selectedSpecialTeamType : null),
-      })),
-      bottomRow: basePositions.bottomRow.map((pos) => ({
-        ...pos,
-        label: getLabel(pos.position, pos.label, selectedUnit, selectedUnit === "special_teams" ? selectedSpecialTeamType : null),
-      })),
-    }
+    return customLabels[getLabelKey(position, unit, specialTeamType)] ?? defaultLabel
   }
 
   const handleLabelsUpdated = async () => {
-    // Reload labels after update
     try {
       const response = await fetch(`/api/roster/depth-chart/position-labels?teamId=${teamId}`)
       if (response.ok) {
@@ -282,72 +163,137 @@ export function DepthChartView({
     }
   }
 
-  // Determine if player is offense-eligible
-  const isOffenseEligible = (player: Player) => {
-    const offensePositions = ["QB", "RB", "WR", "TE", "OL"]
-    return player.positionGroup && offensePositions.includes(player.positionGroup)
-  }
+  const isOffenseEligible = (p: Player) =>
+    p.positionGroup && ["QB", "RB", "WR", "TE", "OL"].includes(p.positionGroup)
+  const isDefenseEligible = (p: Player) =>
+    p.positionGroup && ["DL", "LB", "DB"].includes(p.positionGroup)
+  const isAthlete = (p: Player) => !p.positionGroup
 
-  // Determine if player is defense-eligible
-  const isDefenseEligible = (player: Player) => {
-    const defensePositions = ["DL", "LB", "DB"]
-    return player.positionGroup && defensePositions.includes(player.positionGroup)
-  }
+  const assignedPlayerIdsOnCurrentSide = useMemo(() => {
+    return new Set(
+      depthChart
+        .filter(
+          (e) =>
+            e.unit === selectedUnit &&
+            e.playerId &&
+            (selectedUnit === "special_teams"
+              ? e.specialTeamType === currentSpecialTeamType
+              : !e.specialTeamType && e.formation === currentFormation)
+        )
+        .map((e) => e.playerId!)
+        .filter(Boolean)
+    )
+  }, [depthChart, selectedUnit, currentFormation, currentSpecialTeamType])
 
-  // Determine if player is athlete (eligible for both - no specific positionGroup)
-  const isAthlete = (player: Player) => {
-    return !player.positionGroup
-  }
+  const filteredRosterForSidebar = useMemo(() => {
+    let list = players
 
-  // Get players not assigned to current unit, filtered by eligibility
-  const getPlayersInUnit = () => {
-    const unassignedPlayers = players.filter((p) => {
-      const inChart = depthChart.some(
-        (e) =>
-          e.playerId === p.id &&
-          e.unit === selectedUnit &&
-          (selectedUnit === "special_teams" 
-            ? e.specialTeamType === selectedSpecialTeamType
-            : !e.specialTeamType && !e.formation)
+    if (unassignedOnly) {
+      list = list.filter((p) => !assignedPlayerIdsOnCurrentSide.has(p.id))
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      list = list.filter(
+        (p) =>
+          (p.firstName?.toLowerCase() ?? "").includes(q) ||
+          (p.lastName?.toLowerCase() ?? "").includes(q) ||
+          `${(p.firstName ?? "").toLowerCase()} ${(p.lastName ?? "").toLowerCase()}`.includes(q) ||
+          `${(p.lastName ?? "").toLowerCase()} ${(p.firstName ?? "").toLowerCase()}`.includes(q)
       )
-      return !inChart
-    })
+    }
 
-    // Apply filters
-    return unassignedPlayers.filter((p) => {
-      if (filters.offense && isOffenseEligible(p)) return true
-      if (filters.defense && isDefenseEligible(p)) return true
-      if (filters.athlete && isAthlete(p)) return true
-      return false
-    })
-  }
+    if (positionFilter) {
+      const pos = positionFilter.toUpperCase()
+      list = list.filter((p) => (p.positionGroup?.toUpperCase() ?? "") === pos)
+    }
 
-  // Handle dropping a player into a slot
+    if (sideOfBallFilter !== "all") {
+      if (sideOfBallFilter === "offense") list = list.filter(isOffenseEligible)
+      else if (sideOfBallFilter === "defense") list = list.filter(isDefenseEligible)
+      else list = list.filter(isAthlete)
+    }
+
+    if (activeOnly) {
+      list = list.filter((p) => (p.healthStatus ?? p.status) === "active")
+    }
+
+    return list
+  }, [
+    players,
+    searchQuery,
+    positionFilter,
+    sideOfBallFilter,
+    activeOnly,
+    unassignedOnly,
+    assignedPlayerIdsOnCurrentSide,
+  ])
+
+  const playersById = useMemo(
+    () =>
+      new Map(
+        players.map((p) => [
+          p.id,
+          {
+            ...p,
+            imageUrl: p.imageUrl ?? undefined,
+            image_url: (p as Record<string, unknown>).image_url,
+            avatar_url: (p as Record<string, unknown>).avatar_url,
+            photo_url: (p as Record<string, unknown>).photo_url,
+          },
+        ])
+      ),
+    [players]
+  )
+
+  const validSlotKeysForDraggingPlayer = useMemo(() => {
+    if (!draggingPlayerId || !preset) return null
+    const player = playersById.get(draggingPlayerId)
+    if (!player) return new Set(preset.slots.map((s) => s.slotKey))
+    const pg = player.positionGroup
+    if (!pg) return new Set(preset.slots.map((s) => s.slotKey))
+    return new Set(
+      preset.slots.filter((s) => !s.positionGroup || s.positionGroup === pg).map((s) => s.slotKey)
+    )
+  }, [draggingPlayerId, playersById, preset])
+
+  const handleDragStartPlayer = useCallback((playerId: string) => {
+    setDraggingPlayerId(playerId)
+  }, [])
+
+  const assignmentsForCurrentView: DepthAssignment[] = useMemo(
+    () =>
+      depthChart.filter(
+        (e) =>
+          e.unit === selectedUnit &&
+          (selectedUnit === "special_teams"
+            ? e.specialTeamType === currentSpecialTeamType
+            : !e.specialTeamType && e.formation === currentFormation)
+      ) as DepthAssignment[],
+    [depthChart, selectedUnit, currentFormation, currentSpecialTeamType]
+  )
+
   const handleDrop = (position: string, string: number, playerId: string) => {
     const updates: DepthChartUpdate[] = []
-
-    // Check if there's already a player in this slot
     const existingEntry = depthChart.find(
       (e) =>
         e.unit === selectedUnit &&
         e.position === position &&
         e.string === string &&
         (selectedUnit === "special_teams"
-          ? e.specialTeamType === selectedSpecialTeamType
-          : !e.specialTeamType && !e.formation)
+          ? e.specialTeamType === currentSpecialTeamType
+          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
     )
 
-    // If dropping on starter (string 1), shift everyone down
     if (string === 1) {
-      // Remove player from any existing position in this unit
       depthChart
         .filter(
           (e) =>
             e.playerId === playerId &&
             e.unit === selectedUnit &&
             (selectedUnit === "special_teams"
-              ? e.specialTeamType === selectedSpecialTeamType
-              : !e.specialTeamType && !e.formation)
+              ? e.specialTeamType === currentSpecialTeamType
+              : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
         )
         .forEach((e) => {
           updates.push({
@@ -355,43 +301,37 @@ export function DepthChartView({
             position: e.position,
             string: e.string,
             playerId: null,
-            formation: null,
-            specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+            formation: currentFormation ?? null,
+            specialTeamType: currentSpecialTeamType ?? null,
           })
         })
-
-      // Shift existing starter down
-      if (existingEntry && existingEntry.playerId) {
+      if (existingEntry?.playerId) {
         updates.push({
           unit: selectedUnit,
-          position: position,
+          position,
           string: 2,
           playerId: existingEntry.playerId,
-          formation: null,
-          specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+          formation: currentFormation ?? null,
+          specialTeamType: currentSpecialTeamType ?? null,
         })
       }
-
-      // Set new starter
       updates.push({
         unit: selectedUnit,
-        position: position,
+        position,
         string: 1,
-        playerId: playerId,
-        formation: null,
-        specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+        playerId,
+        formation: currentFormation ?? null,
+        specialTeamType: currentSpecialTeamType ?? null,
       })
     } else {
-      // Dropping on backup slot
-      // Remove player from any existing position
       depthChart
         .filter(
           (e) =>
             e.playerId === playerId &&
             e.unit === selectedUnit &&
             (selectedUnit === "special_teams"
-              ? e.specialTeamType === selectedSpecialTeamType
-              : !e.specialTeamType && !e.formation)
+              ? e.specialTeamType === currentSpecialTeamType
+              : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
         )
         .forEach((e) => {
           updates.push({
@@ -399,71 +339,60 @@ export function DepthChartView({
             position: e.position,
             string: e.string,
             playerId: null,
-            formation: null,
-            specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+            formation: currentFormation ?? null,
+            specialTeamType: currentSpecialTeamType ?? null,
           })
         })
-
-      // If slot is occupied, swap
-      if (existingEntry && existingEntry.playerId) {
-        // Find where the dropped player currently is
-        const droppedPlayerEntry = depthChart.find(
+      if (existingEntry?.playerId) {
+        const droppedEntry = depthChart.find(
           (e) =>
             e.playerId === playerId &&
             e.unit === selectedUnit &&
             (selectedUnit === "special_teams"
-              ? e.specialTeamType === selectedSpecialTeamType
-              : !e.specialTeamType && !e.formation)
+              ? e.specialTeamType === currentSpecialTeamType
+              : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
         )
-
-        if (droppedPlayerEntry) {
-          // Swap positions
+        if (droppedEntry) {
           updates.push({
             unit: selectedUnit,
-            position: position,
-            string: string,
+            position,
+            string,
             playerId: existingEntry.playerId,
-            formation: null,
-            specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+            formation: currentFormation ?? null,
+            specialTeamType: currentSpecialTeamType ?? null,
           })
           updates.push({
             unit: selectedUnit,
-            position: droppedPlayerEntry.position,
-            string: droppedPlayerEntry.string,
-            playerId: playerId,
-            formation: null,
-            specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+            position: droppedEntry.position,
+            string: droppedEntry.string,
+            playerId,
+            formation: currentFormation ?? null,
+            specialTeamType: currentSpecialTeamType ?? null,
           })
         } else {
-          // Just place in slot
           updates.push({
             unit: selectedUnit,
-            position: position,
-            string: string,
-            playerId: playerId,
-            formation: null,
-            specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+            position,
+            string,
+            playerId,
+            formation: currentFormation ?? null,
+            specialTeamType: currentSpecialTeamType ?? null,
           })
         }
       } else {
-        // Empty slot, just place player
         updates.push({
           unit: selectedUnit,
-          position: position,
-          string: string,
-          playerId: playerId,
-          formation: null,
-          specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+          position,
+          string,
+          playerId,
+          formation: currentFormation ?? null,
+          specialTeamType: currentSpecialTeamType ?? null,
         })
       }
     }
-
-    if (updates.length > 0) {
-      onUpdate(updates)
-    }
+    if (updates.length > 0) onUpdate(updates)
   }
 
-  // Handle removing a player from a slot
   const handleRemove = (position: string, string: number) => {
     const entry = depthChart.find(
       (e) =>
@@ -471,25 +400,23 @@ export function DepthChartView({
         e.position === position &&
         e.string === string &&
         (selectedUnit === "special_teams"
-          ? e.specialTeamType === selectedSpecialTeamType
-          : !e.specialTeamType && !e.formation)
+          ? e.specialTeamType === currentSpecialTeamType
+          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
     )
-
     if (entry) {
       onUpdate([
         {
           unit: selectedUnit,
-          position: position,
-          string: string,
+          position,
+          string,
           playerId: null,
-          formation: null,
-          specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+          formation: currentFormation ?? null,
+          specialTeamType: currentSpecialTeamType ?? null,
         },
       ])
     }
   }
 
-  // Handle reordering within a slot (promoting/demoting)
   const handleReorder = (position: string, fromString: number, toString: number) => {
     const fromEntry = depthChart.find(
       (e) =>
@@ -497,136 +424,176 @@ export function DepthChartView({
         e.position === position &&
         e.string === fromString &&
         (selectedUnit === "special_teams"
-          ? e.specialTeamType === selectedSpecialTeamType
-          : !e.specialTeamType && !e.formation)
+          ? e.specialTeamType === currentSpecialTeamType
+          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
     )
-
     const toEntry = depthChart.find(
       (e) =>
         e.unit === selectedUnit &&
         e.position === position &&
         e.string === toString &&
         (selectedUnit === "special_teams"
-          ? e.specialTeamType === selectedSpecialTeamType
-          : !e.specialTeamType && !e.formation)
+          ? e.specialTeamType === currentSpecialTeamType
+          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
     )
-
     const updates: DepthChartUpdate[] = []
-
-    if (fromEntry && fromEntry.playerId) {
-      // Swap the players
-      if (toEntry && toEntry.playerId) {
+    if (fromEntry?.playerId) {
+      if (toEntry?.playerId) {
         updates.push({
           unit: selectedUnit,
-          position: position,
+          position,
           string: toString,
           playerId: fromEntry.playerId,
-          formation: null,
-          specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+          formation: currentFormation ?? null,
+          specialTeamType: currentSpecialTeamType ?? null,
         })
         updates.push({
           unit: selectedUnit,
-          position: position,
+          position,
           string: fromString,
           playerId: toEntry.playerId,
-          formation: null,
-          specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+          formation: currentFormation ?? null,
+          specialTeamType: currentSpecialTeamType ?? null,
         })
       } else {
-        // Move player to empty slot
         updates.push({
           unit: selectedUnit,
-          position: position,
+          position,
           string: fromString,
           playerId: null,
-          formation: null,
-          specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+          formation: currentFormation ?? null,
+          specialTeamType: currentSpecialTeamType ?? null,
         })
         updates.push({
           unit: selectedUnit,
-          position: position,
+          position,
           string: toString,
           playerId: fromEntry.playerId,
-          formation: null,
-          specialTeamType: selectedUnit === "special_teams" ? selectedSpecialTeamType : null,
+          formation: currentFormation ?? null,
+          specialTeamType: currentSpecialTeamType ?? null,
         })
       }
-
-      if (updates.length > 0) {
-        onUpdate(updates)
-      }
+      if (updates.length > 0) onUpdate(updates)
     }
   }
 
+  const positionOptions = useMemo(() => {
+    const set = new Set(players.map((p) => p.positionGroup).filter(Boolean) as string[])
+    return Array.from(set).sort()
+  }, [players])
+
+  const unitLabel =
+    selectedUnit === "offense" ? "Offense" : selectedUnit === "defense" ? "Defense" : "Special Teams"
+  const formationName = preset?.name ?? ""
+  const generatedDate = new Date().toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })
+
+  const printBody =
+    presetWithLabels && assignmentsForCurrentView ? (
+      <DepthChartPrintView
+        teamName={teamName}
+        unitLabel={unitLabel}
+        formationName={formationName}
+        generatedDate={generatedDate}
+        slots={presetWithLabels.slots}
+        assignments={assignmentsForCurrentView}
+        playersById={playersById}
+      />
+    ) : null
+
+  const handlePrint = useCallback(() => {
+    if (!printRef.current) return
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.print())
+    })
+  }, [])
+
   return (
+    <>
     <div
       className="rounded-lg"
-      style={{ backgroundColor: "rgb(var(--platinum))", minHeight: "calc(100vh - 200px)", height: "100%" }}
+      style={{
+        backgroundColor: "rgb(var(--platinum))",
+        minHeight: "calc(100vh - 200px)",
+        height: "100%",
+      }}
     >
-      {/* Grid Layout: Available Players (Left) | Depth Chart (Center) */}
       <div
         className="grid h-full"
-        style={{
-          gridTemplateColumns: "280px 1fr",
-          gap: 0,
-        }}
+        style={{ gridTemplateColumns: "280px 1fr", gap: 0 }}
       >
-        {/* Available Players - Left Sidebar */}
+        {/* Left: Roster list with filters */}
         <div
-          className="overflow-y-auto"
-          style={{
-            padding: "16px",
-            borderRight: "1px solid #2a2a2a",
-          }}
+          className="overflow-y-auto flex flex-col"
+          style={{ padding: "16px", borderRight: "1px solid #2a2a2a" }}
         >
-          <h3 className="text-sm font-semibold mb-3" style={{ color: "#000000" }}>Available Players</h3>
-          
-          {/* Filter Toggles */}
-          <div className="mb-4 flex gap-2 flex-wrap">
-            <button
-              onClick={() => setFilters({ ...filters, offense: !filters.offense })}
-              className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all border ${
-                filters.offense ? "" : "opacity-60 hover:opacity-100"
-              }`}
-              style={{
-                color: "#000000",
-                backgroundColor: filters.offense ? "rgb(var(--braik-navy))" : "transparent",
-                borderColor: "#3B82F6",
-              }}
+          <h3 className="text-sm font-semibold mb-3" style={{ color: "#000000" }}>
+            Available Players
+          </h3>
+
+          {/* Roster filters */}
+          <div className="space-y-2 mb-4">
+            <input
+              type="search"
+              placeholder="Search name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-md border border-[#2a2a2a] px-3 py-2 text-sm bg-white"
+            />
+            <select
+              value={positionFilter}
+              onChange={(e) => setPositionFilter(e.target.value)}
+              className="w-full rounded-md border border-[#2a2a2a] px-3 py-2 text-sm bg-white"
             >
-              Offense
-            </button>
-            <button
-              onClick={() => setFilters({ ...filters, defense: !filters.defense })}
-              className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all border ${
-                filters.defense ? "" : "opacity-60 hover:opacity-100"
-              }`}
-              style={{
-                color: "#000000",
-                backgroundColor: filters.defense ? "rgb(var(--braik-navy))" : "transparent",
-                borderColor: "#3B82F6",
-              }}
+              <option value="">All positions</option>
+              {positionOptions.map((pos) => (
+                <option key={pos} value={pos}>
+                  {pos}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sideOfBallFilter}
+              onChange={(e) => setSideOfBallFilter(e.target.value as typeof sideOfBallFilter)}
+              className="w-full rounded-md border border-[#2a2a2a] px-3 py-2 text-sm bg-white"
             >
-              Defense
-            </button>
-            <button
-              onClick={() => setFilters({ ...filters, athlete: !filters.athlete })}
-              className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all border ${
-                filters.athlete ? "" : "opacity-60 hover:opacity-100"
-              }`}
-              style={{
-                color: "#000000",
-                backgroundColor: filters.athlete ? "rgb(var(--braik-navy))" : "transparent",
-                borderColor: "#3B82F6",
-              }}
-            >
-              Athlete
-            </button>
+              <option value="all">All sides</option>
+              <option value="offense">Offense</option>
+              <option value="defense">Defense</option>
+              <option value="athlete">Athlete</option>
+            </select>
+            <label className="flex items-center gap-2 text-sm" style={{ color: "#000000" }}>
+              <input
+                type="checkbox"
+                checked={activeOnly}
+                onChange={(e) => setActiveOnly(e.target.checked)}
+              />
+              Active only
+            </label>
+            <label className="flex items-center gap-2 text-sm" style={{ color: "#000000" }}>
+              <input
+                type="checkbox"
+                checked={unassignedOnly}
+                onChange={(e) => setUnassignedOnly(e.target.checked)}
+              />
+              Unassigned only
+            </label>
           </div>
 
-          <div className="space-y-2 flex flex-col items-center">
-            {getPlayersInUnit().map((player) => (
-              <div key={player.id} style={{ width: '100%', maxWidth: '230px' }}>
+          <div
+            className="space-y-2 flex flex-col items-center flex-1"
+            onDragEnd={() => setDraggingPlayerId(null)}
+          >
+            {filteredRosterForSidebar.map((player) => (
+              <div
+                key={player.id}
+                style={{ width: "100%", maxWidth: "230px" }}
+                onDragStart={() => canEdit && setDraggingPlayerId(player.id)}
+                onDragEnd={() => setDraggingPlayerId(null)}
+              >
                 <PlayerCard
                   player={player}
                   canEdit={false}
@@ -638,36 +605,26 @@ export function DepthChartView({
                 />
               </div>
             ))}
-            {getPlayersInUnit().length === 0 && (
+            {filteredRosterForSidebar.length === 0 && (
               <div className="text-xs text-center py-4" style={{ color: "#666666" }}>
-                All players assigned
+                {unassignedOnly ? "All players assigned or no matches" : "No players match filters"}
               </div>
             )}
           </div>
         </div>
 
-        {/* Depth Chart Area - Center */}
+        {/* Right: Depth chart area */}
         <div
           className="flex flex-col"
-          style={{
-            padding: "24px",
-            display: "flex",
-            justifyContent: "flex-start",
-            alignItems: "stretch",
-          }}
+          style={{ padding: "24px", display: "flex", justifyContent: "flex-start", alignItems: "stretch" }}
         >
-          {/* Unit Selector and Edit Button */}
-          <div className="mb-4 flex gap-2 items-center justify-between">
-            <div className="flex gap-2">
+          {/* Unit tabs + Formation selector + Print */}
+          <div className="mb-4 flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex gap-2 flex-wrap items-center">
               {(["offense", "defense", "special_teams"] as const).map((unit) => (
                 <button
                   key={unit}
-                  onClick={() => {
-                    setSelectedUnit(unit)
-                    if (unit === "special_teams") {
-                      setSelectedSpecialTeamType("kickoff")
-                    }
-                  }}
+                  onClick={() => setSelectedUnit(unit)}
                   className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all border-2 ${
                     selectedUnit === unit ? "" : "opacity-60 hover:opacity-100"
                   }`}
@@ -681,62 +638,178 @@ export function DepthChartView({
                 </button>
               ))}
             </div>
-            {/* Edit Position Labels Button - Head Coach Only */}
-            {isHeadCoach && labelsLoaded && (
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <span className="text-sm font-medium shrink-0" style={{ color: "#000000" }}>
+                Formation
+              </span>
+              <div className="flex flex-wrap gap-2 overflow-x-auto overflow-y-hidden py-0.5">
+                {presetsForSide.map((p) => {
+                  const isSelected = selectedPresetId === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedPresetByUnit((prev) => ({ ...prev, [selectedUnit]: p.id }))
+                      }
+                      className={`shrink-0 rounded-lg border-2 px-3 py-2 text-left transition-all min-w-0 ${
+                        isSelected ? "" : "opacity-70 hover:opacity-100"
+                      }`}
+                      style={{
+                        color: "#000000",
+                        backgroundColor: isSelected ? "rgb(var(--braik-navy))" : "transparent",
+                        borderColor: isSelected ? "#2563eb" : "#94a3b8",
+                      }}
+                    >
+                      <span className="block text-xs font-semibold truncate max-w-[100px] sm:max-w-none">
+                        {p.name}
+                      </span>
+                      {p.subtitle && (
+                        <span
+                          className="block text-[10px] mt-0.5 truncate max-w-[100px] sm:max-w-none"
+                          style={{ color: isSelected ? "rgba(255,255,255,0.9)" : "#64748b" }}
+                        >
+                          {p.subtitle}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 print:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPrintPreview(true)}
+                className="shrink-0"
+              >
+                <Printer className="h-4 w-4 mr-1.5" />
+                Print
+              </Button>
+            </div>
+            {isHeadCoach && labelsLoaded && preset && (
               <PositionLabelEditor
                 teamId={teamId}
                 unit={selectedUnit}
-                positions={[...getPositions().topRow, ...getPositions().bottomRow]}
-                specialTeamType={selectedUnit === "special_teams" ? selectedSpecialTeamType : null}
+                positions={preset.slots.map((s) => ({ position: s.slotKey, label: s.displayLabel }))}
+                specialTeamType={selectedUnit === "special_teams" ? currentSpecialTeamType : null}
                 onLabelsUpdated={handleLabelsUpdated}
               />
             )}
           </div>
 
-          {/* Special Team Type Selector (only for special teams) */}
-          {selectedUnit === "special_teams" && (
-            <div className="mb-6">
-              <div className="flex flex-wrap gap-2">
-                {SPECIAL_TEAM_TYPES.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => setSelectedSpecialTeamType(type.id)}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-all border ${
-                      selectedSpecialTeamType === type.id
-                        ? ""
-                        : "opacity-60 hover:opacity-100"
-                    }`}
-                    style={{
-                      color: "#000000",
-                      backgroundColor:
-                        selectedSpecialTeamType === type.id ? "rgb(var(--braik-navy))" : "transparent",
-                      borderColor: "#3B82F6",
-                    }}
-                  >
-                    {type.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Depth Chart Grid */}
           <div className="flex-1 overflow-auto">
-            <DepthChartGrid
-              topRow={getPositions().topRow}
-              bottomRow={getPositions().bottomRow}
-              depthChart={depthChart}
-              unit={selectedUnit}
-              formation={null}
-              specialTeamType={selectedUnit === "special_teams" ? selectedSpecialTeamType : null}
-              canEdit={canEdit}
-              onDrop={handleDrop}
-              onRemove={handleRemove}
-              onReorder={handleReorder}
-            />
+            {presetWithLabels && (
+              <DepthChartGrid
+                preset={presetWithLabels}
+                assignments={assignmentsForCurrentView}
+                playersById={playersById}
+                unit={selectedUnit}
+                formation={currentFormation}
+                specialTeamType={currentSpecialTeamType}
+                canEdit={canEdit}
+                validSlotKeysForDraggingPlayer={validSlotKeysForDraggingPlayer}
+                onDragStartPlayer={handleDragStartPlayer}
+                onDrop={handleDrop}
+                onRemove={handleRemove}
+                onReorder={handleReorder}
+              />
+            )}
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Print preview modal */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-white border border-slate-200">
+            <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between border-b">
+              <CardTitle className="text-lg text-slate-900">Print depth chart</CardTitle>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handlePrint}>
+                  <Printer className="h-4 w-4 mr-1.5" />
+                  Print
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowPrintPreview(false)}>
+                  Close
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-4">
+              <p className="text-sm text-slate-600 mb-3">
+                Printing: {unitLabel} — {formationName}. Use your browser&apos;s &quot;Save as PDF&quot; in the print dialog to export PDF.
+              </p>
+              {printBody && (
+                <div className="bg-white text-black border border-slate-200 rounded p-4">
+                  {printBody}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Printable content in portal for @media print */}
+      {showPrintPreview &&
+        typeof document !== "undefined" &&
+        document.body &&
+        createPortal(
+          <div
+            className="depth-chart-print-portal"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: "-9999px",
+              top: 0,
+              width: "1px",
+              height: "1px",
+              overflow: "hidden",
+              pointerEvents: "none",
+            }}
+          >
+            <div ref={printRef} style={{ width: "8.5in" }}>
+              {printBody}
+            </div>
+          </div>,
+          document.body
+        )}
+
+      <style jsx global>{`
+        @media print {
+          @page {
+            margin: 0.5in !important;
+            size: auto;
+          }
+          body * {
+            display: none !important;
+          }
+          body > .depth-chart-print-portal {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+          }
+          body > .depth-chart-print-portal * {
+            display: revert !important;
+            visibility: visible !important;
+            color: black !important;
+          }
+          body > .depth-chart-print-portal .depth-chart-print-root {
+            display: block !important;
+            position: static !important;
+            margin: 0 auto !important;
+            padding: 0.5in !important;
+            color: black !important;
+            background: white !important;
+          }
+        }
+      `}</style>
+    </>
   )
 }

@@ -955,7 +955,8 @@ export function RosterManagerEnhanced({
     }
   }
 
-  // Track changes to depth chart (apply locally, mark as unsaved)
+  // Track changes to depth chart (apply locally, mark as unsaved).
+  // Store assignments by playerId only; DepthChartView resolves player from roster at render time.
   const handleDepthChartChange = (updates: Array<{
     unit: string
     position: string
@@ -964,11 +965,9 @@ export function RosterManagerEnhanced({
     formation?: string | null
     specialTeamType?: string | null
   }>) => {
-    // Apply changes locally
     const updatedChart = [...depthChart]
-    
+
     updates.forEach((update) => {
-      // Remove entries that match this position/string
       const indicesToRemove: number[] = []
       updatedChart.forEach((e, idx) => {
         if (
@@ -977,28 +976,22 @@ export function RosterManagerEnhanced({
           e.string === update.string &&
           (update.specialTeamType
             ? e.specialTeamType === update.specialTeamType
-            : !e.specialTeamType && !e.formation)
+            : (update.formation ? e.formation === update.formation : !e.formation && !e.specialTeamType))
         ) {
           indicesToRemove.push(idx)
         }
       })
-      
-      // Remove in reverse order to maintain indices
-      indicesToRemove.reverse().forEach(idx => updatedChart.splice(idx, 1))
-      
-      // Add new entry if playerId is not null
+      indicesToRemove.reverse().forEach((idx) => updatedChart.splice(idx, 1))
+
       if (update.playerId) {
-        // Find the player object to attach to the entry
-        const player = players.find(p => p.id === update.playerId)
         updatedChart.push({
           id: `temp-${Date.now()}-${Math.random()}`,
           unit: update.unit,
           position: update.position,
           string: update.string,
           playerId: update.playerId,
-          player: player || null,
-          formation: update.formation || null,
-          specialTeamType: update.specialTeamType || null,
+          formation: update.formation ?? null,
+          specialTeamType: update.specialTeamType ?? null,
         })
       }
     })
@@ -1008,7 +1001,7 @@ export function RosterManagerEnhanced({
   }
 
   const handleSaveDepthChart = async () => {
-    // Get all current entries and save them
+    // Get all current entries and save them (formation/specialTeamType preserved; API returns them on reload)
     const updates = depthChart.map((e) => ({
       unit: e.unit,
       position: e.position,

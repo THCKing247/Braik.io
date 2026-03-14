@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir, unlink } from "fs/promises"
+import { unlink } from "fs/promises"
 import { join } from "path"
 import { getUploadRoot } from "@/lib/upload-path"
 import { getServerSession } from "@/lib/auth/server-auth"
@@ -8,9 +8,38 @@ import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 
+const PLAYER_IMAGES_BUCKET = "player-images"
+
+/**
+ * Ensure the player-images bucket exists (public). Idempotent; safe to call on every upload.
+ */
+async function ensurePlayerImagesBucket(supabase: ReturnType<typeof getSupabaseServer>) {
+  const { error } = await supabase.storage.createBucket(PLAYER_IMAGES_BUCKET, {
+    public: true,
+    fileSizeLimit: "5MB",
+    allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+  })
+  if (error && error.message?.toLowerCase().includes("already exists")) return
+  if (error) console.warn("[player-images bucket]", error.message)
+}
+
+/**
+ * Extract storage object path from a Supabase Storage public URL for player-images.
+ * Returns null if the URL is not a player-images storage URL.
+ */
+function getStoragePathFromImageUrl(imageUrl: string): string | null {
+  try {
+    const u = new URL(imageUrl)
+    const match = u.pathname.match(/\/storage\/v1\/object\/public\/player-images\/(.+)$/)
+    return match ? decodeURIComponent(match[1]) : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * POST /api/roster/[playerId]/image
- * Uploads a player image. Coaches can upload for any player; players can upload only their own photo.
+ * Uploads a player image to Supabase Storage. Coaches can upload for any player; players can upload only their own photo.
  */
 export async function POST(
   request: Request,
@@ -39,8 +68,9 @@ export async function POST(
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    await requireTeamAccess((player as { team_id: string }).team_id)
-    const membership = await getUserMembership((player as { team_id: string }).team_id)
+    const teamId = (player as { team_id: string }).team_id
+    await requireTeamAccess(teamId)
+    const membership = await getUserMembership(teamId)
     const isCoach = membership ? canEditRoster(membership.role) : false
     const isOwnProfile = (player as { user_id: string | null }).user_id === session.user.id
     if (!isCoach && !isOwnProfile) {
@@ -54,32 +84,40 @@ export async function POST(
       return NextResponse.json({ error: "File is required" }, { status: 400 })
     }
 
-    // Validate file type
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({ error: "Invalid file type. Only images are allowed." }, { status: 400 })
     }
 
-    // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
       return NextResponse.json({ error: "File size exceeds 5MB limit" }, { status: 400 })
     }
 
+    await ensurePlayerImagesBucket(supabase)
+
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 15)
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
     const secureFileName = `${timestamp}-${random}-${sanitizedName}`
+    const storagePath = `teams/${teamId}/players/${playerId}/${secureFileName}`
 
-    const uploadsDir = join(getUploadRoot(), "uploads", "players")
-    await mkdir(uploadsDir, { recursive: true })
-    const filePath = join(uploadsDir, secureFileName)
     const buffer = Buffer.from(await file.arrayBuffer())
-    await writeFile(filePath, buffer)
+    const { error: uploadError } = await supabase.storage
+      .from(PLAYER_IMAGES_BUCKET)
+      .upload(storagePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      })
 
-    const fileUrl = `/api/uploads/players/${secureFileName}`
+    if (uploadError) {
+      console.error("[POST /api/roster/[playerId]/image] upload", uploadError)
+      return NextResponse.json({ error: "Failed to upload image" }, { status: 500 })
+    }
 
-    // Update player with image URL
+    const { data: urlData } = supabase.storage.from(PLAYER_IMAGES_BUCKET).getPublicUrl(storagePath)
+    const fileUrl = urlData.publicUrl
+
     const { error: updateError } = await supabase
       .from("players")
       .update({ image_url: fileUrl })
@@ -92,7 +130,7 @@ export async function POST(
 
     await logPlayerProfileActivity({
       playerId,
-      teamId: (player as { team_id: string }).team_id,
+      teamId,
       actorId: session.user.id,
       actionType: PLAYER_PROFILE_ACTION_TYPES.PHOTO_CHANGED,
       targetType: "player",
@@ -100,18 +138,19 @@ export async function POST(
     })
 
     return NextResponse.json({ imageUrl: fileUrl })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to upload image"
     console.error("[POST /api/roster/[playerId]/image]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to upload image" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
+    return NextResponse.json(
+      { error: String(message).includes("Access denied") ? "Access denied" : message },
+      { status: String(message).includes("Access denied") ? 403 : 500 }
     )
   }
 }
 
 /**
  * DELETE /api/roster/[playerId]/image
- * Removes a player image. Coaches can remove any; players can remove only their own.
+ * Removes a player image from Storage (if Supabase URL) or filesystem (legacy), and clears image_url.
  */
 export async function DELETE(
   _request: Request,
@@ -140,8 +179,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
-    await requireTeamAccess((player as { team_id: string }).team_id)
-    const membership = await getUserMembership((player as { team_id: string }).team_id)
+    const teamId = (player as { team_id: string }).team_id
+    await requireTeamAccess(teamId)
+    const membership = await getUserMembership(teamId)
     const isCoach = membership ? canEditRoster(membership.role) : false
     const isOwnProfile = (player as { user_id: string | null }).user_id === session.user.id
     if (!isCoach && !isOwnProfile) {
@@ -149,17 +189,22 @@ export async function DELETE(
     }
 
     const imageUrl = (player as { image_url?: string }).image_url
-    if (imageUrl?.startsWith("/api/uploads/players/")) {
-      const fileName = imageUrl.replace("/api/uploads/players/", "")
-      const filePath = join(getUploadRoot(), "uploads", "players", fileName)
-      try {
-        await unlink(filePath)
-      } catch {
-        // Ignore if file already missing
+
+    if (imageUrl) {
+      const storagePath = getStoragePathFromImageUrl(imageUrl)
+      if (storagePath) {
+        await supabase.storage.from(PLAYER_IMAGES_BUCKET).remove([storagePath])
+      } else if (imageUrl.startsWith("/api/uploads/players/")) {
+        const fileName = imageUrl.replace("/api/uploads/players/", "")
+        const filePath = join(getUploadRoot(), "uploads", "players", fileName)
+        try {
+          await unlink(filePath)
+        } catch {
+          // Ignore if file already missing (ephemeral /tmp, etc.)
+        }
       }
     }
 
-    // Update player to remove image URL
     const { error: updateError } = await supabase
       .from("players")
       .update({ image_url: null })
@@ -172,7 +217,7 @@ export async function DELETE(
 
     await logPlayerProfileActivity({
       playerId,
-      teamId: (player as { team_id: string }).team_id,
+      teamId,
       actorId: session.user.id,
       actionType: PLAYER_PROFILE_ACTION_TYPES.PHOTO_REMOVED,
       targetType: "player",
@@ -180,11 +225,12 @@ export async function DELETE(
     })
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to remove image"
     console.error("[DELETE /api/roster/[playerId]/image]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to remove image" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    return NextResponse.json(
+      { error: String(message).includes("Access denied") ? "Access denied" : message },
+      { status: String(message).includes("Access denied") ? 403 : 500 }
+    )
   }
 }

@@ -44,6 +44,10 @@ interface PlayerCardProps {
   onEditPlayer?: (player: any) => void
   onSendInvite?: (player: any) => void | Promise<void>
   onDeletePlayer?: (player: any) => void | Promise<void>
+  /** True while this card's photo is uploading; shows spinner and disables upload. */
+  isUploading?: boolean
+  /** Optional local preview URL (object URL) to show while upload is in progress. */
+  previewImageUrl?: string | null
 }
 
 export function PlayerCard({
@@ -58,6 +62,8 @@ export function PlayerCard({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  isUploading = false,
+  previewImageUrl = null,
 }: PlayerCardProps) {
   const router = useRouter()
   const [imageError, setImageError] = useState(false)
@@ -112,19 +118,19 @@ export function PlayerCard({
   }
 
   const handleImageClick = () => {
-    if (canEdit && onImageUpload) {
+    if (canEdit && onImageUpload && !isUploading) {
       const input = document.createElement("input")
       input.type = "file"
-      input.accept = "image/*"
+      input.accept = "image/jpeg,image/png,image/gif,image/webp"
       input.onchange = (e) => {
         const file = (e.target as HTMLInputElement).files?.[0]
-        if (file) {
-          onImageUpload(player.id, file)
-        }
+        if (file) onImageUpload(player.id, file)
       }
       input.click()
     }
   }
+
+  const displayImageUrl = previewImageUrl ?? (player.imageUrl && !imageError && player.imageUrl.trim() !== "" ? player.imageUrl : null)
 
   return (
     <Card
@@ -162,7 +168,7 @@ export function PlayerCard({
         {/* Player Image / Placeholder - stop propagation so upload works without navigating */}
         <div
           className={`w-20 h-28 relative mb-3 rounded border overflow-hidden ${
-            canEdit && onImageUpload ? "cursor-pointer" : ""
+            canEdit && onImageUpload && !isUploading ? "cursor-pointer" : ""
           }`}
           style={{
             borderColor: "rgb(var(--border))",
@@ -170,11 +176,11 @@ export function PlayerCard({
             borderWidth: "1px"
           }}
           onClick={(e) => { e.stopPropagation(); handleImageClick() }}
-          title={canEdit && onImageUpload ? "Click to upload image" : ""}
+          title={canEdit && onImageUpload && !isUploading ? "Click to upload image" : ""}
         >
-          {player.imageUrl && !imageError && player.imageUrl.trim() !== "" ? (
+          {displayImageUrl ? (
             <Image
-              src={player.imageUrl}
+              src={displayImageUrl}
               alt={`${player.firstName} ${player.lastName}`}
               fill
               className="object-cover"
@@ -187,7 +193,12 @@ export function PlayerCard({
               {getInitials()}
             </div>
           )}
-          {canEdit && onImageUpload && isHovered && (
+          {isUploading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <div className="h-6 w-6 rounded-full border-2 border-white border-t-transparent animate-spin" />
+            </div>
+          )}
+          {canEdit && onImageUpload && !isUploading && isHovered && !displayImageUrl && (
             <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
               <span className="text-white text-xs font-semibold">Upload</span>
             </div>

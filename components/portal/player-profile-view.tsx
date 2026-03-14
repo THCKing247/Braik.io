@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList } from "lucide-react"
 import type { PlayerProfile } from "@/types/player-profile"
 import { PlayerProfileStatsForm } from "./player-profile-stats-form"
+import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity"
 
@@ -47,40 +48,105 @@ export function PlayerProfileView({
   const [editDraft, setEditDraft] = useState<Partial<PlayerProfile>>({})
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoRemoving, setPhotoRemoving] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [cropOpen, setCropOpen] = useState(false)
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null)
+  const [cropFileName, setCropFileName] = useState<string>("photo.jpg")
   const photoInputRef = useRef<HTMLInputElement | null>(null)
 
   const hasEdits = Object.keys(editDraft).length > 0
+
+  const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
+
+  const validateImageFile = (file: File): string | null => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      return "Invalid file type. Use JPEG, PNG, GIF, or WebP."
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      return "File is too large. Maximum size is 5MB."
+    }
+    return null
+  }
+
+  const uploadPhotoFile = useCallback(
+    async (file: File) => {
+      if (!profile) return
+      setPhotoError(null)
+      const previewUrl = URL.createObjectURL(file)
+      setPhotoPreviewUrl(previewUrl)
+      setPhotoUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        const res = await fetch(`/api/roster/${playerId}/image`, { method: "POST", body: formData })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error((data as { error?: string }).error ?? "Upload failed")
+        }
+        const data = await res.json()
+        setProfile((p) => (p ? { ...p, imageUrl: (data as { imageUrl?: string }).imageUrl ?? p.imageUrl } : null))
+        setSaveMessage({ type: "success", text: "Photo updated." })
+      } catch (err) {
+        setPhotoError(err instanceof Error ? err.message : "Upload failed")
+      } finally {
+        setPhotoUploading(false)
+        setPhotoPreviewUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev)
+          return null
+        })
+      }
+    },
+    [playerId, profile]
+  )
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !profile) return
     setPhotoError(null)
-    setPhotoUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-      const res = await fetch(`/api/roster/${playerId}/image`, { method: "POST", body: formData })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error ?? "Upload failed")
-      }
-      const data = await res.json()
-      setProfile((p) => (p ? { ...p, imageUrl: (data as { imageUrl?: string }).imageUrl ?? p.imageUrl } : null))
-      setSaveMessage({ type: "success", text: "Photo updated." })
-    } catch (err) {
-      setPhotoError(err instanceof Error ? err.message : "Upload failed")
-    } finally {
-      setPhotoUploading(false)
+
+    const validationError = validateImageFile(file)
+    if (validationError) {
+      setPhotoError(validationError)
       e.target.value = ""
+      return
     }
+
+    const url = URL.createObjectURL(file)
+    setCropImageUrl(url)
+    setCropFileName(file.name)
+    setCropOpen(true)
+    e.target.value = ""
   }
 
+  const handleCropConfirm = useCallback(
+    (blob: Blob) => {
+      const file = new File([blob], cropFileName.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" })
+      setCropOpen(false)
+      if (cropImageUrl) {
+        URL.revokeObjectURL(cropImageUrl)
+        setCropImageUrl(null)
+      }
+      uploadPhotoFile(file)
+    },
+    [cropFileName, cropImageUrl, uploadPhotoFile]
+  )
+
+  const handleCropCancel = useCallback(() => {
+    setCropOpen(false)
+    if (cropImageUrl) {
+      URL.revokeObjectURL(cropImageUrl)
+      setCropImageUrl(null)
+    }
+  }, [cropImageUrl])
+
   const handlePhotoRemove = async () => {
-    if (!profile || photoUploading) return
+    if (!profile || photoUploading || photoRemoving) return
     if (!confirm("Remove profile photo?")) return
     setPhotoError(null)
-    setPhotoUploading(true)
+    setPhotoRemoving(true)
     try {
       const res = await fetch(`/api/roster/${playerId}/image`, { method: "DELETE" })
       if (!res.ok) {
@@ -92,7 +158,7 @@ export function PlayerProfileView({
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : "Remove failed")
     } finally {
-      setPhotoUploading(false)
+      setPhotoRemoving(false)
     }
   }
 
@@ -255,6 +321,15 @@ export function PlayerProfileView({
 
   return (
     <div className="space-y-6 pb-8">
+      {cropOpen && cropImageUrl && (
+        <PlayerPhotoCropModal
+          open={cropOpen}
+          imageUrl={cropImageUrl}
+          fileName={cropFileName}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
       {/* Back + Header: polished summary card */}
       <Card className="overflow-hidden border-[rgb(var(--border))]">
         <CardContent className="p-4 sm:p-6">
@@ -267,12 +342,19 @@ export function PlayerProfileView({
               </Link>
               <div className="relative shrink-0">
                 <div className="relative h-16 w-16 overflow-hidden rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--platinum))]">
-                  {profile.imageUrl && profile.imageUrl.trim() ? (
+                  {photoPreviewUrl ? (
+                    <Image src={photoPreviewUrl} alt="" fill className="object-cover" unoptimized sizes="64px" />
+                  ) : profile.imageUrl && profile.imageUrl.trim() ? (
                     <Image src={profile.imageUrl} alt="" fill className="object-cover" unoptimized sizes="64px" />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-xl font-semibold" style={{ color: "rgb(var(--muted))" }}>
                       {(profile.firstName?.[0] ?? "") + (profile.lastName?.[0] ?? "") || "?"}
                     </span>
+                  )}
+                  {(photoUploading || photoRemoving) && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <Loader2 className="h-6 w-6 animate-spin text-white" />
+                    </div>
                   )}
                 </div>
                 {canEditProfile && (
@@ -283,7 +365,7 @@ export function PlayerProfileView({
                       accept="image/jpeg,image/png,image/gif,image/webp"
                       className="hidden"
                       onChange={handlePhotoUpload}
-                      disabled={photoUploading}
+                      disabled={photoUploading || photoRemoving}
                     />
                     <Button
                       type="button"
@@ -291,10 +373,10 @@ export function PlayerProfileView({
                       size="sm"
                       className="h-8 text-xs"
                       onClick={() => photoInputRef.current?.click()}
-                      disabled={photoUploading}
+                      disabled={photoUploading || photoRemoving}
                     >
                       {photoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                      <span className="ml-1">{photoUploading ? "Uploading..." : "Change photo"}</span>
+                      <span className="ml-1">{photoUploading ? "Uploading…" : "Change photo"}</span>
                     </Button>
                     {profile.imageUrl && (
                       <Button
@@ -303,14 +385,14 @@ export function PlayerProfileView({
                         size="sm"
                         className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={handlePhotoRemove}
-                        disabled={photoUploading}
+                        disabled={photoUploading || photoRemoving}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span className="ml-1">Remove</span>
+                        {photoRemoving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        <span className="ml-1">{photoRemoving ? "Removing…" : "Remove"}</span>
                       </Button>
                     )}
                     {photoError && (
-                      <p className="text-xs text-red-600">{photoError}</p>
+                      <p className="text-xs text-red-600" role="alert">{photoError}</p>
                     )}
                   </div>
                 )}

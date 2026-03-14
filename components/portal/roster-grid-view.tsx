@@ -1,10 +1,24 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { PlayerCard } from "./player-card"
+import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
 import { Button } from "@/components/ui/button"
 import { User } from "lucide-react"
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
+
+function validateImageFile(file: File): string | null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return "Invalid file type. Use JPEG, PNG, GIF, or WebP."
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    return "File is too large. Maximum size is 5MB."
+  }
+  return null
+}
 
 export interface Player {
   id: string
@@ -46,12 +60,23 @@ export function RosterGridView({
   getProfileHref,
 }: RosterGridViewProps) {
   const [uploadingPlayerId, setUploadingPlayerId] = useState<string | null>(null)
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [cropOpen, setCropOpen] = useState(false)
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null)
+  const [cropPlayerId, setCropPlayerId] = useState<string | null>(null)
+  const [cropFileName, setCropFileName] = useState<string>("photo.jpg")
   const [playersState, setPlayersState] = useState<Player[]>(players)
 
-  // Update local state when players prop changes
   useEffect(() => {
     setPlayersState(players)
   }, [players])
+
+  useEffect(() => {
+    return () => {
+      if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl)
+    }
+  }, [uploadPreviewUrl])
 
   const handleFormsUpdate = async (playerId: string, formsComplete: boolean, missingForms: string[]) => {
     try {
@@ -91,30 +116,83 @@ export function RosterGridView({
     }
   }
 
-  const handleImageUpload = async (playerId: string, file: File) => {
-    setUploadingPlayerId(playerId)
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
+  const uploadFileForPlayer = useCallback(
+    async (playerId: string, file: File) => {
+      setUploadError(null)
+      const previewUrl = URL.createObjectURL(file)
+      setUploadPreviewUrl(previewUrl)
+      setUploadingPlayerId(playerId)
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        const response = await fetch(`/api/roster/${playerId}/image`, {
+          method: "POST",
+          body: formData,
+        })
 
-      const response = await fetch(`/api/roster/${playerId}/image`, {
-        method: "POST",
-        body: formData,
-      })
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}))
+          throw new Error(err?.error ?? "Failed to upload image")
+        }
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err?.error ?? "Failed to upload image")
+        const data = await response.json()
+        onImageUploadSuccess?.(playerId, data.imageUrl)
+      } catch (error) {
+        setUploadError(error instanceof Error ? error.message : "Upload failed. Please try again.")
+      } finally {
+        setUploadingPlayerId(null)
+        setUploadPreviewUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev)
+          return null
+        })
       }
+    },
+    [onImageUploadSuccess]
+  )
 
-      const data = await response.json()
-      onImageUploadSuccess?.(playerId, data.imageUrl)
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Error uploading image. Please try again.")
-    } finally {
-      setUploadingPlayerId(null)
+  const handleImageUpload = useCallback(
+    (playerId: string, file: File) => {
+      setUploadError(null)
+      const validationError = validateImageFile(file)
+      if (validationError) {
+        setUploadError(validationError)
+        return
+      }
+      const url = URL.createObjectURL(file)
+      setCropImageUrl(url)
+      setCropPlayerId(playerId)
+      setCropFileName(file.name)
+      setCropOpen(true)
+    },
+    []
+  )
+
+  const handleCropConfirm = useCallback(
+    (blob: Blob) => {
+      const pid = cropPlayerId
+      const name = cropFileName.replace(/\.[^.]+$/, "") + ".jpg"
+      setCropOpen(false)
+      if (cropImageUrl) {
+        URL.revokeObjectURL(cropImageUrl)
+        setCropImageUrl(null)
+      }
+      setCropPlayerId(null)
+      if (pid) {
+        const file = new File([blob], name, { type: "image/jpeg" })
+        uploadFileForPlayer(pid, file)
+      }
+    },
+    [cropPlayerId, cropFileName, cropImageUrl, uploadFileForPlayer]
+  )
+
+  const handleCropCancel = useCallback(() => {
+    setCropOpen(false)
+    if (cropImageUrl) {
+      URL.revokeObjectURL(cropImageUrl)
+      setCropImageUrl(null)
     }
-  }
+    setCropPlayerId(null)
+  }, [cropImageUrl])
 
   return (
     <div
@@ -122,6 +200,20 @@ export function RosterGridView({
       style={{ minHeight: "420px", maxHeight: "800px" }}
       aria-label="Roster cards grid"
     >
+      {cropOpen && cropImageUrl && (
+        <PlayerPhotoCropModal
+          open={cropOpen}
+          imageUrl={cropImageUrl}
+          fileName={cropFileName}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
+      {uploadError && (
+        <div className="mx-4 mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          {uploadError}
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
       {playersState.map((player) => (
         <div key={player.id} className="flex flex-col gap-2">
@@ -139,6 +231,8 @@ export function RosterGridView({
             onEditPlayer={onEditPlayer}
             onSendInvite={onSendInvite}
             onDeletePlayer={onDeletePlayer}
+            isUploading={uploadingPlayerId === player.id}
+            previewImageUrl={uploadingPlayerId === player.id ? uploadPreviewUrl : null}
           />
         </div>
       ))}

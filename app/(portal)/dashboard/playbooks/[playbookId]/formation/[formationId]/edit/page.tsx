@@ -32,6 +32,7 @@ export default function FormationEditPage() {
   const playbookId = typeof params?.playbookId === "string" ? params.playbookId : null
   const formationId = typeof params?.formationId === "string" ? params.formationId : null
   const triggerSaveRef = useRef<(() => void | Promise<void>) | null>(null)
+  const createdHandledRef = useRef(false)
 
   const [formation, setFormation] = useState<FormationRecord | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,10 +91,10 @@ export default function FormationEditPage() {
   }, [formationId])
 
   useEffect(() => {
-    if (searchParams.get("created") === "1") {
-      showToast("Formation created. You can now design the formation.", "success")
-      router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}/edit`, { scroll: false })
-    }
+    if (searchParams.get("created") !== "1" || !playbookId || !formationId || createdHandledRef.current) return
+    createdHandledRef.current = true
+    showToast("Formation created. You can now design the formation.", "success")
+    router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}/edit`, { scroll: false })
   }, [searchParams, playbookId, formationId, router, showToast])
 
   const initialCanvasData: CanvasData | null = useMemo(() => {
@@ -116,39 +117,48 @@ export default function FormationEditPage() {
     }
   }, [formation])
 
-  const handleSave = async (data: CanvasData, _name: string) => {
-    if (!formationId || !formation) return
-    saveState.setSaving()
-    const playCanvasData: PlayCanvasData = {
-      players: data.players.map((p) => ({
-        id: p.id,
-        x: p.x,
-        y: p.y,
-        xYards: p.xYards ?? 0,
-        yYards: p.yYards ?? 0,
-        label: p.label,
-        shape: p.shape,
-      })),
-      zones: [],
-      manCoverages: [],
-      fieldType: "half",
-      side: formation.side,
-    }
-    const templateData = canvasPlayersToTemplateData(playCanvasData.players, formation.side)
-    const res = await fetch(`/api/formations/${formationId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateData }),
-    })
-    if (res.ok) {
-      saveState.setSaved()
-      showToast("Formation saved", "success")
-    } else {
-      saveState.setError()
-      showToast("Save failed. Please try again.", "error")
-      throw new Error("Failed to save formation")
-    }
-  }
+  const handleSave = useCallback(
+    async (data: CanvasData, _name: string) => {
+      if (!formationId || !formation) return
+      saveState.setSaving()
+      try {
+        const playCanvasData: PlayCanvasData = {
+          players: data.players.map((p) => ({
+            id: p.id,
+            x: p.x,
+            y: p.y,
+            xYards: p.xYards ?? 0,
+            yYards: p.yYards ?? 0,
+            label: p.label,
+            shape: p.shape,
+          })),
+          zones: [],
+          manCoverages: [],
+          fieldType: "half",
+          side: formation.side,
+        }
+        const templateData = canvasPlayersToTemplateData(playCanvasData.players, formation.side)
+        const res = await fetch(`/api/formations/${formationId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ templateData }),
+        })
+        if (res.ok) {
+          saveState.setSaved()
+          showToast("Formation saved", "success")
+        } else {
+          saveState.setError()
+          showToast("Save failed. Please try again.", "error")
+          throw new Error("Failed to save formation")
+        }
+      } catch (err) {
+        saveState.setError()
+        showToast("Save failed. Please try again.", "error")
+        throw err
+      }
+    },
+    [formationId, formation, saveState, showToast]
+  )
 
   const handleClose = () => {
     saveState.confirmBeforeNavigate(() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}`))

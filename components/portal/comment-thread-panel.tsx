@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { MessageSquare, Send, Check, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,32 +36,53 @@ export function CommentThreadPanel({
   defaultCollapsed = false,
 }: CommentThreadPanelProps) {
   const { showToast } = usePlaybookToast()
+  const onCountChangeRef = useRef(onCountChange)
+  onCountChangeRef.current = onCountChange
+
   const [comments, setComments] = useState<CommentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [posting, setPosting] = useState(false)
   const [newText, setNewText] = useState("")
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
 
-  const load = useCallback(async () => {
-    if (!parentId) return
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/comments?parentType=${parentType}&parentId=${parentId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setComments(Array.isArray(data) ? data : [])
-        onCountChange?.(Array.isArray(data) ? data.length : 0)
-      }
-    } catch {
-      showToast("Failed to load comments", "error")
-    } finally {
-      setLoading(false)
-    }
-  }, [parentType, parentId, onCountChange, showToast])
-
+  // Fetch comments only when parent identity changes. No retry on failure; no dependency on
+  // showToast/onCountChange to avoid infinite loops when toast or parent re-renders change refs.
   useEffect(() => {
-    load()
-  }, [load])
+    if (parentId == null || parentId === "" || parentType == null) {
+      setComments([])
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/comments?parentType=${encodeURIComponent(parentType)}&parentId=${encodeURIComponent(parentId)}`)
+      .then((res) => {
+        if (cancelled) return null
+        if (!res.ok) {
+          console.warn("[CommentThreadPanel] Comments fetch failed:", res.status, res.statusText)
+          return null
+        }
+        return res.json()
+      })
+      .then((data) => {
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : []
+        setComments(list)
+        onCountChangeRef.current?.(list.length)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn("[CommentThreadPanel] Comments fetch error:", err)
+          setComments([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [parentType, parentId])
 
   const handlePost = useCallback(async () => {
     const text = newText.trim()

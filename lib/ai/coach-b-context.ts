@@ -195,13 +195,14 @@ export async function getTeamContext(
     }
     const upcomingGameCount = games.length
 
-    // Active injuries
-    let injuries: Array<{
+    // Active injuries (Supabase relation can return object or array)
+    type InjuryRow = {
       player_id: string
       injury_reason: string
       expected_return_date: string | null
-      players?: { first_name: string; last_name: string } | null
-    }> = []
+      players?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null
+    }
+    let injuries: InjuryRow[] = []
     const { data: injuryRows, error: injuriesErr } = await supabase
       .from("player_injuries")
       .select("player_id, injury_reason, expected_return_date, players(first_name, last_name)")
@@ -210,7 +211,7 @@ export async function getTeamContext(
       .order("injury_date", { ascending: false })
 
     if (!injuriesErr && injuryRows) {
-      injuries = injuryRows as typeof injuries
+      injuries = injuryRows as unknown as InjuryRow[]
     }
     const activeInjuryCount = injuries.length
 
@@ -227,7 +228,7 @@ export async function getTeamContext(
                 const health = healthByPlayerId.get(q.id) ?? "active"
                 const inj = injuries.find((i) => i.player_id === q.id)
                 const injNote = inj
-                  ? `; INJURED: ${inj.injury_reason}${inj.expected_return_date ? ` (expected return: ${inj.expected_return_date.slice(0, 10)})` : ""}`
+                  ? `; INJURED: ${inj.injury_reason}${inj.expected_return_date ? ` (expected return: ${String(inj.expected_return_date).slice(0, 10)})` : ""}`
                   : health !== "active" ? `; health: ${health}` : ""
                 return `- ${q.first_name ?? ""} ${q.last_name ?? ""} #${q.jersey_number ?? "—"} (${q.position_group ?? "—"})${injNote}`
               })
@@ -273,8 +274,15 @@ export async function getTeamContext(
     if (activeInjuryCount > 0 && (questionType === "roster" || questionType === "qb_start" || questionType === "general")) {
       const injuryList = injuries
         .map((i) => {
-          const name = i.players ? `${i.players.first_name} ${i.players.last_name}` : i.player_id
-          return `  - ${name}: ${i.injury_reason}${i.expected_return_date ? ` (return ~${i.expected_return_date.slice(0, 10)})` : ""}`
+          const p = i.players
+          const name = p
+            ? Array.isArray(p)
+              ? p[0]
+                ? `${p[0].first_name} ${p[0].last_name}`
+                : i.player_id
+              : `${p.first_name} ${p.last_name}`
+            : i.player_id
+          return `  - ${name}: ${i.injury_reason}${i.expected_return_date ? ` (return ~${String(i.expected_return_date).slice(0, 10)})` : ""}`
         })
         .join("\n")
       sections.push(`\nActive injuries (${activeInjuryCount}):\n${injuryList}`)
@@ -341,21 +349,33 @@ export async function getQuarterbackContext(teamId: string): Promise<{
     .filter((e) => e.position && /qb|quarterback/i.test(e.position))
     .map((e) => ({ unit: e.unit, position: e.position, string: e.string, playerId: e.player_id }))
 
+  type InjuryRowQB = {
+    player_id: string
+    injury_reason: string
+    expected_return_date: string | null
+    players?: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null
+  }
   const { data: injuryRows } = await supabase
     .from("player_injuries")
     .select("player_id, injury_reason, expected_return_date, players(first_name, last_name)")
     .eq("team_id", teamId)
     .eq("status", "active")
-  const injuries = ((injuryRows ?? []) as Array<{
-    player_id: string
-    injury_reason: string
-    expected_return_date: string | null
-    players?: { first_name: string; last_name: string } | null
-  }>).map((i) => ({
-    playerName: i.players ? `${i.players.first_name} ${i.players.last_name}` : i.player_id,
-    reason: i.injury_reason,
-    expectedReturn: i.expected_return_date,
-  }))
+  const injuryListRaw = (injuryRows ?? []) as unknown as InjuryRowQB[]
+  const injuries = injuryListRaw.map((i) => {
+    const p = i.players
+    const playerName = p
+      ? Array.isArray(p)
+        ? p[0]
+          ? `${p[0].first_name} ${p[0].last_name}`
+          : i.player_id
+        : `${p.first_name} ${p.last_name}`
+      : i.player_id
+    return {
+      playerName,
+      reason: i.injury_reason,
+      expectedReturn: i.expected_return_date,
+    }
+  })
 
   let nextGame: { opponent: string | null; date: string } | null = null
   try {

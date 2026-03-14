@@ -153,14 +153,55 @@ export async function GET(
   }
 }
 
+/** Build base update payload (columns that exist in original plays migration). */
+function buildBaseUpdatePayload(
+  body: {
+    name?: string
+    canvasData?: unknown
+    formation?: string
+    formationId?: string | null
+    subFormationId?: string | null
+    subcategory?: string | null
+    side?: string
+  },
+  formationNameFromId?: string | null
+): Record<string, unknown> {
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  }
+  if (body.name !== undefined) updateData.name = body.name.trim()
+  if (body.canvasData !== undefined) updateData.canvas_data = body.canvasData
+  if (body.formation !== undefined) updateData.formation = body.formation.trim()
+  if (body.formationId !== undefined) {
+    updateData.formation_id = body.formationId
+    if (formationNameFromId != null) updateData.formation = formationNameFromId
+  }
+  if (body.subFormationId !== undefined) updateData.sub_formation_id = body.subFormationId
+  if (body.subcategory !== undefined) updateData.subcategory = body.subcategory?.trim() ?? null
+  if (body.side !== undefined) updateData.side = body.side
+  return updateData
+}
+
 /**
  * PATCH /api/plays/[playId]
- * Updates a play.
+ * Updates a play. Schema-safe: tries full payload/select first, falls back to base-only if optional columns are missing.
  */
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ playId: string }> }
 ) {
+  const debugId = crypto.randomUUID()
+  const logMeta: {
+    phase?: string
+    playId?: string
+    bodyKeys?: string[]
+    updatePayloadKeys?: string[]
+    fallbackUsed?: boolean
+    message?: string
+    code?: string
+    stack?: string
+  } = { playId: undefined }
+
   try {
     const session = await getServerSession()
     if (!session?.user?.id) {
@@ -168,139 +209,236 @@ export async function PATCH(
     }
 
     const { playId } = await params
-    if (!playId) {
-      return NextResponse.json({ error: "playId is required" }, { status: 400 })
+    const id = typeof playId === "string" ? playId.trim() : ""
+    logMeta.playId = id || undefined
+
+    if (!id) {
+      console.log("[PATCH /api/plays/[playId]]", { debugId, phase: "parse", ...logMeta, message: "playId missing" })
+      return NextResponse.json(
+        { error: "playId is required", debugId, phase: "parse" },
+        { status: 400 }
+      )
     }
 
-    const body = (await request.json()) as {
-      name?: string
-      canvasData?: unknown
-      formation?: string
-      subcategory?: string | null
-      subFormationId?: string | null
-      side?: string
-      formationId?: string | null
-      playType?: "run" | "pass" | "rpo" | "screen" | null
-      tags?: string[] | null
+    let body: Record<string, unknown> = {}
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      console.log("[PATCH /api/plays/[playId]]", { debugId, phase: "parse", playId: id, message: "Invalid JSON" })
+      return NextResponse.json(
+        { error: "Invalid JSON body", debugId, phase: "parse" },
+        { status: 400 }
+      )
     }
+    logMeta.bodyKeys = Object.keys(body)
+    logMeta.phase = "access"
 
     const supabase = getSupabaseServer()
 
-    // Get existing play to check permissions
     const { data: existingPlay, error: existingError } = await supabase
       .from("plays")
       .select("id, team_id, side")
-      .eq("id", playId)
+      .eq("id", id)
       .maybeSingle()
 
-    if (existingError || !existingPlay) {
-      return NextResponse.json({ error: "Play not found" }, { status: 404 })
+    if (existingError) {
+      console.error("[PATCH /api/plays/[playId]]", { debugId, phase: "access", playId: id, message: existingError.message, code: (existingError as { code?: string }).code })
+      return NextResponse.json(
+        {
+          error: "Failed to load play",
+          debugId,
+          phase: "access",
+          ...(process.env.NODE_ENV !== "production" && { details: (existingError as { message?: string }).message }),
+        },
+        { status: 500 }
+      )
+    }
+    if (!existingPlay) {
+      console.log("[PATCH /api/plays/[playId]]", { debugId, phase: "access", playId: id, message: "Play not found" })
+      return NextResponse.json({ error: "Play not found", debugId, phase: "access" }, { status: 404 })
     }
 
-    const side = body.side || existingPlay.side
-
-    // Check permissions based on side
-    if (side === "offense") {
-      await requireTeamPermission(existingPlay.team_id, "edit_offense_plays")
-    } else if (side === "defense") {
-      await requireTeamPermission(existingPlay.team_id, "edit_defense_plays")
-    } else {
-      await requireTeamPermission(existingPlay.team_id, "edit_special_teams_plays")
+    const side = (body.side as string) || existingPlay.side
+    try {
+      if (side === "offense") {
+        await requireTeamPermission(existingPlay.team_id, "edit_offense_plays")
+      } else if (side === "defense") {
+        await requireTeamPermission(existingPlay.team_id, "edit_defense_plays")
+      } else {
+        await requireTeamPermission(existingPlay.team_id, "edit_special_teams_plays")
+      }
+    } catch (accessErr) {
+      const msg = accessErr instanceof Error ? accessErr.message : "Access denied"
+      console.log("[PATCH /api/plays/[playId]]", { debugId, phase: "access", playId: id, message: msg })
+      return NextResponse.json(
+        { error: msg, debugId, phase: "access" },
+        { status: 403 }
+      )
     }
 
-    // Build update data
-    const updateData: {
-      name?: string
-      canvas_data?: unknown
-      formation?: string
-      formation_id?: string | null
-      sub_formation_id?: string | null
-      subcategory?: string | null
-      side?: string
-      tags?: string[] | null
-      updated_at?: string
-    } = {}
+    let formationNameForInsert: string | null = null
+    if (body.formationId != null && body.formationId !== "") {
+      const { data: formationRow } = await supabase
+        .from("formations")
+        .select("name")
+        .eq("id", body.formationId)
+        .eq("team_id", existingPlay.team_id)
+        .maybeSingle()
+      formationNameForInsert = formationRow?.name?.trim() ?? null
+    }
 
-    if (body.name !== undefined) {
-      updateData.name = body.name.trim()
+    const basePayload = buildBaseUpdatePayload(
+      {
+        name: body.name as string | undefined,
+        canvasData: body.canvasData,
+        formation: body.formation as string | undefined,
+        formationId: body.formationId as string | null | undefined,
+        subFormationId: body.subFormationId as string | null | undefined,
+        subcategory: body.subcategory as string | null | undefined,
+        side: body.side as string | undefined,
+      },
+      formationNameForInsert
+    )
+
+    const fullPayload = { ...basePayload } as Record<string, unknown>
+    if (body.tags !== undefined) {
+      fullPayload.tags = Array.isArray(body.tags)
+        ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim() !== "")
+        : null
     }
-    if (body.canvasData !== undefined) {
-      updateData.canvas_data = body.canvasData
-    }
-    if (body.formation !== undefined) {
-      updateData.formation = body.formation.trim()
-    }
-    if (body.formationId !== undefined) {
-      updateData.formation_id = body.formationId
-      if (body.formationId != null) {
-        const { data: formationRow } = await supabase
-          .from("formations")
-          .select("name")
-          .eq("id", body.formationId)
-          .eq("team_id", existingPlay.team_id)
-          .maybeSingle()
-        if (formationRow?.name) updateData.formation = formationRow.name.trim()
+    if (body.playType !== undefined && body.playType !== null) {
+      const pt = body.playType as string
+      if (typeof pt === "string" && ["run", "pass", "rpo", "screen"].includes(pt)) {
+        fullPayload.play_type = pt
       }
     }
-    if (body.subFormationId !== undefined) {
-      updateData.sub_formation_id = body.subFormationId
-    }
-    if (body.subcategory !== undefined) {
-      updateData.subcategory = body.subcategory?.trim() ?? null
-    }
-    if (body.side !== undefined) {
-      updateData.side = body.side
-    }
-    if (body.tags !== undefined) {
-      updateData.tags = Array.isArray(body.tags) ? body.tags.filter((t): t is string => typeof t === "string" && t.trim() !== "") : null
-    }
-    updateData.updated_at = new Date().toISOString()
 
-    const { data: play, error: updateError } = await supabase
+    logMeta.phase = "update"
+    logMeta.updatePayloadKeys = Object.keys(fullPayload)
+
+    let play: Record<string, unknown> | null = null
+    let usedBaseSelect = false
+
+    let updateResult = await supabase
       .from("plays")
-      .update(updateData)
-      .eq("id", playId)
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, tags, created_at, updated_at")
+      .update(fullPayload)
+      .eq("id", id)
+      .select(PLAY_SELECT_FULL)
       .single()
 
-    if (updateError || !play) {
-      console.error("[PATCH /api/plays/[playId]]", updateError)
-      return NextResponse.json({ error: "Failed to update play" }, { status: 500 })
+    if (updateResult.error && isColumnError(updateResult.error as { message?: string; code?: string })) {
+      logMeta.fallbackUsed = true
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[PATCH /api/plays/[playId]]", {
+          debugId,
+          phase: "update",
+          playId: id,
+          message: "Full update/select failed (optional column), retrying with base payload and base select",
+          code: (updateResult.error as { code?: string }).code,
+        })
+      }
+      const baseUpdateResult = await supabase
+        .from("plays")
+        .update(basePayload)
+        .eq("id", id)
+        .select(PLAY_SELECT_BASE)
+        .single()
+      if (baseUpdateResult.error) {
+        console.error("[PATCH /api/plays/[playId]]", {
+          debugId,
+          phase: "update",
+          playId: id,
+          fallbackUsed: true,
+          message: (baseUpdateResult.error as { message?: string }).message,
+          code: (baseUpdateResult.error as { code?: string }).code,
+        })
+        return NextResponse.json(
+          {
+            error: "Failed to update play",
+            debugId,
+            phase: "update",
+            ...(process.env.NODE_ENV !== "production" && { details: (baseUpdateResult.error as { message?: string }).message }),
+          },
+          { status: 500 }
+        )
+      }
+      play = baseUpdateResult.data as Record<string, unknown>
+      usedBaseSelect = true
+    } else if (updateResult.error) {
+      console.error("[PATCH /api/plays/[playId]]", {
+        debugId,
+        phase: "update",
+        playId: id,
+        message: (updateResult.error as { message?: string }).message,
+        code: (updateResult.error as { code?: string }).code,
+      })
+      return NextResponse.json(
+        {
+          error: "Failed to update play",
+          debugId,
+          phase: "update",
+          ...(process.env.NODE_ENV !== "production" && { details: (updateResult.error as { message?: string }).message }),
+        },
+        { status: 500 }
+      )
+    } else {
+      play = updateResult.data as Record<string, unknown>
     }
 
-    const updatedSubFormationId = (play as { sub_formation_id?: string }).sub_formation_id ?? null
+    if (!play) {
+      return NextResponse.json(
+        { error: "Failed to update play", debugId, phase: "select" },
+        { status: 500 }
+      )
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[PATCH /api/plays/[playId]]", { debugId, phase: "response_format", playId: id, fallbackUsed: logMeta.fallbackUsed })
+    }
+
+    const subFormationId = (play.sub_formation_id as string) ?? null
     let subFormationName: string | null = null
-    if (updatedSubFormationId) {
-      const { data: subRow } = await supabase.from("sub_formations").select("name").eq("id", updatedSubFormationId).maybeSingle()
+    if (subFormationId) {
+      const { data: subRow } = await supabase.from("sub_formations").select("name").eq("id", subFormationId).maybeSingle()
       subFormationName = subRow?.name?.trim() ?? null
     }
 
-    const prow = play as Record<string, unknown>
     const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
-      formationId: prow.formation_id ?? null,
-      subFormationId: updatedSubFormationId,
+      formationId: play.formation_id ?? null,
+      subFormationId,
       side: play.side,
       formation: play.formation,
       subFormation: subFormationName,
       subcategory: play.subcategory ?? null,
       name: play.name,
-      playType: safePlayTypeFromRow(play as Record<string, unknown>),
+      playType: usedBaseSelect ? null : safePlayTypeFromRow(play),
       canvasData: play.canvas_data,
-      orderIndex: prow.order_index ?? null,
-      tags: Array.isArray(prow.tags) ? prow.tags : null,
+      orderIndex: usedBaseSelect ? null : (play.order_index ?? null),
+      tags: usedBaseSelect ? null : (Array.isArray(play.tags) ? play.tags : null),
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
     if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
     return res
   } catch (error: unknown) {
-    const err = error as { message?: string }
-    console.error("[PATCH /api/plays/[playId]]", error)
+    const err = error as { message?: string; stack?: string }
+    console.error("[PATCH /api/plays/[playId]]", {
+      debugId,
+      phase: "response_error",
+      ...logMeta,
+      message: err?.message,
+      stack: err?.stack,
+    })
     return NextResponse.json(
-      { error: err?.message ?? "Failed to update play" },
+      {
+        error: err?.message ?? "Failed to update play",
+        debugId,
+        phase: "response_error",
+        ...(process.env.NODE_ENV !== "production" && err?.stack && { details: err.stack }),
+      },
       { status: err?.message?.includes("Access denied") ? 403 : 500 }
     )
   }

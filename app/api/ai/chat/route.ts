@@ -1,10 +1,11 @@
 import OpenAI from "openai"
 import { NextResponse } from "next/server"
+import { getTeamContext, detectQuestionType } from "@/lib/ai/coach-b-context"
 
 const apiKey = process.env.OPENAI_API_KEY
 const client = apiKey ? new OpenAI({ apiKey }) : null
 
-const COACH_B_SYSTEM_PROMPT = `You are Coach B, the football coaching assistant for Braik. You help coaches with strategy, play calling, practice planning, roster decisions, and team management. Be concise, practical, and focused on football. Use the coach's team context when relevant (e.g., teamId, role) to tailor advice. Do not propose or execute actions outside of conversation—only answer questions and give coaching advice.`
+const COACH_B_SYSTEM_BASE = `You are Coach B, Braik's football coaching assistant. Use Braik software data first when available. Do not ask the coach for information that already exists in the provided context. If key information is missing from the software data, say exactly what is missing. Be concise, practical, and focused on football. Do not propose or execute actions outside of conversation—only answer questions and give coaching advice.`
 
 export async function POST(req: Request) {
   if (!client) {
@@ -41,6 +42,46 @@ export async function POST(req: Request) {
     )
   }
 
+  const teamId =
+    typeof body?.teamId === "string" && body.teamId.trim() ? body.teamId.trim() : undefined
+
+  // Fetch Braik team context when teamId is provided; fall back gracefully on failure
+  let instructions = COACH_B_SYSTEM_BASE
+  if (teamId) {
+    const questionType = detectQuestionType(message)
+    console.log("[POST /api/ai/chat] teamId provided, fetching context", {
+      teamId,
+      questionType,
+    })
+    try {
+      const teamContext = await getTeamContext(teamId, message)
+      if (teamContext) {
+        instructions =
+          COACH_B_SYSTEM_BASE +
+          "\n\n" +
+          teamContext.braikContextBlock
+        console.log("[POST /api/ai/chat] Braik team context found", {
+          playerCount: teamContext.playerCount,
+          qbCount: teamContext.qbCount,
+          depthChartEntryCount: teamContext.depthChartEntryCount,
+          upcomingEventCount: teamContext.upcomingEventCount,
+          upcomingGameCount: teamContext.upcomingGameCount,
+          activeInjuryCount: teamContext.activeInjuryCount,
+        })
+      } else {
+        console.log("[POST /api/ai/chat] Braik team context not available, using generic behavior")
+      }
+    } catch (contextErr) {
+      console.error("[POST /api/ai/chat] Team context fetch failed, falling back to generic", {
+        teamId,
+        error: contextErr,
+      })
+      // instructions stay as COACH_B_SYSTEM_BASE only
+    }
+  } else {
+    console.log("[POST /api/ai/chat] No teamId provided, using generic behavior")
+  }
+
   const history = Array.isArray(body.conversationHistory)
     ? body.conversationHistory
     : []
@@ -67,7 +108,7 @@ export async function POST(req: Request) {
   try {
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      instructions: COACH_B_SYSTEM_PROMPT,
+      instructions,
       input,
     })
 

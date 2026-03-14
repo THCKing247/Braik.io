@@ -1,6 +1,13 @@
 "use client"
 
-import { useEffect, useCallback, useMemo, useRef, useState } from "react"
+import {
+  type HTMLAttributes,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { X, ChevronLeft, ChevronRight, Pencil, Eraser, Play, Pause, RotateCcw, SkipBack, Repeat, ChevronsLeft, ChevronsRight, Route, Circle, Flag, Star, Hand, ArrowRight, Triangle, Music2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
@@ -184,7 +191,7 @@ export function PlaycallerView({
   const players = getPlayersFromCanvas(canvasData, coord)
   const svgRef = useRef<SVGSVGElement>(null)
   const [tool, setTool] = useState<PresenterTool>("none")
-  const [markerColor, setMarkerColor] = useState(MARKER_COLORS[0].value)
+  const [markerColor, setMarkerColor] = useState<string>(MARKER_COLORS[0].value)
   const [strokes, setStrokes] = useState<{ points: { x: number; y: number }[]; color: string }[]>([])
   const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[] | null>(null)
   const [annotations, setAnnotations] = useState<{ id: string; iconType: string; x: number; y: number }[]>([])
@@ -940,7 +947,19 @@ export function PlaycallerView({
                     strokeWidth={2}
                   />
                   <foreignObject x={-12} y={-12} width={24} height={24}>
-                    <div xmlns="http://www.w3.org/1999/xhtml" style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", color: "#fafafa" }}>
+                    <div
+                      {...({
+                        xmlns: "http://www.w3.org/1999/xhtml",
+                        style: {
+                          width: 24,
+                          height: 24,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fafafa",
+                        },
+                      } as HTMLAttributes<HTMLDivElement> & { xmlns: string })}
+                    >
                       <IconComp size={18} strokeWidth={2.5} />
                     </div>
                   </foreignObject>

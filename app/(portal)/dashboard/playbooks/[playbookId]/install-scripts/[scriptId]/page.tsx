@@ -126,7 +126,7 @@ export default function InstallScriptBuilderPage() {
       if (!script) return
       const currentIds = script.items.map((i) => i.playId)
       if (currentIds.includes(playId)) return
-      saveItems([...currentIds, playId])
+      saveItems([...currentIds, playId].map((id) => ({ playId: id })))
       setShowAddPlay(false)
     },
     [script, saveItems]
@@ -135,7 +135,12 @@ export default function InstallScriptBuilderPage() {
   const removePlay = useCallback(
     (playId: string) => {
       if (!script) return
-      saveItems(script.items.map((i) => i.playId).filter((id) => id !== playId))
+      saveItems(
+        script.items
+          .map((i) => i.playId)
+          .filter((id) => id !== playId)
+          .map((id) => ({ playId: id }))
+      )
     },
     [script, saveItems]
   )
@@ -147,7 +152,7 @@ export default function InstallScriptBuilderPage() {
       const next = index + dir
       if (next < 0 || next >= order.length) return
       ;[order[index], order[next]] = [order[next], order[index]]
-      saveItems(order)
+      saveItems(order.map((id) => ({ playId: id })))
     },
     [script, saveItems]
   )

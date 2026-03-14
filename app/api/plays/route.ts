@@ -25,6 +25,11 @@ type LogMeta = {
   teamId?: string | null
   userId?: string | null
   playId?: string | null
+  playbookId?: string | null
+  formationId?: string | null
+  subFormationId?: string | null
+  hasCanvasData?: boolean
+  stack?: string
   helper?: string
   message?: string
   code?: string

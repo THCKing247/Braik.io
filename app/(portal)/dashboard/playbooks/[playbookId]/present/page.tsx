@@ -43,7 +43,7 @@ function PlaybookPresenterContent({
   const [playAIndex, setPlayAIndex] = useState(0)
   const [playBIndex, setPlayBIndex] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const fullscreenContainerRef = useRef<HTMLDivElement>(null)
+  const presenterRef = useRef<HTMLDivElement | null>(null)
 
   const load = useCallback(async () => {
     if (!playbookId || !teamId) return
@@ -208,8 +208,8 @@ function PlaybookPresenterContent({
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen()
-      } else if (fullscreenContainerRef.current) {
-        await fullscreenContainerRef.current.requestFullscreen()
+      } else {
+        await presenterRef.current?.requestFullscreen()
       }
     } catch {
       // ignore (e.g. user cancelled or fullscreen not allowed)
@@ -329,8 +329,8 @@ function PlaybookPresenterContent({
 
   return (
     <div
-      ref={fullscreenContainerRef}
-      className={`flex flex-col bg-slate-50 ${isFullscreen ? "h-full w-full" : "h-screen"}`}
+      ref={presenterRef}
+      className={`presenter-root flex flex-col bg-slate-50 ${isFullscreen ? "h-full w-full" : "h-screen"}`}
     >
       <div
         className={`flex-shrink-0 flex items-center gap-3 flex-wrap ${

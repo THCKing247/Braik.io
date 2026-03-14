@@ -757,7 +757,7 @@ export function PlaycallerView({
                 const routeOpacity = isHighlighted ? 1 : 0.4
                 const routeGlow = !!highlightedGroup && groupMatch === true
                 return (
-                <g key={`routes-${p.id}`} style={{ opacity: routeOpacity }}>
+                <g key={`routes-${p.id}`} style={{ opacity: routeOpacity, pointerEvents: "none" }}>
                   {p.route && p.route.length > 1 && (
                     <g filter={routeGlow ? "url(#route-glow)" : undefined}>
                       <polyline
@@ -852,7 +852,7 @@ export function PlaycallerView({
               const sizeScale = isMoving ? 1.15 : 1
               const r = (markerSize / 2) * sizeScale
               return (
-              <g key={p.id} style={{ opacity: markerOpacity }}>
+              <g key={p.id} style={{ opacity: markerOpacity, pointerEvents: "none" }}>
                 {p.shape === "circle" && (
                   <circle
                     cx={animPos.x}
@@ -897,7 +897,7 @@ export function PlaycallerView({
               </g>
             )
             })}
-            {/* Marker strokes (presenter drawings) */}
+            {/* Marker strokes (presenter drawings); non-interactive so capture rect receives pointer */}
             {strokes.map((stroke, i) =>
               stroke.points.length > 1 ? (
                 <polyline
@@ -908,6 +908,7 @@ export function PlaycallerView({
                   strokeWidth={3}
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  style={{ pointerEvents: "none" }}
                 />
               ) : null
             )}
@@ -919,9 +920,10 @@ export function PlaycallerView({
                 strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                style={{ pointerEvents: "none" }}
               />
             )}
-            {/* Overlay to capture pointer when marker or icon tool is active (behind annotations so icon clicks work) */}
+            {/* Capture rect: receives pointer when marker or icon tool active; behind annotations so icon clicks work */}
             <rect
               width={VIEWBOX_W}
               height={VIEWBOX_H}
@@ -1107,7 +1109,7 @@ export function PlaycallerView({
 
       <div
         className={`absolute left-1/2 -translate-x-1/2 px-4 py-2 ${
-          fullscreen ? "bottom-6 bg-slate-900/80 backdrop-blur rounded-md border border-slate-700/50" : "bottom-4 bg-background/90 backdrop-blur rounded-lg shadow-lg"
+          fullscreen ? "bottom-6 bg-slate-900/80 backdrop-blur rounded-md border border-slate-700/50 pointer-events-none" : "bottom-4 bg-background/90 backdrop-blur rounded-lg shadow-lg"
         }`}
       >
         <p className={fullscreen ? "text-base font-semibold text-slate-100" : "text-sm font-semibold text-foreground"}>{play.name}</p>

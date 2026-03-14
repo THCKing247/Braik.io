@@ -88,6 +88,20 @@ function rowWrapClass(alignment: RowAlignment): string {
   return alignment === "spread" ? "flex-nowrap" : "flex-wrap"
 }
 
+/** Single flex row for WR/skill spread: one row container, full width, slots distributed. */
+function formationRowClass(alignment: RowAlignment, rowType?: string): string {
+  const base = "formation-row flex items-start w-full"
+  if (alignment === "spread") {
+    return `${base} justify-between flex-nowrap max-w-[900px] mx-auto gap-2`
+  }
+  if (alignment === "center") {
+    return `${base} justify-center flex-wrap gap-4`
+  }
+  if (alignment === "left") return `${base} justify-start flex-wrap gap-3`
+  if (alignment === "right") return `${base} justify-end flex-wrap gap-3`
+  return `${base} justify-center flex-wrap gap-3`
+}
+
 export function DepthChartGrid({
   preset,
   assignments,
@@ -140,13 +154,15 @@ export function DepthChartGrid({
     >
       <div className="flex flex-col pb-4">
         {rowList.map((formationRow, rowIdx) => {
-          const alignClass = rowAlignmentClass(formationRow.alignment)
           const spacingClass = rowTypeSpacingClass(formationRow.rowType)
-          const wrapClass = rowWrapClass(formationRow.alignment)
+          const rowClass = formationRowClass(formationRow.alignment, formationRow.rowType)
+          const isWrRow = formationRow.rowType === "skill" && formationRow.alignment === "spread"
           return (
             <div
               key={formationRow.id ?? rowIdx}
-              className={`flex gap-3 items-start ${alignClass} ${spacingClass} ${wrapClass} px-1 w-full`}
+              className={`${rowClass} ${spacingClass} px-1 ${isWrRow ? "wr-row" : ""}`}
+              data-formation-row={formationRow.rowType ?? "default"}
+              data-alignment={formationRow.alignment}
             >
               {formationRow.slots.map((slot, colIdx) => {
                 const players = getResolvedPlayersForSlot(slot.slotKey)

@@ -207,7 +207,20 @@ function RosterListRow({
         </div>
       </td>
       <td className="px-4 py-2 font-medium text-[#0F172A]">
-        {player.firstName} {player.lastName}
+        <div className="flex items-center gap-2">
+          {profileHref && (
+            <Link 
+              href={profileHref} 
+              aria-label={`View ${player.firstName} ${player.lastName} profile`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-lg hover:opacity-70 transition-opacity"
+              title="View profile"
+            >
+              👤
+            </Link>
+          )}
+          <span>{player.firstName} {player.lastName}</span>
+        </div>
       </td>
       <td className="px-4 py-2 text-[#475569]">
         {player.jerseyNumber != null ? `#${player.jerseyNumber}` : "—"}
@@ -231,21 +244,9 @@ function RosterListRow({
           {getStatusDisplay().text}
         </span>
       </td>
-      {(profileHref || canEdit) && (profileHref || onEditPlayer || onSendInvite || onDeletePlayer) && (
+      {(canEdit && (onEditPlayer || onSendInvite || onDeletePlayer || onOpenFormsModal)) && (
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap gap-1 justify-end">
-            {profileHref && (
-              <Link href={profileHref} aria-label={`View ${player.firstName} ${player.lastName} profile`}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-7"
-                  title="View profile"
-                >
-                  <User className="h-3.5 w-3.5" />
-                </Button>
-              </Link>
-            )}
             {canEdit && onOpenFormsModal && (
               <Button
                 variant="outline"

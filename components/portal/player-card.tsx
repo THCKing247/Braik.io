@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, User, Edit, Mail, Trash2 } from "lucide-react"
+import { FileText, User, Edit, Mail, Trash2, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlayerFormsModal } from "./player-forms-modal"
 
@@ -63,18 +63,18 @@ export function PlayerCard({
   const [imageError, setImageError] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [showFormsModal, setShowFormsModal] = useState(false)
-  const [showPlayerModal, setShowPlayerModal] = useState(false)
-
-  const handleCardClick = () => {
-    if (draggable) return // Don't open modal if dragging
-    setShowPlayerModal(true)
-  }
+  const [showActionsMenu, setShowActionsMenu] = useState(false)
 
   const handleProfileClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (profileHref) {
       router.push(profileHref)
     }
+  }
+
+  const handleThreeDotClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowActionsMenu(true)
   }
 
   const getInitials = () => {
@@ -129,7 +129,7 @@ export function PlayerCard({
   return (
     <Card
       className={`hover:shadow-sm transition-all duration-200 border overflow-hidden relative ${
-        !draggable ? "cursor-pointer" : "cursor-move"
+        draggable ? "cursor-move" : ""
       }`}
       style={{
         borderColor: player.healthStatus === "injured" ? "#EF4444" : player.healthStatus === "unavailable" ? "#F97316" : "rgb(var(--border))",
@@ -140,13 +140,22 @@ export function PlayerCard({
       onDragStart={onDragStart}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={handleCardClick}
-      role={!draggable ? "button" : undefined}
-      tabIndex={!draggable ? 0 : undefined}
-      onKeyDown={!draggable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick() } } : undefined}
     >
-      {/* Health Status Indicator */}
-      {player.healthStatus && player.healthStatus !== "active" && (
+      {/* Three Dot Menu - Top Right */}
+      {(onSendInvite || onDeletePlayer) && (
+        <button
+          type="button"
+          onClick={handleThreeDotClick}
+          className="absolute top-2 right-2 p-1.5 rounded hover:bg-gray-100 transition-colors z-10"
+          title="More options"
+          style={{ color: "rgb(var(--text))" }}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+      )}
+      
+      {/* Health Status Indicator - Top Right (if no three dots) */}
+      {player.healthStatus && player.healthStatus !== "active" && !(onSendInvite || onDeletePlayer) && (
         <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getHealthStatusColor()}`} title={player.healthStatus === "injured" ? "Injured" : "Unavailable"} />
       )}
       <CardContent className="p-3 flex flex-col items-center h-full">
@@ -201,7 +210,7 @@ export function PlayerCard({
           </div>
           <div className="flex items-center justify-between w-full mt-2">
             {/* Forms and Profile Icons - Bottom Left */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {canEdit && (
                 <button
                   type="button"
@@ -209,18 +218,20 @@ export function PlayerCard({
                     e.stopPropagation()
                     setShowFormsModal(true)
                   }}
-                  className="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                  className="p-1.5 rounded hover:bg-gray-100 transition-colors flex items-center justify-center"
                   title="Manage Forms"
+                  style={{ minWidth: "24px", minHeight: "24px" }}
                 >
-                  <FileText className="h-4 w-4 text-gray-600" />
+                  <FileText className="h-4 w-4" style={{ color: "rgb(var(--text))" }} />
                 </button>
               )}
               {profileHref && (
                 <button
                   type="button"
                   onClick={handleProfileClick}
-                  className="p-1.5 rounded hover:bg-gray-100 transition-colors text-lg"
+                  className="p-1.5 rounded hover:bg-gray-100 transition-colors flex items-center justify-center text-lg leading-none"
                   title="View Profile"
+                  style={{ minWidth: "24px", minHeight: "24px" }}
                 >
                   👤
                 </button>
@@ -245,8 +256,8 @@ export function PlayerCard({
         />
       )}
 
-      {/* Player Actions Modal */}
-      <Dialog open={showPlayerModal} onOpenChange={setShowPlayerModal}>
+      {/* Actions Menu Modal - Three Dot Menu */}
+      <Dialog open={showActionsMenu} onOpenChange={setShowActionsMenu}>
         <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>
@@ -255,40 +266,12 @@ export function PlayerCard({
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-4">
-            {profileHref && (
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => {
-                  setShowPlayerModal(false)
-                  router.push(profileHref)
-                }}
-                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-              >
-                <User className="h-4 w-4 mr-2" />
-                View Profile
-              </Button>
-            )}
-            {canEdit && onEditPlayer && (
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => {
-                  setShowPlayerModal(false)
-                  onEditPlayer(player)
-                }}
-                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Player
-              </Button>
-            )}
             {onSendInvite && (
               <Button
                 variant="outline"
                 className="w-full justify-start"
                 onClick={async () => {
-                  setShowPlayerModal(false)
+                  setShowActionsMenu(false)
                   await onSendInvite(player)
                 }}
                 disabled={!!player.user}
@@ -304,7 +287,7 @@ export function PlayerCard({
                 variant="outline"
                 className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                 onClick={() => {
-                  setShowPlayerModal(false)
+                  setShowActionsMenu(false)
                   onDeletePlayer(player)
                 }}
                 style={{ borderColor: "#EF4444", color: "#DC2626" }}

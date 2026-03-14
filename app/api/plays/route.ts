@@ -28,6 +28,7 @@ type LogMeta = {
   playbookId?: string | null
   formationId?: string | null
   subFormationId?: string | null
+  creationLevel?: "playbook" | "formation" | "sub_formation"
   hasCanvasData?: boolean
   stack?: string
   helper?: string
@@ -195,6 +196,7 @@ export async function GET(request: Request) {
     let side: string | null
     let playbookId: string | null = null
     let formationId: string | null = null
+    let subFormationId: string | null = null
     try {
       const url = request.url ? new URL(request.url) : null
       const searchParams = url?.searchParams ?? new URLSearchParams()
@@ -202,6 +204,7 @@ export async function GET(request: Request) {
       side = searchParams.get("side")?.trim() ?? null
       playbookId = searchParams.get("playbookId")?.trim() ?? null
       formationId = searchParams.get("formationId")?.trim() ?? null
+      subFormationId = searchParams.get("subFormationId")?.trim() ?? null
     } catch (parseErr) {
       logPhase({
         debugId,
@@ -212,7 +215,16 @@ export async function GET(request: Request) {
       return errorResponse(debugId, "parse_query", "Invalid request URL", 400)
     }
 
-    logPhase({ debugId, phase: "parse_query", method: "GET", teamId, userId: session.user.id })
+    logPhase({
+      debugId,
+      phase: "parse_query",
+      method: "GET",
+      teamId,
+      playbookId,
+      formationId,
+      subFormationId,
+      userId: session.user.id,
+    })
 
     if (!teamId) {
       return errorResponse(debugId, "parse_query", "teamId is required", 400)
@@ -286,12 +298,11 @@ export async function GET(request: Request) {
 
     logPhase({ debugId, phase: "team_permission", method: "GET", teamId, userId: session.user.id })
 
-    let query = supabase
-      .from("plays")
-      .select(
-        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, tags, created_at, updated_at"
-      )
-      .eq("team_id", teamId)
+    // Use a select that avoids optional columns (play_type, order_index, tags) so listing works
+    // even if those migrations haven't been applied. Order by name only to avoid order_index dependency.
+    const playsSelect =
+      "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at"
+    let query = supabase.from("plays").select(playsSelect).eq("team_id", teamId)
 
     if (side ?? false) {
       query = query.eq("side", side!)
@@ -302,10 +313,11 @@ export async function GET(request: Request) {
     if (formationId && isValidUuid(formationId)) {
       query = query.eq("formation_id", formationId)
     }
+    if (subFormationId && isValidUuid(subFormationId)) {
+      query = query.eq("sub_formation_id", subFormationId)
+    }
 
-    const { data: plays, error: playsError } = await query
-      .order("order_index", { ascending: true, nullsFirst: false })
-      .order("name", { ascending: true })
+    const { data: plays, error: playsError } = await query.order("name", { ascending: true })
 
     if (playsError) {
       const se = supabaseErrorSafe(playsError)
@@ -465,6 +477,7 @@ export async function POST(request: Request) {
     const canvasData =
       body.canvasData === undefined ? undefined : (safeObject(body.canvasData) ?? null)
 
+    const creationLevel = subFormationId ? "sub_formation" : formationId ? "formation" : "playbook"
     logPhase({
       debugId,
       phase: "parse_body",
@@ -473,6 +486,7 @@ export async function POST(request: Request) {
       playbookId: playbookId ?? null,
       formationId: formationId ?? null,
       subFormationId: subFormationId ?? null,
+      creationLevel,
       hasCanvasData: canvasData != null,
       userId: session.user.id,
     })
@@ -719,11 +733,9 @@ export async function POST(request: Request) {
     if (subFormationId != null && subFormationId.trim() !== "") {
       insertPayload.sub_formation_id = subFormationId
     }
-    const tagsRaw = body.tags
-    if (Array.isArray(tagsRaw)) {
-      const tagsFiltered = tagsRaw.filter((t): t is string => typeof t === "string" && t.trim() !== "")
-      if (tagsFiltered.length > 0) insertPayload.tags = tagsFiltered
-    }
+    // Omit tags from insert so play creation works when tags column is not yet migrated
+    // const tagsRaw = body.tags
+    // if (Array.isArray(tagsRaw)) { ... insertPayload.tags = tagsFiltered }
 
     logPhase({
       debugId,
@@ -737,12 +749,12 @@ export async function POST(request: Request) {
       userId: session.user.id,
     })
 
+    const playSelect =
+      "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at"
     const { data: play, error: playError } = await supabase
       .from("plays")
       .insert(insertPayload)
-      .select(
-        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, tags, created_at, updated_at"
-      )
+      .select(playSelect)
       .single()
 
     if (playError) {

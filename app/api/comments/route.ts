@@ -6,6 +6,15 @@ import { requireTeamAccess } from "@/lib/auth/rbac"
 const PARENT_TYPES = ["playbook", "formation", "sub_formation", "play"] as const
 type ParentType = (typeof PARENT_TYPES)[number]
 
+/** Normalize client parentType to DB value (e.g. "subformation" -> "sub_formation"). */
+function normalizeParentType(raw: string | null): ParentType | null {
+  if (!raw || typeof raw !== "string") return null
+  const t = raw.trim().toLowerCase()
+  if (t === "subformation" || t === "sub_formation") return "sub_formation"
+  if (PARENT_TYPES.includes(t as ParentType)) return t as ParentType
+  return null
+}
+
 async function getTeamIdForParent(
   supabase: ReturnType<typeof getSupabaseServer>,
   parentType: ParentType,
@@ -35,6 +44,8 @@ async function getTeamIdForParent(
  * List comments for a parent. Team-scoped.
  */
 export async function GET(request: Request) {
+  let parentTypeRaw: string | null = null
+  let parentId: string | null = null
   try {
     const session = await getServerSession()
     if (!session?.user?.id) {
@@ -42,12 +53,21 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url)
-    const parentType = searchParams.get("parentType") as ParentType | null
-    const parentId = searchParams.get("parentId")
+    parentTypeRaw = searchParams.get("parentType")
+    parentId = searchParams.get("parentId")
 
-    if (!parentType || !PARENT_TYPES.includes(parentType) || !parentId) {
-      return NextResponse.json({ error: "parentType and parentId are required" }, { status: 400 })
+    const parentType = normalizeParentType(parentTypeRaw)
+    if (!parentType) {
+      const err =
+        parentTypeRaw != null && parentTypeRaw !== ""
+          ? `Unsupported parentType: ${parentTypeRaw}. Use one of: ${PARENT_TYPES.join(", ")}`
+          : "parentType and parentId are required"
+      return NextResponse.json({ error: err }, { status: 400 })
     }
+    if (!parentId || parentId.trim() === "") {
+      return NextResponse.json({ error: "parentId is required" }, { status: 400 })
+    }
+    parentId = parentId.trim()
 
     const supabase = getSupabaseServer()
     const teamId = await getTeamIdForParent(supabase, parentType, parentId)
@@ -65,17 +85,29 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: true })
 
     if (error) {
-      console.error("[GET /api/comments]", error)
-      return NextResponse.json({ error: "Failed to load comments" }, { status: 500 })
+      console.error("[GET /api/comments] query error", {
+        parentType,
+        parentId,
+        message: error.message,
+        code: (error as { code?: string }).code,
+      })
+      const body: { error: string; details?: string } = { error: "Failed to load comments" }
+      if (process.env.NODE_ENV !== "production") {
+        body.details = (error as { message?: string }).message ?? String(error)
+      }
+      return NextResponse.json(body, { status: 500 })
     }
 
     const authorIds = [...new Set((rows ?? []).map((r) => r.author_id))]
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", authorIds)
-
-    const nameByAuthor = new Map((profiles ?? []).map((p) => [p.id, (p.full_name as string) || "Coach"]))
+    const nameByAuthor = new Map<string, string>()
+    if (authorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", authorIds)
+      const list = profiles ?? []
+      list.forEach((p) => nameByAuthor.set(p.id, ((p as { full_name?: string }).full_name ?? "Coach").trim() || "Coach"))
+    }
 
     const list = (rows ?? []).map((r) => ({
       id: r.id,
@@ -92,11 +124,17 @@ export async function GET(request: Request) {
 
     return NextResponse.json(list)
   } catch (error: unknown) {
-    const err = error as { message?: string }
-    console.error("[GET /api/comments]", error)
+    const err = error instanceof Error ? error : new Error(String(error))
+    console.error("[GET /api/comments] unhandled", {
+      parentType: parentTypeRaw,
+      parentId,
+      message: err.message,
+      stack: err.stack,
+    })
+    const status = err.message.includes("Access denied") ? 403 : 500
     return NextResponse.json(
-      { error: err?.message ?? "Failed to load comments" },
-      { status: err?.message?.includes("Access denied") ? 403 : 500 }
+      { error: err.message || "Failed to load comments" },
+      { status }
     )
   }
 }
@@ -119,12 +157,20 @@ export async function POST(request: Request) {
       resolved?: boolean
     }
 
-    const parentType = body.parentType as ParentType | undefined
-    const parentId = body.parentId
+    const parentType = normalizeParentType(body.parentType ?? null)
+    const parentId = typeof body.parentId === "string" ? body.parentId.trim() : ""
     const text = typeof body.text === "string" ? body.text.trim() : ""
 
-    if (!parentType || !PARENT_TYPES.includes(parentType) || !parentId) {
-      return NextResponse.json({ error: "parentType and parentId are required" }, { status: 400 })
+    if (!parentType) {
+      const raw = body.parentType
+      const err =
+        raw != null && String(raw).trim() !== ""
+          ? `Unsupported parentType: ${raw}. Use one of: ${PARENT_TYPES.join(", ")}`
+          : "parentType and parentId are required"
+      return NextResponse.json({ error: err }, { status: 400 })
+    }
+    if (!parentId) {
+      return NextResponse.json({ error: "parentId is required" }, { status: 400 })
     }
     if (!text) {
       return NextResponse.json({ error: "text is required" }, { status: 400 })

@@ -413,23 +413,39 @@ export function PlaycallerView({
       return tag === "input" || tag === "select" || tag === "textarea" || !!el.isContentEditable
     }
     const handleKey = (e: KeyboardEvent) => {
+      if (isFormField(e.target)) return
+
       if (e.key === " ") {
-        if (!isFormField(e.target)) {
-          e.preventDefault()
-          if (isAnimating) {
-            animationStepToStart()
-          } else if (animationProgress >= 1 || animationProgress === 0) {
-            animationRestart()
-          }
+        e.preventDefault()
+        if (isAnimationPlaying) {
+          animationPause()
+        } else {
+          animationPlay()
         }
+        return
+      }
+      if (e.key === "r" || e.key === "R") {
+        e.preventDefault()
+        animationRestart()
         return
       }
       if (e.key === "Escape") {
         setSelectedAnnotationId(null)
-        onClose()
+        if (embedded && fullscreen) {
+          // Let parent page handle exit fullscreen; do not close view
+        } else {
+          onClose()
+        }
+        return
       }
-      if (e.key === "ArrowLeft") goPrev()
-      if (e.key === "ArrowRight") goNext()
+      if (e.key === "ArrowLeft") {
+        goPrev()
+        return
+      }
+      if (e.key === "ArrowRight") {
+        goNext()
+        return
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedAnnotationId) {
         e.preventDefault()
         removeSelectedAnnotation()
@@ -437,7 +453,7 @@ export function PlaycallerView({
     }
     window.addEventListener("keydown", handleKey)
     return () => window.removeEventListener("keydown", handleKey)
-  }, [onClose, goPrev, goNext, selectedAnnotationId, removeSelectedAnnotation, isAnimating, animationProgress, animationStepToStart, animationRestart])
+  }, [onClose, goPrev, goNext, selectedAnnotationId, removeSelectedAnnotation, embedded, fullscreen, isAnimationPlaying, animationPlay, animationPause, animationRestart])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -599,8 +615,14 @@ export function PlaycallerView({
         </div>
       </div>
       )}
-      {embedded && !fullscreen && (
-        <div className="flex-shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-slate-800/90 border-b border-slate-700">
+      {embedded && (
+        <div
+          className={
+            fullscreen
+              ? "fixed top-0 left-0 right-0 z-20 flex items-center justify-end gap-2 px-3 py-2 bg-slate-800/95 backdrop-blur border-b border-slate-700"
+              : "flex-shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-slate-800/90 border-b border-slate-700"
+          }
+        >
           <label className="text-xs text-slate-400 flex items-center gap-1.5">
             View as:
             <select
@@ -683,7 +705,9 @@ export function PlaycallerView({
             <Flag className="h-3.5 w-3.5" />
           </Button>
           {selectedAnnotationId && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={removeSelectedAnnotation}>Remove</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={removeSelectedAnnotation} title="Remove selected icon (or press Delete)">
+              Remove icon
+            </Button>
           )}
         </div>
       )}
@@ -991,9 +1015,14 @@ export function PlaycallerView({
         </div>
       </div>
 
-      {/* Animation controls (hidden in fullscreen for minimal presentation UI) */}
-      {!fullscreen && (
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-full max-w-xl px-4">
+      {/* Animation controls (always visible; compact in fullscreen) */}
+      <div
+        className={
+          fullscreen
+            ? "fixed bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 w-full max-w-lg px-3"
+            : "absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-full max-w-xl px-4"
+        }
+      >
         {/* Timeline scrubber */}
         <div className="w-full flex flex-col gap-1">
           <div
@@ -1004,7 +1033,11 @@ export function PlaycallerView({
             aria-valuemax={1}
             aria-valuenow={animationProgress}
             tabIndex={0}
-            className="relative h-6 w-full rounded bg-muted/80 cursor-pointer touch-none flex items-center overflow-visible"
+            className={
+              fullscreen
+                ? "relative h-5 w-full rounded bg-slate-700/90 cursor-pointer touch-none flex items-center overflow-visible"
+                : "relative h-6 w-full rounded bg-muted/80 cursor-pointer touch-none flex items-center overflow-visible"
+            }
             onPointerDown={handleTimelinePointerDown}
             onPointerMove={handleTimelinePointerMove}
             onPointerUp={handleTimelinePointerUp}
@@ -1012,77 +1045,113 @@ export function PlaycallerView({
             onPointerCancel={handleTimelinePointerUp}
           >
             <div
-              className="h-full rounded-l bg-primary/70 transition-none pointer-events-none"
+              className={
+                fullscreen
+                  ? "h-full rounded-l bg-slate-500/80 transition-none pointer-events-none"
+                  : "h-full rounded-l bg-primary/70 transition-none pointer-events-none"
+              }
               style={{ width: `${animationProgress * 100}%` }}
             />
             <div
-              className="absolute top-1/2 w-3 h-3 rounded-full bg-primary border-2 border-background shadow -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+              className={
+                fullscreen
+                  ? "absolute top-1/2 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-slate-800 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+                  : "absolute top-1/2 w-3 h-3 rounded-full bg-primary border-2 border-background shadow -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+              }
               style={{ left: `${animationProgress * 100}%` }}
             />
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg">
+        <div
+          className={
+            fullscreen
+              ? "flex items-center gap-1.5 bg-slate-800/95 backdrop-blur px-2.5 py-1.5 rounded-md border border-slate-700/50"
+              : "flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg"
+          }
+        >
           <Button
             variant="outline"
             size="icon"
+            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
             onClick={animationStepToStart}
             title="Step back to start"
           >
-            <SkipBack className="h-4 w-4" />
+            <SkipBack className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
           </Button>
           <Button
             variant="outline"
             size="icon"
+            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
             onClick={animationStepBackward}
             title="Step backward (one frame)"
           >
-            <ChevronsLeft className="h-4 w-4" />
+            <ChevronsLeft className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
           </Button>
           {isAnimationPlaying ? (
-            <Button variant="secondary" size="icon" onClick={animationPause} title="Pause">
-              <Pause className="h-4 w-4" />
+            <Button
+              variant="secondary"
+              size="icon"
+              className={fullscreen ? "h-7 w-7 bg-slate-600 text-white hover:bg-slate-500" : ""}
+              onClick={animationPause}
+              title="Pause (Space)"
+            >
+              <Pause className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
             </Button>
           ) : (
-            <Button variant="secondary" size="icon" onClick={animationPlay} title="Play">
-              <Play className="h-4 w-4" />
+            <Button
+              variant="secondary"
+              size="icon"
+              className={fullscreen ? "h-7 w-7 bg-slate-600 text-white hover:bg-slate-500" : ""}
+              onClick={animationPlay}
+              title="Play (Space)"
+            >
+              <Play className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
             </Button>
           )}
           <Button
             variant="outline"
             size="icon"
+            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
             onClick={animationStepForward}
             title="Step forward (one frame)"
           >
-            <ChevronsRight className="h-4 w-4" />
+            <ChevronsRight className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
           </Button>
           <Button
             variant="outline"
             size="icon"
+            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
             onClick={animationRestart}
-            title="Restart"
+            title="Restart (R)"
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
           </Button>
           <Button
             variant={animationLoop ? "secondary" : "outline"}
             size="icon"
+            className={fullscreen ? `h-7 w-7 ${animationLoop ? "bg-slate-600 text-white" : "border-slate-600 text-slate-200 hover:bg-slate-700"}` : ""}
             onClick={() => setAnimationLoop(!animationLoop)}
             title={animationLoop ? "Loop on" : "Loop off"}
           >
-            <Repeat className={`h-4 w-4 ${animationLoop ? "text-primary" : ""}`} />
+            <Repeat className={`${fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} ${animationLoop ? "text-primary" : ""}`} />
           </Button>
           <Button
             variant={showRoutes ? "secondary" : "outline"}
             size="icon"
+            className={fullscreen ? `h-7 w-7 ${showRoutes ? "bg-slate-600 text-white" : "border-slate-600 text-slate-200 hover:bg-slate-700"}` : ""}
             onClick={() => setShowRoutes((v) => !v)}
             title={showRoutes ? "Hide routes" : "Show routes"}
           >
-            <Route className={`h-4 w-4 ${showRoutes ? "text-primary" : ""}`} />
+            <Route className={`${fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} ${showRoutes ? "text-primary" : ""}`} />
           </Button>
           <select
             value={animationSpeed}
             onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
-            className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[64px]"
+            className={
+              fullscreen
+                ? "h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[52px]"
+                : "h-8 rounded border border-input bg-background px-2 text-sm min-w-[64px]"
+            }
             title="Speed"
           >
             {SPEED_OPTIONS.map((s) => (
@@ -1090,22 +1159,23 @@ export function PlaycallerView({
             ))}
           </select>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {animationState === "playing"
-            ? "Playing"
-            : animationState === "paused"
-              ? "Paused"
-              : animationState === "ended"
-                ? "Ended"
-                : "Ready"}
-          {" · "}
-          Speed: {animationSpeed}x
-          {animationLoop ? " · Loop on" : ""}
-          {" · "}
-          Routes: {showRoutes ? "on" : "off"}
-        </p>
+        {!fullscreen && (
+          <p className="text-xs text-muted-foreground">
+            {animationState === "playing"
+              ? "Playing"
+              : animationState === "paused"
+                ? "Paused"
+                : animationState === "ended"
+                  ? "Ended"
+                  : "Ready"}
+            {" · "}
+            Speed: {animationSpeed}x
+            {animationLoop ? " · Loop on" : ""}
+            {" · "}
+            Routes: {showRoutes ? "on" : "off"}
+          </p>
+        )}
       </div>
-      )}
 
       <div
         className={`absolute left-1/2 -translate-x-1/2 px-4 py-2 ${

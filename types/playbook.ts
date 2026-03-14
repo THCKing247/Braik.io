@@ -45,7 +45,8 @@ export type Zone = {
 export type TemplateData = {
   fieldView: "HALF"
   shapes: Shape[]
-  paths: [] // Templates must have empty paths
+  /** Templates must have empty paths. Use empty array. */
+  paths: readonly [] | []
 }
 
 export type PlayData = {

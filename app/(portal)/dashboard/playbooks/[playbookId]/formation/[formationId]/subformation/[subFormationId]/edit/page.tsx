@@ -8,7 +8,7 @@ import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
-import type { SubFormationRecord } from "@/types/playbook"
+import type { SubFormationRecord, TemplateData } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 
 export default function SubFormationEditPage() {
@@ -37,7 +37,7 @@ export default function SubFormationEditPage() {
 
   const initialCanvasData: CanvasData | null = useMemo(() => {
     if (!subFormation) return null
-    const defaultTemplate = { fieldView: "HALF" as const, shapes: [], paths: [] }
+    const defaultTemplate: TemplateData = { fieldView: "HALF", shapes: [], paths: [] }
     const raw = templateDataToCanvasData(subFormation.templateData ?? defaultTemplate, subFormation.side)
     const coord = new FieldCoordinateSystem(800, 600, 15, 50)
     const playersWithPixels = raw.players.map((p) => {

@@ -56,8 +56,7 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
     router.push(`/dashboard/playbooks/${id}`)
   }
 
-  const handleDeletePlaybook = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
+  const handleDeletePlaybook = async (id: string) => {
     if (!confirm("Delete this playbook? Formations and plays will be unassigned from it.")) return
     try {
       const res = await fetch(`/api/playbooks/${id}`, { method: "DELETE" })
@@ -125,7 +124,7 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
                 playCount={playCountByPlaybook(pb.id)}
                 onSelect={() => handleOpenPlaybook(pb.id)}
                 onEdit={canEdit ? () => router.push(`/dashboard/playbooks/${pb.id}/edit`) : undefined}
-                onDelete={canEdit ? (e: React.MouseEvent) => handleDeletePlaybook(e, pb.id) : undefined}
+                onDelete={canEdit ? () => handleDeletePlaybook(pb.id) : undefined}
                 canEdit={canEdit}
               />
             ))}

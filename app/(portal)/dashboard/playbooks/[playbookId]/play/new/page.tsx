@@ -4,11 +4,12 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import type { TemplateData } from "@/types/playbook"
 
 function CreatePlayRedirect({ playbookId, teamId }: { playbookId: string; teamId: string }) {
   const router = useRouter()
   useEffect(() => {
-    const defaultTemplate = { fieldView: "HALF" as const, shapes: [], paths: [] }
+    const defaultTemplate: TemplateData = { fieldView: "HALF", shapes: [], paths: [] }
     const canvasData = templateDataToCanvasData(defaultTemplate, "offense")
     fetch("/api/plays", {
       method: "POST",

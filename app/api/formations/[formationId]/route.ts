@@ -151,6 +151,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/formations/[formationId]
+ * Cascades: delete all plays (direct + in sub-formations), then all sub-formations, then the formation.
  */
 export async function DELETE(
   _request: Request,
@@ -188,6 +189,54 @@ export async function DELETE(
       await requireTeamPermission(existing.team_id, "edit_special_teams_plays")
     }
 
+    // Get all sub-formations under this formation
+    const { data: subFormations, error: subFetchError } = await supabase
+      .from("sub_formations")
+      .select("id")
+      .eq("formation_id", formationId)
+
+    if (subFetchError) {
+      console.error("[DELETE /api/formations/[formationId]] fetch sub-formations", subFetchError)
+      return NextResponse.json({ error: "Failed to delete formation" }, { status: 500 })
+    }
+
+    const subFormationIds = (subFormations ?? []).map((s) => s.id)
+
+    // Delete all plays: direct (formation_id) and those in sub-formations (sub_formation_id in list)
+    const { error: directPlaysError } = await supabase
+      .from("plays")
+      .delete()
+      .eq("formation_id", formationId)
+
+    if (directPlaysError) {
+      console.error("[DELETE /api/formations/[formationId]] delete plays", directPlaysError)
+      return NextResponse.json({ error: "Failed to delete formation" }, { status: 500 })
+    }
+
+    if (subFormationIds.length > 0) {
+      const { error: subPlaysError } = await supabase
+        .from("plays")
+        .delete()
+        .in("sub_formation_id", subFormationIds)
+      if (subPlaysError) {
+        console.error("[DELETE /api/formations/[formationId]] delete sub-formation plays", subPlaysError)
+        return NextResponse.json({ error: "Failed to delete formation" }, { status: 500 })
+      }
+    }
+
+    // Delete sub-formations
+    if (subFormationIds.length > 0) {
+      const { error: subDeleteError } = await supabase
+        .from("sub_formations")
+        .delete()
+        .in("id", subFormationIds)
+      if (subDeleteError) {
+        console.error("[DELETE /api/formations/[formationId]] delete sub-formations", subDeleteError)
+        return NextResponse.json({ error: "Failed to delete formation" }, { status: 500 })
+      }
+    }
+
+    // Delete the formation
     const { error: deleteError } = await supabase.from("formations").delete().eq("id", formationId)
 
     if (deleteError) {

@@ -1,11 +1,12 @@
 "use client"
 
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { useEditorSaveState } from "@/lib/hooks/use-editor-save-state"
 import { EditorSaveStatusChip } from "@/components/portal/editor-save-status"
 import { LeaveWithoutSavingDialog } from "@/components/portal/leave-without-saving-dialog"
+import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
@@ -16,7 +17,9 @@ import type { FormationRecord } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
 import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
+import { Trash2 } from "lucide-react"
 
 const AUTO_SAVE_DEBOUNCE_MS = 8000
 
@@ -29,10 +32,49 @@ export default function FormationEditPage() {
   const playbookId = typeof params?.playbookId === "string" ? params.playbookId : null
   const formationId = typeof params?.formationId === "string" ? params.formationId : null
   const triggerSaveRef = useRef<(() => void | Promise<void>) | null>(null)
+  const createdHandledRef = useRef(false)
 
   const [formation, setFormation] = useState<FormationRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
+  const [formationDeleteDialogOpen, setFormationDeleteDialogOpen] = useState(false)
+  const [formationDeleteImpact, setFormationDeleteImpact] = useState<{
+    subFormationsCount: number
+    directPlaysCount: number
+    subFormationPlaysCount: number
+    totalPlaysCount: number
+  } | null>(null)
+  const [formationDeleteImpactLoading, setFormationDeleteImpactLoading] = useState(false)
+  const [formationDeleting, setFormationDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!formationDeleteDialogOpen || !formationId) return
+    setFormationDeleteImpactLoading(true)
+    fetch(`/api/formations/${formationId}/delete-impact`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setFormationDeleteImpact)
+      .catch(() => setFormationDeleteImpact(null))
+      .finally(() => setFormationDeleteImpactLoading(false))
+  }, [formationDeleteDialogOpen, formationId])
+
+  const handleConfirmDeleteFormation = useCallback(async () => {
+    if (!formationId) return
+    setFormationDeleting(true)
+    try {
+      const res = await fetch(`/api/formations/${formationId}`, { method: "DELETE" })
+      if (res.ok) {
+        showToast("Formation deleted", "success")
+        setFormationDeleteDialogOpen(false)
+        router.push(`/dashboard/playbooks/${playbookId}`)
+      } else {
+        showToast("Could not delete formation", "error")
+      }
+    } catch {
+      showToast("Could not delete formation", "error")
+    } finally {
+      setFormationDeleting(false)
+    }
+  }, [formationId, playbookId, router, showToast])
 
   useEffect(() => {
     if (!formationId) {
@@ -49,10 +91,10 @@ export default function FormationEditPage() {
   }, [formationId])
 
   useEffect(() => {
-    if (searchParams.get("created") === "1") {
-      showToast("Formation created. You can now design the formation.", "success")
-      router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}/edit`, { scroll: false })
-    }
+    if (searchParams.get("created") !== "1" || !playbookId || !formationId || createdHandledRef.current) return
+    createdHandledRef.current = true
+    showToast("Formation created. You can now design the formation.", "success")
+    router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}/edit`, { scroll: false })
   }, [searchParams, playbookId, formationId, router, showToast])
 
   const initialCanvasData: CanvasData | null = useMemo(() => {
@@ -75,39 +117,48 @@ export default function FormationEditPage() {
     }
   }, [formation])
 
-  const handleSave = async (data: CanvasData, _name: string) => {
-    if (!formationId || !formation) return
-    saveState.setSaving()
-    const playCanvasData: PlayCanvasData = {
-      players: data.players.map((p) => ({
-        id: p.id,
-        x: p.x,
-        y: p.y,
-        xYards: p.xYards ?? 0,
-        yYards: p.yYards ?? 0,
-        label: p.label,
-        shape: p.shape,
-      })),
-      zones: [],
-      manCoverages: [],
-      fieldType: "half",
-      side: formation.side,
-    }
-    const templateData = canvasPlayersToTemplateData(playCanvasData.players, formation.side)
-    const res = await fetch(`/api/formations/${formationId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateData }),
-    })
-    if (res.ok) {
-      saveState.setSaved()
-      showToast("Formation saved", "success")
-    } else {
-      saveState.setError()
-      showToast("Save failed. Please try again.", "error")
-      throw new Error("Failed to save formation")
-    }
-  }
+  const handleSave = useCallback(
+    async (data: CanvasData, _name: string) => {
+      if (!formationId || !formation) return
+      saveState.setSaving()
+      try {
+        const playCanvasData: PlayCanvasData = {
+          players: data.players.map((p) => ({
+            id: p.id,
+            x: p.x,
+            y: p.y,
+            xYards: p.xYards ?? 0,
+            yYards: p.yYards ?? 0,
+            label: p.label,
+            shape: p.shape,
+          })),
+          zones: [],
+          manCoverages: [],
+          fieldType: "half",
+          side: formation.side,
+        }
+        const templateData = canvasPlayersToTemplateData(playCanvasData.players, formation.side)
+        const res = await fetch(`/api/formations/${formationId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ templateData }),
+        })
+        if (res.ok) {
+          saveState.setSaved()
+          showToast("Formation saved", "success")
+        } else {
+          saveState.setError()
+          showToast("Save failed. Please try again.", "error")
+          throw new Error("Failed to save formation")
+        }
+      } catch (err) {
+        saveState.setError()
+        showToast("Save failed. Please try again.", "error")
+        throw err
+      }
+    },
+    [formationId, formation, saveState, showToast]
+  )
 
   const handleClose = () => {
     saveState.confirmBeforeNavigate(() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}`))
@@ -163,6 +214,17 @@ export default function FormationEditPage() {
                   checked={autoSaveEnabled}
                   onCheckedChange={setAutoSaveEnabled}
                 />
+                {canEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => setFormationDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete formation
+                  </Button>
+                )}
               </div>
             </div>
             <h1 className="text-xl font-semibold text-slate-900 mt-2">Edit formation: {formation.name}</h1>
@@ -194,6 +256,23 @@ export default function FormationEditPage() {
             onOpenChange={(open) => { if (!open) saveState.handleLeaveCancel(); saveState.setLeaveDialogOpen(open); }}
             onConfirm={saveState.handleLeaveConfirm}
             onCancel={saveState.handleLeaveCancel}
+          />
+          <ConfirmDestructiveDialog
+            open={formationDeleteDialogOpen}
+            onOpenChange={setFormationDeleteDialogOpen}
+            title="Delete this formation?"
+            message="This will also permanently delete all sub-formations and all plays under this formation, including plays inside its sub-formations. This action cannot be undone."
+            impactItems={formationDeleteImpact ? [
+              { label: "Sub-formations to delete", value: formationDeleteImpact.subFormationsCount },
+              { label: "Direct plays to delete", value: formationDeleteImpact.directPlaysCount },
+              { label: "Sub-formation plays to delete", value: formationDeleteImpact.subFormationPlaysCount },
+              { label: "Total plays to delete", value: formationDeleteImpact.totalPlaysCount },
+            ] : undefined}
+            isLoadingImpact={formationDeleteImpactLoading}
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+            onConfirm={handleConfirmDeleteFormation}
+            isDeleting={formationDeleting}
           />
         </div>
       )}

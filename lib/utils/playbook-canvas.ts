@@ -9,12 +9,13 @@ const LOS_YARD = 20
 
 /**
  * Convert template-relative (x center, y LOS/backfield) to field-absolute (x 0..53.33, y 0..35).
+ * Flip Y so backfield (negative template y) appears below LOS on screen.
  */
 function normalizeShapeToFieldCoords(s: Shape): { xYards: number; yYards: number } {
   const tx = typeof s.xYards === "number" ? s.xYards : 0
   const ty = typeof s.yYards === "number" ? s.yYards : 0
   const xYards = Math.max(0, Math.min(FIELD_WIDTH_YARDS, FIELD_CENTER_X + tx))
-  const yYards = Math.max(0, Math.min(FIELD_VISIBLE_YARDS, LOS_YARD + ty))
+  const yYards = Math.max(0, Math.min(FIELD_VISIBLE_YARDS, LOS_YARD - ty))
   return { xYards, yYards }
 }
 

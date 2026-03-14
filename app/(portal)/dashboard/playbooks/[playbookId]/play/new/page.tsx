@@ -1,14 +1,19 @@
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import type { TemplateData } from "@/types/playbook"
 
 function CreatePlayRedirect({ playbookId, teamId }: { playbookId: string; teamId: string }) {
   const router = useRouter()
+  const { showToast } = usePlaybookToast()
+  const done = useRef(false)
   useEffect(() => {
+    if (done.current) return
+    done.current = true
     const defaultTemplate: TemplateData = { fieldView: "HALF", shapes: [], paths: [] }
     const canvasData = templateDataToCanvasData(defaultTemplate, "offense")
     fetch("/api/plays", {
@@ -31,8 +36,11 @@ function CreatePlayRedirect({ playbookId, teamId }: { playbookId: string; teamId
         const returnUrl = `/dashboard/playbooks/${playbookId}`
         router.replace(`/dashboard/playbooks/play/${play.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
       })
-      .catch(() => alert("Failed to create play"))
-  }, [playbookId, teamId, router])
+      .catch(() => {
+        showToast("Could not create play", "error")
+        router.replace(`/dashboard/playbooks/${playbookId}`)
+      })
+  }, [playbookId, teamId, router, showToast])
   return (
     <div className="flex items-center justify-center min-h-[400px] bg-slate-50">
       <p className="text-sm text-slate-500">Creating play...</p>

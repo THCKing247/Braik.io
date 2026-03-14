@@ -35,11 +35,11 @@ export type FormationTemplateDef = {
 
 /**
  * Convert template-relative (x center, y LOS/backfield) to field-absolute (x 0..53.33, y 0..35).
- * Ensures formations load in the correct alignment in the editor.
+ * Template y=0 is LOS, negative y is backfield; we flip so backfield appears below LOS on screen.
  */
 function templateToFieldCoords(templateX: number, templateY: number): { xYards: number; yYards: number } {
   const xYards = FIELD_CENTER_X + templateX
-  const yYards = LOS_YARD + templateY
+  const yYards = LOS_YARD - templateY // flip: backfield (negative) → larger y → lower on screen
   return {
     xYards: Math.max(0, Math.min(FIELD_WIDTH_YARDS, xYards)),
     yYards: Math.max(0, Math.min(FIELD_VISIBLE_YARDS, yYards)),

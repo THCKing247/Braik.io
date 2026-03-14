@@ -25,6 +25,11 @@ type LogMeta = {
   teamId?: string | null
   userId?: string | null
   playId?: string | null
+  playbookId?: string | null
+  formationId?: string | null
+  subFormationId?: string | null
+  hasCanvasData?: boolean
+  stack?: string
   helper?: string
   message?: string
   code?: string
@@ -465,6 +470,10 @@ export async function POST(request: Request) {
       phase: "parse_body",
       method: "POST",
       teamId: teamId ?? null,
+      playbookId: playbookId ?? null,
+      formationId: formationId ?? null,
+      subFormationId: subFormationId ?? null,
+      hasCanvasData: canvasData != null,
       userId: session.user.id,
     })
 
@@ -493,6 +502,15 @@ export async function POST(request: Request) {
     }
     if (playbookId != null && playbookId !== "" && !isValidUuid(playbookId)) {
       return errorResponse(debugId, "parse_body", "playbookId must be a valid UUID", 422)
+    }
+
+    if (subFormationId && (!formationId || formationId === "")) {
+      return errorResponse(
+        debugId,
+        "parse_body",
+        "formationId is required when subFormationId is provided",
+        400
+      )
     }
 
     try {
@@ -623,6 +641,9 @@ export async function POST(request: Request) {
       formationNameForInsert = (formationRow.name ?? "").trim() || formationNameForInsert
     }
     if (!formationNameForInsert) {
+      formationNameForInsert = (formation && formation.trim()) || "Custom"
+    }
+    if (!formationNameForInsert) {
       return errorResponse(
         debugId,
         "parse_body",
@@ -667,6 +688,22 @@ export async function POST(request: Request) {
       subFormationNameForInsert = (subRow.name ?? "").trim() || null
     }
 
+    let safeCanvasData: unknown = null
+    if (canvasData != null && typeof canvasData === "object") {
+      try {
+        safeCanvasData = JSON.parse(JSON.stringify(canvasData))
+      } catch (e) {
+        logPhase({
+          debugId,
+          phase: "parse_body",
+          method: "POST",
+          message: "canvasData not JSON-serializable",
+          userId: session.user.id,
+        })
+        return errorResponse(debugId, "parse_body", "Invalid canvas data", 400)
+      }
+    }
+
     const insertPayload: Record<string, unknown> = {
       team_id: teamId,
       playbook_id: playbookId && playbookId.trim() !== "" ? playbookId : null,
@@ -674,7 +711,7 @@ export async function POST(request: Request) {
       formation: formationNameForInsert,
       subcategory: subcategory ?? null,
       name: name.trim(),
-      canvas_data: canvasData ?? null,
+      canvas_data: safeCanvasData,
     }
     if (formationId != null && formationId.trim() !== "") {
       insertPayload.formation_id = formationId
@@ -687,6 +724,18 @@ export async function POST(request: Request) {
       const tagsFiltered = tagsRaw.filter((t): t is string => typeof t === "string" && t.trim() !== "")
       if (tagsFiltered.length > 0) insertPayload.tags = tagsFiltered
     }
+
+    logPhase({
+      debugId,
+      phase: "database",
+      method: "POST",
+      teamId,
+      playbookId: playbookId ?? null,
+      formationId: formationId ?? null,
+      subFormationId: subFormationId ?? null,
+      hasCanvasData: safeCanvasData != null,
+      userId: session.user.id,
+    })
 
     const { data: play, error: playError } = await supabase
       .from("plays")
@@ -756,11 +805,13 @@ export async function POST(request: Request) {
     return res
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error))
+    console.error(`[${ROUTE}] POST unhandled error`, err.message, err.stack)
     logPhase({
       debugId,
       phase: "response_error",
       method: "POST",
       message: err.message,
+      stack: err.stack,
     })
     const status = err.message.includes("Access denied") ? 403 : 500
     return errorResponse(

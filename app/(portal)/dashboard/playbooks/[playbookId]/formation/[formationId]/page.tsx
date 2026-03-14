@@ -2,13 +2,14 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, ArrowLeft, Copy, Search } from "lucide-react"
+import { Plus, ArrowLeft, Copy, Search, Trash2 } from "lucide-react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { FormationThumbnail } from "@/components/portal/formation-thumbnail"
 import { SortablePlayList } from "@/components/portal/sortable-play-list"
+import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { filterPlaysBySearch } from "@/lib/utils/play-search"
@@ -36,6 +37,39 @@ function FormationDetailContent({
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [playSearchQuery, setPlaySearchQuery] = useState("")
+  const [formationDeleteDialogOpen, setFormationDeleteDialogOpen] = useState(false)
+  const [formationDeleteImpact, setFormationDeleteImpact] = useState<{
+    subFormationsCount: number
+    directPlaysCount: number
+    subFormationPlaysCount: number
+    totalPlaysCount: number
+  } | null>(null)
+  const [formationDeleteImpactLoading, setFormationDeleteImpactLoading] = useState(false)
+  const [formationDeleting, setFormationDeleting] = useState(false)
+  const [subFormationToDeleteId, setSubFormationToDeleteId] = useState<string | null>(null)
+  const [subFormationDeleteImpact, setSubFormationDeleteImpact] = useState<{ playsCount: number } | null>(null)
+  const [subFormationDeleteImpactLoading, setSubFormationDeleteImpactLoading] = useState(false)
+  const [subFormationDeleting, setSubFormationDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!formationDeleteDialogOpen) return
+    setFormationDeleteImpactLoading(true)
+    fetch(`/api/formations/${formationId}/delete-impact`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setFormationDeleteImpact)
+      .catch(() => setFormationDeleteImpact(null))
+      .finally(() => setFormationDeleteImpactLoading(false))
+  }, [formationDeleteDialogOpen, formationId])
+
+  useEffect(() => {
+    if (!subFormationToDeleteId) return
+    setSubFormationDeleteImpactLoading(true)
+    fetch(`/api/sub-formations/${subFormationToDeleteId}/delete-impact`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setSubFormationDeleteImpact)
+      .catch(() => setSubFormationDeleteImpact(null))
+      .finally(() => setSubFormationDeleteImpactLoading(false))
+  }, [subFormationToDeleteId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -97,9 +131,14 @@ function FormationDetailContent({
   const handleDeletePlay = async (playId: string) => {
     try {
       const res = await fetch(`/api/plays/${playId}`, { method: "DELETE" })
-      if (res.ok) load()
+      if (res.ok) {
+        showToast("Play deleted", "success")
+        load()
+      } else {
+        showToast("Could not delete play", "error")
+      }
     } catch {
-      alert("Failed to delete play")
+      showToast("Could not delete play", "error")
     }
   }
 
@@ -125,6 +164,43 @@ function FormationDetailContent({
       setDuplicating(false)
     }
   }, [formationId, playbookId, router, showToast])
+
+  const handleConfirmDeleteFormation = useCallback(async () => {
+    setFormationDeleting(true)
+    try {
+      const res = await fetch(`/api/formations/${formationId}`, { method: "DELETE" })
+      if (res.ok) {
+        showToast("Formation deleted", "success")
+        setFormationDeleteDialogOpen(false)
+        router.push(`/dashboard/playbooks/${playbookId}`)
+      } else {
+        showToast("Could not delete formation", "error")
+      }
+    } catch {
+      showToast("Could not delete formation", "error")
+    } finally {
+      setFormationDeleting(false)
+    }
+  }, [formationId, playbookId, router, showToast])
+
+  const handleConfirmDeleteSubFormation = useCallback(async () => {
+    if (!subFormationToDeleteId) return
+    setSubFormationDeleting(true)
+    try {
+      const res = await fetch(`/api/sub-formations/${subFormationToDeleteId}`, { method: "DELETE" })
+      if (res.ok) {
+        showToast("Sub-formation deleted", "success")
+        setSubFormationToDeleteId(null)
+        load()
+      } else {
+        showToast("Could not delete sub-formation", "error")
+      }
+    } catch {
+      showToast("Could not delete sub-formation", "error")
+    } finally {
+      setSubFormationDeleting(false)
+    }
+  }, [subFormationToDeleteId, showToast, load])
 
   if (loading) {
     return (
@@ -171,6 +247,9 @@ function FormationDetailContent({
                 <Button size="sm" variant="outline" disabled={duplicating} onClick={handleDuplicateFormation}>
                   <Copy className="h-4 w-4 mr-1" /> Duplicate formation
                 </Button>
+                <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => setFormationDeleteDialogOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete formation
+                </Button>
                 <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/new`)}>
                   <Plus className="h-4 w-4 mr-1" /> New sub-formation
                 </Button>
@@ -208,6 +287,16 @@ function FormationDetailContent({
                   <CardContent className="p-4">
                     <span className="font-bold text-slate-800 block truncate">{sf.name}</span>
                     <span className="text-sm text-slate-500">{playsForSubFormation(sf.id).length} plays</span>
+                    {canEdit && (
+                      <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${sf.id}/edit`)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={() => setSubFormationToDeleteId(sf.id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -261,6 +350,37 @@ function FormationDetailContent({
           <CommentThreadPanel parentType="formation" parentId={formationId} defaultCollapsed={true} />
         </section>
       </div>
+      <ConfirmDestructiveDialog
+        open={formationDeleteDialogOpen}
+        onOpenChange={setFormationDeleteDialogOpen}
+        title="Delete this formation?"
+        message="This will also permanently delete all sub-formations and all plays under this formation, including plays inside its sub-formations. This action cannot be undone."
+        impactItems={formationDeleteImpact ? [
+          { label: "Sub-formations to delete", value: formationDeleteImpact.subFormationsCount },
+          { label: "Direct plays to delete", value: formationDeleteImpact.directPlaysCount },
+          { label: "Sub-formation plays to delete", value: formationDeleteImpact.subFormationPlaysCount },
+          { label: "Total plays to delete", value: formationDeleteImpact.totalPlaysCount },
+        ] : undefined}
+        isLoadingImpact={formationDeleteImpactLoading}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmDeleteFormation}
+        isDeleting={formationDeleting}
+      />
+      <ConfirmDestructiveDialog
+        open={!!subFormationToDeleteId}
+        onOpenChange={(open) => !open && setSubFormationToDeleteId(null)}
+        title="Delete this sub-formation?"
+        message="This will also permanently delete all plays inside this sub-formation. This action cannot be undone."
+        impactItems={subFormationDeleteImpact ? [
+          { label: "Plays to delete", value: subFormationDeleteImpact.playsCount },
+        ] : undefined}
+        isLoadingImpact={subFormationDeleteImpactLoading}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmDeleteSubFormation}
+        isDeleting={subFormationDeleting}
+      />
     </div>
   )
 }

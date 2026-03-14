@@ -9,6 +9,7 @@ export const STARTER_PLAY_TAGS = [
   "2 Minute",
   "Goal Line",
   "Screen",
+  "Favorite",
 ] as const
 
 export type StarterPlayTag = (typeof STARTER_PLAY_TAGS)[number]

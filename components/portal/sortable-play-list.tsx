@@ -112,10 +112,10 @@ export function SortablePlayList({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      {plays.map((play, index) => (
+      {plays.map((play) => (
         <div
           key={play.id}
-          className={`min-w-[200px] w-full transition-opacity ${draggedId === play.id ? "opacity-50" : ""} ${dragOverId === play.id ? "ring-2 ring-blue-400 ring-offset-2 rounded-xl" : ""}`}
+          className={`min-w-[200px] w-full transition-opacity ${canEdit ? "cursor-grab active:cursor-grabbing" : ""} ${draggedId === play.id ? "opacity-50" : ""} ${dragOverId === play.id ? "ring-2 ring-blue-400 ring-offset-2 rounded-xl" : ""}`}
           draggable={canEdit}
           onDragStart={(e) => handleDragStart(e, play.id)}
           onDragOver={(e) => handleDragOver(e, play.id)}

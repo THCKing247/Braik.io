@@ -87,7 +87,7 @@ export default function SubFormationEditPage() {
 
   useEffect(() => {
     if (searchParams.get("created") === "1") {
-      showToast("Sub-formation created. You can now design the sub-formation.", "success")
+      showToast("Sub-formation created", "success")
       router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}/edit`, { scroll: false })
     }
   }, [searchParams, playbookId, formationId, subFormationId, router, showToast])
@@ -223,6 +223,7 @@ export default function SubFormationEditPage() {
               </div>
             </div>
             <h1 className="text-xl font-semibold text-slate-900 mt-2">Edit sub-formation: {subFormation.name}</h1>
+            <p className="mt-0.5 text-sm text-slate-500">Design alignment for this sub-formation.</p>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">

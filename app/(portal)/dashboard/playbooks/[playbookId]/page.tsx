@@ -11,7 +11,8 @@ import { FormationBrowseCard } from "@/components/portal/formation-browse-card"
 import { SortablePlayList } from "@/components/portal/sortable-play-list"
 import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import type { PlaybookRecord, FormationRecord, SubFormationRecord, PlayRecord } from "@/types/playbook"
-import { filterPlaysBySearch } from "@/lib/utils/play-search"
+import { filterPlaysBySearch, filterPlaysByTags } from "@/lib/utils/play-search"
+import { PlayTagFilter } from "@/components/portal/play-tag-filter"
 import { Input } from "@/components/ui/input"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
@@ -35,6 +36,7 @@ function PlaybookDetailContent({
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [playSearchQuery, setPlaySearchQuery] = useState("")
+  const [tagFilterSelected, setTagFilterSelected] = useState<string[]>([])
   const [formationToDeleteId, setFormationToDeleteId] = useState<string | null>(null)
   const [formationDeleteImpact, setFormationDeleteImpact] = useState<{
     subFormationsCount: number
@@ -72,7 +74,12 @@ function PlaybookDetailContent({
       ])
       if (pbRes.ok) setPlaybook(await pbRes.json())
       if (fRes.ok) setFormations(await fRes.json())
-      if (pRes.ok) setPlays(await pRes.json())
+      if (pRes.ok) {
+        setPlays(await pRes.json())
+      } else {
+        setPlays([])
+        showToast("Could not load plays", "error")
+      }
       if (sfRes.ok) setSubFormations(await sfRes.json())
       if (dcRes.ok) {
         const dc = await dcRes.json()
@@ -83,7 +90,7 @@ function PlaybookDetailContent({
     } finally {
       setLoading(false)
     }
-  }, [playbookId, teamId])
+  }, [playbookId, teamId, showToast])
 
   useEffect(() => {
     load()
@@ -127,7 +134,10 @@ function PlaybookDetailContent({
   }, [formationToDeleteId, playbookId, router, showToast, load])
 
   const topLevelPlays = plays.filter((p) => !p.formationId)
-  const filteredTopLevelPlays = filterPlaysBySearch(topLevelPlays, playSearchQuery)
+  const filteredTopLevelPlays = filterPlaysBySearch(
+    filterPlaysByTags(topLevelPlays, tagFilterSelected),
+    playSearchQuery
+  )
 
   const handleReorderTopLevelPlays = useCallback((reordered: PlayRecord[]) => {
     setPlays((prev) => [...reordered, ...prev.filter((p) => p.formationId)])
@@ -149,7 +159,7 @@ function PlaybookDetailContent({
         const returnUrl = `/dashboard/playbooks/${playbookId}`
         router.push(`/dashboard/playbooks/play/${newPlay.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
       } catch {
-        showToast("Failed to duplicate play", "error")
+        showToast("Could not duplicate play", "error")
       }
     },
     [playbookId, router, showToast]
@@ -184,6 +194,39 @@ function PlaybookDetailContent({
     return (
       <div className="flex items-center justify-center min-h-[400px] bg-slate-50 rounded-2xl">
         <p className="text-sm text-slate-500">Loading...</p>
+      </div>
+    )
+  }
+  if (loading) {
+    return (
+      <div className="min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5">
+          <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-3" />
+          <div className="h-7 w-64 bg-slate-200 rounded animate-pulse mb-2" />
+          <div className="h-4 w-full max-w-md bg-slate-100 rounded animate-pulse" />
+        </div>
+        <div className="flex-1 p-5 sm:p-6 bg-slate-50 space-y-8">
+          <section>
+            <div className="h-4 w-24 bg-slate-200 rounded animate-pulse mb-4" />
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-xl border border-slate-200 bg-white p-5 h-40 animate-pulse">
+                  <div className="h-5 bg-slate-200 rounded w-2/3 mb-3" />
+                  <div className="h-4 bg-slate-100 rounded w-1/2" />
+                  <div className="h-4 bg-slate-100 rounded w-1/3 mt-2" />
+                </div>
+              ))}
+            </div>
+          </section>
+          <section>
+            <div className="h-4 w-20 bg-slate-200 rounded animate-pulse mb-4" />
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-14 bg-slate-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     )
   }
@@ -272,18 +315,21 @@ function PlaybookDetailContent({
 
               {topLevelPlays.length > 0 && (
                 <section>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-                    <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (no formation)</h2>
-                    <div className="relative flex-1 max-w-xs">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                      <Input
-                        type="search"
-                        placeholder="Search plays..."
-                        value={playSearchQuery}
-                        onChange={(e) => setPlaySearchQuery(e.target.value)}
-                        className="pl-8 h-9 text-sm"
-                      />
+                  <div className="flex flex-col gap-3 mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (no formation)</h2>
+                      <div className="relative flex-1 max-w-xs">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          type="search"
+                          placeholder="Search plays..."
+                          value={playSearchQuery}
+                          onChange={(e) => setPlaySearchQuery(e.target.value)}
+                          className="pl-8 h-9 text-sm"
+                        />
+                      </div>
                     </div>
+                    <PlayTagFilter selectedTags={tagFilterSelected} onChange={setTagFilterSelected} />
                   </div>
                   <SortablePlayList
                     plays={filteredTopLevelPlays}

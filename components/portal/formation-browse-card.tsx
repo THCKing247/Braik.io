@@ -81,15 +81,13 @@ export function FormationBrowseCard({
         )}
       </div>
       <CardContent className="p-4 flex flex-col min-h-[100px]">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Sub-formations</p>
-            <p className="text-xl font-bold text-slate-800">{subformationCount}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Plays</p>
-            <p className="text-xl font-bold text-slate-800">{playCount}</p>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
+            {subformationCount} {subformationCount === 1 ? "sub-formation" : "sub-formations"}
+          </span>
+          <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
+            {playCount} {playCount === 1 ? "play" : "plays"}
+          </span>
         </div>
       </CardContent>
     </Card>

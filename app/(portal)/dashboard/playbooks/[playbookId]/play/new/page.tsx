@@ -28,11 +28,23 @@ function CreatePlayRedirect({ playbookId, teamId }: { playbookId: string; teamId
         canvasData,
       }),
     })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to create play")
-        return r.json()
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[Create play] Server error:", {
+              error: (data as { error?: string }).error,
+              phase: (data as { phase?: string }).phase,
+              debugId: (data as { debugId?: string }).debugId,
+              details: (data as { details?: unknown }).details,
+            })
+          }
+          throw new Error((data as { error?: string }).error ?? "Failed to create play")
+        }
+        return data as { id: string }
       })
       .then((play) => {
+        showToast("Play created", "success")
         const returnUrl = `/dashboard/playbooks/${playbookId}`
         router.replace(`/dashboard/playbooks/play/${play.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
       })
@@ -42,8 +54,9 @@ function CreatePlayRedirect({ playbookId, teamId }: { playbookId: string; teamId
       })
   }, [playbookId, teamId, router, showToast])
   return (
-    <div className="flex items-center justify-center min-h-[400px] bg-slate-50">
-      <p className="text-sm text-slate-500">Creating play...</p>
+    <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 rounded-2xl border border-slate-200">
+      <p className="text-sm font-medium text-slate-700">New play</p>
+      <p className="text-xs text-slate-500 mt-1">Creating play...</p>
     </div>
   )
 }

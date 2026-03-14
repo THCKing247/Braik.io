@@ -11,7 +11,8 @@ function isValidUuid(s: string): boolean {
 /**
  * PATCH /api/plays/reorder
  * Body: { items: Array<{ id: string, orderIndex: number }> }
- * Updates order_index for each play. All plays must belong to the same team and same parent scope (playbook_id + formation_id).
+ * Updates order_index for each play. All plays must belong to the same team and same parent scope
+ * (playbook_id, formation_id, sub_formation_id). Safe when order_index column is missing: returns 500.
  */
 export async function PATCH(request: Request) {
   try {
@@ -46,7 +47,7 @@ export async function PATCH(request: Request) {
 
     const { data: plays, error: fetchError } = await supabase
       .from("plays")
-      .select("id, team_id, playbook_id, formation_id, side")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side")
       .in("id", playIds)
 
     if (fetchError || !plays?.length) {
@@ -57,6 +58,7 @@ export async function PATCH(request: Request) {
     const playbookId = plays[0].playbook_id ?? null
     const formationId = (plays[0] as { formation_id?: string }).formation_id ?? null
 
+    // Scope: same team, playbook, and formation (sub_formation_id can differ for formation-level reorder).
     const sameScope = plays.every(
       (p) =>
         p.team_id === teamId &&
@@ -86,7 +88,11 @@ export async function PATCH(request: Request) {
         .update({ order_index: orderIndex, updated_at: new Date().toISOString() })
         .eq("id", id)
       if (updateError) {
-        console.error("[PATCH /api/plays/reorder]", updateError)
+        const msg = updateError.message ?? "Could not reorder plays"
+        const code = (updateError as { code?: string }).code
+        if (process.env.NODE_ENV !== "production") {
+          console.error("[PATCH /api/plays/reorder]", { message: msg, code, details: updateError })
+        }
         return NextResponse.json({ error: "Could not reorder plays" }, { status: 500 })
       }
     }
@@ -98,7 +104,7 @@ export async function PATCH(request: Request) {
     const err = error as { message?: string }
     console.error("[PATCH /api/plays/reorder]", error)
     return NextResponse.json(
-      { error: err?.message ?? "Failed to reorder" },
+      { error: err?.message ?? "Could not reorder plays" },
       { status: err?.message?.includes("Access denied") ? 403 : 500 }
     )
   }

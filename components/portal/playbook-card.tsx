@@ -66,15 +66,13 @@ export function PlaybookCard({
           )}
         </div>
         <h3 className="font-semibold text-base text-slate-800 mb-1.5">{playbook.name}</h3>
-        <div className="flex gap-5 text-slate-600 mb-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Formations</p>
-            <p className="text-lg font-semibold tabular-nums">{formationCount}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Plays</p>
-            <p className="text-lg font-semibold tabular-nums">{playCount}</p>
-          </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
+            {formationCount} {formationCount === 1 ? "formation" : "formations"}
+          </span>
+          <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
+            {playCount} {playCount === 1 ? "play" : "plays"}
+          </span>
         </div>
         <div className="mt-auto pt-4 border-t border-slate-200/80">
           <Button variant="outline" size="sm" className="w-full rounded-lg" onClick={(e) => { e.stopPropagation(); onSelect(); }}>

@@ -37,17 +37,33 @@ export async function POST(
 
     const supabase = getSupabaseServer()
 
-    const { data: source, error: fetchError } = await supabase
-      .from("plays")
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, tags")
-      .eq("id", playId)
-      .maybeSingle()
+    const selectWithTags = "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, tags"
+    const selectWithoutTags = "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type"
+    const isColumnError = (err: unknown) => {
+      const e = err as { code?: string; message?: string }
+      return e?.code === "42703" || (typeof e?.message === "string" && (e.message.includes("tags") || e.message.includes("does not exist")))
+    }
+
+    let source: unknown = null
+    let fetchError: unknown = null
+    let fetchRes = await supabase.from("plays").select(selectWithTags).eq("id", playId).maybeSingle()
+    source = fetchRes.data
+    fetchError = fetchRes.error
+    if (fetchError && isColumnError(fetchError)) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[POST /api/plays/[playId]/duplicate] tags column not available, selecting without tags")
+      }
+      fetchRes = await supabase.from("plays").select(selectWithoutTags).eq("id", playId).maybeSingle()
+      source = fetchRes.data
+      fetchError = fetchRes.error
+    }
 
     if (fetchError || !source) {
       return NextResponse.json({ error: "Play not found" }, { status: 404 })
     }
 
     const row = source as Record<string, unknown>
+    const usedFallbackSelect = !Object.prototype.hasOwnProperty.call(row, "tags")
     await requireTeamAccess(row.team_id as string)
     const side = (row.side as string) || "offense"
     if (side === "offense") {
@@ -59,6 +75,15 @@ export async function POST(
     }
 
     const newName = `${String(row.name ?? "").trim()} Copy`
+    // Deep-copy canvas_data (includes routes, motions, assignments) so the original play is unaltered
+    let canvasData: unknown = null
+    if (row.canvas_data != null && typeof row.canvas_data === "object") {
+      try {
+        canvasData = JSON.parse(JSON.stringify(row.canvas_data))
+      } catch {
+        canvasData = row.canvas_data
+      }
+    }
     const insertPayload: Record<string, unknown> = {
       team_id: row.team_id,
       playbook_id: row.playbook_id ?? null,
@@ -68,20 +93,23 @@ export async function POST(
       formation: row.formation ?? "",
       subcategory: row.subcategory ?? null,
       name: newName,
-      canvas_data: row.canvas_data ?? null,
+      canvas_data: canvasData,
     }
     if (row.play_type != null && safePlayType(row.play_type)) {
       insertPayload.play_type = row.play_type
     }
     const tags = safeTags(row.tags)
-    if (tags && tags.length > 0) {
+    if (tags && tags.length > 0 && !usedFallbackSelect) {
       insertPayload.tags = tags
     }
 
+    const insertSelect = usedFallbackSelect
+      ? "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, created_at, updated_at"
+      : "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, tags, order_index, created_at, updated_at"
     const { data: play, error: insertError } = await supabase
       .from("plays")
       .insert(insertPayload)
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, tags, order_index, created_at, updated_at")
+      .select(insertSelect)
       .single()
 
     if (insertError || !play) {
@@ -89,7 +117,7 @@ export async function POST(
       return NextResponse.json({ error: "Failed to duplicate play" }, { status: 500 })
     }
 
-    const p = play as Record<string, unknown>
+    const p = (play ?? {}) as unknown as Record<string, unknown>
     const subFormationId = p.sub_formation_id ?? null
     let subFormationName: string | null = null
     if (subFormationId) {

@@ -84,6 +84,7 @@ export default function NewFormationPage() {
           <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5">
             <PlaybookBreadcrumbs items={breadcrumbs} className="mb-3" />
             <h1 className="text-xl font-semibold text-slate-900">New formation</h1>
+            <p className="mt-1 text-sm text-slate-500">Add a formation to your playbook.</p>
           </div>
           <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50">
             <form onSubmit={(e) => handleSubmit(e, teamId)} className="max-w-md space-y-4">

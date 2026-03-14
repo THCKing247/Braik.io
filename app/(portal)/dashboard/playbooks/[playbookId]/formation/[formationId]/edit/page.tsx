@@ -93,7 +93,7 @@ export default function FormationEditPage() {
   useEffect(() => {
     if (searchParams.get("created") !== "1" || !playbookId || !formationId || createdHandledRef.current) return
     createdHandledRef.current = true
-    showToast("Formation created. You can now design the formation.", "success")
+    showToast("Formation created", "success")
     router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}/edit`, { scroll: false })
   }, [searchParams, playbookId, formationId, router, showToast])
 
@@ -228,6 +228,7 @@ export default function FormationEditPage() {
               </div>
             </div>
             <h1 className="text-xl font-semibold text-slate-900 mt-2">Edit formation: {formation.name}</h1>
+            <p className="mt-0.5 text-sm text-slate-500">Design alignment and player positions for this formation.</p>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">

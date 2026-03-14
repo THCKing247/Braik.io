@@ -298,26 +298,71 @@ export async function GET(request: Request) {
 
     logPhase({ debugId, phase: "team_permission", method: "GET", teamId, userId: session.user.id })
 
-    // Use a select that avoids optional columns (play_type, order_index, tags) so listing works
-    // even if those migrations haven't been applied. Order by name only to avoid order_index dependency.
-    const playsSelect =
+    // Base select; order_index and tags optional so listing works when migrations not applied.
+    const playsSelectBase =
       "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at"
-    let query = supabase.from("plays").select(playsSelect).eq("team_id", teamId)
+    const playsSelectWithOrder = playsSelectBase + ", order_index"
+    const playsSelectWithOrderAndTags = playsSelectBase + ", order_index, tags"
 
-    if (side ?? false) {
-      query = query.eq("side", side!)
-    }
-    if (playbookId && isValidUuid(playbookId)) {
-      query = query.eq("playbook_id", playbookId)
-    }
-    if (formationId && isValidUuid(formationId)) {
-      query = query.eq("formation_id", formationId)
-    }
-    if (subFormationId && isValidUuid(subFormationId)) {
-      query = query.eq("sub_formation_id", subFormationId)
+    const buildQuery = (select: string) => {
+      let q = supabase.from("plays").select(select).eq("team_id", teamId)
+      if (side ?? false) q = q.eq("side", side!)
+      if (playbookId && isValidUuid(playbookId)) q = q.eq("playbook_id", playbookId)
+      if (formationId && isValidUuid(formationId)) q = q.eq("formation_id", formationId)
+      if (subFormationId && isValidUuid(subFormationId)) q = q.eq("sub_formation_id", subFormationId)
+      return q
     }
 
-    const { data: plays, error: playsError } = await query.order("name", { ascending: true })
+    const isColumnError = (err: { message?: string; code?: string }) => {
+      const code = (err as { code?: string }).code
+      const msg = typeof err.message === "string" ? err.message : ""
+      return code === "42703" || msg.includes("order_index") || msg.includes("tags") || msg.includes("does not exist")
+    }
+
+    let playsList: unknown[] = []
+    let playsError: { message?: string; code?: string } | null = null
+
+    let result = await buildQuery(playsSelectWithOrderAndTags)
+      .order("order_index", { ascending: true, nullsFirst: false })
+      .order("name", { ascending: true })
+
+    if (result.error && isColumnError(supabaseErrorSafe(result.error))) {
+      if (process.env.NODE_ENV !== "production") {
+        logPhase({
+          debugId,
+          phase: "database",
+          method: "GET",
+          teamId,
+          userId: session.user.id,
+          message: "order_index/tags not available, trying order_index only",
+          details: (result.error as { message?: string }).message,
+        })
+      }
+      result = await buildQuery(playsSelectWithOrder)
+        .order("order_index", { ascending: true, nullsFirst: false })
+        .order("name", { ascending: true })
+    }
+
+    if (result.error && isColumnError(supabaseErrorSafe(result.error))) {
+      if (process.env.NODE_ENV !== "production") {
+        logPhase({
+          debugId,
+          phase: "database",
+          method: "GET",
+          teamId,
+          userId: session.user.id,
+          message: "order_index not available, falling back to name sort",
+          details: (result.error as { message?: string }).message,
+        })
+      }
+      const fallback = await buildQuery(playsSelectBase).order("name", { ascending: true })
+      playsList = Array.isArray(fallback.data) ? fallback.data : []
+      playsError = fallback.error
+    } else if (result.error) {
+      playsError = result.error
+    } else {
+      playsList = Array.isArray(result.data) ? result.data : []
+    }
 
     if (playsError) {
       const se = supabaseErrorSafe(playsError)
@@ -334,8 +379,6 @@ export async function GET(request: Request) {
       })
       return errorResponse(debugId, "database", "Failed to load plays", 500, { ...se })
     }
-
-    const playsList = Array.isArray(plays) ? plays : []
     const subFormationIds = [
       ...new Set(
         playsList
@@ -733,9 +776,11 @@ export async function POST(request: Request) {
     if (subFormationId != null && subFormationId.trim() !== "") {
       insertPayload.sub_formation_id = subFormationId
     }
-    // Omit tags from insert so play creation works when tags column is not yet migrated
-    // const tagsRaw = body.tags
-    // if (Array.isArray(tagsRaw)) { ... insertPayload.tags = tagsFiltered }
+    const tagsRaw = body.tags
+    if (Array.isArray(tagsRaw)) {
+      const tagsFiltered = tagsRaw.filter((t): t is string => typeof t === "string" && t.trim() !== "")
+      if (tagsFiltered.length > 0) insertPayload.tags = tagsFiltered
+    }
 
     logPhase({
       debugId,

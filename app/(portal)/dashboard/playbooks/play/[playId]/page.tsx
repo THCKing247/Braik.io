@@ -2,7 +2,7 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Trash2 } from "lucide-react"
+import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Copy, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
@@ -49,6 +49,7 @@ function PlayEditorContent() {
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeletingPlay, setIsDeletingPlay] = useState(false)
+  const [isDuplicatingPlay, setIsDuplicatingPlay] = useState(false)
 
   const {
     progress: animationProgress,
@@ -278,6 +279,22 @@ function PlayEditorContent() {
     saveState.confirmBeforeNavigate(() => router.push(returnUrl))
   }, [router, returnUrl, saveState.confirmBeforeNavigate])
 
+  const handleDuplicatePlay = useCallback(async () => {
+    if (!playId) return
+    setIsDuplicatingPlay(true)
+    try {
+      const res = await fetch(`/api/plays/${playId}/duplicate`, { method: "POST", credentials: "same-origin" })
+      if (!res.ok) throw new Error("Duplicate failed")
+      const newPlay = await res.json()
+      showToast("Play duplicated", "success")
+      router.push(`/dashboard/playbooks/play/${newPlay.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
+    } catch {
+      showToast("Could not duplicate play", "error")
+    } finally {
+      setIsDuplicatingPlay(false)
+    }
+  }, [playId, returnUrl, router, showToast])
+
   const handleDeletePlay = useCallback(async () => {
     if (!playId) return
     setIsDeletingPlay(true)
@@ -471,6 +488,17 @@ function PlayEditorContent() {
               </ul>
             </PopoverContent>
           </Popover>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            disabled={isDuplicatingPlay}
+            onClick={handleDuplicatePlay}
+            title="Duplicate this play"
+          >
+            <Copy className="h-4 w-4 mr-1" />
+            Duplicate play
+          </Button>
           <Button
             variant="outline"
             size="sm"

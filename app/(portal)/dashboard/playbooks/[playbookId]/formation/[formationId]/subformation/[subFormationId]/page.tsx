@@ -2,14 +2,15 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, ArrowLeft, Search, Trash2 } from "lucide-react"
+import { Plus, ArrowLeft, Copy, Search, Trash2 } from "lucide-react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { filterPlaysBySearch } from "@/lib/utils/play-search"
+import { filterPlaysBySearch, filterPlaysByTags } from "@/lib/utils/play-search"
+import { PlayTagFilter } from "@/components/portal/play-tag-filter"
 import { SortablePlayList } from "@/components/portal/sortable-play-list"
 import type { FormationRecord, SubFormationRecord, PlayRecord } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
@@ -36,6 +37,8 @@ function SubFormationDetailContent({
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [playSearchQuery, setPlaySearchQuery] = useState("")
+  const [tagFilterSelected, setTagFilterSelected] = useState<string[]>([])
+  const [duplicating, setDuplicating] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteImpact, setDeleteImpact] = useState<{ playsCount: number } | null>(null)
   const [deleteImpactLoading, setDeleteImpactLoading] = useState(false)
@@ -57,7 +60,7 @@ function SubFormationDetailContent({
       const [fRes, sfRes, pRes, dcRes] = await Promise.all([
         fetch(`/api/formations/${formationId}`),
         fetch(`/api/sub-formations/${subFormationId}`).catch(() => null),
-        fetch(`/api/plays?teamId=${teamId}&formationId=${formationId}`),
+        fetch(`/api/plays?teamId=${teamId}&formationId=${formationId}&subFormationId=${subFormationId}`),
         fetch(`/api/roster/depth-chart?teamId=${teamId}`),
       ])
       if (fRes?.ok) setFormation(await fRes.json())
@@ -72,7 +75,13 @@ function SubFormationDetailContent({
           setSubFormation(found ?? null)
         }
       }
-      if (pRes.ok) setPlays((await pRes.json()).filter((p: PlayRecord) => p.subFormationId === subFormationId))
+      if (pRes.ok) {
+        const list = await pRes.json()
+        setPlays(Array.isArray(list) ? list : [])
+      } else {
+        setPlays([])
+        showToast("Could not load plays", "error")
+      }
       if (dcRes.ok) {
         const dc = await dcRes.json()
         setDepthChartEntries(dc.entries ?? [])
@@ -82,7 +91,7 @@ function SubFormationDetailContent({
     } finally {
       setLoading(false)
     }
-  }, [formationId, subFormationId, teamId])
+  }, [formationId, subFormationId, teamId, showToast])
 
   useEffect(() => {
     load()
@@ -98,12 +107,28 @@ function SubFormationDetailContent({
         const returnUrl = `/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}`
         router.push(`/dashboard/playbooks/play/${newPlay.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
       } catch {
-        showToast("Failed to duplicate play", "error")
+        showToast("Could not duplicate play", "error")
       }
     },
     [playbookId, formationId, subFormationId, router, showToast]
   )
-  const filteredPlays = filterPlaysBySearch(plays, playSearchQuery)
+
+  const handleDuplicateSubFormation = useCallback(async () => {
+    setDuplicating(true)
+    try {
+      const res = await fetch(`/api/sub-formations/${subFormationId}/duplicate`, { method: "POST" })
+      if (!res.ok) throw new Error("Failed to duplicate")
+      const newSub = await res.json()
+      showToast("Sub-formation duplicated", "success")
+      router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${newSub.id}/edit`)
+    } catch {
+      showToast("Could not duplicate sub-formation", "error")
+    } finally {
+      setDuplicating(false)
+    }
+  }, [subFormationId, playbookId, formationId, router, showToast])
+
+  const filteredPlays = filterPlaysBySearch(filterPlaysByTags(plays, tagFilterSelected), playSearchQuery)
 
   const handleReorderPlays = useCallback((reordered: PlayRecord[]) => {
     setPlays(reordered)
@@ -158,8 +183,22 @@ function SubFormationDetailContent({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] bg-slate-50 rounded-2xl">
-        <p className="text-sm text-slate-500">Loading...</p>
+      <div className="min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5">
+          <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-3" />
+          <div className="h-7 w-48 bg-slate-200 rounded animate-pulse mb-2" />
+          <div className="h-4 w-full max-w-sm bg-slate-100 rounded animate-pulse" />
+        </div>
+        <div className="flex-1 p-5 sm:p-6 bg-slate-50">
+          <section>
+            <div className="h-4 w-32 bg-slate-200 rounded animate-pulse mb-4" />
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-16 bg-slate-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     )
   }
@@ -199,6 +238,9 @@ function SubFormationDetailContent({
                 <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}/edit`)}>
                   Edit sub-formation
                 </Button>
+                <Button size="sm" variant="outline" disabled={duplicating} onClick={handleDuplicateSubFormation}>
+                  <Copy className="h-4 w-4 mr-1" /> Duplicate sub-formation
+                </Button>
                 <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => setDeleteDialogOpen(true)}>
                   <Trash2 className="h-4 w-4 mr-1" /> Delete sub-formation
                 </Button>
@@ -213,8 +255,9 @@ function SubFormationDetailContent({
 
       <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50">
         {plays.length === 0 ? (
-          <div className="py-12 text-center rounded-xl border border-dashed border-slate-200 bg-white/60">
+          <div className="py-12 text-center rounded-xl border border-dashed border-slate-200 bg-white/80">
             <p className="text-slate-600 font-medium">No plays yet</p>
+            <p className="text-sm text-slate-500 mt-1">Add a play to this sub-formation to get started.</p>
             {canEdit && (
               <Button size="sm" className="mt-4" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}/play/new`)}>
                 <Plus className="h-4 w-4 mr-1" /> New play
@@ -223,18 +266,21 @@ function SubFormationDetailContent({
           </div>
         ) : (
           <>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this sub-formation)</h2>
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  type="search"
-                  placeholder="Search plays..."
-                  value={playSearchQuery}
-                  onChange={(e) => setPlaySearchQuery(e.target.value)}
-                  className="pl-8 h-9 text-sm"
-                />
+            <div className="flex flex-col gap-3 mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this sub-formation)</h2>
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    type="search"
+                    placeholder="Search plays..."
+                    value={playSearchQuery}
+                    onChange={(e) => setPlaySearchQuery(e.target.value)}
+                    className="pl-8 h-9 text-sm"
+                  />
+                </div>
               </div>
+              <PlayTagFilter selectedTags={tagFilterSelected} onChange={setTagFilterSelected} />
             </div>
             <SortablePlayList
               plays={filteredPlays}

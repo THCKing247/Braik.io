@@ -41,6 +41,7 @@ export function CommentThreadPanel({
 
   const [comments, setComments] = useState<CommentRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [posting, setPosting] = useState(false)
   const [newText, setNewText] = useState("")
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
@@ -50,30 +51,41 @@ export function CommentThreadPanel({
   useEffect(() => {
     if (parentId == null || parentId === "" || parentType == null) {
       setComments([])
+      setLoadError(false)
       setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
+    setLoadError(false)
     fetch(`/api/comments?parentType=${encodeURIComponent(parentType)}&parentId=${encodeURIComponent(parentId)}`)
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return null
         if (!res.ok) {
           console.warn("[CommentThreadPanel] Comments fetch failed:", res.status, res.statusText)
-          return null
+          return { failed: true as const, data: null as unknown }
         }
-        return res.json()
+        const data = await res.json()
+        return { failed: false as const, data }
       })
-      .then((data) => {
+      .then((result) => {
         if (cancelled) return
-        const list = Array.isArray(data) ? data : []
+        if (result === null) return
+        if (result.failed) {
+          setComments([])
+          setLoadError(true)
+          return
+        }
+        const list = Array.isArray(result.data) ? result.data : []
         setComments(list)
+        setLoadError(false)
         onCountChangeRef.current?.(list.length)
       })
       .catch((err) => {
         if (!cancelled) {
           console.warn("[CommentThreadPanel] Comments fetch error:", err)
           setComments([])
+          setLoadError(true)
         }
       })
       .finally(() => {
@@ -201,7 +213,13 @@ export function CommentThreadPanel({
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 max-h-48">
         {loading ? (
-          <p className="text-xs text-slate-500 py-2">Loading...</p>
+          <div className="space-y-2 py-2" aria-busy="true">
+            <div className="h-10 bg-slate-100 rounded animate-pulse" />
+            <div className="h-10 bg-slate-100 rounded animate-pulse w-4/5" />
+            <div className="h-10 bg-slate-100 rounded animate-pulse w-3/5" />
+          </div>
+        ) : loadError ? (
+          <p className="text-xs text-amber-600 py-2">Comments unavailable.</p>
         ) : comments.length === 0 ? (
           <p className="text-xs text-slate-500 py-2">No comments yet. Add one below.</p>
         ) : (

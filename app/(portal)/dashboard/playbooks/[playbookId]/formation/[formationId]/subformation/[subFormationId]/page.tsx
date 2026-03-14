@@ -16,6 +16,7 @@ import type { FormationRecord, SubFormationRecord, PlayRecord } from "@/types/pl
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
 import { FormationIntelligencePanel } from "@/components/portal/formation-intelligence-panel"
+import { FormationPreview } from "@/components/portal/formation-preview"
 import type { RecommendedConcept } from "@/lib/constants/formation-concept-recommendations"
 import { generatePlayFromConcept } from "@/lib/play-generation/generate-play-from-concept"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
@@ -49,6 +50,8 @@ function SubFormationDetailContent({
   const [deleteImpact, setDeleteImpact] = useState<{ playsCount: number } | null>(null)
   const [deleteImpactLoading, setDeleteImpactLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [previewConceptHover, setPreviewConceptHover] = useState<RecommendedConcept | null>(null)
+  const [previewConceptSelected, setPreviewConceptSelected] = useState<RecommendedConcept | null>(null)
 
   useEffect(() => {
     if (!deleteDialogOpen) return
@@ -344,74 +347,91 @@ function SubFormationDetailContent({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50 space-y-8">
-        <section>
-          <FormationIntelligencePanel
-            formationName={formation.name}
-            subFormationName={subFormation.name}
-            plays={plays}
-            className="max-w-md"
-            onGenerateDraft={canEdit ? handleGenerateDraftFromConcept : undefined}
-          />
-        </section>
-        <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Coach B</h2>
-          <CoachBAssistedPanel
-            teamId={teamId}
-            playbookId={playbookId}
-            formationId={formationId}
-            subFormationId={subFormationId}
-            onCreateDraft={handleCoachBCreateDraft}
-            canEdit={canEdit}
-            className="max-w-md"
-          />
-        </section>
-        {plays.length === 0 ? (
-          <div className="py-12 text-center rounded-xl border border-dashed border-slate-200 bg-white/80">
-            <p className="text-slate-600 font-medium">No plays yet</p>
-            <p className="text-sm text-slate-500 mt-1">Add a play to this sub-formation to get started.</p>
-            {canEdit && (
-              <Button size="sm" className="mt-4" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}/play/new`)}>
-                <Plus className="h-4 w-4 mr-1" /> New play
-              </Button>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-col gap-3 mb-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this sub-formation)</h2>
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input
-                    type="search"
-                    placeholder="Search plays..."
-                    value={playSearchQuery}
-                    onChange={(e) => setPlaySearchQuery(e.target.value)}
-                    className="pl-8 h-9 text-sm"
-                  />
-                </div>
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50">
+        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+          <div className="min-w-0 space-y-8">
+            <section>
+              <FormationIntelligencePanel
+                formationName={formation.name}
+                subFormationName={subFormation.name}
+                plays={plays}
+                className="max-w-md"
+                onGenerateDraft={canEdit ? handleGenerateDraftFromConcept : undefined}
+                selectedConcept={previewConceptSelected}
+                onConceptHover={setPreviewConceptHover}
+                onConceptSelect={setPreviewConceptSelected}
+                onClearPreview={() => setPreviewConceptSelected(null)}
+              />
+            </section>
+            <section>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Coach B</h2>
+              <CoachBAssistedPanel
+                teamId={teamId}
+                playbookId={playbookId}
+                formationId={formationId}
+                subFormationId={subFormationId}
+                onCreateDraft={handleCoachBCreateDraft}
+                canEdit={canEdit}
+                className="max-w-md"
+              />
+            </section>
+            {plays.length === 0 ? (
+              <div className="py-12 text-center rounded-xl border border-dashed border-slate-200 bg-white/80">
+                <p className="text-slate-600 font-medium">No plays yet</p>
+                <p className="text-sm text-slate-500 mt-1">Add a play to this sub-formation to get started.</p>
+                {canEdit && (
+                  <Button size="sm" className="mt-4" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}/play/new`)}>
+                    <Plus className="h-4 w-4 mr-1" /> New play
+                  </Button>
+                )}
               </div>
-              <PlayTagFilter selectedTags={tagFilterSelected} onChange={setTagFilterSelected} />
-            </div>
-            <SortablePlayList
-              plays={filteredPlays}
-              formations={formation ? [formation] : []}
-              depthChartEntries={depthChartEntries}
-              canEdit={canEdit && !playSearchQuery.trim()}
-              playEditorPath={playEditorPath}
-            onDuplicate={handleDuplicatePlay}
-            onRename={handleRenamePlay}
-            onDelete={handleDeletePlay}
-            onReorder={handleReorderPlays}
-            reorderScopeKey={subFormationId}
-          />
-          </>
-        )}
-        <section className="mt-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
-          <CommentThreadPanel parentType="sub_formation" parentId={subFormationId} defaultCollapsed={true} />
-        </section>
+            ) : (
+              <>
+                <div className="flex flex-col gap-3 mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this sub-formation)</h2>
+                    <div className="relative flex-1 max-w-xs">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        type="search"
+                        placeholder="Search plays..."
+                        value={playSearchQuery}
+                        onChange={(e) => setPlaySearchQuery(e.target.value)}
+                        className="pl-8 h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <PlayTagFilter selectedTags={tagFilterSelected} onChange={setTagFilterSelected} />
+                </div>
+                <SortablePlayList
+                  plays={filteredPlays}
+                  formations={formation ? [formation] : []}
+                  depthChartEntries={depthChartEntries}
+                  canEdit={canEdit && !playSearchQuery.trim()}
+                  playEditorPath={playEditorPath}
+                  onDuplicate={handleDuplicatePlay}
+                  onRename={handleRenamePlay}
+                  onDelete={handleDeletePlay}
+                  onReorder={handleReorderPlays}
+                  reorderScopeKey={subFormationId}
+                />
+              </>
+            )}
+            <section>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
+              <CommentThreadPanel parentType="sub_formation" parentId={subFormationId} defaultCollapsed={true} />
+            </section>
+          </div>
+          <div className="min-w-0 flex flex-col lg:sticky lg:top-6 lg:self-start">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Sub-formation preview</h2>
+            <FormationPreview
+              templateData={subFormation.templateData ?? formation.templateData ?? null}
+              side={subFormation.side ?? formation.side ?? "offense"}
+              previewConcept={previewConceptHover ?? previewConceptSelected}
+              className="w-full flex-1 min-h-[280]"
+            />
+          </div>
+        </div>
       </div>
       <ConfirmDestructiveDialog
         open={deleteDialogOpen}

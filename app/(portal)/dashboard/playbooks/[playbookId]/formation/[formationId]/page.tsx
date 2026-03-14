@@ -22,6 +22,7 @@ import type { RecommendedConcept } from "@/lib/constants/formation-concept-recom
 import { generatePlayFromConcept } from "@/lib/play-generation/generate-play-from-concept"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { CoachBAssistedPanel } from "@/components/portal/coach-b-assisted-panel"
+import { FormationPreview } from "@/components/portal/formation-preview"
 import type { PlaySuggestion } from "@/lib/types/coach-b"
 
 function FormationDetailContent({
@@ -58,6 +59,8 @@ function FormationDetailContent({
   const [subFormationDeleteImpact, setSubFormationDeleteImpact] = useState<{ playsCount: number } | null>(null)
   const [subFormationDeleteImpactLoading, setSubFormationDeleteImpactLoading] = useState(false)
   const [subFormationDeleting, setSubFormationDeleting] = useState(false)
+  const [previewConceptHover, setPreviewConceptHover] = useState<RecommendedConcept | null>(null)
+  const [previewConceptSelected, setPreviewConceptSelected] = useState<RecommendedConcept | null>(null)
 
   useEffect(() => {
     if (!formationDeleteDialogOpen) return
@@ -395,125 +398,142 @@ function FormationDetailContent({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50 space-y-8">
-        <section>
-          <FormationIntelligencePanel
-            formationName={formation.name}
-            plays={plays}
-            className="max-w-md"
-            onGenerateDraft={canEdit ? handleGenerateDraftFromConcept : undefined}
-          />
-        </section>
-        <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Coach B</h2>
-          <CoachBAssistedPanel
-            teamId={teamId}
-            playbookId={playbookId}
-            formationId={formationId}
-            onCreateDraft={handleCoachBCreateDraft}
-            canEdit={canEdit}
-            className="max-w-md"
-          />
-        </section>
-        <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Sub-formations</h2>
-          {subFormations.length === 0 ? (
-            <div className="py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white/60">
-              <p className="text-slate-600 font-medium">No sub-formations yet</p>
-              <p className="text-sm text-slate-500 mt-1">Add a sub-formation or add plays directly.</p>
-              {canEdit && (
-                <Button size="sm" className="mt-4" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/new`)}>
-                  <Plus className="h-4 w-4 mr-1" /> New sub-formation
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {subFormations.map((sf) => {
-                const playCount = playsForSubFormation(sf.id).length
-                return (
-                  <Card
-                    key={sf.id}
-                    className="min-w-[200px] cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-slate-400 hover:shadow-lg transition-all p-0"
-                    onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${sf.id}`)}
-                  >
-                    <FormationThumbnail templateData={sf.templateData ?? formation.templateData} side={formation.side} className="rounded-t-lg" />
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-800 block truncate">{sf.name}</span>
-                        <span className="shrink-0 rounded-full bg-slate-200/80 px-2 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
-                          {playCount} {playCount === 1 ? "play" : "plays"}
-                        </span>
-                      </div>
-                      {canEdit && (
-                        <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${sf.id}/edit`)}>
-                            Edit
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDuplicateSubFormation(sf.id)}>
-                            <Copy className="h-3 w-3 mr-1" /> Duplicate
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={() => setSubFormationToDeleteId(sf.id)}>
-                            Delete
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <div className="flex flex-col gap-3 mb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this formation)</h2>
-              {plays.length > 0 && (
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input
-                    type="search"
-                    placeholder="Search plays..."
-                    value={playSearchQuery}
-                    onChange={(e) => setPlaySearchQuery(e.target.value)}
-                    className="pl-8 h-9 text-sm"
-                  />
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50">
+        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+          <div className="min-w-0 space-y-8">
+            <section>
+              <FormationIntelligencePanel
+                formationName={formation.name}
+                plays={plays}
+                className="max-w-md"
+                onGenerateDraft={canEdit ? handleGenerateDraftFromConcept : undefined}
+                selectedConcept={previewConceptSelected}
+                onConceptHover={setPreviewConceptHover}
+                onConceptSelect={setPreviewConceptSelected}
+                onClearPreview={() => setPreviewConceptSelected(null)}
+              />
+            </section>
+            <section>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Coach B</h2>
+              <CoachBAssistedPanel
+                teamId={teamId}
+                playbookId={playbookId}
+                formationId={formationId}
+                onCreateDraft={handleCoachBCreateDraft}
+                canEdit={canEdit}
+                className="max-w-md"
+              />
+            </section>
+            <section>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Sub-formations</h2>
+              {subFormations.length === 0 ? (
+                <div className="py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white/60">
+                  <p className="text-slate-600 font-medium">No sub-formations yet</p>
+                  <p className="text-sm text-slate-500 mt-1">Add a sub-formation or add plays directly.</p>
+                  {canEdit && (
+                    <Button size="sm" className="mt-4" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/new`)}>
+                      <Plus className="h-4 w-4 mr-1" /> New sub-formation
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {subFormations.map((sf) => {
+                    const playCount = playsForSubFormation(sf.id).length
+                    return (
+                      <Card
+                        key={sf.id}
+                        className="min-w-[200px] cursor-pointer overflow-hidden border-2 border-slate-200 hover:border-slate-400 hover:shadow-lg transition-all p-0"
+                        onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${sf.id}`)}
+                      >
+                        <FormationThumbnail templateData={sf.templateData ?? formation.templateData} side={formation.side} className="rounded-t-lg" />
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-800 block truncate">{sf.name}</span>
+                            <span className="shrink-0 rounded-full bg-slate-200/80 px-2 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
+                              {playCount} {playCount === 1 ? "play" : "plays"}
+                            </span>
+                          </div>
+                          {canEdit && (
+                            <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${sf.id}/edit`)}>
+                                Edit
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDuplicateSubFormation(sf.id)}>
+                                <Copy className="h-3 w-3 mr-1" /> Duplicate
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={() => setSubFormationToDeleteId(sf.id)}>
+                                Delete
+                              </Button>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
               )}
-            </div>
-            {plays.length > 0 && <PlayTagFilter selectedTags={tagFilterSelected} onChange={setTagFilterSelected} />}
-          </div>
-          {plays.length === 0 ? (
-            <div className="py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white/60">
-              <p className="text-slate-600 font-medium">No plays yet</p>
-              {canEdit && (
-                <Button size="sm" className="mt-4" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/play/new`)}>
-                  <Plus className="h-4 w-4 mr-1" /> New play
-                </Button>
-              )}
-            </div>
-          ) : (
-            <SortablePlayList
-              plays={filteredPlays}
-              formations={[formation]}
-              depthChartEntries={depthChartEntries}
-              canEdit={canEdit && !playSearchQuery.trim()}
-              playEditorPath={playEditorPath}
-              onDuplicate={handleDuplicatePlay}
-              onRename={handleRenamePlay}
-              onDelete={handleDeletePlay}
-              onReorder={handleReorderPlays}
-              reorderScopeKey={formationId}
-            />
-          )}
-        </section>
+            </section>
 
-        <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
-          <CommentThreadPanel parentType="formation" parentId={formationId} defaultCollapsed={true} />
-        </section>
+            <section>
+              <div className="flex flex-col gap-3 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this formation)</h2>
+                  {plays.length > 0 && (
+                    <div className="relative flex-1 max-w-xs">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        type="search"
+                        placeholder="Search plays..."
+                        value={playSearchQuery}
+                        onChange={(e) => setPlaySearchQuery(e.target.value)}
+                        className="pl-8 h-9 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+                {plays.length > 0 && <PlayTagFilter selectedTags={tagFilterSelected} onChange={setTagFilterSelected} />}
+              </div>
+              {plays.length === 0 ? (
+                <div className="py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white/60">
+                  <p className="text-slate-600 font-medium">No plays yet</p>
+                  {canEdit && (
+                    <Button size="sm" className="mt-4" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/play/new`)}>
+                      <Plus className="h-4 w-4 mr-1" /> New play
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <SortablePlayList
+                  plays={filteredPlays}
+                  formations={[formation]}
+                  depthChartEntries={depthChartEntries}
+                  canEdit={canEdit && !playSearchQuery.trim()}
+                  playEditorPath={playEditorPath}
+                  onDuplicate={handleDuplicatePlay}
+                  onRename={handleRenamePlay}
+                  onDelete={handleDeletePlay}
+                  onReorder={handleReorderPlays}
+                  reorderScopeKey={formationId}
+                />
+              )}
+            </section>
+
+            <section>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
+              <CommentThreadPanel parentType="formation" parentId={formationId} defaultCollapsed={true} />
+            </section>
+          </div>
+          <div className="min-w-0 flex flex-col lg:sticky lg:top-6 lg:self-start">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Formation preview</h2>
+            <FormationPreview
+              templateData={formation.templateData ?? null}
+              side={formation.side}
+              previewConcept={previewConceptHover ?? previewConceptSelected}
+              className="w-full flex-1 min-h-[280]"
+            />
+          </div>
+        </div>
       </div>
       <ConfirmDestructiveDialog
         open={formationDeleteDialogOpen}

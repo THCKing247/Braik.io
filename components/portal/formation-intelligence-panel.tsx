@@ -26,19 +26,33 @@ export interface FormationIntelligencePanelProps {
   onGenerateDraft?: (concept: RecommendedConcept, variantId?: string) => void | Promise<void>
   /** Optional: called when user clicks View Details for a concept */
   onViewDetails?: (concept: RecommendedConcept) => void
+  /** Currently selected concept for persistent preview in formation panel */
+  selectedConcept?: RecommendedConcept | null
+  /** Called when user hovers a concept (temporary preview) */
+  onConceptHover?: (concept: RecommendedConcept | null) => void
+  /** Called when user clicks a concept row to select it for persistent preview */
+  onConceptSelect?: (concept: RecommendedConcept | null) => void
+  /** Called when user clears the selected concept preview */
+  onClearPreview?: () => void
   className?: string
 }
 
 function ConceptRow({
   ranked,
+  isSelected,
   onGenerateDraft,
   onViewDetails,
   onRequestVariantModal,
+  onHover,
+  onSelect,
 }: {
   ranked: RankedConcept
+  isSelected?: boolean
   onGenerateDraft?: (concept: RecommendedConcept, variantId?: string) => void | Promise<void>
   onViewDetails?: (concept: RecommendedConcept) => void
   onRequestVariantModal?: (concept: RecommendedConcept) => void
+  onHover?: (concept: RecommendedConcept | null) => void
+  onSelect?: (concept: RecommendedConcept | null) => void
 }) {
   const { concept } = ranked
   const [generating, setGenerating] = useState(false)
@@ -64,12 +78,28 @@ function ConceptRow({
     else void handleGenerate()
   }
 
+  const handleRowClick = () => {
+    if (onSelect) onSelect(isSelected ? null : concept)
+  }
+
   return (
-    <div className="flex flex-col gap-2 py-2 px-3 rounded-lg bg-slate-50/80 border border-slate-100 hover:border-slate-200 transition-colors">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect ? handleRowClick : undefined}
+      onKeyDown={onSelect ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleRowClick(); } } : undefined}
+      onMouseEnter={() => onHover?.(concept)}
+      onMouseLeave={() => onHover?.(null)}
+      className={`flex flex-col gap-2 py-2 px-3 rounded-lg border transition-colors ${
+        isSelected
+          ? "bg-slate-100 border-slate-500 ring-2 ring-slate-400 shadow-sm"
+          : "bg-slate-50/80 border-slate-100 hover:border-slate-200"
+      } ${onSelect ? "cursor-pointer" : ""}`}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-slate-800 text-sm">{concept.name}</span>
+        <span className={`font-medium text-sm ${isSelected ? "text-slate-900" : "text-slate-800"}`}>{concept.name}</span>
         {concept.category && (
-          <span className="text-xs text-slate-500 shrink-0">{concept.category}</span>
+          <span className={`text-xs shrink-0 ${isSelected ? "text-slate-600" : "text-slate-500"}`}>{concept.category}</span>
         )}
       </div>
       {ranked.hint && (
@@ -78,17 +108,17 @@ function ConceptRow({
         </p>
       )}
       {(onGenerateDraft || onViewDetails) && (
-        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
           {onGenerateDraft && (
             <Button
               size="sm"
               variant="default"
-              className="h-7 text-xs"
+              className={`h-7 text-xs ${isSelected ? "font-semibold" : ""}`}
               onClick={handleGenerateClick}
               disabled={generating}
             >
               <FilePlus className="h-3 w-3 mr-1" />
-              {generating ? "Creating…" : "Generate Draft"}
+              {generating ? "Creating…" : isSelected ? "Generate draft from this concept" : "Generate Draft"}
             </Button>
           )}
           {onViewDetails && (
@@ -115,6 +145,10 @@ export function FormationIntelligencePanel({
   plays,
   onGenerateDraft,
   onViewDetails,
+  selectedConcept = null,
+  onConceptHover,
+  onConceptSelect,
+  onClearPreview,
   className = "",
 }: FormationIntelligencePanelProps) {
   const [variantModalOpen, setVariantModalOpen] = useState(false)
@@ -166,9 +200,20 @@ export function FormationIntelligencePanel({
       data-formation-intelligence
     >
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/80">
-        <div className="flex items-center gap-2">
-          <Lightbulb className="h-5 w-5 text-slate-500" />
-          <h3 className="font-semibold text-slate-900">Suggested Concepts</h3>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Lightbulb className="h-5 w-5 text-slate-500 shrink-0" />
+            <h3 className="font-semibold text-slate-900">Suggested Concepts</h3>
+          </div>
+          {selectedConcept && onClearPreview && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClearPreview(); }}
+              className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-1 shrink-0"
+            >
+              Clear preview
+            </button>
+          )}
         </div>
         {familyLabel && (
           <p className="text-xs text-slate-600 mt-1">
@@ -190,9 +235,12 @@ export function FormationIntelligencePanel({
               <li key={`${ranked.concept.name}-${i}`}>
                 <ConceptRow
                   ranked={ranked}
+                  isSelected={selectedConcept?.name === ranked.concept.name}
                   onGenerateDraft={onGenerateDraft}
                   onViewDetails={onViewDetails}
                   onRequestVariantModal={onGenerateDraft ? handleRequestVariantModal : undefined}
+                  onHover={onConceptHover}
+                  onSelect={onConceptSelect}
                 />
               </li>
             ))}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -71,6 +71,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [lastImportNote, setLastImportNote] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [showImportPanel, setShowImportPanel] = useState(false)
+  const importPanelRef = useRef<HTMLDivElement | null>(null)
 
   const canConfirmImport = Boolean(
     selectedFile &&
@@ -101,6 +103,12 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       })
     return () => { cancelled = true }
   }, [teamId, refreshTrigger])
+
+  useEffect(() => {
+    if (showImportPanel && importPanelRef.current) {
+      importPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [showImportPanel])
 
   const filteredRows = useMemo(() => {
     let list = players
@@ -298,10 +306,21 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
             Team statistics aggregated from player profiles. Click a row to open the player profile.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={filteredRows.length === 0}>
-          <Download className="h-4 w-4 mr-2" aria-hidden />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowImportPanel((prev) => !prev)}
+            >
+              {showImportPanel ? "Close Import" : "Import Stats"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={filteredRows.length === 0}>
+            <Download className="h-4 w-4 mr-2" aria-hidden />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -380,8 +399,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         </CardContent>
       </Card>
 
-      {canEdit && (
-        <>
+      {canEdit && showImportPanel && (
+        <div ref={importPanelRef} className="mt-6 space-y-6">
           <div className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(248,250,252)] p-3 text-sm" style={{ color: "rgb(var(--muted))" }}>
             <p className="font-medium mb-2" style={{ color: "rgb(var(--text))" }}>Import tips</p>
             <ul className="grid gap-1 sm:grid-cols-2 list-none space-y-0.5 pl-0">
@@ -622,7 +641,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
             )}
           </CardContent>
         </Card>
-        </>
+        </div>
       )}
 
       {filteredRows.length > 0 && (

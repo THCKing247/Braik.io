@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Plus, Edit, Trash2, Package, ChevronDown, ChevronUp, Folder, LayoutGrid, List } from "lucide-react"
 import { AddItemModal } from "./add-item-modal"
 import { EquipmentIcon } from "./inventory-equipment-icons"
+import { InventoryItemsModal } from "./inventory-items-modal"
 
 interface InventoryItem {
   id: string
@@ -66,6 +67,8 @@ export function InventoryManager({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [viewMode, setViewMode] = useState<"card" | "list">("list")
+  const [itemsModalOpen, setItemsModalOpen] = useState(false)
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     category: "",
@@ -397,6 +400,7 @@ export function InventoryManager({
         body: JSON.stringify({
           assignedToPlayerId: playerId,
           quantityAvailable: playerId ? 0 : 1,
+          status: playerId ? "ASSIGNED" : "AVAILABLE",
         }),
       })
 
@@ -416,6 +420,42 @@ export function InventoryManager({
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleReturnItem = async (itemId: string) => {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/teams/${teamId}/inventory/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignedToPlayerId: null,
+          quantityAvailable: 1,
+          status: "AVAILABLE",
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to return item")
+      }
+
+      // Reload items
+      const res = await fetch(`/api/teams/${teamId}/inventory`)
+      if (res.ok) {
+        const data = await res.json()
+        setItems(data.items || [])
+      }
+    } catch (error: any) {
+      alert(error.message || "Error returning item")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleOpenItemsModal = (equipmentType: string) => {
+    setSelectedEquipmentType(equipmentType)
+    setItemsModalOpen(true)
   }
 
   return (
@@ -875,20 +915,10 @@ export function InventoryManager({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => toggleGroup(equipmentType)}
+                      onClick={() => handleOpenItemsModal(equipmentType)}
                       style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                     >
-                      {expandedGroups.has(equipmentType) ? (
-                        <>
-                          <ChevronUp className="h-4 w-4 mr-1" />
-                          Hide Items
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="h-4 w-4 mr-1" />
-                          View Items
-                        </>
-                      )}
+                      View Items
                     </Button>
                   </div>
                   {expandedGroups.has(equipmentType) && (
@@ -1011,178 +1041,44 @@ export function InventoryManager({
                             )}
                           </>
                         )}
-                        {isExpanded ? (
-                          <ChevronUp className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
-                        ) : (
-                          <ChevronDown className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenItemsModal(equipmentType)
+                          }}
+                          style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                        >
+                          View Items
+                        </Button>
                       </div>
                     </div>
                   </div>
-
-                  {/* Expanded Items List */}
-                  {isExpanded && (
-                    <div className="border-t p-4 space-y-3" style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}>
-                      <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>
-                        Individual Items ({totalItems})
-                      </p>
-                      {currentViewMode === "card" ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {groupItems.map((item) => {
-                            const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
-                            return (
-                              <div
-                                key={item.id}
-                                className="p-4 rounded-lg border bg-white hover:shadow-md transition-shadow"
-                                style={{ borderColor: "rgb(var(--border))" }}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div className="relative flex-shrink-0" style={{ color: "rgb(var(--text))" }}>
-                                    <EquipmentIcon
-                                      equipmentType={item.equipmentType}
-                                      category={item.category}
-                                      size={48}
-                                    />
-                                    {jerseyLabel && (
-                                      <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
-                                        {jerseyLabel}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm" style={{ color: "rgb(var(--text))" }}>
-                                      {item.name}
-                                    </p>
-                                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                                      <span
-                                        className="text-xs px-2 py-1 rounded border"
-                                        style={getStatusColor(item.status)}
-                                      >
-                                        {item.status.replace("_", " ")}
-                                      </span>
-                                      <span className="text-xs" style={getConditionColor(item.condition)}>
-                                        {item.condition.replace("_", " ")}
-                                      </span>
-                                    </div>
-                                    {item.assignedPlayer && (
-                                      <p className="text-xs mt-2" style={{ color: "rgb(var(--muted))" }}>
-                                        Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
-                                        {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                                      </p>
-                                    )}
-                                    {permissions.canAssign && (
-                                      <div className="mt-2">
-                                        <select
-                                          value={item.assignedToPlayerId || ""}
-                                          onChange={(e) => handleAssignItem(item.id, e.target.value || null)}
-                                          className="w-full px-2 py-1 text-xs border rounded-md"
-                                          style={{
-                                            backgroundColor: "#FFFFFF",
-                                            borderColor: "rgb(var(--border))",
-                                            color: "rgb(var(--text))",
-                                          }}
-                                          disabled={loading}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <option value="">Unassigned</option>
-                                          {players.map((player) => (
-                                            <option key={player.id} value={player.id}>
-                                              {player.firstName} {player.lastName}
-                                              {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {groupItems.map((item) => {
-                            const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
-                            return (
-                              <div
-                                key={item.id}
-                                className="p-3 rounded-lg border bg-white"
-                                style={{ borderColor: "rgb(var(--border))" }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3 flex-1">
-                                    <div className="relative flex-shrink-0" style={{ color: "rgb(var(--text))" }}>
-                                      <EquipmentIcon
-                                        equipmentType={item.equipmentType}
-                                        category={item.category}
-                                        size={32}
-                                      />
-                                      {jerseyLabel && (
-                                        <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-                                          {jerseyLabel}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex-1">
-                                      <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
-                                        {item.name}
-                                      </p>
-                                      <div className="flex items-center gap-3 mt-1">
-                                        <span
-                                          className="text-xs px-2 py-1 rounded border"
-                                          style={getStatusColor(item.status)}
-                                        >
-                                          {item.status.replace("_", " ")}
-                                        </span>
-                                        <span className="text-xs" style={getConditionColor(item.condition)}>
-                                          {item.condition.replace("_", " ")}
-                                        </span>
-                                        {item.assignedPlayer && (
-                                          <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                                            Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
-                                            {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {permissions.canAssign && (
-                                    <div className="ml-4">
-                                      <select
-                                        value={item.assignedToPlayerId || ""}
-                                        onChange={(e) => handleAssignItem(item.id, e.target.value || null)}
-                                        className="px-3 py-1.5 text-sm border rounded-md"
-                                        style={{
-                                          backgroundColor: "#FFFFFF",
-                                          borderColor: "rgb(var(--border))",
-                                          color: "rgb(var(--text))",
-                                        }}
-                                        disabled={loading}
-                                      >
-                                        <option value="">Unassigned</option>
-                                        {players.map((player) => (
-                                          <option key={player.id} value={player.id}>
-                                            {player.firstName} {player.lastName}
-                                            {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )
           })}
         </div>
+      )}
+
+      {/* Items Modal */}
+      {selectedEquipmentType && (
+        <InventoryItemsModal
+          open={itemsModalOpen}
+          onClose={() => {
+            setItemsModalOpen(false)
+            setSelectedEquipmentType(null)
+          }}
+          items={groupedItems[selectedEquipmentType] || []}
+          players={players}
+          equipmentType={selectedEquipmentType}
+          onAssignItem={handleAssignItem}
+          onReturnItem={handleReturnItem}
+          permissions={permissions}
+          loading={loading}
+          viewMode={viewMode}
+        />
       )}
     </div>
   )

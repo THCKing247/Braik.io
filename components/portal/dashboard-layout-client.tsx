@@ -38,7 +38,7 @@ export function DashboardLayoutClient({
     <CoachBProvider isDesktop={isDesktop}>
       <PlaybookToastProvider>
       <div
-        className={cn("flex flex-col min-w-0 overflow-hidden", className)}
+        className={cn("flex flex-col min-w-0 min-h-0 overflow-hidden", className)}
         style={{ height: `calc(100vh - ${HEADER_HEIGHT_PX}px)` }}
       >
         {/* One horizontal row: sidebar + main; height is viewport-based so sidebar stays consistent */}
@@ -84,7 +84,10 @@ export function DashboardLayoutClient({
             </div>
           </main>
         </div>
-        <AIWidgetWrapper />
+        {/* Widget slot: min-h-0 so flex chain does not block modal's internal scroll */}
+        <div className="min-h-0 flex-shrink-0">
+          <AIWidgetWrapper />
+        </div>
       </div>
       </PlaybookToastProvider>
     </CoachBProvider>

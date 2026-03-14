@@ -160,7 +160,7 @@ export default async function DashboardLayout({
 
     return (
       <div
-        className="app-shell flex flex-col min-h-screen"
+        className="app-shell flex flex-col min-h-screen min-h-0"
         style={{
           backgroundColor: "rgb(var(--snow))",
           height: "100vh",

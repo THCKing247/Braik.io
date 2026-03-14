@@ -233,43 +233,46 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         </button>
       )}
 
-      {/* Chat Widget */}
+      {/* Chat Widget: fixed-height column, scrollable messages, pinned header/footer */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-96 h-[600px] rounded-xl shadow-2xl z-50 flex flex-col border-2" style={{ borderColor: "#0B2A5B", backgroundColor: "#FFFFFF" }}>
-          <Card className="flex-1 flex flex-col border-0 shadow-none" style={{ backgroundColor: "#FFFFFF" }}>
-            <CardHeader className="rounded-t-xl" style={{ backgroundColor: "#3B82F6", color: "#FFFFFF" }}>
+        <div
+          className="fixed bottom-6 right-6 w-96 h-[600px] rounded-xl shadow-2xl z-50 flex flex-col min-h-0 overflow-hidden border-2 border-[#0B2A5B] bg-white"
+        >
+          <Card className="flex flex-col flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-white">
+            <CardHeader className="shrink-0 rounded-t-xl bg-[#3B82F6] text-white">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 font-athletic uppercase" style={{ color: "#FFFFFF" }}>
-                  <Sparkles className="h-5 w-5" style={{ color: "#FFFFFF" }} />
+                <CardTitle className="flex items-center gap-2 font-athletic uppercase text-white">
+                  <Sparkles className="h-5 w-5 text-white" />
                   Coach B
                 </CardTitle>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setIsOpen(false)}
-                  className="rounded-lg hover:bg-white/20"
-                  style={{ color: "#FFFFFF" }}
+                  className="rounded-lg hover:bg-white/20 text-white"
                 >
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col p-0 overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ backgroundColor: "#FFFFFF" }}>
+            <CardContent className="flex flex-col flex-1 min-h-0 overflow-hidden p-0 bg-white">
+              {/* Messages: takes remaining space, scrolls vertically */}
+              <div
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-3 scroll-smooth bg-white"
+              >
                 {messages.length === 0 && (
-                  <div className="text-center py-12" style={{ color: "rgb(var(--text))" }}>
-                    <Sparkles className="h-16 w-16 mx-auto mb-4" style={{ color: "#3B82F6" }} />
-                    <p className="text-sm font-medium mb-2" style={{ color: "rgb(var(--text))" }}>
+                  <div className="text-center py-12 text-[rgb(var(--text))]">
+                    <Sparkles className="h-16 w-16 mx-auto mb-4 text-[#3B82F6]" />
+                    <p className="text-sm font-medium mb-2 text-[rgb(var(--text))]">
                       Hi! I'm Coach B. Ask me about your team, schedule, or get help with
                       tasks.
                     </p>
                     {canUseAdvancedActions ? (
-                      <p className="text-xs mt-2" style={{ color: "rgb(var(--text2))" }}>
+                      <p className="text-xs mt-2 text-[rgb(var(--text2))]">
                         I can help you create events, send messages, and manage your team.
                       </p>
                     ) : (
-                      <p className="text-xs mt-2" style={{ color: "rgb(var(--text2))" }}>
+                      <p className="text-xs mt-2 text-[rgb(var(--text2))]">
                         I can answer questions about your schedule and team updates.
                       </p>
                     )}
@@ -281,41 +284,39 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                       className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg p-4 shadow-md ${
+                        className={`max-w-[80%] rounded-lg p-4 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed ${
                           message.role === "user"
-                            ? ""
+                            ? "shadow-md"
                             : message.type === "error"
                             ? "bg-danger/10 text-danger border-2 border-danger/20"
                             : message.type === "action_proposal"
-                            ? "bg-warning/10 text-text border-2 border-warning/20"
-                            : "bg-surface text-text border-2"
+                            ? "bg-amber-50 text-gray-900 border border-amber-200"
+                            : "bg-white text-[#111827] border border-[#dbe3f0] shadow-sm"
                         }`}
                         style={
                           message.role === "user"
                             ? { backgroundColor: "#3B82F6", color: "#FFFFFF" }
-                            : message.type === "error" || message.type === "action_proposal"
-                            ? {}
-                            : { borderColor: "#0B2A5B" }
+                            : undefined
                         }
                       >
                         {message.type === "action_proposal" && (
                           <div className="flex items-center gap-2 mb-2">
-                            <AlertTriangle className="h-4 w-4 text-warning" />
-                            <span className="text-xs font-semibold text-warning">Action Requires Approval</span>
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <span className="text-xs font-semibold text-amber-700">Action Requires Approval</span>
                           </div>
                         )}
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                        <p className="text-sm">{message.content}</p>
                         {message.usage && (
-                          <p className="text-xs mt-2 text-text-2">
+                          <p className="text-xs mt-2 text-gray-500">
                             Tokens: {message.usage.tokensUsed} (weighted) • {message.usage.rawTokens} raw
                           </p>
                         )}
                         {message.usageStatus && (
-                          <p className="text-xs mt-1 text-text-2">
+                          <p className="text-xs mt-1 text-gray-500">
                             Usage: {message.usageStatus.usagePercentage.toFixed(1)}% • Mode: {message.usageStatus.mode}
                           </p>
                         )}
-                        <p className={`text-xs mt-2 ${message.role === "user" ? "opacity-80" : "text-text-2"}`}>
+                        <p className="text-xs mt-2 text-gray-500">
                           {message.timestamp.toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -360,11 +361,11 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                 ))}
                 {loading && (
                   <div className="flex justify-start">
-                    <div className="bg-surface-2 rounded-lg p-3">
+                    <div className="bg-gray-100 rounded-lg p-3">
                       <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-text-2 rounded-full animate-bounce" />
-                        <div className="w-2 h-2 bg-text-2 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
-                        <div className="w-2 h-2 bg-text-2 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
                       </div>
                     </div>
                   </div>
@@ -372,8 +373,8 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
-              <div className="border-t-2 p-4" style={{ borderTopColor: "#0B2A5B", backgroundColor: "#FFFFFF" }}>
+              {/* Input area: pinned to bottom */}
+              <div className="shrink-0 relative border-t border-[#dbe3f0] p-4 bg-white">
                 <div className="flex gap-2 mb-2">
                   <Input
                     value={input}
@@ -410,7 +411,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-text-2">
+                <p className="text-xs text-gray-500">
                   {canUseAdvancedActions
                     ? "Press Enter to send • Upload files to extract schedule/events • AI parsing available when OpenAI is configured"
                     : "Press Enter to send • Role-limited to Coach B Q&A for schedule and team updates"}

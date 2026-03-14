@@ -730,9 +730,9 @@ export async function POST(request: Request) {
       phase: "database",
       method: "POST",
       teamId,
-      playbookId: insertPayload.playbook_id ?? null,
-      formationId: insertPayload.formation_id ?? null,
-      subFormationId: insertPayload.sub_formation_id ?? null,
+      playbookId: playbookId ?? null,
+      formationId: formationId ?? null,
+      subFormationId: subFormationId ?? null,
       hasCanvasData: safeCanvasData != null,
       userId: session.user.id,
     })

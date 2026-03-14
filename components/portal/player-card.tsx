@@ -1,24 +1,35 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileText } from "lucide-react"
+import { FileText, User, Edit, Mail, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { PlayerFormsModal } from "./player-forms-modal"
 
+interface PlayerCardPlayer {
+  id: string
+  firstName: string
+  lastName: string
+  jerseyNumber: number | null
+  positionGroup: string | null
+  status: string
+  imageUrl?: string | null
+  healthStatus?: "active" | "injured" | "unavailable"
+  missingForms?: string[]
+  user?: { email: string } | null
+  grade?: number | null
+  notes?: string | null
+  email?: string | null
+  inviteCode?: string | null
+  inviteStatus?: "not_invited" | "invited" | "joined"
+  guardianLinks?: Array<{ guardian: { user: { email: string } } }>
+}
+
 interface PlayerCardProps {
-  player: {
-    id: string
-    firstName: string
-    lastName: string
-    jerseyNumber: number | null
-    positionGroup: string | null
-    status: string
-    imageUrl?: string | null
-    healthStatus?: "active" | "injured" | "unavailable"
-    missingForms?: string[]
-  }
+  player: PlayerCardPlayer
   canEdit?: boolean
   size?: "small" | "medium" | "large"
   primaryColor?: string
@@ -29,6 +40,10 @@ interface PlayerCardProps {
   onFormsUpdate?: (playerId: string, formsComplete: boolean, missingForms: string[]) => void | Promise<void>
   /** When set, clicking the card (excluding forms/image upload) opens the player profile. */
   profileHref?: string
+  /** Callbacks for player actions - accepts any player-like object */
+  onEditPlayer?: (player: any) => void
+  onSendInvite?: (player: any) => void | Promise<void>
+  onDeletePlayer?: (player: any) => void | Promise<void>
 }
 
 export function PlayerCard({
@@ -40,14 +55,26 @@ export function PlayerCard({
   onImageUpload,
   onFormsUpdate,
   profileHref,
+  onEditPlayer,
+  onSendInvite,
+  onDeletePlayer,
 }: PlayerCardProps) {
   const router = useRouter()
   const [imageError, setImageError] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [showFormsModal, setShowFormsModal] = useState(false)
+  const [showPlayerModal, setShowPlayerModal] = useState(false)
 
   const handleCardClick = () => {
-    if (profileHref && !draggable) router.push(profileHref)
+    if (draggable) return // Don't open modal if dragging
+    setShowPlayerModal(true)
+  }
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (profileHref) {
+      router.push(profileHref)
+    }
   }
 
   const getInitials = () => {
@@ -102,8 +129,8 @@ export function PlayerCard({
   return (
     <Card
       className={`hover:shadow-sm transition-all duration-200 border overflow-hidden relative ${
-        profileHref && !draggable ? "cursor-pointer" : ""
-      } ${draggable ? "cursor-move" : ""}`}
+        !draggable ? "cursor-pointer" : "cursor-move"
+      }`}
       style={{
         borderColor: player.healthStatus === "injured" ? "#EF4444" : player.healthStatus === "unavailable" ? "#F97316" : "rgb(var(--border))",
         borderWidth: player.healthStatus && player.healthStatus !== "active" ? "2px" : "1px",
@@ -114,9 +141,9 @@ export function PlayerCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleCardClick}
-      role={profileHref && !draggable ? "button" : undefined}
-      tabIndex={profileHref && !draggable ? 0 : undefined}
-      onKeyDown={profileHref && !draggable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push(profileHref) } } : undefined}
+      role={!draggable ? "button" : undefined}
+      tabIndex={!draggable ? 0 : undefined}
+      onKeyDown={!draggable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick() } } : undefined}
     >
       {/* Health Status Indicator */}
       {player.healthStatus && player.healthStatus !== "active" && (
@@ -173,21 +200,33 @@ export function PlayerCard({
             </div>
           </div>
           <div className="flex items-center justify-between w-full mt-2">
-            {/* Forms Icon - Bottom Left */}
-            {canEdit && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowFormsModal(true)
-                }}
-                className="p-1.5 rounded hover:bg-gray-100 transition-colors"
-                title="Manage Forms"
-              >
-                <FileText className="h-4 w-4 text-gray-600" />
-              </button>
-            )}
-            {!canEdit && <div />}
+            {/* Forms and Profile Icons - Bottom Left */}
+            <div className="flex items-center gap-1">
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowFormsModal(true)
+                  }}
+                  className="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                  title="Manage Forms"
+                >
+                  <FileText className="h-4 w-4 text-gray-600" />
+                </button>
+              )}
+              {profileHref && (
+                <button
+                  type="button"
+                  onClick={handleProfileClick}
+                  className="p-1.5 rounded hover:bg-gray-100 transition-colors text-lg"
+                  title="View Profile"
+                >
+                  👤
+                </button>
+              )}
+            </div>
+            {!canEdit && !profileHref && <div />}
             {/* Status Badge - Bottom Right */}
             <span
               className={`text-[10px] px-2 py-1 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
@@ -205,6 +244,78 @@ export function PlayerCard({
           onFormsUpdate={onFormsUpdate}
         />
       )}
+
+      {/* Player Actions Modal */}
+      <Dialog open={showPlayerModal} onOpenChange={setShowPlayerModal}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>
+              {player.firstName} {player.lastName}
+              {player.jerseyNumber && ` #${player.jerseyNumber}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {profileHref && (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowPlayerModal(false)
+                  router.push(profileHref)
+                }}
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+              >
+                <User className="h-4 w-4 mr-2" />
+                View Profile
+              </Button>
+            )}
+            {canEdit && onEditPlayer && (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowPlayerModal(false)
+                  onEditPlayer(player)
+                }}
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Player
+              </Button>
+            )}
+            {onSendInvite && (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={async () => {
+                  setShowPlayerModal(false)
+                  await onSendInvite(player)
+                }}
+                disabled={!!player.user}
+                title={player.user ? "Player already has an account" : "Generate invite code to share"}
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Send Invite
+              </Button>
+            )}
+            {onDeletePlayer && (
+              <Button
+                variant="outline"
+                className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                onClick={() => {
+                  setShowPlayerModal(false)
+                  onDeletePlayer(player)
+                }}
+                style={{ borderColor: "#EF4444", color: "#DC2626" }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Player
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

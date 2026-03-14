@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Edit, Trash2, Package, ChevronDown, ChevronUp, Folder } from "lucide-react"
+import { Plus, Edit, Trash2, Package, ChevronDown, ChevronUp, Folder, LayoutGrid, List } from "lucide-react"
 import { AddItemModal } from "./add-item-modal"
+import { EquipmentIcon } from "./inventory-equipment-icons"
 
 interface InventoryItem {
   id: string
@@ -64,6 +65,7 @@ export function InventoryManager({
   const [editingGroup, setEditingGroup] = useState<string | null>(null) // equipmentType being edited
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+  const [viewMode, setViewMode] = useState<"card" | "list">("list")
 
   const [formData, setFormData] = useState({
     category: "",
@@ -308,6 +310,23 @@ export function InventoryManager({
     acc[key].push(item)
     return acc
   }, {} as Record<string, InventoryItem[]>)
+
+
+  // Get jersey label (P/H/A/T) based on jersey type
+  const getJerseyLabel = (equipmentType: string | null | undefined, name?: string): string | null => {
+    const type = (equipmentType || name || "").toLowerCase()
+    
+    // Check for practice jerseys (handles both singular and plural)
+    if (type.includes("practice") && type.includes("jersey")) return "P"
+    // Check for home jersey
+    if (type.includes("home") && type.includes("jersey")) return "H"
+    // Check for away jersey
+    if (type.includes("away") && type.includes("jersey")) return "A"
+    // Check for alternate jersey (tertiary)
+    if (type.includes("alternate") && type.includes("jersey")) return "T"
+    
+    return null
+  }
 
   const toggleGroup = (equipmentType: string) => {
     const newExpanded = new Set(expandedGroups)
@@ -840,65 +859,189 @@ export function InventoryManager({
 
                   {/* Expanded Items List */}
                   {isExpanded && (
-                    <div className="border-t p-4 space-y-3" style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}>
-                      <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>
-                        Individual Items ({totalItems})
-                      </p>
-                      {groupItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-3 rounded-lg border bg-white"
-                          style={{ borderColor: "rgb(var(--border))" }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
-                                {item.name}
-                              </p>
-                              <div className="flex items-center gap-3 mt-1">
-                                <span
-                                  className="text-xs px-2 py-1 rounded border"
-                                  style={getStatusColor(item.status)}
-                                >
-                                  {item.status.replace("_", " ")}
-                                </span>
-                                <span className="text-xs" style={getConditionColor(item.condition)}>
-                                  {item.condition.replace("_", " ")}
-                                </span>
-                                {item.assignedPlayer && (
-                                  <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                                    Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
-                                    {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {permissions.canAssign && (
-                              <div className="ml-4">
-                                <select
-                                  value={item.assignedToPlayerId || ""}
-                                  onChange={(e) => handleAssignItem(item.id, e.target.value || null)}
-                                  className="px-3 py-1.5 text-sm border rounded-md"
-                                  style={{
-                                    backgroundColor: "#FFFFFF",
-                                    borderColor: "rgb(var(--border))",
-                                    color: "rgb(var(--text))",
-                                  }}
-                                  disabled={loading}
-                                >
-                                  <option value="">Unassigned</option>
-                                  {players.map((player) => (
-                                    <option key={player.id} value={player.id}>
-                                      {player.firstName} {player.lastName}
-                                      {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
-                          </div>
+                    <div className="border-t p-4" style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+                          Individual Items ({totalItems})
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>View:</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setViewMode("card")
+                            }}
+                            className={`h-8 px-2 ${viewMode === "card" ? "bg-[rgb(var(--accent))] text-white" : ""}`}
+                            title="Card view"
+                          >
+                            <LayoutGrid className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setViewMode("list")
+                            }}
+                            className={`h-8 px-2 ${viewMode === "list" ? "bg-[rgb(var(--accent))] text-white" : ""}`}
+                            title="List view"
+                          >
+                            <List className="h-4 w-4" />
+                          </Button>
                         </div>
-                      ))}
+                      </div>
+                      {viewMode === "card" ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {groupItems.map((item) => {
+                            const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-4 rounded-lg border bg-white hover:shadow-md transition-shadow"
+                                style={{ borderColor: "rgb(var(--border))" }}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="relative flex-shrink-0" style={{ color: "rgb(var(--text))" }}>
+                                    <EquipmentIcon
+                                      equipmentType={item.equipmentType}
+                                      category={item.category}
+                                      size={48}
+                                    />
+                                    {jerseyLabel && (
+                                      <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
+                                        {jerseyLabel}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm" style={{ color: "rgb(var(--text))" }}>
+                                      {item.name}
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                      <span
+                                        className="text-xs px-2 py-1 rounded border"
+                                        style={getStatusColor(item.status)}
+                                      >
+                                        {item.status.replace("_", " ")}
+                                      </span>
+                                      <span className="text-xs" style={getConditionColor(item.condition)}>
+                                        {item.condition.replace("_", " ")}
+                                      </span>
+                                    </div>
+                                    {item.assignedPlayer && (
+                                      <p className="text-xs mt-2" style={{ color: "rgb(var(--muted))" }}>
+                                        Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
+                                        {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
+                                      </p>
+                                    )}
+                                    {permissions.canAssign && (
+                                      <div className="mt-2">
+                                        <select
+                                          value={item.assignedToPlayerId || ""}
+                                          onChange={(e) => handleAssignItem(item.id, e.target.value || null)}
+                                          className="w-full px-2 py-1 text-xs border rounded-md"
+                                          style={{
+                                            backgroundColor: "#FFFFFF",
+                                            borderColor: "rgb(var(--border))",
+                                            color: "rgb(var(--text))",
+                                          }}
+                                          disabled={loading}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <option value="">Unassigned</option>
+                                          {players.map((player) => (
+                                            <option key={player.id} value={player.id}>
+                                              {player.firstName} {player.lastName}
+                                              {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {groupItems.map((item) => {
+                            const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-3 rounded-lg border bg-white"
+                                style={{ borderColor: "rgb(var(--border))" }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <div className="relative flex-shrink-0" style={{ color: "rgb(var(--text))" }}>
+                                      <EquipmentIcon
+                                        equipmentType={item.equipmentType}
+                                        category={item.category}
+                                        size={32}
+                                      />
+                                      {jerseyLabel && (
+                                        <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                                          {jerseyLabel}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                                        {item.name}
+                                      </p>
+                                      <div className="flex items-center gap-3 mt-1">
+                                        <span
+                                          className="text-xs px-2 py-1 rounded border"
+                                          style={getStatusColor(item.status)}
+                                        >
+                                          {item.status.replace("_", " ")}
+                                        </span>
+                                        <span className="text-xs" style={getConditionColor(item.condition)}>
+                                          {item.condition.replace("_", " ")}
+                                        </span>
+                                        {item.assignedPlayer && (
+                                          <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                                            Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
+                                            {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {permissions.canAssign && (
+                                    <div className="ml-4">
+                                      <select
+                                        value={item.assignedToPlayerId || ""}
+                                        onChange={(e) => handleAssignItem(item.id, e.target.value || null)}
+                                        className="px-3 py-1.5 text-sm border rounded-md"
+                                        style={{
+                                          backgroundColor: "#FFFFFF",
+                                          borderColor: "rgb(var(--border))",
+                                          color: "rgb(var(--text))",
+                                        }}
+                                        disabled={loading}
+                                      >
+                                        <option value="">Unassigned</option>
+                                        {players.map((player) => (
+                                          <option key={player.id} value={player.id}>
+                                            {player.firstName} {player.lastName}
+                                            {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>

@@ -136,57 +136,10 @@ export function RosterGridView({
             onImageUpload={canEdit ? handleImageUpload : undefined}
             onFormsUpdate={canEdit ? handleFormsUpdate : undefined}
             profileHref={getProfileHref?.(player)}
+            onEditPlayer={onEditPlayer}
+            onSendInvite={onSendInvite}
+            onDeletePlayer={onDeletePlayer}
           />
-          {(getProfileHref || canEdit) && (getProfileHref || onEditPlayer || onSendInvite || onDeletePlayer) && (
-            <div className="flex flex-wrap gap-1">
-              {getProfileHref && (
-                <Link href={getProfileHref(player)} className="flex-1 min-w-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-8 w-full"
-                    title="View profile"
-                  >
-                    <User className="h-3.5 w-3.5 mr-1" />
-                    Profile
-                  </Button>
-                </Link>
-              )}
-              {canEdit && onEditPlayer && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 flex-1 min-w-0"
-                  onClick={() => onEditPlayer(player)}
-                >
-                  Edit
-                </Button>
-              )}
-              {onSendInvite && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 flex-1 min-w-0"
-                  onClick={() => onSendInvite(player)}
-                  disabled={!!player.user}
-                  title={player.user ? "Player already has an account" : "Generate invite code to share"}
-                >
-                  Send invite
-                </Button>
-              )}
-              {onDeletePlayer && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 min-w-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                  onClick={() => onDeletePlayer(player)}
-                  title="Remove from roster"
-                >
-                  Delete
-                </Button>
-              )}
-            </div>
-          )}
         </div>
       ))}
       {playersState.length === 0 && (

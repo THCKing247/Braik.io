@@ -2,15 +2,19 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, ArrowLeft } from "lucide-react"
+import { Plus, ArrowLeft, Copy, Search } from "lucide-react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { FormationThumbnail } from "@/components/portal/formation-thumbnail"
-import { PlayCard } from "@/components/portal/play-card"
+import { SortablePlayList } from "@/components/portal/sortable-play-list"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { filterPlaysBySearch } from "@/lib/utils/play-search"
 import type { FormationRecord, SubFormationRecord, PlayRecord } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
 
 function FormationDetailContent({
   playbookId,
@@ -24,11 +28,14 @@ function FormationDetailContent({
   canEdit: boolean
 }) {
   const router = useRouter()
+  const { showToast } = usePlaybookToast()
   const [formation, setFormation] = useState<FormationRecord | null>(null)
+  const [duplicating, setDuplicating] = useState(false)
   const [subFormations, setSubFormations] = useState<SubFormationRecord[]>([])
   const [plays, setPlays] = useState<PlayRecord[]>([])
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [loading, setLoading] = useState(true)
+  const [playSearchQuery, setPlaySearchQuery] = useState("")
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,30 +67,21 @@ function FormationDetailContent({
   const playsForSubFormation = (subId: string | null) =>
     subId ? plays.filter((p) => p.subFormationId === subId) : plays.filter((p) => !p.subFormationId)
 
-  const handleDuplicatePlay = async (playId: string) => {
-    const play = plays.find((p) => p.id === playId)
-    if (!play) return
-    try {
-      const res = await fetch("/api/plays", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          side: play.side,
-          formation: play.formation,
-          formationId: formation?.id,
-          subFormationId: play.subFormationId ?? undefined,
-          playbookId: playbookId ?? undefined,
-          name: `${play.name} (copy)`,
-          playType: play.playType ?? undefined,
-          canvasData: play.canvasData,
-        }),
-      })
-      if (res.ok) load()
-    } catch {
-      alert("Failed to duplicate play")
-    }
-  }
+  const handleDuplicatePlay = useCallback(
+    async (playId: string) => {
+      try {
+        const res = await fetch(`/api/plays/${playId}/duplicate`, { method: "POST" })
+        if (!res.ok) throw new Error("Failed to duplicate")
+        const newPlay = await res.json()
+        showToast("Play duplicated", "success")
+        const returnUrl = `/dashboard/playbooks/${playbookId}/formation/${formationId}`
+        router.push(`/dashboard/playbooks/play/${newPlay.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
+      } catch {
+        showToast("Failed to duplicate play", "error")
+      }
+    },
+    [playbookId, formationId, router, showToast]
+  )
   const handleRenamePlay = async (playId: string, newName: string) => {
     try {
       const res = await fetch(`/api/plays/${playId}`, {
@@ -106,6 +104,27 @@ function FormationDetailContent({
   }
 
   const playEditorPath = (playId: string) => `/dashboard/playbooks/${playbookId}/formation/${formationId}/play/${playId}/edit`
+
+  const filteredPlays = filterPlaysBySearch(plays, playSearchQuery)
+
+  const handleReorderPlays = useCallback((reordered: PlayRecord[]) => {
+    setPlays(reordered)
+  }, [])
+
+  const handleDuplicateFormation = useCallback(async () => {
+    setDuplicating(true)
+    try {
+      const res = await fetch(`/api/formations/${formationId}/duplicate`, { method: "POST" })
+      if (!res.ok) throw new Error("Failed to duplicate")
+      const newFormation = await res.json()
+      showToast("Formation duplicated", "success")
+      router.push(`/dashboard/playbooks/${playbookId}/formation/${newFormation.id}/edit`)
+    } catch {
+      showToast("Failed to duplicate formation", "error")
+    } finally {
+      setDuplicating(false)
+    }
+  }, [formationId, playbookId, router, showToast])
 
   if (loading) {
     return (
@@ -148,6 +167,9 @@ function FormationDetailContent({
               <>
                 <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/edit`)}>
                   Edit formation
+                </Button>
+                <Button size="sm" variant="outline" disabled={duplicating} onClick={handleDuplicateFormation}>
+                  <Copy className="h-4 w-4 mr-1" /> Duplicate formation
                 </Button>
                 <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/new`)}>
                   <Plus className="h-4 w-4 mr-1" /> New sub-formation
@@ -194,7 +216,21 @@ function FormationDetailContent({
         </section>
 
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Plays (this formation)</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this formation)</h2>
+            {plays.length > 0 && (
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  type="search"
+                  placeholder="Search plays..."
+                  value={playSearchQuery}
+                  onChange={(e) => setPlaySearchQuery(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+            )}
+          </div>
           {plays.length === 0 ? (
             <div className="py-8 text-center rounded-xl border border-dashed border-slate-200 bg-white/60">
               <p className="text-slate-600 font-medium">No plays yet</p>
@@ -205,26 +241,24 @@ function FormationDetailContent({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {plays.map((play) => (
-                <div key={play.id} className="min-w-[200px] w-full">
-                  <PlayCard
-                    play={play}
-                    formations={[formation]}
-                    depthChartEntries={depthChartEntries}
-                    isSelected={false}
-                    onOpen={() => router.push(playEditorPath(play.id))}
-                    onDuplicate={handleDuplicatePlay}
-                    onRename={handleRenamePlay}
-                    onDelete={handleDeletePlay}
-                    canEdit={canEdit}
-                    viewMode="grid"
-                    playEditorPath={playEditorPath}
-                  />
-                </div>
-              ))}
-            </div>
+            <SortablePlayList
+              plays={filteredPlays}
+              formations={[formation]}
+              depthChartEntries={depthChartEntries}
+              canEdit={canEdit && !playSearchQuery.trim()}
+              playEditorPath={playEditorPath}
+              onDuplicate={handleDuplicatePlay}
+              onRename={handleRenamePlay}
+              onDelete={handleDeletePlay}
+              onReorder={handleReorderPlays}
+              reorderScopeKey={formationId}
+            />
           )}
+        </section>
+
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
+          <CommentThreadPanel parentType="formation" parentId={formationId} defaultCollapsed={true} />
         </section>
       </div>
     </div>

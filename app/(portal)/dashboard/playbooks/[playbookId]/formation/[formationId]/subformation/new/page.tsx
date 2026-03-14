@@ -54,7 +54,7 @@ export default function NewSubFormationPage() {
         return
       }
       const sub = await res.json()
-      router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${sub.id}`)
+      router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${sub.id}/edit?created=1`)
     } catch {
       setError("Failed to create sub-formation")
     } finally {

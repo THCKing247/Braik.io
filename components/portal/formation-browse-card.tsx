@@ -1,7 +1,9 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { FormationThumbnail } from "@/components/portal/formation-thumbnail"
+import { Copy } from "lucide-react"
 import type { FormationRecord } from "@/types/playbook"
 
 function FootballIcon({ className }: { className?: string }) {
@@ -21,6 +23,7 @@ interface FormationBrowseCardProps {
   canEdit?: boolean
   onEdit?: () => void
   onDelete?: () => void
+  onDuplicate?: () => void
 }
 
 export function FormationBrowseCard({
@@ -31,6 +34,7 @@ export function FormationBrowseCard({
   canEdit,
   onEdit,
   onDelete,
+  onDuplicate,
 }: FormationBrowseCardProps) {
   const isOffense = formation.side === "offense"
   const isDefense = formation.side === "defense"
@@ -54,8 +58,15 @@ export function FormationBrowseCard({
           <FootballIcon className={`h-14 w-14 ${isOffense ? "text-blue-500/50" : isDefense ? "text-red-500/50" : "text-amber-500/50"}`} />
         </div>
       )}
-      <div className={`${barBg} px-4 py-3 text-center min-w-0`}>
+      <div className={`${barBg} px-4 py-3 text-center min-w-0 relative`}>
         <span className="font-bold text-white text-lg tracking-tight block truncate" title={formation.name}>{formation.name}</span>
+        {canEdit && onDuplicate && (
+          <div className="absolute top-1/2 right-2 -translate-y-1/2" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-white/90 hover:text-white hover:bg-white/20" onClick={onDuplicate} title="Duplicate formation">
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
       <CardContent className="p-4 flex flex-col min-h-[100px]">
         <div className="flex items-center justify-between gap-4">

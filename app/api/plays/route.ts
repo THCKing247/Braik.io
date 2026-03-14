@@ -89,7 +89,7 @@ function isValidUuid(s: string): boolean {
   return s.length > 0 && UUID_REGEX.test(s)
 }
 
-/** DB column play_type may be missing until migration 20260322000000_plays_play_type.sql is applied. */
+/** DB columns play_type, order_index, tags may be missing until migrations applied. */
 type PlayRow = {
   id: string
   team_id: string
@@ -102,6 +102,8 @@ type PlayRow = {
   name: string
   play_type?: string | null
   canvas_data?: unknown
+  order_index?: number | null
+  tags?: string[] | null
   created_at?: string
   updated_at?: string
 }
@@ -138,6 +140,8 @@ function formatPlayForResponse(
     name: p.name,
     playType,
     canvasData: safeCanvas,
+    orderIndex: (p as PlayRow).order_index ?? null,
+    tags: Array.isArray((p as PlayRow).tags) ? (p as PlayRow).tags : null,
     createdAt: p.created_at ?? null,
     updatedAt: p.updated_at ?? null,
   }
@@ -280,7 +284,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("plays")
       .select(
-        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at"
+        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, tags, created_at, updated_at"
       )
       .eq("team_id", teamId)
 
@@ -295,7 +299,7 @@ export async function GET(request: Request) {
     }
 
     const { data: plays, error: playsError } = await query
-      .order("formation", { ascending: true })
+      .order("order_index", { ascending: true, nullsFirst: false })
       .order("name", { ascending: true })
 
     if (playsError) {
@@ -678,13 +682,17 @@ export async function POST(request: Request) {
     if (subFormationId != null && subFormationId.trim() !== "") {
       insertPayload.sub_formation_id = subFormationId
     }
-    // play_type omitted until migration 20260322000000_plays_play_type.sql is applied in production
+    const tagsRaw = body.tags
+    if (Array.isArray(tagsRaw)) {
+      const tagsFiltered = tagsRaw.filter((t): t is string => typeof t === "string" && t.trim() !== "")
+      if (tagsFiltered.length > 0) insertPayload.tags = tagsFiltered
+    }
 
     const { data: play, error: playError } = await supabase
       .from("plays")
       .insert(insertPayload)
       .select(
-        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at"
+        "id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, tags, created_at, updated_at"
       )
       .single()
 
@@ -739,6 +747,8 @@ export async function POST(request: Request) {
       name: (play as PlayRow).name,
       playType: getPlayTypeFromRow(play as PlayRow),
       canvasData: (play as PlayRow).canvas_data ?? null,
+      orderIndex: (play as PlayRow).order_index ?? null,
+      tags: Array.isArray((play as PlayRow).tags) ? (play as PlayRow).tags : null,
       createdAt: (play as PlayRow).created_at ?? null,
       updatedAt: (play as PlayRow).updated_at ?? null,
     })

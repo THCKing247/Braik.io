@@ -168,6 +168,15 @@ export function PlayCard({
             {sideLabel(play.side)} · {formationDisplayName}
             {play.subFormation ? ` · ${play.subFormation}` : play.subcategory ? ` · ${play.subcategory}` : ""}
           </p>
+          {(play.tags?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {(play.tags ?? []).map((tag) => (
+                <span key={tag} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <AssignmentBadge status={assignmentStatus} />
             {assignmentSummary && assignmentSummary.total > 0 && (
@@ -219,8 +228,20 @@ export function PlayCard({
       {/* Preview: main focus — thumbnail fills top, rounded-t only (footer connects cleanly) */}
       <div className="relative">
         <PlayCardThumbnail canvasData={canvasData} className="w-full aspect-[200/140] flex-shrink-0" />
-        <div className="absolute top-2 left-2 z-10 shadow-md">
+        <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1 shadow-md">
           <PlayTypeBadge playType={play.playType ?? null} />
+          {(play.tags?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {(play.tags ?? []).slice(0, 4).map((tag) => (
+                <span key={tag} className="rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm">
+                  {tag}
+                </span>
+              ))}
+              {(play.tags ?? []).length > 4 && (
+                <span className="rounded bg-white/90 px-1.5 py-0.5 text-[10px] text-slate-500">+{(play.tags ?? []).length - 4}</span>
+              )}
+            </div>
+          )}
         </div>
         {assignmentSummary && assignmentSummary.total > 0 && (
           <div className="absolute bottom-2 right-2 z-10 text-[10px] font-medium text-white/95 bg-black/50 backdrop-blur-sm rounded-md px-2 py-1">

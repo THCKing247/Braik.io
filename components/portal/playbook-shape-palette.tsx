@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Pencil, Square, Circle, X } from "lucide-react"
+import { Pencil, Square, Circle, X, Move } from "lucide-react"
 import type { SideOfBall } from "@/types/playbook"
 import { OFFENSE_POSITIONS, DEFENSE_POSITIONS, SPECIAL_POSITIONS } from "@/lib/constants/playbook-positions"
 
@@ -95,7 +95,7 @@ export function PlaybookShapePalette({
               className={`w-full justify-start h-8 px-2 ${selectedTool === "route" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
               onClick={() => canEdit && currentSide === "offense" && onSelectTool("route")}
               disabled={!canEdit || currentSide !== "offense"}
-              title="Route"
+              title="Route (R)"
             >
               <Pencil className="h-3.5 w-3.5 mr-1.5" />
               <span className="text-xs">Route</span>
@@ -106,10 +106,21 @@ export function PlaybookShapePalette({
               className={`w-full justify-start h-8 px-2 ${selectedTool === "block" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
               onClick={() => canEdit && currentSide === "offense" && onSelectTool("block")}
               disabled={!canEdit || currentSide !== "offense"}
-              title="Block"
+              title="Block (B)"
             >
               <Square className="h-3.5 w-3.5 mr-1.5" />
               <span className="text-xs">Block</span>
+            </Button>
+            <Button
+              variant={selectedTool === "motion" ? "default" : "outline"}
+              size="sm"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === "motion" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && currentSide === "offense" && onSelectTool("motion")}
+              disabled={!canEdit || currentSide !== "offense"}
+              title="Motion (M)"
+            >
+              <Move className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">Motion</span>
             </Button>
             <Button
               variant={selectedTool === "zone" ? "default" : "outline"}
@@ -148,7 +159,7 @@ export function PlaybookShapePalette({
             className={`w-full justify-start h-8 px-2 ${selectedTool === "select" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
             onClick={() => canEdit && onSelectTool("select")}
             disabled={!canEdit}
-            title="Select"
+            title="Select (V)"
           >
             <svg className="h-3.5 w-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
@@ -161,7 +172,7 @@ export function PlaybookShapePalette({
             className={`w-full justify-start h-8 px-2 ${selectedTool === "erase" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
             onClick={() => canEdit && onSelectTool("erase")}
             disabled={!canEdit}
-            title="Erase"
+            title="Erase (E)"
           >
             <svg className="h-3.5 w-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

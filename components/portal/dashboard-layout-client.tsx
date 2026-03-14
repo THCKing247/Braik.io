@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
+import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
 import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
@@ -35,6 +36,7 @@ export function DashboardLayoutClient({
 
   return (
     <CoachBProvider isDesktop={isDesktop}>
+      <PlaybookToastProvider>
       <div
         className={cn("flex flex-col min-w-0 overflow-hidden", className)}
         style={{ height: `calc(100vh - ${HEADER_HEIGHT_PX}px)` }}
@@ -84,6 +86,7 @@ export function DashboardLayoutClient({
         </div>
         <AIWidgetWrapper />
       </div>
+      </PlaybookToastProvider>
     </CoachBProvider>
   )
 }

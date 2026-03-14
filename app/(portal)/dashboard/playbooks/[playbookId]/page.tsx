@@ -2,14 +2,19 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, ArrowLeft } from "lucide-react"
+import { Plus, ArrowLeft, Search, FileText, Calendar, Smartphone } from "lucide-react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { FormationBrowseCard } from "@/components/portal/formation-browse-card"
-import { PlayCard } from "@/components/portal/play-card"
+import { SortablePlayList } from "@/components/portal/sortable-play-list"
 import type { PlaybookRecord, FormationRecord, SubFormationRecord, PlayRecord } from "@/types/playbook"
+import { filterPlaysBySearch } from "@/lib/utils/play-search"
+import { Input } from "@/components/ui/input"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
+import { CoachBSuggestPanel } from "@/components/portal/coach-b-suggest-panel"
 
 function PlaybookDetailContent({
   playbookId,
@@ -21,12 +26,14 @@ function PlaybookDetailContent({
   canEdit: boolean
 }) {
   const router = useRouter()
+  const { showToast } = usePlaybookToast()
   const [playbook, setPlaybook] = useState<PlaybookRecord | null>(null)
   const [formations, setFormations] = useState<FormationRecord[]>([])
   const [plays, setPlays] = useState<PlayRecord[]>([])
   const [subFormations, setSubFormations] = useState<SubFormationRecord[]>([])
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [loading, setLoading] = useState(true)
+  const [playSearchQuery, setPlaySearchQuery] = useState("")
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,7 +67,27 @@ function PlaybookDetailContent({
   const formationPlayCount = (formationId: string) => plays.filter((p) => p.formationId === formationId).length
   const formationSubCount = (formationId: string) => subFormations.filter((s) => s.formationId === formationId).length
 
+  const handleDuplicateFormation = useCallback(
+    async (formationId: string) => {
+      try {
+        const res = await fetch(`/api/formations/${formationId}/duplicate`, { method: "POST" })
+        if (!res.ok) throw new Error("Failed to duplicate")
+        const formation = await res.json()
+        showToast("Formation duplicated", "success")
+        router.push(`/dashboard/playbooks/${playbookId}/formation/${formation.id}/edit`)
+      } catch {
+        showToast("Failed to duplicate formation", "error")
+      }
+    },
+    [playbookId, router, showToast]
+  )
+
   const topLevelPlays = plays.filter((p) => !p.formationId)
+  const filteredTopLevelPlays = filterPlaysBySearch(topLevelPlays, playSearchQuery)
+
+  const handleReorderTopLevelPlays = useCallback((reordered: PlayRecord[]) => {
+    setPlays((prev) => [...reordered, ...prev.filter((p) => p.formationId)])
+  }, [])
 
   const breadcrumbs = [
     { label: "Playbooks", href: "/dashboard/playbooks" },
@@ -68,30 +95,21 @@ function PlaybookDetailContent({
   ]
 
   const playEditorPath = (playId: string) => `/dashboard/playbooks/${playbookId}/play/${playId}/edit`
-  const handleDuplicatePlay = async (playId: string) => {
-    const play = plays.find((p) => p.id === playId)
-    if (!play) return
-    try {
-      const res = await fetch("/api/plays", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          side: play.side,
-          formation: play.formation,
-          formationId: play.formationId ?? undefined,
-          subFormationId: play.subFormationId ?? undefined,
-          playbookId: playbookId ?? undefined,
-          name: `${play.name} (copy)`,
-          playType: play.playType ?? undefined,
-          canvasData: play.canvasData,
-        }),
-      })
-      if (res.ok) load()
-    } catch {
-      alert("Failed to duplicate play")
-    }
-  }
+  const handleDuplicatePlay = useCallback(
+    async (playId: string) => {
+      try {
+        const res = await fetch(`/api/plays/${playId}/duplicate`, { method: "POST" })
+        if (!res.ok) throw new Error("Failed to duplicate")
+        const newPlay = await res.json()
+        showToast("Play duplicated", "success")
+        const returnUrl = `/dashboard/playbooks/${playbookId}`
+        router.push(`/dashboard/playbooks/play/${newPlay.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
+      } catch {
+        showToast("Failed to duplicate play", "error")
+      }
+    },
+    [playbookId, router, showToast]
+  )
   const handleRenamePlay = async (playId: string, newName: string) => {
     try {
       const res = await fetch(`/api/plays/${playId}`, {
@@ -145,6 +163,15 @@ function PlaybookDetailContent({
                   <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/playbooks")}>
                     <ArrowLeft className="h-4 w-4 mr-1" /> Back
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/call-sheet`)}>
+                    <FileText className="h-4 w-4 mr-1" /> Call sheet
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/scripts`)}>
+                    <Calendar className="h-4 w-4 mr-1" /> Practice scripts
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/game-day`)}>
+                    <Smartphone className="h-4 w-4 mr-1" /> Game day
+                  </Button>
                   {canEdit && (
                     <>
                       <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/edit`)}>
@@ -185,6 +212,7 @@ function PlaybookDetailContent({
                         playCount={formationPlayCount(f.id)}
                         onSelect={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${f.id}`)}
                         canEdit={canEdit}
+                        onDuplicate={canEdit ? () => handleDuplicateFormation(f.id) : undefined}
                       />
                     ))}
                   </div>
@@ -193,28 +221,46 @@ function PlaybookDetailContent({
 
               {topLevelPlays.length > 0 && (
                 <section>
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Plays (no formation)</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {topLevelPlays.map((play) => (
-                      <div key={play.id} className="min-w-[200px] w-full">
-                        <PlayCard
-                          play={play}
-                          formations={formations}
-                          depthChartEntries={depthChartEntries}
-                          isSelected={false}
-                          onOpen={() => router.push(playEditorPath(play.id))}
-                          onDuplicate={handleDuplicatePlay}
-                          onRename={handleRenamePlay}
-                          onDelete={handleDeletePlay}
-                          canEdit={canEdit}
-                          viewMode="grid"
-                          playEditorPath={playEditorPath}
-                        />
-                      </div>
-                    ))}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+                    <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (no formation)</h2>
+                    <div className="relative flex-1 max-w-xs">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        type="search"
+                        placeholder="Search plays..."
+                        value={playSearchQuery}
+                        onChange={(e) => setPlaySearchQuery(e.target.value)}
+                        className="pl-8 h-9 text-sm"
+                      />
+                    </div>
                   </div>
+                  <SortablePlayList
+                    plays={filteredTopLevelPlays}
+                    formations={formations}
+                    depthChartEntries={depthChartEntries}
+                    canEdit={canEdit && !playSearchQuery.trim()}
+                    playEditorPath={playEditorPath}
+                    onDuplicate={handleDuplicatePlay}
+                    onRename={handleRenamePlay}
+                    onDelete={handleDeletePlay}
+                    onReorder={handleReorderTopLevelPlays}
+                    reorderScopeKey={playbookId}
+                  />
                 </section>
               )}
+              <section>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Coach B</h2>
+                <CoachBSuggestPanel
+                  teamId={teamId}
+                  playbookId={playbookId}
+                  returnUrl={`/dashboard/playbooks/${playbookId}`}
+                  className="max-w-xl"
+                />
+              </section>
+              <section>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
+                <CommentThreadPanel parentType="playbook" parentId={playbookId} defaultCollapsed={true} />
+              </section>
             </div>
           </div>
   )

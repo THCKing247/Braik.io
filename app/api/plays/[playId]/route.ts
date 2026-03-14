@@ -33,10 +33,9 @@ export async function GET(
 
     const supabase = getSupabaseServer()
 
-    // Get play (play_type omitted until migration 20260322000000_plays_play_type.sql is applied)
     const { data: play, error: playError } = await supabase
       .from("plays")
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, tags, created_at, updated_at")
       .eq("id", playId)
       .maybeSingle()
 
@@ -53,11 +52,12 @@ export async function GET(
       subFormationName = subRow?.name?.trim() ?? null
     }
 
+    const row = play as Record<string, unknown>
     const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
-      formationId: (play as { formation_id?: string }).formation_id ?? null,
+      formationId: row.formation_id ?? null,
       subFormationId,
       side: play.side,
       formation: play.formation,
@@ -66,6 +66,8 @@ export async function GET(
       name: play.name,
       playType: safePlayTypeFromRow(play as Record<string, unknown>),
       canvasData: play.canvas_data,
+      orderIndex: row.order_index ?? null,
+      tags: Array.isArray(row.tags) ? row.tags : null,
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })
@@ -109,6 +111,7 @@ export async function PATCH(
       side?: string
       formationId?: string | null
       playType?: "run" | "pass" | "rpo" | "screen" | null
+      tags?: string[] | null
     }
 
     const supabase = getSupabaseServer()
@@ -144,6 +147,7 @@ export async function PATCH(
       sub_formation_id?: string | null
       subcategory?: string | null
       side?: string
+      tags?: string[] | null
       updated_at?: string
     } = {}
 
@@ -177,15 +181,16 @@ export async function PATCH(
     if (body.side !== undefined) {
       updateData.side = body.side
     }
-    // play_type omitted until migration 20260322000000_plays_play_type.sql is applied
+    if (body.tags !== undefined) {
+      updateData.tags = Array.isArray(body.tags) ? body.tags.filter((t): t is string => typeof t === "string" && t.trim() !== "") : null
+    }
     updateData.updated_at = new Date().toISOString()
 
-    // Update play (play_type omitted from select until migration 20260322000000_plays_play_type.sql is applied)
     const { data: play, error: updateError } = await supabase
       .from("plays")
       .update(updateData)
       .eq("id", playId)
-      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, created_at, updated_at")
+      .select("id, team_id, playbook_id, formation_id, sub_formation_id, side, formation, subcategory, name, canvas_data, play_type, order_index, tags, created_at, updated_at")
       .single()
 
     if (updateError || !play) {
@@ -200,11 +205,12 @@ export async function PATCH(
       subFormationName = subRow?.name?.trim() ?? null
     }
 
+    const prow = play as Record<string, unknown>
     const res = NextResponse.json({
       id: play.id,
       teamId: play.team_id,
       playbookId: play.playbook_id ?? null,
-      formationId: (play as { formation_id?: string }).formation_id ?? null,
+      formationId: prow.formation_id ?? null,
       subFormationId: updatedSubFormationId,
       side: play.side,
       formation: play.formation,
@@ -213,6 +219,8 @@ export async function PATCH(
       name: play.name,
       playType: safePlayTypeFromRow(play as Record<string, unknown>),
       canvasData: play.canvas_data,
+      orderIndex: prow.order_index ?? null,
+      tags: Array.isArray(prow.tags) ? prow.tags : null,
       createdAt: play.created_at,
       updatedAt: play.updated_at,
     })

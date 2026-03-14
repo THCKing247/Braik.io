@@ -1,24 +1,37 @@
 "use client"
 
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
-import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film } from "lucide-react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
 import { PlaybookInspector, type InspectorSelectedPlayer } from "@/components/portal/playbook-inspector"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
+import { useEditorSaveState } from "@/lib/hooks/use-editor-save-state"
+import { EditorSaveStatusChip } from "@/components/portal/editor-save-status"
+import { LeaveWithoutSavingDialog } from "@/components/portal/leave-without-saving-dialog"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { usePlayAnimation, SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/hooks/use-play-animation"
 import type { FormationRecord, PlayRecord, RoutePoint, BlockEndPoint } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
+
+const AUTO_SAVE_DEBOUNCE_MS = 8000
 
 function PlayEditorContent() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { showToast } = usePlaybookToast()
+  const saveState = useEditorSaveState("saved")
   const playId = typeof params?.playId === "string" ? params.playId : null
   const returnUrl = searchParams.get("returnUrl") ?? "/dashboard/playbooks"
+  const triggerSaveRef = useRef<(() => void | Promise<void>) | null>(null)
 
   const [play, setPlay] = useState<PlayRecord | null>(null)
   const [formations, setFormations] = useState<FormationRecord[]>([])
@@ -31,6 +44,8 @@ function PlayEditorContent() {
   const [selectedPlayerInspector, setSelectedPlayerInspector] = useState<InspectorSelectedPlayer | null>(null)
   const [previewMode, setPreviewMode] = useState(false)
   const [showRoutesInPreview, setShowRoutesInPreview] = useState(true)
+  const [appliedRoutePreset, setAppliedRoutePreset] = useState<{ playerId: string; presetId: string } | null>(null)
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
 
   const {
     progress: animationProgress,
@@ -213,6 +228,7 @@ function PlayEditorContent() {
         fieldType: data.fieldType ?? "half",
         side: data.side,
       }
+      saveState.setSaving()
       const res = await fetch(`/api/plays/${playId}`, {
         method: "PATCH",
         credentials: "same-origin",
@@ -221,18 +237,43 @@ function PlayEditorContent() {
           name,
           playType: editingPlayType,
           canvasData,
+          tags: play.tags ?? undefined,
         }),
       })
-      if (!res.ok) throw new Error("Failed to save")
+      if (!res.ok) {
+        saveState.setError()
+        showToast("Save failed. Please try again.", "error")
+        throw new Error("Failed to save")
+      }
       const updated = await res.json()
       setPlay(updated)
+      saveState.setSaved()
+      showToast("Play saved", "success")
     },
-    [playId, play, editingPlayType]
+    [playId, play, editingPlayType, showToast, saveState.setSaving, saveState.setSaved, saveState.setError]
   )
 
+  const handleTagsChange = useCallback((tags: string[]) => {
+    setPlay((prev) => (prev ? { ...prev, tags } : null))
+  }, [])
+
+  const handleApplyRoutePreset = useCallback((presetId: string) => {
+    const pid = selectedPlayerInspector?.id
+    if (!pid) return
+    setAppliedRoutePreset({ playerId: pid, presetId })
+  }, [selectedPlayerInspector?.id])
+
+  useEffect(() => {
+    if (!autoSaveEnabled || saveState.status !== "dirty") return
+    const t = setTimeout(() => {
+      triggerSaveRef.current?.()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [autoSaveEnabled, saveState.status])
+
   const handleClose = useCallback(() => {
-    router.push(returnUrl)
-  }, [router, returnUrl])
+    saveState.confirmBeforeNavigate(() => router.push(returnUrl))
+  }, [router, returnUrl, saveState.confirmBeforeNavigate])
 
   const handleRenamePlay = useCallback(
     async (name: string) => {
@@ -309,17 +350,26 @@ function PlayEditorContent() {
   return (
     <div className="flex flex-1 h-full min-h-0 gap-px bg-slate-50">
       <div className="flex-1 flex flex-col min-w-0 rounded-l-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {/* Preview mode toggle and animation controls */}
-        <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-200 bg-slate-50/80 flex-shrink-0">
+        {/* Save status + Preview Play + animation controls + help */}
+        <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-200 bg-slate-50/80 flex-shrink-0 flex-wrap">
+          <EditorSaveStatusChip status={saveState.status} lastSavedAt={saveState.lastSavedAt} />
+          <div className="flex items-center gap-2">
+            <Label htmlFor="auto-save-play" className="text-xs text-slate-600 whitespace-nowrap cursor-pointer">Auto-save</Label>
+            <Checkbox
+              id="auto-save-play"
+              checked={autoSaveEnabled}
+              onCheckedChange={setAutoSaveEnabled}
+            />
+          </div>
           <Button
-            variant={previewMode ? "secondary" : "outline"}
+            variant={previewMode ? "secondary" : "default"}
             size="sm"
             onClick={() => setPreviewMode((v) => !v)}
-            title={previewMode ? "Exit preview" : "Preview animation"}
+            title={previewMode ? "Exit preview" : "Preview play animation (pre-snap motion, then routes)"}
             className="gap-1.5"
           >
             <Film className="h-4 w-4" />
-            {previewMode ? "Exit preview" : "Preview"}
+            {previewMode ? "Exit preview" : "Preview Play"}
           </Button>
           {previewMode && (
             <>
@@ -380,6 +430,25 @@ function PlayEditorContent() {
               </span>
             </>
           )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-700" title="Keyboard shortcuts">
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="end">
+              <p className="font-semibold text-slate-800 mb-2">Keyboard shortcuts</p>
+              <ul className="text-xs text-slate-600 space-y-1">
+                <li><kbd className="px-1 rounded bg-slate-100 font-mono">Ctrl</kbd>+<kbd className="px-1 rounded bg-slate-100 font-mono">S</kbd> Save</li>
+                <li><kbd className="px-1 rounded bg-slate-100 font-mono">V</kbd> Select tool</li>
+                <li><kbd className="px-1 rounded bg-slate-100 font-mono">R</kbd> Route tool</li>
+                <li><kbd className="px-1 rounded bg-slate-100 font-mono">B</kbd> Block tool</li>
+                <li><kbd className="px-1 rounded bg-slate-100 font-mono">M</kbd> Motion tool</li>
+                <li><kbd className="px-1 rounded bg-slate-100 font-mono">Del</kbd>/<kbd className="px-1 rounded bg-slate-100 font-mono">Bksp</kbd> Delete selected</li>
+                <li><kbd className="px-1 rounded bg-slate-100 font-mono">Esc</kbd> Cancel / clear selection</li>
+              </ul>
+            </PopoverContent>
+          </Popover>
         </div>
         <PlaybookBuilder
           playId={play.id}
@@ -390,6 +459,10 @@ function PlayEditorContent() {
           formation={play.formation}
           onSave={handleSave}
           onClose={handleClose}
+          onDirty={saveState.setDirty}
+          appliedRoutePreset={appliedRoutePreset}
+          onClearAppliedRoutePreset={() => setAppliedRoutePreset(null)}
+          triggerSaveRef={triggerSaveRef}
           canEdit={true}
           onSelectPlayer={(player) => {
             setSelectedPlayerInspector(player)
@@ -400,22 +473,36 @@ function PlayEditorContent() {
           animationProgress={animationProgress}
           showRoutesInPreview={showRoutesInPreview}
         />
+        <LeaveWithoutSavingDialog
+          open={saveState.leaveDialogOpen}
+          onOpenChange={(open) => { if (!open) saveState.handleLeaveCancel(); saveState.setLeaveDialogOpen(open); }}
+          onConfirm={saveState.handleLeaveConfirm}
+          onCancel={saveState.handleLeaveCancel}
+        />
       </div>
       <div className="w-72 flex-shrink-0 flex flex-col overflow-hidden rounded-r-lg border border-slate-200 bg-white shadow-sm">
-        <PlaybookInspector
-          play={play}
-          formations={formations}
-          depthChartEntries={depthChartEntries}
-          rosterPlayers={rosterPlayers}
-          onAssignSlot={onAssignSlot}
-          selectedObject={inspectorSelection}
-          selectedPlayer={selectedPlayerInspector}
-          selectedZone={null}
-          onPlayNameChange={handleRenamePlay}
-          playType={editingPlayType}
-          onPlayTypeChange={setEditingPlayType}
-          canEdit={true}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <PlaybookInspector
+            play={play}
+            formations={formations}
+            depthChartEntries={depthChartEntries}
+            rosterPlayers={rosterPlayers}
+            onAssignSlot={onAssignSlot}
+            selectedObject={inspectorSelection}
+            selectedPlayer={selectedPlayerInspector}
+            selectedZone={null}
+            onPlayNameChange={handleRenamePlay}
+            playType={editingPlayType}
+            onPlayTypeChange={setEditingPlayType}
+            tags={play.tags ?? null}
+            onTagsChange={handleTagsChange}
+            onApplyRoutePreset={handleApplyRoutePreset}
+            canEdit={true}
+          />
+        </div>
+        <div className="flex-shrink-0 border-t border-slate-200 p-2">
+          <CommentThreadPanel parentType="play" parentId={play.id} defaultCollapsed={true} />
+        </div>
       </div>
     </div>
   )

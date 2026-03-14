@@ -25,6 +25,7 @@ import {
   getPlayerForSlot,
   type DepthChartSlot,
 } from "@/lib/constants/playbook-positions"
+import { getPresetPointsTranslated } from "@/lib/utils/route-presets"
 
 type CanvasMode =
   | "idle"
@@ -93,7 +94,7 @@ interface PlaybookBuilderProps {
   playName?: string
   side: "offense" | "defense" | "special_teams"
   formation: string
-  onSave: (data: CanvasData, playName: string) => void
+  onSave: (data: CanvasData, playName: string) => void | Promise<void>
   onClose: () => void
   canEdit: boolean
   teamId?: string
@@ -132,6 +133,14 @@ interface PlaybookBuilderProps {
   animationProgress?: number
   /** When false and previewMode, hide route and blocking lines. Used only when previewMode is true. */
   showRoutesInPreview?: boolean
+  /** Called when the user edits content (players, name, zones, etc.). Not called when syncing from props or resize. */
+  onDirty?: () => void
+  /** When set, apply this route preset to the given player (e.g. from route library). Cleared after applying. */
+  appliedRoutePreset?: { playerId: string; presetId: string } | null
+  /** Call after applying appliedRoutePreset so parent can clear it. */
+  onClearAppliedRoutePreset?: () => void
+  /** Optional ref the builder will set to its save function so the parent can trigger save (e.g. auto-save). */
+  triggerSaveRef?: React.MutableRefObject<(() => void | Promise<void>) | null>
 }
 
 export function PlaybookBuilder({
@@ -163,6 +172,10 @@ export function PlaybookBuilder({
   previewMode = false,
   animationProgress: previewProgress = 0,
   showRoutesInPreview = true,
+  onDirty,
+  appliedRoutePreset,
+  onClearAppliedRoutePreset,
+  triggerSaveRef,
 }: PlaybookBuilderProps) {
   const [tool, setTool] = useState<string>("select")
   const [currentSide, setCurrentSide] = useState(side)
@@ -171,6 +184,8 @@ export function PlaybookBuilder({
   const [players, setPlayers] = useState<Player[]>(playData?.players || [])
   const [zones, setZones] = useState<Zone[]>(playData?.zones || [])
   const [manCoverages, setManCoverages] = useState<ManCoverage[]>(playData?.manCoverages || [])
+  const isSyncingFromPropsRef = useRef(false)
+  const initialSyncDoneRef = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const [animationMode, setAnimationMode] = useState<"all" | "skill" | "linemen">("all")
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
@@ -185,6 +200,7 @@ export function PlaybookBuilder({
   // Draft state: in-progress route/block (never saved until Finish)
   const [routeDraft, setRouteDraft] = useState<{ playerId: string; points: PointPX[] } | null>(null)
   const [blockDraft, setBlockDraft] = useState<{ playerId: string; endPoint: PointPX } | null>(null)
+  const [motionDraft, setMotionDraft] = useState<{ playerId: string; points: PointPX[] } | null>(null)
   const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null)
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null)
 
@@ -338,13 +354,62 @@ export function PlaybookBuilder({
     setSelectedPlayerId(null)
   }, [])
 
+  const cancelMotionDraft = useCallback(() => {
+    setMotionDraft(null)
+    setCursorPosition(null)
+    setSelectedPlayerId(null)
+  }, [])
+
+  const canFinishMotionDraft = motionDraft && motionDraft.points.length >= 2
+  const finishMotionDraft = useCallback(() => {
+    if (!motionDraft || motionDraft.points.length < 2) return
+    const pts = motionDraft.points
+    pushHistory()
+    setPlayers((prev) =>
+      prev.map((p) =>
+        p.id === motionDraft.playerId
+          ? {
+              ...p,
+              preSnapMotion: {
+                points: pts.map((pt, i) => ({
+                  x: pt.x,
+                  y: pt.y,
+                  xYards: pt.xYards,
+                  yYards: pt.yYards,
+                  t: pts.length === 1 ? 1 : i / (pts.length - 1),
+                })),
+              },
+            }
+          : p
+      )
+    )
+    setMotionDraft(null)
+  }, [motionDraft, pushHistory])
+
+  const saveHandlerRef = useRef<() => void | Promise<void>>(() => {})
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      const inInput = document.activeElement && (
+        document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA" ||
+        (document.activeElement as HTMLElement).getAttribute?.("contenteditable") === "true"
+      )
+      if (inInput) {
+        if (e.key === "Escape") (document.activeElement as HTMLElement)?.blur?.()
+        return
+      }
+
       if (e.key === "Escape") {
-        if (routeDraft || blockDraft) {
-          e.preventDefault()
+        e.preventDefault()
+        if (routeDraft || blockDraft || motionDraft) {
           cancelRouteDraft()
           cancelBlockDraft()
+          cancelMotionDraft()
+        } else {
+          setSelectedPlayerId(null)
+          setSelectedZoneId(null)
+          setTool("select")
         }
         return
       }
@@ -355,32 +420,69 @@ export function PlaybookBuilder({
         } else if (blockDraft) {
           e.preventDefault()
           finishBlockDraft()
+        } else if (canFinishMotionDraft) {
+          e.preventDefault()
+          finishMotionDraft()
         }
         return
       }
       if (e.ctrlKey || e.metaKey) {
+        if (e.key === "s") {
+          e.preventDefault()
+          saveHandlerRef.current?.()
+          return
+        }
         if (e.key === "z") {
           e.preventDefault()
           if (e.shiftKey) redo()
           else undo()
-        } else if (e.key === "y") {
+          return
+        }
+        if (e.key === "y") {
           e.preventDefault()
           redo()
+          return
         }
         return
       }
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault()
+        if (routeDraft || blockDraft) {
+          cancelRouteDraft()
+          cancelBlockDraft()
+          return
+        }
+        if (selectedPlayerId && !isTemplateMode) {
+          setPlayers((prev) =>
+            prev.map((p) =>
+              p.id === selectedPlayerId ? { ...p, route: undefined, blockingLine: undefined } : p
+            )
+          )
+          pushHistory()
+          setSelectedPlayerId(null)
+          return
+        }
+        if (selectedZoneId && !isTemplateMode) {
+          setZones((prev) => prev.filter((z) => z.id !== selectedZoneId))
+          setSelectedZoneId(null)
+          pushHistory()
+          return
+        }
+        return
+      }
+
       const key = e.key.toLowerCase()
-      if (key === "v") { e.preventDefault(); setTool("select"); cancelRouteDraft(); cancelBlockDraft() }
-      else if (key === "r") { e.preventDefault(); setTool("route"); cancelRouteDraft(); cancelBlockDraft() }
-      else if (key === "b") { e.preventDefault(); setTool("block"); cancelRouteDraft(); cancelBlockDraft() }
-      else if (key === "z" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); setTool("zone"); cancelRouteDraft(); cancelBlockDraft() }
-      else if (key === "t") { e.preventDefault(); setTool("select"); cancelRouteDraft(); cancelBlockDraft() }
-      else if (key === "e") { e.preventDefault(); setTool("erase"); cancelRouteDraft(); cancelBlockDraft() }
+      if (key === "v") { e.preventDefault(); setTool("select"); cancelRouteDraft(); cancelBlockDraft(); cancelMotionDraft() }
+      else if (key === "r") { e.preventDefault(); setTool("route"); cancelRouteDraft(); cancelBlockDraft(); cancelMotionDraft() }
+      else if (key === "b") { e.preventDefault(); setTool("block"); cancelRouteDraft(); cancelBlockDraft(); cancelMotionDraft() }
+      else if (key === "m") { e.preventDefault(); setTool("motion"); cancelRouteDraft(); cancelBlockDraft(); cancelMotionDraft() }
+      else if (key === "z" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); setTool("zone"); cancelRouteDraft(); cancelBlockDraft(); cancelMotionDraft() }
+      else if (key === "t") { e.preventDefault(); setTool("select"); cancelRouteDraft(); cancelBlockDraft(); cancelMotionDraft() }
+      else if (key === "e") { e.preventDefault(); setTool("erase"); cancelRouteDraft(); cancelBlockDraft(); cancelMotionDraft() }
     }
     window.addEventListener("keydown", handleKey)
     return () => window.removeEventListener("keydown", handleKey)
-  }, [routeDraft, blockDraft, finishRouteDraft, finishBlockDraft, cancelRouteDraft, cancelBlockDraft, undo, redo])
+  }, [routeDraft, blockDraft, motionDraft, canFinishMotionDraft, finishRouteDraft, finishBlockDraft, finishMotionDraft, cancelRouteDraft, cancelBlockDraft, cancelMotionDraft, undo, redo, pushHistory, isTemplateMode, selectedPlayerId, selectedZoneId])
 
   // Sync from prop only when we switch to a different play/formation (editorSourceKey change). Otherwise we'd overwrite local edits (e.g. just-finished route/block) whenever the parent re-renders with a new playData reference (e.g. new play or formation mode).
   const lastSyncedSourceKeyRef = useRef<string | null>(null)
@@ -392,6 +494,7 @@ export function PlaybookBuilder({
     }
     if (lastSyncedSourceKeyRef.current === sourceKey) return
     lastSyncedSourceKeyRef.current = sourceKey
+    isSyncingFromPropsRef.current = true
     // Source of truth: yard coordinates. For position-based markers, label is derived from positionCode/positionNumber to prevent drift.
     const convertedPlayers = playData.players.map((p) => {
         if (p.xYards !== undefined && p.yYards !== undefined) {
@@ -444,11 +547,52 @@ export function PlaybookBuilder({
       setManCoverages(playData.manCoverages || [])
     setCurrentSide(playData.side || side)
     if (initialPlayName) setPlayName(initialPlayName)
+    initialSyncDoneRef.current = true
+    setTimeout(() => {
+      isSyncingFromPropsRef.current = false
+    }, 0)
   }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height, editorSourceKey, playId, isTemplateMode, templateName])
+
+  // Notify parent when user edits content (not when syncing from props or resize).
+  useEffect(() => {
+    if (!initialSyncDoneRef.current || isSyncingFromPropsRef.current || !onDirty) return
+    onDirty()
+  }, [players, zones, manCoverages, playName, templateNameState, onDirty])
+
+  // Apply route preset from route library (play editor only). Use playersRef to avoid re-running when players change after apply.
+  useEffect(() => {
+    if (!appliedRoutePreset || isTemplateMode) return
+    const { playerId, presetId } = appliedRoutePreset
+    const currentPlayers = playersRef.current
+    const player = currentPlayers.find((p) => p.id === playerId)
+    if (!player) {
+      onClearAppliedRoutePreset?.()
+      return
+    }
+    const xYards = player.xYards ?? coordSystem.pixelToYard(player.x, player.y).xYards
+    const yYards = player.yYards ?? coordSystem.pixelToYard(player.x, player.y).yYards
+    const points = getPresetPointsTranslated(presetId, xYards, yYards)
+    if (points.length < 2) {
+      onClearAppliedRoutePreset?.()
+      return
+    }
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (p.id !== playerId) return p
+        const routeWithPixels = points.map((pt) => {
+          const pixel = coordSystem.yardToPixel(pt.xYards, pt.yYards)
+          return { x: pixel.x, y: pixel.y, xYards: pt.xYards, yYards: pt.yYards, t: pt.t }
+        })
+        return { ...p, route: routeWithPixels }
+      })
+    )
+    onClearAppliedRoutePreset?.()
+  }, [appliedRoutePreset, isTemplateMode, coordSystem, onClearAppliedRoutePreset])
 
   // When canvas is resized, recompute all display pixels from stable yard coords so routes/blocks stay anchored.
   // Do NOT mutate stored yard values; only update x,y for player, route points, and blockingLine.
   useEffect(() => {
+    isSyncingFromPropsRef.current = true
     setPlayers((prev) =>
       prev.map((p) => {
         let out = p
@@ -477,6 +621,9 @@ export function PlaybookBuilder({
         return out
       })
     )
+    setTimeout(() => {
+      isSyncingFromPropsRef.current = false
+    }, 0)
   }, [coordSystem, fieldDimensions.width, fieldDimensions.height])
 
   useEffect(() => {
@@ -660,6 +807,24 @@ export function PlaybookBuilder({
         setRouteDraft({ playerId: clickedPlayer.id, points: [origin] })
         setSelectedPlayerId(clickedPlayer.id)
       }
+    } else if (tool === "motion") {
+      const clickedPlayer = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
+      if (motionDraft) {
+        if (clickedPlayer && clickedPlayer.id === motionDraft.playerId) return
+        setMotionDraft((prev) =>
+          prev ? { ...prev, points: [...prev.points, { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards }] } : null
+        )
+      } else if (clickedPlayer) {
+        const displayPos = getPlayerDisplayPos(clickedPlayer)
+        const origin: PointPX = {
+          x: displayPos.x,
+          y: displayPos.y,
+          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).xYards,
+          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).yYards,
+        }
+        setMotionDraft({ playerId: clickedPlayer.id, points: [origin] })
+        setSelectedPlayerId(clickedPlayer.id)
+      }
     } else if (tool === "block") {
       const clickedPlayer = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
       if (blockDraft) {
@@ -714,12 +879,12 @@ export function PlaybookBuilder({
   const handleCanvasMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!canEdit || previewMode) return
     const point = getCanvasPoint(e)
-    if ((tool === "route" && routeDraft) || (tool === "block" && blockDraft)) {
+    if ((tool === "route" && routeDraft) || (tool === "block" && blockDraft) || (tool === "motion" && motionDraft)) {
       setCursorPosition({ x: point.x, y: point.y })
       setHoveredPlayerId(null)
     } else {
       setCursorPosition(null)
-      if ((tool === "route" || tool === "block") && !routeDraft && !blockDraft) {
+      if ((tool === "route" || tool === "block" || tool === "motion") && !routeDraft && !blockDraft && !motionDraft) {
         const player = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
         setHoveredPlayerId(player?.id ?? null)
       } else {
@@ -737,7 +902,13 @@ export function PlaybookBuilder({
     if (previewMode) return
     if (tool === "route" && canFinishRouteDraftLib(routeDraft)) {
       finishRouteDraft()
-    } else if (tool === "block" && blockDraft) {
+      return
+    }
+    if (tool === "motion" && canFinishMotionDraft) {
+      finishMotionDraft()
+      return
+    }
+    if (tool === "block" && blockDraft) {
       finishBlockDraft()
     }
   }
@@ -868,12 +1039,15 @@ export function PlaybookBuilder({
     }
     setRouteDraft(null)
     setBlockDraft(null)
+    setMotionDraft(null)
     setCursorPosition(null)
     setSelectedPlayerId(null)
     setIsAnimating(false)
   }
 
-  const handleSave = () => {
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSave = async () => {
     // Use ref so we always serialize the latest state (avoids stale closure if save runs before re-render after finish route).
     const latestPlayers = playersRef.current
     // Template mode: validate 11 players required
@@ -929,12 +1103,19 @@ export function PlaybookBuilder({
       side: currentSide,
     }
     
-    if (isTemplateMode) {
-      onSave(canvasData, templateNameState.trim())
-    } else {
-      onSave(canvasData, playName.trim())
+    setIsSaving(true)
+    try {
+      if (isTemplateMode) {
+        await Promise.resolve(onSave(canvasData, templateNameState.trim()))
+      } else {
+        await Promise.resolve(onSave(canvasData, playName.trim()))
+      }
+    } finally {
+      setIsSaving(false)
     }
   }
+  saveHandlerRef.current = handleSave
+  if (triggerSaveRef) triggerSaveRef.current = handleSave
 
   const playerCount = players.length
   const expectedCount = 11
@@ -994,15 +1175,16 @@ export function PlaybookBuilder({
                 <RotateCw className="h-4 w-4 mr-1" />
                 Redo
               </Button>
-              {(routeDraft || blockDraft) && (
+              {(routeDraft || blockDraft || motionDraft) && (
                 <>
                   <Button
                     size="sm"
                     onClick={() => {
                       if (canFinishRouteDraftLib(routeDraft)) finishRouteDraft()
+                      else if (canFinishMotionDraft) finishMotionDraft()
                       else if (blockDraft) finishBlockDraft()
                     }}
-                    disabled={routeDraft ? !canFinishRouteDraftLib(routeDraft) : false}
+                    disabled={routeDraft ? !canFinishRouteDraftLib(routeDraft) : motionDraft ? !canFinishMotionDraft : false}
                     title="Finish (Enter)"
                   >
                     <Check className="h-4 w-4 mr-1" />
@@ -1035,11 +1217,12 @@ export function PlaybookBuilder({
           )}
           {canEdit && (
             <Button 
-              onClick={handleSave} 
-              disabled={isTemplateMode ? (!templateNameState.trim() || players.length !== 11) : !playName.trim()}
+              onClick={handleSave}
+              disabled={isSaving || (isTemplateMode ? (!templateNameState.trim() || players.length !== 11) : !playName.trim())}
+              title={isTemplateMode ? "Save formation (Ctrl+S)" : "Save (Ctrl+S)"}
             >
               <Save className="h-4 w-4 mr-2" />
-              {isTemplateMode ? "Save Formation" : "Save"}
+              {isSaving ? "Saving..." : (isTemplateMode ? "Save Formation" : "Save")}
             </Button>
           )}
           <Button variant="ghost" onClick={onClose}>
@@ -1069,8 +1252,14 @@ export function PlaybookBuilder({
           {getPositionByCode(tool) && getPositionByCode(tool)?.unit === currentSide && (
             <span>Position: Click on the field to place <strong>{getPositionByCode(tool)?.label}</strong>.</span>
           )}
-          {tool === "select" && !routeDraft && !blockDraft && (
-            <span>Select: Drag players to move. <strong>R</strong> Route · <strong>B</strong> Block · <strong>Z</strong> Zone · <strong>E</strong> Erase.</span>
+          {tool === "motion" && !motionDraft && (
+            <span>Motion: <strong>Click a player</strong> to start pre-snap motion, then add waypoints. Enter to finish, Esc to cancel.</span>
+          )}
+          {tool === "motion" && motionDraft && (
+            <span>Motion: Click to add points · <strong>Double-click</strong> or <strong>Enter</strong> to finish · <strong>Esc</strong> to cancel.</span>
+          )}
+          {tool === "select" && !routeDraft && !blockDraft && !motionDraft && (
+            <span>Select: Drag players to move. <strong>V</strong> Select · <strong>R</strong> Route · <strong>B</strong> Block · <strong>M</strong> Motion · <strong>Z</strong> Zone · <strong>E</strong> Erase.</span>
           )}
         </div>
       )}
@@ -1294,6 +1483,7 @@ export function PlaybookBuilder({
             onSelectTool={(newTool) => {
               cancelRouteDraft()
               cancelBlockDraft()
+              cancelMotionDraft()
               setHoveredPlayerId(null)
               setTool(newTool)
               if (newTool === "select") setSelectedPlayerId(null)
@@ -1318,11 +1508,11 @@ export function PlaybookBuilder({
             preserveAspectRatio="xMidYMid meet"
             style={{
               cursor:
-                routeDraft || blockDraft
+                routeDraft || blockDraft || motionDraft
                   ? "crosshair"
-                  : tool === "route" || tool === "block"
+                  : tool === "route" || tool === "block" || tool === "motion"
                     ? "pointer"
-                    : (getPositionByCode(tool) && getPositionByCode(tool)?.unit === currentSide) || tool === "zone" || tool === "erase"
+                    : (getPositionByCode(tool) && getPositionByCode(tool)?.unit === currentSide) || tool === "zone" || tool === "erase" || tool === "motion"
                       ? "crosshair"
                       : tool === "select"
                         ? "move"
@@ -1363,6 +1553,32 @@ export function PlaybookBuilder({
                 ))}
                 {cursorPosition && (
                   <circle cx={cursorPosition.x} cy={cursorPosition.y} r="5" fill="none" stroke="#2563EB" strokeWidth="2" strokeDasharray="3,3" />
+                )}
+              </g>
+            )}
+
+            {/* Motion draft: dashed teal — pre-snap motion path */}
+            {motionDraft && motionDraft.points.length > 0 && (
+              <g className="motion-draft">
+                <polyline
+                  points={
+                    cursorPosition
+                      ? [...motionDraft.points, cursorPosition].map((p) => `${p.x},${p.y}`).join(" ")
+                      : motionDraft.points.map((p) => `${p.x},${p.y}`).join(" ")
+                  }
+                  fill="none"
+                  stroke="#0D9488"
+                  strokeWidth="4"
+                  strokeDasharray="8,5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={cursorPosition ? 1 : 0.9}
+                />
+                {motionDraft.points.map((pt, i) => (
+                  <circle key={i} cx={pt.x} cy={pt.y} r="6" fill="#0D9488" stroke="white" strokeWidth="2" />
+                ))}
+                {cursorPosition && (
+                  <circle cx={cursorPosition.x} cy={cursorPosition.y} r="5" fill="none" stroke="#0D9488" strokeWidth="2" strokeDasharray="3,3" />
                 )}
               </g>
             )}

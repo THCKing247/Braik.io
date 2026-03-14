@@ -1,7 +1,11 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
-import { useState, useEffect, useMemo } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
+import { useEditorSaveState } from "@/lib/hooks/use-editor-save-state"
+import { EditorSaveStatusChip } from "@/components/portal/editor-save-status"
+import { LeaveWithoutSavingDialog } from "@/components/portal/leave-without-saving-dialog"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
@@ -10,15 +14,25 @@ import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { canvasPlayersToTemplateData } from "@/lib/utils/playbook-canvas"
 import type { FormationRecord } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
+
+const AUTO_SAVE_DEBOUNCE_MS = 8000
 
 export default function FormationEditPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { showToast } = usePlaybookToast()
+  const saveState = useEditorSaveState("saved")
   const playbookId = typeof params?.playbookId === "string" ? params.playbookId : null
   const formationId = typeof params?.formationId === "string" ? params.formationId : null
+  const triggerSaveRef = useRef<(() => void | Promise<void>) | null>(null)
 
   const [formation, setFormation] = useState<FormationRecord | null>(null)
   const [loading, setLoading] = useState(true)
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
 
   useEffect(() => {
     if (!formationId) {
@@ -33,6 +47,13 @@ export default function FormationEditPage() {
       })
       .catch(() => setLoading(false))
   }, [formationId])
+
+  useEffect(() => {
+    if (searchParams.get("created") === "1") {
+      showToast("Formation created. You can now design the formation.", "success")
+      router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}/edit`, { scroll: false })
+    }
+  }, [searchParams, playbookId, formationId, router, showToast])
 
   const initialCanvasData: CanvasData | null = useMemo(() => {
     if (!formation) return null
@@ -56,6 +77,7 @@ export default function FormationEditPage() {
 
   const handleSave = async (data: CanvasData, _name: string) => {
     if (!formationId || !formation) return
+    saveState.setSaving()
     const playCanvasData: PlayCanvasData = {
       players: data.players.map((p) => ({
         id: p.id,
@@ -72,22 +94,32 @@ export default function FormationEditPage() {
       side: formation.side,
     }
     const templateData = canvasPlayersToTemplateData(playCanvasData.players, formation.side)
-    try {
-      const res = await fetch(`/api/formations/${formationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateData }),
-      })
-      if (res.ok) router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}`)
-      else alert("Failed to save formation")
-    } catch {
-      alert("Failed to save formation")
+    const res = await fetch(`/api/formations/${formationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templateData }),
+    })
+    if (res.ok) {
+      saveState.setSaved()
+      showToast("Formation saved", "success")
+    } else {
+      saveState.setError()
+      showToast("Save failed. Please try again.", "error")
+      throw new Error("Failed to save formation")
     }
   }
 
   const handleClose = () => {
-    router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}`)
+    saveState.confirmBeforeNavigate(() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}`))
   }
+
+  useEffect(() => {
+    if (!autoSaveEnabled || saveState.status !== "dirty") return
+    const t = setTimeout(() => {
+      triggerSaveRef.current?.()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [autoSaveEnabled, saveState.status])
 
   const breadcrumbs = [
     { label: "Playbooks", href: "/dashboard/playbooks" },
@@ -121,11 +153,23 @@ export default function FormationEditPage() {
       {({ canEdit }) => (
         <div className="min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5">
-            <PlaybookBreadcrumbs items={breadcrumbs} className="mb-3" />
-            <h1 className="text-xl font-semibold text-slate-900">Edit formation: {formation.name}</h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <PlaybookBreadcrumbs items={breadcrumbs} className="mb-0" confirmBeforeNavigate={saveState.confirmBeforeNavigate} />
+              <EditorSaveStatusChip status={saveState.status} lastSavedAt={saveState.lastSavedAt} />
+              <div className="flex items-center gap-2 ml-auto">
+                <Label htmlFor="auto-save-formation" className="text-xs text-slate-600 whitespace-nowrap cursor-pointer">Auto-save</Label>
+                <Checkbox
+                  id="auto-save-formation"
+                  checked={autoSaveEnabled}
+                  onCheckedChange={setAutoSaveEnabled}
+                />
+              </div>
+            </div>
+            <h1 className="text-xl font-semibold text-slate-900 mt-2">Edit formation: {formation.name}</h1>
           </div>
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            <PlaybookBuilder
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <PlaybookBuilder
               playId={null}
               playData={initialCanvasData}
               playName={formation.name}
@@ -134,11 +178,23 @@ export default function FormationEditPage() {
               formation={formation.name}
               onSave={handleSave}
               onClose={handleClose}
+              onDirty={saveState.setDirty}
+              triggerSaveRef={triggerSaveRef}
               canEdit={canEdit}
               isTemplateMode={true}
               templateName={formation.name}
             />
+            </div>
+            <div className="flex-shrink-0 p-4 border-t border-slate-200 bg-slate-50/50">
+              <CommentThreadPanel parentType="formation" parentId={formationId} defaultCollapsed={true} />
+            </div>
           </div>
+          <LeaveWithoutSavingDialog
+            open={saveState.leaveDialogOpen}
+            onOpenChange={(open) => { if (!open) saveState.handleLeaveCancel(); saveState.setLeaveDialogOpen(open); }}
+            onConfirm={saveState.handleLeaveConfirm}
+            onCancel={saveState.handleLeaveCancel}
+          />
         </div>
       )}
     </DashboardPageShell>

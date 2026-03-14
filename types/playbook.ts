@@ -155,6 +155,10 @@ export type PlayRecord = {
   /** Play classification. Null for legacy plays. */
   playType: PlayType | null
   canvasData: PlayCanvasData | null
+  /** Display order within playbook/formation. Null = sort by name. */
+  orderIndex?: number | null
+  /** Optional tags for filtering (Run, Pass, RPO, Red Zone, etc.). */
+  tags?: string[] | null
   createdAt: string
   updatedAt: string
 }

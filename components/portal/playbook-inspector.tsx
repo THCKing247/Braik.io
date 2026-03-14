@@ -13,6 +13,8 @@ import {
 } from "@/lib/constants/playbook-positions"
 import { hasCustomAnimationTiming, formatAnimationTimingSummary } from "@/lib/utils/play-animation"
 import type { PlayRecord, FormationRecord, PlayType } from "@/types/playbook"
+import { STARTER_PLAY_TAGS } from "@/lib/constants/play-tags"
+import { ROUTE_PRESETS } from "@/lib/utils/route-presets"
 
 /** Selected marker: label is derived from positionCode+positionNumber when positionCode is set (read-only). */
 export interface InspectorSelectedPlayer {
@@ -177,6 +179,11 @@ interface PlaybookInspectorProps {
   playType?: PlayType | null
   onPlayTypeChange?: (playType: PlayType | null) => void
   onPlayerLabelChange?: (playerId: string, label: string) => void
+  /** Current tags (may be unsaved). When user changes, parent should update and pass back on save. */
+  tags?: string[] | null
+  onTagsChange?: (tags: string[]) => void
+  /** When a route preset is clicked, parent applies it to the selected player. */
+  onApplyRoutePreset?: (presetId: string) => void
   canEdit: boolean
 }
 
@@ -193,6 +200,9 @@ export function PlaybookInspector({
   playType: displayPlayType,
   onPlayTypeChange,
   onPlayerLabelChange,
+  tags: displayTags,
+  onTagsChange,
+  onApplyRoutePreset,
   canEdit,
 }: PlaybookInspectorProps) {
   if (!play && !selectedObject && !onPlayTypeChange) {
@@ -261,6 +271,50 @@ export function PlaybookInspector({
                 <p className="text-xs text-slate-500">
                   Type: <span className="capitalize text-slate-800">{(displayPlayType ?? play.playType) ?? ""}</span>
                 </p>
+              )
+            )}
+            {canEdit && onTagsChange ? (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">Tags</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[...STARTER_PLAY_TAGS].map((tag) => {
+                    const selected = (displayTags ?? play.tags ?? []).includes(tag)
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          const current = displayTags ?? play.tags ?? []
+                          if (selected) onTagsChange(current.filter((t) => t !== tag))
+                          else onTagsChange([...current, tag])
+                        }}
+                        className={`rounded-md px-2 py-1 text-xs font-medium border transition-colors ${
+                          selected
+                            ? "bg-slate-700 text-white border-slate-700"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    )
+                  })}
+                </div>
+                {(displayTags ?? play.tags ?? []).filter((t) => !(STARTER_PLAY_TAGS as readonly string[]).includes(t)).length > 0 && (
+                  <p className="text-[10px] text-slate-400">Custom tags are shown on the play card.</p>
+                )}
+              </div>
+            ) : (
+              (play.tags?.length ?? 0) > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-slate-500">Tags</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {(displayTags ?? play.tags ?? []).map((tag) => (
+                      <span key={tag} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )
             )}
             <div className="text-xs text-slate-500 space-y-1">
@@ -363,6 +417,24 @@ export function PlaybookInspector({
                 Animation timing: <span className="font-medium text-amber-700">customized</span>
                 <span className="text-slate-500"> ({formatAnimationTimingSummary(selectedPlayer.animationTiming)})</span>
               </p>
+            )}
+            {play && play.side === "offense" && canEdit && onApplyRoutePreset && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-100 mt-2">
+                <Label className="text-xs text-slate-500">Route library</Label>
+                <p className="text-[10px] text-slate-400">Click to apply a default route to this player. You can edit points after.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ROUTE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => onApplyRoutePreset(preset.id)}
+                      className="rounded-md px-2 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 hover:border-slate-300 transition-colors"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}

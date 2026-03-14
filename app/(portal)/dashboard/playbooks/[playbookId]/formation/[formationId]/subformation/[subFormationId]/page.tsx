@@ -2,13 +2,17 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, ArrowLeft } from "lucide-react"
+import { Plus, ArrowLeft, Search } from "lucide-react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { Button } from "@/components/ui/button"
-import { PlayCard } from "@/components/portal/play-card"
+import { Input } from "@/components/ui/input"
+import { filterPlaysBySearch } from "@/lib/utils/play-search"
+import { SortablePlayList } from "@/components/portal/sortable-play-list"
 import type { FormationRecord, SubFormationRecord, PlayRecord } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
 
 function SubFormationDetailContent({
   playbookId,
@@ -24,11 +28,13 @@ function SubFormationDetailContent({
   canEdit: boolean
 }) {
   const router = useRouter()
+  const { showToast } = usePlaybookToast()
   const [formation, setFormation] = useState<FormationRecord | null>(null)
   const [subFormation, setSubFormation] = useState<SubFormationRecord | null>(null)
   const [plays, setPlays] = useState<PlayRecord[]>([])
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [loading, setLoading] = useState(true)
+  const [playSearchQuery, setPlaySearchQuery] = useState("")
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -67,30 +73,27 @@ function SubFormationDetailContent({
     load()
   }, [load])
 
-  const handleDuplicatePlay = async (playId: string) => {
-    const play = plays.find((p) => p.id === playId)
-    if (!play) return
-    try {
-      const res = await fetch("/api/plays", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          side: play.side,
-          formation: play.formation,
-          formationId: formation?.id,
-          subFormationId: subFormationId,
-          playbookId: playbookId ?? undefined,
-          name: `${play.name} (copy)`,
-          playType: play.playType ?? undefined,
-          canvasData: play.canvasData,
-        }),
-      })
-      if (res.ok) load()
-    } catch {
-      alert("Failed to duplicate play")
-    }
-  }
+  const handleDuplicatePlay = useCallback(
+    async (playId: string) => {
+      try {
+        const res = await fetch(`/api/plays/${playId}/duplicate`, { method: "POST" })
+        if (!res.ok) throw new Error("Failed to duplicate")
+        const newPlay = await res.json()
+        showToast("Play duplicated", "success")
+        const returnUrl = `/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}`
+        router.push(`/dashboard/playbooks/play/${newPlay.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
+      } catch {
+        showToast("Failed to duplicate play", "error")
+      }
+    },
+    [playbookId, formationId, subFormationId, router, showToast]
+  )
+  const filteredPlays = filterPlaysBySearch(plays, playSearchQuery)
+
+  const handleReorderPlays = useCallback((reordered: PlayRecord[]) => {
+    setPlays(reordered)
+  }, [])
+
   const handleRenamePlay = async (playId: string, newName: string) => {
     try {
       const res = await fetch(`/api/plays/${playId}`, {
@@ -178,26 +181,38 @@ function SubFormationDetailContent({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {plays.map((play) => (
-              <div key={play.id} className="min-w-[200px] w-full">
-                <PlayCard
-                  play={play}
-                  formations={[formation]}
-                  depthChartEntries={depthChartEntries}
-                  isSelected={false}
-                  onOpen={() => router.push(playEditorPath(play.id))}
-                  onDuplicate={handleDuplicatePlay}
-                  onRename={handleRenamePlay}
-                  onDelete={handleDeletePlay}
-                  canEdit={canEdit}
-                  viewMode="grid"
-                  playEditorPath={playEditorPath}
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plays (this sub-formation)</h2>
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  type="search"
+                  placeholder="Search plays..."
+                  value={playSearchQuery}
+                  onChange={(e) => setPlaySearchQuery(e.target.value)}
+                  className="pl-8 h-9 text-sm"
                 />
               </div>
-            ))}
-          </div>
+            </div>
+            <SortablePlayList
+              plays={filteredPlays}
+              formations={formation ? [formation] : []}
+              depthChartEntries={depthChartEntries}
+              canEdit={canEdit && !playSearchQuery.trim()}
+            playEditorPath={playEditorPath}
+            onDuplicate={handleDuplicatePlay}
+            onRename={handleRenamePlay}
+            onDelete={handleDeletePlay}
+            onReorder={handleReorderPlays}
+            reorderScopeKey={subFormationId}
+          />
+          </>
         )}
+        <section className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
+          <CommentThreadPanel parentType="sub_formation" parentId={subFormationId} defaultCollapsed={true} />
+        </section>
       </div>
     </div>
   )

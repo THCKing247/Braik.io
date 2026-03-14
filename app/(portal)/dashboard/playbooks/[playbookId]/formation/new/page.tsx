@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { SideOfBall } from "@/types/playbook"
+import { FORMATION_TEMPLATES, getTemplateDataForFormation } from "@/lib/constants/formation-templates"
 
 const SIDES: { value: SideOfBall; label: string }[] = [
   { value: "offense", label: "Offense" },
@@ -15,14 +16,20 @@ const SIDES: { value: SideOfBall; label: string }[] = [
   { value: "special_teams", label: "Special Teams" },
 ]
 
+const EMPTY_TEMPLATE_DATA = { fieldView: "HALF" as const, shapes: [], paths: [] as readonly [] }
+
 export default function NewFormationPage() {
   const params = useParams()
   const router = useRouter()
   const playbookId = typeof params?.playbookId === "string" ? params.playbookId : null
   const [name, setName] = useState("")
   const [side, setSide] = useState<SideOfBall>("offense")
+  const [templateId, setTemplateId] = useState<string>("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const templateData =
+    side === "offense" && templateId ? getTemplateDataForFormation(templateId) ?? EMPTY_TEMPLATE_DATA : EMPTY_TEMPLATE_DATA
 
   const handleSubmit = async (e: React.FormEvent, teamId: string) => {
     e.preventDefault()
@@ -38,7 +45,7 @@ export default function NewFormationPage() {
           playbookId,
           side,
           name: name.trim(),
-          templateData: { fieldView: "HALF", shapes: [], paths: [] },
+          templateData,
         }),
       })
       if (!res.ok) {
@@ -48,7 +55,7 @@ export default function NewFormationPage() {
         return
       }
       const formation = await res.json()
-      router.push(`/dashboard/playbooks/${playbookId}/formation/${formation.id}`)
+      router.push(`/dashboard/playbooks/${playbookId}/formation/${formation.id}/edit?created=1`)
     } catch {
       setError("Failed to create formation")
     } finally {
@@ -107,6 +114,27 @@ export default function NewFormationPage() {
                   ))}
                 </div>
               </div>
+              {side === "offense" && (
+                <div className="space-y-2">
+                  <Label htmlFor="template">Start from template (optional)</Label>
+                  <select
+                    id="template"
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value)}
+                    className="flex h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  >
+                    <option value="">Blank formation</option>
+                    {FORMATION_TEMPLATES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-500">
+                    Templates pre-fill players and alignment. You can edit positions in the formation editor after creation.
+                  </p>
+                </div>
+              )}
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex gap-2">
                 <Button type="submit" disabled={saving || !name.trim()}>

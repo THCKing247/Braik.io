@@ -424,15 +424,44 @@ export function InventoryManager({
         <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
           Inventory Items ({Object.keys(groupedItems).length} types, {items.length} total items)
         </h2>
-        {permissions.canCreate && (
-          <Button
-            onClick={() => setShowAddModal(true)}
-            style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Equipment
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 border rounded-lg p-1" style={{ borderColor: "rgb(var(--border))" }}>
+            <button
+              type="button"
+              onClick={() => setViewMode("card")}
+              className={`p-2 rounded transition-colors ${
+                viewMode === "card" 
+                  ? "bg-[rgb(var(--accent))] text-white" 
+                  : "text-[rgb(var(--muted))] hover:bg-[rgb(var(--platinum))]"
+              }`}
+              title="Card view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded transition-colors ${
+                viewMode === "list" 
+                  ? "bg-[rgb(var(--accent))] text-white" 
+                  : "text-[rgb(var(--muted))] hover:bg-[rgb(var(--platinum))]"
+              }`}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+          {permissions.canCreate && (
+            <Button
+              onClick={() => setShowAddModal(true)}
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Equipment
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Add Item Modal */}
@@ -764,6 +793,132 @@ export function InventoryManager({
             )}
           </CardContent>
         </Card>
+      ) : viewMode === "card" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Object.entries(groupedItems).map(([equipmentType, groupItems]) => {
+            const totalItems = groupItems.length
+            const availableItems = groupItems.filter(i => !i.assignedToPlayerId).length
+            const assignedItems = groupItems.filter(i => i.assignedToPlayerId).length
+            const firstItem = groupItems[0]
+            
+            // Get most common condition and status
+            const conditions = groupItems.map(i => i.condition)
+            const mostCommonCondition = conditions.sort((a, b) =>
+              conditions.filter(v => v === a).length - conditions.filter(v => v === b).length
+            ).pop() || "GOOD"
+            
+            const statuses = groupItems.map(i => i.status)
+            const mostCommonStatus = statuses.sort((a, b) =>
+              statuses.filter(v => v === a).length - statuses.filter(v => v === b).length
+            ).pop() || "AVAILABLE"
+
+            return (
+              <Card key={equipmentType} className="border hover:shadow-md transition-shadow" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div style={{ color: "rgb(var(--accent))" }}>
+                      <EquipmentIcon 
+                        equipmentType={equipmentType} 
+                        category={firstItem?.category}
+                        size={32}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg mb-1" style={{ color: "rgb(var(--text))" }}>
+                        {equipmentType}
+                      </h3>
+                      <p className="text-sm mb-2" style={{ color: "rgb(var(--muted))" }}>
+                        {totalItems} item{totalItems !== 1 ? "s" : ""} • {availableItems} available • {assignedItems} assigned
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="text-xs px-2 py-1 rounded border"
+                          style={getStatusColor(mostCommonStatus)}
+                        >
+                          {mostCommonStatus.replace("_", " ")}
+                        </span>
+                        <span className="text-xs font-medium" style={getConditionColor(mostCommonCondition)}>
+                          {mostCommonCondition.replace("_", " ")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-3 border-t" style={{ borderTopColor: "rgb(var(--border))" }}>
+                    <div className="flex items-center gap-2">
+                      {(permissions.canEdit || permissions.canDelete) && (
+                        <>
+                          {permissions.canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditGroup(equipmentType)}
+                              disabled={loading}
+                              title="Edit Equipment Type"
+                            >
+                              <Edit className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                            </Button>
+                          )}
+                          {permissions.canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteGroup(equipmentType)}
+                              disabled={loading}
+                              title="Delete All Items"
+                            >
+                              <Trash2 className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleGroup(equipmentType)}
+                      style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                    >
+                      {expandedGroups.has(equipmentType) ? (
+                        <>
+                          <ChevronUp className="h-4 w-4 mr-1" />
+                          Hide Items
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-1" />
+                          View Items
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {expandedGroups.has(equipmentType) && (
+                    <div className="mt-4 pt-4 border-t space-y-2" style={{ borderTopColor: "rgb(var(--border))" }}>
+                      {groupItems.slice(0, 5).map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-2 rounded border text-sm"
+                          style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                        >
+                          <p className="font-medium" style={{ color: "rgb(var(--text))" }}>{item.name}</p>
+                          {item.assignedPlayer && (
+                            <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
+                              Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      {groupItems.length > 5 && (
+                        <p className="text-xs text-center" style={{ color: "rgb(var(--muted))" }}>
+                          +{groupItems.length - 5} more items
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       ) : (
         <div className="space-y-4">
           {Object.entries(groupedItems).map(([equipmentType, groupItems]) => {
@@ -772,6 +927,8 @@ export function InventoryManager({
             const assignedItems = groupItems.filter(i => i.assignedToPlayerId).length
             const isExpanded = expandedGroups.has(equipmentType)
             const firstItem = groupItems[0]
+            // Store viewMode in a variable to avoid TypeScript narrowing
+            const currentViewMode = viewMode as "card" | "list"
             
             // Get most common condition and status
             const conditions = groupItems.map(i => i.condition)
@@ -794,7 +951,13 @@ export function InventoryManager({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 flex-1">
-                        <Folder className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
+                        <div style={{ color: "rgb(var(--accent))" }}>
+                          <EquipmentIcon 
+                            equipmentType={equipmentType} 
+                            category={firstItem?.category}
+                            size={20}
+                          />
+                        </div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>
                             {equipmentType}
@@ -859,40 +1022,11 @@ export function InventoryManager({
 
                   {/* Expanded Items List */}
                   {isExpanded && (
-                    <div className="border-t p-4" style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
-                          Individual Items ({totalItems})
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>View:</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setViewMode("card")
-                            }}
-                            className={`h-8 px-2 ${viewMode === "card" ? "bg-[rgb(var(--accent))] text-white" : ""}`}
-                            title="Card view"
-                          >
-                            <LayoutGrid className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setViewMode("list")
-                            }}
-                            className={`h-8 px-2 ${viewMode === "list" ? "bg-[rgb(var(--accent))] text-white" : ""}`}
-                            title="List view"
-                          >
-                            <List className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      {viewMode === "card" ? (
+                    <div className="border-t p-4 space-y-3" style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}>
+                      <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>
+                        Individual Items ({totalItems})
+                      </p>
+                      {currentViewMode === "card" ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           {groupItems.map((item) => {
                             const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)

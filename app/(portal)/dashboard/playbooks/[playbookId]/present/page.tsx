@@ -1,8 +1,8 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeft, ChevronLeft, ChevronRight, Star, Maximize2, Minimize2 } from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight, Star, Maximize2, Minimize2, Columns } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PlaycallerView } from "@/components/portal/playcaller-view"
@@ -13,9 +13,20 @@ import type { PlaybookRecord } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import { getGamedayFavorites, toggleGamedayFavorite } from "@/lib/constants/gameday-filters"
 
-function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; teamId: string }) {
+type InstallScriptData = { id: string; name: string; items: { playId: string; orderIndex: number }[] }
+
+function PlaybookPresenterContent({
+  playbookId,
+  teamId,
+  scriptId,
+}: {
+  playbookId: string
+  teamId: string
+  scriptId: string | null
+}) {
   const router = useRouter()
   const [playbook, setPlaybook] = useState<PlaybookRecord | null>(null)
+  const [installScript, setInstallScript] = useState<InstallScriptData | null>(null)
   const [formations, setFormations] = useState<FormationRecord[]>([])
   const [subFormations, setSubFormations] = useState<SubFormationRecord[]>([])
   const [plays, setPlays] = useState<PlayRecord[]>([])
@@ -28,6 +39,9 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [favorites, setFavorites] = useState<string[]>([])
   const [playIndex, setPlayIndex] = useState(0)
+  const [compareMode, setCompareMode] = useState(false)
+  const [playAIndex, setPlayAIndex] = useState(0)
+  const [playBIndex, setPlayBIndex] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fullscreenContainerRef = useRef<HTMLDivElement>(null)
 
@@ -36,12 +50,13 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
     setLoading(true)
     setError(null)
     try {
-      const [pbRes, fRes, pRes, sfRes, dcRes] = await Promise.all([
+      const [pbRes, fRes, pRes, sfRes, dcRes, ...scriptRes] = await Promise.all([
         fetch(`/api/playbooks/${playbookId}`),
         fetch(`/api/formations?teamId=${teamId}&playbookId=${playbookId}`),
         fetch(`/api/plays?teamId=${teamId}&playbookId=${playbookId}`),
         fetch(`/api/sub-formations?teamId=${teamId}`),
         fetch(`/api/roster/depth-chart?teamId=${teamId}`, { credentials: "same-origin" }),
+        ...(scriptId ? [fetch(`/api/install-scripts/${scriptId}`)] : []),
       ])
       if (!pbRes.ok) {
         setError("Playbook not found")
@@ -57,13 +72,19 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
         const dc = await dcRes.json()
         setDepthChartEntries(dc.entries ?? [])
       }
+      if (scriptId && scriptRes[0] && "ok" in scriptRes[0] && (scriptRes[0] as Response).ok) {
+        const data = await (scriptRes[0] as Response).json()
+        setInstallScript({ id: data.id, name: data.name, items: data.items ?? [] })
+      } else {
+        setInstallScript(null)
+      }
     } catch (e) {
       setError("Failed to load playbook")
       console.error(e)
     } finally {
       setLoading(false)
     }
-  }, [playbookId, teamId])
+  }, [playbookId, teamId, scriptId])
 
   useEffect(() => {
     load()
@@ -76,7 +97,19 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
 
   const favoriteSet = useMemo(() => new Set(favorites), [favorites])
 
+  const playById = useMemo(() => {
+    const map = new Map<string, PlayRecord>()
+    plays.forEach((p) => map.set(p.id, p))
+    return map
+  }, [plays])
+
   const filteredPlays = useMemo(() => {
+    if (installScript?.items?.length) {
+      const ordered = installScript.items
+        .map((item) => playById.get(item.playId))
+        .filter((p): p is PlayRecord => p != null)
+      return ordered
+    }
     let list = plays
     if (subFormationId) {
       list = list.filter((p) => p.subFormationId === subFormationId)
@@ -92,7 +125,7 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
       if (aOrder !== bOrder) return aOrder - bOrder
       return (a.name || "").localeCompare(b.name || "")
     })
-  }, [plays, formationId, subFormationId, favoritesOnly, favoriteSet])
+  }, [plays, formationId, subFormationId, favoritesOnly, favoriteSet, installScript, playById])
 
   const handleToggleFavorite = useCallback(
     (playId: string) => {
@@ -107,14 +140,48 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
   const safePlayIndex = Math.min(playIndex, Math.max(0, filteredPlays.length - 1))
 
   useEffect(() => {
-    setPlayIndex(0)
-  }, [formationId, subFormationId, favoritesOnly])
+    if (!installScript) setPlayIndex(0)
+  }, [formationId, subFormationId, favoritesOnly, installScript])
+
+  useEffect(() => {
+    if (installScript) setPlayIndex(0)
+  }, [installScript?.id])
 
   useEffect(() => {
     if (filteredPlays.length > 0 && playIndex >= filteredPlays.length) {
       setPlayIndex(filteredPlays.length - 1)
     }
   }, [filteredPlays.length, playIndex])
+
+  useEffect(() => {
+    const maxIdx = Math.max(0, filteredPlays.length - 1)
+    setPlayAIndex((i) => Math.min(i, maxIdx))
+    setPlayBIndex((i) => Math.min(i, maxIdx))
+  }, [filteredPlays.length])
+
+  const handleCompareToggle = useCallback(() => {
+    setCompareMode((on) => {
+      if (!on) {
+        const idx = Math.min(playIndex, Math.max(0, filteredPlays.length - 1))
+        const nextB = idx < filteredPlays.length - 1 ? idx + 1 : Math.max(0, idx - 1)
+        setPlayAIndex(idx)
+        setPlayBIndex(nextB)
+      }
+      return !on
+    })
+  }, [playIndex, filteredPlays.length])
+
+  const handleCompareIndexChange = useCallback(
+    (delta: number) => {
+      const maxIdx = Math.max(0, filteredPlays.length - 1)
+      setPlayAIndex((i) => Math.max(0, Math.min(maxIdx, i + delta)))
+      setPlayBIndex((i) => Math.max(0, Math.min(maxIdx, i + delta)))
+    },
+    [filteredPlays.length]
+  )
+
+  const safePlayAIndex = Math.min(playAIndex, Math.max(0, filteredPlays.length - 1))
+  const safePlayBIndex = Math.min(playBIndex, Math.max(0, filteredPlays.length - 1))
 
   const handleClose = useCallback(() => {
     router.push(playbookId ? `/dashboard/playbooks/${playbookId}` : "/dashboard/playbooks")
@@ -170,11 +237,13 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault()
-          handleIndexChange(Math.min(safePlayIndex + 1, filteredPlays.length - 1))
+          if (compareMode) handleCompareIndexChange(1)
+          else handleIndexChange(Math.min(safePlayIndex + 1, filteredPlays.length - 1))
           break
         case "ArrowLeft":
           e.preventDefault()
-          handleIndexChange(Math.max(safePlayIndex - 1, 0))
+          if (compareMode) handleCompareIndexChange(-1)
+          else handleIndexChange(Math.max(safePlayIndex - 1, 0))
           break
         case "f":
         case "F":
@@ -208,7 +277,7 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [safePlayIndex, filteredPlays.length, handleIndexChange, handleFullscreenToggle])
+  }, [safePlayIndex, filteredPlays.length, handleIndexChange, handleCompareIndexChange, compareMode, handleFullscreenToggle])
 
   if (loading) {
     return (
@@ -230,6 +299,8 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
     )
   }
 
+  const isScriptMode = !!scriptId
+
   if (filteredPlays.length === 0) {
     return (
       <div className="flex flex-col min-h-screen bg-slate-50">
@@ -238,14 +309,18 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          <span className="text-sm font-medium text-slate-700">{playbook.name} · Presenter</span>
+          <span className="text-sm font-medium text-slate-700">
+            {playbook.name} · {isScriptMode ? installScript?.name ?? "Script" : "Presenter"}
+          </span>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <p className="text-slate-600 font-medium">No plays in this selection</p>
           <p className="text-sm text-slate-500 mt-1">
-            {formationId || subFormationId
-              ? "Try changing the formation or sub-formation filter."
-              : "This playbook has no plays yet."}
+            {isScriptMode
+              ? "This install script has no plays. Add plays from the install script page."
+              : formationId || subFormationId
+                ? "Try changing the formation or sub-formation filter."
+                : "This playbook has no plays yet."}
           </p>
         </div>
       </div>
@@ -270,75 +345,141 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
             Back
           </Button>
         )}
-        <select
-          value={formationId ?? ""}
-          onChange={(e) => {
-            setFormationId(e.target.value || null)
-            setSubFormationId(null)
-          }}
-          className={`text-sm min-w-[120px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent bg-none px-1 text-slate-300 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
-          title="Formation"
-        >
-          <option value="">All formations</option>
-          {formations.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={subFormationId ?? ""}
-          onChange={(e) => setSubFormationId(e.target.value || null)}
-          className={`text-sm min-w-[120px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent px-1 text-slate-300 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
-          title="Sub-formation"
-          disabled={!formationId || subFormationsForFormation.length === 0}
-        >
-          <option value="">All sub-formations</option>
-          {subFormationsForFormation.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        {isScriptMode && (
+          <span className={`text-sm font-medium ${isFullscreen ? "text-slate-300" : "text-slate-700"}`}>
+            {installScript?.name ?? "Install script"}
+          </span>
+        )}
+        {!isScriptMode && (
+          <>
+            <select
+              value={formationId ?? ""}
+              onChange={(e) => {
+                setFormationId(e.target.value || null)
+                setSubFormationId(null)
+              }}
+              className={`text-sm min-w-[120px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent bg-none px-1 text-slate-300 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
+              title="Formation"
+            >
+              <option value="">All formations</option>
+              {formations.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={subFormationId ?? ""}
+              onChange={(e) => setSubFormationId(e.target.value || null)}
+              className={`text-sm min-w-[120px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent px-1 text-slate-300 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
+              title="Sub-formation"
+              disabled={!formationId || subFormationsForFormation.length === 0}
+            >
+              <option value="">All sub-formations</option>
+              {subFormationsForFormation.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         <div className={`flex items-center gap-1 ${isFullscreen ? "py-0" : "rounded-md border border-slate-200 bg-slate-50/80 px-2 py-1"}`}>
           <Button
             variant="ghost"
             size="icon"
             className={`text-slate-400 hover:text-white ${isFullscreen ? "h-8 w-8" : "h-7 w-7"}`}
-            onClick={() => handleIndexChange(safePlayIndex - 1)}
-            disabled={safePlayIndex <= 0}
+            onClick={() => (compareMode ? handleCompareIndexChange(-1) : handleIndexChange(safePlayIndex - 1))}
+            disabled={compareMode ? safePlayAIndex <= 0 : safePlayIndex <= 0}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className={`font-medium tabular-nums min-w-[72px] text-center ${isFullscreen ? "text-sm text-slate-400" : "text-sm text-slate-700"}`}>
-            {safePlayIndex + 1} of {filteredPlays.length}
+            {compareMode ? `${safePlayAIndex + 1} / ${safePlayBIndex + 1}` : `${safePlayIndex + 1} of ${filteredPlays.length}`}
           </span>
           <Button
             variant="ghost"
             size="icon"
             className={`text-slate-400 hover:text-white ${isFullscreen ? "h-8 w-8" : "h-7 w-7"}`}
-            onClick={() => handleIndexChange(safePlayIndex + 1)}
-            disabled={safePlayIndex >= filteredPlays.length - 1}
+            onClick={() => (compareMode ? handleCompareIndexChange(1) : handleIndexChange(safePlayIndex + 1))}
+            disabled={compareMode ? safePlayBIndex >= filteredPlays.length - 1 : safePlayIndex >= filteredPlays.length - 1}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <select
-          value={currentPlay?.id ?? ""}
-          onChange={(e) => {
-            const idx = filteredPlays.findIndex((p) => p.id === e.target.value)
-            if (idx >= 0) setPlayIndex(idx)
-          }}
-          className={`text-sm min-w-[160px] max-w-[220px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent px-1 text-slate-200 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
-          title="Play"
-        >
-          {filteredPlays.map((p, i) => (
-            <option key={p.id} value={p.id}>
-              {p.name || `Play ${i + 1}`}
-            </option>
-          ))}
-        </select>
+        {compareMode ? (
+          <>
+            <label className={`text-sm font-medium ${isFullscreen ? "text-slate-400" : "text-slate-600"}`}>
+              Play A:
+            </label>
+            <select
+              value={filteredPlays[safePlayAIndex]?.id ?? ""}
+              onChange={(e) => {
+                const idx = filteredPlays.findIndex((p) => p.id === e.target.value)
+                if (idx >= 0) setPlayAIndex(idx)
+              }}
+              className={`text-sm min-w-[140px] max-w-[200px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent px-1 text-slate-200 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
+              title="Select Play A"
+            >
+              {filteredPlays.map((p, i) => (
+                <option key={p.id} value={p.id}>
+                  {p.name || `Play ${i + 1}`}
+                </option>
+              ))}
+            </select>
+            <label className={`text-sm font-medium ${isFullscreen ? "text-slate-400" : "text-slate-600"}`}>
+              Play B:
+            </label>
+            <select
+              value={filteredPlays[safePlayBIndex]?.id ?? ""}
+              onChange={(e) => {
+                const idx = filteredPlays.findIndex((p) => p.id === e.target.value)
+                if (idx >= 0) setPlayBIndex(idx)
+              }}
+              className={`text-sm min-w-[140px] max-w-[200px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent px-1 text-slate-200 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
+              title="Select Play B"
+            >
+              {filteredPlays.map((p, i) => (
+                <option key={p.id} value={p.id}>
+                  {p.name || `Play ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <select
+            value={currentPlay?.id ?? ""}
+            onChange={(e) => {
+              const idx = filteredPlays.findIndex((p) => p.id === e.target.value)
+              if (idx >= 0) setPlayIndex(idx)
+            }}
+            className={`text-sm min-w-[160px] max-w-[220px] ${isFullscreen ? "h-8 appearance-none border-0 bg-transparent px-1 text-slate-200 focus:ring-0 [&>option]:bg-slate-800" : "h-8 rounded-md border border-slate-300 bg-white px-2"}`}
+            title="Play"
+          >
+            {filteredPlays.map((p, i) => (
+              <option key={p.id} value={p.id}>
+                {p.name || `Play ${i + 1}`}
+              </option>
+            ))}
+          </select>
+        )}
         {!isFullscreen && (
+          <button
+            type="button"
+            onClick={handleCompareToggle}
+            className={`flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-sm font-medium transition-colors ${
+              compareMode
+                ? "border-slate-500 bg-slate-200 text-slate-800"
+                : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+            title={compareMode ? "Exit compare mode" : "Compare two plays side-by-side"}
+            aria-pressed={compareMode}
+          >
+            <Columns className="h-4 w-4 shrink-0" />
+            <span>Compare plays</span>
+          </button>
+        )}
+        {!isFullscreen && !isScriptMode && (
           <button
             type="button"
             onClick={() => setFavoritesOnly((v) => !v)}
@@ -366,6 +507,34 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
         </Button>
       </div>
       <div className="flex-1 min-h-0 flex">
+        {compareMode ? (
+          <div className="flex-1 min-h-0 flex min-w-0">
+            <div className="flex-1 min-h-0 min-w-0 relative border-r border-slate-200">
+              <PlaycallerView
+                plays={filteredPlays}
+                currentIndex={safePlayAIndex}
+                onClose={handleClose}
+                onIndexChange={(i) => setPlayAIndex(i)}
+                formations={formations}
+                depthChartEntries={depthChartEntries}
+                embedded
+                fullscreen={false}
+              />
+            </div>
+            <div className="flex-1 min-h-0 min-w-0 relative">
+              <PlaycallerView
+                plays={filteredPlays}
+                currentIndex={safePlayBIndex}
+                onClose={handleClose}
+                onIndexChange={(i) => setPlayBIndex(i)}
+                formations={formations}
+                depthChartEntries={depthChartEntries}
+                embedded
+                fullscreen={false}
+              />
+            </div>
+          </div>
+        ) : (
         <div className="flex-1 min-h-0 relative">
           <PlaycallerView
             plays={filteredPlays}
@@ -378,6 +547,8 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
             fullscreen={isFullscreen}
           />
         </div>
+        )}
+        {!compareMode && (
         <aside
           className={`flex-shrink-0 flex flex-col min-h-0 ${isFullscreen ? "w-[260px] min-w-[240px] border-l border-slate-700/60 bg-slate-900/80" : "w-[220px] min-w-[200px] border-l border-slate-200 bg-white"}`}
           aria-label="Play list"
@@ -467,6 +638,7 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
             })}
           </ul>
         </aside>
+        )}
       </div>
     </div>
   )
@@ -474,7 +646,9 @@ function PlaybookPresenterContent({ playbookId, teamId }: { playbookId: string; 
 
 export default function PlaybookPresenterPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const playbookId = typeof params?.playbookId === "string" ? params.playbookId : null
+  const scriptId = searchParams?.get("scriptId") ?? null
 
   if (!playbookId) {
     return (
@@ -490,7 +664,9 @@ export default function PlaybookPresenterPage() {
 
   return (
     <DashboardPageShell>
-      {({ teamId }) => <PlaybookPresenterContent playbookId={playbookId} teamId={teamId} />}
+      {({ teamId }) => (
+        <PlaybookPresenterContent playbookId={playbookId} teamId={teamId} scriptId={scriptId} />
+      )}
     </DashboardPageShell>
   )
 }

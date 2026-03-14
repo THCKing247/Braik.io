@@ -19,6 +19,10 @@ export interface PlaySuggestion {
   routesByRole: PlaySuggestionRoute[]
   /** Short rationale from Coach B */
   rationale: string
+  /** Optional: concept name for route-template engine (e.g. Stick, Mesh, Smash) */
+  concept?: string
+  /** Optional tags for the play (e.g. Red Zone, 3rd Down) */
+  tags?: string[]
 }
 
 export interface CoachBSuggestPlayRequest {
@@ -26,6 +30,7 @@ export interface CoachBSuggestPlayRequest {
   /** Optional: playbook/formation context for scoping */
   playbookId?: string
   formationId?: string
+  subFormationId?: string
 }
 
 export interface CoachBSuggestPlayResponse {

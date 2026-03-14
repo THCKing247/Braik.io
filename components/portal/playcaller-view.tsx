@@ -48,6 +48,52 @@ const YARD_END = 50
 const VIEWBOX_W = 800
 const VIEWBOX_H = 600
 
+/** Position groups for highlight-by-group. Label/code maps to one of these. */
+const PLAYER_GROUP_OPTIONS = [
+  { value: "", label: "None" },
+  { value: "QB", label: "QB" },
+  { value: "RB", label: "RB" },
+  { value: "WR", label: "WR" },
+  { value: "TE", label: "TE" },
+  { value: "OL", label: "OL" },
+  { value: "DL", label: "DL" },
+  { value: "LB", label: "LB" },
+  { value: "DB", label: "DB" },
+] as const
+
+const POSITION_CODE_TO_GROUP: Record<string, string> = {
+  QB: "QB",
+  RB: "RB",
+  FB: "RB",
+  WR: "WR",
+  TE: "TE",
+  LT: "OL",
+  LG: "OL",
+  C: "OL",
+  RG: "OL",
+  RT: "OL",
+  DE: "DL",
+  DT: "DL",
+  NT: "DL",
+  EDGE: "DL",
+  MLB: "LB",
+  OLB: "LB",
+  ILB: "LB",
+  LB: "LB",
+  CB: "DB",
+  SS: "DB",
+  FS: "DB",
+  S: "DB",
+}
+
+function getGroupForPlayer(player: { label?: string | null; positionCode?: string | null }): string | null {
+  const code = (player.positionCode ?? "").toUpperCase().trim()
+  if (code && POSITION_CODE_TO_GROUP[code]) return POSITION_CODE_TO_GROUP[code]
+  const label = (player.label ?? "").trim()
+  const base = label.replace(/\d+$/, "").toUpperCase()
+  return POSITION_CODE_TO_GROUP[base] ?? null
+}
+
 interface PlaycallerViewProps {
   plays: PlayRecord[]
   currentIndex: number
@@ -167,6 +213,7 @@ export function PlaycallerView({
     stepBackward: animationStepBackward,
   } = usePlayAnimation(3000)
   const [showRoutes, setShowRoutes] = useState(true)
+  const [highlightedGroup, setHighlightedGroup] = useState<string>("")
   const isAnimating = isAnimationPlaying
   const timelineRef = useRef<HTMLDivElement>(null)
   const [isScrubbing, setIsScrubbing] = useState(false)
@@ -480,6 +527,19 @@ export function PlaycallerView({
             </select>
           </label>
           <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            Highlight:
+            <select
+              value={highlightedGroup}
+              onChange={(e) => setHighlightedGroup(e.target.value)}
+              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[80px]"
+              title="Highlight position group"
+            >
+              {PLAYER_GROUP_OPTIONS.map((opt) => (
+                <option key={opt.value || "none"} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
             Color:
             <select
               value={markerColor}
@@ -556,6 +616,19 @@ export function PlaycallerView({
                   ))}
                 </optgroup>
               )}
+            </select>
+          </label>
+          <label className="text-xs text-slate-400 flex items-center gap-1">
+            Highlight:
+            <select
+              value={highlightedGroup}
+              onChange={(e) => setHighlightedGroup(e.target.value)}
+              className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[72px]"
+              title="Highlight position group"
+            >
+              {PLAYER_GROUP_OPTIONS.map((opt) => (
+                <option key={opt.value || "none"} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </label>
           <label className="text-xs text-slate-400 flex items-center gap-1">
@@ -659,17 +732,27 @@ export function PlaycallerView({
                   <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
+              <filter id="route-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
             <PlaybookFieldSurface width={VIEWBOX_W} height={VIEWBOX_H} yardStart={YARD_START} yardEnd={YARD_END} />
             {/* Routes and blocking lines (hidden when showRoutes is off); markers still animate along paths */}
             {showRoutes &&
               players.map((p) => {
-                const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
+                const groupMatch = highlightedGroup ? getGroupForPlayer(p) === highlightedGroup : null
+                const isHighlighted =
+                  groupMatch !== null ? groupMatch : highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
                 const routeOpacity = isHighlighted ? 1 : 0.4
+                const routeGlow = !!highlightedGroup && groupMatch === true
                 return (
                 <g key={`routes-${p.id}`} style={{ opacity: routeOpacity }}>
                   {p.route && p.route.length > 1 && (
-                    <>
+                    <g filter={routeGlow ? "url(#route-glow)" : undefined}>
                       <polyline
                         points={p.route.map((pt) => {
                           const px = routePointToPixel(pt, coord)
@@ -688,7 +771,7 @@ export function PlaycallerView({
                           />
                         )
                       })()}
-                    </>
+                    </g>
                   )}
                   {p.blockingLine && (
                     <>
@@ -746,8 +829,10 @@ export function PlaycallerView({
               )
             })}
             {players.map((p) => {
-              const isHighlighted = highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
-              const markerOpacity = isHighlighted ? 1 : 0.45
+              const groupMatch = highlightedGroup ? getGroupForPlayer(p) === highlightedGroup : null
+              const isHighlighted =
+                groupMatch !== null ? groupMatch : highlightedMarkerIds.size === 0 || highlightedMarkerIds.has(p.id)
+              const markerOpacity = isHighlighted ? 1 : 0.4
               const rawPlayer = canvasData?.players?.find((c) => c.id === p.id)
               const yardPos =
                 rawPlayer && animationProgress > 0

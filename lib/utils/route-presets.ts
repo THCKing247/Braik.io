@@ -31,6 +31,12 @@ export const ROUTE_PRESETS: RoutePreset[] = [
   { id: "in", name: "In", points: [{ xYards: 0, yYards: 0, t: 0 }, { xYards: 0, yYards: -SHORT, t: 0.4 }, { xYards: -6, yYards: -SHORT, t: 1 }] },
   { id: "fade", name: "Fade", points: [{ xYards: 0, yYards: 0, t: 0 }, { xYards: 4, yYards: -ROUTE_LENGTH, t: 1 }] },
   { id: "screen", name: "Screen", points: [{ xYards: 0, yYards: 0, t: 0 }, { xYards: 2, yYards: -1, t: 0.5 }, { xYards: 5, yYards: -1, t: 1 }] },
+  /** RPO / quick game: short flat for RB bubble screen */
+  { id: "bubble", name: "Bubble", points: [{ xYards: 0, yYards: 0, t: 0 }, { xYards: 3, yYards: -1, t: 0.5 }, { xYards: 5, yYards: -2, t: 1 }] },
+  /** Dig: break inside at depth */
+  { id: "dig", name: "Dig", points: [{ xYards: 0, yYards: 0, t: 0 }, { xYards: 0, yYards: -MED, t: 0.5 }, { xYards: -4, yYards: -MED, t: 1 }] },
+  /** Nod: quick outside stem then vertical (Stick Nod) */
+  { id: "nod", name: "Nod", points: [{ xYards: 0, yYards: 0, t: 0 }, { xYards: 2, yYards: -2, t: 0.25 }, { xYards: 0, yYards: -ROUTE_LENGTH, t: 1 }] },
 ]
 
 /** Return route points for a preset, translated so the first point is at (startXYards, startYYards). */

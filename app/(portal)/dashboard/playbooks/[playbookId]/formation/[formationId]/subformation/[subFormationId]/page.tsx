@@ -15,6 +15,12 @@ import { SortablePlayList } from "@/components/portal/sortable-play-list"
 import type { FormationRecord, SubFormationRecord, PlayRecord } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
+import { FormationIntelligencePanel } from "@/components/portal/formation-intelligence-panel"
+import type { RecommendedConcept } from "@/lib/constants/formation-concept-recommendations"
+import { generatePlayFromConcept } from "@/lib/play-generation/generate-play-from-concept"
+import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
+import { CoachBAssistedPanel } from "@/components/portal/coach-b-assisted-panel"
+import type { PlaySuggestion } from "@/lib/types/coach-b"
 
 function SubFormationDetailContent({
   playbookId,
@@ -181,6 +187,91 @@ function SubFormationDetailContent({
   const playEditorPath = (playId: string) =>
     `/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}/play/${playId}/edit`
 
+  const handleGenerateDraftFromConcept = useCallback(
+    async (concept: RecommendedConcept, variantId?: string) => {
+      if (!formation || !subFormation || !canEdit) return
+      const defaultTemplate = { fieldView: "HALF" as const, shapes: [], paths: [] }
+      const template = subFormation.templateData ?? formation.templateData ?? defaultTemplate
+      const side = subFormation.side ?? formation.side
+      const { canvasData, hasRoutes } = generatePlayFromConcept({
+        templateData: template,
+        conceptName: concept.name,
+        side,
+        variant: variantId ?? null,
+      })
+      try {
+        const res = await fetch("/api/plays", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teamId,
+            playbookId,
+            formationId,
+            subFormationId,
+            side,
+            formation: formation.name,
+            name: concept.name,
+            canvasData,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast("Could not create draft play", "error")
+          return
+        }
+        const play = data as { id: string }
+        showToast(hasRoutes ? "Draft play created" : "Draft created without routes", "success")
+        router.push(
+          `/dashboard/playbooks/play/${play.id}?returnUrl=${encodeURIComponent(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}`)}`
+        )
+      } catch {
+        showToast("Could not create draft play", "error")
+      }
+    },
+    [formation, subFormation, canEdit, teamId, playbookId, formationId, subFormationId, router, showToast]
+  )
+
+  const handleCoachBCreateDraft = useCallback(
+    async (suggestion: PlaySuggestion) => {
+      if (!formation || !subFormation || !canEdit) return
+      const defaultTemplate = { fieldView: "HALF" as const, shapes: [], paths: [] }
+      const template = subFormation.templateData ?? formation.templateData ?? defaultTemplate
+      const side = subFormation.side ?? formation.side
+      const conceptName = suggestion.concept?.trim()
+      const { canvasData } =
+        conceptName && side === "offense"
+          ? generatePlayFromConcept({
+              templateData: template,
+              conceptName,
+              side,
+            })
+          : { canvasData: templateDataToCanvasData(template, side) }
+      const body: Record<string, unknown> = {
+        teamId,
+        playbookId,
+        formationId,
+        subFormationId,
+        side,
+        formation: formation.name,
+        name: suggestion.playName,
+        canvasData,
+      }
+      if (suggestion.tags?.length) body.tags = suggestion.tags
+      const res = await fetch("/api/plays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? "Could not create draft play")
+      const play = data as { id: string }
+      router.push(
+        `/dashboard/playbooks/play/${play.id}?returnUrl=${encodeURIComponent(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}`)}`
+      )
+    },
+    [formation, subFormation, canEdit, teamId, playbookId, formationId, subFormationId, router]
+  )
+
   if (loading) {
     return (
       <div className="min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -253,7 +344,28 @@ function SubFormationDetailContent({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50">
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50 space-y-8">
+        <section>
+          <FormationIntelligencePanel
+            formationName={formation.name}
+            subFormationName={subFormation.name}
+            plays={plays}
+            className="max-w-md"
+            onGenerateDraft={canEdit ? handleGenerateDraftFromConcept : undefined}
+          />
+        </section>
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Coach B</h2>
+          <CoachBAssistedPanel
+            teamId={teamId}
+            playbookId={playbookId}
+            formationId={formationId}
+            subFormationId={subFormationId}
+            onCreateDraft={handleCoachBCreateDraft}
+            canEdit={canEdit}
+            className="max-w-md"
+          />
+        </section>
         {plays.length === 0 ? (
           <div className="py-12 text-center rounded-xl border border-dashed border-slate-200 bg-white/80">
             <p className="text-slate-600 font-medium">No plays yet</p>
@@ -287,7 +399,7 @@ function SubFormationDetailContent({
               formations={formation ? [formation] : []}
               depthChartEntries={depthChartEntries}
               canEdit={canEdit && !playSearchQuery.trim()}
-            playEditorPath={playEditorPath}
+              playEditorPath={playEditorPath}
             onDuplicate={handleDuplicatePlay}
             onRename={handleRenamePlay}
             onDelete={handleDeletePlay}

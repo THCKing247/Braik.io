@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
-import type { CoachBSuggestPlayRequest, CoachBSuggestPlayResponse, PlaySuggestion } from "@/lib/types/coach-b"
+import type { CoachBSuggestPlayRequest, CoachBSuggestPlayResponse } from "@/lib/types/coach-b"
+import { suggestPlays } from "@/lib/coach-b/suggest-play-service"
 
 /**
  * POST /api/coach-b/suggest-play
- * Returns structured play suggestions for a prompt. Stub implementation; replace with real AI later.
+ * Returns structured play suggestions for a prompt. Uses suggest-play-service (stub or AI).
  */
 export async function POST(request: Request) {
   try {
@@ -15,13 +16,19 @@ export async function POST(request: Request) {
 
     const body = (await request.json()).catch(() => ({})) as CoachBSuggestPlayRequest
     const prompt = typeof body.prompt === "string" ? body.prompt.trim() : ""
+    const playbookId = typeof body.playbookId === "string" ? body.playbookId : undefined
+    const formationId = typeof body.formationId === "string" ? body.formationId : undefined
+    const subFormationId = typeof body.subFormationId === "string" ? body.subFormationId : undefined
 
     if (!prompt) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 })
     }
 
-    // Stub: return 1–2 structured suggestions based on prompt keywords. Real integration would call an LLM with a structured-output schema.
-    const suggestions = getStubSuggestions(prompt)
+    const suggestions = await suggestPlays(prompt, {
+      formationId,
+      subFormationId,
+      playbookId,
+    })
 
     const response: CoachBSuggestPlayResponse = { suggestions }
     return NextResponse.json(response)
@@ -33,53 +40,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
-
-function getStubSuggestions(prompt: string): PlaySuggestion[] {
-  const lower = prompt.toLowerCase()
-  const suggestions: PlaySuggestion[] = []
-
-  if (lower.includes("3rd") && (lower.includes("6") || lower.includes("medium")) && (lower.includes("pass") || lower.includes("trips"))) {
-    suggestions.push({
-      playName: "Trips Right Stick",
-      conceptType: "Pass",
-      routesByRole: [
-        { role: "WR1", route: "Go" },
-        { role: "WR2", route: "Stick" },
-        { role: "WR3", route: "Out" },
-        { role: "RB", route: "Flat" },
-      ],
-      rationale: "Stick concept from Trips Right gives you a high-low read; RB flat keeps the backer honest. Good for 3rd and medium.",
-    })
-  }
-
-  if (lower.includes("trips") && (lower.includes("right") || lower.includes("left"))) {
-    const side = lower.includes("right") ? "Right" : "Left"
-    suggestions.push({
-      playName: `Trips ${side} Smash`,
-      conceptType: "Pass",
-      routesByRole: [
-        { role: "WR1", route: "Smash" },
-        { role: "WR2", route: "Curl" },
-        { role: "WR3", route: "Out" },
-        { role: "RB", route: "Check release" },
-      ],
-      rationale: "Smash from Trips gives a corner route with an underneath option. Works well vs cover 2 or 3.",
-    })
-  }
-
-  if (suggestions.length === 0) {
-    suggestions.push({
-      playName: "Quick concept",
-      conceptType: "Pass",
-      routesByRole: [
-        { role: "WR1", route: "Slant" },
-        { role: "WR2", route: "Out" },
-        { role: "RB", route: "Flat" },
-      ],
-      rationale: "A simple quick-game concept. Refine your prompt (e.g. down and distance, formation) for more specific suggestions.",
-    })
-  }
-
-  return suggestions
 }

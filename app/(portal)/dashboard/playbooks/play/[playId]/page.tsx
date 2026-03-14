@@ -2,7 +2,7 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Copy, Trash2 } from "lucide-react"
+import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Copy, Trash2, Presentation } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
@@ -500,6 +500,16 @@ function PlayEditorContent() {
               <p className="text-xs text-slate-600">Use &quot;Preview Play&quot; then Play, Pause, and Restart in the toolbar. Pre-snap motion runs first, then routes.</p>
             </PopoverContent>
           </Popover>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => router.push(`/dashboard/playbooks/play/${play.id}/present`)}
+            title="Open presenter view"
+          >
+            <Presentation className="h-4 w-4 mr-1" />
+            Presenter
+          </Button>
           <Button
             variant="outline"
             size="sm"

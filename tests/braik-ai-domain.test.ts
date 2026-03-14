@@ -62,6 +62,31 @@ const FIXTURES: Array<{ message: string; expectedDomain: string; expectedRelated
     expectedRelated: ["injuries", "reports", "roster"],
     expectedIntent: "injury_summary",
   },
+  // Report-related: documents/reports domain and intent (domain may be reports or multi_domain)
+  {
+    message: "Summarize the injury report",
+    expectedDomain: "multi_domain",
+    expectedRelated: ["injuries", "reports"],
+    expectedIntent: "injury_summary",
+  },
+  {
+    message: "What does the practice plan say?",
+    expectedDomain: "multi_domain",
+    expectedRelated: ["reports"],
+    expectedIntent: "report_summary",
+  },
+  {
+    message: "Pull out key points from the scouting report",
+    expectedDomain: "multi_domain",
+    expectedRelated: ["reports"],
+    expectedIntent: "report_summary",
+  },
+  {
+    message: "What does the uploaded schedule show?",
+    expectedDomain: "multi_domain",
+    expectedRelated: ["reports"],
+    expectedIntent: "report_summary",
+  },
 ]
 
 function run() {

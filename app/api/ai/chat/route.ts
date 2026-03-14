@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { buildContext } from "@/lib/braik-ai/context-builder"
+import { runCoordinatorTool } from "@/lib/braik-ai/coordinator-tools"
+import { detectFollowUp, getLastUserMessage, resolveFollowUpContext } from "@/lib/braik-ai/follow-up"
 import { buildCoachBPrompt, createGenericContext } from "@/lib/braik-ai/prompt-builder"
 import { sendCoachBPrompt, isOpenAIConfigured } from "@/lib/braik-ai/openai-client"
 
@@ -26,14 +28,25 @@ export async function POST(req: Request) {
   }
 
   const teamId = typeof body?.teamId === "string" && body.teamId.trim() ? body.teamId.trim() : undefined
-  const history = Array.isArray(body.conversationHistory) ? body.conversationHistory : []
 
+  const history = Array.isArray(body.conversationHistory) ? body.conversationHistory : []
   let context = createGenericContext()
   if (teamId) {
     try {
       const result = await buildContext(teamId, message)
       if (result) {
-        context = result.context
+        let resolvedContext = result.context
+        if (detectFollowUp(message, history)) {
+          const lastUserMsg = getLastUserMessage(history)
+          if (lastUserMsg) {
+            const priorResult = await buildContext(teamId, lastUserMsg)
+            if (priorResult) {
+              resolvedContext = resolveFollowUpContext(message, history, result.context, priorResult.context)
+              console.log("[POST /api/ai/chat] follow-up resolved: reusing prior context")
+            }
+          }
+        }
+        context = resolvedContext
         console.log("[POST /api/ai/chat]", {
           domain: result.summary.domain,
           intent: result.summary.intent,
@@ -57,7 +70,8 @@ export async function POST(req: Request) {
     console.log("[POST /api/ai/chat] no teamId, generic mode")
   }
 
-  const prompt = buildCoachBPrompt({ context, message, history })
+  const coordinatorAnalysis = runCoordinatorTool(context, message)
+  const prompt = buildCoachBPrompt({ context, message, history, coordinatorAnalysis })
   if (process.env.BRAIK_AI_DEBUG === "1") {
     console.log("[Coach B debug] route: using context domain=%s hasTeam=%s", context.domain, context.team != null)
   }

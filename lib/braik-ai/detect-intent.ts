@@ -13,6 +13,7 @@ export function detectIntent(message: string): QuestionIntent {
   if (/\bwho is (injured|available|healthy)|availability\b|healthy enough/i.test(lower)) return "player_availability"
   if (/\bleads?\s*the team|stats?\b|statistics\b|most\s*\w+\s*(yards|tds|tackles)/i.test(lower)) return "player_stats"
 
+  if (/\b(uploaded|practice\s*plan|scouting\s*report)\b/i.test(lower) && /\b(say|show|summarize|key\s*points)\b/i.test(lower)) return "report_summary"
   if (/\bwho do we play\b|when do we play|play\s+next\b/i.test(lower)) return "schedule_summary"
   if (/\bshow me\s+my\s+.+plays?|list\s+my\s+plays?|do i have any plays|find\s+(me\s+)?a\s*play|my\s+trips\s+right\s+plays?/i.test(lower)) return "play_lookup"
   if (/\brecommend|suggest|best\s*(play|red zone)|which\s*play\s*should|called?\s*from|fit\s+cover\s*3|plays?\s*fit|fit\s+that\s*matchup/i.test(lower)) return "play_recommendation"

@@ -3,6 +3,20 @@ export { detectDomain } from "./detect-domain"
 export { detectIntent } from "./detect-intent"
 export { detectEntities } from "./detect-entities"
 export { mergeContext, type MergeInput } from "./merge-context"
+export { detectFollowUp, getLastUserMessage, resolveFollowUpContext, type ConversationTurn } from "./follow-up"
+export {
+  analyzePlayerDecision,
+  comparePlayers,
+  summarizeInjuries,
+  summarizeSchedule,
+  findPlaysByFormation,
+  recommendPlaysForSituation,
+  summarizeReport,
+  runCoordinatorTool,
+  type CoordinatorResult,
+  type CoordinatorAnalysis,
+  type CoordinatorConfidence,
+} from "./coordinator-tools"
 export { buildCoachBPrompt, createGenericContext, type BuildPromptInput } from "./prompt-builder"
 export { sendCoachBPrompt, isOpenAIConfigured } from "./openai-client"
 export type {

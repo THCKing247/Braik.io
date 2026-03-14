@@ -7,7 +7,7 @@ import type { BraikContext, QuestionDomain, DetectedEntities } from "./types"
 import { getPlayerContext } from "./player-context"
 import { getPlaybookContext } from "./playbook-context"
 import { getInjuryContext } from "./injury-context"
-import { getScheduleContext } from "./schedule-context"
+import { getScheduleContext, getOpponentTendenciesForNextGame } from "./schedule-context"
 import { getRosterContext } from "./roster-context"
 import { getReportContext } from "./report-context"
 
@@ -87,6 +87,10 @@ export async function buildContext(teamId: string, message: string): Promise<Bui
     if (domainsToFetch.has("schedule")) {
       schedule = await getScheduleContext(input)
     }
+    let opponentTendencies: BraikContext["opponentTendencies"] | null = null
+    if (schedule && schedule.length > 0) {
+      opponentTendencies = await getOpponentTendenciesForNextGame(teamId, schedule, input.supabase)
+    }
     if (domainsToFetch.has("roster")) {
       rosterSummary = await getRosterContext(input)
     }
@@ -108,6 +112,7 @@ export async function buildContext(teamId: string, message: string): Promise<Bui
       schedule,
       rosterSummary,
       reports,
+      opponentTendencies: opponentTendencies ?? null,
     })
 
     if (process.env.BRAIK_AI_DEBUG === "1") {

@@ -7,6 +7,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
+import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
 
 /**
  * GET /api/roster/[playerId]/documents?teamId=xxx
@@ -205,6 +206,18 @@ export async function POST(
       console.error("[POST /api/roster/.../documents]", insertErr.message)
       try { await unlink(filePath) } catch { /* ignore */ }
       return NextResponse.json({ error: "Failed to save document" }, { status: 500 })
+    }
+
+    const docId = (doc as { id: string }).id
+    if (isExtractableMime(file.type || null)) {
+      try {
+        const result = await extractDocumentText(buffer, file.type || null, file.name)
+        if ("text" in result && result.text) {
+          await supabase.from("player_documents").update({ extracted_text: result.text }).eq("id", docId)
+        }
+      } catch (_) {
+        // non-fatal: document is saved, extraction can be retried later
+      }
     }
 
     await logPlayerProfileActivity({

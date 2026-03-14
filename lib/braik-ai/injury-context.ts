@@ -14,6 +14,26 @@ export async function getInjuryContext(input: ContextModuleInput): Promise<Injur
       console.error("[braik-ai] injuries fetch failed", { teamId, message: error.message })
       return null
     }
+    let practiceMap = new Map<string, string>()
+    try {
+      const { data: ppRows } = await supabase
+        .from("practice_participation")
+        .select("player_id, participation_status, occurred_at")
+        .eq("team_id", teamId)
+        .order("occurred_at", { ascending: false })
+        .limit(150)
+      if (ppRows?.length) {
+        const seen = new Set<string>()
+        for (const r of ppRows as Array<{ player_id: string; participation_status: string }>) {
+          if (!seen.has(r.player_id)) {
+            seen.add(r.player_id)
+            practiceMap.set(r.player_id, r.participation_status ?? "unknown")
+          }
+        }
+      }
+    } catch {
+      practiceMap = new Map()
+    }
     const result: InjuryContext[] = (rows ?? []).map((i) => {
       const row = i as unknown as InjuryRowRelation
       const status = row.status ?? "active"
@@ -28,6 +48,7 @@ export async function getInjuryContext(input: ContextModuleInput): Promise<Injur
         notes: row.notes ?? null,
         expectedReturn: row.expected_return_date,
         reason: row.injury_reason,
+        practiceParticipation: practiceMap.get(row.player_id) ?? undefined,
       }
     })
     return result

@@ -48,6 +48,14 @@ export interface DetectedEntities {
 
 // ─── Normalized context types ───────────────────────────────────────────────
 
+/** One game's stats for a player (from player_game_stats or players.game_stats). */
+export interface PlayerGameStatEntry {
+  gameId?: string
+  opponent?: string
+  date?: string
+  stats: Record<string, unknown>
+}
+
 export interface PlayerContext {
   id: string
   fullName: string
@@ -71,12 +79,27 @@ export interface PlayerContext {
     kicking: Record<string, unknown> | null
     specialTeams: Record<string, unknown> | null
   }
+  /** Recent game-by-game stats (last 3–5); from player_game_stats or game_stats array. */
+  recentGames?: PlayerGameStatEntry[]
+  /** Short trend summary when recent games exist (e.g. "last 3: 245 yds, 2 TD"). */
+  trendSummary?: string | null
+  /** Latest practice participation status when available (e.g. limited, full, DNP). */
+  practiceParticipation?: string | null
 }
 
 export interface PlaybookContext {
   playbooks: Array<{ id: string; name: string; formationCount?: number; playCount?: number }>
   formations: Array<{ id: string; name: string; side: string; playbookId: string | null; subFormationCount?: number; playCount?: number }>
   plays: PlayContext[]
+}
+
+/** One call result for play analytics. */
+export interface PlayCallResultEntry {
+  yardsGained?: number
+  success?: boolean
+  touchdown?: boolean
+  gameId?: string
+  date?: string
 }
 
 export interface PlayContext {
@@ -91,6 +114,14 @@ export interface PlayContext {
   situation: string | null
   motion: string | null
   assignmentsSummary: string | null
+  /** Total calls when play_call_results exist. */
+  usageCount?: number
+  /** Success rate 0–1 when play_call_results exist. */
+  successRate?: number | null
+  /** Average yards per call when available. */
+  avgYards?: number | null
+  /** Last few results for trend. */
+  recentResults?: PlayCallResultEntry[]
 }
 
 export interface InjuryContext {
@@ -103,6 +134,8 @@ export interface InjuryContext {
   notes: string | null
   expectedReturn: string | null
   reason: string
+  /** Latest practice participation when available (e.g. "limited", "DNP"). */
+  practiceParticipation?: string | null
 }
 
 export interface ScheduleContext {
@@ -114,6 +147,18 @@ export interface ScheduleContext {
   opponent: string | null
   location: string | null
   notes: string | null
+}
+
+/** Structured opponent tendency for matchup and play fit. */
+export interface OpponentTendencyContext {
+  opponentName: string
+  tendencyCategory?: string | null
+  downDistanceTendency?: string | null
+  coverageTendency?: string | null
+  pressureTendency?: string | null
+  runPassTendency?: string | null
+  redZoneTendency?: string | null
+  notes?: string | null
 }
 
 export interface RosterContext {
@@ -128,6 +173,8 @@ export interface ReportContext {
   source: string
   excerpt: string
   type?: string
+  /** When true, excerpt contains extracted document content (truncated). */
+  hasExtractedText?: boolean
 }
 
 // ─── Top-level Braik context ────────────────────────────────────────────────
@@ -151,6 +198,8 @@ export interface BraikContext {
   schedule: ScheduleContext[]
   rosterSummary: RosterContext | null
   reports: ReportContext[]
+  /** Opponent tendency data for next opponent or matchup questions. */
+  opponentTendencies: OpponentTendencyContext[]
   limitations: string[]
 }
 

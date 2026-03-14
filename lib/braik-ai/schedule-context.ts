@@ -1,4 +1,4 @@
-import type { ContextModuleInput, ScheduleContext } from "./types"
+import type { ContextModuleInput, ScheduleContext, OpponentTendencyContext } from "./types"
 
 export async function getScheduleContext(input: ContextModuleInput): Promise<ScheduleContext[] | null> {
   const { teamId, entities, supabase } = input
@@ -63,5 +63,46 @@ export async function getScheduleContext(input: ContextModuleInput): Promise<Sch
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[braik-ai] getScheduleContext failed", { teamId, message: msg })
     return null
+  }
+}
+
+/** Fetch structured opponent tendencies for the next game opponent (for Coach B matchup/play fit). */
+export async function getOpponentTendenciesForNextGame(
+  teamId: string,
+  schedule: ScheduleContext[],
+  supabase: ContextModuleInput["supabase"]
+): Promise<OpponentTendencyContext[]> {
+  const nextGame = schedule.find((s) => s.type === "game")
+  const opponent = nextGame?.opponent?.trim()
+  if (!opponent) return []
+  try {
+    const { data: rows, error } = await supabase
+      .from("opponent_tendencies")
+      .select("opponent_name, tendency_category, down_distance_tendency, coverage_tendency, pressure_tendency, run_pass_tendency, red_zone_tendency, notes")
+      .eq("team_id", teamId)
+      .ilike("opponent_name", `%${opponent}%`)
+      .limit(20)
+    if (error || !rows?.length) return []
+    return (rows as Array<{
+      opponent_name: string
+      tendency_category?: string | null
+      down_distance_tendency?: string | null
+      coverage_tendency?: string | null
+      pressure_tendency?: string | null
+      run_pass_tendency?: string | null
+      red_zone_tendency?: string | null
+      notes?: string | null
+    }>).map((r) => ({
+      opponentName: r.opponent_name,
+      tendencyCategory: r.tendency_category ?? null,
+      downDistanceTendency: r.down_distance_tendency ?? null,
+      coverageTendency: r.coverage_tendency ?? null,
+      pressureTendency: r.pressure_tendency ?? null,
+      runPassTendency: r.run_pass_tendency ?? null,
+      redZoneTendency: r.red_zone_tendency ?? null,
+      notes: r.notes ?? null,
+    }))
+  } catch {
+    return []
   }
 }

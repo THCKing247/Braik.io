@@ -14,6 +14,7 @@ export interface MergeInput {
   schedule: import("./types").ScheduleContext[] | null
   rosterSummary: BraikContext["rosterSummary"] | null
   reports: BraikContext["reports"] | null
+  opponentTendencies?: import("./types").OpponentTendencyContext[] | null
 }
 
 /**
@@ -55,6 +56,9 @@ export function mergeContext(input: MergeInput): BraikContext {
   if (input.rosterSummary === null && (input.domain === "roster" || input.relatedDomains.includes("roster"))) {
     limitations.push("Roster summary could not be loaded.")
   }
+  if ((input.domain === "reports" || input.relatedDomains.includes("reports")) && (input.reports ?? []).length === 0) {
+    limitations.push("No team or player documents found for this team.")
+  }
 
   return {
     team: input.team,
@@ -70,6 +74,7 @@ export function mergeContext(input: MergeInput): BraikContext {
     schedule,
     rosterSummary: input.rosterSummary ?? null,
     reports: input.reports ?? [],
+    opponentTendencies: input.opponentTendencies ?? [],
     limitations,
   }
 }

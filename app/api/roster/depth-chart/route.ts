@@ -165,36 +165,69 @@ export async function PATCH(request: Request) {
 
     const supabase = getSupabaseServer()
 
+    // Normalize and validate: ensure string is number, reject invalid rows; dedupe by (unit, position, string)
+    type Row = { team_id: string; unit: string; position: string; string: number; player_id: string | null; formation: string | null; special_team_type: string | null }
+    const seen = new Set<string>()
+    const entriesToInsert: Row[] = []
+    for (const u of updates) {
+      const stringNum = typeof u.string === "number" ? u.string : parseInt(String(u.string), 10)
+      if (Number.isNaN(stringNum) || stringNum < 1) continue
+      const unit = String(u.unit ?? "").trim()
+      const position = String(u.position ?? "").trim()
+      if (!unit || !position) continue
+      const key = `${unit}:${position}:${stringNum}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      entriesToInsert.push({
+        team_id: teamId,
+        unit,
+        position,
+        string: stringNum,
+        player_id: u.playerId && String(u.playerId).trim() ? u.playerId : null,
+        formation: u.formation != null && String(u.formation).trim() !== "" ? String(u.formation).trim() : null,
+        special_team_type: u.specialTeamType != null && String(u.specialTeamType).trim() !== "" ? String(u.specialTeamType).trim() : null,
+      })
+    }
+
+    if (entriesToInsert.length === 0) {
+      return NextResponse.json({ error: "No valid entries (unit, position, and string >= 1 required)" }, { status: 400 })
+    }
+
     // Delete existing entries for the positions being updated
-    const positionsToUpdate = updates.map((u) => ({ unit: u.unit, position: u.position }))
+    const positionsToUpdate = entriesToInsert.map((u) => ({ unit: u.unit, position: u.position }))
     const uniquePositions = Array.from(new Set(positionsToUpdate.map((p) => `${p.unit}:${p.position}`)))
 
     for (const posKey of uniquePositions) {
       const [unit, position] = posKey.split(":")
-      await supabase
+      const { error: deleteError } = await supabase
         .from("depth_chart_entries")
         .delete()
         .eq("team_id", teamId)
         .eq("unit", unit)
         .eq("position", position)
+      if (deleteError) {
+        console.error("[PATCH /api/roster/depth-chart] delete error:", deleteError)
+        // Continue; insert may still succeed if no rows matched
+      }
     }
-
-    // Insert new entries
-    const entriesToInsert = updates.map((u) => ({
-      team_id: teamId,
-      unit: u.unit,
-      position: u.position,
-      string: u.string,
-      player_id: u.playerId || null,
-      formation: u.formation || null,
-      special_team_type: u.specialTeamType || null,
-    }))
 
     const { error: insertError } = await supabase.from("depth_chart_entries").insert(entriesToInsert)
 
     if (insertError) {
-      console.error("[PATCH /api/roster/depth-chart]", insertError)
-      return NextResponse.json({ error: "Failed to update depth chart" }, { status: 500 })
+      console.error("[PATCH /api/roster/depth-chart] insert error:", {
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+        code: insertError.code,
+      })
+      return NextResponse.json(
+        {
+          error: "Failed to update depth chart",
+          details: insertError.message,
+          code: insertError.code,
+        },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ success: true })

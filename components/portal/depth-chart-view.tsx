@@ -149,6 +149,14 @@ export function DepthChartView({
   const currentFormation = selectedUnit === "special_teams" ? null : selectedPresetId
   const currentSpecialTeamType = selectedUnit === "special_teams" ? selectedPresetId : null
 
+  const getLabelKey = (position: string, unit: string, specialTeamType?: string | null) => {
+    return specialTeamType ? `${unit}-${position}-${specialTeamType}` : `${unit}-${position}`
+  }
+
+  const getLabel = (position: string, defaultLabel: string, unit: string, specialTeamType?: string | null) => {
+    return customLabels[getLabelKey(position, unit, specialTeamType)] ?? defaultLabel
+  }
+
   const presetWithLabels = useMemo(() => {
     if (!preset) return null
     return {
@@ -177,14 +185,6 @@ export function DepthChartView({
     }
     loadLabels()
   }, [teamId])
-
-  const getLabelKey = (position: string, unit: string, specialTeamType?: string | null) => {
-    return specialTeamType ? `${unit}-${position}-${specialTeamType}` : `${unit}-${position}`
-  }
-
-  const getLabel = (position: string, defaultLabel: string, unit: string, specialTeamType?: string | null) => {
-    return customLabels[getLabelKey(position, unit, specialTeamType)] ?? defaultLabel
-  }
 
   const handleLabelsUpdated = async () => {
     try {

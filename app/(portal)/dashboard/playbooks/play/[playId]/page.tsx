@@ -1,6 +1,6 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -16,7 +16,9 @@ import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 function PlayEditorContent() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const playId = typeof params?.playId === "string" ? params.playId : null
+  const returnUrl = searchParams.get("returnUrl") ?? "/dashboard/playbooks"
 
   const [play, setPlay] = useState<PlayRecord | null>(null)
   const [formations, setFormations] = useState<FormationRecord[]>([])
@@ -229,8 +231,8 @@ function PlayEditorContent() {
   )
 
   const handleClose = useCallback(() => {
-    router.push("/dashboard/playbooks")
-  }, [router])
+    router.push(returnUrl)
+  }, [router, returnUrl])
 
   const handleRenamePlay = useCallback(
     async (name: string) => {
@@ -295,10 +297,10 @@ function PlayEditorContent() {
         <p className="text-sm text-slate-700">{error ?? "Play not found"}</p>
         <button
           type="button"
-          onClick={() => router.push("/dashboard/playbooks")}
+          onClick={() => router.push(returnUrl)}
           className="mt-4 text-sm text-blue-600 hover:underline"
         >
-          Back to Playbooks
+          Back
         </button>
       </div>
     )

@@ -4,8 +4,8 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 
 /**
- * GET /api/formations?teamId=xxx&side=xxx
- * Returns formations for the team, optionally filtered by side.
+ * GET /api/formations?teamId=xxx&side=xxx&playbookId=xxx
+ * Returns formations for the team, optionally filtered by side and playbook.
  * Formations are first-class records; deleting plays never deletes formations.
  */
 export async function GET(request: Request) {
@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     const side = searchParams.get("side")
+    const playbookId = searchParams.get("playbookId")
 
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -38,6 +39,9 @@ export async function GET(request: Request) {
 
     if (side && ["offense", "defense", "special_teams"].includes(side)) {
       query = query.eq("side", side)
+    }
+    if (playbookId) {
+      query = query.eq("playbook_id", playbookId)
     }
 
     const { data: formations, error } = await query.order("name", { ascending: true })

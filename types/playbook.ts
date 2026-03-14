@@ -102,6 +102,16 @@ export type BuilderMode = "TEMPLATE_EDIT" | "PLAY_EDIT" | "VIEW_ONLY"
 
 export type Tab = "LIBRARY" | "BUILDER"
 
+// API response type for playbooks (align with DB)
+export type PlaybookRecord = {
+  id: string
+  teamId: string
+  name: string
+  visibility: string
+  createdAt: string
+  updatedAt: string
+}
+
 // API response types for formations, sub-formations, and plays (align with DB)
 export type FormationRecord = {
   id: string

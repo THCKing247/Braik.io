@@ -184,11 +184,15 @@ export async function GET(request: Request) {
 
     let teamId: string | null
     let side: string | null
+    let playbookId: string | null = null
+    let formationId: string | null = null
     try {
       const url = request.url ? new URL(request.url) : null
       const searchParams = url?.searchParams ?? new URLSearchParams()
       teamId = searchParams.get("teamId")?.trim() ?? null
       side = searchParams.get("side")?.trim() ?? null
+      playbookId = searchParams.get("playbookId")?.trim() ?? null
+      formationId = searchParams.get("formationId")?.trim() ?? null
     } catch (parseErr) {
       logPhase({
         debugId,
@@ -282,6 +286,12 @@ export async function GET(request: Request) {
 
     if (side ?? false) {
       query = query.eq("side", side!)
+    }
+    if (playbookId && isValidUuid(playbookId)) {
+      query = query.eq("playbook_id", playbookId)
+    }
+    if (formationId && isValidUuid(formationId)) {
+      query = query.eq("formation_id", formationId)
     }
 
     const { data: plays, error: playsError } = await query

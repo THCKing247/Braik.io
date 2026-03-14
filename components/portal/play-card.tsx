@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Pencil, Copy, Trash2 } from "lucide-react"
+import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -21,7 +22,7 @@ interface PlayCardProps {
   onOpen: (play: PlayRecord) => void
   onDuplicate: (playId: string) => void
   onRename: (playId: string, newName: string) => void
-  onDelete: (playId: string) => void
+  onDelete: (playId: string) => void | Promise<void>
   canEdit: boolean
   viewMode?: "grid" | "list"
   onReviewAssignments?: (play: PlayRecord) => void
@@ -101,6 +102,8 @@ export function PlayCard({
   const router = useRouter()
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(play.name)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const formationDisplayName = getPlayFormationDisplayName(play, formations)
   const assignmentSummary = getAssignmentSummary(play, depthChartEntries)
   const assignmentStatus = getAssignmentStatus(play, depthChartEntries)
@@ -120,6 +123,16 @@ export function PlayCard({
       router.push(playEditorPath(play.id))
     } else {
       onOpen(play)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true)
+    try {
+      await onDelete(play.id)
+      setDeleteDialogOpen(false)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -206,11 +219,21 @@ export function PlayCard({
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setIsRenaming(true); }} title="Rename">
               <span className="text-xs">Rename</span>
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); confirm("Delete this play?") && onDelete(play.id); }} title="Delete">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDialogOpen(true); }} title="Delete">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}
+        <ConfirmDestructiveDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete this play?"
+          message="This action cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={handleConfirmDelete}
+          isDeleting={isDeleting}
+        />
       </div>
     )
   }
@@ -302,7 +325,7 @@ export function PlayCard({
               <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-slate-700" onClick={() => setIsRenaming(true)} title="Rename">
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => confirm("Delete this play?") && onDelete(play.id)} title="Delete">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => setDeleteDialogOpen(true)} title="Delete">
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -312,6 +335,16 @@ export function PlayCard({
             Open
           </Button>
         )}
+        <ConfirmDestructiveDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete this play?"
+          message="This action cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={handleConfirmDelete}
+          isDeleting={isDeleting}
+        />
       </CardFooter>
     </Card>
   )

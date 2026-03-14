@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FormationThumbnail } from "@/components/portal/formation-thumbnail"
-import { Copy } from "lucide-react"
+import { Copy, Pencil, Trash2 } from "lucide-react"
 import type { FormationRecord } from "@/types/playbook"
 
 function FootballIcon({ className }: { className?: string }) {
@@ -60,11 +60,23 @@ export function FormationBrowseCard({
       )}
       <div className={`${barBg} px-4 py-3 text-center min-w-0 relative`}>
         <span className="font-bold text-white text-lg tracking-tight block truncate" title={formation.name}>{formation.name}</span>
-        {canEdit && onDuplicate && (
-          <div className="absolute top-1/2 right-2 -translate-y-1/2" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-white/90 hover:text-white hover:bg-white/20" onClick={onDuplicate} title="Duplicate formation">
-              <Copy className="h-4 w-4" />
-            </Button>
+        {canEdit && (onEdit || onDuplicate || onDelete) && (
+          <div className="absolute top-1/2 right-2 -translate-y-1/2 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            {onEdit && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/90 hover:text-white hover:bg-white/20" onClick={onEdit} title="Edit formation">
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+            {onDuplicate && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/90 hover:text-white hover:bg-white/20" onClick={onDuplicate} title="Duplicate formation">
+                <Copy className="h-4 w-4" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/90 hover:text-red-200 hover:bg-white/20" onClick={onDelete} title="Delete formation">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         )}
       </div>

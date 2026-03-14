@@ -1,11 +1,12 @@
 "use client"
 
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { useEditorSaveState } from "@/lib/hooks/use-editor-save-state"
 import { EditorSaveStatusChip } from "@/components/portal/editor-save-status"
 import { LeaveWithoutSavingDialog } from "@/components/portal/leave-without-saving-dialog"
+import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
@@ -16,7 +17,9 @@ import type { SubFormationRecord, TemplateData } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
 import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
+import { Trash2 } from "lucide-react"
 
 const AUTO_SAVE_DEBOUNCE_MS = 8000
 
@@ -34,6 +37,39 @@ export default function SubFormationEditPage() {
   const [subFormation, setSubFormation] = useState<SubFormationRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteImpact, setDeleteImpact] = useState<{ playsCount: number } | null>(null)
+  const [deleteImpactLoading, setDeleteImpactLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!deleteDialogOpen || !subFormationId) return
+    setDeleteImpactLoading(true)
+    fetch(`/api/sub-formations/${subFormationId}/delete-impact`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setDeleteImpact)
+      .catch(() => setDeleteImpact(null))
+      .finally(() => setDeleteImpactLoading(false))
+  }, [deleteDialogOpen, subFormationId])
+
+  const handleConfirmDeleteSubFormation = useCallback(async () => {
+    if (!subFormationId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/sub-formations/${subFormationId}`, { method: "DELETE" })
+      if (res.ok) {
+        showToast("Sub-formation deleted", "success")
+        setDeleteDialogOpen(false)
+        router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}`)
+      } else {
+        showToast("Could not delete sub-formation", "error")
+      }
+    } catch {
+      showToast("Could not delete sub-formation", "error")
+    } finally {
+      setDeleting(false)
+    }
+  }, [subFormationId, playbookId, formationId, router, showToast])
 
   useEffect(() => {
     if (!subFormationId) {
@@ -165,6 +201,17 @@ export default function SubFormationEditPage() {
                   checked={autoSaveEnabled}
                   onCheckedChange={setAutoSaveEnabled}
                 />
+                {canEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete sub-formation
+                  </Button>
+                )}
               </div>
             </div>
             <h1 className="text-xl font-semibold text-slate-900 mt-2">Edit sub-formation: {subFormation.name}</h1>
@@ -196,6 +243,18 @@ export default function SubFormationEditPage() {
             onOpenChange={(open) => { if (!open) saveState.handleLeaveCancel(); saveState.setLeaveDialogOpen(open); }}
             onConfirm={saveState.handleLeaveConfirm}
             onCancel={saveState.handleLeaveCancel}
+          />
+          <ConfirmDestructiveDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            title="Delete this sub-formation?"
+            message="This will also permanently delete all plays inside this sub-formation. This action cannot be undone."
+            impactItems={deleteImpact ? [{ label: "Plays to delete", value: deleteImpact.playsCount }] : undefined}
+            isLoadingImpact={deleteImpactLoading}
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+            onConfirm={handleConfirmDeleteSubFormation}
+            isDeleting={deleting}
           />
         </div>
       )}

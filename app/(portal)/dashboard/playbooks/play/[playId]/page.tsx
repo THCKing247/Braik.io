@@ -2,7 +2,7 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle } from "lucide-react"
+import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
@@ -11,6 +11,7 @@ import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { useEditorSaveState } from "@/lib/hooks/use-editor-save-state"
 import { EditorSaveStatusChip } from "@/components/portal/editor-save-status"
 import { LeaveWithoutSavingDialog } from "@/components/portal/leave-without-saving-dialog"
+import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { usePlayAnimation, SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/hooks/use-play-animation"
@@ -46,6 +47,8 @@ function PlayEditorContent() {
   const [showRoutesInPreview, setShowRoutesInPreview] = useState(true)
   const [appliedRoutePreset, setAppliedRoutePreset] = useState<{ playerId: string; presetId: string } | null>(null)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeletingPlay, setIsDeletingPlay] = useState(false)
 
   const {
     progress: animationProgress,
@@ -275,6 +278,25 @@ function PlayEditorContent() {
     saveState.confirmBeforeNavigate(() => router.push(returnUrl))
   }, [router, returnUrl, saveState.confirmBeforeNavigate])
 
+  const handleDeletePlay = useCallback(async () => {
+    if (!playId) return
+    setIsDeletingPlay(true)
+    try {
+      const res = await fetch(`/api/plays/${playId}`, { method: "DELETE", credentials: "same-origin" })
+      if (res.ok) {
+        showToast("Play deleted", "success")
+        setDeleteDialogOpen(false)
+        router.push(returnUrl)
+      } else {
+        showToast("Could not delete play", "error")
+      }
+    } catch {
+      showToast("Could not delete play", "error")
+    } finally {
+      setIsDeletingPlay(false)
+    }
+  }, [playId, returnUrl, router, showToast])
+
   const handleRenamePlay = useCallback(
     async (name: string) => {
       if (!playId) return
@@ -449,7 +471,27 @@ function PlayEditorContent() {
               </ul>
             </PopoverContent>
           </Popover>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 ml-auto"
+            onClick={() => setDeleteDialogOpen(true)}
+            title="Delete this play"
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete play
+          </Button>
         </div>
+        <ConfirmDestructiveDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete this play?"
+          message="This action cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={handleDeletePlay}
+          isDeleting={isDeletingPlay}
+        />
         <PlaybookBuilder
           playId={play.id}
           playData={initialCanvasData}

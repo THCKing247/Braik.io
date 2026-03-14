@@ -253,7 +253,7 @@ export async function DELETE(
     const { playId } = await params
     if (!playId) {
       return NextResponse.json({ error: "playId is required" }, { status: 400 })
-}
+    }
 
     const supabase = getSupabaseServer()
 

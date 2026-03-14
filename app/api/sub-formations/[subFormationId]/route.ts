@@ -136,7 +136,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/sub-formations/[subFormationId]
- * Sets sub_formation_id to null on plays that referenced this sub-formation.
+ * Deletes all plays in this sub-formation, then deletes the sub-formation.
  */
 export async function DELETE(
   _request: Request,
@@ -174,10 +174,16 @@ export async function DELETE(
       await requireTeamPermission(existing.team_id, "edit_special_teams_plays")
     }
 
-    await supabase
+    // Cascade: delete all plays in this sub-formation, then delete the sub-formation
+    const { error: playsDeleteError } = await supabase
       .from("plays")
-      .update({ sub_formation_id: null, updated_at: new Date().toISOString() })
+      .delete()
       .eq("sub_formation_id", subFormationId)
+
+    if (playsDeleteError) {
+      console.error("[DELETE /api/sub-formations/[subFormationId]] plays cascade", playsDeleteError)
+      return NextResponse.json({ error: "Failed to delete sub-formation" }, { status: 500 })
+    }
 
     const { error: deleteError } = await supabase.from("sub_formations").delete().eq("id", subFormationId)
 

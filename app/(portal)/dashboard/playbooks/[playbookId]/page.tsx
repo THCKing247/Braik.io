@@ -9,6 +9,7 @@ import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { Button } from "@/components/ui/button"
 import { FormationBrowseCard } from "@/components/portal/formation-browse-card"
 import { SortablePlayList } from "@/components/portal/sortable-play-list"
+import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import type { PlaybookRecord, FormationRecord, SubFormationRecord, PlayRecord } from "@/types/playbook"
 import { filterPlaysBySearch } from "@/lib/utils/play-search"
 import { Input } from "@/components/ui/input"
@@ -34,6 +35,30 @@ function PlaybookDetailContent({
   const [depthChartEntries, setDepthChartEntries] = useState<DepthChartSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [playSearchQuery, setPlaySearchQuery] = useState("")
+  const [formationToDeleteId, setFormationToDeleteId] = useState<string | null>(null)
+  const [formationDeleteImpact, setFormationDeleteImpact] = useState<{
+    subFormationsCount: number
+    directPlaysCount: number
+    subFormationPlaysCount: number
+    totalPlaysCount: number
+  } | null>(null)
+  const [formationDeleteImpactLoading, setFormationDeleteImpactLoading] = useState(false)
+  const [formationDeleting, setFormationDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!formationToDeleteId) {
+      setFormationDeleteImpact(null)
+      return
+    }
+    setFormationDeleteImpactLoading(true)
+    fetch(`/api/formations/${formationToDeleteId}/delete-impact`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        setFormationDeleteImpact(data)
+      })
+      .catch(() => setFormationDeleteImpact(null))
+      .finally(() => setFormationDeleteImpactLoading(false))
+  }, [formationToDeleteId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -82,6 +107,25 @@ function PlaybookDetailContent({
     [playbookId, router, showToast]
   )
 
+  const handleConfirmDeleteFormation = useCallback(async () => {
+    if (!formationToDeleteId) return
+    setFormationDeleting(true)
+    try {
+      const res = await fetch(`/api/formations/${formationToDeleteId}`, { method: "DELETE" })
+      if (res.ok) {
+        showToast("Formation deleted", "success")
+        setFormationToDeleteId(null)
+        router.push(`/dashboard/playbooks/${playbookId}`)
+      } else {
+        showToast("Could not delete formation", "error")
+      }
+    } catch {
+      showToast("Could not delete formation", "error")
+    } finally {
+      setFormationDeleting(false)
+    }
+  }, [formationToDeleteId, playbookId, router, showToast, load])
+
   const topLevelPlays = plays.filter((p) => !p.formationId)
   const filteredTopLevelPlays = filterPlaysBySearch(topLevelPlays, playSearchQuery)
 
@@ -125,9 +169,14 @@ function PlaybookDetailContent({
   const handleDeletePlay = async (playId: string) => {
     try {
       const res = await fetch(`/api/plays/${playId}`, { method: "DELETE" })
-      if (res.ok) load()
+      if (res.ok) {
+        showToast("Play deleted", "success")
+        load()
+      } else {
+        showToast("Could not delete play", "error")
+      }
     } catch {
-      alert("Failed to delete play")
+      showToast("Could not delete play", "error")
     }
   }
 
@@ -212,7 +261,9 @@ function PlaybookDetailContent({
                         playCount={formationPlayCount(f.id)}
                         onSelect={() => router.push(`/dashboard/playbooks/${playbookId}/formation/${f.id}`)}
                         canEdit={canEdit}
+                        onEdit={canEdit ? () => router.push(`/dashboard/playbooks/${playbookId}/formation/${f.id}/edit`) : undefined}
                         onDuplicate={canEdit ? () => handleDuplicateFormation(f.id) : undefined}
+                        onDelete={canEdit ? () => setFormationToDeleteId(f.id) : undefined}
                       />
                     ))}
                   </div>
@@ -262,6 +313,23 @@ function PlaybookDetailContent({
                 <CommentThreadPanel parentType="playbook" parentId={playbookId} defaultCollapsed={true} />
               </section>
             </div>
+            <ConfirmDestructiveDialog
+              open={!!formationToDeleteId}
+              onOpenChange={(open) => !open && setFormationToDeleteId(null)}
+              title="Delete this formation?"
+              message="This will also permanently delete all sub-formations and all plays under this formation, including plays inside its sub-formations. This action cannot be undone."
+              impactItems={formationDeleteImpact ? [
+                { label: "Sub-formations to delete", value: formationDeleteImpact.subFormationsCount },
+                { label: "Direct plays to delete", value: formationDeleteImpact.directPlaysCount },
+                { label: "Sub-formation plays to delete", value: formationDeleteImpact.subFormationPlaysCount },
+                { label: "Total plays to delete", value: formationDeleteImpact.totalPlaysCount },
+              ] : undefined}
+              isLoadingImpact={formationDeleteImpactLoading}
+              confirmLabel="Delete"
+              cancelLabel="Cancel"
+              onConfirm={handleConfirmDeleteFormation}
+              isDeleting={formationDeleting}
+            />
           </div>
   )
 }

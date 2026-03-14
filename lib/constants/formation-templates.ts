@@ -1,17 +1,27 @@
 /**
  * Formation / player role templates for quick formation creation.
- * Each template defines offensive player positions and initial alignment (xYards, yYards).
- * y is negative upfield; x is positive to the right from center.
+ * Slot coords: template-relative (x from center -14..14, y from LOS 0 to -8 backfield).
+ * We convert to field-absolute (x 0..53.33, y 0..35) so the formation editor and
+ * FieldCoordinateSystem render correctly (no stacking at top-left).
  */
 
 import type { TemplateData, Shape } from "@/types/playbook"
 import { getPositionByCode, getDisplayLabel } from "@/lib/constants/playbook-positions"
 import { builderShapeToKind } from "@/lib/utils/playbook-canvas"
 
+/** Field dimensions used by PlaybookFieldSurface / FieldCoordinateSystem (yardStart=15, yardEnd=50). */
+const FIELD_WIDTH_YARDS = 53.33
+const FIELD_VISIBLE_YARDS = 35
+const FIELD_CENTER_X = FIELD_WIDTH_YARDS / 2
+/** Offense LOS yard line for half-field view; backfield is below this. */
+const LOS_YARD = 20
+
 export type FormationTemplateSlot = {
   positionCode: string
   positionNumber?: number
+  /** Template-relative: center = 0, right positive. */
   xYards: number
+  /** Template-relative: LOS = 0, backfield negative. */
   yYards: number
 }
 
@@ -23,18 +33,32 @@ export type FormationTemplateDef = {
   slots: FormationTemplateSlot[]
 }
 
-/** Build TemplateData (Shape[]) from template slots. */
+/**
+ * Convert template-relative (x center, y LOS/backfield) to field-absolute (x 0..53.33, y 0..35).
+ * Ensures formations load in the correct alignment in the editor.
+ */
+function templateToFieldCoords(templateX: number, templateY: number): { xYards: number; yYards: number } {
+  const xYards = FIELD_CENTER_X + templateX
+  const yYards = LOS_YARD + templateY
+  return {
+    xYards: Math.max(0, Math.min(FIELD_WIDTH_YARDS, xYards)),
+    yYards: Math.max(0, Math.min(FIELD_VISIBLE_YARDS, yYards)),
+  }
+}
+
+/** Build TemplateData (Shape[]) from template slots. Output uses field-absolute coordinates. */
 function slotsToTemplateData(slots: FormationTemplateSlot[], side: "offense" | "defense" | "special_teams"): TemplateData {
   const shapes: Shape[] = slots.map((slot, i) => {
     const def = getPositionByCode(slot.positionCode)
     const shape = def?.shape ?? "circle"
     const kind = builderShapeToKind(shape, side)
     const label = getDisplayLabel(slot.positionCode, slot.positionNumber ?? null)
+    const { xYards, yYards } = templateToFieldCoords(slot.xYards, slot.yYards)
     return {
       id: `t-${slot.positionCode}-${slot.positionNumber ?? 1}-${i}`,
       kind,
-      xYards: slot.xYards,
-      yYards: slot.yYards,
+      xYards,
+      yYards,
       label,
     }
   })

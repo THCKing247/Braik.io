@@ -70,14 +70,14 @@ export function DepthSlotCard({
 
   return (
     <Card
-      className={`relative w-full transition-all duration-200 cursor-pointer ${heightClass} ${
+      className={`relative w-full transition-all duration-200 cursor-pointer rounded-lg ${heightClass} ${
         draggable ? "cursor-move" : ""
       } ${canEdit && onPromote && !isStarter ? "hover:opacity-90" : ""}`}
       style={{
         backgroundColor: isStarter ? "#FFFFFF" : "rgb(var(--braik-navy))",
         borderWidth: isStarter ? "2px" : "1px",
         borderColor: isStarter ? "rgb(var(--accent))" : "rgba(59, 130, 246, 0.3)",
-        boxShadow: isStarter ? "0 2px 8px rgba(0, 0, 0, 0.1)" : undefined,
+        boxShadow: isStarter ? "0 1px 4px rgba(0, 0, 0, 0.08)" : undefined,
         opacity,
       }}
       draggable={draggable}
@@ -85,21 +85,21 @@ export function DepthSlotCard({
       onClick={canEdit && onPromote && !isStarter ? onPromote : undefined}
       title={canEdit && onPromote && !isStarter ? "Click to promote to starter" : ""}
     >
-      <CardContent className="p-2 flex items-center gap-2">
+      <CardContent className="p-3 flex items-center gap-3">
         <PlayerPhoto player={player} size={isStarter ? 48 : 36} />
         <div className="flex-1 min-w-0 text-left">
           <div className="flex items-baseline gap-1.5 flex-wrap">
             {player.jerseyNumber != null && (
-              <span className="text-sm font-bold" style={{ color: "#000000" }}>
+              <span className="text-sm font-bold text-slate-900">
                 #{player.jerseyNumber}
               </span>
             )}
-            <span className="text-sm font-semibold truncate" style={{ color: "#000000" }}>
+            <span className="text-sm font-semibold truncate text-slate-900">
               {player.lastName}
             </span>
           </div>
           {player.positionGroup && (
-            <div className="text-[10px] font-medium truncate" style={{ color: "#64748b" }}>
+            <div className="text-xs font-normal truncate text-slate-500 mt-0.5">
               {player.positionGroup}
             </div>
           )}
@@ -112,7 +112,7 @@ export function DepthSlotCard({
             e.stopPropagation()
             onRemove()
           }}
-          className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-700 z-10"
+          className="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors z-10 text-sm"
           title="Remove player"
         >
           ×

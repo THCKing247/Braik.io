@@ -79,18 +79,12 @@ export function PositionColumn({
 
   return (
     <div className="flex flex-col h-full min-w-[120px]">
-      <div className="text-center py-2 mb-2">
-        <div
-          className="text-sm font-bold uppercase tracking-wide"
-          style={{ color: "#000000" }}
-        >
+      <div className="text-center py-1.5 mb-2">
+        <div className="text-sm font-semibold tracking-tight text-slate-800">
           {positionLabel}
         </div>
         {secondaryLabel && (
-          <div
-            className="text-xs mt-0.5 font-normal normal-case opacity-80"
-            style={{ color: "#000000" }}
-          >
+          <div className="text-[11px] mt-0.5 font-normal normal-case text-slate-500">
             {secondaryLabel}
           </div>
         )}
@@ -127,18 +121,13 @@ export function PositionColumn({
             />
           ) : (
             <div
-              className="w-full h-full border-2 border-dashed rounded flex flex-col items-center justify-center min-h-[100px] gap-0.5 py-2"
-              style={{
-                borderColor: "rgb(var(--focus))",
-                backgroundColor: "transparent",
-              }}
+              className="w-full h-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center min-h-[100px] gap-1 py-3 px-2 bg-slate-50/50"
+              style={{ borderColor: "rgb(var(--focus))" }}
             >
-              <span className="text-xs" style={{ color: "#000000" }}>
-                Empty
-              </span>
+              <span className="text-sm font-medium text-slate-600">Empty</span>
               {emptySlotHint && (
-                <span className="text-[10px] opacity-75 text-center px-1" style={{ color: "#64748b" }}>
-                  Best fits: {emptySlotHint}
+                <span className="text-[11px] text-slate-400 text-center px-1 max-w-full">
+                  {emptySlotHint}
                 </span>
               )}
             </div>
@@ -174,15 +163,10 @@ export function PositionColumn({
             />
           ) : (
             <div
-              className="w-full h-16 border border-dashed rounded flex items-center justify-center"
-              style={{
-                borderColor: "rgb(var(--focus))",
-                backgroundColor: "transparent",
-              }}
+              className="w-full h-16 border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50"
+              style={{ borderColor: "rgb(var(--focus))" }}
             >
-              <span className="text-[10px]" style={{ color: "#000000" }}>
-                2nd
-              </span>
+              <span className="text-xs font-medium text-slate-500">2nd</span>
             </div>
           )}
         </div>
@@ -216,15 +200,10 @@ export function PositionColumn({
             />
           ) : (
             <div
-              className="w-full h-12 border border-dashed rounded flex items-center justify-center"
-              style={{
-                borderColor: "rgb(var(--focus))",
-                backgroundColor: "transparent",
-              }}
+              className="w-full h-12 border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50"
+              style={{ borderColor: "rgb(var(--focus))" }}
             >
-              <span className="text-[10px]" style={{ color: "#000000" }}>
-                3rd
-              </span>
+              <span className="text-xs font-medium text-slate-500">3rd</span>
             </div>
           )}
         </div>

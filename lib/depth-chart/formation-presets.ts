@@ -95,6 +95,7 @@ function row(alignment: RowAlignment, rowType: RowType | undefined, ...slots: Fo
 }
 
 // —— Offense ——
+// Spread: all WRs on one row (same horizontal level), then OL, QB, RB
 const OFFENSE_SPREAD: FormationPreset = {
   id: "spread",
   name: "Spread",
@@ -103,11 +104,10 @@ const OFFENSE_SPREAD: FormationPreset = {
   subtitle: "4 WR set",
   slots: [],
   rows: [
-    row("spread", "skill", slot("WR1", "WR", "WR", "X"), slot("WR2", "WR", "WR", "Z")),
+    row("spread", "skill", slot("WR1", "WR", "WR", "X"), slot("WR3", "WR", "WR", "H"), slot("WR2", "WR", "WR", "Z"), slot("WR4", "WR", "WR", "Y")),
     row("center", "line", slot("LT", "LT", "OL"), slot("LG", "LG", "OL"), slot("C", "C", "OL"), slot("RG", "RG", "OL"), slot("RT", "RT", "OL")),
     row("center", "backfield", slot("QB", "QB", "QB")),
     row("center", "backfield", slot("RB", "RB", "RB")),
-    row("spread", "skill", slot("WR3", "WR", "WR", "H"), slot("WR4", "WR", "WR", "Y")),
   ],
 }
 

@@ -63,6 +63,17 @@ interface DepthChartViewProps {
 
 type Side = "offense" | "defense" | "special_teams"
 
+const ROSTER_SCROLL_STYLES = `
+.roster-scroll-container {
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+}
+.roster-scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+`
+
 const DEPTH_CHART_PRINT_STYLES = `
 @media print {
   @page {
@@ -575,28 +586,27 @@ export function DepthChartView({
   return (
     <React.Fragment>
     <div
-      className="rounded-lg"
+      className="rounded-lg flex flex-col min-h-0 flex-1"
       style={{
         backgroundColor: "rgb(var(--platinum))",
         minHeight: "calc(100vh - 200px)",
-        height: "100%",
       }}
     >
       <div
-        className="grid h-full"
+        className="grid flex-1 min-h-0 overflow-hidden"
         style={{ gridTemplateColumns: "280px 1fr", gap: 0 }}
       >
         {/* Left: Roster list with filters */}
         <div
-          className="overflow-y-auto flex flex-col"
+          className="flex flex-col min-h-0 overflow-hidden"
           style={{ padding: "16px", borderRight: "1px solid #2a2a2a" }}
         >
-          <h3 className="text-sm font-semibold mb-3" style={{ color: "#000000" }}>
+          <h3 className="text-sm font-semibold mb-3 shrink-0" style={{ color: "#000000" }}>
             Available Players
           </h3>
 
           {/* Roster filters */}
-          <div className="space-y-2 mb-4">
+          <div className="space-y-2 mb-4 shrink-0">
             <input
               type="search"
               placeholder="Search name..."
@@ -645,7 +655,7 @@ export function DepthChartView({
           </div>
 
           <div
-            className="space-y-2 flex flex-col items-center flex-1"
+            className="roster-scroll-container flex-1 min-h-0 flex flex-col items-center space-y-2"
             onDragEnd={() => setDraggingPlayerId(null)}
           >
             {filteredRosterForSidebar.map((player) => (
@@ -765,7 +775,7 @@ export function DepthChartView({
             )}
           </div>
 
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto py-2 px-2 min-h-0">
             {presetWithLabels && (
               <DepthChartGrid
                 preset={presetWithLabels}
@@ -842,6 +852,7 @@ export function DepthChartView({
           document.body
         )}
 
+      <style dangerouslySetInnerHTML={{ __html: ROSTER_SCROLL_STYLES }} />
       <style dangerouslySetInnerHTML={{ __html: DEPTH_CHART_PRINT_STYLES }} />
     </React.Fragment>
   )

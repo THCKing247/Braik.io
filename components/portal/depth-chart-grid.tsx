@@ -66,21 +66,26 @@ function rowAlignmentClass(alignment: RowAlignment): string {
   }
 }
 
-/** Extra bottom spacing for row type to separate formation sections (trench / backfield / skill). */
+/** Row spacing for football hierarchy: WR/perimeter → OL/trench → QB → RB/backfield. */
 function rowTypeSpacingClass(rowType?: string): string {
   switch (rowType) {
-    case "line":
-    case "front":
-      return "mb-3"
-    case "backfield":
-    case "second":
-      return "mb-4"
     case "skill":
     case "secondary":
-      return "mb-3"
+      return "mb-2"   /* slightly tighter below WR row */
+    case "line":
+    case "front":
+      return "mb-5"   /* moderate gap below OL/trench */
+    case "backfield":
+    case "second":
+      return "mb-2"   /* slightly tighter between QB and RB */
     default:
-      return "mb-2"
+      return "mb-3"
   }
+}
+
+/** For spread alignment, keep slots on one row (no wrap); others may wrap on small screens. */
+function rowWrapClass(alignment: RowAlignment): string {
+  return alignment === "spread" ? "flex-nowrap" : "flex-wrap"
 }
 
 export function DepthChartGrid({
@@ -126,15 +131,22 @@ export function DepthChartGrid({
   }
 
   return (
-    <div className="w-full" style={{ backgroundColor: "rgb(var(--platinum))" }}>
-      <div className="flex flex-col gap-1 pb-4">
+    <div
+      className="w-full max-w-4xl mx-auto rounded-xl py-5 px-4"
+      style={{
+        backgroundColor: "rgb(var(--platinum))",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div className="flex flex-col pb-4">
         {rowList.map((formationRow, rowIdx) => {
           const alignClass = rowAlignmentClass(formationRow.alignment)
           const spacingClass = rowTypeSpacingClass(formationRow.rowType)
+          const wrapClass = rowWrapClass(formationRow.alignment)
           return (
             <div
               key={formationRow.id ?? rowIdx}
-              className={`flex flex-wrap gap-3 items-start ${alignClass} ${spacingClass} px-2`}
+              className={`flex gap-3 items-start ${alignClass} ${spacingClass} ${wrapClass} px-1 w-full`}
             >
               {formationRow.slots.map((slot, colIdx) => {
                 const players = getResolvedPlayersForSlot(slot.slotKey)

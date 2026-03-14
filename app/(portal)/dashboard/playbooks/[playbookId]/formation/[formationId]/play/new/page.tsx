@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { templateDataToCanvasData } from "@/lib/utils/playbook-canvas"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import type { FormationRecord } from "@/types/playbook"
 
 function CreateFormationPlayRedirect({
@@ -18,6 +19,7 @@ function CreateFormationPlayRedirect({
   formation: FormationRecord
 }) {
   const router = useRouter()
+  const { showToast } = usePlaybookToast()
   const done = useRef(false)
   useEffect(() => {
     if (done.current) return
@@ -46,8 +48,11 @@ function CreateFormationPlayRedirect({
         const returnUrl = `/dashboard/playbooks/${playbookId}/formation/${formationId}`
         router.replace(`/dashboard/playbooks/play/${play.id}?returnUrl=${encodeURIComponent(returnUrl)}`)
       })
-      .catch(() => alert("Failed to create play"))
-  }, [playbookId, formationId, teamId, formation, router])
+      .catch(() => {
+        showToast("Could not create play", "error")
+        router.replace(`/dashboard/playbooks/${playbookId}/formation/${formationId}`)
+      })
+  }, [playbookId, formationId, teamId, formation, router, showToast])
   return (
     <div className="flex items-center justify-center min-h-[400px] bg-slate-50">
       <p className="text-sm text-slate-500">Creating play...</p>

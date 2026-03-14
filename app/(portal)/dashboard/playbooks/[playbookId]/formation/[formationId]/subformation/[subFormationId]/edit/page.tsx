@@ -146,9 +146,17 @@ export default function SubFormationEditPage() {
     }
   }
 
-  const handleClose = () => {
-    saveState.confirmBeforeNavigate(() => router.push(`/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}`))
-  }
+  const handleClose = useCallback(() => {
+    const destination =
+      playbookId && formationId && subFormationId
+        ? `/dashboard/playbooks/${playbookId}/formation/${formationId}/subformation/${subFormationId}`
+        : playbookId && formationId
+          ? `/dashboard/playbooks/${playbookId}/formation/${formationId}`
+          : playbookId
+            ? `/dashboard/playbooks/${playbookId}`
+            : "/dashboard/playbooks"
+    saveState.confirmBeforeNavigate(() => router.push(destination))
+  }, [playbookId, formationId, subFormationId, router, saveState.confirmBeforeNavigate])
 
   useEffect(() => {
     if (!autoSaveEnabled || saveState.status !== "dirty") return

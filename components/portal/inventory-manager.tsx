@@ -792,8 +792,7 @@ export function InventoryManager({
             {permissions.canCreate && (
               <Button
                 onClick={() => setShowAddModal(true)}
-                className="mt-4"
-                className="bg-primary text-primary-foreground"
+                className="mt-4 bg-primary text-primary-foreground"
               >
                 Add Your First Equipment
               </Button>
@@ -893,8 +892,7 @@ export function InventoryManager({
                       {groupItems.slice(0, 5).map((item) => (
                         <div
                           key={item.id}
-                          className="p-2 rounded border text-sm"
-                          className="rounded-md border border-border bg-muted/50 p-2"
+                          className="p-2 rounded-md border border-border bg-muted/50 text-sm"
                         >
                           <p className="font-medium text-foreground">{item.name}</p>
                           {item.assignedPlayer && (

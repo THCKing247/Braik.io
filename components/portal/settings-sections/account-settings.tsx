@@ -93,12 +93,12 @@ export function AccountSettings({ user }: AccountSettingsProps) {
   return (
     <div className="space-y-6">
       {/* User Profile */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+          <CardTitle className="uppercase text-xs font-bold tracking-wide text-muted-foreground">
             PROFILE INFORMATION
           </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
+          <CardDescription className="text-muted-foreground">
             Update your name and email address
           </CardDescription>
         </CardHeader>
@@ -106,16 +106,16 @@ export function AccountSettings({ user }: AccountSettingsProps) {
           {!editingProfile ? (
             <div className="space-y-4">
               <div>
-                <Label style={{ color: "rgb(var(--muted))" }}>Name</Label>
-                <p className="font-medium mt-1" style={{ color: "rgb(var(--text))" }}>{user.name || "Not set"}</p>
+                <Label className="text-muted-foreground">Name</Label>
+                <p className="font-medium mt-1 text-foreground">{user.name || "Not set"}</p>
               </div>
               <div>
-                <Label style={{ color: "rgb(var(--muted))" }}>Email</Label>
-                <p className="font-medium mt-1" style={{ color: "rgb(var(--text))" }}>{user.email}</p>
+                <Label className="text-muted-foreground">Email</Label>
+                <p className="font-medium mt-1 text-foreground">{user.email}</p>
               </div>
               <Button
                 onClick={() => setEditingProfile(true)}
-                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Edit Profile
               </Button>
@@ -123,39 +123,31 @@ export function AccountSettings({ user }: AccountSettingsProps) {
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name" style={{ color: "rgb(var(--text))" }}>Name</Label>
+                <Label htmlFor="name" className="text-foreground">Name</Label>
                 <Input
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your name"
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email" style={{ color: "rgb(var(--text))" }}>Email</Label>
+                <Label htmlFor="email" className="text-foreground">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="flex gap-2">
                 <Button
                   onClick={handleSaveProfile}
                   disabled={loading}
-                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   Save Changes
                 </Button>
@@ -166,10 +158,7 @@ export function AccountSettings({ user }: AccountSettingsProps) {
                     setName(user.name || "")
                     setEmail(user.email)
                   }}
-                  style={{
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="border-border text-foreground"
                 >
                   Cancel
                 </Button>
@@ -180,12 +169,12 @@ export function AccountSettings({ user }: AccountSettingsProps) {
       </Card>
 
       {/* Password */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+          <CardTitle className="uppercase text-xs font-bold tracking-wide text-muted-foreground">
             PASSWORD
           </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
+          <CardDescription className="text-muted-foreground">
             Change your account password
           </CardDescription>
         </CardHeader>
@@ -193,60 +182,48 @@ export function AccountSettings({ user }: AccountSettingsProps) {
           {!editingPassword ? (
             <Button
               onClick={() => setEditingPassword(true)}
-              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               Change Password
             </Button>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="currentPassword" style={{ color: "rgb(var(--text))" }}>Current Password</Label>
+                <Label htmlFor="currentPassword" className="text-foreground">Current Password</Label>
                 <Input
                   id="currentPassword"
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="newPassword" style={{ color: "rgb(var(--text))" }}>New Password</Label>
+                <Label htmlFor="newPassword" className="text-foreground">New Password</Label>
                 <Input
                   id="newPassword"
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="bg-background border-border text-foreground"
                 />
-                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>Must be at least 8 characters</p>
+                <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword" style={{ color: "rgb(var(--text))" }}>Confirm New Password</Label>
+                <Label htmlFor="confirmPassword" className="text-foreground">Confirm New Password</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="flex gap-2">
                 <Button
                   onClick={handleChangePassword}
                   disabled={loading}
-                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   Update Password
                 </Button>
@@ -258,10 +235,7 @@ export function AccountSettings({ user }: AccountSettingsProps) {
                     setNewPassword("")
                     setConfirmPassword("")
                   }}
-                  style={{
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="border-border text-foreground"
                 >
                   Cancel
                 </Button>
@@ -272,24 +246,24 @@ export function AccountSettings({ user }: AccountSettingsProps) {
       </Card>
 
       {/* Security */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+          <CardTitle className="uppercase text-xs font-bold tracking-wide text-muted-foreground">
             SECURITY
           </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
+          <CardDescription className="text-muted-foreground">
             Manage your account security settings
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div>
-              <Label style={{ color: "rgb(var(--muted))" }}>Two-Factor Authentication</Label>
-              <p className="text-sm mt-1" style={{ color: "rgb(var(--muted))" }}>Coming soon</p>
+              <Label className="text-muted-foreground">Two-Factor Authentication</Label>
+              <p className="text-sm mt-1 text-muted-foreground">Coming soon</p>
             </div>
             <div>
-              <Label style={{ color: "rgb(var(--muted))" }}>Active Sessions</Label>
-              <p className="text-sm mt-1" style={{ color: "rgb(var(--muted))" }}>View and manage your active sessions</p>
+              <Label className="text-muted-foreground">Active Sessions</Label>
+              <p className="text-sm mt-1 text-muted-foreground">View and manage your active sessions</p>
             </div>
           </div>
         </CardContent>

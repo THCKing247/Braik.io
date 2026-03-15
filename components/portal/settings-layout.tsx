@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, ShieldCheck, UserCog } from "lucide-react"
 import { AccountSettings } from "./settings-sections/account-settings"
 import { TeamSettingsSection } from "./settings-sections/team-settings-section"
@@ -62,6 +62,8 @@ type SettingsSection =
   | "users"
   | "subscription"
 
+export type TeamUpdatePayload = Partial<Pick<Team, "name" | "slogan" | "logoUrl">> | Team
+
 interface SettingsLayoutProps {
   user: User
   team: Team
@@ -88,8 +90,13 @@ const SETTINGS_SECTIONS: Array<{
   { id: "support", label: "Support", icon: HelpCircle, visible: () => true },
 ]
 
-export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
+export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLayoutProps) {
+  const [team, setTeam] = useState<Team>(initialTeam)
   const [activeSection, setActiveSection] = useState<SettingsSection>("account")
+
+  const onTeamUpdated = useCallback((updates: TeamUpdatePayload) => {
+    setTeam((prev) => ({ ...prev, ...updates }))
+  }, [])
 
   const visibleSections = SETTINGS_SECTIONS.filter((section) =>
     section.visible(userRole)
@@ -100,7 +107,7 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
       case "account":
         return <AccountSettings user={user} />
       case "team":
-        return <TeamSettingsSection team={team} />
+        return <TeamSettingsSection team={team} onTeamUpdated={onTeamUpdated} />
       case "season":
         return <SeasonSettings team={team} />
       case "calendar":
@@ -129,8 +136,8 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>Settings</h1>
-        <p style={{ color: "rgb(var(--muted))" }}>Manage your account and team configuration</p>
+        <h1 className="text-3xl font-bold mb-2 text-foreground">Settings</h1>
+        <p className="text-muted-foreground">Manage your account and team configuration</p>
       </div>
 
       <div className="flex gap-6">
@@ -145,32 +152,10 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                    isActive ? "" : ""
-                  }`}
-                  style={
                     isActive
-                      ? {
-                          backgroundColor: "rgb(var(--accent))",
-                          color: "white",
-                          border: "1px solid rgb(var(--accent))",
-                        }
-                      : {
-                          color: "rgb(var(--muted))",
-                          backgroundColor: "transparent",
-                        }
-                  }
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "rgba(37, 99, 235, 0.05)"
-                      e.currentTarget.style.color = "rgb(var(--text))"
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "transparent"
-                      e.currentTarget.style.color = "rgb(var(--muted))"
-                    }
-                  }}
+                      ? "bg-primary text-primary-foreground border border-primary"
+                      : "text-muted-foreground bg-transparent hover:bg-muted/50 hover:text-foreground"
+                  }`}
                 >
                   <Icon className="h-5 w-5 flex-shrink-0" />
                   <span className="font-medium">{section.label}</span>
@@ -182,13 +167,7 @@ export function SettingsLayout({ user, team, userRole }: SettingsLayoutProps) {
 
         {/* Right Content Panel */}
         <div className="flex-1 min-w-0">
-          <div
-            className="rounded-lg border p-6"
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderColor: "rgb(var(--accent))",
-            }}
-          >
+          <div className="rounded-lg border border-border bg-card p-6">
             {renderContent()}
           </div>
         </div>

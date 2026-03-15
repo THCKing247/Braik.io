@@ -56,10 +56,10 @@ export function BillingSettings({ team }: BillingSettingsProps) {
   return (
     <div className="space-y-6">
       {/* Dues Amount */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Roster Dues</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Roster Dues</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Set the per-player subscription amount for roster dues
           </CardDescription>
         </CardHeader>
@@ -67,26 +67,26 @@ export function BillingSettings({ team }: BillingSettingsProps) {
           {!editingDues ? (
             <div className="space-y-4">
               <div>
-                <Label className="text-white/70">Dues Amount</Label>
-                <p className="text-white font-medium text-2xl">${team.duesAmount.toFixed(2)}</p>
-                <p className="text-sm text-white/60 mt-1">
+                <Label className="text-muted-foreground">Dues Amount</Label>
+                <p className="text-foreground font-medium text-2xl">${team.duesAmount.toFixed(2)}</p>
+                <p className="text-sm text-muted-foreground mt-1">
                   Per player × {team.players.length} players = ${(team.duesAmount * team.players.length).toFixed(2)} total
                 </p>
               </div>
               {team.duesDueDate && (
                 <div>
-                  <Label className="text-white/70">Due Date</Label>
-                  <p className="text-white font-medium">
+                  <Label className="text-muted-foreground">Due Date</Label>
+                  <p className="text-foreground font-medium">
                     {new Date(team.duesDueDate).toLocaleDateString()}
                   </p>
                 </div>
               )}
-              <Button onClick={() => setEditingDues(true)}>Edit Dues Amount</Button>
+              <Button onClick={() => setEditingDues(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">Edit Dues Amount</Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="duesAmount" className="text-white">Dues Amount ($) *</Label>
+                <Label htmlFor="duesAmount" className="text-foreground">Dues Amount ($) *</Label>
                 <Input
                   id="duesAmount"
                   type="number"
@@ -94,21 +94,21 @@ export function BillingSettings({ team }: BillingSettingsProps) {
                   value={duesAmount}
                   onChange={(e) => setDuesAmount(e.target.value)}
                   placeholder="5.00"
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="duesDueDate" className="text-white">Due Date</Label>
+                <Label htmlFor="duesDueDate" className="text-foreground">Due Date</Label>
                 <Input
                   id="duesDueDate"
                   type="date"
                   value={duesDueDate}
                   onChange={(e) => setDuesDueDate(e.target.value)}
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleSaveDues} disabled={loading}>
+                <Button onClick={handleSaveDues} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
                   Save Changes
                 </Button>
                 <Button
@@ -120,6 +120,7 @@ export function BillingSettings({ team }: BillingSettingsProps) {
                       team.duesDueDate ? new Date(team.duesDueDate).toISOString().split("T")[0] : ""
                     )
                   }}
+                  className="border-border text-foreground"
                 >
                   Cancel
                 </Button>
@@ -130,17 +131,17 @@ export function BillingSettings({ team }: BillingSettingsProps) {
       </Card>
 
       {/* Payment Method */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Payment Method</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Payment Method</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Manage payment methods for team subscriptions
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <p className="text-white/70">Payment method setup coming soon</p>
-            <p className="text-sm text-white/60">
+            <p className="text-muted-foreground">Payment method setup coming soon</p>
+            <p className="text-sm text-muted-foreground">
               You&apos;ll be able to add and manage credit cards and other payment methods here.
             </p>
           </div>
@@ -148,17 +149,17 @@ export function BillingSettings({ team }: BillingSettingsProps) {
       </Card>
 
       {/* Billing History */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Billing History</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Billing History</CardTitle>
+          <CardDescription className="text-muted-foreground">
             View past payments and invoices
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <p className="text-white/70">Billing history coming soon</p>
-            <p className="text-sm text-white/60">
+            <p className="text-muted-foreground">Billing history coming soon</p>
+            <p className="text-sm text-muted-foreground">
               View and download past invoices and payment receipts.
             </p>
           </div>
@@ -166,16 +167,16 @@ export function BillingSettings({ team }: BillingSettingsProps) {
       </Card>
 
       {/* Collections Link */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Collections</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Collections</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Manage payment collections and track invoices
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Link href="/dashboard/collections">
-            <Button className="w-full">View Collections Overview</Button>
+            <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">View Collections Overview</Button>
           </Link>
         </CardContent>
       </Card>

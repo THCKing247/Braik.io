@@ -78,51 +78,51 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
 
   return (
     <div className="space-y-6">
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
+          <CardTitle className="text-foreground flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
             Card Integration
           </CardTitle>
-          <CardDescription className="text-white/70">
+          <CardDescription className="text-muted-foreground">
             Connect your payment account to collect payments from parents and players
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {account?.connected ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-green-400">
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                 <CheckCircle className="h-5 w-5" />
                 <span className="font-medium">Payment account connected</span>
               </div>
               <div className="space-y-2">
-                <p className="text-white/70">Provider</p>
-                <p className="text-white font-medium capitalize">{account.provider}</p>
+                <p className="text-muted-foreground">Provider</p>
+                <p className="text-foreground font-medium capitalize">{account.provider}</p>
               </div>
               <div className="space-y-2">
-                <p className="text-white/70">Status</p>
-                <p className="text-white font-medium capitalize">{account.status}</p>
+                <p className="text-muted-foreground">Status</p>
+                <p className="text-foreground font-medium capitalize">{account.status}</p>
               </div>
-              <p className="text-sm text-white/60">
+              <p className="text-sm text-muted-foreground">
                 Your payment account is connected and ready to collect payments. You can manage
                 collections in the Invoice section.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-[#111827]">
-                <XCircle className="h-5 w-5" />
+              <div className="flex items-center gap-2 text-foreground">
+                <XCircle className="h-5 w-5 text-muted-foreground" />
                 <span className="font-medium">No payment account connected</span>
               </div>
-              <p className="text-white/70">
+              <p className="text-muted-foreground">
                 Connect a payment account to collect payments from parents and players for gear,
                 camps, fundraisers, and other custom fees.
               </p>
               {!showConnectForm ? (
-                <Button onClick={() => setShowConnectForm(true)}>Connect Payment Account</Button>
+                <Button onClick={() => setShowConnectForm(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">Connect Payment Account</Button>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm text-white/60">
+                  <p className="text-sm text-muted-foreground">
                     Click below to start the connection process. You&apos;ll be redirected to
                     complete the onboarding.
                   </p>
@@ -132,6 +132,7 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
                         setShowPaymentAckModal(true)
                       }}
                       disabled={loading}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       {loading ? "Connecting..." : "Connect Stripe Account"}
                     </Button>
@@ -140,6 +141,7 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
                       onClick={() => {
                         setShowConnectForm(false)
                       }}
+                      className="border-border text-foreground"
                     >
                       Cancel
                     </Button>
@@ -161,17 +163,17 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
             }}
             aria-label="Close dues acknowledgment modal"
           />
-          <div className="relative w-full max-w-xl rounded-xl border border-[#E5E7EB] bg-white p-6">
-            <h3 className="text-2xl font-athletic font-semibold text-[#212529] uppercase tracking-wide">
+          <div className="relative w-full max-w-xl rounded-xl border border-border bg-card p-6">
+            <h3 className="text-2xl font-athletic font-semibold text-foreground uppercase tracking-wide">
               Enable Dues Collection
             </h3>
-            <p className="mt-3 text-sm text-[#495057]">
+            <p className="mt-3 text-sm text-muted-foreground">
               Before enabling payment features, confirm payment handling acknowledgement.
             </p>
-            <label className="mt-4 flex items-start gap-2 text-sm text-[#212529]">
+            <label className="mt-4 flex items-start gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
-                className="mt-1"
+                className="mt-1 accent-primary"
                 checked={paymentAckAccepted}
                 onChange={(e) => setPaymentAckAccepted(e.target.checked)}
               />
@@ -186,6 +188,7 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
                   setShowPaymentAckModal(false)
                   setPaymentAckAccepted(false)
                 }}
+                className="border-border text-foreground"
               >
                 Cancel
               </Button>
@@ -196,6 +199,7 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
                   setShowPaymentAckModal(false)
                   setPaymentAckAccepted(false)
                 }}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Confirm and Continue
               </Button>

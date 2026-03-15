@@ -62,7 +62,7 @@ export function SubscriptionSettings({ teamId }: SubscriptionSettingsProps) {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     )
   }
@@ -74,15 +74,15 @@ export function SubscriptionSettings({ teamId }: SubscriptionSettingsProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>
+        <h2 className="text-2xl font-bold text-foreground">
           Subscription Status
         </h2>
-        <p className="text-sm mt-1" style={{ color: "rgb(var(--muted))" }}>
+        <p className="text-sm mt-1 text-muted-foreground">
           View and manage your team subscription
         </p>
       </div>
 
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardContent className="p-6">
           <SubscriptionManager
             team={team}

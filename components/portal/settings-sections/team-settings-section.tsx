@@ -1,10 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
+import { Loader2, ImagePlus } from "lucide-react"
+
+const ACCEPTED_TYPES = "image/png,image/jpeg,image/jpg"
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024 // 3MB
 
 interface Team {
   id: string
@@ -19,10 +25,19 @@ interface Team {
 
 interface TeamSettingsSectionProps {
   team: Team
+  onTeamUpdated?: (updates: Partial<Team> | Team) => void
 }
 
-export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionProps) {
+export function TeamSettingsSection({ team: initialTeam, onTeamUpdated }: TeamSettingsSectionProps) {
   const [team, setTeam] = useState(initialTeam)
+  const { showToast } = usePlaybookToast()
+
+  useEffect(() => {
+    setTeam(initialTeam)
+    setTeamName(initialTeam.name)
+    setTeamSlogan(initialTeam.slogan || "")
+    setLogoUrl(initialTeam.logoUrl || "")
+  }, [initialTeam.id, initialTeam.name, initialTeam.slogan, initialTeam.logoUrl])
   const [loading, setLoading] = useState(false)
   const [editingIdentity, setEditingIdentity] = useState(false)
   const [editingLogo, setEditingLogo] = useState(false)
@@ -31,9 +46,17 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
   const [teamSlogan, setTeamSlogan] = useState(team.slogan || "")
   const [logoUrl, setLogoUrl] = useState(team.logoUrl || "")
 
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [removeLogoDialogOpen, setRemoveLogoDialogOpen] = useState(false)
+  const [removingLogo, setRemovingLogo] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const handleSaveIdentity = async () => {
     if (!teamName.trim()) {
-      alert("Team name is required")
+      showToast("Team name is required", "error")
       return
     }
 
@@ -56,51 +79,144 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
       const updatedTeam = await response.json()
       setTeam(updatedTeam)
       setEditingIdentity(false)
-      alert("Team identity updated successfully!")
-      window.location.reload()
-    } catch (error: any) {
-      alert(error.message || "Error updating team identity")
+      onTeamUpdated?.(updatedTeam)
+      showToast("Team settings updated.", "success")
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Error updating team identity", "error")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSaveLogo = async () => {
+  const validateFile = (file: File): string | null => {
+    const allowed = ["image/png", "image/jpeg", "image/jpg"]
+    if (!allowed.includes(file.type)) {
+      return "Only PNG and JPG/JPEG images are allowed."
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return "File size must be 3MB or less."
+    }
+    return null
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    setUploadError(null)
+    setUploadPreview(null)
+    setUploadFile(null)
+    if (!file) return
+    const err = validateFile(file)
+    if (err) {
+      setUploadError(err)
+      return
+    }
+    setUploadFile(file)
+    const reader = new FileReader()
+    reader.onload = () => setUploadPreview(reader.result as string)
+    reader.readAsDataURL(file)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const handleUploadLogo = async () => {
+    if (!uploadFile) {
+      setUploadError("Please select an image to upload.")
+      return
+    }
+    const err = validateFile(uploadFile)
+    if (err) {
+      setUploadError(err)
+      return
+    }
+
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const formData = new FormData()
+      formData.append("file", uploadFile)
+      const response = await fetch(`/api/teams/${team.id}/logo`, {
+        method: "POST",
+        body: formData,
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed")
+      }
+
+      const newLogoUrl = data.logoUrl as string
+      setTeam((prev) => ({ ...prev, logoUrl: newLogoUrl }))
+      setLogoUrl(newLogoUrl)
+      setUploadFile(null)
+      setUploadPreview(null)
+      setEditingLogo(false)
+      onTeamUpdated?.({ logoUrl: newLogoUrl })
+      showToast("Logo uploaded successfully.", "success")
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Upload failed. Please try again."
+      setUploadError(msg)
+      showToast(msg, "error")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleSaveLogoUrl = async () => {
     setLoading(true)
     try {
       const response = await fetch(`/api/teams/${team.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          logoUrl: logoUrl || null,
-        }),
+        body: JSON.stringify({ logoUrl: logoUrl || null }),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to update logo")
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to update logo")
       }
 
       const updatedTeam = await response.json()
       setTeam(updatedTeam)
       setEditingLogo(false)
-      alert("Logo updated successfully!")
-      window.location.reload()
-    } catch (error: any) {
-      alert(error.message || "Error updating logo")
+      onTeamUpdated?.({ logoUrl: updatedTeam.logoUrl ?? null })
+      showToast("Logo updated successfully.", "success")
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Error updating logo", "error")
     } finally {
       setLoading(false)
     }
   }
 
+  const handleRemoveLogo = async () => {
+    setRemovingLogo(true)
+    try {
+      const response = await fetch(`/api/teams/${team.id}/logo`, { method: "DELETE" })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to remove logo")
+      }
+      setTeam((prev) => ({ ...prev, logoUrl: null }))
+      setLogoUrl("")
+      setRemoveLogoDialogOpen(false)
+      onTeamUpdated?.({ logoUrl: null })
+      showToast("Logo removed.", "success")
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Failed to remove logo", "error")
+    } finally {
+      setRemovingLogo(false)
+    }
+  }
+
+  const displayLogoUrl = uploadPreview ? uploadPreview : (team.logoUrl || logoUrl || null)
+
   return (
     <div className="space-y-6">
       {/* Team Identity */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+          <CardTitle className="uppercase text-xs font-bold tracking-wide text-muted-foreground">
             TEAM IDENTITY
           </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
+          <CardDescription className="text-muted-foreground">
             Edit your team name and slogan
           </CardDescription>
         </CardHeader>
@@ -108,21 +224,21 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
           {!editingIdentity ? (
             <div className="space-y-4">
               <div>
-                <Label style={{ color: "rgb(var(--muted))" }}>Team Name</Label>
-                <p className="font-medium mt-1" style={{ color: "rgb(var(--text))" }}>{team.name}</p>
+                <Label className="text-muted-foreground">Team Name</Label>
+                <p className="font-medium mt-1 text-foreground">{team.name}</p>
               </div>
               <div>
-                <Label style={{ color: "rgb(var(--muted))" }}>Slogan</Label>
-                <p className="mt-1" style={{ color: "rgb(var(--text))" }}>
+                <Label className="text-muted-foreground">Slogan</Label>
+                <p className="mt-1 text-foreground">
                   {team.slogan || `Go ${team.name}`}
                 </p>
-                <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
+                <p className="text-xs mt-1 text-muted-foreground">
                   Default: &quot;Go {'{'}Team Name{'}'}&quot; if not set
                 </p>
               </div>
               <Button
                 onClick={() => setEditingIdentity(true)}
-                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Edit Identity
               </Button>
@@ -130,34 +246,26 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="teamName" style={{ color: "rgb(var(--text))" }}>Team Name *</Label>
+                <Label htmlFor="teamName" className="text-foreground">Team Name *</Label>
                 <Input
                   id="teamName"
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                   placeholder="Team Name"
                   required
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="teamSlogan" style={{ color: "rgb(var(--text))" }}>Slogan (Optional)</Label>
+                <Label htmlFor="teamSlogan" className="text-foreground">Slogan (Optional)</Label>
                 <Input
                   id="teamSlogan"
                   value={teamSlogan}
                   onChange={(e) => setTeamSlogan(e.target.value)}
                   placeholder={`e.g., Go ${team.name} or Braik the huddle. Braik the norm.`}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="bg-background border-border text-foreground"
                 />
-                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                <p className="text-xs text-muted-foreground">
                   This appears under the team name on your dashboard header. Defaults to &quot;Go {'{'}Team Name{'}'}&quot; if left empty.
                 </p>
               </div>
@@ -165,7 +273,7 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
                 <Button
                   onClick={handleSaveIdentity}
                   disabled={loading}
-                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   Save Changes
                 </Button>
@@ -176,10 +284,7 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
                     setTeamName(team.name)
                     setTeamSlogan(team.slogan || "")
                   }}
-                  style={{
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="border-border text-foreground"
                 >
                   Cancel
                 </Button>
@@ -190,27 +295,21 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
       </Card>
 
       {/* Team Logo */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+          <CardTitle className="uppercase text-xs font-bold tracking-wide text-muted-foreground">
             TEAM LOGO
           </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
-            Upload your team logo
+          <CardDescription className="text-muted-foreground">
+            Upload your team logo (PNG or JPG, max 3MB)
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!editingLogo ? (
             <div className="space-y-4">
               {team.logoUrl ? (
-                <div className="flex items-center gap-4">
-                  <div
-                    className="w-32 h-32 rounded-lg flex items-center justify-center overflow-hidden border-2"
-                    style={{
-                      backgroundColor: "#FFFFFF",
-                      borderColor: "rgb(var(--border))",
-                    }}
-                  >
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="w-32 h-32 rounded-lg flex items-center justify-center overflow-hidden border-2 border-border bg-muted/30">
                     <img
                       src={team.logoUrl}
                       alt={`${team.name} logo`}
@@ -218,112 +317,184 @@ export function TeamSettingsSection({ team: initialTeam }: TeamSettingsSectionPr
                     />
                   </div>
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>Logo uploaded</p>
-                    <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>Click Edit to change or remove</p>
+                    <p className="text-sm font-medium text-foreground">Logo uploaded</p>
+                    <p className="text-xs text-muted-foreground">Click Edit to change or remove</p>
                   </div>
                 </div>
               ) : (
-                <div
-                  className="w-32 h-32 rounded-lg border-2 border-dashed flex items-center justify-center"
-                  style={{ borderColor: "rgb(var(--border))" }}
-                >
-                  <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>No logo uploaded</span>
+                <div className="w-32 h-32 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/20">
+                  <span className="text-sm text-muted-foreground">No logo uploaded</span>
                 </div>
               )}
-              <Button
-                onClick={() => setEditingLogo(true)}
-                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-              >
-                Edit Logo
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setEditingLogo(true)}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Edit Logo
+                </Button>
+                {team.logoUrl && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setRemoveLogoDialogOpen(true)}
+                    className="border-border text-foreground"
+                  >
+                    Remove Logo
+                  </Button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_TYPES}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
               <div className="space-y-2">
-                <Label htmlFor="logoUrl" style={{ color: "rgb(var(--text))" }}>Logo URL</Label>
-                <Input
-                  id="logoUrl"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://example.com/logo.png"
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
-                />
-                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                  Enter a URL to your team logo image. File upload coming soon.
-                </p>
-              </div>
-              {logoUrl && (
-                <div className="mt-4">
-                  <Label style={{ color: "rgb(var(--text))" }}>Preview</Label>
-                  <div
-                    className="w-32 h-32 rounded-lg flex items-center justify-center overflow-hidden border-2 mt-2"
-                    style={{
-                      backgroundColor: "#FFFFFF",
-                      borderColor: "rgb(var(--border))",
-                    }}
+                <Label className="text-foreground">Upload image</Label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-border text-foreground"
                   >
+                    <ImagePlus className="h-4 w-4 mr-2" />
+                    Choose file
+                  </Button>
+                  {uploadFile && (
+                    <span className="text-sm text-muted-foreground">
+                      {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Accepted: PNG, JPG, or JPEG. Maximum file size: 3 MB. Uploading replaces the current logo.
+                </p>
+                {uploadError && (
+                  <p className="text-sm text-destructive">{uploadError}</p>
+                )}
+              </div>
+
+              {displayLogoUrl && (
+                <div>
+                  <Label className="text-foreground">Preview</Label>
+                  <div className="w-32 h-32 rounded-lg flex items-center justify-center overflow-hidden border-2 border-border bg-muted/30 mt-2">
                     <img
-                      src={logoUrl}
+                      src={displayLogoUrl}
                       alt="Logo preview"
                       className="max-w-full max-h-full object-contain"
                     />
                   </div>
                 </div>
               )}
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleSaveLogo}
-                  disabled={loading}
-                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-                >
-                  Save Logo
-                </Button>
+
+              <div className="flex gap-2 flex-wrap">
+                {uploadFile && (
+                  <Button
+                    onClick={handleUploadLogo}
+                    disabled={uploading}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      "Upload logo"
+                    )}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => {
                     setEditingLogo(false)
                     setLogoUrl(team.logoUrl || "")
+                    setUploadFile(null)
+                    setUploadPreview(null)
+                    setUploadError(null)
                   }}
-                  style={{
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  className="border-border text-foreground"
                 >
                   Cancel
                 </Button>
+              </div>
+
+              <div className="pt-2 border-t border-border">
+                <Label htmlFor="logoUrl" className="text-foreground">Or paste logo URL</Label>
+                <Input
+                  id="logoUrl"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  className="bg-background border-border text-foreground mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enter a URL to use an external image instead of uploading.
+                </p>
+                {logoUrl && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSaveLogoUrl}
+                    disabled={loading}
+                    className="mt-2"
+                    type="button"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        Saving…
+                      </>
+                    ) : (
+                      "Save URL"
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Sport & Current Season (Read-only) */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      {/* Team Information (Read-only) */}
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+          <CardTitle className="uppercase text-xs font-bold tracking-wide text-muted-foreground">
             TEAM INFORMATION
           </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
+          <CardDescription className="text-muted-foreground">
             View current team information
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div>
-              <Label style={{ color: "rgb(var(--muted))" }}>Sport</Label>
-              <p className="font-medium mt-1" style={{ color: "rgb(var(--text))" }}>{team.sport}</p>
+              <Label className="text-muted-foreground">Sport</Label>
+              <p className="font-medium mt-1 text-foreground">{team.sport}</p>
             </div>
             <div>
-              <Label style={{ color: "rgb(var(--muted))" }}>Organization</Label>
-              <p className="font-medium mt-1" style={{ color: "rgb(var(--text))" }}>{team.organization.name}</p>
+              <Label className="text-muted-foreground">Organization</Label>
+              <p className="font-medium mt-1 text-foreground">{team.organization.name}</p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmDestructiveDialog
+        open={removeLogoDialogOpen}
+        onOpenChange={setRemoveLogoDialogOpen}
+        title="Remove logo"
+        message="Remove the team logo? You can upload a new one anytime."
+        confirmLabel="Remove logo"
+        isDeleting={removingLogo}
+        onConfirm={handleRemoveLogo}
+      />
     </div>
   )
 }

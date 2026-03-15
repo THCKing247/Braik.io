@@ -56,22 +56,22 @@ export function ConfirmDestructiveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className={isDestructive ? "text-red-700" : undefined}>
+          <DialogTitle className={isDestructive ? "text-destructive" : undefined}>
             {title}
           </DialogTitle>
-          <DialogDescription className="mt-1 text-slate-600">
+          <DialogDescription className="mt-1 text-muted-foreground">
             {message}
           </DialogDescription>
         </DialogHeader>
         {((impactItems && impactItems.length > 0) || isLoadingImpact) && (
-          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="mt-3 rounded-md border border-border bg-muted/50 px-3 py-2">
             {isLoadingImpact ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Calculating impact...</span>
               </div>
             ) : (
-              <ul className="space-y-1 text-sm text-slate-700">
+              <ul className="space-y-1 text-sm text-foreground">
                 {impactItems?.map((item, i) => (
                   <li key={i}>
                     <span className="font-medium">{item.label}:</span>{" "}

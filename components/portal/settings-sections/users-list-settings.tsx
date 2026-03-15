@@ -5,25 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Users, UserCheck, UserX, ChevronDown, ChevronUp } from "lucide-react"
 
-// Badge component - simple inline implementation
 function Badge({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "outline" }) {
   return (
     <span
       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-        variant === "outline" ? "border" : ""
-      }`}
-      style={
         variant === "outline"
-          ? {
-              borderColor: "rgb(var(--border))",
-              color: "rgb(var(--text))",
-              backgroundColor: "transparent",
-            }
-          : {
-              backgroundColor: "rgb(var(--accent))",
-              color: "white",
-            }
-      }
+          ? "border border-border bg-transparent text-foreground"
+          : "bg-primary text-primary-foreground"
+      }`}
     >
       {children}
     </span>
@@ -153,7 +142,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     )
   }
@@ -161,25 +150,25 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>
+        <h2 className="text-2xl font-bold text-foreground">
           Team Users
         </h2>
-        <p className="text-sm mt-1" style={{ color: "rgb(var(--muted))" }}>
+        <p className="text-sm mt-1 text-muted-foreground">
           Manage your team members and coaching structure
         </p>
       </div>
 
       {/* Assistants Section */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-            <UserCheck className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <UserCheck className="h-5 w-5 text-primary" />
             Assistant Coaches ({assistants.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {assistants.length === 0 ? (
-            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+            <p className="text-sm text-muted-foreground">
               No assistant coaches connected to this team.
             </p>
           ) : (
@@ -202,30 +191,29 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
       </Card>
 
       {/* Players Section */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-            <Users className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Users className="h-5 w-5 text-primary" />
             Players ({players.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {players.length === 0 ? (
-            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+            <p className="text-sm text-muted-foreground">
               No players connected to this team.
             </p>
           ) : (
             players.map((user) => (
               <div
                 key={user.id}
-                className="flex items-center justify-between p-3 rounded-lg border"
-                style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+                className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
               >
                 <div>
-                  <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                  <p className="font-medium text-foreground">
                     {user.name || "Unknown"}
                   </p>
-                  <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                  <p className="text-xs text-muted-foreground">
                     {user.email}
                   </p>
                 </div>
@@ -237,30 +225,29 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
       </Card>
 
       {/* Parents Section */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-            <Users className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Users className="h-5 w-5 text-primary" />
             Parents ({parents.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {parents.length === 0 ? (
-            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+            <p className="text-sm text-muted-foreground">
               No parents connected to this team.
             </p>
           ) : (
             parents.map((user) => (
               <div
                 key={user.id}
-                className="flex items-center justify-between p-3 rounded-lg border"
-                style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+                className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
               >
                 <div>
-                  <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                  <p className="font-medium text-foreground">
                     {user.name || "Unknown"}
                   </p>
-                  <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                  <p className="text-xs text-muted-foreground">
                     {user.email}
                     {user.playerRelation && ` • Parent of ${user.playerRelation.playerName}`}
                   </p>
@@ -298,16 +285,16 @@ function UserCard({
   const currentPositionRoles = user.positionCoachRoles || []
 
   return (
-    <div className="border rounded-lg" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+    <div className="border border-border rounded-lg bg-card">
       <div
-        className="flex items-center justify-between p-3 cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
+        className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors"
         onClick={onToggleExpand}
       >
         <div className="flex-1">
-          <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+          <p className="font-medium text-foreground">
             {user.name || "Unknown"}
           </p>
-          <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+          <p className="text-xs text-muted-foreground">
             {user.email}
           </p>
         </div>
@@ -323,30 +310,25 @@ function UserCard({
             </Badge>
           )}
           {isExpanded ? (
-            <ChevronUp className="h-4 w-4" style={{ color: "rgb(var(--muted))" }} />
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
-            <ChevronDown className="h-4 w-4" style={{ color: "rgb(var(--muted))" }} />
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           )}
         </div>
       </div>
 
       {isExpanded && (
-        <div className="p-4 border-t space-y-4" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+        <div className="p-4 border-t border-border space-y-4 bg-card">
           {/* Coordinator Role */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+            <label className="text-sm font-semibold text-foreground">
               Coordinator Role
             </label>
             <select
               value={currentCoordinatorRole || "none"}
               onChange={(e) => onCoordinatorChange(e.target.value === "none" ? null : e.target.value)}
               disabled={saving}
-              className="w-full px-3 py-2 border rounded-md"
-              style={{
-                color: "rgb(var(--text))",
-                borderColor: "rgb(var(--border))",
-                backgroundColor: "#FFFFFF",
-              }}
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
             >
               {COORDINATOR_ROLES.map((role) => {
                 const isTaken = role.value ? existingCoordinators.includes(role.value) : false
@@ -363,23 +345,23 @@ function UserCard({
                 )
               })}
             </select>
-            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+            <p className="text-xs text-muted-foreground">
               Only one person can hold each coordinator role.
             </p>
           </div>
 
           {/* Position Coach Roles */}
           <div className="space-y-3">
-            <label className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+            <label className="text-sm font-semibold text-foreground">
               Position Coach Roles
             </label>
-            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+            <p className="text-xs text-muted-foreground">
               A coach can hold multiple position roles.
             </p>
 
             {/* Offense */}
             <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "rgb(var(--text))" }}>
+              <p className="text-xs font-medium mb-2 text-foreground">
                 Offense
               </p>
               <div className="flex flex-wrap gap-2">
@@ -392,11 +374,7 @@ function UserCard({
                       size="sm"
                       onClick={() => onPositionCoachToggle(role, !isSelected)}
                       disabled={saving}
-                      style={
-                        isSelected
-                          ? { backgroundColor: "rgb(var(--accent))", color: "white" }
-                          : undefined
-                      }
+                      className={isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border text-foreground"}
                     >
                       {role}
                     </Button>
@@ -407,7 +385,7 @@ function UserCard({
 
             {/* Defense */}
             <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "rgb(var(--text))" }}>
+              <p className="text-xs font-medium mb-2 text-foreground">
                 Defense
               </p>
               <div className="flex flex-wrap gap-2">
@@ -420,11 +398,7 @@ function UserCard({
                       size="sm"
                       onClick={() => onPositionCoachToggle(role, !isSelected)}
                       disabled={saving}
-                      style={
-                        isSelected
-                          ? { backgroundColor: "rgb(var(--accent))", color: "white" }
-                          : undefined
-                      }
+                      className={isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border text-foreground"}
                     >
                       {role}
                     </Button>
@@ -435,7 +409,7 @@ function UserCard({
 
             {/* Special Teams */}
             <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "rgb(var(--text))" }}>
+              <p className="text-xs font-medium mb-2 text-foreground">
                 Special Teams
               </p>
               <div className="flex flex-wrap gap-2">
@@ -448,11 +422,7 @@ function UserCard({
                       size="sm"
                       onClick={() => onPositionCoachToggle(role, !isSelected)}
                       disabled={saving}
-                      style={
-                        isSelected
-                          ? { backgroundColor: "rgb(var(--accent))", color: "white" }
-                          : undefined
-                      }
+                      className={isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border text-foreground"}
                     >
                       {role}
                     </Button>

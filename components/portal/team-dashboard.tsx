@@ -258,10 +258,36 @@ function DashboardCalendar({ teamId }: { teamId?: string }) {
 // ─── Team Banner ──────────────────────────────────────────────────────────────
 
 function TeamBanner({ user }: { user: SessionUser }) {
-  const teamName = user.teamName || user.organizationName || "Your Team"
+  const [teamSummary, setTeamSummary] = useState<{ name: string; slogan: string | null; logoUrl: string | null } | null>(null)
+  const hasTeam = Boolean(user.teamId)
+
+  useEffect(() => {
+    if (!user.teamId) {
+      setTeamSummary(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/teams/${user.teamId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) {
+          setTeamSummary({
+            name: data.name ?? "",
+            slogan: data.slogan ?? null,
+            logoUrl: data.logoUrl ?? null,
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTeamSummary(null)
+      })
+    return () => { cancelled = true }
+  }, [user.teamId])
+
+  const teamName = teamSummary?.name || user.teamName || user.organizationName || "Your Team"
   const lastName = user?.name?.split(" ").slice(-1)[0] || ""
   const roleLabel = getRoleLabel(user.role)
-  const hasTeam = Boolean(user.teamId)
+  const logoUrl = teamSummary?.logoUrl ?? null
 
   // Placeholder record — will be populated from real season data
   const wins = 0
@@ -287,12 +313,16 @@ function TeamBanner({ user }: { user: SessionUser }) {
       <div className="relative flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         {/* Left: Logo + name */}
         <div className="flex items-center gap-4">
-          {/* Team logo placeholder */}
+          {/* Team logo or placeholder */}
           <div
-            className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border-2 border-white/20 bg-white/10 transition-colors hover:bg-white/15 cursor-pointer"
-            title="Upload team logo (coming soon)"
+            className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border-2 border-white/20 bg-white/10 overflow-hidden"
+            title={hasTeam ? "Team logo" : "Connect to a team"}
           >
-            <ImageIcon className="h-7 w-7 text-white/50" />
+            {logoUrl ? (
+              <img src={logoUrl} alt={`${teamName} logo`} className="h-full w-full object-contain" />
+            ) : (
+              <ImageIcon className="h-7 w-7 text-white/50" />
+            )}
           </div>
 
           <div>

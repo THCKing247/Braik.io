@@ -35,26 +35,20 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
     ? ((data.conferenceRecord.wins / (data.conferenceRecord.wins + data.conferenceRecord.losses)) * 100).toFixed(1)
     : "0.0"
 
+  const hasLogo = data.logoUrl && data.logoUrl.trim().length > 0
+
   return (
-    <div 
-      className="rounded-xl p-8 shadow-sm border mb-6"
-      style={{
-        backgroundColor: "#FFFFFF",
-        borderColor: "rgb(var(--border))",
-        borderWidth: "1px",
-        borderRadius: "12px",
-      }}
-    >
+    <div className="rounded-xl p-8 shadow-sm border border-border bg-card mb-6">
       <div className="flex items-center justify-between flex-wrap gap-6">
         {/* LEFT: Team Name and Slogan */}
         <div className="flex-1 min-w-[250px]">
-          <h1 className="text-5xl md:text-6xl font-athletic font-bold mb-3 tracking-wide" style={{ color: "rgb(var(--text))" }}>
+          <h1 className="text-5xl md:text-6xl font-athletic font-bold mb-3 tracking-wide text-foreground">
             {data.teamName.toUpperCase()}
           </h1>
-          <p className="text-2xl md:text-3xl font-athletic font-medium mb-2" style={{ color: "rgb(var(--text))" }}>
+          <p className="text-2xl md:text-3xl font-athletic font-medium mb-2 text-foreground">
             {data.slogan}
           </p>
-          <div className="flex flex-wrap items-center gap-3 mt-4 text-sm md:text-base" style={{ color: "rgb(var(--text2))" }}>
+          <div className="flex flex-wrap items-center gap-3 mt-4 text-sm md:text-base text-muted-foreground">
             <span className="font-medium">{data.organizationName}</span>
             <span>•</span>
             <span className="uppercase font-semibold">{data.sport}</span>
@@ -79,26 +73,26 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
         <div className="flex items-center gap-8 flex-wrap">
           {/* Overall Record */}
           <div className="text-center">
-            <div className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "rgb(var(--muted))" }}>
+            <div className="text-xs font-medium uppercase tracking-wide mb-1 text-muted-foreground">
               Overall
             </div>
-            <div className="text-3xl font-athletic font-bold" style={{ color: "rgb(var(--text))" }}>
+            <div className="text-3xl font-athletic font-bold text-foreground">
               {data.overallRecord.wins}-{data.overallRecord.losses}
             </div>
-            <div className="text-xs mt-0.5" style={{ color: "rgb(var(--muted))" }}>
+            <div className="text-xs mt-0.5 text-muted-foreground">
               {overallWinPct}%
             </div>
           </div>
 
           {/* Conference Record */}
           <div className="text-center">
-            <div className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "rgb(var(--muted))" }}>
+            <div className="text-xs font-medium uppercase tracking-wide mb-1 text-muted-foreground">
               Conference
             </div>
-            <div className="text-3xl font-athletic font-bold" style={{ color: "rgb(var(--text))" }}>
+            <div className="text-3xl font-athletic font-bold text-foreground">
               {data.conferenceRecord.wins}-{data.conferenceRecord.losses}
             </div>
-            <div className="text-xs mt-0.5" style={{ color: "rgb(var(--muted))" }}>
+            <div className="text-xs mt-0.5 text-muted-foreground">
               {conferenceWinPct}%
             </div>
           </div>
@@ -106,10 +100,10 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
           {/* Division/Standing */}
           {(data.division || data.conference) && (
             <div className="text-center">
-              <div className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "rgb(var(--muted))" }}>
+              <div className="text-xs font-medium uppercase tracking-wide mb-1 text-muted-foreground">
                 {data.division ? "Division" : "Conference"}
               </div>
-              <div className="text-xl font-athletic font-semibold" style={{ color: "rgb(var(--text))" }}>
+              <div className="text-xl font-athletic font-semibold text-foreground">
                 {data.division || data.conference || "—"}
               </div>
             </div>
@@ -117,10 +111,10 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
 
           {/* Playoff Status */}
           <div className="text-center">
-            <div className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "rgb(var(--muted))" }}>
+            <div className="text-xs font-medium uppercase tracking-wide mb-1 text-muted-foreground">
               Playoff Status
             </div>
-            <div className="text-xl font-athletic font-semibold" style={{ color: "rgb(var(--text))" }}>
+            <div className="text-xl font-athletic font-semibold text-foreground">
               {data.playoffStatus || "TBD"}
             </div>
           </div>
@@ -128,15 +122,12 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
 
         {/* RIGHT: Logo */}
         <div className="flex-1 min-w-[150px] flex justify-end">
-          {data.logoUrl ? (
+          {hasLogo ? (
             <div
-              className="w-32 h-32 rounded-lg flex items-center justify-center overflow-hidden"
-              style={{
-                backgroundColor: data.logoRemoveBackground ? "transparent" : "#FFFFFF",
-              }}
+              className={`w-32 h-32 rounded-lg flex items-center justify-center overflow-hidden ${data.logoRemoveBackground ? "bg-transparent" : "bg-muted/30"}`}
             >
               <img
-                src={data.logoUrl}
+                src={data.logoUrl!}
                 alt={`${data.teamName} logo`}
                 className="max-w-full max-h-full object-contain"
                 style={{
@@ -145,11 +136,8 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
               />
             </div>
           ) : (
-            <div 
-              className="w-32 h-32 rounded-lg border border-dashed flex items-center justify-center"
-              style={{ borderColor: "rgb(var(--focus))", color: "rgb(var(--muted))" }}
-            >
-              <span className="text-sm">No Logo</span>
+            <div className="w-32 h-32 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/20">
+              <span className="text-sm text-muted-foreground">No Logo</span>
             </div>
           )}
         </div>

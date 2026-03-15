@@ -119,22 +119,22 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
   }
 
   if (loading) {
-    return <div className="text-white">Loading template...</div>
+    return <div className="text-muted-foreground">Loading template...</div>
   }
 
   return (
     <div className="space-y-6">
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Roster Print/Email Template</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Roster Print/Email Template</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Customize how your roster appears when printed or emailed. Changes apply to both print and email formats.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Header Settings */}
           <div className="space-y-4">
-            <h3 className="text-white font-semibold">Header Information</h3>
+            <h3 className="text-foreground font-semibold">Header Information</h3>
             
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -147,11 +147,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showYear" className="text-white">Show Year</Label>
+              <Label htmlFor="showYear" className="text-foreground">Show Year</Label>
             </div>
             {template.header.showYear && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="yearLabel" className="text-white/70">Year Label</Label>
+                <Label htmlFor="yearLabel" className="text-muted-foreground">Year Label</Label>
                 <Input
                   id="yearLabel"
                   value={template.header.yearLabel}
@@ -161,7 +161,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       header: { ...template.header, yearLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -177,11 +177,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showSchoolName" className="text-white">Show School Name</Label>
+              <Label htmlFor="showSchoolName" className="text-foreground">Show School Name</Label>
             </div>
             {template.header.showSchoolName && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="schoolNameLabel" className="text-white/70">School Name Label</Label>
+                <Label htmlFor="schoolNameLabel" className="text-muted-foreground">School Name Label</Label>
                 <Input
                   id="schoolNameLabel"
                   value={template.header.schoolNameLabel}
@@ -191,7 +191,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       header: { ...template.header, schoolNameLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -207,11 +207,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showTeamName" className="text-white">Show Team Name</Label>
+              <Label htmlFor="showTeamName" className="text-foreground">Show Team Name</Label>
             </div>
             {template.header.showTeamName && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="teamNameLabel" className="text-white/70">Team Name Label</Label>
+                <Label htmlFor="teamNameLabel" className="text-muted-foreground">Team Name Label</Label>
                 <Input
                   id="teamNameLabel"
                   value={template.header.teamNameLabel}
@@ -221,7 +221,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       header: { ...template.header, teamNameLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -229,7 +229,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
 
           {/* Body Settings */}
           <div className="space-y-4">
-            <h3 className="text-white font-semibold">Roster Columns</h3>
+            <h3 className="text-foreground font-semibold">Roster Columns</h3>
             
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -242,11 +242,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showJerseyNumber" className="text-white">Show Jersey Number</Label>
+              <Label htmlFor="showJerseyNumber" className="text-foreground">Show Jersey Number</Label>
             </div>
             {template.body.showJerseyNumber && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="jerseyNumberLabel" className="text-white/70">Jersey Number Label</Label>
+                <Label htmlFor="jerseyNumberLabel" className="text-muted-foreground">Jersey Number Label</Label>
                 <Input
                   id="jerseyNumberLabel"
                   value={template.body.jerseyNumberLabel}
@@ -256,7 +256,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       body: { ...template.body, jerseyNumberLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -272,11 +272,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showPlayerName" className="text-white">Show Player Name</Label>
+              <Label htmlFor="showPlayerName" className="text-foreground">Show Player Name</Label>
             </div>
             {template.body.showPlayerName && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="playerNameLabel" className="text-white/70">Player Name Label</Label>
+                <Label htmlFor="playerNameLabel" className="text-muted-foreground">Player Name Label</Label>
                 <Input
                   id="playerNameLabel"
                   value={template.body.playerNameLabel}
@@ -286,7 +286,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       body: { ...template.body, playerNameLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -302,11 +302,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showGrade" className="text-white">Show Grade</Label>
+              <Label htmlFor="showGrade" className="text-foreground">Show Grade</Label>
             </div>
             {template.body.showGrade && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="gradeLabel" className="text-white/70">Grade Label</Label>
+                <Label htmlFor="gradeLabel" className="text-muted-foreground">Grade Label</Label>
                 <Input
                   id="gradeLabel"
                   value={template.body.gradeLabel}
@@ -316,7 +316,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       body: { ...template.body, gradeLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -332,11 +332,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showPosition" className="text-white">Show Position</Label>
+              <Label htmlFor="showPosition" className="text-foreground">Show Position</Label>
             </div>
             {template.body.showPosition !== false && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="positionLabel" className="text-white/70">Position Label</Label>
+                <Label htmlFor="positionLabel" className="text-muted-foreground">Position Label</Label>
                 <Input
                   id="positionLabel"
                   value={template.body.positionLabel ?? "Position"}
@@ -346,7 +346,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       body: { ...template.body, positionLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -362,11 +362,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showWeight" className="text-white">Show Weight</Label>
+              <Label htmlFor="showWeight" className="text-foreground">Show Weight</Label>
             </div>
             {template.body.showWeight !== false && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="weightLabel" className="text-white/70">Weight Label</Label>
+                <Label htmlFor="weightLabel" className="text-muted-foreground">Weight Label</Label>
                 <Input
                   id="weightLabel"
                   value={template.body.weightLabel ?? "Weight"}
@@ -376,7 +376,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       body: { ...template.body, weightLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
@@ -392,11 +392,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showHeight" className="text-white">Show Height</Label>
+              <Label htmlFor="showHeight" className="text-foreground">Show Height</Label>
             </div>
             {template.body.showHeight !== false && (
               <div className="ml-6 space-y-2">
-                <Label htmlFor="heightLabel" className="text-white/70">Height Label</Label>
+                <Label htmlFor="heightLabel" className="text-muted-foreground">Height Label</Label>
                 <Input
                   id="heightLabel"
                   value={template.body.heightLabel ?? "Height"}
@@ -406,13 +406,13 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                       body: { ...template.body, heightLabel: e.target.value },
                     })
                   }
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="sortBy" className="text-white">Sort Players By</Label>
+              <Label htmlFor="sortBy" className="text-foreground">Sort Players By</Label>
               <select
                 id="sortBy"
                 value={template.body.sortBy}
@@ -422,7 +422,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                     body: { ...template.body, sortBy: e.target.value as "jerseyNumber" | "name" },
                   })
                 }
-                className="w-full bg-white/10 border border-white/20 text-white rounded-md px-3 py-2"
+                className="w-full bg-background border border-border text-foreground rounded-md px-3 py-2"
               >
                 <option value="jerseyNumber">Jersey Number</option>
                 <option value="name">Name</option>
@@ -432,7 +432,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
 
           {/* Footer Settings */}
           <div className="space-y-4">
-            <h3 className="text-white font-semibold">Footer Information</h3>
+            <h3 className="text-foreground font-semibold">Footer Information</h3>
             
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -445,11 +445,11 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
               />
-              <Label htmlFor="showGeneratedDate" className="text-white">Show Generated Date</Label>
+              <Label htmlFor="showGeneratedDate" className="text-foreground">Show Generated Date</Label>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="customText" className="text-white">Custom Footer Text (Optional)</Label>
+              <Label htmlFor="customText" className="text-foreground">Custom Footer Text (Optional)</Label>
               <Input
                 id="customText"
                 value={template.footer.customText}
@@ -460,7 +460,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                   })
                 }
                 placeholder="e.g., Go Team!"
-                className="bg-white/10 border-white/20 text-white"
+                className="bg-background border-border text-foreground"
               />
             </div>
           </div>

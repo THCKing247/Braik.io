@@ -138,51 +138,51 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
   return (
     <div className="space-y-6">
       {/* Division & Standing */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Division & Standing</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Division & Standing</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Set your team&apos;s division and conference for the current season. This information appears on your dashboard header.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {seasonLoading ? (
-            <p className="text-white/70">Loading season data...</p>
+            <p className="text-muted-foreground">Loading season data...</p>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="division" className="text-white">Division (Optional)</Label>
+                <Label htmlFor="division" className="text-foreground">Division (Optional)</Label>
                 <Input
                   id="division"
                   value={division}
                   onChange={(e) => setDivision(e.target.value)}
                   placeholder="e.g., Division I, 5A, Class A"
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
-                <p className="text-xs text-white/60">
+                <p className="text-xs text-muted-foreground">
                   Your team&apos;s division classification (e.g., &quot;5A&quot;, &quot;Division I&quot;)
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="conference" className="text-white">Conference (Optional)</Label>
+                <Label htmlFor="conference" className="text-foreground">Conference (Optional)</Label>
                 <Input
                   id="conference"
                   value={conference}
                   onChange={(e) => setConference(e.target.value)}
                   placeholder="e.g., Big 12, SEC, Metro Conference"
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
-                <p className="text-xs text-white/60">
+                <p className="text-xs text-muted-foreground">
                   Your team&apos;s conference or league name
                 </p>
               </div>
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <p className="text-sm text-white/80">
-                  <strong>Note:</strong> This information is manually entered. If you have access to an external standings API, 
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">Note:</strong> This information is manually entered. If you have access to an external standings API, 
                   we can integrate it in the future. For now, you can update this information as needed.
                 </p>
               </div>
-              <Button onClick={handleSaveDivisionStanding} disabled={loading}>
+              <Button onClick={handleSaveDivisionStanding} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
                 {loading ? "Saving..." : "Save Division & Standing"}
               </Button>
             </div>
@@ -191,27 +191,27 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
       </Card>
 
       {/* Roster Cap */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Roster Cap</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Roster Cap</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Set the maximum number of players for this season
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="rosterCap" className="text-white">Maximum Players</Label>
+              <Label htmlFor="rosterCap" className="text-foreground">Maximum Players</Label>
               <Input
                 id="rosterCap"
                 type="number"
                 value={rosterCap}
                 onChange={(e) => setRosterCap(e.target.value)}
                 min="1"
-                className="bg-white/10 border-white/20 text-white"
+                className="bg-background border-border text-foreground"
               />
             </div>
-            <Button onClick={handleUpdateRosterCap} disabled={loading}>
+            <Button onClick={handleUpdateRosterCap} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
               Update Roster Cap
             </Button>
           </div>
@@ -219,66 +219,66 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
       </Card>
 
       {/* Season Rollover */}
-      <Card className="bg-[#1e3a5f] border-[#1e3a5f]">
+      <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-white">Season Rollover</CardTitle>
-          <CardDescription className="text-white/70">
+          <CardTitle className="text-foreground">Season Rollover</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Create a new season and copy the roster
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!showRollover ? (
             <div className="space-y-4">
-              <p className="text-white/70">
-                Current season: <span className="font-medium text-white">{team.seasonName}</span>
+              <p className="text-muted-foreground">
+                Current season: <span className="font-medium text-foreground">{team.seasonName}</span>
               </p>
-              <Button onClick={() => setShowRollover(true)}>Start Season Rollover</Button>
+              <Button onClick={() => setShowRollover(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">Start Season Rollover</Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="newSeasonName" className="text-white">New Season Name *</Label>
+                <Label htmlFor="newSeasonName" className="text-foreground">New Season Name *</Label>
                 <Input
                   id="newSeasonName"
                   value={newSeasonName}
                   onChange={(e) => setNewSeasonName(e.target.value)}
                   placeholder="e.g., Fall 2025"
-                  className="bg-white/10 border-white/20 text-white"
+                  className="bg-background border-border text-foreground"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="newSeasonStart" className="text-white">Season Start *</Label>
+                  <Label htmlFor="newSeasonStart" className="text-foreground">Season Start *</Label>
                   <Input
                     id="newSeasonStart"
                     type="date"
                     value={newSeasonStart}
                     onChange={(e) => setNewSeasonStart(e.target.value)}
-                    className="bg-white/10 border-white/20 text-white"
+                    className="bg-background border-border text-foreground"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="newSeasonEnd" className="text-white">Season End *</Label>
+                  <Label htmlFor="newSeasonEnd" className="text-foreground">Season End *</Label>
                   <Input
                     id="newSeasonEnd"
                     type="date"
                     value={newSeasonEnd}
                     onChange={(e) => setNewSeasonEnd(e.target.value)}
-                    className="bg-white/10 border-white/20 text-white"
+                    className="bg-background border-border text-foreground"
                   />
                 </div>
               </div>
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <p className="text-sm text-white/80">
-                  <strong>Note:</strong> This will create a new team for the new season and copy all players as inactive. 
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">Note:</strong> This will create a new team for the new season and copy all players as inactive. 
                   You can then activate players as they confirm for the new season.
                 </p>
               </div>
               <div className="flex gap-4">
-                <Button onClick={handleSeasonRollover} disabled={loading}>
+                <Button onClick={handleSeasonRollover} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
                   {loading ? "Rolling over..." : "Rollover Season"}
                 </Button>
-                <Button variant="outline" onClick={() => setShowRollover(false)}>
+                <Button variant="outline" onClick={() => setShowRollover(false)} className="border-border text-foreground">
                   Cancel
                 </Button>
               </div>

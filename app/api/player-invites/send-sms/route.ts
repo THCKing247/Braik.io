@@ -4,13 +4,49 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { buildJoinLink } from "@/lib/invites/build-join-link"
 import { normalizePhone } from "@/lib/invites/normalize-phone"
-import { sendSmsViaTwilio } from "@/lib/invites/twilio"
+import { sendSMS } from "@/lib/twilio/sendSms"
 import { logInviteAction } from "@/lib/audit/structured-logger"
+
+/** Build transactional Braik invite SMS. Short, carrier-friendly, GSM-7 safe. */
+function buildInviteSmsBody(options: {
+  inviteLink: string
+  coachName?: string | null
+  teamName?: string | null
+  playerName?: string | null
+}): string {
+  const { inviteLink, coachName, teamName, playerName } = options
+  const coach = (typeof coachName === "string" && coachName.trim()) ? coachName.trim() : null
+  const team = (typeof teamName === "string" && teamName.trim()) ? teamName.trim() : null
+
+  let intro: string
+  if (coach && team) {
+    intro = `Braik: Coach ${coach} invited you to join ${team}.`
+  } else if (coach) {
+    intro = `Braik: Coach ${coach} invited you to join your team.`
+  } else if (team) {
+    intro = `Braik: You're invited to join ${team}.`
+  } else {
+    intro = "Braik: You're invited to join your team."
+  }
+
+  const lines = [intro, `Join: ${inviteLink}`, "Reply STOP to opt out."]
+  if (playerName && typeof playerName === "string" && playerName.trim()) {
+    lines.unshift(`Hi ${playerName.trim()},`)
+  }
+  return lines.join("\n").trim()
+}
+
+/** Lightweight E.164-style check: must start with + and have enough digits. */
+function isValidE164(phone: string): boolean {
+  const digits = phone.replace(/\D/g, "")
+  return phone.startsWith("+") && digits.length >= 10
+}
 
 /**
  * POST /api/player-invites/send-sms
- * Body: { playerId: string }
- * Sends invite SMS via Twilio. Requires coach/admin with edit_roster.
+ * Body (coach flow): { playerId: string }
+ * Body (direct): { phone: string, inviteLink: string, playerName?, teamName?, coachName? }
+ * Sends invite SMS via Twilio. Requires auth. Uses TWILIO_PHONE_NUMBER.
  */
 export async function POST(request: Request) {
   try {
@@ -19,11 +55,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = (await request.json().catch(() => ({}))) as { playerId?: string }
-    const playerId = typeof body?.playerId === "string" ? body.playerId.trim() : ""
-    if (!playerId) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    const body = (await request.json().catch(() => ({}))) as {
+      playerId?: string
+      phone?: string
+      inviteLink?: string
+      playerName?: string
+      teamName?: string
+      coachName?: string
     }
+
+    const playerId = typeof body?.playerId === "string" ? body.playerId.trim() : ""
+    const phoneRaw = typeof body?.phone === "string" ? body.phone.trim() : ""
+    const inviteLink = typeof body?.inviteLink === "string" ? body.inviteLink.trim() : ""
+    const playerName = typeof body?.playerName === "string" ? body.playerName.trim() || undefined : undefined
+    const teamName = typeof body?.teamName === "string" ? body.teamName.trim() || undefined : undefined
+    const coachName = typeof body?.coachName === "string" ? body.coachName.trim() || undefined : undefined
+
+    // --- Direct send: phone + inviteLink provided (e.g. testing or server-to-server) ---
+    if (phoneRaw && inviteLink && !playerId) {
+      const toPhone = normalizePhone(phoneRaw)
+      if (!toPhone || !isValidE164(toPhone)) {
+        return NextResponse.json(
+          { error: "Invalid phone number", code: "INVALID_PHONE" },
+          { status: 400 }
+        )
+      }
+      const smsBody = buildInviteSmsBody({
+        inviteLink,
+        coachName: coachName ?? null,
+        teamName: teamName ?? null,
+        playerName: playerName ?? null,
+      })
+      console.log("[POST /api/player-invites/send-sms] direct send", { to: toPhone.slice(0, 6) + "***" })
+      try {
+        const result = await sendSMS(toPhone, smsBody)
+        return NextResponse.json({ success: true, sid: result.sid })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Twilio send failed"
+        console.error("[POST /api/player-invites/send-sms] Twilio error", { message: msg })
+        return NextResponse.json(
+          { error: "Failed to send SMS.", code: "SMS_SEND_FAILED" },
+          { status: 502 }
+        )
+      }
+    }
+
+    // --- Coach flow: playerId required ---
+    if (!playerId) {
+      return NextResponse.json(
+        { error: "Either playerId or (phone and inviteLink) is required" },
+        { status: 400 }
+      )
+    }
+
+    console.log("[POST /api/player-invites/send-sms] coach flow", { playerId })
 
     const supabase = getSupabaseServer()
 
@@ -51,8 +136,8 @@ export async function POST(request: Request) {
     }
 
     const toPhone = normalizePhone(phoneStr)
-    if (!toPhone) {
-      return NextResponse.json({ error: "Invalid phone number" }, { status: 400 })
+    if (!toPhone || !isValidE164(toPhone)) {
+      return NextResponse.json({ error: "Invalid phone number", code: "INVALID_PHONE" }, { status: 400 })
     }
 
     const { data: invite, error: inviteErr } = await supabase
@@ -67,37 +152,56 @@ export async function POST(request: Request) {
     }
 
     const token = (invite as { token: string }).token
-    const code = (invite as { code?: string | null }).code ?? ""
     const joinLink = buildJoinLink(token)
-    const playerName = `${(player as { first_name: string }).first_name} ${(player as { last_name: string }).last_name}`.trim() || "Player"
-    const smsBody = `Braik invite for ${playerName}: Join your team here: ${joinLink} or enter code ${code} in the app.`
+    const playerDisplayName = `${(player as { first_name: string }).first_name} ${(player as { last_name: string }).last_name}`.trim() || undefined
 
-    const result = await sendSmsViaTwilio({ to: toPhone, body: smsBody })
+    // Optional: fetch team name for message
+    let teamDisplayName: string | undefined
+    const { data: teamRow } = await supabase
+      .from("teams")
+      .select("name")
+      .eq("id", (player as { team_id: string }).team_id)
+      .maybeSingle()
+    if (teamRow && typeof (teamRow as { name?: string }).name === "string") {
+      teamDisplayName = (teamRow as { name: string }).name.trim() || undefined
+    }
 
-    const inviteId = (invite as { id: string }).id
+    const coachDisplayName = session.user.name?.trim() || undefined
+    const smsBody = buildInviteSmsBody({
+      inviteLink: joinLink,
+      coachName: coachDisplayName,
+      teamName: teamDisplayName,
+      playerName: playerDisplayName,
+    })
 
-    if (result.success) {
+    let sid: string
+    try {
+      const result = await sendSMS(toPhone, smsBody)
+      sid = result.sid
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Twilio send failed"
+      console.error("[POST /api/player-invites/send-sms] Twilio error", { playerId, message: msg })
       await supabase
         .from("player_invites")
-        .update({
-          sent_sms_at: new Date().toISOString(),
-          sms_error: null,
-          status: "sent",
-        })
-        .eq("id", inviteId)
-      logInviteAction("send_sms_success", { playerId, inviteId })
-      return NextResponse.json({ success: true })
+        .update({ sms_error: msg })
+        .eq("id", (invite as { id: string }).id)
+      logInviteAction("send_sms_failure", { playerId, inviteId: (invite as { id: string }).id, error: msg })
+      return NextResponse.json(
+        { error: "Failed to send SMS.", code: "SMS_SEND_FAILED" },
+        { status: 502 }
+      )
     }
 
     await supabase
       .from("player_invites")
-      .update({ sms_error: result.error ?? "Unknown error" })
-      .eq("id", inviteId)
-    logInviteAction("send_sms_failure", { playerId, inviteId, error: result.error })
-    return NextResponse.json(
-      { error: result.error ?? "Failed to send text", code: "SMS_SEND_FAILED" },
-      { status: 502 }
-    )
+      .update({
+        sent_sms_at: new Date().toISOString(),
+        sms_error: null,
+        status: "sent",
+      })
+      .eq("id", (invite as { id: string }).id)
+    logInviteAction("send_sms_success", { playerId, inviteId: (invite as { id: string }).id })
+    return NextResponse.json({ success: true, sid })
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       console.error("[POST /api/player-invites/send-sms] membership lookup failed", err.message)
@@ -108,6 +212,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: msg }, { status: 403 })
     }
     console.error("[POST /api/player-invites/send-sms]", err)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

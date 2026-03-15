@@ -32,7 +32,8 @@ export interface Player {
   imageUrl?: string | null
   email?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  joinLink?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
   missingForms?: string[]
   user?: { email: string } | null
@@ -44,6 +45,9 @@ interface RosterGridViewProps {
   canEdit: boolean
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
+  onCopyJoinLink?: (player: Player) => void
+  onResendInvite?: (player: Player) => void | Promise<void>
+  onRevokeInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
   onPromotePlayer?: (player: Player) => void
   onImageUploadSuccess?: (playerId: string, imageUrl: string) => void
@@ -56,6 +60,9 @@ export function RosterGridView({
   canEdit,
   onEditPlayer,
   onSendInvite,
+  onCopyJoinLink,
+  onResendInvite,
+  onRevokeInvite,
   onDeletePlayer,
   onPromotePlayer,
   onImageUploadSuccess,
@@ -232,6 +239,9 @@ export function RosterGridView({
             profileHref={getProfileHref?.(player)}
             onEditPlayer={onEditPlayer}
             onSendInvite={onSendInvite}
+            onCopyJoinLink={onCopyJoinLink}
+            onResendInvite={onResendInvite}
+            onRevokeInvite={onRevokeInvite}
             onDeletePlayer={onDeletePlayer}
             onPromotePlayer={onPromotePlayer}
             isUploading={uploadingPlayerId === player.id}

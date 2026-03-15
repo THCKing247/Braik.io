@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { Button } from "@/components/ui/button"
@@ -32,39 +32,58 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
   const [claimError, setClaimError] = useState<string | null>(null)
   const replaceStarted = useRef(false)
 
+  const tryAutoLink = useCallback(async (): Promise<boolean> => {
+    const res = await fetch("/api/player-invites/auto-link", {
+      method: "POST",
+      credentials: "same-origin",
+    })
+    const data = await res.json().catch(() => ({})) as { linked?: boolean; playerId?: string; teamId?: string }
+    if (res.ok && data.linked && data.playerId && data.teamId) {
+      router.replace(`/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`)
+      return true
+    }
+    return false
+  }, [router])
+
   useEffect(() => {
-    if (!teamId || !userId) {
+    if (!userId) {
       setStatus("not_found")
       return
     }
     let cancelled = false
     setStatus("loading")
-    fetch(`/api/roster/me?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => {
+
+    const run = async () => {
+      if (teamId) {
+        const res = await fetch(`/api/roster/me?teamId=${encodeURIComponent(teamId)}`)
         if (cancelled) return
         if (res.status === 403) {
-          setStatus("not_found")
+          const linked = await tryAutoLink()
+          if (cancelled) return
+          if (!linked) setStatus("not_found")
           return
         }
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data: { playerId: string | null; teamId: string } | void) => {
-        if (cancelled || !data) return
+        if (!res.ok) {
+          setStatus("error")
+          return
+        }
+        const data = (await res.json()) as { playerId: string | null; teamId: string }
         if (data.playerId && !replaceStarted.current) {
           replaceStarted.current = true
           setStatus("found")
-          const url = `/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`
-          router.replace(url)
-        } else {
-          setStatus("not_found")
+          router.replace(`/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`)
+          return
         }
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("error")
-      })
+      }
+      const linked = await tryAutoLink()
+      if (cancelled) return
+      setStatus(linked ? "found" : "not_found")
+    }
+    run().catch(() => {
+      if (!cancelled) setStatus("error")
+    })
     return () => { cancelled = true }
-  }, [teamId, userId, router])
+  }, [teamId, userId, router, tryAutoLink])
 
   async function handleClaimSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -113,13 +132,25 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
     )
   }
 
+  const [checkingInvites, setCheckingInvites] = useState(false)
+  const handleCheckInvites = async () => {
+    setCheckingInvites(true)
+    setClaimError(null)
+    try {
+      const linked = await tryAutoLink()
+      if (!linked) setClaimError("No pending invite found for your email or phone.")
+    } finally {
+      setCheckingInvites(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-lg space-y-6">
       {status === "not_found" && (
         <div className="rounded-xl border border-[rgb(var(--border))] bg-white p-8 shadow-sm">
           <h2 className="text-xl font-semibold text-[#0F172A]">Claim Your Player Profile</h2>
           <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
-            Enter the invite code your coach gave you to link your account to your roster spot.
+            Enter the invite code your coach gave you to link your account to your roster spot, or use the options below.
           </p>
           {claimSuccess ? (
             <p className="mt-4 text-sm font-medium text-green-600">
@@ -161,10 +192,18 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
           <h2 className="text-xl font-semibold text-[#0F172A]">My Profile</h2>
           <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
             {status === "not_found"
-              ? "You don't have a player profile on this team yet. Use the invite code above to claim your roster spot, or ask your coach to add you and send you an invite code."
+              ? "You do not have a linked player profile yet."
               : "Something went wrong loading your profile. Please try again or go back to the dashboard."}
           </p>
-          <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={checkingInvites}
+              onClick={handleCheckInvites}
+            >
+              {checkingInvites ? "Checking…" : "Check for invites"}
+            </Button>
             <Link href={teamId ? `/dashboard/roster?teamId=${encodeURIComponent(teamId)}` : "/dashboard/roster"} className="w-full sm:w-auto">
               <Button variant="outline" className="w-full sm:w-auto">
                 View Roster

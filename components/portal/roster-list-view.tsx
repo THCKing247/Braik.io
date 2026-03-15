@@ -19,7 +19,8 @@ export interface Player {
   imageUrl?: string | null
   email?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  joinLink?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
   missingForms?: string[]
   weight?: number | null
@@ -33,6 +34,9 @@ interface RosterListViewProps {
   canEdit: boolean
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
+  onCopyJoinLink?: (player: Player) => void
+  onResendInvite?: (player: Player) => void | Promise<void>
+  onRevokeInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
   onPromotePlayer?: (player: Player) => void
   /** If provided, each row gets a "View Profile" link. */
@@ -50,6 +54,9 @@ export function RosterListView({
   canEdit,
   onEditPlayer,
   onSendInvite,
+  onCopyJoinLink,
+  onResendInvite,
+  onRevokeInvite,
   onDeletePlayer,
   onPromotePlayer,
   getProfileHref,
@@ -115,7 +122,7 @@ export function RosterListView({
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Weight</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Height</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Status</th>
-              {(getProfileHref || (canEdit && (onEditPlayer || onSendInvite || onDeletePlayer || onPromotePlayer))) && (
+              {(getProfileHref || (canEdit && (onEditPlayer || onSendInvite || onCopyJoinLink || onResendInvite || onRevokeInvite || onDeletePlayer || onPromotePlayer))) && (
                 <th className="px-4 py-3 font-semibold text-[#0F172A] text-right">Actions</th>
               )}
             </tr>
@@ -128,6 +135,9 @@ export function RosterListView({
                 canEdit={canEdit}
                 onEditPlayer={onEditPlayer}
                 onSendInvite={onSendInvite}
+                onCopyJoinLink={onCopyJoinLink}
+                onResendInvite={onResendInvite}
+                onRevokeInvite={onRevokeInvite}
                 onDeletePlayer={onDeletePlayer}
                 onPromotePlayer={onPromotePlayer}
                 onOpenFormsModal={() => setFormsModalPlayer(player)}
@@ -160,6 +170,9 @@ function RosterListRow({
   canEdit,
   onEditPlayer,
   onSendInvite,
+  onCopyJoinLink,
+  onResendInvite,
+  onRevokeInvite,
   onDeletePlayer,
   onPromotePlayer,
   onOpenFormsModal,
@@ -169,6 +182,9 @@ function RosterListRow({
   canEdit: boolean
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
+  onCopyJoinLink?: (player: Player) => void
+  onResendInvite?: (player: Player) => void | Promise<void>
+  onRevokeInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
   onPromotePlayer?: (player: Player) => void
   onOpenFormsModal?: () => void
@@ -243,13 +259,21 @@ function RosterListRow({
         {player.height ?? "—"}
       </td>
       <td className="px-4 py-2">
-        <span
-          className={`text-[10px] px-2 py-0.5 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
-        >
-          {getStatusDisplay().text}
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded font-semibold w-fit ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
+          >
+            {getStatusDisplay().text}
+          </span>
+          {(player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+            <span className="text-[10px] text-amber-700">Invite sent</span>
+          )}
+          {(player.inviteStatus === "claimed" || player.inviteStatus === "joined") && player.user && (
+            <span className="text-[10px] text-emerald-700">Claimed</span>
+          )}
+        </div>
       </td>
-      {(canEdit && (onEditPlayer || onSendInvite || onDeletePlayer || onPromotePlayer || onOpenFormsModal)) && (
+      {(canEdit && (onEditPlayer || onSendInvite || onCopyJoinLink || onResendInvite || onRevokeInvite || onDeletePlayer || onPromotePlayer || onOpenFormsModal)) && (
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap gap-1 justify-end">
             {canEdit && onOpenFormsModal && (
@@ -294,6 +318,41 @@ function RosterListRow({
                 title={player.user ? "Player already has an account" : "Generate invite code"}
               >
                 Invite
+              </Button>
+            )}
+            {onCopyJoinLink && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && player.joinLink && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => onCopyJoinLink(player)}
+                title="Copy join link"
+              >
+                Copy link
+              </Button>
+            )}
+            {onResendInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => onResendInvite(player)}
+                disabled={!!player.user}
+                title="Resend invite"
+              >
+                Resend
+              </Button>
+            )}
+            {onRevokeInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7 text-amber-700 hover:bg-amber-50"
+                onClick={() => onRevokeInvite(player)}
+                disabled={!!player.user}
+                title="Revoke invite"
+              >
+                Revoke
               </Button>
             )}
             {onDeletePlayer && (

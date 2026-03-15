@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, User, Edit, Mail, Trash2, MoreVertical, ArrowUpDown } from "lucide-react"
+import { FileText, User, Edit, Mail, Trash2, MoreVertical, ArrowUpDown, Link2, Send, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlayerFormsModal } from "./player-forms-modal"
 
@@ -24,7 +24,8 @@ interface PlayerCardPlayer {
   notes?: string | null
   email?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  joinLink?: string | null
   guardianLinks?: Array<{ guardian: { user: { email: string } } }>
 }
 
@@ -43,6 +44,9 @@ interface PlayerCardProps {
   /** Callbacks for player actions - accepts any player-like object */
   onEditPlayer?: (player: any) => void
   onSendInvite?: (player: any) => void | Promise<void>
+  onCopyJoinLink?: (player: any) => void
+  onResendInvite?: (player: any) => void | Promise<void>
+  onRevokeInvite?: (player: any) => void | Promise<void>
   onDeletePlayer?: (player: any) => void | Promise<void>
   /** Head coach: promote/move player to another team level (JV, Varsity, etc.). */
   onPromotePlayer?: (player: any) => void
@@ -65,6 +69,9 @@ export function PlayerCard({
   profileHref,
   onEditPlayer,
   onSendInvite,
+  onCopyJoinLink,
+  onResendInvite,
+  onRevokeInvite,
   onDeletePlayer,
   onPromotePlayer,
   isUploading = false,
@@ -154,7 +161,7 @@ export function PlayerCard({
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Three Dot Menu - Top Right */}
-      {(onSendInvite || onDeletePlayer) && (
+      {(onSendInvite || onDeletePlayer || onCopyJoinLink || onResendInvite || onRevokeInvite) && (
         <button
           type="button"
           onClick={handleThreeDotClick}
@@ -167,7 +174,7 @@ export function PlayerCard({
       )}
       
       {/* Health Status Indicator - Top Right (if no three dots) */}
-      {player.healthStatus && player.healthStatus !== "active" && !(onSendInvite || onDeletePlayer) && (
+      {player.healthStatus && player.healthStatus !== "active" && !(onSendInvite || onDeletePlayer || onCopyJoinLink || onResendInvite || onRevokeInvite) && (
         <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getHealthStatusColor()}`} title={player.healthStatus === "injured" ? "Injured" : "Unavailable"} />
       )}
       <CardContent className="p-3 flex flex-col items-center h-full">
@@ -260,12 +267,29 @@ export function PlayerCard({
               )}
             </div>
             {!canEdit && !profileHref && <div />}
-            {/* Status Badge - Bottom Right */}
-            <span
-              className={`text-[10px] px-2 py-1 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
-            >
-              {getStatusDisplay().text}
-            </span>
+            {/* Status Badge - Bottom Right (health + invite) */}
+            <div className="flex flex-col items-end gap-1">
+              {(player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                  Invite sent
+                </span>
+              )}
+              {(player.inviteStatus === "claimed" || player.inviteStatus === "joined") && player.user && (
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Claimed
+                </span>
+              )}
+              {(!player.inviteStatus || player.inviteStatus === "not_invited") && !player.user && canEdit && (
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                  Not invited
+                </span>
+              )}
+              <span
+                className={`text-[10px] px-2 py-1 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
+              >
+                {getStatusDisplay().text}
+              </span>
+            </div>
           </div>
         </div>
       </CardContent>
@@ -302,6 +326,49 @@ export function PlayerCard({
               >
                 <Mail className="h-4 w-4 mr-2" />
                 Send Invite
+              </Button>
+            )}
+            {onCopyJoinLink && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && player.joinLink && (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowActionsMenu(false)
+                  onCopyJoinLink(player)
+                }}
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+              >
+                <Link2 className="h-4 w-4 mr-2" />
+                Copy join link
+              </Button>
+            )}
+            {onResendInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={async () => {
+                  setShowActionsMenu(false)
+                  await onResendInvite(player)
+                }}
+                disabled={!!player.user}
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Resend invite
+              </Button>
+            )}
+            {onRevokeInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+              <Button
+                variant="outline"
+                className="w-full justify-start text-amber-700 hover:text-amber-800 hover:bg-amber-50 border-amber-200"
+                onClick={async () => {
+                  setShowActionsMenu(false)
+                  await onRevokeInvite(player)
+                }}
+                disabled={!!player.user}
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                Revoke invite
               </Button>
             )}
             {onPromotePlayer && (

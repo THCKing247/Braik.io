@@ -42,7 +42,8 @@ interface Player {
   imageUrl?: string | null
   email?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  joinLink?: string | null
   claimedAt?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
   weight?: number | null
@@ -453,30 +454,32 @@ function AddPlayerModal({
 function InviteLinkModal({
   playerName,
   inviteCode,
+  joinLink,
   onClose,
 }: {
   playerName: string
   inviteCode: string
+  joinLink?: string | null
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
-  const [joinUrl, setJoinUrl] = useState("")
-  useEffect(() => {
-    setJoinUrl(typeof window !== "undefined" ? `${window.location.origin}/dashboard` : "")
-  }, [])
+  const [copiedWhich, setCopiedWhich] = useState<"code" | "link" | null>(null)
+  const fallbackJoinUrl = typeof window !== "undefined" ? `${window.location.origin}/join` : ""
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(inviteCode).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopiedWhich("code")
+      setTimeout(() => { setCopied(false); setCopiedWhich(null) }, 2000)
     })
   }
 
   const handleCopyLink = () => {
-    const text = joinUrl ? `${joinUrl}\n\nTeam/player code: ${inviteCode}` : inviteCode
+    const text = joinLink || (fallbackJoinUrl ? `${fallbackJoinUrl}\n\nTeam/player code: ${inviteCode}` : inviteCode)
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopiedWhich("link")
+      setTimeout(() => { setCopied(false); setCopiedWhich(null) }, 2000)
     })
   }
 
@@ -487,21 +490,26 @@ function InviteLinkModal({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Share this code with the player. They can enter it on the dashboard to join your team and link to this roster spot.
+          Share the link below so the player can join and link to this roster spot—no code needed. Or share the code for manual entry.
         </p>
+        {joinLink && (
+          <div className="space-y-2">
+            <Label className="text-foreground text-xs">Join link (recommended)</Label>
+            <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
+              {copied && copiedWhich === "link" ? "Copied!" : "Copy join link"}
+            </Button>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Input readOnly value={inviteCode} className="font-mono" />
           <Button variant="outline" size="sm" onClick={handleCopyCode}>
-            {copied ? "Copied!" : "Copy code"}
+            {copied && copiedWhich === "code" ? "Copied!" : "Copy code"}
           </Button>
         </div>
-        {joinUrl && (
-          <div className="space-y-2">
-            <Label className="text-foreground text-xs">Or copy join link (includes code in instructions)</Label>
-            <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
-              {copied ? "Copied!" : "Copy join link & code"}
-            </Button>
-          </div>
+        {!joinLink && fallbackJoinUrl && (
+          <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
+            {copied && copiedWhich === "link" ? "Copied!" : "Copy join link & code"}
+          </Button>
         )}
         <div className="flex justify-end">
           <Button onClick={onClose}>Done</Button>
@@ -570,7 +578,7 @@ export function RosterManagerEnhanced({
     email?: string | null
   } | null>(null)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
-  const [inviteModal, setInviteModal] = useState<{ player: Player; inviteCode: string } | null>(null)
+  const [inviteModal, setInviteModal] = useState<{ player: Player; inviteCode: string; joinLink?: string | null } | null>(null)
   const [inviteLoading, setInviteLoading] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
@@ -929,14 +937,87 @@ export function RosterManagerEnhanced({
         throw new Error((data as { error?: string }).error ?? "Failed to generate invite")
       }
       const code = (data as { inviteCode?: string }).inviteCode
+      const joinLink = (data as { joinLink?: string }).joinLink
       if (code) {
-        setInviteModal({ player, inviteCode: code })
+        setInviteModal({ player, inviteCode: code, joinLink: joinLink ?? null })
+        setPlayers((prev) =>
+          prev.map((p) =>
+            p.id === player.id
+              ? { ...p, inviteStatus: "invite_sent" as const, joinLink: joinLink ?? p.joinLink }
+              : p
+          )
+        )
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error sending invite")
     } finally {
       setInviteLoading(false)
     }
+  }
+
+  const handleResendInvite = async (player: Player) => {
+    if (player.user) return
+    setInviteLoading(true)
+    try {
+      const response = await fetch(`/api/roster/${player.id}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error ?? "Failed to resend invite")
+      }
+      const joinLink = (data as { joinLink?: string }).joinLink
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === player.id ? { ...p, joinLink: joinLink ?? p.joinLink } : p
+        )
+      )
+      if (inviteModal?.player.id === player.id) {
+        setInviteModal((m) => (m ? { ...m, joinLink: joinLink ?? m.joinLink } : null))
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error resending invite")
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleRevokeInvite = async (player: Player) => {
+    if (player.user) return
+    setInviteLoading(true)
+    try {
+      const response = await fetch(`/api/roster/${player.id}/invite/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error ?? "Failed to revoke invite")
+      }
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === player.id
+            ? { ...p, inviteStatus: "not_invited" as const, joinLink: undefined }
+            : p
+        )
+      )
+      if (inviteModal?.player.id === player.id) setInviteModal(null)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error revoking invite")
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleCopyJoinLink = (player: Player) => {
+    const link = player.joinLink
+    if (!link) return
+    navigator.clipboard.writeText(link).then(() => {
+      if (typeof window !== "undefined" && (window as unknown as { toast?: { success?: (m: string) => void } }).toast?.success) {
+        ;(window as unknown as { toast: { success: (m: string) => void } }).toast.success("Join link copied.")
+      }
+    })
   }
 
   const handleDepthChartUpdate = async (updates: Array<{
@@ -1723,6 +1804,7 @@ export function RosterManagerEnhanced({
             <InviteLinkModal
               playerName={`${inviteModal.player.firstName} ${inviteModal.player.lastName}`}
               inviteCode={inviteModal.inviteCode}
+              joinLink={inviteModal.joinLink}
               onClose={() => setInviteModal(null)}
             />
           </div>
@@ -1742,6 +1824,9 @@ export function RosterManagerEnhanced({
             canEdit={canEdit}
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+            onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
+            onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
+            onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
             onPromotePlayer={programId && userRole === "HEAD_COACH" && canEdit ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId }) : undefined}
             onImageUploadSuccess={handlePlayerImageUploaded}
@@ -1761,6 +1846,9 @@ export function RosterManagerEnhanced({
             canEdit={canEdit}
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+            onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
+            onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
+            onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
             onPromotePlayer={programId && userRole === "HEAD_COACH" && canEdit ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId }) : undefined}
             getProfileHref={(p) => {

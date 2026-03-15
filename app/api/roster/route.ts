@@ -81,27 +81,56 @@ export async function GET(request: Request) {
       userMap = new Map((users ?? []).map((u) => [u.id, u]))
     }
 
-    const players = typedRows.map((p) => ({
-      id: p.id,
-      firstName: p.first_name ?? "",
-      lastName: p.last_name ?? "",
-      grade: p.grade ?? null,
-      jerseyNumber: p.jersey_number ?? null,
-      positionGroup: p.position_group ?? null,
-      status: p.status ?? "active",
-      notes: p.notes ?? null,
-      imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
-      email: p.email ?? null,
-      inviteCode: p.invite_code ?? null,
-      inviteStatus: (p.invite_status ?? "not_invited") as "not_invited" | "invited" | "joined",
-      claimedAt: p.claimed_at ?? null,
-      healthStatus: ((p as any).health_status ?? "active") as "active" | "injured" | "unavailable",
-      weight: (p as any).weight ?? null,
-      height: (p as any).height ?? null,
-      missingForms: Array.isArray((p as any).missing_forms) ? (p as any).missing_forms : [],
-      user: p.user_id ? (userMap.get(p.user_id) ? { email: userMap.get(p.user_id)!.email } : null) : null,
-      guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
-    }))
+    const { data: inviteRows } = await supabase
+      .from("player_invites")
+      .select("player_id, status, token")
+      .eq("team_id", teamId)
+      .in("status", ["pending", "claimed"])
+    const inviteByPlayer = new Map<string, { status: string; token: string }>()
+    for (const row of (inviteRows ?? []) as Array<{ player_id: string; status: string; token: string }>) {
+      inviteByPlayer.set(row.player_id, { status: row.status, token: row.token })
+    }
+
+    const origin =
+      request.headers.get("x-forwarded-host") && request.headers.get("x-forwarded-proto")
+        ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
+        : process.env.NEXT_PUBLIC_APP_URL || (request.url ? new URL(request.url).origin : "") || ""
+
+    const players = typedRows.map((p) => {
+      const invite = inviteByPlayer.get(p.id)
+      const hasClaimedUser = !!p.user_id
+      const inviteStatus: "not_invited" | "invite_sent" | "claimed" = hasClaimedUser
+        ? "claimed"
+        : invite?.status === "pending"
+          ? "invite_sent"
+          : "not_invited"
+      const joinLink =
+        inviteStatus === "invite_sent" && invite?.token && origin
+          ? `${origin}/join?token=${encodeURIComponent(invite.token)}`
+          : undefined
+      return {
+        id: p.id,
+        firstName: p.first_name ?? "",
+        lastName: p.last_name ?? "",
+        grade: p.grade ?? null,
+        jerseyNumber: p.jersey_number ?? null,
+        positionGroup: p.position_group ?? null,
+        status: p.status ?? "active",
+        notes: p.notes ?? null,
+        imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
+        email: p.email ?? null,
+        inviteCode: p.invite_code ?? null,
+        inviteStatus,
+        joinLink,
+        claimedAt: p.claimed_at ?? null,
+        healthStatus: ((p as any).health_status ?? "active") as "active" | "injured" | "unavailable",
+        weight: (p as any).weight ?? null,
+        height: (p as any).height ?? null,
+        missingForms: Array.isArray((p as any).missing_forms) ? (p as any).missing_forms : [],
+        user: p.user_id ? (userMap.get(p.user_id) ? { email: userMap.get(p.user_id)!.email } : null) : null,
+        guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
+      }
+    })
 
     return NextResponse.json(players)
   } catch (err) {

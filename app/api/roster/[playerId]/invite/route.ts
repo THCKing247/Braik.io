@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
+import { normalizePhone } from "@/lib/player-invite-auto-link"
 
 function generateInviteCode(length = 8): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -14,12 +15,18 @@ function generateInviteCode(length = 8): string {
   return code
 }
 
+/** Secure, unguessable token for /join?token=... (32 bytes base64url). */
+function generateSecureToken(): string {
+  return randomBytes(32).toString("base64url")
+}
+
 /**
- * POST /api/roster/[playerId]/invite - Generate and set an invite code for a coach-created player.
- * Coach can share this code with the player; when they sign up with it, they are linked to this player record.
+ * POST /api/roster/[playerId]/invite - Create or update a player invite (token + optional email/phone).
+ * Returns join link so the player can open /join?token=... without entering a code.
+ * Legacy: still sets players.invite_code and invite_status for backward compatibility.
  */
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ playerId: string }> }
 ) {
   try {
@@ -38,7 +45,7 @@ export async function POST(
 
     const { data: player, error: fetchErr } = await supabase
       .from("players")
-      .select("id, team_id, user_id, invite_code, invite_status")
+      .select("id, team_id, user_id, invite_code, invite_status, email")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -54,6 +61,18 @@ export async function POST(
         { status: 400 }
       )
     }
+
+    const body = (await request.json().catch(() => ({}))) as { email?: string | null; phone?: string | null }
+    const inviteEmail =
+      typeof body.email === "string" && body.email.trim()
+        ? body.email.trim().toLowerCase()
+        : (player as { email?: string | null }).email
+          ? String((player as { email: string }).email).trim().toLowerCase()
+          : null
+    const invitePhone =
+      typeof body.phone === "string" && body.phone.trim()
+        ? normalizePhone(body.phone.trim())
+        : null
 
     let code = (player as { invite_code?: string | null }).invite_code
     if (!code) {
@@ -71,6 +90,49 @@ export async function POST(
       }
     }
 
+    const token = generateSecureToken()
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 14)
+
+    const { data: existingInvite } = await supabase
+      .from("player_invites")
+      .select("id")
+      .eq("player_id", playerId)
+      .eq("status", "pending")
+      .maybeSingle()
+
+    if (existingInvite) {
+      const { error: updateInviteErr } = await supabase
+        .from("player_invites")
+        .update({
+          email: inviteEmail,
+          phone: invitePhone,
+          token,
+          expires_at: expiresAt.toISOString(),
+          created_by: session.user.id,
+        })
+        .eq("id", (existingInvite as { id: string }).id)
+      if (updateInviteErr) {
+        console.error("[POST /api/roster/[playerId]/invite] player_invites update", updateInviteErr)
+        return NextResponse.json({ error: "Failed to update invite" }, { status: 500 })
+      }
+    } else {
+      const { error: insertInviteErr } = await supabase.from("player_invites").insert({
+        team_id: player.team_id,
+        player_id: playerId,
+        email: inviteEmail,
+        phone: invitePhone,
+        token,
+        status: "pending",
+        expires_at: expiresAt.toISOString(),
+        created_by: session.user.id,
+      })
+      if (insertInviteErr) {
+        console.error("[POST /api/roster/[playerId]/invite] player_invites insert", insertInviteErr)
+        return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
+      }
+    }
+
     const { data: updated, error } = await supabase
       .from("players")
       .update({ invite_code: code, invite_status: "invited" })
@@ -83,10 +145,18 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    const origin =
+      request.headers.get("x-forwarded-host") && request.headers.get("x-forwarded-proto")
+        ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
+        : process.env.NEXT_PUBLIC_APP_URL || (request.url ? new URL(request.url).origin : "") || ""
+    const joinLink = origin ? `${origin}/join?token=${encodeURIComponent(token)}` : ""
+
     const p = updated as { invite_code?: string | null; invite_status?: string }
     return NextResponse.json({
       inviteCode: p.invite_code ?? code,
       inviteStatus: (p.invite_status ?? "invited") as "invited",
+      joinLink: joinLink || undefined,
+      token,
     })
   } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {

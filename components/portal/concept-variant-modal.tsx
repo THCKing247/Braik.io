@@ -24,7 +24,7 @@ export function ConceptVariantModal({
 }: ConceptVariantModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm border-slate-200 bg-white">
+      <DialogContent className="max-w-sm border-border bg-card">
         <DialogHeader>
           <DialogTitle className="text-slate-900">{concept.name}</DialogTitle>
           <p className="text-sm text-slate-500 mt-1">Choose a variant for this concept</p>

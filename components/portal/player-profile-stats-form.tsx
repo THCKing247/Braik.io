@@ -92,12 +92,12 @@ export function PlayerProfileStatsForm({
     <div className="space-y-8">
       {/* Season stats */}
       <div className="space-y-3">
-        <Label className="text-[#0F172A] font-medium">Season stats</Label>
-        <p className="text-xs text-[#64748B]">Common stats for the season. Add custom fields as needed.</p>
+        <Label className="text-foreground font-medium">Season stats</Label>
+        <p className="text-xs text-muted-foreground">Common stats for the season. Add custom fields as needed.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           {SEASON_STAT_KEYS.map(({ key, label }) => (
             <div key={key} className="flex items-center gap-2">
-              <Label className="w-32 shrink-0 text-sm text-[#64748B]">{label}</Label>
+              <Label className="w-32 shrink-0 text-sm text-muted-foreground">{label}</Label>
               <Input
                 type="text"
                 value={String(seasonStats[key] ?? "")}
@@ -137,20 +137,20 @@ export function PlayerProfileStatsForm({
 
       {/* Game stats */}
       <div className="space-y-3">
-        <Label className="text-[#0F172A] font-medium">Game-by-game</Label>
-        <p className="text-xs text-[#64748B]">Add individual game entries. Use notes for stat lines.</p>
+        <Label className="text-foreground font-medium">Game-by-game</Label>
+        <p className="text-xs text-muted-foreground">Add individual game entries. Use notes for stat lines.</p>
         <div className="space-y-4">
           {gameStats.map((g, i) => (
-            <div key={i} className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4 space-y-2">
+            <div key={i} className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium text-[#64748B]">Game {i + 1}</span>
+                <span className="text-sm font-medium text-muted-foreground">Game {i + 1}</span>
                 <Button type="button" variant="ghost" size="sm" className="text-red-600 h-8" onClick={() => removeGame(i)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div>
-                  <Label className="text-xs text-[#64748B]">Date</Label>
+                  <Label className="text-xs text-muted-foreground">Date</Label>
                   <Input
                     value={String((g as Record<string, unknown>)?.date ?? "")}
                     onChange={(e) => updateGame(i, "date", e.target.value)}
@@ -158,7 +158,7 @@ export function PlayerProfileStatsForm({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-[#64748B]">Opponent</Label>
+                  <Label className="text-xs text-muted-foreground">Opponent</Label>
                   <Input
                     value={String((g as Record<string, unknown>)?.opponent ?? "")}
                     onChange={(e) => updateGame(i, "opponent", e.target.value)}
@@ -167,7 +167,7 @@ export function PlayerProfileStatsForm({
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-[#64748B]">Notes / stats line</Label>
+                <Label className="text-xs text-muted-foreground">Notes / stats line</Label>
                 <Input
                   value={String((g as Record<string, unknown>)?.notes ?? "")}
                   onChange={(e) => updateGame(i, "notes", e.target.value)}
@@ -185,8 +185,8 @@ export function PlayerProfileStatsForm({
 
       {/* Practice / performance metrics */}
       <div className="space-y-3">
-        <Label className="text-[#0F172A] font-medium">Practice / performance metrics</Label>
-        <p className="text-xs text-[#64748B]">Custom key-value metrics (e.g. 40-yard time, bench reps).</p>
+        <Label className="text-foreground font-medium">Practice / performance metrics</Label>
+        <p className="text-xs text-muted-foreground">Custom key-value metrics (e.g. 40-yard time, bench reps).</p>
         <div className="space-y-2">
           {Object.entries(practiceMetrics).map(([key, v]) => (
             <div key={key} className="flex items-center gap-2">

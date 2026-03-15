@@ -222,8 +222,7 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
                       <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
-                        className="flex h-10 w-full rounded-md border-2 px-3 py-2 text-sm"
-                        style={{ borderColor: "#0B2A5B" }}
+                        className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
                       >
                         <option value="waiver">Waiver</option>
                         <option value="policy">Policy</option>
@@ -239,8 +238,7 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
                       <select
                         value={visibility}
                         onChange={(e) => setVisibility(e.target.value)}
-                        className="flex h-10 w-full rounded-md border-2 px-3 py-2 text-sm"
-                        style={{ borderColor: "#0B2A5B" }}
+                        className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
                       >
                         <option value="all">All</option>
                         <option value="staff">Staff Only</option>
@@ -307,8 +305,7 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
               <select
                 value={selectedFolder || ""}
                 onChange={(e) => setSelectedFolder(e.target.value || null)}
-                className="flex h-10 rounded-md border-2 px-3 py-2 text-sm"
-                style={{ borderColor: "#0B2A5B" }}
+                className="flex h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option value="">All Folders</option>
                 {folders.map(f => (
@@ -320,8 +317,7 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
               <select
                 value={selectedCategory || ""}
                 onChange={(e) => setSelectedCategory(e.target.value || null)}
-                className="flex h-10 rounded-md border-2 px-3 py-2 text-sm"
-                style={{ borderColor: "#0B2A5B" }}
+                className="flex h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option value="">All Categories</option>
                 {categories.map(c => (
@@ -338,7 +334,7 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
         <div className="space-y-8">
           {Object.entries(documentsByFolder.grouped).map(([folderName, folderDocs]) => (
             <div key={folderName}>
-              <h3 className="text-lg font-semibold mb-4" style={{ color: "rgb(var(--text))" }}>
+              <h3 className="text-lg font-semibold mb-4 text-foreground">
                 📁 {folderName}
               </h3>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-6" style={{ gap: "24px" }}>
@@ -359,7 +355,7 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
           ))}
           {documentsByFolder.noFolder.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold mb-4" style={{ color: "rgb(var(--text))" }}>
+              <h3 className="text-lg font-semibold mb-4 text-foreground">
                 📄 Uncategorized
               </h3>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-6" style={{ gap: "24px" }}>
@@ -536,21 +532,21 @@ function DocumentCard({
             }}
           />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", color: "#6B7280" }}>
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
             {fileType === "pdf" ? (
               <>
-                <FileText className="h-12 w-12" style={{ color: "#DC2626" }} />
-                <span style={{ fontSize: "0.75rem" }}>PDF</span>
+                <FileText className="h-12 w-12 text-red-600 dark:text-red-400" />
+                <span className="text-xs">PDF</span>
               </>
             ) : fileType === "docx" ? (
               <>
-                <FileText className="h-12 w-12" style={{ color: "#2563EB" }} />
-                <span style={{ fontSize: "0.75rem" }}>Document</span>
+                <FileText className="h-12 w-12 text-primary" />
+                <span className="text-xs">Document</span>
               </>
             ) : (
               <>
                 <File className="h-12 w-12" />
-                <span style={{ fontSize: "0.75rem" }}>{doc.fileName.split(".").pop()?.toUpperCase() || "File"}</span>
+                <span className="text-xs">{doc.fileName.split(".").pop()?.toUpperCase() || "File"}</span>
               </>
             )}
           </div>
@@ -565,30 +561,11 @@ function DocumentCard({
         }}
       >
         <div
-          className="document-title"
-          style={{
-            fontWeight: 600,
-            fontSize: "0.95rem",
-            color: "#0B2A5B",
-            marginBottom: "4px",
-            lineHeight: "1.3",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-          }}
+          className="document-title font-semibold text-[0.95rem] mb-1 leading-tight overflow-hidden text-ellipsis line-clamp-2 text-foreground"
         >
           {doc.title}
         </div>
-        <div
-          className="document-sub"
-          style={{
-            fontSize: "0.75rem",
-            color: "#6B7280",
-            marginTop: "4px",
-          }}
-        >
+        <div className="document-sub text-xs mt-1 text-muted-foreground">
           {format(new Date(doc.createdAt), "MMM d, yyyy")}
         </div>
       </div>

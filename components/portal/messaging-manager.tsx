@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -614,16 +614,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                       }
                     }}
                     placeholder="Type a message..."
-                    className="flex-1 min-h-[60px] rounded-md border-2 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
-                    style={{
-                      borderColor: "#0B2A5B",
-                      backgroundColor: "#FFFFFF",
-                      color: "rgb(var(--text))",
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "#0B2A5B"
-                      e.currentTarget.style.boxShadow = "0 0 0 2px rgba(11, 42, 91, 0.2)"
-                    }}
+                    className="flex-1 min-h-[60px] rounded-md border-2 border-border bg-background text-foreground px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     onBlur={(e) => {
                       e.currentTarget.style.borderColor = "#0B2A5B"
                       e.currentTarget.style.boxShadow = "none"

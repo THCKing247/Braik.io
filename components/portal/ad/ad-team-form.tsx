@@ -88,7 +88,7 @@ export function AdTeamForm({ onSuccess }: Props) {
             id="sport"
             value={sport}
             onChange={(e) => setSport(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+            className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             required
           >
             <option value="">Select sport</option>
@@ -125,9 +125,9 @@ export function AdTeamForm({ onSuccess }: Props) {
         </div>
       </div>
 
-      <div className="border-t border-[#E5E7EB] pt-6">
-        <h3 className="text-sm font-semibold text-[#212529] mb-3">Invite head coach (optional)</h3>
-        <p className="text-sm text-[#6B7280] mb-4">
+      <div className="border-t border-border pt-6">
+        <h3 className="text-sm font-semibold text-foreground mb-3">Invite head coach (optional)</h3>
+        <p className="text-sm text-muted-foreground mb-4">
           Send an invitation to a head coach. They can accept and join this team.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -170,7 +170,7 @@ export function AdTeamForm({ onSuccess }: Props) {
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Internal notes (optional)"
           rows={3}
-          className="flex w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+          className="flex w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         />
       </div>
 

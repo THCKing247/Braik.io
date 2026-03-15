@@ -144,6 +144,18 @@
   }
 }
 
+/* Override browser autofill yellow/amber background so inputs use theme colors */
+@layer base {
+  input.input-theme:-webkit-autofill,
+  input.input-theme:-webkit-autofill:hover,
+  input.input-theme:-webkit-autofill:focus,
+  input.input-theme:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 9999px rgb(var(--snow)) inset;
+    box-shadow: 0 0 0 9999px rgb(var(--snow)) inset;
+    -webkit-text-fill-color: rgb(var(--text));
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

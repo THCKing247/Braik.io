@@ -461,19 +461,19 @@ export function InventoryManager({
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
+        <h2 className="text-xl font-semibold text-foreground">
           Inventory Items ({Object.keys(groupedItems).length} types, {items.length} total items)
         </h2>
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 border rounded-lg p-1" style={{ borderColor: "rgb(var(--border))" }}>
+          <div className="flex items-center gap-1 border border-border rounded-lg p-1">
             <button
               type="button"
               onClick={() => setViewMode("card")}
               className={`p-2 rounded transition-colors ${
                 viewMode === "card" 
-                  ? "bg-[rgb(var(--accent))] text-white" 
-                  : "text-[rgb(var(--muted))] hover:bg-[rgb(var(--platinum))]"
+                  ? "bg-primary text-primary-foreground" 
+                  : "text-muted-foreground hover:bg-muted/50"
               }`}
               title="Card view"
             >
@@ -484,8 +484,8 @@ export function InventoryManager({
               onClick={() => setViewMode("list")}
               className={`p-2 rounded transition-colors ${
                 viewMode === "list" 
-                  ? "bg-[rgb(var(--accent))] text-white" 
-                  : "text-[rgb(var(--muted))] hover:bg-[rgb(var(--platinum))]"
+                  ? "bg-primary text-primary-foreground" 
+                  : "text-muted-foreground hover:bg-muted/50"
               }`}
               title="List view"
             >
@@ -495,7 +495,7 @@ export function InventoryManager({
           {permissions.canCreate && (
             <Button
               onClick={() => setShowAddModal(true)}
-              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              className="bg-primary text-primary-foreground"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Equipment
@@ -520,9 +520,9 @@ export function InventoryManager({
 
       {/* Edit Form - for editing groups or individual items */}
       {showAddForm && (editingItem || editingGroup) && (
-        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+        <Card className="border border-border bg-card">
           <CardHeader>
-            <CardTitle style={{ color: "rgb(var(--text))" }}>
+            <CardTitle className="text-foreground">
               {editingGroup ? `Edit Equipment Type: ${editingGroup}` : editingItem ? "Edit Item" : "Add Inventory Item"}
             </CardTitle>
           </CardHeader>
@@ -531,22 +531,17 @@ export function InventoryManager({
               {/* Group editing - only show condition, status, and notes */}
               {editingGroup ? (
                 <div className="space-y-4">
-                  <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                  <p className="text-sm text-muted-foreground">
                     Editing all items of type <strong>{editingGroup}</strong>. Changes will apply to all {groupedItems[editingGroup]?.length || 0} items.
                   </p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="condition" style={{ color: "rgb(var(--text))" }}>Condition</Label>
+                      <Label htmlFor="condition" className="text-foreground">Condition</Label>
                       <select
                         id="condition"
                         value={formData.condition}
                         onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                        style={{
-                          backgroundColor: "#FFFFFF",
-                          borderColor: "rgb(var(--border))",
-                          color: "rgb(var(--text))",
-                        }}
+                        className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
                       >
                         <option value="EXCELLENT">Excellent</option>
                         <option value="GOOD">Good</option>
@@ -556,17 +551,12 @@ export function InventoryManager({
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="status" style={{ color: "rgb(var(--text))" }}>Status</Label>
+                      <Label htmlFor="status" className="text-foreground">Status</Label>
                       <select
                         id="status"
                         value={formData.status}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                        style={{
-                          backgroundColor: "#FFFFFF",
-                          borderColor: "rgb(var(--border))",
-                          color: "rgb(var(--text))",
-                        }}
+                        className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
                       >
                         <option value="AVAILABLE">Available</option>
                         <option value="ASSIGNED">Assigned</option>
@@ -577,17 +567,12 @@ export function InventoryManager({
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="notes" style={{ color: "rgb(var(--text))" }}>Notes</Label>
+                    <Label htmlFor="notes" className="text-foreground">Notes</Label>
                     <textarea
                       id="notes"
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm resize-none"
-                      style={{
-                        backgroundColor: "#FFFFFF",
-                        borderColor: "rgb(var(--border))",
-                        color: "rgb(var(--text))",
-                      }}
+                      className="flex min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground resize-none focus:ring-2 focus:ring-primary focus:border-primary"
                       placeholder="Additional notes for this equipment type..."
                     />
                   </div>
@@ -597,7 +582,7 @@ export function InventoryManager({
                   {/* Individual item editing - legacy support */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="category" style={{ color: "rgb(var(--text))" }}>Category *</Label>
+                      <Label htmlFor="category" className="text-foreground">Category *</Label>
                       <Input
                         id="category"
                         value={formData.category}
@@ -605,15 +590,11 @@ export function InventoryManager({
                         placeholder="e.g., Helmets, Jerseys, Pads"
                         required
                         disabled={!!editingItem}
-                        style={{
-                          backgroundColor: "#FFFFFF",
-                          borderColor: "rgb(var(--border))",
-                          color: "rgb(var(--text))",
-                        }}
+                        className="border-border bg-background text-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="name" style={{ color: "rgb(var(--text))" }}>Item Name *</Label>
+                      <Label htmlFor="name" className="text-foreground">Item Name *</Label>
                       <Input
                         id="name"
                         value={formData.name}
@@ -621,11 +602,7 @@ export function InventoryManager({
                         placeholder="e.g., Helmet #12"
                         required
                         disabled={!!editingItem}
-                        style={{
-                          backgroundColor: "#FFFFFF",
-                          borderColor: "rgb(var(--border))",
-                          color: "rgb(var(--text))",
-                        }}
+                        className="border-border bg-background text-foreground"
                       />
                     </div>
                   </div>
@@ -662,8 +639,7 @@ export function InventoryManager({
                         id="condition"
                         value={formData.condition}
                         onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                        className="flex h-10 w-full rounded-md border-2 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
-                        style={{ borderColor: "#0B2A5B" }}
+                        className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         disabled={!!editingItem}
                       >
                         <option value="GOOD">Good</option>
@@ -681,8 +657,7 @@ export function InventoryManager({
                         id="status"
                         value={formData.status}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                        className="flex h-10 w-full rounded-md border-2 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
-                        style={{ borderColor: "#0B2A5B" }}
+                        className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         disabled={!!editingItem}
                       >
                         <option value="AVAILABLE">Available</option>
@@ -701,8 +676,7 @@ export function InventoryManager({
                           onChange={(e) =>
                             setFormData({ ...formData, assignedToPlayerId: e.target.value })
                           }
-                          className="flex h-10 w-full rounded-md border-2 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
-                          style={{ borderColor: "#0B2A5B" }}
+                          className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">None</option>
                           {players.map((player) => (
@@ -722,8 +696,7 @@ export function InventoryManager({
                       id="notes"
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="flex min-h-[80px] w-full rounded-md border-2 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
-                      style={{ borderColor: "#0B2A5B" }}
+                      className="flex min-h-[80px] w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                       placeholder="Additional notes..."
                       disabled={!!editingItem}
                     />
@@ -733,10 +706,9 @@ export function InventoryManager({
                     <Label htmlFor="files">Attach Files (Optional)</Label>
                     <label
                       htmlFor="files"
-                      className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm cursor-pointer items-center justify-center transition-all duration-200 hover:bg-gray-50"
-                      style={{ borderColor: "#0B2A5B" }}
+                      className="flex h-11 w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm text-muted-foreground cursor-pointer items-center justify-center transition-all duration-200 hover:bg-muted/50"
                     >
-                      <span style={{ color: "#6B7280" }}>Click here to attach files</span>
+                      <span>Click here to attach files</span>
                     </label>
                     <Input
                       id="files"
@@ -754,11 +726,7 @@ export function InventoryManager({
                         {files.map((file, idx) => (
                           <div
                             key={idx}
-                            className="text-xs px-2 py-1 rounded border-2 flex items-center gap-1"
-                            style={{
-                              backgroundColor: "rgb(var(--platinum))",
-                              borderColor: "#0B2A5B",
-                            }}
+                            className="text-xs px-2 py-1 rounded border border-border bg-muted/50 flex items-center gap-1"
                           >
                             <span>{file.name}</span>
                             <button
@@ -785,8 +753,7 @@ export function InventoryManager({
                       onChange={(e) =>
                         setFormData({ ...formData, assignedToPlayerId: e.target.value })
                       }
-                      className="flex h-10 w-full rounded-md border-2 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
-                      style={{ borderColor: "#0B2A5B" }}
+                      className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     >
                       <option value="">None (Return Item)</option>
                       {players.map((player) => (
@@ -819,14 +786,14 @@ export function InventoryManager({
       {/* Inventory Display - Grouped by Equipment Type */}
       {items.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
-            <Package className="h-12 w-12 mx-auto mb-4" style={{ color: "rgb(var(--muted))" }} />
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <p>No inventory items yet</p>
             {permissions.canCreate && (
               <Button
                 onClick={() => setShowAddModal(true)}
                 className="mt-4"
-                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                className="bg-primary text-primary-foreground"
               >
                 Add Your First Equipment
               </Button>
@@ -853,10 +820,10 @@ export function InventoryManager({
             ).pop() || "AVAILABLE"
 
             return (
-              <Card key={equipmentType} className="border hover:shadow-md transition-shadow" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+              <Card key={equipmentType} className="border border-border bg-card hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3 mb-3">
-                    <div style={{ color: "rgb(var(--accent))" }}>
+                    <div className="text-primary">
                       <EquipmentIcon 
                         equipmentType={equipmentType} 
                         category={firstItem?.category}
@@ -864,10 +831,10 @@ export function InventoryManager({
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-lg mb-1" style={{ color: "rgb(var(--text))" }}>
+                      <h3 className="font-semibold text-lg mb-1 text-foreground">
                         {equipmentType}
                       </h3>
-                      <p className="text-sm mb-2" style={{ color: "rgb(var(--muted))" }}>
+                      <p className="text-sm mb-2 text-muted-foreground">
                         {totalItems} item{totalItems !== 1 ? "s" : ""} • {availableItems} available • {assignedItems} assigned
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -883,7 +850,7 @@ export function InventoryManager({
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-3 border-t" style={{ borderTopColor: "rgb(var(--border))" }}>
+                  <div className="flex items-center justify-between pt-3 border-t border-border">
                     <div className="flex items-center gap-2">
                       {(permissions.canEdit || permissions.canDelete) && (
                         <>
@@ -895,7 +862,7 @@ export function InventoryManager({
                               disabled={loading}
                               title="Edit Equipment Type"
                             >
-                              <Edit className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                              <Edit className="h-4 w-4 text-primary" />
                             </Button>
                           )}
                           {permissions.canDelete && (
@@ -906,7 +873,7 @@ export function InventoryManager({
                               disabled={loading}
                               title="Delete All Items"
                             >
-                              <Trash2 className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                              <Trash2 className="h-4 w-4 text-primary" />
                             </Button>
                           )}
                         </>
@@ -916,29 +883,29 @@ export function InventoryManager({
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenItemsModal(equipmentType)}
-                      style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                      className="border-border text-foreground"
                     >
                       View Items
                     </Button>
                   </div>
                   {expandedGroups.has(equipmentType) && (
-                    <div className="mt-4 pt-4 border-t space-y-2" style={{ borderTopColor: "rgb(var(--border))" }}>
+                    <div className="mt-4 pt-4 border-t border-border space-y-2">
                       {groupItems.slice(0, 5).map((item) => (
                         <div
                           key={item.id}
                           className="p-2 rounded border text-sm"
-                          style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                          className="rounded-md border border-border bg-muted/50 p-2"
                         >
-                          <p className="font-medium" style={{ color: "rgb(var(--text))" }}>{item.name}</p>
+                          <p className="font-medium text-foreground">{item.name}</p>
                           {item.assignedPlayer && (
-                            <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
+                            <p className="text-xs mt-1 text-muted-foreground">
                               Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
                             </p>
                           )}
                         </div>
                       ))}
                       {groupItems.length > 5 && (
-                        <p className="text-xs text-center" style={{ color: "rgb(var(--muted))" }}>
+                        <p className="text-xs text-center text-muted-foreground">
                           +{groupItems.length - 5} more items
                         </p>
                       )}
@@ -972,11 +939,11 @@ export function InventoryManager({
             ).pop() || "AVAILABLE"
 
             return (
-              <Card key={equipmentType} className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+              <Card key={equipmentType} className="border border-border bg-card">
                 <CardContent className="p-0">
                   {/* Group Header - Always Visible */}
                   <div
-                    className="p-4 cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
+                    className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => toggleGroup(equipmentType)}
                   >
                     <div className="flex items-center justify-between">
@@ -989,11 +956,11 @@ export function InventoryManager({
                           />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>
+                          <h3 className="font-semibold text-lg text-foreground">
                             {equipmentType}
                           </h3>
                           <div className="flex items-center gap-4 mt-1">
-                            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                            <p className="text-sm text-muted-foreground">
                               {totalItems} item{totalItems !== 1 ? "s" : ""} • {availableItems} available • {assignedItems} assigned
                             </p>
                             <span
@@ -1022,7 +989,7 @@ export function InventoryManager({
                                 disabled={loading}
                                 title="Edit Equipment Type"
                               >
-                                <Edit className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                                <Edit className="h-4 w-4 text-primary" />
                               </Button>
                             )}
                             {permissions.canDelete && (
@@ -1036,7 +1003,7 @@ export function InventoryManager({
                                 disabled={loading}
                                 title="Delete All Items"
                               >
-                                <Trash2 className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                                <Trash2 className="h-4 w-4 text-primary" />
                               </Button>
                             )}
                           </>
@@ -1048,7 +1015,7 @@ export function InventoryManager({
                             e.stopPropagation()
                             handleOpenItemsModal(equipmentType)
                           }}
-                          style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                          className="border-border text-foreground"
                         >
                           View Items
                         </Button>

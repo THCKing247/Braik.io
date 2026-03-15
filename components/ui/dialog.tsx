@@ -47,10 +47,9 @@ export function DialogContent({ className, children }: DialogContentProps) {
   return (
     <div
       className={cn(
-        "bg-white rounded-lg shadow-lg border p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto",
+        "bg-card rounded-lg shadow-lg border border-border p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto",
         className
       )}
-      style={{ borderColor: "rgb(var(--border))" }}
     >
       {children}
     </div>

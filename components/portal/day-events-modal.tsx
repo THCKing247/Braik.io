@@ -41,7 +41,7 @@ export function DayEventsModal({ date, events, isOpen, onClose, onEventClick }: 
       
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-white">
+        <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-xl" style={{ color: "rgb(var(--text))" }}>
               {format(date, "EEEE, MMMM d, yyyy")}
@@ -59,16 +59,15 @@ export function DayEventsModal({ date, events, isOpen, onClose, onEventClick }: 
             {sortedEvents.length === 0 ? (
               <div className="flex flex-col items-center gap-4 py-12 text-center">
                 <div
-                  className="flex h-16 w-16 items-center justify-center rounded-xl"
-                  style={{ backgroundColor: "rgb(var(--platinum))" }}
+                  className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted"
                 >
-                  <Calendar className="h-8 w-8" style={{ color: "rgb(var(--muted))" }} />
+                  <Calendar className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>
+                  <p className="text-lg font-semibold text-foreground">
                     No events today
                   </p>
-                  <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                  <p className="text-sm text-muted-foreground">
                     There are no scheduled events for this day.
                   </p>
                 </div>

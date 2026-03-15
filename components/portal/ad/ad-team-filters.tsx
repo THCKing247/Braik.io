@@ -31,7 +31,7 @@ export function AdTeamFilters({
         <select
           value={sportFilter}
           onChange={(e) => onSportFilterChange(e.target.value)}
-          className="flex h-10 w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+          className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         >
           <option value="">All sports</option>
           {SPORT_OPTIONS.map((opt) => (

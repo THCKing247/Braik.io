@@ -41,14 +41,14 @@ export function SupportTicketForm({ teamId }: { teamId: string }) {
       <input
         value={subject}
         onChange={(event) => setSubject(event.target.value)}
-        className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+        className="input-theme w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         placeholder="Issue subject"
         required
       />
       <textarea
         value={message}
         onChange={(event) => setMessage(event.target.value)}
-        className="min-h-[130px] w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+        className="min-h-[130px] w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-y"
         placeholder="Describe the issue"
         required
       />
@@ -56,13 +56,13 @@ export function SupportTicketForm({ teamId }: { teamId: string }) {
         <input
           value={category}
           onChange={(event) => setCategory(event.target.value)}
-          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+          className="input-theme w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           placeholder="Category (optional)"
         />
         <select
           value={priority}
           onChange={(event) => setPriority(event.target.value)}
-          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
         >
           <option value="low">Low</option>
           <option value="normal">Normal</option>
@@ -74,11 +74,11 @@ export function SupportTicketForm({ teamId }: { teamId: string }) {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-primary"
         >
           {submitting ? "Submitting..." : "Submit Ticket"}
         </button>
-        {result ? <p className="text-sm text-gray-700">{result}</p> : null}
+        {result ? <p className="text-sm text-muted-foreground">{result}</p> : null}
       </div>
     </form>
   )

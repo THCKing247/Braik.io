@@ -325,7 +325,7 @@ export default function SignupPage() {
 
                   {role && role !== "head-coach" && (
                     <div className="space-y-2">
-                      <Label htmlFor="teamId" className="text-sm font-medium text-[#495057]">
+                      <Label htmlFor="teamId" className="text-sm font-medium text-foreground">
                         {role === "parent" ? "Player Code" : "Team Code"}{" "}
                         <span className="font-normal text-[#9CA3AF]">(Optional)</span>
                       </Label>
@@ -334,7 +334,7 @@ export default function SignupPage() {
                         type="text"
                         value={teamId}
                         onChange={(e) => setTeamId(e.target.value.toUpperCase())}
-                        className="bg-white text-[#212529] placeholder:text-[#6c757d] font-mono text-lg tracking-wider"
+                        className="bg-background text-foreground placeholder:text-muted-foreground font-mono text-lg tracking-wider"
                         placeholder={
                           role === "parent"
                             ? "Enter Player Code — you can add this after signing up"
@@ -342,7 +342,7 @@ export default function SignupPage() {
                         }
                         maxLength={8}
                       />
-                      <p className="text-xs text-[#6c757d]">
+                      <p className="text-xs text-muted-foreground">
                         {role === "parent"
                           ? "Your Player Code comes from your child's coaching staff. You can enter it now or from your dashboard after signing up."
                           : "Get your Team Code from your Head Coach. You can enter it now or connect from your dashboard after signing up."}
@@ -352,25 +352,25 @@ export default function SignupPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className="text-sm font-medium text-[#495057]">First Name *</Label>
+                      <Label htmlFor="firstName" className="text-sm font-medium text-foreground">First Name *</Label>
                       <Input
                         id="firstName"
                         type="text"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                        className="bg-background text-foreground placeholder:text-muted-foreground"
                         placeholder="First name"
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className="text-sm font-medium text-[#495057]">Last Name *</Label>
+                      <Label htmlFor="lastName" className="text-sm font-medium text-foreground">Last Name *</Label>
                       <Input
                         id="lastName"
                         type="text"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                        className="bg-background text-foreground placeholder:text-muted-foreground"
                         placeholder="Last name"
                         required
                       />
@@ -378,13 +378,13 @@ export default function SignupPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium text-[#495057]">Email *</Label>
+                    <Label htmlFor="email" className="text-sm font-medium text-foreground">Email *</Label>
                     <Input
                       id="email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                      className="bg-background text-foreground placeholder:text-muted-foreground"
                       placeholder="your.email@example.com"
                       required
                     />
@@ -392,7 +392,7 @@ export default function SignupPage() {
 
                   {role === "player" && (
                     <div className="space-y-2">
-                      <Label htmlFor="playerAge" className="text-sm font-medium text-[#495057]">Player Age *</Label>
+                      <Label htmlFor="playerAge" className="text-sm font-medium text-foreground">Player Age *</Label>
                       <Input
                         id="playerAge"
                         type="number"
@@ -400,7 +400,7 @@ export default function SignupPage() {
                         max={99}
                         value={playerAge}
                         onChange={(e) => setPlayerAge(e.target.value)}
-                        className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                        className="bg-background text-foreground placeholder:text-muted-foreground"
                         placeholder="Enter player age"
                         required
                       />
@@ -409,13 +409,13 @@ export default function SignupPage() {
 
                   {role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18 && (
                     <div className="space-y-2">
-                      <Label htmlFor="parentEmail" className="text-sm font-medium text-[#495057]">Parent/Guardian Email *</Label>
+                      <Label htmlFor="parentEmail" className="text-sm font-medium text-foreground">Parent/Guardian Email *</Label>
                       <Input
                         id="parentEmail"
                         type="email"
                         value={parentEmail}
                         onChange={(e) => setParentEmail(e.target.value)}
-                        className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                        className="bg-background text-foreground placeholder:text-muted-foreground"
                         placeholder="parent.guardian@example.com"
                         required
                       />
@@ -423,13 +423,13 @@ export default function SignupPage() {
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-medium text-[#495057]">Password *</Label>
+                    <Label htmlFor="password" className="text-sm font-medium text-foreground">Password *</Label>
                     <Input
                       id="password"
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                      className="bg-background text-foreground placeholder:text-muted-foreground"
                       placeholder="Enter password"
                       required
                     />
@@ -454,20 +454,20 @@ export default function SignupPage() {
                         </p>
                       </div>
                     ) : (
-                      <p className="text-xs text-[#6c757d]">
+                      <p className="text-xs text-muted-foreground">
                         Must be 8+ characters with uppercase, lowercase, number, and special character
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword" className="text-sm font-medium text-[#495057]">Confirm Password *</Label>
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">Confirm Password *</Label>
                     <Input
                       id="confirmPassword"
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="bg-white text-[#212529] placeholder:text-[#6c757d]"
+                      className="bg-background text-foreground placeholder:text-muted-foreground"
                       placeholder="Confirm password"
                       required
                     />

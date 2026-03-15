@@ -598,10 +598,9 @@ export function DepthChartView({
       >
         {/* Left: Roster list with filters */}
         <div
-          className="flex flex-col min-h-0 overflow-hidden"
-          style={{ padding: "16px", borderRight: "1px solid #2a2a2a" }}
+          className="flex flex-col min-h-0 overflow-hidden p-4 border-r border-border"
         >
-          <h3 className="text-sm font-semibold mb-3 shrink-0" style={{ color: "#000000" }}>
+          <h3 className="text-sm font-semibold mb-3 shrink-0 text-foreground">
             Available Players
           </h3>
 
@@ -612,12 +611,12 @@ export function DepthChartView({
               placeholder="Search name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-md border border-[#2a2a2a] px-3 py-2 text-sm bg-white"
+              className="input-theme w-full rounded-md border border-border px-3 py-2 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary focus:border-primary"
             />
             <select
               value={positionFilter}
               onChange={(e) => setPositionFilter(e.target.value)}
-              className="w-full rounded-md border border-[#2a2a2a] px-3 py-2 text-sm bg-white"
+              className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
             >
               <option value="">All positions</option>
               {positionOptions.map((pos) => (
@@ -629,14 +628,14 @@ export function DepthChartView({
             <select
               value={sideOfBallFilter}
               onChange={(e) => setSideOfBallFilter(e.target.value as typeof sideOfBallFilter)}
-              className="w-full rounded-md border border-[#2a2a2a] px-3 py-2 text-sm bg-white"
+              className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
             >
               <option value="all">All sides</option>
               <option value="offense">Offense</option>
               <option value="defense">Defense</option>
               <option value="athlete">Athlete</option>
             </select>
-            <label className="flex items-center gap-2 text-sm" style={{ color: "#000000" }}>
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={activeOnly}
@@ -644,7 +643,7 @@ export function DepthChartView({
               />
               Active only
             </label>
-            <label className="flex items-center gap-2 text-sm" style={{ color: "#000000" }}>
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={unassignedOnly}
@@ -678,7 +677,7 @@ export function DepthChartView({
               </div>
             ))}
             {filteredRosterForSidebar.length === 0 && (
-              <div className="text-xs text-center py-4" style={{ color: "#666666" }}>
+              <div className="text-xs text-center py-4 text-muted-foreground">
                 {unassignedOnly ? "All players assigned or no matches" : "No players match filters"}
               </div>
             )}
@@ -687,8 +686,7 @@ export function DepthChartView({
 
         {/* Right: Depth chart area */}
         <div
-          className="flex flex-col"
-          style={{ padding: "24px", display: "flex", justifyContent: "flex-start", alignItems: "stretch" }}
+          className="flex flex-col p-6 flex justify-start items-stretch"
         >
           {/* Unit tabs + Formation selector + Print */}
           <div className="mb-4 flex flex-wrap gap-2 items-center justify-between">
@@ -698,20 +696,17 @@ export function DepthChartView({
                   key={unit}
                   onClick={() => setSelectedUnit(unit)}
                   className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all border-2 ${
-                    selectedUnit === unit ? "" : "opacity-60 hover:opacity-100"
+                    selectedUnit === unit
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-transparent text-foreground border-border opacity-60 hover:opacity-100 hover:border-primary/50"
                   }`}
-                  style={{
-                    color: "#000000",
-                    backgroundColor: selectedUnit === unit ? "rgb(var(--braik-navy))" : "transparent",
-                    borderColor: "#3B82F6",
-                  }}
                 >
                   {unit === "offense" ? "Offense" : unit === "defense" ? "Defense" : "Special Teams"}
                 </button>
               ))}
             </div>
             <div className="flex flex-col gap-1.5 min-w-0">
-              <span className="text-sm font-medium shrink-0" style={{ color: "#000000" }}>
+              <span className="text-sm font-medium shrink-0 text-foreground">
                 Formation
               </span>
               <div className="flex flex-wrap gap-2 overflow-x-auto overflow-y-hidden py-0.5">
@@ -725,21 +720,19 @@ export function DepthChartView({
                         setSelectedPresetByUnit((prev) => ({ ...prev, [selectedUnit]: p.id }))
                       }
                       className={`shrink-0 rounded-lg border-2 px-3 py-2 text-left transition-all min-w-0 ${
-                        isSelected ? "" : "opacity-70 hover:opacity-100"
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-transparent text-foreground border-border opacity-70 hover:opacity-100 hover:border-primary/50"
                       }`}
-                      style={{
-                        color: "#000000",
-                        backgroundColor: isSelected ? "rgb(var(--braik-navy))" : "transparent",
-                        borderColor: isSelected ? "#2563eb" : "#94a3b8",
-                      }}
                     >
                       <span className="block text-xs font-semibold truncate max-w-[100px] sm:max-w-none">
                         {p.name}
                       </span>
                       {p.subtitle && (
                         <span
-                          className="block text-[10px] mt-0.5 truncate max-w-[100px] sm:max-w-none"
-                          style={{ color: isSelected ? "rgba(255,255,255,0.9)" : "#64748b" }}
+                          className={`block text-[10px] mt-0.5 truncate max-w-[100px] sm:max-w-none ${
+                            isSelected ? "text-primary-foreground/90" : "text-muted-foreground"
+                          }`}
                         >
                           {p.subtitle}
                         </span>
@@ -800,9 +793,9 @@ export function DepthChartView({
       {/* Print preview modal */}
       {showPrintPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-white border border-slate-200">
+          <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-card border border-border">
             <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between border-b">
-              <CardTitle className="text-lg text-slate-900">Print depth chart</CardTitle>
+              <CardTitle className="text-lg text-foreground">Print depth chart</CardTitle>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handlePrint}>
                   <Printer className="h-4 w-4 mr-1.5" />
@@ -814,11 +807,11 @@ export function DepthChartView({
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-4">
-              <p className="text-sm text-slate-600 mb-3">
+              <p className="text-sm text-muted-foreground mb-3">
                 Printing: {unitLabel} — {formationName}. Use your browser&apos;s &quot;Save as PDF&quot; in the print dialog to export PDF.
               </p>
               {printBody && (
-                <div className="bg-white text-black border border-slate-200 rounded p-4">
+                <div className="bg-card text-foreground border border-border rounded p-4">
                   {printBody}
                 </div>
               )}

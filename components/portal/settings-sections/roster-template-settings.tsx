@@ -139,6 +139,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showYear"
+                className="accent-primary"
                 checked={template.header.showYear}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -169,6 +170,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showSchoolName"
+                className="accent-primary"
                 checked={template.header.showSchoolName}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -199,6 +201,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showTeamName"
+                className="accent-primary"
                 checked={template.header.showTeamName}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -234,6 +237,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showJerseyNumber"
+                className="accent-primary"
                 checked={template.body.showJerseyNumber}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -264,6 +268,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showPlayerName"
+                className="accent-primary"
                 checked={template.body.showPlayerName}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -294,6 +299,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showGrade"
+                className="accent-primary"
                 checked={template.body.showGrade}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -324,6 +330,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showPosition"
+                className="accent-primary"
                 checked={template.body.showPosition !== false}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -354,6 +361,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showWeight"
+                className="accent-primary"
                 checked={template.body.showWeight !== false}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -384,6 +392,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showHeight"
+                className="accent-primary"
                 checked={template.body.showHeight !== false}
                 onCheckedChange={(checked) =>
                   setTemplate({
@@ -437,6 +446,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showGeneratedDate"
+                className="accent-primary"
                 checked={template.footer.showGeneratedDate}
                 onCheckedChange={(checked) =>
                   setTemplate({

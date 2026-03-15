@@ -164,46 +164,46 @@ function EditPlayerModal({
   }
 
   return (
-    <Card className="w-full max-w-md bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+    <Card className="w-full max-w-md bg-card border border-border" onClick={(e) => e.stopPropagation()}>
       <CardHeader>
-        <CardTitle className="text-[#0F172A]">Edit Player</CardTitle>
+        <CardTitle className="text-foreground">Edit Player</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
           <div className="space-y-2 col-span-2 sm:col-span-1">
-            <Label className="text-[#0F172A]">First Name *</Label>
+            <Label className="text-foreground">First Name *</Label>
             <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
           </div>
           <div className="space-y-2 col-span-2 sm:col-span-1">
-            <Label className="text-[#0F172A]">Last Name *</Label>
+            <Label className="text-foreground">Last Name *</Label>
             <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Grade</Label>
+            <Label className="text-foreground">Grade</Label>
             <Input type="number" value={grade} onChange={(e) => setGrade(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Jersey Number</Label>
+            <Label className="text-foreground">Jersey Number</Label>
             <Input type="number" value={jerseyNumber} onChange={(e) => setJerseyNumber(e.target.value)} />
           </div>
           <div className="space-y-2 col-span-2">
-            <Label className="text-[#0F172A]">Position</Label>
+            <Label className="text-foreground">Position</Label>
             <Input value={positionGroup} onChange={(e) => setPositionGroup(e.target.value)} placeholder="e.g. QB, RB" />
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Weight (lbs)</Label>
+            <Label className="text-foreground">Weight (lbs)</Label>
             <Input type="number" min="0" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 185" />
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Height</Label>
+            <Label className="text-foreground">Height</Label>
             <Input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 5'10&quot; or 6-2" />
           </div>
           <div className="space-y-2 col-span-2">
-            <Label className="text-[#0F172A]">Email (optional)</Label>
+            <Label className="text-foreground">Email (optional)</Label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-2 col-span-2">
-            <Label className="text-[#0F172A]">Notes</Label>
+            <Label className="text-foreground">Notes</Label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -336,26 +336,26 @@ function AddPlayerModal({
   }
 
   return (
-    <Card className="w-full max-w-2xl bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+    <Card className="w-full max-w-2xl bg-card border border-border" onClick={(e) => e.stopPropagation()}>
       <CardHeader>
-        <CardTitle className="text-[#0F172A]">Add Player</CardTitle>
+        <CardTitle className="text-foreground">Add Player</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
           <div className="space-y-2 col-span-2 sm:col-span-1">
-            <Label className="text-[#0F172A]">First Name *</Label>
+            <Label className="text-foreground">First Name *</Label>
             <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
           </div>
           <div className="space-y-2 col-span-2 sm:col-span-1">
-            <Label className="text-[#0F172A]">Last Name *</Label>
+            <Label className="text-foreground">Last Name *</Label>
             <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Grade</Label>
+            <Label className="text-foreground">Grade</Label>
             <select
               value={grade}
               onChange={(e) => setGrade(e.target.value)}
-              className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B2A5B] focus-visible:ring-offset-2"
+              className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B2A5B] focus-visible:ring-offset-2"
               style={{ borderColor: "#0B2A5B" }}
             >
               <option value="">Select grade</option>
@@ -366,7 +366,7 @@ function AddPlayerModal({
             </select>
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Jersey Number</Label>
+            <Label className="text-foreground">Jersey Number</Label>
             <Input
               type="number"
               min="0"
@@ -385,11 +385,11 @@ function AddPlayerModal({
             )}
           </div>
           <div className="space-y-2 col-span-2">
-            <Label className="text-[#0F172A]">Position</Label>
+            <Label className="text-foreground">Position</Label>
             <select
               value={positionGroup}
               onChange={(e) => setPositionGroup(e.target.value)}
-              className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B2A5B] focus-visible:ring-offset-2"
+              className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B2A5B] focus-visible:ring-offset-2"
               style={{ borderColor: "#0B2A5B" }}
             >
               <option value="">Select position</option>
@@ -412,19 +412,19 @@ function AddPlayerModal({
             </select>
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Weight (lbs)</Label>
+            <Label className="text-foreground">Weight (lbs)</Label>
             <Input type="number" min="0" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 185" />
           </div>
           <div className="space-y-2">
-            <Label className="text-[#0F172A]">Height</Label>
+            <Label className="text-foreground">Height</Label>
             <Input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 5'10&quot; or 6-2" />
           </div>
           <div className="space-y-2 col-span-2">
-            <Label className="text-[#0F172A]">Email (optional - for invite)</Label>
+            <Label className="text-foreground">Email (optional - for invite)</Label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-2 col-span-2">
-            <Label className="text-[#0F172A]">Notes</Label>
+            <Label className="text-foreground">Notes</Label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -477,12 +477,12 @@ function InviteLinkModal({
   }
 
   return (
-    <Card className="w-full max-w-md bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+    <Card className="w-full max-w-md bg-card border border-border" onClick={(e) => e.stopPropagation()}>
       <CardHeader>
-        <CardTitle className="text-[#0F172A]">Invite link for {playerName}</CardTitle>
+        <CardTitle className="text-foreground">Invite link for {playerName}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-[#475569]">
+        <p className="text-sm text-muted-foreground">
           Share this code with the player. They can enter it on the dashboard to join your team and link to this roster spot.
         </p>
         <div className="flex items-center gap-2">
@@ -493,7 +493,7 @@ function InviteLinkModal({
         </div>
         {joinUrl && (
           <div className="space-y-2">
-            <Label className="text-[#0F172A] text-xs">Or copy join link (includes code in instructions)</Label>
+            <Label className="text-foreground text-xs">Or copy join link (includes code in instructions)</Label>
             <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
               {copied ? "Copied!" : "Copy join link & code"}
             </Button>
@@ -1038,7 +1038,7 @@ export function RosterManagerEnhanced({
   return (
     <div>
       {/* Tab Navigation */}
-      <div className="mb-6 border-b border-[#64748B]">
+      <div className="mb-6 border-b border-border">
         <div className="flex flex-wrap gap-4">
           <button
             onClick={() => setActiveTab("roster")}
@@ -1095,7 +1095,7 @@ export function RosterManagerEnhanced({
             <select
               value={rosterPositionFilter}
               onChange={(e) => setRosterPositionFilter(e.target.value)}
-              className="h-9 rounded-md border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+              className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               aria-label="Filter by position"
             >
               <option value="">All positions</option>
@@ -1120,7 +1120,7 @@ export function RosterManagerEnhanced({
               <select
                 value={readinessFilter}
                 onChange={(e) => setReadinessFilter(e.target.value)}
-                className="h-9 rounded-md border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 aria-label="Filter by readiness"
               >
                 <option value="all">All readiness</option>
@@ -1134,15 +1134,15 @@ export function RosterManagerEnhanced({
                 <option value="eligibility_missing">Eligibility not set</option>
               </select>
             )}
-            <span className="text-sm font-medium text-[#64748B]">View:</span>
-            <div className="flex rounded-lg border border-[#E5E7EB] bg-white p-0.5">
+            <span className="text-sm font-medium text-muted-foreground">View:</span>
+            <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
               <button
                 type="button"
                 onClick={() => setRosterViewMode("card")}
                 className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   rosterViewMode === "card"
-                    ? "bg-[#3B82F6] text-white shadow-sm"
-                    : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 }`}
                 aria-pressed={rosterViewMode === "card"}
               >
@@ -1154,8 +1154,8 @@ export function RosterManagerEnhanced({
                 onClick={() => setRosterViewMode("list")}
                 className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   rosterViewMode === "list"
-                    ? "bg-[#3B82F6] text-white shadow-sm"
-                    : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 }`}
                 aria-pressed={rosterViewMode === "list"}
               >
@@ -1180,23 +1180,23 @@ export function RosterManagerEnhanced({
         <div className="space-y-6">
           {!teamReadiness ? (
             <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#3B82F6] border-t-transparent" />
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
           ) : teamReadiness.summary.total === 0 ? (
-            <Card className="border border-[#E5E7EB] bg-white">
+            <Card className="border border-border bg-card">
               <CardContent className="py-12 text-center">
-                <ClipboardCheck className="mx-auto h-12 w-12 text-[#94A3B8]" />
-                <p className="mt-4 text-sm font-medium text-[#64748B]">No players on roster</p>
-                <p className="mt-1 text-sm text-[#94A3B8]">Add players to see readiness summary.</p>
+                <ClipboardCheck className="mx-auto h-12 w-12 text-muted-foreground" />
+                <p className="mt-4 text-sm font-medium text-muted-foreground">No players on roster</p>
+                <p className="mt-1 text-sm text-muted-foreground">Add players to see readiness summary.</p>
               </CardContent>
             </Card>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Total</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.total}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.total}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-emerald-200 bg-emerald-50/50">
@@ -1211,66 +1211,66 @@ export function RosterManagerEnhanced({
                     <p className="mt-1 text-2xl font-semibold text-amber-800">{teamReadiness.summary.incompleteCount}</p>
                   </CardContent>
                 </Card>
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Missing physical</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.missingPhysicalCount}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Missing physical</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.missingPhysicalCount}</p>
                   </CardContent>
                 </Card>
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Missing waiver</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.missingWaiverCount}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Missing waiver</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.missingWaiverCount}</p>
                   </CardContent>
                 </Card>
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Incomplete profile</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.incompleteProfileCount}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Incomplete profile</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.incompleteProfileCount}</p>
                   </CardContent>
                 </Card>
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">No equipment</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.noEquipmentCount}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">No equipment</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.noEquipmentCount}</p>
                   </CardContent>
                 </Card>
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">No guardians</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.noGuardiansCount}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">No guardians</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.noGuardiansCount}</p>
                   </CardContent>
                 </Card>
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Eligibility not set</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamReadiness.summary.eligibilityMissingCount}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Eligibility not set</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.eligibilityMissingCount}</p>
                   </CardContent>
                 </Card>
-                <Card className="border border-[#E5E7EB] bg-white">
+                <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Open follow-ups</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#0F172A]">{teamOpenFollowUps.length}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Open follow-ups</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamOpenFollowUps.length}</p>
                   </CardContent>
                 </Card>
               </div>
 
-              <Card className="border border-[#E5E7EB] bg-white">
+              <Card className="border border-border bg-card">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-[#0F172A]">
+                  <CardTitle className="flex items-center gap-2 text-foreground">
                     <AlertCircle className="h-5 w-5 text-amber-500" />
                     Needs attention
                   </CardTitle>
-                  <p className="text-sm text-[#64748B]">Players with missing items. Click a row to open profile.</p>
+                  <p className="text-sm text-muted-foreground">Players with missing items. Click a row to open profile.</p>
                 </CardHeader>
                 <CardContent>
                   {teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length === 0 ? (
-                    <p className="py-6 text-center text-sm text-[#64748B]">All players are ready.</p>
+                    <p className="py-6 text-center text-sm text-muted-foreground">All players are ready.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-[#E5E7EB] text-left text-[#64748B]">
+                          <tr className="border-b border-border text-left text-muted-foreground">
                             <th className="pb-2 pr-4 font-medium">Player</th>
                             <th className="pb-2 pr-4 font-medium">Status</th>
                             <th className="pb-2 pr-4 font-medium">Missing</th>
@@ -1288,12 +1288,12 @@ export function RosterManagerEnhanced({
                               return (
                                 <tr
                                   key={p.playerId}
-                                  className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC]"
+                                  className="border-b border-border hover:bg-muted/50"
                                 >
                                   <td className="py-3 pr-4">
                                     <Link
                                       href={profileHref}
-                                      className="font-medium text-[#3B82F6] hover:underline"
+                                      className="font-medium text-primary hover:underline"
                                     >
                                       {p.firstName} {p.lastName}
                                     </Link>
@@ -1308,7 +1308,7 @@ export function RosterManagerEnhanced({
                                       <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Incomplete</span>
                                     )}
                                   </td>
-                                  <td className="py-3 pr-4 text-[#64748B]">{p.missingItems.join(", ") || "—"}</td>
+                                  <td className="py-3 pr-4 text-muted-foreground">{p.missingItems.join(", ") || "—"}</td>
                                   {canEdit && (
                                     <td className="py-3">
                                       {openCount > 0 ? (
@@ -1316,7 +1316,7 @@ export function RosterManagerEnhanced({
                                       ) : null}
                                       <Link
                                         href={profileHref}
-                                        className="ml-2 text-xs text-[#3B82F6] hover:underline"
+                                        className="ml-2 text-xs text-primary hover:underline"
                                       >
                                         Add follow-up
                                       </Link>
@@ -1417,21 +1417,21 @@ export function RosterManagerEnhanced({
                 </Button>
               </div>
 
-              <Card className="border border-[#E5E7EB] bg-white">
+              <Card className="border border-border bg-card">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-[#0F172A]">
-                    <History className="h-5 w-5 text-[#64748B]" />
+                  <CardTitle className="flex items-center gap-2 text-foreground">
+                    <History className="h-5 w-5 text-muted-foreground" />
                     Recent team activity
                   </CardTitle>
-                  <p className="text-sm text-[#64748B]">Latest profile changes across the roster.</p>
+                  <p className="text-sm text-muted-foreground">Latest profile changes across the roster.</p>
                 </CardHeader>
                 <CardContent>
                   {teamActivityLoading ? (
                     <div className="flex justify-center py-6">
-                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#3B82F6] border-t-transparent" />
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     </div>
                   ) : teamActivity.length === 0 ? (
-                    <p className="py-4 text-center text-sm text-[#64748B]">No recent activity.</p>
+                    <p className="py-4 text-center text-sm text-muted-foreground">No recent activity.</p>
                   ) : (
                     <ul className="space-y-2">
                       {teamActivity.map((a) => {
@@ -1450,15 +1450,15 @@ export function RosterManagerEnhanced({
                           return d.toLocaleDateString()
                         })()
                         return (
-                          <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#F1F5F9] px-3 py-2 text-sm">
+                          <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
                             <div className="min-w-0">
-                              <Link href={profileHref} className="font-medium text-[#3B82F6] hover:underline">
+                              <Link href={profileHref} className="font-medium text-primary hover:underline">
                                 {a.playerName}
                               </Link>
-                              <span className="ml-2 text-[#64748B]">— {label}</span>
-                              {a.actor?.name && <span className="ml-1 text-xs text-[#94A3B8]">by {a.actor.name}</span>}
+                              <span className="ml-2 text-muted-foreground">— {label}</span>
+                              {a.actor?.name && <span className="ml-1 text-xs text-muted-foreground">by {a.actor.name}</span>}
                             </div>
-                            <span className="text-xs text-[#94A3B8] shrink-0">{timeAgo}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">{timeAgo}</span>
                           </li>
                         )
                       })}
@@ -1473,28 +1473,28 @@ export function RosterManagerEnhanced({
 
       {/* Import Form */}
       {showImportForm && (
-        <Card className="mb-6 bg-white border border-[#E5E7EB]">
+        <Card className="mb-6 bg-card border border-border">
           <CardHeader>
-            <CardTitle className="text-[#0F172A]">Import Players from CSV</CardTitle>
+            <CardTitle className="text-foreground">Import Players from CSV</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-[#111827]">Import mode</Label>
+                <Label className="text-foreground">Import mode</Label>
                 <select
                   value={importMode}
                   onChange={(e) => setImportMode(e.target.value as "create_only" | "create_or_update" | "replace_roster")}
-                  className={`flex h-10 w-full rounded-md border bg-white px-3 py-2 text-sm text-[#111827] ${
+                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm text-foreground ${
                     importMode === "replace_roster"
                       ? "border-red-300 bg-red-50/50 focus-visible:ring-red-500"
-                      : "border-[#E5E7EB]"
+                      : "border-border bg-background focus-visible:ring-primary"
                   }`}
                 >
                   <option value="create_only">Create only (add new players; skip or duplicate if already exist)</option>
                   <option value="create_or_update">Create or update (match by email or name + jersey, update existing)</option>
                   <option value="replace_roster">Replace roster (remove all current players, then add from CSV)</option>
                 </select>
-                <p className="text-xs text-[#6B7280]">
+                <p className="text-xs text-muted-foreground">
                   {importMode === "create_only" && "Adds new players only; existing players are left unchanged."}
                   {importMode === "create_or_update" && "Updates matched players and creates new ones; no rows are deleted."}
                   {importMode === "replace_roster" && (
@@ -1506,14 +1506,14 @@ export function RosterManagerEnhanced({
                 </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-[#111827]">CSV File</Label>
+                <Label className="text-foreground">CSV File</Label>
                 <Input
                   type="file"
                   accept=".csv"
                   onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                  className="text-[#111827]"
+                  className="text-foreground"
                 />
-                <p className="text-xs text-[#6B7280]">
+                <p className="text-xs text-muted-foreground">
                   CSV format: First Name, Last Name, Grade, Jersey Number, Position, Email (optional), Notes (optional), Weight (optional), Height (optional)
                 </p>
               </div>
@@ -1538,7 +1538,7 @@ export function RosterManagerEnhanced({
               <AlertTriangle className="h-5 w-5 shrink-0" />
               Replace entire roster?
             </DialogTitle>
-            <DialogDescription className="text-[#475569]">
+            <DialogDescription className="text-muted-foreground">
               This action will remove the current team roster and all related player-linked records (e.g. assignments, follow-ups) before importing the new CSV. This cannot be undone. Do you want to continue?
             </DialogDescription>
           </DialogHeader>
@@ -1651,12 +1651,12 @@ export function RosterManagerEnhanced({
             aria-hidden
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md bg-white border border-[#E5E7EB]">
+            <Card className="w-full max-w-md bg-card border border-border">
               <CardHeader>
-                <CardTitle className="text-[#0F172A]">Confirm add player</CardTitle>
+                <CardTitle className="text-foreground">Confirm add player</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-[#475569]" style={{ lineHeight: 1.5 }}>
+                <p className="text-sm text-muted-foreground" style={{ lineHeight: 1.5 }}>
                   {ROSTER_BILLING_WARNING}
                 </p>
                 <div className="flex gap-3 justify-end">
@@ -1766,8 +1766,8 @@ export function RosterManagerEnhanced({
           <div className="fixed inset-0 z-50 bg-black/50" aria-hidden />
           <div className="fixed inset-0 z-50 flex flex-col bg-white">
             {/* Header with close button */}
-            <div className="flex items-center justify-between p-4 border-b border-[#E5E7EB] bg-white">
-              <h2 className="text-2xl font-semibold text-[#0F172A]">Depth Chart</h2>
+            <div className="flex items-center justify-between p-4 border-b border-border bg-card">
+              <h2 className="text-2xl font-semibold text-foreground">Depth Chart</h2>
               <div className="flex items-center gap-3">
                 {hasUnsavedChanges && (
                   <span className="text-sm text-amber-600 font-medium">Unsaved changes</span>
@@ -1806,12 +1806,12 @@ export function RosterManagerEnhanced({
             aria-hidden
           />
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <Card className="w-full max-w-md bg-white border border-[#E5E7EB]" onClick={(e) => e.stopPropagation()}>
+            <Card className="w-full max-w-md bg-card border border-border" onClick={(e) => e.stopPropagation()}>
               <CardHeader>
-                <CardTitle className="text-[#0F172A]">Unsaved Changes</CardTitle>
+                <CardTitle className="text-foreground">Unsaved Changes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-[#475569]">
+                <p className="text-sm text-muted-foreground">
                   You have unsaved changes to the depth chart. What would you like to do?
                 </p>
                 <div className="flex gap-3 justify-end">

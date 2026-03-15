@@ -331,14 +331,14 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="stats-season" style={{ color: "rgb(var(--text))" }}>
+              <Label htmlFor="stats-season" className="text-foreground">
                 Season
               </Label>
               <select
                 id="stats-season"
                 value={season}
                 onChange={(e) => setSeason(e.target.value)}
-                className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-[#0F172A] border-[#0B2A5B] focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
+                className="flex h-11 w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option value="">All / Current</option>
                 {[new Date().getFullYear(), new Date().getFullYear() - 1].map((y) => (
@@ -349,14 +349,14 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="stats-position" style={{ color: "rgb(var(--text))" }}>
+              <Label htmlFor="stats-position" className="text-foreground">
                 Position
               </Label>
               <select
                 id="stats-position"
                 value={positionFilter}
                 onChange={(e) => setPositionFilter(e.target.value)}
-                className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-[#0F172A] border-[#0B2A5B] focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
+                className="flex h-11 w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option value="">All positions</option>
                 {positions.map((pos) => (
@@ -367,14 +367,14 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="stats-side" style={{ color: "rgb(var(--text))" }}>
+              <Label htmlFor="stats-side" className="text-foreground">
                 Side of ball
               </Label>
               <select
                 id="stats-side"
                 value={sideFilter}
                 onChange={(e) => setSideFilter(e.target.value)}
-                className="flex h-11 w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm text-[#0F172A] border-[#0B2A5B] focus:outline-none focus:ring-2 focus:ring-[#0B2A5B] focus:ring-offset-2"
+                className="flex h-11 w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               >
                 <option value="">All</option>
                 <option value="offense">Offense</option>
@@ -383,7 +383,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="stats-search" style={{ color: "rgb(var(--text))" }}>
+              <Label htmlFor="stats-search" className="text-foreground">
                 Search (name or number)
               </Label>
               <Input

@@ -130,12 +130,11 @@ export function DateTimePicker({
             type="button"
             onClick={openPopover}
             className={cn(
-              "flex h-11 w-full items-center rounded-xl border-2 bg-white px-4 py-2.5 text-left text-sm",
-              "ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2",
-              "transition-all duration-200 text-[#0F172A]",
-              !displayValue && "text-[#6B7280]"
+              "flex h-11 w-full items-center rounded-xl border-2 border-border bg-background px-4 py-2.5 text-left text-sm",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "transition-all duration-200 text-foreground",
+              !displayValue && "text-muted-foreground"
             )}
-            style={{ borderColor: "rgb(var(--border))" }}
           >
             {displayValue || placeholder}
           </button>
@@ -145,17 +144,12 @@ export function DateTimePicker({
           sideOffset={6}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
-          className="w-auto max-w-[95vw] p-0 overflow-hidden"
+          className="w-auto max-w-[95vw] p-0 overflow-hidden border border-border bg-card shadow-lg z-[100]"
           onKeyDown={handleKeyDown}
-          style={{
-            borderColor: "rgb(var(--border))",
-            boxShadow: "0 8px 30px rgba(11, 42, 91, 0.15)",
-            zIndex: 100,
-          }}
         >
           <div className="flex flex-col sm:flex-row">
             {/* Calendar */}
-            <div className="p-3 border-b sm:border-b-0 sm:border-r" style={{ borderColor: "rgb(var(--border))" }}>
+            <div className="p-3 border-b sm:border-b-0 sm:border-r border-border">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <Button
                   type="button"
@@ -167,7 +161,7 @@ export function DateTimePicker({
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-semibold min-w-[120px] text-center" style={{ color: "rgb(var(--text))" }}>
+                <span className="text-sm font-semibold min-w-[120px] text-center text-foreground">
                   {format(month, "MMMM yyyy")}
                 </span>
                 <Button
@@ -181,7 +175,7 @@ export function DateTimePicker({
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-medium mb-1" style={{ color: "rgb(var(--muted))" }}>
+              <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-medium mb-1 text-muted-foreground">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
                   <div key={d}>{d}</div>
                 ))}
@@ -200,10 +194,10 @@ export function DateTimePicker({
                       onClick={() => !disabled && setDraftDate(day)}
                       className={cn(
                         "h-8 w-8 rounded-lg text-sm transition-colors",
-                        sameMonth ? "text-[#0F172A]" : "text-[#9CA3AF]",
-                        selected && "bg-[#3B82F6] text-white hover:bg-[#2563EB]",
-                        !selected && !disabled && "hover:bg-[#F3F4F6]",
-                        today && !selected && "ring-2 ring-[#3B82F6] ring-offset-1",
+                        sameMonth ? "text-foreground" : "text-muted-foreground",
+                        selected && "bg-primary text-primary-foreground hover:bg-primary/90",
+                        !selected && !disabled && "hover:bg-muted/50",
+                        today && !selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
                         disabled && "opacity-40 cursor-not-allowed"
                       )}
                     >
@@ -216,7 +210,7 @@ export function DateTimePicker({
 
             {/* Time */}
             <div className="p-3 flex flex-col gap-2 min-w-[140px]">
-              <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
+              <div className="text-xs font-medium text-muted-foreground">
                 Time
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -224,9 +218,8 @@ export function DateTimePicker({
                   value={draftHour}
                   onChange={(e) => setDraftHour(Number(e.target.value))}
                   className={cn(
-                    "h-9 rounded-lg border-2 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6] focus:ring-offset-1"
+                    "h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   )}
-                  style={{ borderColor: "rgb(var(--border))" }}
                   aria-label="Hour"
                 >
                   {HOURS.map((h) => (
@@ -235,14 +228,13 @@ export function DateTimePicker({
                     </option>
                   ))}
                 </select>
-                <span className="text-[#0F172A] font-medium">:</span>
+                <span className="text-foreground font-medium">:</span>
                 <select
                   value={draftMinute}
                   onChange={(e) => setDraftMinute(Number(e.target.value))}
                   className={cn(
-                    "h-9 rounded-lg border-2 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6] focus:ring-offset-1"
+                    "h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   )}
-                  style={{ borderColor: "rgb(var(--border))" }}
                   aria-label="Minute"
                 >
                   {MINUTES.map((m) => (
@@ -255,9 +247,8 @@ export function DateTimePicker({
                   value={draftAmPm}
                   onChange={(e) => setDraftAmPm(e.target.value as "AM" | "PM")}
                   className={cn(
-                    "h-9 rounded-lg border-2 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6] focus:ring-offset-1"
+                    "h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   )}
-                  style={{ borderColor: "rgb(var(--border))" }}
                   aria-label="AM/PM"
                 >
                   <option value="AM">AM</option>
@@ -267,11 +258,11 @@ export function DateTimePicker({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 p-3 border-t" style={{ borderColor: "rgb(var(--border))" }}>
+          <div className="flex justify-end gap-2 p-3 border-t border-border">
             <Button type="button" variant="outline" size="sm" onClick={cancel} className="rounded-xl">
               Cancel
             </Button>
-            <Button type="button" size="sm" onClick={apply} className="rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow">
+            <Button type="button" size="sm" onClick={apply} className="rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow">
               Apply
             </Button>
           </div>

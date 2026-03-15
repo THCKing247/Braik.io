@@ -121,13 +121,13 @@ function AssignToControl({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs text-slate-500">Assign to</Label>
+      <Label className="text-xs text-muted-foreground">Assign to</Label>
       <div className="flex flex-col gap-1.5">
         <select
           value={currentPlayerId}
           onChange={(e) => handleChange(e.target.value)}
           disabled={saving}
-          className="h-8 w-full rounded border border-slate-200 bg-white px-2 text-sm text-slate-800 disabled:opacity-50"
+          className="h-8 w-full rounded border border-border bg-background px-2 text-sm text-foreground disabled:opacity-50"
         >
           <option value="">Unassigned</option>
           {sortedRoster.map((p) => (
@@ -137,8 +137,8 @@ function AssignToControl({
           ))}
         </select>
         {currentPlayerId && currentRoles.length > 0 && (
-          <p className="text-xs text-slate-500">
-            Current roles: <span className="text-slate-700">{currentRoles.join(", ")}</span>
+          <p className="text-xs text-muted-foreground">
+            Current roles: <span className="text-foreground">{currentRoles.join(", ")}</span>
           </p>
         )}
         {hasDuplicateRole && (
@@ -208,27 +208,27 @@ export function PlaybookInspector({
   if (!play && !selectedObject && !onPlayTypeChange) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
-        <p className="text-sm text-slate-500">Select a play or an object on the field</p>
+        <p className="text-sm text-muted-foreground">Select a play or an object on the field</p>
       </div>
     )
   }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex-shrink-0 border-b border-slate-200 px-4 py-3">
-        <h3 className="text-sm font-semibold text-slate-800">Properties</h3>
+      <div className="flex-shrink-0 border-b border-border px-4 py-3">
+        <h3 className="text-sm font-semibold text-foreground">Properties</h3>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* New play: show play type when creating (no play yet) */}
         {!play && canEdit && onPlayTypeChange && (selectedObject === "play" || !selectedObject) && (
           <div className="space-y-2">
-            <Label className="text-xs text-slate-500">New play</Label>
+            <Label className="text-xs text-muted-foreground">New play</Label>
             <div className="space-y-1">
-              <Label className="text-xs text-slate-500">Play type</Label>
+              <Label className="text-xs text-muted-foreground">Play type</Label>
               <select
                 value={displayPlayType ?? ""}
                 onChange={(e) => onPlayTypeChange((e.target.value || null) as PlayType | null)}
-                className="h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800"
+                className="h-8 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
               >
                 <option value="">—</option>
                 <option value="run">Run</option>
@@ -241,23 +241,23 @@ export function PlaybookInspector({
         )}
         {play && (selectedObject === "play" || !selectedObject) && (
           <div className="space-y-2">
-            <Label className="text-xs text-slate-500">Play name</Label>
+            <Label className="text-xs text-muted-foreground">Play name</Label>
             {canEdit && onPlayNameChange ? (
               <Input
                 value={play.name}
                 onChange={(e) => onPlayNameChange(e.target.value)}
-                className="h-8 text-sm border-slate-200"
+                className="h-8 text-sm"
               />
             ) : (
-              <p className="text-sm font-medium text-slate-800">{play.name}</p>
+              <p className="text-sm font-medium text-foreground">{play.name}</p>
             )}
             {canEdit && onPlayTypeChange ? (
               <div className="space-y-1">
-                <Label className="text-xs text-slate-500">Play type</Label>
+                <Label className="text-xs text-muted-foreground">Play type</Label>
                 <select
                   value={displayPlayType ?? ""}
                   onChange={(e) => onPlayTypeChange((e.target.value || null) as PlayType | null)}
-                  className="h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800"
+                  className="h-8 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
                 >
                   <option value="">—</option>
                   <option value="run">Run</option>
@@ -268,14 +268,14 @@ export function PlaybookInspector({
               </div>
             ) : (
               (displayPlayType ?? play.playType) && (
-                <p className="text-xs text-slate-500">
-                  Type: <span className="capitalize text-slate-800">{(displayPlayType ?? play.playType) ?? ""}</span>
+                <p className="text-xs text-muted-foreground">
+                  Type: <span className="capitalize text-foreground">{(displayPlayType ?? play.playType) ?? ""}</span>
                 </p>
               )
             )}
             {canEdit && onTagsChange ? (
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">Tags</Label>
+                <Label className="text-xs text-muted-foreground">Tags</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {[...STARTER_PLAY_TAGS].map((tag) => {
                     const selected = (displayTags ?? play.tags ?? []).includes(tag)
@@ -290,8 +290,8 @@ export function PlaybookInspector({
                         }}
                         className={`rounded-md px-2 py-1 text-xs font-medium border transition-colors ${
                           selected
-                            ? "bg-slate-700 text-white border-slate-700"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-foreground border-border hover:border-primary/50"
                         }`}
                       >
                         {tag}
@@ -300,16 +300,16 @@ export function PlaybookInspector({
                   })}
                 </div>
                 {(displayTags ?? play.tags ?? []).filter((t) => !(STARTER_PLAY_TAGS as readonly string[]).includes(t)).length > 0 && (
-                  <p className="text-[10px] text-slate-400">Custom tags are shown on the play card.</p>
+                  <p className="text-[10px] text-muted-foreground">Custom tags are shown on the play card.</p>
                 )}
               </div>
             ) : (
               (play.tags?.length ?? 0) > 0 && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-slate-500">Tags</Label>
+                  <Label className="text-xs text-muted-foreground">Tags</Label>
                   <div className="flex flex-wrap gap-1">
                     {(displayTags ?? play.tags ?? []).map((tag) => (
-                      <span key={tag} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                      <span key={tag} className="rounded bg-muted/50 px-2 py-0.5 text-xs text-foreground">
                         {tag}
                       </span>
                     ))}
@@ -317,16 +317,16 @@ export function PlaybookInspector({
                 </div>
               )
             )}
-            <div className="text-xs text-slate-500 space-y-1">
-              <p>Side: <span className="capitalize text-slate-800">{play.side.replace("_", " ")}</span></p>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>Side: <span className="capitalize text-foreground">{play.side.replace("_", " ")}</span></p>
               <p>
-                Formation: <span className="text-slate-800">{getPlayFormationDisplayName(play, formations)}</span>
+                Formation: <span className="text-foreground">{getPlayFormationDisplayName(play, formations)}</span>
                 {isPlayFormationOrphan(play) && (
-                  <span className="ml-1 text-slate-400" title="Play is not linked to a formation record">(name only)</span>
+                  <span className="ml-1 text-muted-foreground" title="Play is not linked to a formation record">(name only)</span>
                 )}
               </p>
               {(play.subFormation ?? play.subcategory) && (
-                <p>Sub-formation: <span className="text-slate-800">{play.subFormation ?? play.subcategory}</span></p>
+                <p>Sub-formation: <span className="text-foreground">{play.subFormation ?? play.subcategory}</span></p>
               )}
             </div>
           </div>
@@ -336,13 +336,13 @@ export function PlaybookInspector({
           <div className="space-y-2">
             {selectedPlayer.positionCode != null && selectedPlayer.positionCode !== "" ? (
               <>
-                <Label className="text-xs text-slate-500">Role</Label>
-                <p className="text-sm font-medium text-slate-800">
+                <Label className="text-xs text-muted-foreground">Role</Label>
+                <p className="text-sm font-medium text-foreground">
                   {getDisplayLabel(selectedPlayer.positionCode, selectedPlayer.positionNumber)}
                 </p>
-                <p className="text-xs text-slate-500">Position: {selectedPlayer.positionCode}</p>
+                <p className="text-xs text-muted-foreground">Position: {selectedPlayer.positionCode}</p>
                 {selectedPlayer.positionNumber != null && (
-                  <p className="text-xs text-slate-500">Number: {selectedPlayer.positionNumber}</p>
+                  <p className="text-xs text-muted-foreground">Number: {selectedPlayer.positionNumber}</p>
                 )}
                 {play && depthChartEntries?.length ? (
                   (() => {
@@ -354,15 +354,15 @@ export function PlaybookInspector({
                       slotNum
                     )
                     return (
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         Assigned:{" "}
                         {assigned ? (
-                          <span className="text-slate-800">
+                          <span className="text-foreground">
                             {assigned.jerseyNumber != null ? `#${assigned.jerseyNumber} ` : ""}
                             {[assigned.firstName, assigned.lastName].filter(Boolean).join(" ") || "—"}
                           </span>
                         ) : (
-                          <span className="text-slate-400">Unassigned</span>
+                          <span className="text-muted-foreground">Unassigned</span>
                         )}
                       </p>
                     )
@@ -389,7 +389,7 @@ export function PlaybookInspector({
                     onAssign={onAssignSlot}
                   />
                 )}
-                <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
+                <p className="text-xs text-muted-foreground">Shape: {selectedPlayer.shape}</p>
                 {!rosterPlayers?.length && selectedPlayer.hasDuplicateRole && (
                   <p className="text-xs text-amber-600" title="Another marker has the same role label on this play">
                     Duplicate role on this play
@@ -398,37 +398,37 @@ export function PlaybookInspector({
               </>
             ) : (
               <>
-                <Label className="text-xs text-slate-500">Player label</Label>
+                <Label className="text-xs text-muted-foreground">Player label</Label>
                 {canEdit && onPlayerLabelChange ? (
                   <Input
                     value={selectedPlayer.label}
                     onChange={(e) => onPlayerLabelChange(selectedPlayer.id, e.target.value.toUpperCase().slice(0, 2))}
-                    className="h-8 text-sm border-slate-200"
+                    className="h-8 text-sm"
                     maxLength={2}
                   />
                 ) : (
-                  <p className="text-sm font-medium text-slate-800">{selectedPlayer.label}</p>
+                  <p className="text-sm font-medium text-foreground">{selectedPlayer.label}</p>
                 )}
-                <p className="text-xs text-slate-500">Shape: {selectedPlayer.shape}</p>
+                <p className="text-xs text-muted-foreground">Shape: {selectedPlayer.shape}</p>
               </>
             )}
             {hasCustomAnimationTiming(selectedPlayer.animationTiming) && (
-              <p className="text-xs text-slate-600 pt-1 border-t border-slate-100 mt-1">
+              <p className="text-xs text-muted-foreground pt-1 border-t border-border mt-1">
                 Animation timing: <span className="font-medium text-amber-700">customized</span>
-                <span className="text-slate-500"> ({formatAnimationTimingSummary(selectedPlayer.animationTiming)})</span>
+                <span className="text-muted-foreground"> ({formatAnimationTimingSummary(selectedPlayer.animationTiming)})</span>
               </p>
             )}
             {play && play.side === "offense" && canEdit && onApplyRoutePreset && (
-              <div className="space-y-1.5 pt-2 border-t border-slate-100 mt-2">
-                <Label className="text-xs text-slate-500">Route library</Label>
-                <p className="text-[10px] text-slate-400">Click to apply a default route to this player. You can edit points after.</p>
+              <div className="space-y-1.5 pt-2 border-t border-border mt-2">
+                <Label className="text-xs text-muted-foreground">Route library</Label>
+                <p className="text-[10px] text-muted-foreground">Click to apply a default route to this player. You can edit points after.</p>
                 <div className="flex flex-wrap gap-1.5">
                   {ROUTE_PRESETS.map((preset) => (
                     <button
                       key={preset.id}
                       type="button"
                       onClick={() => onApplyRoutePreset(preset.id)}
-                      className="rounded-md px-2 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 hover:border-slate-300 transition-colors"
+                      className="rounded-md px-2 py-1.5 text-xs font-medium bg-muted/50 text-foreground border border-border hover:bg-muted hover:border-primary/50 transition-colors"
                     >
                       {preset.name}
                     </button>
@@ -441,16 +441,16 @@ export function PlaybookInspector({
 
         {selectedObject === "zone" && selectedZone && (
           <div className="space-y-2">
-            <Label className="text-xs text-slate-500">Zone</Label>
-            <p className="text-sm text-slate-800">Type: {selectedZone.type}</p>
-            <p className="text-xs text-slate-500">Size: {selectedZone.size}</p>
+            <Label className="text-xs text-muted-foreground">Zone</Label>
+            <p className="text-sm text-foreground">Type: {selectedZone.type}</p>
+            <p className="text-xs text-muted-foreground">Size: {selectedZone.size}</p>
           </div>
         )}
 
         {selectedObject === "route" && (
           <div className="space-y-2">
-            <Label className="text-xs text-slate-500">Route</Label>
-            <p className="text-xs text-slate-500">Route segment selected. Edit by redrawing or moving points.</p>
+            <Label className="text-xs text-muted-foreground">Route</Label>
+            <p className="text-xs text-muted-foreground">Route segment selected. Edit by redrawing or moving points.</p>
           </div>
         )}
       </div>

@@ -285,7 +285,7 @@ export function PlaybooksPageClient({
     <div className="flex flex-col h-full">
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - File Tree */}
-        <div className="w-64 border-r flex-shrink-0 overflow-hidden" style={{ borderColor: "#E5E7EB" }}>
+        <div className="w-64 border-r border-border flex-shrink-0 overflow-hidden">
           <PlaybookFileTree
             plays={builderPlays.map(p => ({
               id: p.id,
@@ -321,17 +321,16 @@ export function PlaybooksPageClient({
             <div className="flex flex-col flex-1 overflow-hidden">
               {/* Formation selector */}
               <div
-                className="flex items-center gap-3 p-2 border-b flex-shrink-0"
-                style={{ borderColor: "#E5E7EB", backgroundColor: "#FAFAFA" }}
+                className="flex items-center gap-3 p-2 border-b border-border flex-shrink-0 bg-muted/30"
               >
-                <Label htmlFor="formation-select" className="text-sm font-medium text-[#0F172A] shrink-0">
+                <Label htmlFor="formation-select" className="text-sm font-medium text-foreground shrink-0">
                   Formation
                 </Label>
                 <select
                   id="formation-select"
                   value={selectedFormation || "Custom"}
                   onChange={(e) => setSelectedFormation(e.target.value)}
-                  className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#3B82F6] min-w-[140px]"
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary min-w-[140px]"
                   disabled={isCreatingFormation}
                 >
                   {formationsForSide.map((f) => (

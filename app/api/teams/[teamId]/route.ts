@@ -27,7 +27,7 @@ export async function GET(
     const supabase = getSupabaseServer()
     const { data, error } = await supabase
       .from("teams")
-      .select("id, name, slogan, sport, season_name, logo_url")
+      .select("id, name, slogan, sport, season_name, logo_url, program_id, team_level")
       .eq("id", teamId)
       .single()
 
@@ -42,6 +42,8 @@ export async function GET(
       sport: data.sport ?? "football",
       seasonName: data.season_name ?? "",
       logoUrl: data.logo_url ?? null,
+      programId: (data as { program_id?: string }).program_id ?? null,
+      teamLevel: (data as { team_level?: string }).team_level ?? null,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to load team"

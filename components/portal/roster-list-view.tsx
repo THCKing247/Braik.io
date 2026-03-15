@@ -34,6 +34,7 @@ interface RosterListViewProps {
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
+  onPromotePlayer?: (player: Player) => void
   /** If provided, each row gets a "View Profile" link. */
   getProfileHref?: (player: Player) => string
 }
@@ -50,6 +51,7 @@ export function RosterListView({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  onPromotePlayer,
   getProfileHref,
 }: RosterListViewProps) {
   const [playersState, setPlayersState] = useState<Player[]>(players)
@@ -113,7 +115,7 @@ export function RosterListView({
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Weight</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Height</th>
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Status</th>
-              {(getProfileHref || (canEdit && (onEditPlayer || onSendInvite || onDeletePlayer))) && (
+              {(getProfileHref || (canEdit && (onEditPlayer || onSendInvite || onDeletePlayer || onPromotePlayer))) && (
                 <th className="px-4 py-3 font-semibold text-[#0F172A] text-right">Actions</th>
               )}
             </tr>
@@ -127,6 +129,7 @@ export function RosterListView({
                 onEditPlayer={onEditPlayer}
                 onSendInvite={onSendInvite}
                 onDeletePlayer={onDeletePlayer}
+                onPromotePlayer={onPromotePlayer}
                 onOpenFormsModal={() => setFormsModalPlayer(player)}
                 profileHref={getProfileHref?.(player)}
               />
@@ -158,6 +161,7 @@ function RosterListRow({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  onPromotePlayer,
   onOpenFormsModal,
   profileHref,
 }: {
@@ -166,6 +170,7 @@ function RosterListRow({
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
+  onPromotePlayer?: (player: Player) => void
   onOpenFormsModal?: () => void
   profileHref?: string
 }) {
@@ -244,7 +249,7 @@ function RosterListRow({
           {getStatusDisplay().text}
         </span>
       </td>
-      {(canEdit && (onEditPlayer || onSendInvite || onDeletePlayer || onOpenFormsModal)) && (
+      {(canEdit && (onEditPlayer || onSendInvite || onDeletePlayer || onPromotePlayer || onOpenFormsModal)) && (
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap gap-1 justify-end">
             {canEdit && onOpenFormsModal && (
@@ -266,6 +271,17 @@ function RosterListRow({
                 onClick={() => onEditPlayer(player)}
               >
                 Edit
+              </Button>
+            )}
+            {onPromotePlayer && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => onPromotePlayer(player)}
+                title="Move to another team level"
+              >
+                Move to…
               </Button>
             )}
             {onSendInvite && (

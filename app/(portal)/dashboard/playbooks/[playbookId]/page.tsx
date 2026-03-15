@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
 import { CommentThreadPanel } from "@/components/portal/comment-thread-panel"
 import { CoachBSuggestPanel } from "@/components/portal/coach-b-suggest-panel"
+import { PlaybookMasterySection } from "@/components/portal/playbook-mastery-section"
 
 function PlaybookDetailContent({
   playbookId,
@@ -360,6 +361,7 @@ function PlaybookDetailContent({
                   className="max-w-xl"
                 />
               </section>
+              <PlaybookMasterySection teamId={teamId} canEdit={canEdit} />
               <section>
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Collaboration</h2>
                 <CommentThreadPanel parentType="playbook" parentId={playbookId} defaultCollapsed={true} />

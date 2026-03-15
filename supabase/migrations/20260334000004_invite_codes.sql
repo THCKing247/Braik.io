@@ -28,7 +28,8 @@ create table if not exists public.invite_codes (
   updated_at timestamptz not null default now()
 );
 
-create unique index if not exists idx_invite_codes_code on public.invite_codes(code) where is_active and (expires_at is null or expires_at > now());
+-- Unique code among active codes only (expiry checked at runtime; now() cannot be used in index predicate)
+create unique index if not exists idx_invite_codes_code on public.invite_codes(code) where is_active;
 create index if not exists idx_invite_codes_program on public.invite_codes(program_id) where program_id is not null;
 create index if not exists idx_invite_codes_team on public.invite_codes(team_id) where team_id is not null;
 create index if not exists idx_invite_codes_target_player on public.invite_codes(target_player_id) where target_player_id is not null;

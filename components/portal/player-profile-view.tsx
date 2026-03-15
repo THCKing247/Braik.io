@@ -11,8 +11,9 @@ import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, T
 import type { PlayerProfile } from "@/types/player-profile"
 import { PlayerProfileStatsForm } from "./player-profile-stats-form"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
+import { PlayerDevelopmentTab } from "./player-development-tab"
 
-type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity"
+type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity" | "development"
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -22,6 +23,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "documents", label: "Documents" },
   { id: "notes", label: "Notes" },
   { id: "activity", label: "Activity" },
+  { id: "development", label: "Development" },
 ]
 
 interface PlayerProfileViewProps {
@@ -478,6 +480,9 @@ export function PlayerProfileView({
           )}
           {activeTab === "activity" && (
             <ActivityTab playerId={playerId} teamId={teamId} />
+          )}
+          {activeTab === "development" && (
+            <PlayerDevelopmentTab playerId={playerId} canEdit={canEditProfile} />
           )}
         </CardContent>
       </Card>

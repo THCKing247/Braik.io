@@ -45,6 +45,7 @@ interface RosterGridViewProps {
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
+  onPromotePlayer?: (player: Player) => void
   onImageUploadSuccess?: (playerId: string, imageUrl: string) => void
   /** If provided, each player card gets a "View Profile" link to this URL (e.g. /dashboard/roster/[playerId]?teamId=xxx). */
   getProfileHref?: (player: Player) => string
@@ -56,6 +57,7 @@ export function RosterGridView({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  onPromotePlayer,
   onImageUploadSuccess,
   getProfileHref,
 }: RosterGridViewProps) {
@@ -231,6 +233,7 @@ export function RosterGridView({
             onEditPlayer={onEditPlayer}
             onSendInvite={onSendInvite}
             onDeletePlayer={onDeletePlayer}
+            onPromotePlayer={onPromotePlayer}
             isUploading={uploadingPlayerId === player.id}
             previewImageUrl={uploadingPlayerId === player.id ? uploadPreviewUrl : null}
           />

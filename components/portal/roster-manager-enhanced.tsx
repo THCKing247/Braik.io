@@ -18,6 +18,9 @@ import {
 import { RosterGridView } from "./roster-grid-view"
 import { RosterListView } from "./roster-list-view"
 import { DepthChartView } from "./depth-chart-view"
+import { ProgramDepthChartView } from "./program-depth-chart-view"
+import { PlayerPromoteModal } from "./player-promote-modal"
+import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
 
@@ -63,6 +66,7 @@ interface DepthChartEntry {
 
 interface RosterManagerEnhancedProps {
   teamId: string
+  programId?: string | null
   players: Player[]
   canEdit: boolean
   teamSport: string
@@ -509,6 +513,7 @@ function InviteLinkModal({
 
 export function RosterManagerEnhanced({ 
   teamId, 
+  programId = null,
   players: initialPlayers, 
   canEdit,
   teamSport,
@@ -520,7 +525,7 @@ export function RosterManagerEnhanced({
   const router = useRouter()
   const pathname = usePathname()
   const [players, setPlayers] = useState(initialPlayers)
-  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart" | "readiness">("roster")
+  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart" | "readiness" | "program-depth">("roster")
   const [teamReadiness, setTeamReadiness] = useState<{
     summary: TeamReadinessSummary
     players: PlayerReadinessItem[]
@@ -569,6 +574,7 @@ export function RosterManagerEnhanced({
   const [inviteLoading, setInviteLoading] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
+  const [promotePlayer, setPromotePlayer] = useState<{ player: Player; currentTeamId: string } | null>(null)
   const [rosterViewMode, setRosterViewMode] = useState<"card" | "list">(initialView)
   const [rosterSearchQuery, setRosterSearchQuery] = useState(initialSearch)
   const [rosterPositionFilter, setRosterPositionFilter] = useState<string>(initialPosition)
@@ -1076,6 +1082,19 @@ export function RosterManagerEnhanced({
               style={activeTab === "depth-chart" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
             >
               Depth Chart
+            </button>
+          )}
+          {isFootball && programId && canEdit && (
+            <button
+              onClick={() => setActiveTab("program-depth")}
+              className={`px-4 py-2 font-semibold transition-colors ${
+                activeTab === "program-depth"
+                  ? "border-b-2"
+                  : "opacity-60 hover:opacity-100"
+              }`}
+              style={activeTab === "program-depth" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+            >
+              Program Depth
             </button>
           )}
         </div>
@@ -1710,6 +1729,11 @@ export function RosterManagerEnhanced({
         </>
       )}
 
+      {/* Program depth chart (all levels) */}
+      {activeTab === "program-depth" && programId && (
+        <ProgramDepthChartView programId={programId} />
+      )}
+
       {/* Content Views */}
       {activeTab === "roster" && !showPrintModal && !showEmailModal && (
         rosterViewMode === "card" ? (
@@ -1719,6 +1743,7 @@ export function RosterManagerEnhanced({
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+            onPromotePlayer={programId && userRole === "HEAD_COACH" && canEdit ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId }) : undefined}
             onImageUploadSuccess={handlePlayerImageUploaded}
             getProfileHref={(p) => {
               const params = new URLSearchParams()
@@ -1737,6 +1762,7 @@ export function RosterManagerEnhanced({
             onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
             onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
             onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+            onPromotePlayer={programId && userRole === "HEAD_COACH" && canEdit ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId }) : undefined}
             getProfileHref={(p) => {
               const params = new URLSearchParams()
               params.set("teamId", teamId)
@@ -1758,6 +1784,22 @@ export function RosterManagerEnhanced({
       {/* Email Modal */}
       {showEmailModal && (
         <RosterEmailModal teamId={teamId} onClose={() => setShowEmailModal(false)} />
+      )}
+
+      {/* Promote / Move player modal */}
+      {promotePlayer && programId && (
+        <PlayerPromoteModal
+          open={!!promotePlayer}
+          onClose={() => setPromotePlayer(null)}
+          programId={programId}
+          playerId={promotePlayer.player.id}
+          playerName={`${promotePlayer.player.firstName} ${promotePlayer.player.lastName}`}
+          currentTeamId={promotePlayer.currentTeamId}
+          onSuccess={() => {
+            setPromotePlayer(null)
+            window.location.reload()
+          }}
+        />
       )}
 
       {/* Depth Chart Full-Screen Modal */}
@@ -1782,16 +1824,23 @@ export function RosterManagerEnhanced({
                 </Button>
               </div>
             </div>
-            {/* Full-screen depth chart content */}
-            <div className="flex-1 overflow-auto">
-              <DepthChartView
-                teamId={teamId}
-                players={players}
-                depthChart={depthChart}
-                onUpdate={handleDepthChartChange}
-                canEdit={canEdit}
-                isHeadCoach={userRole === "HEAD_COACH"}
-              />
+            {/* Full-screen depth chart content + call-up suggestions */}
+            <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 overflow-auto">
+                <DepthChartView
+                  teamId={teamId}
+                  players={players}
+                  depthChart={depthChart}
+                  onUpdate={handleDepthChartChange}
+                  canEdit={canEdit}
+                  isHeadCoach={userRole === "HEAD_COACH"}
+                />
+              </div>
+              {programId && canEdit && (
+                <div className="w-80 shrink-0 border-l border-border overflow-auto p-4 bg-muted/20">
+                  <CallUpSuggestionsPanel programId={programId} />
+                </div>
+              )}
             </div>
           </div>
         </>

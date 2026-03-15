@@ -43,23 +43,28 @@ function RosterPageContent({
   }
   const [players, setPlayers] = useState<PlayerItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [programId, setProgramId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => {
-        if (!res.ok) return []
-        return res.json()
-      })
-      .then((data: unknown) => {
-        if (!cancelled && Array.isArray(data)) {
+    Promise.all([
+      fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`).then((res) => (res.ok ? res.json() : [])),
+      fetch(`/api/teams/${teamId}`).then((res) => (res.ok ? res.json() : null)),
+    ])
+      .then(([rosterData, teamData]: [unknown, { programId?: string } | null]) => {
+        if (!cancelled && Array.isArray(rosterData)) {
           setPlayers(
-            (data as Record<string, unknown>[]).map((p) => ({
+            (rosterData as Record<string, unknown>[]).map((p) => ({
               ...p,
               guardianLinks: Array.isArray(p.guardianLinks) ? p.guardianLinks : [],
             })) as PlayerItem[]
           )
+        }
+        if (!cancelled && teamData?.programId) {
+          setProgramId(teamData.programId)
+        } else if (!cancelled) {
+          setProgramId(null)
         }
       })
       .catch(() => {
@@ -82,6 +87,7 @@ function RosterPageContent({
   return (
     <RosterManagerEnhanced
       teamId={teamId}
+      programId={programId}
       players={players}
       canEdit={canEdit}
       teamSport="football"

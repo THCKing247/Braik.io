@@ -19,6 +19,13 @@ export interface UserMembership {
   positionGroups?: unknown
 }
 
+/** Program-level membership from program_members (head_coach, assistant_coach, athletic_director). */
+export interface ProgramMembership {
+  userId: string
+  programId: string
+  role: "head_coach" | "assistant_coach" | "athletic_director"
+}
+
 /** Map profile.role (e.g. head_coach) to normalized Role (e.g. HEAD_COACH). */
 function profileRoleToNormalizedRole(profileRole: string | null | undefined): Role {
   const raw = (profileRole ?? "player").toString().trim().toLowerCase().replace(/-/g, "_")
@@ -167,4 +174,88 @@ export async function requireTeamPermission(
   }
 
   return { membership }
+}
+
+/**
+ * Get the current user's program-level role from program_members.
+ * Used for program-scoped actions (promotions, program depth chart, evaluations, play assignments).
+ */
+export async function getProgramMembership(programId: string): Promise<ProgramMembership | null> {
+  const session = await getServerSession()
+  if (!session?.user?.id) return null
+
+  const supabase = getSupabaseServer()
+  const { data: member, error } = await supabase
+    .from("program_members")
+    .select("program_id, user_id, role")
+    .eq("program_id", programId)
+    .eq("user_id", session.user.id)
+    .eq("active", true)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[getProgramMembership] program_members lookup failed", {
+      userId: session.user.id,
+      programId,
+      error,
+    })
+    throw new MembershipLookupError("Database error during program membership lookup", error)
+  }
+
+  if (!member || !["head_coach", "assistant_coach", "athletic_director"].includes(String(member.role))) {
+    return null
+  }
+
+  return {
+    userId: session.user.id,
+    programId: member.program_id,
+    role: member.role as ProgramMembership["role"],
+  }
+}
+
+/** Require the user to be a coach (head_coach or assistant_coach) in the program. */
+export async function requireProgramCoach(programId: string): Promise<{ user: { id: string }; membership: ProgramMembership }> {
+  const user = await requireAuth()
+  let membership: ProgramMembership | null
+  try {
+    membership = await getProgramMembership(programId)
+  } catch (err) {
+    if (err instanceof MembershipLookupError) throw err
+    throw err
+  }
+
+  const coachRoles: ProgramMembership["role"][] = ["head_coach", "assistant_coach"]
+  if (!membership || !coachRoles.includes(membership.role)) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId: programId,
+      reason: "Not a coach in this program",
+    })
+    throw new Error("Access denied: Not a coach in this program")
+  }
+
+  return { user, membership }
+}
+
+/** Require the user to be head coach in the program (e.g. for promotions). */
+export async function requireProgramHeadCoach(programId: string): Promise<{ user: { id: string }; membership: ProgramMembership }> {
+  const user = await requireAuth()
+  let membership: ProgramMembership | null
+  try {
+    membership = await getProgramMembership(programId)
+  } catch (err) {
+    if (err instanceof MembershipLookupError) throw err
+    throw err
+  }
+
+  if (!membership || membership.role !== "head_coach") {
+    logPermissionDenial({
+      userId: user.id,
+      teamId: programId,
+      reason: "Head coach required for this action",
+    })
+    throw new Error("Access denied: Head coach required")
+  }
+
+  return { user, membership }
 }

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, User, Edit, Mail, Trash2, MoreVertical } from "lucide-react"
+import { FileText, User, Edit, Mail, Trash2, MoreVertical, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlayerFormsModal } from "./player-forms-modal"
 
@@ -44,6 +44,8 @@ interface PlayerCardProps {
   onEditPlayer?: (player: any) => void
   onSendInvite?: (player: any) => void | Promise<void>
   onDeletePlayer?: (player: any) => void | Promise<void>
+  /** Head coach: promote/move player to another team level (JV, Varsity, etc.). */
+  onPromotePlayer?: (player: any) => void
   /** True while this card's photo is uploading; shows spinner and disables upload. */
   isUploading?: boolean
   /** Optional local preview URL (object URL) to show while upload is in progress. */
@@ -64,6 +66,7 @@ export function PlayerCard({
   onEditPlayer,
   onSendInvite,
   onDeletePlayer,
+  onPromotePlayer,
   isUploading = false,
   previewImageUrl = null,
   eligibilityHint,
@@ -299,6 +302,20 @@ export function PlayerCard({
               >
                 <Mail className="h-4 w-4 mr-2" />
                 Send Invite
+              </Button>
+            )}
+            {onPromotePlayer && (
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowActionsMenu(false)
+                  onPromotePlayer(player)
+                }}
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+              >
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                Move to…
               </Button>
             )}
             {onDeletePlayer && (

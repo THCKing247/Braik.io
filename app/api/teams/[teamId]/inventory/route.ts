@@ -40,7 +40,7 @@ export async function GET(
     const [itemsRes, playersRes] = await Promise.all([
       supabase
         .from("inventory_items")
-        .select("id, category, name, quantity_total, quantity_available, condition, assigned_to_player_id, notes, status, equipment_type")
+        .select("id, category, name, quantity_total, quantity_available, condition, assigned_to_player_id, notes, status, equipment_type, size, make, item_code")
         .eq("team_id", teamId)
         .order("name", { ascending: true }),
       supabase
@@ -95,6 +95,9 @@ export async function GET(
       notes: i.notes ?? null,
       status: i.status ?? "AVAILABLE",
       equipmentType: i.equipment_type ?? null,
+      size: i.size ?? null,
+      make: i.make ?? null,
+      itemCode: i.item_code ?? null,
       assignedPlayer: i.assigned_to_player_id
         ? playerMap.get(i.assigned_to_player_id)
           ? {
@@ -173,6 +176,13 @@ export async function POST(
 
     const startNumber = (existingCount || 0) + 1
 
+    // Generate unique item codes
+    const generateItemCode = (equipmentType: string, index: number) => {
+      const prefix = equipmentType.substring(0, 3).toUpperCase()
+      const timestamp = Date.now().toString(36).toUpperCase()
+      return `${prefix}-${timestamp}-${String(startNumber + index).padStart(4, '0')}`
+    }
+
     // Create inventory item(s) - if quantity > 1, create multiple items with sequential numbering
     const itemsToCreate = Array.from({ length: quantity }, (_, index) => ({
       team_id: teamId,
@@ -184,6 +194,7 @@ export async function POST(
       status: availability || "AVAILABLE",
       assigned_to_player_id: assignedToPlayerId || null,
       notes: notes || null,
+      item_code: generateItemCode(equipmentType, index),
       equipment_type: equipmentType,
     }))
 

@@ -59,6 +59,12 @@ export async function PATCH(
     if (body.notes !== undefined) {
       updateData.notes = body.notes || null
     }
+    if (body.size !== undefined) {
+      updateData.size = body.size || null
+    }
+    if (body.make !== undefined) {
+      updateData.make = body.make || null
+    }
 
     const { data: updatedItem, error: updateError } = await supabase
       .from("inventory_items")
@@ -130,6 +136,9 @@ export async function PATCH(
       notes: updatedItem.notes ?? null,
       status: updatedItem.status ?? "AVAILABLE",
       equipmentType: updatedItem.equipment_type ?? null,
+      size: updatedItem.size ?? null,
+      make: updatedItem.make ?? null,
+      itemCode: updatedItem.item_code ?? null,
       assignedPlayer,
     })
   } catch (err) {

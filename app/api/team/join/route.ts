@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
+import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
 
 export const runtime = "nodejs"
 
@@ -44,6 +45,61 @@ export async function POST(request: Request) {
 
     let teamId: string | null = null
     let usedPlayerInvite = false
+
+    // Priority 0: Typed invite_codes (team_player_join or player_claim_invite)
+    try {
+      const typedCode = await findInviteCode(supabase, normalizedCode, [
+        "team_player_join",
+        "player_claim_invite",
+      ])
+      if (typedCode) {
+        if (typedCode.invite_type === "team_player_join" && typedCode.team_id) {
+          const maxUses = typedCode.max_uses ?? Number.MAX_SAFE_INTEGER
+          if (typedCode.uses >= maxUses) {
+            return NextResponse.json(
+              { success: false, error: "This invite code has reached its maximum number of uses." },
+              { status: 400 }
+            )
+          }
+          const consume = await consumeInviteCode(supabase, typedCode.id, userId)
+          if (consume.error) {
+            return NextResponse.json(
+              { success: false, error: consume.error },
+              { status: 400 }
+            )
+          }
+          teamId = typedCode.team_id
+        } else if (typedCode.invite_type === "player_claim_invite" && typedCode.target_player_id) {
+          const { data: player } = await supabase
+            .from("players")
+            .select("id, team_id")
+            .eq("id", typedCode.target_player_id)
+            .is("user_id", null)
+            .maybeSingle()
+          if (player?.team_id) {
+            const { error: linkErr } = await supabase
+              .from("players")
+              .update({
+                user_id: userId,
+                claimed_at: new Date().toISOString(),
+                invite_status: "joined",
+              })
+              .eq("id", player.id)
+            if (linkErr) {
+              return NextResponse.json(
+                { success: false, error: "Failed to link your account to the roster.", details: linkErr.message },
+                { status: 500 }
+              )
+            }
+            await consumeInviteCode(supabase, typedCode.id, userId)
+            teamId = player.team_id as string
+            usedPlayerInvite = true
+          }
+        }
+      }
+    } catch {
+      // invite_codes table may not exist yet; fall through to legacy
+    }
 
     // Priority 1: Check for player-specific invite code (players.invite_code)
     // This links the user to an existing coach-created player record

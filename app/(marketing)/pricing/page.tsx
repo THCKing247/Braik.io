@@ -46,7 +46,7 @@ export default function PricingPage() {
         </div>
         <div className="container mx-auto px-4 relative z-10">
           <div className="max-w-4xl mx-auto space-y-10">
-            {/* Team Program Pricing Card */}
+            {/* Head Coach Plan Card */}
             <div
               className="p-8 md:p-10 rounded-[14px] relative overflow-hidden text-[#FFFFFF]"
               style={cardStyle}
@@ -55,10 +55,10 @@ export default function PricingPage() {
               <div className="space-y-8">
                 <div>
                   <h2 className="text-2xl md:text-3xl font-athletic font-semibold mb-2 text-[#FFFFFF] uppercase tracking-wide">
-                    Team Program Pricing
+                    Head Coach Plan
                   </h2>
                   <p className="text-lg text-[#FFFFFF]/90 leading-relaxed">
-                    Best for individual teams and coaches getting started. Flexible payment options allow teams to cover athlete accounts or let players pay individually.
+                    For head coaches running a standalone program. The program or head coach pays for Braik—player accounts are included; players do not pay for their own accounts.
                   </p>
                 </div>
 
@@ -69,8 +69,8 @@ export default function PricingPage() {
                     </h3>
                     <ul className="text-[#FFFFFF]/90 space-y-2">
                       <li>Head coach account</li>
-                      <li>3 assistant coach accounts</li>
-                      <li>1 parent account per athlete</li>
+                      <li>3 assistant coaches included (more free if you add JV/Freshman)</li>
+                      <li>Player and parent accounts included</li>
                       <li>Program analytics</li>
                       <li>Full team platform access</li>
                     </ul>
@@ -80,30 +80,22 @@ export default function PricingPage() {
                       How billing works
                     </h3>
                     <ul className="text-[#FFFFFF]/90 space-y-2">
-                      <li>$250 annual program fee</li>
-                      <li>$10 per athlete</li>
-                      <li>Minimum roster size depends on sport</li>
-                      <li>$10 per additional assistant coach</li>
+                      <li>Varsity base: $250/year</li>
+                      <li>$10 per roster spot (each team level)</li>
+                      <li>Add JV: $50 base + $10 per roster spot (+1 free assistant)</li>
+                      <li>Add Freshman: $50 base + $10 per roster spot (+1 free assistant)</li>
+                      <li>$10 per assistant coach over the free allowance</li>
                     </ul>
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-semibold text-[#FFFFFF] mb-3 uppercase tracking-wide">
-                    Who pays options
-                  </h3>
-                  <p className="text-[#FFFFFF]/90 leading-relaxed">
-                    The coach can cover athlete accounts, or athletes can pay $10 when they join. The same option applies to additional assistant coaches—either the program pays or each coach pays at signup.
-                  </p>
-                </div>
-
                 <p className="text-2xl font-semibold text-[#FFFFFF] pt-2">
-                  $250 per team per year · $10 per athlete · 3 coaches included
+                  Varsity $250 · $10/roster spot · 3 assistants included (4 with JV, 5 with JV + Freshman)
                 </p>
               </div>
             </div>
 
-            {/* Athletic Department License Card */}
+            {/* Athletic Director Plan Card */}
             <div
               className="p-8 md:p-10 rounded-[14px] relative overflow-hidden text-[#FFFFFF]"
               style={cardStyle}
@@ -112,10 +104,10 @@ export default function PricingPage() {
               <div className="space-y-8">
                 <div>
                   <h2 className="text-2xl md:text-3xl font-athletic font-semibold mb-2 text-[#FFFFFF] uppercase tracking-wide">
-                    Athletic Department License
+                    Athletic Director Plan
                   </h2>
                   <p className="text-lg text-[#FFFFFF]/90 leading-relaxed">
-                    Best for schools that want one platform across every sport. Ideal for athletic directors who want centralized visibility across programs.
+                    For athletic departments. One flat annual fee—the athletic department pays; all teams, roster spots, and coaches are included. Players do not pay for their own accounts.
                   </p>
                 </div>
 
@@ -130,11 +122,11 @@ export default function PricingPage() {
                     </h3>
                     <ul className="text-[#FFFFFF]/90 space-y-2">
                       <li>Unlimited teams</li>
-                      <li>Unlimited athletes</li>
-                      <li>Unlimited coaches</li>
-                      <li>Athletic director dashboard</li>
-                      <li>Department analytics</li>
-                      <li>Centralized program management</li>
+                      <li>Unlimited roster spots</li>
+                      <li>Unlimited assistant coaches</li>
+                      <li>Athletic director portal</li>
+                      <li>Organization and team management</li>
+                      <li>Head coach invite codes to claim teams</li>
                     </ul>
                   </div>
                   <div>
@@ -142,7 +134,7 @@ export default function PricingPage() {
                       How billing works
                     </h3>
                     <p className="text-[#FFFFFF]/90 leading-relaxed">
-                      $6,500 annual license. One payment covers the entire athletic department.
+                      $6,500 flat annual plan. One payment from the athletic department covers everything—no per-team or per-athlete charges.
                     </p>
                   </div>
                 </div>
@@ -151,7 +143,7 @@ export default function PricingPage() {
                     href="/signup/athletic-director"
                     className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-6 py-3 text-base font-semibold text-white hover:bg-[#2563EB] transition-colors"
                   >
-                    Start Department Setup
+                    Start Athletic Director setup
                   </a>
                 </div>
               </div>
@@ -171,10 +163,10 @@ export default function PricingPage() {
           <div className="max-w-2xl mx-auto space-y-6">
             <div className="text-center">
               <h2 className="text-2xl md:text-3xl font-athletic font-bold text-[#212529] uppercase tracking-tight mb-2">
-                Estimate your team cost
+                Estimate your program cost
               </h2>
               <p className="text-[#212529]/80">
-                See what Braik would cost for your program.
+                See what the head coach or athletic department would pay for Braik. Player accounts are included.
               </p>
             </div>
             <TeamPriceCalculator />

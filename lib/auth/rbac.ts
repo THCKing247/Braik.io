@@ -24,6 +24,7 @@ function profileRoleToNormalizedRole(profileRole: string | null | undefined): Ro
   const raw = (profileRole ?? "player").toString().trim().toLowerCase().replace(/-/g, "_")
   if (raw === "head_coach") return ROLES.HEAD_COACH
   if (raw === "assistant_coach") return ROLES.ASSISTANT_COACH
+  if (raw === "athletic_director") return ROLES.ATHLETIC_DIRECTOR
   if (raw === "parent") return ROLES.PARENT
   if (raw === "school_admin" || raw === "admin") return ROLES.SCHOOL_ADMIN
   return ROLES.PLAYER

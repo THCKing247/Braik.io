@@ -6,31 +6,31 @@ import { cn } from "@/lib/utils"
 const FAQ_ITEMS = [
   {
     q: "Is Braik billed monthly or annually?",
-    a: "Braik is billed annually. Team programs and the Athletic Department license are both paid once per year, which simplifies budgeting and aligns with typical program planning cycles.",
+    a: "Braik is billed annually. The Head Coach plan and Athletic Director plan are both paid once per year by the program or athletic department, which simplifies budgeting and aligns with typical planning cycles.",
   },
   {
-    q: "Can athletes pay for themselves?",
-    a: "Yes. When creating a team program, the head coach can choose \"Players pay individually.\" In that case, the coach pays only the $250 program fee, and each athlete pays $10 when they create their account.",
+    q: "Who pays for Braik—the coach or the players?",
+    a: "The head coach or program pays for the Head Coach plan; the athletic department pays for the Athletic Director plan. Player accounts are included in the plan—players do not pay for their own accounts.",
   },
   {
-    q: "Can assistant coaches pay for themselves?",
-    a: "Yes. When adding assistant coaches beyond the three included, the head coach can choose whether the program covers the cost or each additional coach pays $10 during signup.",
+    q: "How many assistant coaches are included?",
+    a: "Head Coach plan: 3 assistants are included for varsity only. If you add a JV team, you get 1 more free assistant (4 total). If you add Freshman as well, you get 5 free assistants. Any assistants beyond that are $10 each. Athletic Director plan includes unlimited assistants.",
   },
   {
     q: "What happens if our roster grows?",
-    a: "If the coach pays for players, you can add athletes and your next renewal will reflect the updated roster size. If players pay individually, new athletes simply pay $10 when they join. You can adjust your plan at renewal to match your program size.",
+    a: "On the Head Coach plan, roster spots are billed at $10 each per team level. At renewal, your cost will reflect your current roster counts. On the Athletic Director plan, roster size does not affect the flat $6,500 fee.",
   },
   {
     q: "Does the minimum roster size depend on the sport?",
-    a: "Yes. Each sport has a minimum roster size (e.g., Football 40, Basketball 10, Soccer 14). The calculator uses these minimums so your estimate matches how Braik will bill your program.",
+    a: "Yes. Each sport has a minimum varsity roster size (e.g., Football 40, Basketball 10, Soccer 14). The calculator uses these minimums so your estimate matches how Braik will bill your program.",
   },
   {
-    q: "What is included in the Athletic Department license?",
-    a: "The Athletic Department license ($6,500/year) includes unlimited teams, unlimited athletes, unlimited coaches, an athletic director dashboard, department-wide analytics, and centralized program management—all under one annual payment.",
+    q: "What is included in the Athletic Director plan?",
+    a: "The Athletic Director plan ($6,500/year) includes unlimited teams, unlimited roster spots, unlimited assistant coaches, the athletic director portal, organization and team management, and head coach invite codes—all under one annual payment from the athletic department.",
   },
   {
-    q: "Can we start with one team and upgrade later?",
-    a: "Yes. Many schools start with a single team program and later upgrade to the Athletic Department license when they want one platform across every sport and centralized visibility.",
+    q: "Can we start with Head Coach and upgrade to Athletic Director later?",
+    a: "Yes. Many schools start with a Head Coach plan for one program and later move to the Athletic Director plan when they want one platform across every sport and centralized visibility.",
   },
 ] as const
 

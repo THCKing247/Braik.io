@@ -27,6 +27,8 @@ export function OnboardingWizard() {
   const [rosterCap, setRosterCap] = useState("50")
   const [duesAmount, setDuesAmount] = useState("5.00")
   const [duesDueDate, setDuesDueDate] = useState("")
+  const [teamLevels, setTeamLevels] = useState<("varsity" | "jv" | "freshman")[]>(["varsity"])
+  const [rosterCreationMode, setRosterCreationMode] = useState<"coach_precreated" | "player_self_create">("coach_precreated")
 
   const handleStep1 = async () => {
     if (!teamName || !city) {
@@ -58,7 +60,7 @@ export function OnboardingWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orgName: schoolName || city, // Use school name or city as org name
+          orgName: schoolName || city,
           orgType,
           city,
           schoolName: schoolName || null,
@@ -72,6 +74,8 @@ export function OnboardingWizard() {
           rosterCap: parseInt(rosterCap),
           duesAmount: parseFloat(duesAmount),
           duesDueDate,
+          teamLevels,
+          rosterCreationMode,
         }),
       })
 
@@ -148,6 +152,61 @@ export function OnboardingWizard() {
                 <option value="baseball">Baseball</option>
                 <option value="other">Other</option>
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Team levels</Label>
+              <div className="flex flex-wrap gap-2">
+                {(["varsity", "jv", "freshman"] as const).map((level) => {
+                  const isOn = teamLevels.includes(level)
+                  const label = level === "varsity" ? "Varsity" : level === "jv" ? "JV" : "Freshman"
+                  return (
+                    <label key={level} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isOn}
+                        onChange={(e) => {
+                          const order: ("varsity" | "jv" | "freshman")[] = ["varsity", "jv", "freshman"]
+                          if (e.target.checked) {
+                            setTeamLevels((prev) =>
+                              prev.includes(level) ? prev : order.filter((l) => l === level || prev.includes(l))
+                            )
+                          } else {
+                            setTeamLevels((prev) => (level === "varsity" ? prev : prev.filter((l) => l !== level)))
+                          }
+                        }}
+                        className="rounded border-border"
+                      />
+                      <span className="text-sm">{label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted">Add JV and/or Freshman for multi-level programs. Varsity is always included.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Roster creation</Label>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="rosterMode"
+                    checked={rosterCreationMode === "coach_precreated"}
+                    onChange={() => setRosterCreationMode("coach_precreated")}
+                    className="border-border"
+                  />
+                  <span className="text-sm">I’ll create player profiles; players join with a team code and can claim their profile with a player code.</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="rosterMode"
+                    checked={rosterCreationMode === "player_self_create"}
+                    onChange={() => setRosterCreationMode("player_self_create")}
+                    className="border-border"
+                  />
+                  <span className="text-sm">Players sign up with the team code and their profile is created automatically.</span>
+                </label>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

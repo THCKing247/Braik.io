@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, ShieldCheck, UserCog } from "lucide-react"
+import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, ShieldCheck, UserCog, Building2 } from "lucide-react"
 import { AccountSettings } from "./settings-sections/account-settings"
 import { TeamSettingsSection } from "./settings-sections/team-settings-section"
 import { SeasonSettings } from "./settings-sections/season-settings"
@@ -14,6 +14,7 @@ import { ComplianceLegalSettings } from "./settings-sections/compliance-legal-se
 import { RosterTemplateSettings } from "./settings-sections/roster-template-settings"
 import { UsersListSettings } from "./settings-sections/users-list-settings"
 import { SubscriptionSettings } from "./settings-sections/subscription-settings"
+import { LinkToOrganizationSettings } from "./settings-sections/link-to-organization-settings"
 
 interface User {
   id: string
@@ -61,6 +62,7 @@ type SettingsSection =
   | "rosterTemplate"
   | "users"
   | "subscription"
+  | "linkToOrganization"
 
 export type TeamUpdatePayload = Partial<Pick<Team, "name" | "slogan" | "logoUrl">> | Team
 
@@ -87,6 +89,7 @@ const SETTINGS_SECTIONS: Array<{
   { id: "rosterTemplate", label: "Roster Template", icon: Users, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
   { id: "users", label: "Users", icon: UserCog, visible: (role) => role === "HEAD_COACH" },
   { id: "subscription", label: "Subscription", icon: CreditCard, visible: (role) => role === "HEAD_COACH" },
+  { id: "linkToOrganization", label: "Athletic Department", icon: Building2, visible: (role) => role === "HEAD_COACH" },
   { id: "support", label: "Support", icon: HelpCircle, visible: () => true },
 ]
 
@@ -128,6 +131,8 @@ export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLa
         return <UsersListSettings teamId={team.id} />
       case "subscription":
         return <SubscriptionSettings teamId={team.id} />
+      case "linkToOrganization":
+        return <LinkToOrganizationSettings />
       default:
         return <AccountSettings user={user} />
     }

@@ -1,6 +1,7 @@
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
+import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -74,6 +75,8 @@ export default async function AthleticDirectorOverviewPage() {
           </Link>
         </div>
       )}
+
+      <AdLinkCodeGenerator />
 
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-[#212529]">Recent activity</h2>

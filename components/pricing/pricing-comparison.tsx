@@ -4,21 +4,21 @@ import { cn } from "@/lib/utils"
 
 const comparison = [
   {
-    title: "Team Program",
-    description: "Designed for single teams and coaches getting started.",
+    title: "Head Coach Plan",
+    description: "For head coaches running a standalone program. Program/coach pays; player accounts included.",
     points: [
-      "Designed for single teams",
-      "Flexible athlete payment options",
-      "Scalable as programs grow",
+      "Varsity + optional JV and Freshman",
+      "Pay per roster spot and assistant overage",
+      "3–5 free assistants depending on team levels",
     ],
   },
   {
-    title: "Athletic Department",
-    description: "Designed for full school adoption.",
+    title: "Athletic Director Plan",
+    description: "For athletic departments. One flat fee; athletic department pays for everything.",
     points: [
-      "Unlimited teams and athletes",
-      "Centralized administration",
-      "Athletic director dashboard",
+      "Unlimited teams, roster spots, and coaches",
+      "AD portal and organization management",
+      "Head coach codes to assign teams",
     ],
   },
 ] as const
@@ -31,7 +31,7 @@ export function PricingComparison() {
           Choose the right fit for your program
         </h2>
         <p className="text-[#212529]/80 max-w-2xl mx-auto">
-          Schools can start with a single team and upgrade to an Athletic Department license later.
+          Plans are paid by the head coach/program or athletic department. Player accounts are included—players do not pay for their own accounts.
         </p>
       </div>
 

@@ -37,8 +37,16 @@ function DashboardPageShellContent({
         <div className="rounded-lg border bg-white p-6 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
           <h2 className="text-base font-semibold" style={{ color: "rgb(var(--text))" }}>Session data is incomplete</h2>
           <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
-            Please refresh the page or sign out and back in.
+            This can happen after a temporary connection issue. Refresh the page to try again, or sign out and back in if it persists.
           </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-md border px-3 py-2 text-sm font-medium"
+            style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+          >
+            Refresh page
+          </button>
         </div>
       </div>
     )

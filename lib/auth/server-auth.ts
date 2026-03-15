@@ -146,6 +146,7 @@ export async function getServerSession(): Promise<SessionResult | null> {
   if (accessToken) {
     const { data: userData, error } = await supabase.auth.getUser(accessToken)
     if (!error && userData?.user?.email) {
+      if (AUTH_DEBUG) console.info("[auth] INITIAL_SESSION", { userId: userData.user.id })
       const user = await buildSessionUser(
         userData.user.id,
         userData.user.email,
@@ -160,7 +161,7 @@ export async function getServerSession(): Promise<SessionResult | null> {
   if (refreshToken) {
     const refreshed = await refreshSupabaseSession(refreshToken)
     if (refreshed) {
-      if (AUTH_DEBUG) console.info("[auth] session refreshed for user", refreshed.user.id)
+      if (AUTH_DEBUG) console.info("[auth] TOKEN_REFRESHED", { userId: refreshed.user.id })
       const user = await buildSessionUser(
         refreshed.user.id,
         refreshed.user.email ?? "",

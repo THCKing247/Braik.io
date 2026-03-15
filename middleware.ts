@@ -1,21 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-const AUTH_COOKIES = ["sb-access-token", "sb-refresh-token"] as const
-
-function clearAuthCookies(response: NextResponse) {
-  const isProd = process.env.NODE_ENV === "production"
-  for (const name of AUTH_COOKIES) {
-    response.cookies.set(name, "", {
-      path: "/",
-      maxAge: 0,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: isProd,
-    })
-  }
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -59,9 +44,9 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/login"
     loginUrl.searchParams.set("callbackUrl", pathname)
-    const res = NextResponse.redirect(loginUrl)
-    clearAuthCookies(res)
-    return res
+    // Do not clear auth cookies on redirect: they may be valid but not sent (e.g. race).
+    // Clearing here could wipe a valid session and cause random sign-outs.
+    return NextResponse.redirect(loginUrl)
   }
 
   return NextResponse.next()

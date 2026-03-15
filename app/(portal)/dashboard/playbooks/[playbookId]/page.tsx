@@ -352,7 +352,7 @@ function PlaybookDetailContent({
                 </section>
               )}
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Coach B</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Coach B</h2>
                 <CoachBSuggestPanel
                   teamId={teamId}
                   playbookId={playbookId}

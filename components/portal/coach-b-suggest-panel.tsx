@@ -100,13 +100,13 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
   const visibleSuggestions = suggestions.filter((_, i) => !dismissedIds.has(`s-${i}`))
 
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white overflow-hidden ${className}`}>
-      <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/80">
+    <div className={`rounded-xl border border-border bg-card overflow-hidden text-foreground ${className}`}>
+      <div className="px-4 py-3 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-amber-500" />
-          <h3 className="font-semibold text-slate-900">Coach B</h3>
+          <h3 className="font-semibold text-foreground">Coach B</h3>
         </div>
-        <p className="text-xs text-slate-600 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Get play ideas. Try: &quot;Need a 3rd and 6 pass from Trips Right&quot;
         </p>
       </div>
@@ -118,10 +118,10 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAsk()}
             placeholder="Describe the situation or concept..."
-            className="flex-1 min-w-0 rounded-md border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400"
+            className="input-theme flex-1 min-w-0 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-70 disabled:cursor-not-allowed"
             disabled={loading}
           />
-          <Button size="sm" onClick={handleAsk} disabled={loading || !prompt.trim()} className="shrink-0">
+          <Button size="sm" onClick={handleAsk} disabled={loading || !prompt.trim()} className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-70">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ask"}
           </Button>
         </div>
@@ -133,35 +133,35 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
               return (
                 <div
                   key={originalIndex}
-                  className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm"
+                  className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-semibold text-slate-900">{suggestion.playName}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{suggestion.conceptType}</p>
+                      <p className="font-semibold text-foreground">{suggestion.playName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{suggestion.conceptType}</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleDismiss(originalIndex)}
-                      className="p-1 rounded text-slate-400 hover:text-slate-600"
+                      className="p-1 rounded text-muted-foreground hover:text-foreground"
                       aria-label="Dismiss"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
-                  <ul className="mt-2 text-xs text-slate-600 space-y-0.5">
+                  <ul className="mt-2 text-xs text-muted-foreground space-y-0.5">
                     {suggestion.routesByRole.map((r) => (
                       <li key={r.role}>
-                        <span className="font-medium text-slate-700">{r.role}:</span> {r.route}
+                        <span className="font-medium text-foreground">{r.role}:</span> {r.route}
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-2 text-xs text-slate-500 italic">{suggestion.rationale}</p>
+                  <p className="mt-2 text-xs text-muted-foreground italic">{suggestion.rationale}</p>
                   <div className="flex gap-2 mt-3">
                     <Button
                       size="sm"
                       variant="default"
-                      className="h-7 text-xs"
+                      className="h-7 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
                       onClick={() => handleInsertDraft(suggestion)}
                     >
                       <Plus className="h-3 w-3 mr-1" /> Insert as draft
@@ -169,7 +169,7 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs"
+                      className="h-7 text-xs border-border text-foreground"
                       onClick={() => handleCopy(suggestion)}
                     >
                       <Copy className="h-3 w-3 mr-1" /> Copy

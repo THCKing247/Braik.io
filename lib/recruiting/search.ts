@@ -114,7 +114,7 @@ export async function searchRecruitingProfiles(
   }
 
   const teamById = new Map((teams ?? []).map((t) => [t.id, t]))
-  const programById = new Map(programs ?? [])
+  const programById = new Map((programs ?? []).map((p) => [(p as { id: string }).id, p]))
 
   // Playbook mastery for filter and summary (if playbookMasteryMin requested, filter in memory)
   let masteryByPlayer: Map<string, number> = new Map()

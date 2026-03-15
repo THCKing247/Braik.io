@@ -179,12 +179,12 @@ export default function ProgramIntelligencePage() {
               )}
 
               {/* Breakout Players */}
-              {data.breakout?.candidates?.length > 0 && (
+              {(data.breakout?.candidates?.length ?? 0) > 0 && (
                 <section className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
                   <h2 className="text-lg font-semibold text-[#111827]">Breakout Players</h2>
                   <p className="mt-1 text-sm text-[#6B7280]">Top players by development, evaluations, and playbook mastery.</p>
                   <ul className="mt-4 space-y-2">
-                    {data.breakout.candidates.map((c) => (
+                    {(data.breakout?.candidates ?? []).map((c) => (
                       <li key={c.playerId} className="flex items-center justify-between rounded-lg border border-[#E5E7EB] p-3">
                         <div>
                           <Link href={`/dashboard/roster/${c.playerId}`} className="font-medium text-[#2563EB] hover:underline">
@@ -202,12 +202,12 @@ export default function ProgramIntelligencePage() {
               )}
 
               {/* Promotion Watchlist */}
-              {data.promotions?.candidates?.length > 0 && (
+              {(data.promotions?.candidates?.length ?? 0) > 0 && (
                 <section className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
                   <h2 className="text-lg font-semibold text-[#111827]">Promotion Watchlist</h2>
                   <p className="mt-1 text-sm text-[#6B7280]">JV/Freshman candidates to move up.</p>
                   <ul className="mt-4 space-y-2">
-                    {data.promotions.candidates.map((c) => (
+                    {(data.promotions?.candidates ?? []).map((c) => (
                       <li key={c.playerId} className="flex items-center justify-between rounded-lg border border-[#E5E7EB] p-3">
                         <div>
                           <Link href={`/dashboard/roster/${c.playerId}`} className="font-medium text-[#2563EB] hover:underline">
@@ -269,12 +269,12 @@ export default function ProgramIntelligencePage() {
               )}
 
               {/* Recruiting Pipeline */}
-              {data.recruitingReady?.players?.length > 0 && (
+              {(data.recruitingReady?.players?.length ?? 0) > 0 && (
                 <section className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
                   <h2 className="text-lg font-semibold text-[#111827]">Recruiting Pipeline</h2>
                   <p className="mt-1 text-sm text-[#6B7280]">Players ready for recruiting exposure.</p>
                   <ul className="mt-4 space-y-2">
-                    {data.recruitingReady.players.map((p) => (
+                    {(data.recruitingReady?.players ?? []).map((p) => (
                       <li key={p.playerId} className="flex items-center justify-between rounded-lg border border-[#E5E7EB] p-3">
                         <div>
                           <Link href={`/dashboard/roster/${p.playerId}`} className="font-medium text-[#2563EB] hover:underline">
@@ -290,11 +290,11 @@ export default function ProgramIntelligencePage() {
               )}
 
               {/* Risks */}
-              {data.risks?.risks?.length > 0 && (
+              {(data.risks?.risks?.length ?? 0) > 0 && (
                 <section className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
                   <h2 className="text-lg font-semibold text-[#111827]">Risks &amp; Attention Needed</h2>
                   <ul className="mt-4 space-y-2">
-                    {data.risks.risks.map((r, i) => (
+                    {(data.risks?.risks ?? []).map((r, i) => (
                       <li
                         key={i}
                         className={`rounded-lg border p-3 ${

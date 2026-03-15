@@ -1,9 +1,10 @@
-﻿import { ROLES, type Role } from "@/lib/auth/roles"
+import { ROLES, type Role } from "@/lib/auth/roles"
 
 // Role-based token weight multipliers
 const ROLE_WEIGHTS: Record<Role, number> = {
   HEAD_COACH: 1.0,
   ASSISTANT_COACH: 0.75, // Coordinators and position coaches
+  ATHLETIC_DIRECTOR: 1.0,
   PLAYER: 0.25,
   PARENT: 0.25,
   SCHOOL_ADMIN: 1.0,

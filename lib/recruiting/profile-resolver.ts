@@ -35,6 +35,35 @@ export interface RecruitingProfileView {
   programName: string | null
 }
 
+/** DB row shape for player_recruiting_profiles (used for Supabase select("*") when types are not generated). */
+interface PlayerRecruitingProfileRow {
+  id: string
+  player_id: string
+  program_id: string | null
+  team_id: string | null
+  graduation_year: number | null
+  height_feet: number | null
+  height_inches: number | null
+  weight_lbs: number | null
+  forty_time: number | null
+  shuttle_time: number | null
+  vertical_jump: number | null
+  gpa: number | null
+  recruiting_visibility: boolean
+  stats_visible: boolean
+  coach_notes_visible: boolean
+  playbook_mastery_visible: boolean
+  development_visible: boolean
+  bio: string | null
+  x_handle: string | null
+  instagram_handle: string | null
+  hudl_url: string | null
+  youtube_url: string | null
+  slug: string | null
+  created_at: string
+  updated_at: string
+}
+
 /**
  * Resolve recruiting profile by player id or slug.
  * Returns null if not found or recruiting_visibility is false (when requireVisible is true).
@@ -48,48 +77,21 @@ export async function getRecruitingProfileByPlayerIdOrSlug(
 
   const isId = /^[0-9a-f-]{36}$/i.test(playerIdOrSlug)
 
-  let profileRow: {
-    id: string
-    player_id: string
-    program_id: string | null
-    team_id: string | null
-    graduation_year: number | null
-    height_feet: number | null
-    height_inches: number | null
-    weight_lbs: number | null
-    forty_time: number | null
-    shuttle_time: number | null
-    vertical_jump: number | null
-    gpa: number | null
-    recruiting_visibility: boolean
-    stats_visible: boolean
-    coach_notes_visible: boolean
-    playbook_mastery_visible: boolean
-    development_visible: boolean
-    bio: string | null
-    x_handle: string | null
-    instagram_handle: string | null
-    hudl_url: string | null
-    youtube_url: string | null
-    slug: string | null
-    created_at: string
-    updated_at: string
-  } | null = null
-
+  let profileRow: PlayerRecruitingProfileRow | null = null
   if (isId) {
     const { data } = await supabase
       .from("player_recruiting_profiles")
       .select("*")
       .eq("player_id", playerIdOrSlug)
       .maybeSingle()
-    profileRow = data as typeof profileRow
+    profileRow = data as PlayerRecruitingProfileRow | null
   } else {
     const { data } = await supabase
       .from("player_recruiting_profiles")
       .select("*")
       .eq("slug", playerIdOrSlug)
       .maybeSingle()
-    profileRow = data as typeof profileRow
+    profileRow = data as PlayerRecruitingProfileRow | null
   }
 
   if (!profileRow) return null

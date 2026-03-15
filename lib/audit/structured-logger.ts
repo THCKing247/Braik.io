@@ -75,6 +75,23 @@ export interface AdminOverrideLog extends LogContext {
   targetTeamId?: string
 }
 
+export interface InviteLog extends LogContext {
+  action:
+    | "invite_created"
+    | "send_email_success"
+    | "send_email_failure"
+    | "send_email_skipped"
+    | "send_sms_success"
+    | "send_sms_failure"
+    | "send_sms_skipped"
+    | "invite_redeem_success"
+    | "invite_redeem_failure"
+  playerId?: string
+  inviteId?: string
+  reason?: string
+  error?: string
+}
+
 export type StructuredLog =
   | PermissionDenialLog
   | MessageLog
@@ -83,6 +100,7 @@ export type StructuredLog =
   | BillingStateLog
   | AIActionLog
   | AdminOverrideLog
+  | InviteLog
 
 /**
  * Format log entry for consistent output
@@ -130,6 +148,11 @@ function formatLogEntry(log: StructuredLog, level: LogLevel): string {
     actionFields.overrideType = (log as AdminOverrideLog).overrideType
     actionFields.targetUserId = (log as AdminOverrideLog).targetUserId
     actionFields.targetTeamId = (log as AdminOverrideLog).targetTeamId
+  } else if (log.action.startsWith("invite_") || log.action.startsWith("send_email_") || log.action.startsWith("send_sms_")) {
+    actionFields.playerId = (log as InviteLog).playerId
+    actionFields.inviteId = (log as InviteLog).inviteId
+    actionFields.reason = (log as InviteLog).reason
+    actionFields.error = (log as InviteLog).error
   }
 
   if (log.error) {
@@ -371,4 +394,23 @@ export function logAdminOverride(
     timestamp: new Date(),
   }
   writeLog(log, "warn")
+}
+
+/**
+ * Log player invite actions (create, send email/sms, redeem).
+ */
+export function logInviteAction(
+  action: InviteLog["action"],
+  context: { playerId?: string; inviteId?: string; reason?: string; error?: string }
+) {
+  const log: InviteLog = {
+    action,
+    playerId: context.playerId,
+    inviteId: context.inviteId,
+    reason: context.reason,
+    error: context.error,
+    timestamp: new Date(),
+  }
+  const level = action.includes("failure") || action.includes("skipped") ? "warn" : "info"
+  writeLog(log, level)
 }

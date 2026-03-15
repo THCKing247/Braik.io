@@ -31,8 +31,9 @@ export interface Player {
   notes: string | null
   imageUrl?: string | null
   email?: string | null
+  playerPhone?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_created" | "invite_sent" | "email_sent" | "sms_sent" | "claimed" | "invited" | "joined"
   joinLink?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
   missingForms?: string[]

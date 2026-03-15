@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { logInviteAction } from "@/lib/audit/structured-logger"
 
 /**
  * POST /api/player-invites/redeem
- * Body: { token: string }
- * Authenticated user redeems a player invite token to link their account to the roster spot.
+ * Body: { token?: string, code?: string }
+ * Authenticated user redeems a player invite by token or code to link their account to the roster spot.
  */
 export async function POST(request: Request) {
   try {
@@ -14,39 +15,61 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = (await request.json().catch(() => ({}))) as { token?: string }
+    const body = (await request.json().catch(() => ({}))) as { token?: string; code?: string }
     const token = typeof body?.token === "string" ? body.token.trim() : ""
-    if (!token) {
-      return NextResponse.json({ error: "Token is required" }, { status: 400 })
+    const code = typeof body?.code === "string" ? body.code.trim().toUpperCase() : ""
+    if (!token && !code) {
+      return NextResponse.json({ error: "Token or code is required" }, { status: 400 })
     }
 
     const supabase = getSupabaseServer()
     const userId = session.user.id
 
-    const { data: invite, error: inviteErr } = await supabase
-      .from("player_invites")
-      .select("id, player_id, team_id, status, expires_at")
-      .eq("token", token)
-      .maybeSingle()
+    let invite: { id: string; player_id: string; team_id: string; status: string; expires_at: string | null } | null = null
+    if (token) {
+      const { data, error: inviteErr } = await supabase
+        .from("player_invites")
+        .select("id, player_id, team_id, status, expires_at")
+        .eq("token", token)
+        .maybeSingle()
+      if (inviteErr) {
+        logInviteAction("invite_redeem_failure", { reason: "db_error", error: inviteErr.message })
+        return NextResponse.json({ error: "Invite not found or invalid." }, { status: 404 })
+      }
+      invite = data
+    } else {
+      const { data, error: inviteErr } = await supabase
+        .from("player_invites")
+        .select("id, player_id, team_id, status, expires_at")
+        .eq("code", code)
+        .maybeSingle()
+      if (inviteErr) {
+        logInviteAction("invite_redeem_failure", { reason: "db_error", error: inviteErr.message })
+        return NextResponse.json({ error: "Invite not found or invalid." }, { status: 404 })
+      }
+      invite = data
+    }
 
-    if (inviteErr || !invite) {
+    if (!invite) {
+      logInviteAction("invite_redeem_failure", { reason: "not_found" })
       return NextResponse.json({ error: "Invite not found or invalid." }, { status: 404 })
     }
 
-    if ((invite as { status: string }).status !== "pending") {
+    if (invite.status !== "pending" && invite.status !== "sent") {
+      logInviteAction("invite_redeem_failure", { playerId: invite.player_id, inviteId: invite.id, reason: "already_used_or_revoked" })
       return NextResponse.json({ error: "This invite has already been used or revoked." }, { status: 400 })
     }
 
-    const expiresAt = (invite as { expires_at: string | null }).expires_at
-    if (expiresAt) {
-      const exp = new Date(expiresAt)
+    if (invite.expires_at) {
+      const exp = new Date(invite.expires_at)
       if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
+        logInviteAction("invite_redeem_failure", { playerId: invite.player_id, inviteId: invite.id, reason: "expired" })
         return NextResponse.json({ error: "This invite has expired." }, { status: 400 })
       }
     }
 
-    const playerId = (invite as { player_id: string }).player_id
-    const teamId = (invite as { team_id: string }).team_id
+    const playerId = invite.player_id
+    const teamId = invite.team_id
 
     const { data: player, error: playerErr } = await supabase
       .from("players")
@@ -55,10 +78,12 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (playerErr || !player) {
+      logInviteAction("invite_redeem_failure", { playerId, inviteId: invite.id, reason: "player_not_found" })
       return NextResponse.json({ error: "Player record not found." }, { status: 404 })
     }
 
     if ((player as { user_id: string | null }).user_id) {
+      logInviteAction("invite_redeem_failure", { playerId, inviteId: invite.id, reason: "already_linked" })
       return NextResponse.json(
         { error: "This roster spot is already linked to another account." },
         { status: 400 }
@@ -76,6 +101,7 @@ export async function POST(request: Request) {
 
     if (updatePlayerErr) {
       console.error("[POST /api/player-invites/redeem] player update", updatePlayerErr)
+      logInviteAction("invite_redeem_failure", { playerId, inviteId: invite.id, error: updatePlayerErr.message })
       return NextResponse.json({ error: "Failed to link profile" }, { status: 500 })
     }
 
@@ -86,13 +112,13 @@ export async function POST(request: Request) {
         claimed_by_user_id: userId,
         claimed_at: new Date().toISOString(),
       })
-      .eq("id", (invite as { id: string }).id)
+      .eq("id", invite.id)
 
     if (updateInviteErr) {
       console.error("[POST /api/player-invites/redeem] player_invites update", updateInviteErr)
-      // Player already updated; don't fail the request
     }
 
+    logInviteAction("invite_redeem_success", { playerId, inviteId: invite.id })
     return NextResponse.json({
       success: true,
       player_id: playerId,

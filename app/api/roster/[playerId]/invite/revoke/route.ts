@@ -41,7 +41,7 @@ export async function POST(
       .from("player_invites")
       .select("id")
       .eq("player_id", playerId)
-      .eq("status", "pending")
+      .in("status", ["pending", "sent"])
       .maybeSingle()
 
     if (inviteErr) {

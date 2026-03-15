@@ -4,6 +4,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePhone } from "@/lib/player-invite-auto-link"
+import { logInviteAction } from "@/lib/audit/structured-logger"
 
 function generateInviteCode(length = 8): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -98,7 +99,7 @@ export async function POST(
       .from("player_invites")
       .select("id")
       .eq("player_id", playerId)
-      .eq("status", "pending")
+      .in("status", ["pending", "sent"])
       .maybeSingle()
 
     if (existingInvite) {
@@ -108,6 +109,7 @@ export async function POST(
           email: inviteEmail,
           phone: invitePhone,
           token,
+          code,
           expires_at: expiresAt.toISOString(),
           created_by: session.user.id,
         })
@@ -116,21 +118,28 @@ export async function POST(
         console.error("[POST /api/roster/[playerId]/invite] player_invites update", updateInviteErr)
         return NextResponse.json({ error: "Failed to update invite" }, { status: 500 })
       }
+      logInviteAction("invite_created", { playerId, inviteId: (existingInvite as { id: string }).id })
     } else {
-      const { error: insertInviteErr } = await supabase.from("player_invites").insert({
-        team_id: player.team_id,
-        player_id: playerId,
-        email: inviteEmail,
-        phone: invitePhone,
-        token,
-        status: "pending",
-        expires_at: expiresAt.toISOString(),
-        created_by: session.user.id,
-      })
+      const { data: inserted, error: insertInviteErr } = await supabase
+        .from("player_invites")
+        .insert({
+          team_id: player.team_id,
+          player_id: playerId,
+          email: inviteEmail,
+          phone: invitePhone,
+          token,
+          code,
+          status: "pending",
+          expires_at: expiresAt.toISOString(),
+          created_by: session.user.id,
+        })
+        .select("id")
+        .single()
       if (insertInviteErr) {
         console.error("[POST /api/roster/[playerId]/invite] player_invites insert", insertInviteErr)
         return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
       }
+      if (inserted) logInviteAction("invite_created", { playerId, inviteId: (inserted as { id: string }).id })
     }
 
     const { data: updated, error } = await supabase

@@ -23,6 +23,7 @@ import { PlayerPromoteModal } from "./player-promote-modal"
 import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
+import { usePlaybookToast } from "./playbook-toast"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
 const ROSTER_BILLING_WARNING =
@@ -41,8 +42,9 @@ interface Player {
   notes: string | null
   imageUrl?: string | null
   email?: string | null
+  playerPhone?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_created" | "invite_sent" | "email_sent" | "sms_sent" | "claimed" | "invited" | "joined"
   joinLink?: string | null
   claimedAt?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
@@ -453,17 +455,33 @@ function AddPlayerModal({
 
 function InviteLinkModal({
   playerName,
+  playerId,
+  hasEmail,
+  hasPhone,
   inviteCode,
   joinLink,
   onClose,
+  onSendEmail,
+  onSendSms,
+  onCopyLink,
+  showToast,
 }: {
   playerName: string
+  playerId: string
+  hasEmail: boolean
+  hasPhone: boolean
   inviteCode: string
   joinLink?: string | null
   onClose: () => void
+  onSendEmail: () => Promise<void>
+  onSendSms: () => Promise<void>
+  onCopyLink?: () => void
+  showToast: (message: string, variant: "success" | "error") => void
 }) {
   const [copied, setCopied] = useState(false)
   const [copiedWhich, setCopiedWhich] = useState<"code" | "link" | null>(null)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [sendingSms, setSendingSms] = useState(false)
   const fallbackJoinUrl = typeof window !== "undefined" ? `${window.location.origin}/join` : ""
 
   const handleCopyCode = () => {
@@ -471,6 +489,7 @@ function InviteLinkModal({
       setCopied(true)
       setCopiedWhich("code")
       setTimeout(() => { setCopied(false); setCopiedWhich(null) }, 2000)
+      showToast("Invite code copied", "success")
     })
   }
 
@@ -480,37 +499,65 @@ function InviteLinkModal({
       setCopied(true)
       setCopiedWhich("link")
       setTimeout(() => { setCopied(false); setCopiedWhich(null) }, 2000)
+      showToast("Join link copied", "success")
+      onCopyLink?.()
     })
+  }
+
+  const handleSendEmail = async () => {
+    setSendingEmail(true)
+    try {
+      await onSendEmail()
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
+  const handleSendSms = async () => {
+    setSendingSms(true)
+    try {
+      await onSendSms()
+    } finally {
+      setSendingSms(false)
+    }
   }
 
   return (
     <Card className="w-full max-w-md bg-card border border-border" onClick={(e) => e.stopPropagation()}>
       <CardHeader>
-        <CardTitle className="text-foreground">Invite link for {playerName}</CardTitle>
+        <CardTitle className="text-foreground">Invite {playerName}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Share the link below so the player can join and link to this roster spot—no code needed. Or share the code for manual entry.
+          Send an invite by email or text, or copy the join link or code for the player to use.
         </p>
-        {joinLink && (
-          <div className="space-y-2">
-            <Label className="text-foreground text-xs">Join link (recommended)</Label>
-            <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
-              {copied && copiedWhich === "link" ? "Copied!" : "Copy join link"}
-            </Button>
-          </div>
+        {hasEmail && (
+          <Button variant="outline" size="sm" onClick={handleSendEmail} disabled={sendingEmail} className="w-full justify-start">
+            {sendingEmail ? "Sending…" : "Send email invite"}
+          </Button>
         )}
+        {hasPhone && (
+          <Button variant="outline" size="sm" onClick={handleSendSms} disabled={sendingSms} className="w-full justify-start">
+            {sendingSms ? "Sending…" : "Send text invite"}
+          </Button>
+        )}
+        {!hasEmail && !hasPhone && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+            Add email or phone to this player to send an invite by email or text.
+          </p>
+        )}
+        <div className="space-y-2">
+          <Label className="text-foreground text-xs">Copy join link</Label>
+          <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
+            {copied && copiedWhich === "link" ? "Copied!" : "Copy join link"}
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
           <Input readOnly value={inviteCode} className="font-mono" />
           <Button variant="outline" size="sm" onClick={handleCopyCode}>
-            {copied && copiedWhich === "code" ? "Copied!" : "Copy code"}
+            {copied && copiedWhich === "code" ? "Copied!" : "Copy invite code"}
           </Button>
         </div>
-        {!joinLink && fallbackJoinUrl && (
-          <Button variant="outline" size="sm" onClick={handleCopyLink} className="w-full">
-            {copied && copiedWhich === "link" ? "Copied!" : "Copy join link & code"}
-          </Button>
-        )}
         <div className="flex justify-end">
           <Button onClick={onClose}>Done</Button>
         </div>
@@ -532,6 +579,7 @@ export function RosterManagerEnhanced({
 }: RosterManagerEnhancedProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const { showToast } = usePlaybookToast()
   const [players, setPlayers] = useState(initialPlayers)
   const [activeTab, setActiveTab] = useState<"roster" | "depth-chart" | "readiness" | "program-depth">("roster")
   const [teamReadiness, setTeamReadiness] = useState<{
@@ -943,7 +991,7 @@ export function RosterManagerEnhanced({
         setPlayers((prev) =>
           prev.map((p) =>
             p.id === player.id
-              ? { ...p, inviteStatus: "invite_sent" as const, joinLink: joinLink ?? p.joinLink }
+              ? { ...p, inviteStatus: "invite_created" as const, joinLink: joinLink ?? p.joinLink }
               : p
           )
         )
@@ -980,6 +1028,56 @@ export function RosterManagerEnhanced({
       alert(err instanceof Error ? err.message : "Error resending invite")
     } finally {
       setInviteLoading(false)
+    }
+  }
+
+  const handleSendEmailInvite = async (player: Player) => {
+    try {
+      const res = await fetch("/api/player-invites/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: player.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = (data as { error?: string }).error ?? "Failed to send email"
+        showToast(msg, "error")
+        return
+      }
+      showToast("Email sent", "success")
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === player.id ? { ...p, inviteStatus: "email_sent" as const } : p))
+      )
+      if (inviteModal?.player.id === player.id) {
+        setInviteModal((m) => (m ? { ...m, player: { ...m.player, inviteStatus: "email_sent" } } : null))
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to send email", "error")
+    }
+  }
+
+  const handleSendSmsInvite = async (player: Player) => {
+    try {
+      const res = await fetch("/api/player-invites/send-sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: player.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = (data as { error?: string }).error ?? "Failed to send text"
+        showToast(msg, "error")
+        return
+      }
+      showToast("Text sent", "success")
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === player.id ? { ...p, inviteStatus: "sms_sent" as const } : p))
+      )
+      if (inviteModal?.player.id === player.id) {
+        setInviteModal((m) => (m ? { ...m, player: { ...m.player, inviteStatus: "sms_sent" } } : null))
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to send text", "error")
     }
   }
 
@@ -1803,9 +1901,16 @@ export function RosterManagerEnhanced({
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <InviteLinkModal
               playerName={`${inviteModal.player.firstName} ${inviteModal.player.lastName}`}
+              playerId={inviteModal.player.id}
+              hasEmail={!!inviteModal.player.email?.trim()}
+              hasPhone={!!inviteModal.player.playerPhone?.trim()}
               inviteCode={inviteModal.inviteCode}
               joinLink={inviteModal.joinLink}
               onClose={() => setInviteModal(null)}
+              onSendEmail={() => handleSendEmailInvite(inviteModal.player)}
+              onSendSms={() => handleSendSmsInvite(inviteModal.player)}
+              onCopyLink={inviteModal.player.joinLink ? () => {} : undefined}
+              showToast={showToast}
             />
           </div>
         </>

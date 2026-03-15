@@ -1,0 +1,113 @@
+import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
+import { buildJoinLink } from "@/lib/invites/build-join-link"
+import { normalizePhone } from "@/lib/invites/normalize-phone"
+import { sendSmsViaTwilio } from "@/lib/invites/twilio"
+import { logInviteAction } from "@/lib/audit/structured-logger"
+
+/**
+ * POST /api/player-invites/send-sms
+ * Body: { playerId: string }
+ * Sends invite SMS via Twilio. Requires coach/admin with edit_roster.
+ */
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const body = (await request.json().catch(() => ({}))) as { playerId?: string }
+    const playerId = typeof body?.playerId === "string" ? body.playerId.trim() : ""
+    if (!playerId) {
+      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const supabase = getSupabaseServer()
+
+    const { data: player, error: playerErr } = await supabase
+      .from("players")
+      .select("id, team_id, first_name, last_name, player_phone, user_id")
+      .eq("id", playerId)
+      .maybeSingle()
+
+    if (playerErr || !player) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+
+    await requireTeamPermission((player as { team_id: string }).team_id, "edit_roster")
+
+    if ((player as { user_id?: string | null }).user_id) {
+      return NextResponse.json({ error: "This player has already linked an account." }, { status: 400 })
+    }
+
+    const rawPhone = (player as { player_phone?: string | null }).player_phone
+    const phoneStr = typeof rawPhone === "string" ? rawPhone.trim() : ""
+    if (!phoneStr) {
+      logInviteAction("send_sms_skipped", { playerId, reason: "missing_phone" })
+      return NextResponse.json({ error: "Missing phone", code: "MISSING_PHONE" }, { status: 400 })
+    }
+
+    const toPhone = normalizePhone(phoneStr)
+    if (!toPhone) {
+      return NextResponse.json({ error: "Invalid phone number" }, { status: 400 })
+    }
+
+    const { data: invite, error: inviteErr } = await supabase
+      .from("player_invites")
+      .select("id, token, code, status")
+      .eq("player_id", playerId)
+      .in("status", ["pending", "sent"])
+      .maybeSingle()
+
+    if (inviteErr || !invite) {
+      return NextResponse.json({ error: "No pending invite found for this player. Create an invite first." }, { status: 404 })
+    }
+
+    const token = (invite as { token: string }).token
+    const code = (invite as { code?: string | null }).code ?? ""
+    const joinLink = buildJoinLink(token)
+    const playerName = `${(player as { first_name: string }).first_name} ${(player as { last_name: string }).last_name}`.trim() || "Player"
+    const smsBody = `Braik invite for ${playerName}: Join your team here: ${joinLink} or enter code ${code} in the app.`
+
+    const result = await sendSmsViaTwilio({ to: toPhone, body: smsBody })
+
+    const inviteId = (invite as { id: string }).id
+
+    if (result.success) {
+      await supabase
+        .from("player_invites")
+        .update({
+          sent_sms_at: new Date().toISOString(),
+          sms_error: null,
+          status: "sent",
+        })
+        .eq("id", inviteId)
+      logInviteAction("send_sms_success", { playerId, inviteId })
+      return NextResponse.json({ success: true })
+    }
+
+    await supabase
+      .from("player_invites")
+      .update({ sms_error: result.error ?? "Unknown error" })
+      .eq("id", inviteId)
+    logInviteAction("send_sms_failure", { playerId, inviteId, error: result.error })
+    return NextResponse.json(
+      { error: result.error ?? "Failed to send text", code: "SMS_SEND_FAILED" },
+      { status: 502 }
+    )
+  } catch (err) {
+    if (err instanceof MembershipLookupError) {
+      console.error("[POST /api/player-invites/send-sms] membership lookup failed", err.message)
+      return NextResponse.json({ error: "Failed to send invite" }, { status: 500 })
+    }
+    const msg = err instanceof Error ? err.message : "Internal server error"
+    if (msg.includes("Access denied") || msg.includes("Insufficient")) {
+      return NextResponse.json({ error: msg }, { status: 403 })
+    }
+    console.error("[POST /api/player-invites/send-sms]", err)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}

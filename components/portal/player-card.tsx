@@ -23,8 +23,9 @@ interface PlayerCardPlayer {
   grade?: number | null
   notes?: string | null
   email?: string | null
+  playerPhone?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_created" | "invite_sent" | "email_sent" | "sms_sent" | "claimed" | "invited" | "joined"
   joinLink?: string | null
   guardianLinks?: Array<{ guardian: { user: { email: string } } }>
 }
@@ -269,9 +270,19 @@ export function PlayerCard({
             {!canEdit && !profileHref && <div />}
             {/* Status Badge - Bottom Right (health + invite) */}
             <div className="flex flex-col items-end gap-1">
-              {(player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+              {(player.inviteStatus === "email_sent") && (
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                  Email sent
+                </span>
+              )}
+              {(player.inviteStatus === "sms_sent") && (
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-sky-100 text-sky-800 border border-sky-200">
+                  SMS sent
+                </span>
+              )}
+              {(player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
                 <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                  Invite sent
+                  Invite created
                 </span>
               )}
               {(player.inviteStatus === "claimed" || player.inviteStatus === "joined") && player.user && (
@@ -321,14 +332,14 @@ export function PlayerCard({
                   await onSendInvite(player)
                 }}
                 disabled={!!player.user}
-                title={player.user ? "Player already has an account" : "Generate invite code to share"}
+                title={player.user ? "Player already has an account" : "Create invite and open share options"}
                 style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
               >
                 <Mail className="h-4 w-4 mr-2" />
-                Send Invite
+                Invite
               </Button>
             )}
-            {onCopyJoinLink && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && player.joinLink && (
+            {onCopyJoinLink && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && player.joinLink && (
               <Button
                 variant="outline"
                 className="w-full justify-start"
@@ -342,7 +353,7 @@ export function PlayerCard({
                 Copy join link
               </Button>
             )}
-            {onResendInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+            {onResendInvite && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && (
               <Button
                 variant="outline"
                 className="w-full justify-start"
@@ -357,7 +368,7 @@ export function PlayerCard({
                 Resend invite
               </Button>
             )}
-            {onRevokeInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+            {onRevokeInvite && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && (
               <Button
                 variant="outline"
                 className="w-full justify-start text-amber-700 hover:text-amber-800 hover:bg-amber-50 border-amber-200"

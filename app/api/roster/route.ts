@@ -17,6 +17,7 @@ type PlayerRow = {
   image_url: string | null
   user_id: string | null
   email?: string | null
+  player_phone?: string | null
   invite_code?: string | null
   invite_status?: string | null
   claimed_at?: string | null
@@ -57,7 +58,7 @@ export async function GET(request: Request) {
     // Use a minimal select so roster loads even if optional columns (health_status, weight, height, missing_forms, forms_complete) are missing
     const { data: rows, error } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, invite_code, invite_status, claimed_at, created_by")
+      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by")
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
@@ -83,12 +84,13 @@ export async function GET(request: Request) {
 
     const { data: inviteRows } = await supabase
       .from("player_invites")
-      .select("player_id, status, token")
+      .select("player_id, status, token, sent_email_at, sent_sms_at")
       .eq("team_id", teamId)
-      .in("status", ["pending", "claimed"])
-    const inviteByPlayer = new Map<string, { status: string; token: string }>()
-    for (const row of (inviteRows ?? []) as Array<{ player_id: string; status: string; token: string }>) {
-      inviteByPlayer.set(row.player_id, { status: row.status, token: row.token })
+      .in("status", ["pending", "sent", "claimed"])
+    type InviteRow = { player_id: string; status: string; token: string; sent_email_at?: string | null; sent_sms_at?: string | null }
+    const inviteByPlayer = new Map<string, InviteRow>()
+    for (const row of (inviteRows ?? []) as InviteRow[]) {
+      inviteByPlayer.set(row.player_id, row)
     }
 
     const origin =
@@ -96,16 +98,22 @@ export async function GET(request: Request) {
         ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
         : process.env.NEXT_PUBLIC_APP_URL || (request.url ? new URL(request.url).origin : "") || ""
 
+    type InviteStatus = "not_invited" | "invite_created" | "email_sent" | "sms_sent" | "claimed" | "invite_sent"
     const players = typedRows.map((p) => {
       const invite = inviteByPlayer.get(p.id)
       const hasClaimedUser = !!p.user_id
-      const inviteStatus: "not_invited" | "invite_sent" | "claimed" = hasClaimedUser
-        ? "claimed"
-        : invite?.status === "pending"
-          ? "invite_sent"
-          : "not_invited"
+      let inviteStatus: InviteStatus = "not_invited"
+      if (hasClaimedUser) {
+        inviteStatus = "claimed"
+      } else if (invite) {
+        if (invite.status === "claimed") inviteStatus = "claimed"
+        else if (invite.sent_sms_at) inviteStatus = "sms_sent"
+        else if (invite.sent_email_at) inviteStatus = "email_sent"
+        else inviteStatus = "invite_created"
+      }
+      const hasInvite = invite && invite.status !== "claimed"
       const joinLink =
-        inviteStatus === "invite_sent" && invite?.token && origin
+        hasInvite && invite?.token && origin
           ? `${origin}/join?token=${encodeURIComponent(invite.token)}`
           : undefined
       return {
@@ -119,6 +127,7 @@ export async function GET(request: Request) {
         notes: p.notes ?? null,
         imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
         email: p.email ?? null,
+        playerPhone: (p as PlayerRow).player_phone ?? null,
         inviteCode: p.invite_code ?? null,
         inviteStatus,
         joinLink,

@@ -18,8 +18,9 @@ export interface Player {
   notes: string | null
   imageUrl?: string | null
   email?: string | null
+  playerPhone?: string | null
   inviteCode?: string | null
-  inviteStatus?: "not_invited" | "invite_sent" | "claimed" | "invited" | "joined"
+  inviteStatus?: "not_invited" | "invite_created" | "invite_sent" | "email_sent" | "sms_sent" | "claimed" | "invited" | "joined"
   joinLink?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
   missingForms?: string[]
@@ -265,8 +266,14 @@ function RosterListRow({
           >
             {getStatusDisplay().text}
           </span>
-          {(player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
-            <span className="text-[10px] text-amber-700">Invite sent</span>
+          {player.inviteStatus === "email_sent" && (
+            <span className="text-[10px] text-blue-700">Email sent</span>
+          )}
+          {player.inviteStatus === "sms_sent" && (
+            <span className="text-[10px] text-sky-700">SMS sent</span>
+          )}
+          {(player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+            <span className="text-[10px] text-amber-700">Invite created</span>
           )}
           {(player.inviteStatus === "claimed" || player.inviteStatus === "joined") && player.user && (
             <span className="text-[10px] text-emerald-700">Claimed</span>
@@ -320,7 +327,7 @@ function RosterListRow({
                 Invite
               </Button>
             )}
-            {onCopyJoinLink && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && player.joinLink && (
+            {onCopyJoinLink && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && player.joinLink && (
               <Button
                 variant="outline"
                 size="sm"
@@ -331,7 +338,7 @@ function RosterListRow({
                 Copy link
               </Button>
             )}
-            {onResendInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+            {onResendInvite && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && (
               <Button
                 variant="outline"
                 size="sm"
@@ -343,7 +350,7 @@ function RosterListRow({
                 Resend
               </Button>
             )}
-            {onRevokeInvite && (player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
+            {onRevokeInvite && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && (
               <Button
                 variant="outline"
                 size="sm"

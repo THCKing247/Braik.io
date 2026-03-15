@@ -4,12 +4,14 @@ import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { User } from "lucide-react"
 
 /**
  * My Profile: redirects players to their own roster profile when they have a claimed roster record.
  * If no team, DashboardPageShell shows ConnectToTeam. If no player record or error, shows clear empty/error state.
+ * When no linked player, shows "Claim Your Player Profile" card so the player can redeem an invite code.
  */
 export default function MyProfilePage() {
   return (
@@ -24,6 +26,10 @@ export default function MyProfilePage() {
 function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }) {
   const router = useRouter()
   const [status, setStatus] = useState<"loading" | "found" | "not_found" | "error">("loading")
+  const [claimSuccess, setClaimSuccess] = useState(false)
+  const [inviteCode, setInviteCode] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [claimError, setClaimError] = useState<string | null>(null)
   const replaceStarted = useRef(false)
 
   useEffect(() => {
@@ -60,6 +66,42 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
     return () => { cancelled = true }
   }, [teamId, userId, router])
 
+  async function handleClaimSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setClaimError(null)
+    const code = inviteCode?.trim()
+    if (!code) {
+      setClaimError("Please enter an invite code.")
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/invite/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setClaimError(data?.error ?? "Failed to redeem code. Please try again.")
+        return
+      }
+      setClaimSuccess(true)
+      setInviteCode("")
+      const playerId = data.player_id
+      const resolvedTeamId = data.team_id ?? teamId
+      if (playerId && resolvedTeamId) {
+        setTimeout(() => {
+          router.replace(`/dashboard/roster/${playerId}?teamId=${encodeURIComponent(resolvedTeamId)}`)
+        }, 1500)
+      } else {
+        router.refresh()
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (status === "loading" || status === "found") {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-4">
@@ -72,28 +114,68 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
   }
 
   return (
-    <div className="mx-auto max-w-lg rounded-xl border border-[rgb(var(--border))] bg-white p-8 shadow-sm">
-      <div className="flex flex-col items-center text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#F1F5F9]">
-          <User className="h-7 w-7 text-[#64748B]" />
+    <div className="mx-auto max-w-lg space-y-6">
+      {status === "not_found" && (
+        <div className="rounded-xl border border-[rgb(var(--border))] bg-white p-8 shadow-sm">
+          <h2 className="text-xl font-semibold text-[#0F172A]">Claim Your Player Profile</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
+            Enter the invite code your coach gave you to link your account to your roster spot.
+          </p>
+          {claimSuccess ? (
+            <p className="mt-4 text-sm font-medium text-green-600">
+              Profile successfully linked to team roster.
+            </p>
+          ) : (
+            <form onSubmit={handleClaimSubmit} className="mt-6 space-y-4">
+              <div>
+                <label htmlFor="invite-code" className="sr-only">
+                  Invite Code
+                </label>
+                <Input
+                  id="invite-code"
+                  type="text"
+                  placeholder="Invite Code"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  className="w-full"
+                  autoComplete="off"
+                  disabled={submitting}
+                />
+              </div>
+              {claimError && (
+                <p className="text-sm text-red-600">{claimError}</p>
+              )}
+              <Button type="submit" className="w-full sm:w-auto" disabled={submitting}>
+                {submitting ? "Joining..." : "Join Team"}
+              </Button>
+            </form>
+          )}
         </div>
-        <h2 className="text-xl font-semibold text-[#0F172A]">My Profile</h2>
-        <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
-          {status === "not_found"
-            ? "You don't have a player profile on this team yet. Ask your coach to add you to the roster and send you an invite link to claim your profile. Once you've joined, you can view and update your info here."
-            : "Something went wrong loading your profile. Please try again or go back to the dashboard."}
-        </p>
-        <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link href={teamId ? `/dashboard/roster?teamId=${encodeURIComponent(teamId)}` : "/dashboard/roster"} className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full sm:w-auto">
-              View Roster
-            </Button>
-          </Link>
-          <Link href="/dashboard" className="w-full sm:w-auto">
-            <Button variant="ghost" className="w-full sm:w-auto">
-              Back to Dashboard
-            </Button>
-          </Link>
+      )}
+
+      <div className="rounded-xl border border-[rgb(var(--border))] bg-white p-8 shadow-sm">
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#F1F5F9]">
+            <User className="h-7 w-7 text-[#64748B]" />
+          </div>
+          <h2 className="text-xl font-semibold text-[#0F172A]">My Profile</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[#64748B]">
+            {status === "not_found"
+              ? "You don't have a player profile on this team yet. Use the invite code above to claim your roster spot, or ask your coach to add you and send you an invite code."
+              : "Something went wrong loading your profile. Please try again or go back to the dashboard."}
+          </p>
+          <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link href={teamId ? `/dashboard/roster?teamId=${encodeURIComponent(teamId)}` : "/dashboard/roster"} className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto">
+                View Roster
+              </Button>
+            </Link>
+            <Link href="/dashboard" className="w-full sm:w-auto">
+              <Button variant="ghost" className="w-full sm:w-auto">
+                Back to Dashboard
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

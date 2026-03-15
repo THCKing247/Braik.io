@@ -17,24 +17,22 @@ export const dynamic = "force-dynamic"
 /** Shown when the dashboard layout fails to load (avoids 500 and ERR_HTTP2 by returning 200). */
 function DashboardLayoutFallback() {
   return (
-    <div className="flex min-h-[80vh] items-center justify-center p-6" style={{ backgroundColor: "rgb(var(--snow))" }}>
-      <div className="w-full max-w-md rounded-lg border bg-white p-8 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
-        <h2 className="text-xl font-bold" style={{ color: "rgb(var(--text))" }}>Something went wrong</h2>
-        <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+    <div className="flex min-h-[80vh] items-center justify-center p-6 bg-background">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-8 text-center shadow-sm">
+        <h2 className="text-xl font-bold text-foreground">Something went wrong</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
           We couldn&apos;t load the dashboard. This can happen due to a temporary connection or configuration issue.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium"
-            style={{ borderColor: "rgb(var(--accent))", color: "rgb(var(--accent))" }}
+            className="inline-flex items-center justify-center rounded-md border border-primary px-4 py-2 text-sm font-medium text-primary"
           >
             Try again
           </Link>
           <Link
             href="/"
-            className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white"
-            style={{ backgroundColor: "rgb(var(--accent))" }}
+            className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground"
           >
             Home
           </Link>
@@ -160,9 +158,8 @@ export default async function DashboardLayout({
 
     return (
       <div
-        className="app-shell flex flex-col min-h-screen min-h-0"
+        className="app-shell flex flex-col min-h-screen min-h-0 bg-background"
         style={{
-          backgroundColor: "rgb(var(--snow))",
           height: "100vh",
           maxHeight: "100vh",
           overflow: "hidden",
@@ -170,7 +167,7 @@ export default async function DashboardLayout({
       >
         <header className="flex-shrink-0">
           <Suspense fallback={
-            <div className="h-[54px] w-full border-b" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }} />
+            <div className="h-[54px] w-full border-b border-border bg-card" />
           }>
             <DashboardNav teams={teams} />
           </Suspense>

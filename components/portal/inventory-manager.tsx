@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Edit, Trash2, Package, ChevronDown, ChevronUp, Folder, LayoutGrid, List } from "lucide-react"
+import { Plus, Edit, Trash2, Package, ChevronDown, ChevronUp, Folder, LayoutGrid, List, Printer } from "lucide-react"
 import { AddItemModal } from "./add-item-modal"
 import { EquipmentIcon } from "./inventory-equipment-icons"
 import { InventoryItemsModal } from "./inventory-items-modal"
@@ -21,6 +21,9 @@ interface InventoryItem {
   notes?: string | null
   status: string
   equipmentType?: string | null
+  size?: string | null
+  make?: string | null
+  itemCode?: string | null
   assignedPlayer?: {
     id: string
     firstName: string
@@ -451,6 +454,125 @@ export function InventoryManager({
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleUpdateItem = async (itemId: string, data: {
+    condition: string
+    status: string
+    assignedToPlayerId?: string | null
+    notes?: string
+    size?: string
+    make?: string
+  }) => {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/teams/${teamId}/inventory/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to update item")
+      }
+
+      // Reload items
+      const res = await fetch(`/api/teams/${teamId}/inventory`)
+      if (res.ok) {
+        const itemsData = await res.json()
+        setItems(itemsData.items || [])
+      }
+    } catch (error: any) {
+      alert(error.message || "Error updating item")
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePrintLabel = (item: InventoryItem) => {
+    if (!item.itemCode) {
+      alert("No item code available for this item")
+      return
+    }
+
+    const canPrint = (equipmentType: string | null | undefined) => {
+      if (!equipmentType) return false
+      const type = equipmentType.toLowerCase()
+      return !type.includes("mouthpiece") && !type.includes("knee pad") && !type.includes("chinstrap")
+    }
+
+    if (!canPrint(item.equipmentType)) {
+      alert("Labels are not available for this equipment type")
+      return
+    }
+
+    // Create a print window with the label
+    const printWindow = window.open("", "_blank")
+    if (!printWindow) {
+      alert("Please allow popups to print labels")
+      return
+    }
+
+    const labelHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Equipment Label - ${item.itemCode}</title>
+          <style>
+            @media print {
+              @page {
+                size: 2in 1in;
+                margin: 0.1in;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              width: 2in;
+              height: 1in;
+              border: 2px solid #000;
+              padding: 0.1in;
+              box-sizing: border-box;
+            }
+            .code {
+              font-size: 24px;
+              font-weight: bold;
+              margin-bottom: 4px;
+            }
+            .name {
+              font-size: 12px;
+              text-align: center;
+            }
+            .type {
+              font-size: 10px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="code">${item.itemCode}</div>
+          <div class="name">${item.name}</div>
+          <div class="type">${item.equipmentType || item.category}</div>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(labelHTML)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => {
+      printWindow.print()
+      printWindow.close()
+    }, 250)
   }
 
   const handleOpenItemsModal = (equipmentType: string) => {
@@ -1037,12 +1159,14 @@ export function InventoryManager({
           }}
           items={groupedItems[selectedEquipmentType] || []}
           players={players}
-          equipmentType={selectedEquipmentType}
+          equipmentType={selectedEquipmentType || ""}
           onAssignItem={handleAssignItem}
           onReturnItem={handleReturnItem}
+          onUpdateItem={handleUpdateItem}
           permissions={permissions}
           loading={loading}
           viewMode={viewMode}
+          teamId={teamId}
         />
       )}
     </div>

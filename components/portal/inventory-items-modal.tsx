@@ -303,7 +303,7 @@ export function InventoryItemsModal({
               <DialogHeader>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <InventoryIcon type={equipmentType} size={100} />
+                    <InventoryIcon type={equipmentType} size={28} />
                     <DialogTitle>{equipmentType} - All Items ({filteredItems.length})</DialogTitle>
                   </div>
                   <button
@@ -354,7 +354,7 @@ export function InventoryItemsModal({
                         onClick={() => permissions.canEdit && handleEdit(item)}
                       >
                         <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-start gap-3 flex-1">
+                          <div className="flex items-start gap-2 flex-1 min-w-0">
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
                                 type={item.equipmentType || item.category}
@@ -366,7 +366,7 @@ export function InventoryItemsModal({
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm mb-1" style={{ color: "rgb(var(--text))" }}>
+                              <p className="font-medium text-sm mb-1 truncate" style={{ color: "rgb(var(--text))" }}>
                                 {item.name}
                               </p>
                               {item.itemCode && (
@@ -498,7 +498,7 @@ export function InventoryItemsModal({
                         onClick={() => permissions.canEdit && handleEdit(item)}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
                                 type={item.equipmentType || item.category}
@@ -509,8 +509,8 @@ export function InventoryItemsModal({
                                 </span>
                               )}
                             </div>
-                            <div className="flex-1">
-                              <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate" style={{ color: "rgb(var(--text))" }}>
                                 {item.name}
                               </p>
                               {item.itemCode && (

@@ -374,7 +374,7 @@ export function InventoryTabbedLayout({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <InventoryIcon type={equipmentType} size={100} />
+                    <InventoryIcon type={equipmentType} size={28} />
                     <span className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
                       {equipmentType}
                     </span>
@@ -446,7 +446,7 @@ export function InventoryTabbedLayout({
             <div className="border-b p-4" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <InventoryIcon type={activeTab} size={100} />
+                  <InventoryIcon type={activeTab} size={28} />
                   <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
                     {activeTab}
                   </h2>
@@ -539,11 +539,10 @@ export function InventoryTabbedLayout({
                         onClick={() => setEditingItem(item)}
                       >
                         <CardContent className="p-4">
-                          <div className="flex items-start gap-3 mb-3">
-                            <div className="relative flex-shrink-0">
-                              <InventoryIcon
-                                type={item.equipmentType || item.category}
-                              />
+                          <div className="flex items-start gap-2 mb-3">
+                            <InventoryIcon
+                              type={item.equipmentType || item.category}
+                            />
                               {jerseyLabel && (
                                 <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
                                   {jerseyLabel}
@@ -551,7 +550,7 @@ export function InventoryTabbedLayout({
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm mb-1" style={{ color: "rgb(var(--text))" }}>
+                              <p className="font-medium text-sm mb-1 truncate" style={{ color: "rgb(var(--text))" }}>
                                 {item.name}
                               </p>
                               {item.itemCode && (
@@ -662,19 +661,18 @@ export function InventoryTabbedLayout({
                       >
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="relative flex-shrink-0">
-                                <InventoryIcon
-                                  type={item.equipmentType || item.category}
-                                />
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <InventoryIcon
+                                type={item.equipmentType || item.category}
+                              />
                                 {jerseyLabel && (
                                   <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
                                     {jerseyLabel}
                                   </span>
                                 )}
                               </div>
-                              <div className="flex-1">
-                                <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate" style={{ color: "rgb(var(--text))" }}>
                                   {item.name}
                                 </p>
                                 {item.itemCode && (

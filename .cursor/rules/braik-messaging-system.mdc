@@ -1,0 +1,280 @@
+---
+alwaysApply: true
+description: Braik Messaging System - Roles, Permissions, and Communication Logic
+---
+
+# Braik Messaging System
+## Roles, Permissions, and Communication Logic
+
+This document explains the communication hierarchy and messaging permissions inside Braik so the system reflects the real structure of a football program.
+
+**Core Philosophy**: Braik messaging is hierarchy-aware. Communication flows through the coaching staff, similar to how communication works in a real football program.
+
+## Key Principles
+
+1. **Prevent chaos** - Not every user can message every other user
+2. **Maintain coaching hierarchy** - Head Coach controls the program
+3. **Protect player privacy** - Players cannot mass message coaches
+4. **Allow coaches to coordinate easily** - Structured staff channels
+5. **Allow parents to stay informed** - Parents communicate through staff only
+6. **Avoid group-chat spam** - Players/Parents cannot create threads
+
+## Roles and Permissions
+
+### Head Coach (HC)
+**Highest authority in the team**
+
+**Permissions:**
+- Message anyone in the organization
+- Send team-wide announcements
+- Create messaging channels
+- Override messaging restrictions
+- Moderate conversations
+- Remove users
+- Assign roles
+
+**Communication paths:**
+- HC → All Coaches
+- HC → All Players
+- HC → All Parents
+- HC → Entire Team
+- HC → Position Groups
+- HC → Individual Users
+
+### Offensive Coordinator (OC)
+**Manages the offensive staff and players**
+
+**Permissions:**
+- Message offensive staff
+- Message offensive players
+- Message HC
+- Send offense announcements
+- Communicate with position coaches
+
+**Cannot:**
+- Message defensive players directly
+- Override HC permissions
+
+**Communication paths:**
+- OC → HC
+- OC → Offensive Position Coaches
+- OC → Offensive Players
+- OC → Offensive Group Chat
+
+### Defensive Coordinator (DC)
+**Same structure as OC but for defense**
+
+**Communication paths:**
+- DC → HC
+- DC → Defensive Position Coaches
+- DC → Defensive Players
+- DC → Defensive Group Chat
+
+### Special Teams Coordinator (STC)
+**Responsible for players assigned to special teams units**
+
+**Communication paths:**
+- STC → HC
+- STC → Special Teams Players
+- STC → Coaches involved with special teams
+
+### Position Coaches
+**Examples:** QB coach, WR coach, OL coach, DL coach, LB coach, DB coach
+
+**Permissions:**
+- Message HC
+- Message their coordinator
+- Message their position group
+- Message assistant coaches
+- Reply to parents of players in their group
+
+**Communication paths:**
+- Position Coach → HC
+- Position Coach → Coordinator
+- Position Coach → Their Position Players
+- Position Coach → Other Staff
+
+**Restrictions:**
+- Position coaches cannot mass message the entire team unless allowed by HC
+
+### Players
+**Limited messaging privileges to prevent spam and maintain structure**
+
+**Players can message:**
+- Player → Their Position Coach
+- Player → Coordinator
+- Player → HC (optional setting)
+- Player → Teammates (same roster)
+
+**Players cannot:**
+- Message parents
+- Message entire staff
+- Create group chats
+- Message players from other teams
+
+**Optional team settings:**
+- Allow Player → Player DMs
+- Allow Player → Staff DMs
+- Disable Player → Coach direct messaging
+
+### Parents
+**Connected only to their child's account**
+
+**Parents can message:**
+- Parent → Head Coach
+- Parent → Position Coach
+- Parent → Team Staff
+
+**Parents cannot:**
+- Parent → Players
+- Parent → Other Parents
+- Parent → Team group chats
+
+This prevents parent drama in messaging channels.
+
+## Messaging Channels
+
+### Staff Channel
+**Participants:** HC, OC, DC, STC, Position Coaches
+**Purpose:** Staff coordination, practice planning, game preparation
+**Note:** Players and parents cannot see this channel
+
+### Offensive Staff Channel
+**Participants:** HC, OC, Offensive Position Coaches
+
+### Defensive Staff Channel
+**Participants:** HC, DC, Defensive Position Coaches
+
+### Position Group Channels
+**Examples:** QB Room, WR Room, OL Room, DL Room, LB Room, DB Room
+**Participants:** Position Coach, Players in that group, Optional Coordinator
+**Note:** Parents do not see these channels
+
+### Team Announcements
+**Participants:** HC, Staff, Players, Parents
+**Rules:** Only staff can post here. This is broadcast only. No replies.
+**Used for:** Game schedule, practice times, announcements
+
+## Direct Messaging Rules
+
+**Allowed:**
+- Player → Position Coach
+- Player → Teammate
+- Parent → Head Coach
+- Coach → Player
+- Coordinator → Player
+- HC → Anyone
+
+**Blocked:**
+- Parent → Player
+- Parent → Other Parents
+- Player → Parent
+- Player → Random Coach outside position group
+
+## Message Moderation
+
+**Head Coach moderation controls:**
+- Delete messages
+- Mute users
+- Remove players
+- Disable messaging temporarily
+
+## AI Messaging Integration
+
+Braik AI assistant can:
+- Summarize long threads
+- Create practice reminders
+- Draft announcements
+- Generate coaching insights
+
+**Important:** AI respects role permissions. A player cannot use AI to message the entire team. AI only operates within that user's permission scope.
+
+## Message Display Structure
+
+**Messaging UI:** Three column layout
+- **LEFT COLUMN:** Contacts / Channels
+- **CENTER:** Conversation
+- **RIGHT:** Threads / Details
+
+**Message bubbles:**
+- Sent → Right side (role color)
+- Received → Left side (white)
+
+**Role colors:**
+- Head Coach → Royal Blue
+- Assistant Coaches → Orange / Ember
+- Players → Green
+- Parents → Purple
+
+## Database Logic
+
+Each user record should include:
+- `user_id`
+- `team_id`
+- `role`
+- `position_group`
+- `parent_link`
+- `permissions`
+
+Messaging rules are evaluated using:
+- `role`
+- `team_id`
+- `position_group`
+- `coach_assignment`
+
+## Permission Check Logic
+
+**Example - Player attempts to message a coach:**
+```
+IF player.team_id == coach.team_id
+AND coach.role IN (HC, coordinator, position_coach)
+ALLOW
+```
+
+**Example - Parent message:**
+```
+IF parent.child_id == player.id
+ALLOW messaging to player's coaches
+```
+
+## Optional Program Settings (Controlled by HC)
+
+Head coach can toggle:
+- Allow player DMs
+- Allow parent DMs
+- Allow player → HC messaging
+- Allow cross-position communication
+- Allow assistant announcements
+
+## Implementation Files
+
+The messaging system is implemented in:
+- [lib/enforcement/messaging-permissions.ts](mdc:lib/enforcement/messaging-permissions.ts) - Permission logic and validation
+- [components/portal/messaging-manager.tsx](mdc:components/portal/messaging-manager.tsx) - Frontend messaging UI
+- [app/api/messages/send/route.ts](mdc:app/api/messages/send/route.ts) - Message sending endpoint
+- [app/api/messages/threads/create/route.ts](mdc:app/api/messages/threads/create/route.ts) - Thread creation endpoint
+- [app/api/messages/contacts/route.ts](mdc:app/api/messages/contacts/route.ts) - Contacts endpoint (should filter by permissions)
+- [supabase/migrations/20260310000000_messaging_system.sql](mdc:supabase/migrations/20260310000000_messaging_system.sql) - Database schema
+
+## Critical Implementation Notes
+
+1. **Contact List Filtering**: Messaging should always check permissions before rendering contacts. If a user cannot message someone, they should not appear in the contact list at all. This prevents UI confusion.
+
+2. **Thread Creation Validation**: When creating threads, validate participant composition using [validateThreadComposition](mdc:lib/enforcement/messaging-permissions.ts) function.
+
+3. **Role-Based Access**: All API endpoints must verify permissions before allowing message sending or thread creation.
+
+4. **Position Group Matching**: Players should only see coaches assigned to their position group in contacts.
+
+5. **Parent-Child Linking**: Parents should only see coaches associated with their child's position/team.
+
+6. **Channel Visibility**: Users should only see channels they have permission to access based on their role and position group.
+
+## Why This Structure Matters
+
+Without this structure:
+- Parents spam group chats
+- Players message everyone
+- Staff communication gets messy
+
+This structure keeps Braik feeling like an organized football program, not a social media app.

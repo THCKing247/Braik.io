@@ -20,7 +20,7 @@ export function InventoryIcon({
   equipmentType, 
   category, 
   className = "", 
-  size = 100 
+  size = 28 
 }: InventoryIconProps) {
   // Use type if provided, otherwise fall back to equipmentType or category for backward compatibility
   const itemType = (type || equipmentType || category || "").toLowerCase().trim()
@@ -114,13 +114,10 @@ export function InventoryIcon({
 
   return (
     <div
-      className={`inventory-icon flex items-center justify-center flex-shrink-0 ${className}`}
+      className={`inventory-icon-wrap flex-shrink-0 ${className}`}
       style={{ 
-        width: size, 
-        height: size, 
-        minWidth: size, 
-        minHeight: size,
-        marginRight: "16px"
+        width: `${size}px`, 
+        height: `${size}px`,
       }}
     >
       <Image
@@ -128,12 +125,8 @@ export function InventoryIcon({
         alt={itemType || "equipment"}
         width={size}
         height={size}
-        className="object-contain"
+        className="block w-full h-full object-contain"
         style={{
-          width: `${size}px`,
-          height: `${size}px`,
-          maxWidth: `${size}px`,
-          maxHeight: `${size}px`,
           opacity: 0.9,
           transition: "opacity 0.15s ease",
         }}

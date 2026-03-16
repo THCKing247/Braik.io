@@ -303,7 +303,7 @@ export function InventoryItemsModal({
               <DialogHeader>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <InventoryIcon type={equipmentType} size={28} />
+                    <InventoryIcon type={equipmentType} size={32} />
                     <DialogTitle>{equipmentType} - All Items ({filteredItems.length})</DialogTitle>
                   </div>
                   <button
@@ -358,7 +358,6 @@ export function InventoryItemsModal({
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
                                 type={item.equipmentType || item.category}
-                                size={28}
                               />
                               {jerseyLabel && (
                                 <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
@@ -503,7 +502,6 @@ export function InventoryItemsModal({
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
                                 type={item.equipmentType || item.category}
-                                size={28}
                               />
                               {jerseyLabel && (
                                 <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">

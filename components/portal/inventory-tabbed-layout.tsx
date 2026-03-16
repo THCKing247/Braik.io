@@ -374,7 +374,7 @@ export function InventoryTabbedLayout({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <InventoryIcon type={equipmentType} size={20} />
+                    <InventoryIcon type={equipmentType} size={24} />
                     <span className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
                       {equipmentType}
                     </span>
@@ -446,7 +446,7 @@ export function InventoryTabbedLayout({
             <div className="border-b p-4" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <InventoryIcon type={activeTab} size={24} />
+                  <InventoryIcon type={activeTab} size={32} />
                   <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
                     {activeTab}
                   </h2>
@@ -543,7 +543,6 @@ export function InventoryTabbedLayout({
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
                                 type={item.equipmentType || item.category}
-                                size={28}
                               />
                               {jerseyLabel && (
                                 <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
@@ -667,7 +666,6 @@ export function InventoryTabbedLayout({
                               <div className="relative flex-shrink-0">
                                 <InventoryIcon
                                   type={item.equipmentType || item.category}
-                                  size={28}
                                 />
                                 {jerseyLabel && (
                                   <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">

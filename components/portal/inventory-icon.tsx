@@ -20,40 +20,61 @@ export function InventoryIcon({
   equipmentType, 
   category, 
   className = "", 
-  size = 28 
+  size = 40 
 }: InventoryIconProps) {
   // Use type if provided, otherwise fall back to equipmentType or category for backward compatibility
   const itemType = (type || equipmentType || category || "").toLowerCase().trim()
 
-  // Map item types to icon file names
+  // Map item types to icon file names - matches actual equipment type names from the system
   const iconMap: Record<string, string> = {
-    helmet: "helmet.png",
-    shoulder_pads: "shoulder_pads.png",
+    // Exact matches for preset equipment types
+    "helmets": "helmet.png",
+    "helmet": "helmet.png",
+    "pads": "shoulder_pads.png",
+    "shoulder_pads": "shoulder_pads.png",
     "shoulder pads": "shoulder_pads.png",
     "shoulderpad": "shoulder_pads.png",
     "shoulder pad": "shoulder_pads.png",
-    football: "football.png",
-    jersey: "jersey.png",
-    pants: "football_pants.png",
+    "practice jerseys": "jersey.png",
+    "home jersey": "jersey.png",
+    "away jersey": "jersey.png",
+    "alternate jersey": "jersey.png",
+    "jersey": "jersey.png",
+    "jerseys": "jersey.png",
+    "home pants": "football_pants.png",
+    "away pants": "football_pants.png",
+    "alternate pants": "football_pants.png",
+    "practice pants": "football_pants.png",
+    "pants": "football_pants.png",
     "football pants": "football_pants.png",
-    gloves: "gloves.png",
-    cleats: "cleats.png",
-    mouthguard: "mouthguard.png",
-    mouthpiece: "mouthguard.png",
-    chinstrap: "chinstrap.png",
-    knee_pad: "knee_pad.png",
+    "chinstraps": "chinstrap.png",
+    "chinstrap": "chinstrap.png",
+    "knee pads": "knee_pad.png",
+    "knee_pad": "knee_pad.png",
     "knee pad": "knee_pad.png",
     "kneepad": "knee_pad.png",
-    "knee pads": "knee_pad.png",
-    locker: "locker.png",
-    equipment_bag: "equipment_bag.png",
+    "kneepads": "knee_pad.png",
+    "mouthpieces": "mouthguard.png",
+    "mouthpiece": "mouthguard.png",
+    "mouthguard": "mouthguard.png",
+    "locks": "lock.png",
+    "lock": "lock.png",
+    "lockers": "locker.png",
+    "locker": "locker.png",
+    "playcall wristbands": "equipment_bag.png",
+    "wristband": "equipment_bag.png",
+    "wristbands": "equipment_bag.png",
+    // Additional common types
+    "football": "football.png",
+    "gloves": "gloves.png",
+    "cleats": "cleats.png",
+    "equipment_bag": "equipment_bag.png",
     "equipment bag": "equipment_bag.png",
     "equipmentbag": "equipment_bag.png",
-    whistle: "whistle.png",
-    water_bottle: "water_bottle.png",
+    "whistle": "whistle.png",
+    "water_bottle": "water_bottle.png",
     "water bottle": "water_bottle.png",
     "waterbottle": "water_bottle.png",
-    lock: "lock.png",
   }
 
   // Find matching icon (check for partial matches too)
@@ -61,18 +82,30 @@ export function InventoryIcon({
   
   if (!iconFile) {
     // Try partial matching for compound terms
-    if (itemType.includes("shoulder")) {
+    if (itemType.includes("helmet")) {
+      iconFile = "helmet.png"
+    } else if (itemType.includes("shoulder") || (itemType.includes("pad") && !itemType.includes("knee"))) {
       iconFile = "shoulder_pads.png"
+    } else if (itemType.includes("jersey")) {
+      iconFile = "jersey.png"
     } else if (itemType.includes("pant")) {
       iconFile = "football_pants.png"
     } else if (itemType.includes("knee") && itemType.includes("pad")) {
       iconFile = "knee_pad.png"
     } else if (itemType.includes("mouth")) {
       iconFile = "mouthguard.png"
+    } else if (itemType.includes("chinstrap")) {
+      iconFile = "chinstrap.png"
+    } else if (itemType.includes("locker")) {
+      iconFile = "locker.png"
+    } else if (itemType.includes("lock") && !itemType.includes("locker")) {
+      iconFile = "lock.png"
     } else if (itemType.includes("equipment") && itemType.includes("bag")) {
       iconFile = "equipment_bag.png"
     } else if (itemType.includes("water")) {
       iconFile = "water_bottle.png"
+    } else if (itemType.includes("wristband") || itemType.includes("playcall")) {
+      iconFile = "equipment_bag.png"
     } else {
       // Default to equipment bag for unknown items
       iconFile = "equipment_bag.png"
@@ -87,7 +120,7 @@ export function InventoryIcon({
         height: size, 
         minWidth: size, 
         minHeight: size,
-        marginRight: "10px"
+        marginRight: "12px"
       }}
     >
       <Image

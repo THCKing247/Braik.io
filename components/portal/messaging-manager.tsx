@@ -496,48 +496,48 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             </div>
           ) : (
             (searchQuery ? filteredThreads : threads).map((thread) => {
-            const isSelected = selectedThread?.id === thread.id
-            const lastMessage = thread.messages[0]
-            const isReadOnly = thread.isReadOnly || false
+              const isSelected = selectedThread?.id === thread.id
+              const lastMessage = thread.messages[0]
+              const isReadOnly = thread.isReadOnly || false
 
-            return (
-              <div
-                key={thread.id}
-                onClick={() => setSelectedThread(thread)}
-                className={`p-3 cursor-pointer transition-colors ${
-                  isSelected ? "" : ""
-                }`}
-                style={{
-                  backgroundColor: isSelected ? "rgb(var(--platinum))" : "transparent",
-                  borderLeft: isSelected ? "4px solid rgb(var(--accent))" : "4px solid transparent",
-                  borderBottom: "1px solid rgb(var(--border))",
-                }}
-              >
-                <div className="flex items-start gap-2">
-                  <MessageSquare className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "rgb(var(--accent))" }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
-                        {getThreadDisplayName(thread)}
-                      </h3>
-                      {isReadOnly && <Lock className="h-3 w-3" style={{ color: "rgb(var(--muted))" }} />}
-                    </div>
-                    {lastMessage && (
-                      <p className="text-xs truncate mt-1" style={{ color: "rgb(var(--text2))" }}>
-                        {lastMessage.creator.name || lastMessage.creator.email}: {lastMessage.body.substring(0, 50)}
-                        {lastMessage.body.length > 50 ? "..." : ""}
+              return (
+                <div
+                  key={thread.id}
+                  onClick={() => setSelectedThread(thread)}
+                  className={`p-3 cursor-pointer transition-colors ${
+                    isSelected ? "" : ""
+                  }`}
+                  style={{
+                    backgroundColor: isSelected ? "rgb(var(--platinum))" : "transparent",
+                    borderLeft: isSelected ? "4px solid rgb(var(--accent))" : "4px solid transparent",
+                    borderBottom: "1px solid rgb(var(--border))",
+                  }}
+                >
+                  <div className="flex items-start gap-2">
+                    <MessageSquare className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "rgb(var(--accent))" }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
+                          {getThreadDisplayName(thread)}
+                        </h3>
+                        {isReadOnly && <Lock className="h-3 w-3" style={{ color: "rgb(var(--muted))" }} />}
+                      </div>
+                      {lastMessage && (
+                        <p className="text-xs truncate mt-1" style={{ color: "rgb(var(--text2))" }}>
+                          {lastMessage.creator.name || lastMessage.creator.email}: {lastMessage.body.substring(0, 50)}
+                          {lastMessage.body.length > 50 ? "..." : ""}
+                        </p>
+                      )}
+                      <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
+                        {format(new Date(thread.updatedAt), "MMM d, h:mm a")}
                       </p>
-                    )}
-                    <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
-                      {format(new Date(thread.updatedAt), "MMM d, h:mm a")}
-                    </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          }))}
+              )
+            })
+          )}
         </div>
-      )}
       </div>
 
       {/* Message View */}

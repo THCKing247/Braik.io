@@ -810,7 +810,7 @@ export function InventoryTabbedLayout({
         <BulkEditModal
           open={showBulkEditModal}
           onClose={() => setShowBulkEditModal(false)}
-          type={activeTab}
+          equipmentType={activeTab}
           itemCount={groupedItems[activeTab]?.length || 0}
           onSave={async (data) => {
             await onUpdateAllItems(activeTab, data)

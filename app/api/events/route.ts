@@ -1,8 +1,9 @@
 /**
  * App Router API route: app/api/events/route.ts
  * Canonical endpoint: POST /api/events (create event). GET returns 405.
+ * Netlify: force-dynamic + nodejs runtime + fetchCache ensure this is built as a serverless function.
  */
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
@@ -16,6 +17,9 @@ import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeam
 export const dynamic = "force-dynamic"
 /** Use Node runtime so POST is handled consistently on Netlify. */
 export const runtime = "nodejs"
+/** Prevent static/cache so Netlify always invokes the function for /api/events. */
+export const fetchCache = "force-no-store"
+export const revalidate = 0
 
 /** OPTIONS: allow preflight to succeed so POST is not blocked. */
 export async function OPTIONS() {
@@ -28,7 +32,7 @@ export async function GET() {
 }
 
 /** Create a calendar event. Path must be app/api/events/route.ts for POST /api/events. */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   let stage = "entry"
   try {
     console.log("[api/events] POST reached")

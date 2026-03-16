@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccess, requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
+import { requireBillingPermission } from "@/lib/billing/billing-state"
+import { createNotifications } from "@/lib/utils/notifications"
+import { logEventAction } from "@/lib/audit/structured-logger"
+import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
+import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
 
 /**
  * GET /api/teams/[teamId]/calendar/events
@@ -91,11 +96,176 @@ export async function GET(
 }
 
 /**
- * POST - create event; use POST /api/events instead (already implemented).
+ * POST /api/teams/[teamId]/calendar/events - create event (same behavior as POST /api/events).
+ * Use this path when /api/events is unavailable (e.g. 404 on Netlify).
  */
-export async function POST() {
-  return NextResponse.json(
-    { error: "Use POST /api/events to create events." },
-    { status: 400 }
-  )
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  let stage = "entry"
+  try {
+    const { teamId } = await params
+    if (!teamId) {
+      return NextResponse.json({ error: "teamId is required" }, { status: 400 })
+    }
+
+    stage = "body_parse"
+    let rawBody: unknown
+    try {
+      rawBody = await request.json()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Invalid JSON"
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "body_parse", message },
+        { status: 400 }
+      )
+    }
+    const body = rawBody as Record<string, unknown>
+
+    const title = typeof body.title === "string" ? body.title.trim() : ""
+    const startVal = body.start ?? body.startAt
+    const endVal = body.end ?? body.endAt
+    if (!title) {
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "validation", message: "title is required" },
+        { status: 400 }
+      )
+    }
+    if (!startVal || (typeof startVal !== "string" && typeof startVal !== "number")) {
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "validation", message: "start or startAt is required" },
+        { status: 400 }
+      )
+    }
+    if (!endVal || (typeof endVal !== "string" && typeof endVal !== "number")) {
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "validation", message: "end or endAt is required" },
+        { status: 400 }
+      )
+    }
+
+    const startStr = typeof startVal === "string" ? startVal : new Date(startVal).toISOString()
+    const endStr = typeof endVal === "string" ? endVal : new Date(endVal).toISOString()
+
+    const typeStr = typeof body.type === "string" ? body.type : ""
+    const eventTypeMap: Record<string, string> = {
+      practice: "PRACTICE",
+      game: "GAME",
+      meeting: "MEETING",
+      other: "CUSTOM",
+    }
+    const eventType = eventTypeMap[typeStr] || "CUSTOM"
+    const audienceStr = typeof body.audience === "string" ? body.audience : ""
+    const visibilityMap: Record<string, string> = {
+      all: "PARENTS_AND_TEAM",
+      players: "TEAM",
+      parents: "PARENTS_AND_TEAM",
+      staff: "COACHES_ONLY",
+    }
+    const visibility = visibilityMap[audienceStr] || "TEAM"
+
+    stage = "auth"
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    stage = "access_check"
+    try {
+      await requireTeamPermission(teamId, "post_announcements")
+      await requireTeamOperationAccess(teamId, "write")
+      await auditImpersonatedActionFromRequest(request, "event_create", { teamId })
+      await requireBillingPermission(teamId, "editEvents")
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error"
+      if (e instanceof TeamOperationBlockedError) {
+        return NextResponse.json(toStructuredTeamAccessError(e), { status: e.statusCode })
+      }
+      const status = message.includes("Forbidden") || message.includes("Not a member") ? 403 : 500
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "access_check", message },
+        { status }
+      )
+    }
+
+    const notesVal = typeof body.notes === "string" ? body.notes : null
+    const locationVal = typeof body.location === "string" ? body.location : null
+
+    stage = "insert"
+    const supabase = getSupabaseServer()
+    const { data: event, error: eventError } = await supabase
+      .from("events")
+      .insert({
+        team_id: teamId,
+        event_type: eventType,
+        title,
+        description: notesVal,
+        start: new Date(startStr).toISOString(),
+        end: new Date(endStr).toISOString(),
+        location: locationVal,
+        visibility,
+        created_by: session.user.id,
+      })
+      .select()
+      .single()
+
+    if (eventError || !event) {
+      const message = eventError?.message ?? "no event returned"
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "insert", message },
+        { status: 500 }
+      )
+    }
+
+    stage = "notifying"
+    try {
+      await supabase.from("audit_logs").insert({
+        actor_id: session.user.id,
+        action: "event_created",
+        target_type: "event",
+        target_id: event.id,
+        metadata: { teamId, title },
+      })
+      const membership = await getUserMembership(teamId)
+      logEventAction("event_created", {
+        userId: session.user.id,
+        teamId,
+        role: membership?.role,
+        eventId: event.id,
+        eventType,
+        title,
+      })
+      await createNotifications({
+        type: "event_created",
+        teamId,
+        title: `New event: ${title}`,
+        body: `${eventType} - ${new Date(startStr).toLocaleDateString()} at ${new Date(startStr).toLocaleTimeString()}`,
+        linkUrl: `/dashboard/schedule`,
+        linkType: "event",
+        linkId: event.id,
+        metadata: {
+          eventId: event.id,
+          eventType,
+          start: event.start,
+          end: event.end,
+          location: event.location,
+        },
+        excludeUserIds: [session.user.id],
+      })
+    } catch {
+      // Event was inserted; do not fail the request
+    }
+
+    return NextResponse.json(event, { status: 201 })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    return NextResponse.json(
+      { error: "Event creation failed", stage, message },
+      { status: 500 }
+    )
+  }
 }

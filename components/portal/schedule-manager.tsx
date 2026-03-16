@@ -90,11 +90,10 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
       const start = startDate.toISOString()
       const end = endDate.toISOString()
       // Create the event first
-      const response = await fetch("/api/events", {
+      const response = await fetch(`/api/teams/${teamId}/calendar/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          teamId,
           type,
           title,
           start,

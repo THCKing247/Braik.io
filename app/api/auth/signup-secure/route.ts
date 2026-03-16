@@ -152,6 +152,30 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check if a user with this email already exists in auth.users first
+    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    const existingAuthUser = authUsers?.users.find(u => u.email?.toLowerCase() === email.toLowerCase().trim())
+    
+    if (existingAuthUser) {
+      throw new SignupRouteError(
+        409,
+        "An account with this email already exists. Please sign in instead.",
+        "Email already registered in authentication system"
+      )
+    }
+
+    // Check if a user with this email already exists in public.users (orphaned record)
+    const { data: existingUser, error: existingUserError } = await supabase
+      .from("users")
+      .select("id, email")
+      .eq("email", email.toLowerCase().trim())
+      .maybeSingle()
+
+    if (existingUserError && existingUserError.code !== "PGRST116") {
+      // PGRST116 is "not found" which is fine, other errors are problems
+      throw new SignupRouteError(500, "Database error while checking existing user", existingUserError.message)
+    }
+
     const { data: authData, error: createAuthError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -166,26 +190,98 @@ export async function POST(request: Request) {
     })
 
     if (createAuthError || !authData.user) {
+      // Check if error is due to email already existing in auth
+      const errorMsg = createAuthError?.message?.toLowerCase() || ""
+      if (errorMsg.includes("already") || errorMsg.includes("exists") || errorMsg.includes("duplicate")) {
+        throw new SignupRouteError(
+          409,
+          "An account with this email already exists. Please sign in instead.",
+          createAuthError?.message
+        )
+      }
       throw mapCreateUserError(createAuthError?.message || "Unknown auth user creation error")
     }
 
     createdAuthUserId = authData.user.id
 
     // Ensure public.users row exists before any FKs (e.g. players.user_id) reference it
-    const { error: usersUpsertError } = await supabase
-      .from("users")
-      .upsert(
-        {
+    // If email already exists, we need to update the existing record or handle the conflict
+    if (existingUser && existingUser.id !== createdAuthUserId) {
+      // Email exists with different ID - update the existing record to use the new auth user ID
+      // This handles the case where a user record was created but auth user wasn't
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
           id: createdAuthUserId,
           email,
           name: fullName,
           role: profileRoleToUserRole(role),
           status: "active",
-        },
-        { onConflict: "id" }
-      )
-    if (usersUpsertError) {
-      throw new SignupRouteError(500, "Database failure while creating user record", usersUpsertError.message)
+        })
+        .eq("id", existingUser.id)
+      
+      if (updateError) {
+        // If update fails, try delete and insert
+        await supabase.from("users").delete().eq("id", existingUser.id).catch(() => {})
+        const { error: insertError } = await supabase
+          .from("users")
+          .insert({
+            id: createdAuthUserId,
+            email,
+            name: fullName,
+            role: profileRoleToUserRole(role),
+            status: "active",
+          })
+        
+        if (insertError) {
+          throw new SignupRouteError(500, "Database failure while creating user record", insertError.message)
+        }
+      }
+    } else {
+      // Normal case: insert or update by ID
+      const { error: usersUpsertError } = await supabase
+        .from("users")
+        .upsert(
+          {
+            id: createdAuthUserId,
+            email,
+            name: fullName,
+            role: profileRoleToUserRole(role),
+            status: "active",
+          },
+          { onConflict: "id" }
+        )
+      if (usersUpsertError) {
+        // If upsert fails due to email conflict, try to find and update the existing record
+        if (usersUpsertError.message?.includes("users_email_key") || usersUpsertError.message?.includes("duplicate key")) {
+          const { data: emailUser } = await supabase
+            .from("users")
+            .select("id")
+            .eq("email", email.toLowerCase())
+            .maybeSingle()
+          
+          if (emailUser) {
+            // Update the existing user record to use the new auth ID
+            const { error: updateError } = await supabase
+              .from("users")
+              .update({
+                id: createdAuthUserId,
+                name: fullName,
+                role: profileRoleToUserRole(role),
+                status: "active",
+              })
+              .eq("id", emailUser.id)
+            
+            if (updateError) {
+              throw new SignupRouteError(500, "Database failure while updating user record", updateError.message)
+            }
+          } else {
+            throw new SignupRouteError(500, "Database failure while creating user record", usersUpsertError.message)
+          }
+        } else {
+          throw new SignupRouteError(500, "Database failure while creating user record", usersUpsertError.message)
+        }
+      }
     }
 
     let teamId: string | null = null

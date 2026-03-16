@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
     await requireTeamAccess(teamId)
 
-    // Get team members
+    // Get team members (coaches, etc.)
     const { data: members, error: membersError } = await supabase
       .from("team_members")
       .select("user_id, role")
@@ -40,8 +40,25 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to load contacts" }, { status: 500 })
     }
 
-    const userIds = (members ?? []).map((m) => m.user_id)
-    if (userIds.length === 0) {
+    // Get players with user accounts (players who have signed up)
+    const { data: players, error: playersError } = await supabase
+      .from("players")
+      .select("user_id, first_name, last_name, email")
+      .eq("team_id", teamId)
+      .eq("status", "active")
+      .not("user_id", "is", null)
+
+    if (playersError) {
+      console.error("[GET /api/messages/contacts] players", playersError)
+      // Non-fatal - continue with team members only
+    }
+
+    // Combine user IDs from both sources
+    const memberUserIds = (members ?? []).map((m) => m.user_id)
+    const playerUserIds = (players ?? []).map((p) => p.user_id).filter((id): id is string => id !== null)
+    const allUserIds = [...new Set([...memberUserIds, ...playerUserIds])]
+
+    if (allUserIds.length === 0) {
       return NextResponse.json([])
     }
 
@@ -49,7 +66,7 @@ export async function GET(request: Request) {
     const { data: users, error: usersError } = await supabase
       .from("users")
       .select("id, name, email")
-      .in("id", userIds)
+      .in("id", allUserIds)
 
     if (usersError) {
       console.error("[GET /api/messages/contacts] users", usersError)
@@ -60,20 +77,35 @@ export async function GET(request: Request) {
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, role")
-      .in("id", userIds)
+      .in("id", allUserIds)
 
     const profileMap = new Map((profiles ?? []).map((p) => [p.id, p.role]))
 
-    // Map members to contacts
+    // Create maps for team roles
     const memberMap = new Map((members ?? []).map((m) => [m.user_id, m.role]))
+    const playerMap = new Map(
+      (players ?? [])
+        .filter((p) => p.user_id !== null)
+        .map((p) => [p.user_id!, { firstName: p.first_name, lastName: p.last_name, email: p.email }])
+    )
+
+    // Build contacts list
     const contacts = (users ?? [])
       .map((u) => {
+        // Check if user is a team member (coach, etc.) or a player
         const teamRole = memberMap.get(u.id) || "PLAYER"
         const profileRole = profileMap.get(u.id) || "player"
+        const playerInfo = playerMap.get(u.id)
+        
+        // Use player name if available, otherwise use user name
+        const displayName = playerInfo 
+          ? `${playerInfo.firstName} ${playerInfo.lastName}`.trim()
+          : (u.name || u.email)
+        
         return {
           id: u.id,
-          name: u.name || u.email,
-          email: u.email,
+          name: displayName,
+          email: u.email || playerInfo?.email || "",
           image: null,
           role: profileRole,
           type: teamRole,

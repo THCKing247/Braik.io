@@ -67,12 +67,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [messageBody, setMessageBody] = useState("")
   const [attachments, setAttachments] = useState<any[]>([])
   const [showCreateThread, setShowCreateThread] = useState(false)
+  const [showThreadTypeMenu, setShowThreadTypeMenu] = useState(false)
+  const [threadType, setThreadType] = useState<"coach" | "player" | "parent" | "group" | null>(null)
   const [newThreadSubject, setNewThreadSubject] = useState("")
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filteredThreads, setFilteredThreads] = useState<Thread[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
@@ -229,19 +232,35 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }
 
   const handleCreateThread = async () => {
-    if (!newThreadSubject.trim() || selectedContacts.length === 0) {
-      alert("Subject and at least one participant are required")
+    // Validation
+    if (threadType === "group" && !newThreadSubject.trim()) {
+      alert("Group name is required")
+      return
+    }
+    if (selectedContacts.length === 0) {
+      alert("Please select at least one participant")
+      return
+    }
+    if (threadType !== "group" && selectedContacts.length !== 1) {
+      alert(`Please select exactly one ${threadType}`)
       return
     }
 
     setLoading(true)
     try {
+      // For individual threads, generate subject from contact name if not provided
+      let subject = newThreadSubject.trim()
+      if (!subject && threadType !== "group" && selectedContacts.length === 1) {
+        const contact = contacts.find(c => c.id === selectedContacts[0])
+        subject = contact ? `Chat with ${contact.name}` : "New Conversation"
+      }
+
       const response = await fetch("/api/messages/threads/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teamId,
-          subject: newThreadSubject,
+          subject: subject || "New Conversation",
           participantUserIds: selectedContacts,
         }),
       })
@@ -257,6 +276,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       setNewThreadSubject("")
       setSelectedContacts([])
       setShowCreateThread(false)
+      setThreadType(null)
       setError(null)
     } catch (error: any) {
       const errorMessage = error.message || "Error creating thread"
@@ -345,6 +365,68 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     return otherParticipants.join(", ") || "New Thread"
   }
 
+  const getFilteredContacts = () => {
+    if (!threadType) return contacts
+    
+    switch (threadType) {
+      case "coach":
+        return contacts.filter(c => {
+          const typeUpper = c.type?.toUpperCase() || ""
+          const roleLower = c.role?.toLowerCase() || ""
+          return typeUpper === "HEAD_COACH" || 
+                 typeUpper === "ASSISTANT_COACH" || 
+                 roleLower === "head_coach" || 
+                 roleLower === "assistant_coach"
+        })
+      case "player":
+        return contacts.filter(c => {
+          const typeUpper = c.type?.toUpperCase() || ""
+          const roleLower = c.role?.toLowerCase() || ""
+          return typeUpper === "PLAYER" || roleLower === "player"
+        })
+      case "parent":
+        return contacts.filter(c => {
+          const typeUpper = c.type?.toUpperCase() || ""
+          const roleLower = c.role?.toLowerCase() || ""
+          return typeUpper === "PARENT" || roleLower === "parent"
+        })
+      case "group":
+        return contacts // Show all for group
+      default:
+        return contacts
+    }
+  }
+
+  const handleThreadTypeSelect = (type: "coach" | "player" | "parent" | "group") => {
+    setThreadType(type)
+    setShowCreateThread(true)
+    setShowThreadTypeMenu(false)
+    setSelectedContacts([])
+    setNewThreadSubject("")
+  }
+
+  const handleCancelCreate = () => {
+    setShowCreateThread(false)
+    setThreadType(null)
+    setShowThreadTypeMenu(false)
+    setNewThreadSubject("")
+    setSelectedContacts([])
+  }
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowThreadTypeMenu(false)
+      }
+    }
+
+    if (showThreadTypeMenu) {
+      document.addEventListener("mousedown", handleClickOutside)
+      return () => document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [showThreadTypeMenu])
+
   if (initialLoading) {
     return (
       <div className="flex h-[calc(100vh-200px)] items-center justify-center rounded-lg border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
@@ -373,14 +455,54 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         <div className="p-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
           <h2 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>Messages</h2>
           {canCreateThread && (
-            <Button
-              size="sm"
-              onClick={() => setShowCreateThread(!showCreateThread)}
-              className="h-8 w-8 p-0"
-              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+            <div className="relative" ref={menuRef}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (showCreateThread) {
+                    handleCancelCreate()
+                  } else {
+                    setShowThreadTypeMenu(!showThreadTypeMenu)
+                  }
+                }}
+                className="h-8 w-8 p-0"
+                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              {showThreadTypeMenu && !showCreateThread && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white border rounded-md shadow-lg min-w-[180px]" style={{ borderColor: "rgb(var(--border))" }}>
+                  <button
+                    onClick={() => handleThreadTypeSelect("coach")}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 first:rounded-t-md"
+                    style={{ color: "rgb(var(--text))" }}
+                  >
+                    Message Coach
+                  </button>
+                  <button
+                    onClick={() => handleThreadTypeSelect("player")}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                    style={{ color: "rgb(var(--text))" }}
+                  >
+                    Message Player
+                  </button>
+                  <button
+                    onClick={() => handleThreadTypeSelect("parent")}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                    style={{ color: "rgb(var(--text))" }}
+                  >
+                    Message Parent
+                  </button>
+                  <button
+                    onClick={() => handleThreadTypeSelect("group")}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 last:rounded-b-md border-t"
+                    style={{ color: "rgb(var(--text))", borderTopColor: "rgb(var(--border))" }}
+                  >
+                    Create Group
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -403,25 +525,29 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         </div>
 
-        {showCreateThread && (
+        {showCreateThread && threadType && (
           <div className="p-4 border-b flex-shrink-0" style={{ backgroundColor: "rgb(var(--platinum))", borderBottomColor: "rgb(var(--border))" }}>
             <div className="space-y-3">
+              {threadType === "group" && (
+                <div>
+                  <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>Group Name</Label>
+                  <Input
+                    value={newThreadSubject}
+                    onChange={(e) => setNewThreadSubject(e.target.value)}
+                    placeholder="Enter group name"
+                    className="h-8 text-sm"
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      borderColor: "rgb(var(--border))",
+                      color: "rgb(var(--text))",
+                    }}
+                  />
+                </div>
+              )}
               <div>
-                <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>Subject</Label>
-                <Input
-                  value={newThreadSubject}
-                  onChange={(e) => setNewThreadSubject(e.target.value)}
-                  placeholder="Thread subject"
-                  className="h-8 text-sm"
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
-                />
-              </div>
-              <div>
-                <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>Participants</Label>
+                <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>
+                  {threadType === "group" ? "Select Members" : `Select ${threadType.charAt(0).toUpperCase() + threadType.slice(1)}`}
+                </Label>
                 <Button
                   size="sm"
                   variant="outline"
@@ -431,8 +557,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 >
                   <Users className="h-4 w-4 mr-2" />
                   {selectedContacts.length > 0 
-                    ? `${selectedContacts.length} selected` 
-                    : "Select participants"}
+                    ? threadType === "group"
+                      ? `${selectedContacts.length} member${selectedContacts.length !== 1 ? "s" : ""} selected`
+                      : contacts.find(c => c.id === selectedContacts[0])?.name || "Selected"
+                    : `Select ${threadType === "group" ? "members" : threadType}`}
                 </Button>
                 {selectedContacts.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -465,7 +593,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 <Button 
                   size="sm" 
                   onClick={handleCreateThread} 
-                  disabled={loading || !newThreadSubject.trim() || selectedContacts.length === 0}
+                  disabled={loading || (threadType === "group" && !newThreadSubject.trim()) || selectedContacts.length === 0 || (threadType !== "group" && selectedContacts.length !== 1)}
                   style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
                 >
                   Create
@@ -473,11 +601,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 <Button 
                   size="sm" 
                   variant="outline" 
-                  onClick={() => {
-                    setShowCreateThread(false)
-                    setNewThreadSubject("")
-                    setSelectedContacts([])
-                  }}
+                  onClick={handleCancelCreate}
                   style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                 >
                   Cancel
@@ -719,45 +843,65 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       <Dialog open={showParticipantsModal} onOpenChange={setShowParticipantsModal}>
         <DialogContent className="bg-white">
           <DialogHeader>
-            <DialogTitle>Select Participants</DialogTitle>
+            <DialogTitle>
+              {threadType === "group" 
+                ? "Select Group Members" 
+                : `Select ${threadType ? threadType.charAt(0).toUpperCase() + threadType.slice(1) : "Participant"}`}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="max-h-96 overflow-y-auto space-y-2">
-              {contacts.map((contact) => (
-                <label
-                  key={contact.id}
-                  className="flex items-center space-x-3 p-2 rounded cursor-pointer hover:bg-gray-100"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedContacts.includes(contact.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedContacts([...selectedContacts, contact.id])
-                      } else {
-                        setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
-                      }
-                    }}
-                    className="w-4 h-4"
-                    style={{ accentColor: "rgb(var(--accent))" }}
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
-                      {contact.name}
-                    </p>
-                    <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                      {contact.email} • {contact.role}
-                    </p>
-                  </div>
-                </label>
-              ))}
+              {getFilteredContacts().length === 0 ? (
+                <p className="text-sm text-center py-4" style={{ color: "rgb(var(--muted))" }}>
+                  No {threadType}s available
+                </p>
+              ) : (
+                getFilteredContacts().map((contact) => (
+                  <label
+                    key={contact.id}
+                    className="flex items-center space-x-3 p-2 rounded cursor-pointer hover:bg-gray-100"
+                  >
+                    <input
+                      type={threadType === "group" ? "checkbox" : "radio"}
+                      name={threadType === "group" ? undefined : "participant"}
+                      checked={selectedContacts.includes(contact.id)}
+                      onChange={(e) => {
+                        if (threadType === "group") {
+                          // Multiple selection for groups
+                          if (e.target.checked) {
+                            setSelectedContacts([...selectedContacts, contact.id])
+                          } else {
+                            setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
+                          }
+                        } else {
+                          // Single selection for individual threads
+                          if (e.target.checked) {
+                            setSelectedContacts([contact.id])
+                          }
+                        }
+                      }}
+                      className={threadType === "group" ? "w-4 h-4" : "w-4 h-4"}
+                      style={{ accentColor: "rgb(var(--accent))" }}
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                        {contact.name}
+                      </p>
+                      <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                        {contact.email} • {contact.role}
+                      </p>
+                    </div>
+                  </label>
+                ))
+              )}
             </div>
             <div className="flex gap-2 pt-4 border-t" style={{ borderTopColor: "rgb(var(--border))" }}>
               <Button
                 onClick={() => {
                   setShowParticipantsModal(false)
-                  if (showCreateThread && selectedContacts.length === 0) {
-                    setShowCreateThread(false)
+                  // If no selection and not a group, close the create thread form
+                  if (threadType !== "group" && selectedContacts.length === 0) {
+                    handleCancelCreate()
                   }
                 }}
                 variant="outline"

@@ -303,7 +303,7 @@ export function InventoryItemsModal({
               <DialogHeader>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <InventoryIcon type={equipmentType} size={32} />
+                    <InventoryIcon type={equipmentType} size={100} />
                     <DialogTitle>{equipmentType} - All Items ({filteredItems.length})</DialogTitle>
                   </div>
                   <button

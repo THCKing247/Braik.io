@@ -20,7 +20,7 @@ export function InventoryIcon({
   equipmentType, 
   category, 
   className = "", 
-  size = 56 
+  size = 100 
 }: InventoryIconProps) {
   // Use type if provided, otherwise fall back to equipmentType or category for backward compatibility
   const itemType = (type || equipmentType || category || "").toLowerCase().trim()
@@ -120,7 +120,7 @@ export function InventoryIcon({
         height: size, 
         minWidth: size, 
         minHeight: size,
-        marginRight: "12px"
+        marginRight: "16px"
       }}
     >
       <Image

@@ -374,7 +374,7 @@ export function InventoryTabbedLayout({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <InventoryIcon type={equipmentType} size={24} />
+                    <InventoryIcon type={equipmentType} size={100} />
                     <span className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
                       {equipmentType}
                     </span>
@@ -446,7 +446,7 @@ export function InventoryTabbedLayout({
             <div className="border-b p-4" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <InventoryIcon type={activeTab} size={32} />
+                  <InventoryIcon type={activeTab} size={100} />
                   <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
                     {activeTab}
                   </h2>

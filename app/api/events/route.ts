@@ -1,8 +1,9 @@
 /**
  * App Router API route: app/api/events/route.ts
  * Canonical endpoint: POST /api/events (create event). GET returns 405.
+ * Netlify: force-dynamic + nodejs runtime + fetchCache ensure this is built as a serverless function.
  */
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
@@ -16,6 +17,9 @@ import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeam
 export const dynamic = "force-dynamic"
 /** Use Node runtime so POST is handled consistently on Netlify. */
 export const runtime = "nodejs"
+/** Prevent static/cache so Netlify always invokes the function for /api/events. */
+export const fetchCache = "force-no-store"
+export const revalidate = 0
 
 /** OPTIONS: allow preflight to succeed so POST is not blocked. */
 export async function OPTIONS() {
@@ -28,10 +32,10 @@ export async function GET() {
 }
 
 /** Create a calendar event. Path must be app/api/events/route.ts for POST /api/events. */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   let stage = "entry"
   try {
-    console.log("[api/events] POST reached")
+    console.log("[api/events] POST start")
     stage = "body_parse"
 
     let rawBody: unknown
@@ -47,29 +51,55 @@ export async function POST(req: Request) {
     }
     const body = rawBody as Record<string, unknown>
 
+    const hasTeamId = typeof body.teamId === "string"
+    const hasTitle = typeof body.title === "string"
+    const hasStart = body.start !== undefined && body.start !== null
+    const hasStartAt = body.startAt !== undefined && body.startAt !== null
+    const hasEnd = body.end !== undefined && body.end !== null
+    const hasEndAt = body.endAt !== undefined && body.endAt !== null
+    console.log("[api/events] body parsed", {
+      bodyKeysPresent: Object.keys(body),
+      required: {
+        teamId: hasTeamId,
+        title: hasTitle,
+        start: hasStart || hasStartAt,
+        end: hasEnd || hasEndAt,
+      },
+      optional: {
+        type: typeof body.type === "string",
+        audience: typeof body.audience === "string",
+        notes: typeof body.notes === "string",
+        location: typeof body.location === "string",
+      },
+    })
+
     const teamId = typeof body.teamId === "string" ? body.teamId.trim() : ""
     const title = typeof body.title === "string" ? body.title.trim() : ""
     const startVal = body.start ?? body.startAt
     const endVal = body.end ?? body.endAt
     if (!teamId) {
+      console.log("[api/events] returning 400", { reason: "teamId_required", stage: "validation" })
       return NextResponse.json(
         { error: "Event creation failed", stage: "validation", message: "teamId is required" },
         { status: 400 }
       )
     }
     if (!title) {
+      console.log("[api/events] returning 400", { reason: "title_required", stage: "validation", teamId })
       return NextResponse.json(
         { error: "Event creation failed", stage: "validation", message: "title is required" },
         { status: 400 }
       )
     }
     if (!startVal || (typeof startVal !== "string" && typeof startVal !== "number")) {
+      console.log("[api/events] returning 400", { reason: "start_required", stage: "validation", teamId })
       return NextResponse.json(
         { error: "Event creation failed", stage: "validation", message: "start or startAt is required" },
         { status: 400 }
       )
     }
     if (!endVal || (typeof endVal !== "string" && typeof endVal !== "number")) {
+      console.log("[api/events] returning 400", { reason: "end_required", stage: "validation", teamId })
       return NextResponse.json(
         { error: "Event creation failed", stage: "validation", message: "end or endAt is required" },
         { status: 400 }
@@ -96,7 +126,7 @@ export async function POST(req: Request) {
     }
     const visibility = visibilityMap[audienceStr] || "TEAM"
 
-    console.log("[api/events] body parsed", {
+    console.log("[api/events] normalized payload", {
       teamId,
       title,
       start: startStr,
@@ -104,15 +134,15 @@ export async function POST(req: Request) {
       type: eventType,
       visibility,
     })
-    console.log("[api/events] normalized payload")
 
     stage = "auth"
     const session = await getServerSession()
     if (!session?.user?.id) {
-      console.log("[api/events] error", { stage: "auth", message: "unauthorized" })
+      console.log("[api/events] returning 401", { reason: "unauthorized", stage: "auth", teamId })
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    console.log("[api/events] auth ok")
+    const userId = session.user.id
+    console.log("[api/events] auth ok", { userId, teamId })
 
     stage = "access_check"
     try {
@@ -122,10 +152,18 @@ export async function POST(req: Request) {
       await requireBillingPermission(teamId, "editEvents")
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error"
-      console.log("[api/events] error", { stage: "access_check", message })
       if (e instanceof TeamOperationBlockedError) {
+        console.log("[api/events] returning from access_check (TeamOperationBlockedError)", {
+          statusCode: e.statusCode,
+          code: e.code,
+          message: e.message,
+          userId,
+          teamId,
+          details: e.details,
+        })
         return NextResponse.json(toStructuredTeamAccessError(e), { status: e.statusCode })
       }
+      console.log("[api/events] error", { stage: "access_check", message, userId, teamId })
       const status = message.includes("Forbidden") || message.includes("Not a member") ? 403 : 500
       return NextResponse.json(
         { error: "Event creation failed", stage: "access_check", message },

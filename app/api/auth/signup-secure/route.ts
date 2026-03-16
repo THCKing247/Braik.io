@@ -222,7 +222,12 @@ export async function POST(request: Request) {
       
       if (updateError) {
         // If update fails, try delete and insert
-        await supabase.from("users").delete().eq("id", existingUser.id).catch(() => {})
+        const { error: deleteError } = await supabase
+          .from("users")
+          .delete()
+          .eq("id", existingUser.id)
+        
+        // Ignore delete errors, continue with insert
         const { error: insertError } = await supabase
           .from("users")
           .insert({

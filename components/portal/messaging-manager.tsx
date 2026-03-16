@@ -61,6 +61,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [messages, setMessages] = useState<Message[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [messagesLoading, setMessagesLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [messageBody, setMessageBody] = useState("")
   const [attachments, setAttachments] = useState<any[]>([])
   const [showCreateThread, setShowCreateThread] = useState(false)
@@ -75,8 +78,20 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const canCreateThread = permissions.canCreateThread()
 
   useEffect(() => {
-    loadThreads()
-    loadContacts()
+    setInitialLoading(true)
+    setError(null)
+    const loadData = async () => {
+      try {
+        await Promise.all([loadThreads(), loadContacts()])
+      } catch (err) {
+        console.error("Error loading initial data:", err)
+        setError("Failed to load messages. Please refresh the page.")
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId])
 
   useEffect(() => {
@@ -115,46 +130,60 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const loadThreads = async () => {
     try {
       const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setThreads(data)
-        // Auto-select General Chat if available and no thread selected
-        if (!selectedThread && data.length > 0) {
-          const generalChat = data.find((t: Thread) => t.threadType === "GENERAL")
-          if (generalChat) {
-            setSelectedThread(generalChat)
-          } else {
-            setSelectedThread(data[0])
-          }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to load threads")
+      }
+      const data = await response.json()
+      setThreads(data)
+      // Auto-select General Chat if available and no thread selected
+      if (!selectedThread && data.length > 0) {
+        const generalChat = data.find((t: Thread) => t.threadType === "GENERAL")
+        if (generalChat) {
+          setSelectedThread(generalChat)
+        } else {
+          setSelectedThread(data[0])
         }
       }
-    } catch (error) {
+      setError(null)
+    } catch (error: any) {
       console.error("Error loading threads:", error)
+      setError(error.message || "Failed to load threads")
     }
   }
 
   const loadContacts = async () => {
     try {
       const response = await fetch(`/api/messages/contacts?teamId=${teamId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setContacts(data)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to load contacts")
       }
-    } catch (error) {
+      const data = await response.json()
+      setContacts(data)
+    } catch (error: any) {
       console.error("Error loading contacts:", error)
+      // Non-fatal error for contacts, don't set main error state
     }
   }
 
   const loadMessages = async (threadId: string) => {
+    setMessagesLoading(true)
     try {
       const response = await fetch(`/api/messages/threads/${threadId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setMessages(data.messages || [])
-        setSelectedThread(data)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to load messages")
       }
-    } catch (error) {
+      const data = await response.json()
+      setMessages(data.messages || [])
+      setSelectedThread(data)
+      setError(null)
+    } catch (error: any) {
       console.error("Error loading messages:", error)
+      setError(error.message || "Failed to load messages")
+    } finally {
+      setMessagesLoading(false)
     }
   }
 
@@ -187,9 +216,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       setMessages([...messages, newMessage])
       setMessageBody("")
       setAttachments([])
+      setError(null)
       loadThreads() // Refresh thread list to update last message
     } catch (error: any) {
-      alert(error.message || "Error sending message")
+      const errorMessage = error.message || "Error sending message"
+      setError(errorMessage)
+      // Also show alert for immediate feedback
+      alert(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -224,8 +257,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       setNewThreadSubject("")
       setSelectedContacts([])
       setShowCreateThread(false)
+      setError(null)
     } catch (error: any) {
-      alert(error.message || "Error creating thread")
+      const errorMessage = error.message || "Error creating thread"
+      setError(errorMessage)
+      alert(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -281,8 +317,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
       const data = await response.json()
       setAttachments([...attachments, data])
-    } catch (error) {
-      alert("Error uploading file")
+      setError(null)
+    } catch (error: any) {
+      const errorMessage = error.message || "Error uploading file"
+      setError(errorMessage)
+      alert(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -306,8 +345,29 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     return otherParticipants.join(", ") || "New Thread"
   }
 
+  if (initialLoading) {
+    return (
+      <div className="flex h-[calc(100vh-200px)] items-center justify-center rounded-lg border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-[calc(100vh-200px)] rounded-lg overflow-hidden border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
+      {/* Error Banner */}
+      {error && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-50 border border-red-200 text-red-800 px-4 py-2 rounded-md text-sm max-w-md">
+          {error}
+          <button
+            onClick={() => setError(null)}
+            className="ml-2 text-red-600 hover:text-red-800"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      
       {/* Thread List Sidebar */}
       <div className="w-80 border-r flex flex-col h-full" style={{ backgroundColor: "#FFFFFF", borderRightColor: "rgb(var(--border))" }}>
         <div className="p-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
@@ -428,7 +488,14 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         )}
 
         <div className="flex-1 overflow-y-auto">
-          {(searchQuery ? filteredThreads : threads).map((thread) => {
+          {threads.length === 0 ? (
+            <div className="p-4 text-center">
+              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                {canCreateThread ? "No threads yet. Create one to get started!" : "No threads available."}
+              </p>
+            </div>
+          ) : (
+            (searchQuery ? filteredThreads : threads).map((thread) => {
             const isSelected = selectedThread?.id === thread.id
             const lastMessage = thread.messages[0]
             const isReadOnly = thread.isReadOnly || false
@@ -468,8 +535,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 </div>
               </div>
             )
-          })}
+          }))}
         </div>
+      )}
       </div>
 
       {/* Message View */}
@@ -509,7 +577,16 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
-              {messages.map((message) => {
+              {messagesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p style={{ color: "rgb(var(--muted))" }}>No messages yet. Start the conversation!</p>
+                </div>
+              ) : (
+                messages.map((message) => {
                 const isOwnMessage = message.creator.id === userId
                 return (
                   <div
@@ -565,7 +642,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                     </div>
                   </div>
                 )
-              })}
+              }))}
               <div ref={messagesEndRef} />
             </div>
 

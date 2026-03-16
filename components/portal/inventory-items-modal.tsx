@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { X, Printer, Edit, Search } from "lucide-react"
-import { EquipmentIcon } from "./inventory-equipment-icons"
+import { InventoryIcon } from "./inventory-icon"
 import { EditItemModal } from "./edit-item-modal"
 
 interface InventoryItem {
@@ -283,7 +283,7 @@ export function InventoryItemsModal({
               <DialogHeader>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <EquipmentIcon equipmentType={equipmentType} size={32} />
+                    <InventoryIcon equipmentType={equipmentType} size={32} />
                     <DialogTitle>{equipmentType} - All Items ({filteredItems.length})</DialogTitle>
                   </div>
                   <button
@@ -336,7 +336,7 @@ export function InventoryItemsModal({
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-start gap-3 flex-1">
                             <div className="relative flex-shrink-0">
-                              <EquipmentIcon
+                              <InventoryIcon
                                 equipmentType={item.equipmentType}
                                 category={item.category}
                                 size={40}
@@ -482,7 +482,7 @@ export function InventoryItemsModal({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 flex-1">
                             <div className="relative flex-shrink-0">
-                              <EquipmentIcon
+                              <InventoryIcon
                                 equipmentType={item.equipmentType}
                                 category={item.category}
                                 size={32}

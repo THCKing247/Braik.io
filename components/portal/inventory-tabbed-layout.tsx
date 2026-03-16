@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Edit, Trash2, Printer, MoreVertical, Search, LayoutGrid, List } from "lucide-react"
-import { EquipmentIcon } from "./inventory-equipment-icons"
+import { InventoryIcon } from "./inventory-icon"
 import { EditItemModal } from "./edit-item-modal"
 import { AddItemModal } from "./add-item-modal"
 import { BulkEditModal } from "./bulk-edit-modal"
@@ -354,7 +354,7 @@ export function InventoryTabbedLayout({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <EquipmentIcon equipmentType={equipmentType} size={20} />
+                    <InventoryIcon equipmentType={equipmentType} size={20} />
                     <span className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
                       {equipmentType}
                     </span>
@@ -426,7 +426,7 @@ export function InventoryTabbedLayout({
             <div className="border-b p-4" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <EquipmentIcon equipmentType={activeTab} size={24} />
+                  <InventoryIcon equipmentType={activeTab} size={24} />
                   <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
                     {activeTab}
                   </h2>
@@ -521,7 +521,7 @@ export function InventoryTabbedLayout({
                         <CardContent className="p-4">
                           <div className="flex items-start gap-3 mb-3">
                             <div className="relative flex-shrink-0">
-                              <EquipmentIcon
+                              <InventoryIcon
                                 equipmentType={item.equipmentType}
                                 category={item.category}
                                 size={40}
@@ -646,7 +646,7 @@ export function InventoryTabbedLayout({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-1">
                               <div className="relative flex-shrink-0">
-                                <EquipmentIcon
+                                <InventoryIcon
                                   equipmentType={item.equipmentType}
                                   category={item.category}
                                   size={32}

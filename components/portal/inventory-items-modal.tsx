@@ -74,6 +74,26 @@ export function InventoryItemsModal({
   viewMode,
   teamId,
 }: InventoryItemsModalProps) {
+  // Add hover effect styles for inventory icons
+  useEffect(() => {
+    const style = document.createElement("style")
+    style.textContent = `
+      .inventory-card:hover .inventory-icon img {
+        opacity: 1;
+      }
+    `
+    style.setAttribute("data-inventory-icons", "true")
+    if (!document.head.querySelector("style[data-inventory-icons]")) {
+      document.head.appendChild(style)
+    }
+    return () => {
+      const existingStyle = document.head.querySelector("style[data-inventory-icons]")
+      if (existingStyle) {
+        document.head.removeChild(existingStyle)
+      }
+    }
+  }, [])
+  
   const [assigningItemId, setAssigningItemId] = useState<string | null>(null)
   const [returningItemId, setReturningItemId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -283,7 +303,7 @@ export function InventoryItemsModal({
               <DialogHeader>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <InventoryIcon equipmentType={equipmentType} size={32} />
+                    <InventoryIcon type={equipmentType} size={28} />
                     <DialogTitle>{equipmentType} - All Items ({filteredItems.length})</DialogTitle>
                   </div>
                   <button
@@ -337,9 +357,8 @@ export function InventoryItemsModal({
                           <div className="flex items-start gap-3 flex-1">
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
-                                equipmentType={item.equipmentType}
-                                category={item.category}
-                                size={40}
+                                type={item.equipmentType || item.category}
+                                size={28}
                               />
                               {jerseyLabel && (
                                 <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
@@ -475,7 +494,7 @@ export function InventoryItemsModal({
                     return (
                       <div
                         key={item.id}
-                        className="p-3 rounded-lg border bg-white cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
+                        className="inventory-card p-3 rounded-lg border bg-white cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
                         style={{ borderColor: "rgb(var(--border))" }}
                         onClick={() => permissions.canEdit && handleEdit(item)}
                       >
@@ -483,9 +502,8 @@ export function InventoryItemsModal({
                           <div className="flex items-center gap-3 flex-1">
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
-                                equipmentType={item.equipmentType}
-                                category={item.category}
-                                size={32}
+                                type={item.equipmentType || item.category}
+                                size={28}
                               />
                               {jerseyLabel && (
                                 <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -93,6 +93,26 @@ export function InventoryTabbedLayout({
   onDeleteItem,
   loading,
 }: InventoryTabbedLayoutProps) {
+  // Add hover effect styles for inventory icons
+  useEffect(() => {
+    const style = document.createElement("style")
+    style.textContent = `
+      .inventory-card:hover .inventory-icon img {
+        opacity: 1;
+      }
+    `
+    style.setAttribute("data-inventory-icons", "true")
+    if (!document.head.querySelector("style[data-inventory-icons]")) {
+      document.head.appendChild(style)
+    }
+    return () => {
+      const existingStyle = document.head.querySelector("style[data-inventory-icons]")
+      if (existingStyle) {
+        document.head.removeChild(existingStyle)
+      }
+    }
+  }, [])
+  
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"card" | "list">("card")
   const [searchQuery, setSearchQuery] = useState("")
@@ -354,7 +374,7 @@ export function InventoryTabbedLayout({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <InventoryIcon equipmentType={equipmentType} size={20} />
+                    <InventoryIcon type={equipmentType} size={20} />
                     <span className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
                       {equipmentType}
                     </span>
@@ -426,7 +446,7 @@ export function InventoryTabbedLayout({
             <div className="border-b p-4" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <InventoryIcon equipmentType={activeTab} size={24} />
+                  <InventoryIcon type={activeTab} size={24} />
                   <h2 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
                     {activeTab}
                   </h2>
@@ -522,9 +542,8 @@ export function InventoryTabbedLayout({
                           <div className="flex items-start gap-3 mb-3">
                             <div className="relative flex-shrink-0">
                               <InventoryIcon
-                                equipmentType={item.equipmentType}
-                                category={item.category}
-                                size={40}
+                                type={item.equipmentType || item.category}
+                                size={28}
                               />
                               {jerseyLabel && (
                                 <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
@@ -638,7 +657,7 @@ export function InventoryTabbedLayout({
                     return (
                       <Card
                         key={item.id}
-                        className="border cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
+                        className="inventory-card border cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
                         style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
                         onClick={() => setEditingItem(item)}
                       >
@@ -647,9 +666,8 @@ export function InventoryTabbedLayout({
                             <div className="flex items-center gap-3 flex-1">
                               <div className="relative flex-shrink-0">
                                 <InventoryIcon
-                                  equipmentType={item.equipmentType}
-                                  category={item.category}
-                                  size={32}
+                                  type={item.equipmentType || item.category}
+                                  size={28}
                                 />
                                 {jerseyLabel && (
                                   <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
@@ -792,7 +810,7 @@ export function InventoryTabbedLayout({
         <BulkEditModal
           open={showBulkEditModal}
           onClose={() => setShowBulkEditModal(false)}
-          equipmentType={activeTab}
+          type={activeTab}
           itemCount={groupedItems[activeTab]?.length || 0}
           onSave={async (data) => {
             await onUpdateAllItems(activeTab, data)

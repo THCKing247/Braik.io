@@ -26,9 +26,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
-    await requireTeamAccess(teamId)
-
-    // Get threads where user is a participant
+    // Get threads where user is a participant (participants can see threads even if not team members)
     const { data: participantThreads, error: participantError } = await supabase
       .from("message_thread_participants")
       .select("thread_id")
@@ -44,10 +42,11 @@ export async function GET(request: Request) {
       return NextResponse.json([])
     }
 
-    // Get threads with creator info
+    // Get threads with creator info - filter by teamId to only show threads for this team
+    // But allow access if user is a participant (even if not a team member)
     const { data: threads, error: threadsError } = await supabase
       .from("message_threads")
-      .select("id, title, thread_type, created_by, created_at, updated_at")
+      .select("id, title, thread_type, created_by, created_at, updated_at, team_id")
       .eq("team_id", teamId)
       .in("id", threadIds)
       .order("updated_at", { ascending: false })

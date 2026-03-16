@@ -14,13 +14,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = (await request.json()) as {
+    let body: {
       threadId?: string
       body?: string
-      attachments?: Array<{ id?: string; fileName?: string; fileUrl?: string }>
+      attachments?: Array<{ id?: string; fileName?: string; fileUrl?: string }> | null
+    }
+    
+    try {
+      body = await request.json()
+    } catch (error) {
+      console.error("[POST /api/messages/send] JSON parse error:", error)
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
     const { threadId, body: messageBody, attachments = [] } = body
+    const attachmentArray = Array.isArray(attachments) ? attachments : (attachments ? [attachments] : [])
 
     if (!threadId) {
       return NextResponse.json({ error: "threadId is required" }, { status: 400 })
@@ -43,21 +51,90 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Thread not found" }, { status: 404 })
     }
 
-    await requireTeamAccess(thread.team_id)
-
-    // Verify user is a participant
-    const { data: participant } = await supabase
+    // Verify user is a participant FIRST (participants can send even if not team members)
+    const { data: participant, error: participantError } = await supabase
       .from("message_thread_participants")
       .select("user_id")
       .eq("thread_id", threadId)
       .eq("user_id", session.user.id)
       .maybeSingle()
 
+    if (participantError) {
+      console.error("[POST /api/messages/send] participant lookup error:", participantError)
+      return NextResponse.json({ error: "Failed to verify thread access" }, { status: 500 })
+    }
+
     if (!participant) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+      // Debug: Get all participants to see what's in the thread
+      const { data: allParticipants, error: allParticipantsError } = await supabase
+        .from("message_thread_participants")
+        .select("user_id")
+        .eq("thread_id", threadId)
+      
+      if (allParticipantsError) {
+        console.error("[POST /api/messages/send] Error fetching all participants:", allParticipantsError)
+      }
+
+      console.log("[POST /api/messages/send] User not a participant. Debug info:", {
+        currentUserId: session.user.id,
+        threadId,
+        teamId: thread.team_id,
+        participantsInThread: allParticipants?.map(p => p.user_id) || []
+      })
+
+      // If not a participant, check team access as fallback
+      try {
+        await requireTeamAccess(thread.team_id)
+        console.log("[POST /api/messages/send] Team access granted as fallback")
+      } catch (error: any) {
+        console.error("[POST /api/messages/send] Team access check failed:", {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        })
+        return NextResponse.json({ 
+          error: "Access denied: You are not a participant in this thread and not a team member",
+          debug: process.env.NODE_ENV === "development" ? {
+            currentUserId: session.user.id,
+            threadId,
+            participantsInThread: allParticipants?.map(p => p.user_id) || [],
+            teamId: thread.team_id
+          } : undefined
+        }, { status: 403 })
+      }
+    } else {
+      console.log("[POST /api/messages/send] User is a participant, allowing message send:", {
+        userId: session.user.id,
+        threadId
+      })
+    }
+
+    // Verify sender_id exists in users table (required for FK constraint)
+    const { data: senderCheck, error: senderCheckError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", session.user.id)
+      .maybeSingle()
+
+    if (senderCheckError) {
+      console.error("[POST /api/messages/send] sender check error:", senderCheckError)
+      return NextResponse.json({ error: "Failed to verify sender account" }, { status: 500 })
+    }
+
+    if (!senderCheck) {
+      console.error("[POST /api/messages/send] sender not found in users table:", session.user.id)
+      return NextResponse.json({ 
+        error: "Your account is not properly set up. Please contact support." 
+      }, { status: 500 })
     }
 
     // Create message
+    console.log("[POST /api/messages/send] Inserting message:", {
+      threadId,
+      senderId: session.user.id,
+      contentLength: messageBody.trim().length
+    })
+
     const { data: message, error: messageError } = await supabase
       .from("messages")
       .insert({
@@ -68,22 +145,32 @@ export async function POST(request: Request) {
       .select("id, sender_id, content, created_at, updated_at")
       .single()
 
-    if (messageError || !message) {
-      console.error("[POST /api/messages/send] message", messageError)
-      return NextResponse.json({ error: "Failed to send message" }, { status: 500 })
+    if (messageError) {
+      console.error("[POST /api/messages/send] message insert error:", {
+        error: messageError,
+        code: messageError.code,
+        message: messageError.message,
+        details: messageError.details,
+        hint: messageError.hint
+      })
+      return NextResponse.json({ 
+        error: "Failed to send message", 
+        details: messageError.message,
+        code: messageError.code
+      }, { status: 500 })
     }
 
-    // Link attachments if provided
-    if (attachments.length > 0) {
-      const attachmentUpdates = attachments.map((att) => ({
-        message_id: message.id,
-        thread_id: threadId,
-        team_id: thread.team_id,
-        uploaded_by: session.user.id,
-      }))
+    if (!message) {
+      console.error("[POST /api/messages/send] message insert returned no data")
+      return NextResponse.json({ error: "Failed to send message: no data returned" }, { status: 500 })
+    }
 
+    console.log("[POST /api/messages/send] Message created successfully:", message.id)
+
+    // Link attachments if provided
+    if (attachmentArray.length > 0) {
       // Update existing attachments to link to this message
-      const attachmentIds = attachments.filter((a) => a.id).map((a) => a.id!)
+      const attachmentIds = attachmentArray.filter((a) => a.id).map((a) => a.id!)
       if (attachmentIds.length > 0) {
         const { error: attachError } = await supabase
           .from("message_attachments")
@@ -91,7 +178,7 @@ export async function POST(request: Request) {
           .in("id", attachmentIds)
 
         if (attachError) {
-          console.error("[POST /api/messages/send] attachments", attachError)
+          console.error("[POST /api/messages/send] attachments update error:", attachError)
           // Non-fatal - message is sent, attachments just not linked
         }
       }
@@ -124,10 +211,32 @@ export async function POST(request: Request) {
       creator: sender ? { id: sender.id, name: sender.name, email: sender.email } : { id: session.user.id, name: null, email: "" },
     })
   } catch (error: any) {
-    console.error("[POST /api/messages/send]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to send message" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    const errorDetails = {
+      message: error?.message || "Unknown error",
+      stack: error?.stack,
+      name: error?.name,
+      cause: error?.cause,
+    }
+    console.error("[POST /api/messages/send] Unexpected error:", errorDetails)
+    
+    // Ensure we always return a valid response
+    try {
+      return NextResponse.json(
+        { 
+          error: error?.message || "Failed to send message",
+          details: process.env.NODE_ENV === "development" ? error?.stack : undefined,
+          code: error?.code
+        },
+        { status: error?.message?.includes("Access denied") ? 403 : 500 }
+      )
+    } catch (responseError) {
+      // If even returning the error fails, log it
+      console.error("[POST /api/messages/send] Failed to return error response:", responseError)
+      // Return a minimal error response
+      return new NextResponse(
+        JSON.stringify({ error: "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      )
+    }
   }
 }

@@ -206,16 +206,26 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         body: JSON.stringify({
           threadId: selectedThread.id,
           body: messageBody,
-          attachments: attachments.length > 0 ? attachments : null,
+          attachments: attachments.length > 0 ? attachments : [],
         }),
       })
 
+      const responseData = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to send message")
+        const errorMessage = responseData.error || responseData.details || "Failed to send message"
+        const fullError = responseData.details || responseData.code 
+          ? `${errorMessage}${responseData.details ? ` (${responseData.details})` : ''}${responseData.code ? ` [${responseData.code}]` : ''}`
+          : errorMessage
+        console.error("[handleSendMessage] API error:", {
+          status: response.status,
+          error: responseData,
+          fullError
+        })
+        throw new Error(fullError)
       }
 
-      const newMessage = await response.json()
+      const newMessage = responseData
       setMessages([...messages, newMessage])
       setMessageBody("")
       setAttachments([])

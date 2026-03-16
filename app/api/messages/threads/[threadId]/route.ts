@@ -35,9 +35,7 @@ export async function GET(
       return NextResponse.json({ error: "Thread not found" }, { status: 404 })
     }
 
-    await requireTeamAccess(thread.team_id)
-
-    // Verify user is a participant
+    // Verify user is a participant FIRST (participants can access even if not team members)
     const { data: participant } = await supabase
       .from("message_thread_participants")
       .select("user_id")
@@ -46,7 +44,12 @@ export async function GET(
       .maybeSingle()
 
     if (!participant) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+      // If not a participant, check team access as fallback
+      try {
+        await requireTeamAccess(thread.team_id)
+      } catch (error: any) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 })
+      }
     }
 
     // Get creator

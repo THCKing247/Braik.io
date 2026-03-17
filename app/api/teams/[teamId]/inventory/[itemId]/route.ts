@@ -47,6 +47,9 @@ export async function PATCH(
     if (body.assignedToPlayerId !== undefined) {
       updateData.assigned_to_player_id = body.assignedToPlayerId || null
     }
+    if (body.quantityTotal !== undefined) {
+      updateData.quantity_total = body.quantityTotal
+    }
     if (body.quantityAvailable !== undefined) {
       updateData.quantity_available = body.quantityAvailable
     }

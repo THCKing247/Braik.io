@@ -171,6 +171,8 @@ export function InventoryManager({
     notes?: string
     size?: string
     make?: string
+    quantityTotal?: number
+    quantityAvailable?: number
   }) => {
     setLoading(true)
     try {

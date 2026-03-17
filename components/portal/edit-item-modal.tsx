@@ -26,6 +26,8 @@ interface InventoryItem {
   size?: string | null
   make?: string | null
   itemCode?: string | null
+  quantityTotal?: number
+  quantityAvailable?: number
 }
 
 interface EditItemModalProps {
@@ -40,6 +42,8 @@ interface EditItemModalProps {
     notes?: string
     size?: string
     make?: string
+    quantityTotal?: number
+    quantityAvailable?: number
   }) => Promise<void>
   loading?: boolean
 }
@@ -61,6 +65,8 @@ export function EditItemModal({
   const [notes, setNotes] = useState("")
   const [size, setSize] = useState("")
   const [make, setMake] = useState("")
+  const [quantityTotal, setQuantityTotal] = useState<string>("1")
+  const [quantityAvailable, setQuantityAvailable] = useState<string>("0")
 
   useEffect(() => {
     if (item) {
@@ -70,6 +76,8 @@ export function EditItemModal({
       setNotes(item.notes || "")
       setSize(item.size || "")
       setMake(item.make || "")
+      setQuantityTotal(item.quantityTotal?.toString() || "1")
+      setQuantityAvailable(item.quantityAvailable?.toString() || "0")
     }
   }, [item])
 
@@ -79,6 +87,24 @@ export function EditItemModal({
     if (!item) return
 
     try {
+      const qtyTotal = parseInt(quantityTotal, 10)
+      const qtyAvailable = parseInt(quantityAvailable, 10)
+      
+      if (isNaN(qtyTotal) || qtyTotal < 0) {
+        alert("Total quantity must be a valid number greater than or equal to 0")
+        return
+      }
+      
+      if (isNaN(qtyAvailable) || qtyAvailable < 0) {
+        alert("Available quantity must be a valid number greater than or equal to 0")
+        return
+      }
+      
+      if (qtyAvailable > qtyTotal) {
+        alert("Available quantity cannot exceed total quantity")
+        return
+      }
+
       await onSave({
         condition,
         status: availability,
@@ -86,6 +112,8 @@ export function EditItemModal({
         notes: notes.trim() || undefined,
         size: size.trim() || undefined,
         make: make.trim() || undefined,
+        quantityTotal: qtyTotal,
+        quantityAvailable: qtyAvailable,
       })
 
       onClose()
@@ -102,6 +130,8 @@ export function EditItemModal({
       setNotes(item.notes || "")
       setSize(item.size || "")
       setMake(item.make || "")
+      setQuantityTotal(item.quantityTotal?.toString() || "1")
+      setQuantityAvailable(item.quantityAvailable?.toString() || "0")
       onClose()
     }
   }
@@ -176,6 +206,49 @@ export function EditItemModal({
                 value={make}
                 onChange={(e) => setMake(e.target.value)}
                 placeholder="e.g., Riddell, Schutt, Nike"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Quantity */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantityTotal" style={{ color: "rgb(var(--text))" }}>
+                Total Quantity *
+              </Label>
+              <Input
+                id="quantityTotal"
+                type="number"
+                min="0"
+                value={quantityTotal}
+                onChange={(e) => setQuantityTotal(e.target.value)}
+                placeholder="Total amount"
+                required
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quantityAvailable" style={{ color: "rgb(var(--text))" }}>
+                Available Quantity *
+              </Label>
+              <Input
+                id="quantityAvailable"
+                type="number"
+                min="0"
+                value={quantityAvailable}
+                onChange={(e) => setQuantityAvailable(e.target.value)}
+                placeholder="Available amount"
+                required
                 style={{
                   backgroundColor: "#FFFFFF",
                   borderColor: "rgb(var(--border))",

@@ -22,6 +22,8 @@ interface InventoryItem {
   make?: string | null
   itemCode?: string | null
   notes?: string | null
+  quantityTotal?: number
+  quantityAvailable?: number
   assignedPlayer?: {
     id: string
     firstName: string
@@ -66,6 +68,8 @@ interface InventoryTabbedLayoutProps {
     notes?: string
     size?: string
     make?: string
+    quantityTotal?: number
+    quantityAvailable?: number
   }) => Promise<void>
   onUpdateAllItems: (equipmentType: string, data: {
     condition?: string

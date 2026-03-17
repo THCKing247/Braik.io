@@ -70,7 +70,7 @@ export function DashboardLayoutClient({
             {/* Schedule: flex chain so only time grid scrolls. Other pages: scrollable area. */}
             <div
               className={cn(
-                "min-h-0 flex flex-col px-4 py-6",
+                "min-h-0 flex flex-col px-4 py-4",
                 isSchedulePage ? "flex-1" : "flex-1"
               )}
             >
@@ -83,7 +83,7 @@ export function DashboardLayoutClient({
                 )}
                 aria-label="Page content"
               >
-                <div className={cn("p-4", isSchedulePage && "flex-1 min-h-0 flex flex-col")}>
+                <div className={cn("p-6", isSchedulePage && "flex-1 min-h-0 flex flex-col")}>
                   {children}
                 </div>
               </div>

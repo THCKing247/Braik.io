@@ -68,7 +68,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
       </div>
 
       {/* Main nav: flex-1 + min-h-0 so it fills space and scrolls if needed; Coach B stays at bottom */}
-      <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5" aria-label="Main navigation">
+      <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1" aria-label="Main navigation">
         <SidebarNavItem
           href="/dashboard"
           label="Dashboard"

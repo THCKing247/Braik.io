@@ -763,7 +763,7 @@ export function TeamDashboard({ session }: TeamDashboardProps) {
   const isHeadCoach = user.role?.toUpperCase() === "HEAD_COACH"
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-4 pb-6">
 
       {/* ── Team Banner ── */}
       <TeamBanner user={user} />

@@ -42,7 +42,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
       }}
     >
       <div className="w-full px-4">
-        <div className="flex items-center py-1">
+        <div className="flex items-center py-2">
           {/* Logo - Far Left */}
           <div className="flex-shrink-0">
             <Link 
@@ -70,7 +70,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
           </div>
           
           {/* User Controls - Far Right */}
-          <div className="flex-shrink-0 flex items-center gap-4">
+          <div className="flex-shrink-0 flex items-center gap-3">
             {showAdminLink && (
               <Link
                 href="/admin/dashboard"
@@ -89,11 +89,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               </Link>
             )}
             <ThemeToggle />
-            <Button variant="outline" size="sm" asChild>
-              <Link href={currentTeamId ? `/dashboard/invites?teamId=${currentTeamId}` : "/dashboard/invites"}>
-                Invite
-              </Link>
-            </Button>
             <Button variant="destructive" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
               Sign Out
             </Button>

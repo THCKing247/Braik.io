@@ -12,10 +12,12 @@ interface BulkEditModalProps {
   onClose: () => void
   equipmentType: string
   itemCount: number
+  assignedCount?: number
   onSave: (data: {
     condition?: string
     status?: string
     notes?: string
+    quantity?: number
   }) => Promise<void>
   loading?: boolean
 }
@@ -28,21 +30,45 @@ export function BulkEditModal({
   onClose,
   equipmentType,
   itemCount,
+  assignedCount = 0,
   onSave,
   loading = false,
 }: BulkEditModalProps) {
+  const minQuantity = assignedCount
   const [condition, setCondition] = useState<typeof CONDITIONS[number] | "">("")
   const [status, setStatus] = useState<typeof AVAILABILITY_STATUSES[number] | "">("")
   const [notes, setNotes] = useState("")
+  const [quantity, setQuantity] = useState<string>("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validate quantity if provided
+    if (quantity !== "") {
+      const qtyNum = parseInt(quantity, 10)
+      if (isNaN(qtyNum) || qtyNum < 0) {
+        alert("Quantity must be a valid number greater than or equal to 0")
+        return
+      }
+      if (qtyNum < minQuantity) {
+        alert(
+          `Quantity cannot be less than ${minQuantity} (${assignedCount} item${assignedCount !== 1 ? "s are" : " is"} currently assigned). ` +
+          `Please unassign items first if you need to reduce the quantity below ${minQuantity}.`
+        )
+        return
+      }
+      if (qtyNum === itemCount) {
+        // No change needed
+        setQuantity("")
+      }
+    }
 
     try {
       await onSave({
         condition: condition || undefined,
         status: status || undefined,
         notes: notes.trim() || undefined,
+        quantity: quantity !== "" ? parseInt(quantity, 10) : undefined,
       })
       onClose()
     } catch (error) {
@@ -55,6 +81,7 @@ export function BulkEditModal({
       setCondition("")
       setStatus("")
       setNotes("")
+      setQuantity("")
       onClose()
     }
   }
@@ -68,6 +95,16 @@ export function BulkEditModal({
           </DialogTitle>
           <DialogDescription>
             Changes will apply to all {itemCount} items of this type. Leave fields empty to keep current values.
+            <br />
+            <span className="font-medium">Current quantity: {itemCount} items</span>
+            {assignedCount > 0 && (
+              <>
+                <br />
+                <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                  ({assignedCount} assigned, {itemCount - assignedCount} unassigned) • Minimum quantity: {minQuantity}
+                </span>
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -141,6 +178,41 @@ export function BulkEditModal({
             />
             <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
               Leave empty to keep current notes, or enter new notes to replace all existing notes
+            </p>
+          </div>
+
+          {/* Quantity Adjustment */}
+          <div className="space-y-2 border-t pt-4" style={{ borderTopColor: "rgb(var(--border))" }}>
+            <Label htmlFor="quantity" style={{ color: "rgb(var(--text))" }}>
+              Adjust Total Quantity (Optional)
+            </Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="quantity"
+                type="number"
+                min={minQuantity}
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder={itemCount.toString()}
+                className="flex-1"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              />
+              <span className="text-sm whitespace-nowrap" style={{ color: "rgb(var(--muted))" }}>
+                items
+              </span>
+            </div>
+            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+              Enter the new total quantity. {minQuantity > 0 && `Minimum: ${minQuantity} (${assignedCount} assigned). `}
+              The system will {quantity && parseInt(quantity, 10) > itemCount 
+                ? `add ${parseInt(quantity, 10) - itemCount} item${parseInt(quantity, 10) - itemCount !== 1 ? "s" : ""}`
+                : quantity && parseInt(quantity, 10) < itemCount
+                ? `remove ${itemCount - parseInt(quantity, 10)} item${itemCount - parseInt(quantity, 10) !== 1 ? "s" : ""} (only unassigned items will be removed)`
+                : "automatically add or remove items to match the quantity"}
+              {quantity && parseInt(quantity, 10) === itemCount && " (no change)"}
             </p>
           </div>
 

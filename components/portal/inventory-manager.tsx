@@ -260,27 +260,111 @@ export function InventoryManager({
     condition?: string
     status?: string
     notes?: string
+    quantity?: number
   }) => {
     setLoading(true)
     try {
       const groupItems = items.filter(item => (item.equipmentType || item.category) === equipmentType)
+      const currentQuantity = groupItems.length
+      const assignedItems = groupItems.filter(item => item.assignedToPlayerId)
+      const assignedCount = assignedItems.length
+      const unassignedItems = groupItems.filter(item => !item.assignedToPlayerId)
+      const minQuantity = assignedCount // Minimum quantity is the number of assigned items
       
-      // Update all items in the group
-      await Promise.all(
-        groupItems.map(item =>
-          fetch(`/api/teams/${teamId}/inventory/${item.id}`, {
-            method: "PATCH",
+      // Handle quantity adjustment if provided
+      if (data.quantity !== undefined && data.quantity !== currentQuantity) {
+        // Validate minimum quantity (cannot go below assigned count)
+        if (data.quantity < minQuantity) {
+          throw new Error(
+            `Cannot set quantity to ${data.quantity}: minimum quantity is ${minQuantity} ` +
+            `(${assignedCount} item${assignedCount !== 1 ? "s are" : " is"} currently assigned to players). ` +
+            `Please unassign items first if you need to reduce the quantity below ${minQuantity}.`
+          )
+        }
+        
+        const quantityDiff = data.quantity - currentQuantity
+        
+        if (quantityDiff > 0) {
+          // Need to add items
+          // Get the first item to use as a template
+          const templateItem = groupItems[0]
+          if (!templateItem) {
+            throw new Error("Cannot adjust quantity: no items found of this type")
+          }
+          
+          // Create new items
+          const response = await fetch(`/api/teams/${teamId}/inventory`, {
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              condition: data.condition || item.condition,
-              status: data.status || item.status,
-              notes: data.notes !== undefined ? data.notes : item.notes,
+              equipmentType: templateItem.equipmentType || templateItem.category,
+              quantity: quantityDiff,
+              condition: data.condition || templateItem.condition || "GOOD",
+              availability: data.status || templateItem.status || "AVAILABLE",
+              notes: data.notes !== undefined ? data.notes : templateItem.notes || undefined,
             }),
           })
+          
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || "Failed to add items")
+          }
+        } else if (quantityDiff < 0) {
+          // Need to remove items (only unassigned items can be removed)
+          const itemsToRemove = Math.abs(quantityDiff)
+          
+          // Only allow removing unassigned items
+          if (itemsToRemove > unassignedItems.length) {
+            throw new Error(
+              `Cannot remove ${itemsToRemove} items: only ${unassignedItems.length} unassigned items available. ` +
+              `${assignedCount} item${assignedCount !== 1 ? "s are" : " is"} currently assigned to players and cannot be removed. ` +
+              `Please unassign items first if you need to remove more.`
+            )
+          }
+          
+          // Delete only unassigned items
+          const itemsToDelete = unassignedItems.slice(0, itemsToRemove)
+          
+          await Promise.all(
+            itemsToDelete.map(item =>
+              fetch(`/api/teams/${teamId}/inventory/${item.id}`, {
+                method: "DELETE",
+              })
+            )
+          )
+        }
+      }
+      
+      // Update all items in the group (if condition, status, or notes changed)
+      // Reload items first if quantity was changed to get updated list
+      let itemsToUpdate = groupItems
+      if (data.quantity !== undefined && data.quantity !== currentQuantity) {
+        const reloadRes = await fetch(`/api/teams/${teamId}/inventory`)
+        if (reloadRes.ok) {
+          const reloadData = await reloadRes.json()
+          itemsToUpdate = (reloadData.items || []).filter((item: InventoryItem) => 
+            (item.equipmentType || item.category) === equipmentType
+          )
+        }
+      }
+      
+      if (data.condition || data.status || data.notes !== undefined) {
+        await Promise.all(
+          itemsToUpdate.map((item: InventoryItem) =>
+            fetch(`/api/teams/${teamId}/inventory/${item.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                condition: data.condition || item.condition,
+                status: data.status || item.status,
+                notes: data.notes !== undefined ? data.notes : item.notes,
+              }),
+            })
+          )
         )
-      )
+      }
 
-      // Reload items
+      // Final reload to get all updates
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
         const itemsData = await res.json()

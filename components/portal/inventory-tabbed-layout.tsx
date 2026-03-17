@@ -75,6 +75,7 @@ interface InventoryTabbedLayoutProps {
     condition?: string
     status?: string
     notes?: string
+    quantity?: number
   }) => Promise<void>
   onAssignItem: (itemId: string, playerId: string | null) => Promise<void>
   onReturnItem: (itemId: string) => Promise<void>
@@ -810,6 +811,7 @@ export function InventoryTabbedLayout({
           onClose={() => setShowBulkEditModal(false)}
           equipmentType={activeTab}
           itemCount={groupedItems[activeTab]?.length || 0}
+          assignedCount={groupedItems[activeTab]?.filter(item => item.assignedToPlayerId).length || 0}
           onSave={async (data) => {
             await onUpdateAllItems(activeTab, data)
             setShowBulkEditModal(false)

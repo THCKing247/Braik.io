@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { format } from "date-fns"
 import { MessageSquare, Plus, Paperclip, Send, Lock, Search, Users, X } from "lucide-react"
 import { getMessagingPermissions, getUserType } from "@/lib/enforcement/messaging-permissions"
+import { supabaseClient } from "@/src/lib/supabaseClient"
 
 interface Message {
   id: string
@@ -76,6 +77,8 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [filteredThreads, setFilteredThreads] = useState<Thread[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const realtimeSubscriptionRef = useRef<any>(null)
+  const optimisticMessageIdRef = useRef<string | null>(null)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
@@ -102,11 +105,27 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     setFilteredThreads(threads)
   }, [threads])
 
+  // Load messages only when threadId changes (not when selectedThread object changes)
   useEffect(() => {
-    if (selectedThread) {
-      loadMessages(selectedThread.id)
+    const threadId = selectedThread?.id
+    if (threadId) {
+      loadMessages(threadId)
+    } else {
+      setMessages([])
+      // Cleanup subscription when no thread selected
+      if (realtimeSubscriptionRef.current) {
+        realtimeSubscriptionRef.current.unsubscribe()
+        realtimeSubscriptionRef.current = null
+      }
     }
-  }, [selectedThread])
+    // Cleanup: unsubscribe from previous thread's realtime
+    return () => {
+      if (realtimeSubscriptionRef.current) {
+        realtimeSubscriptionRef.current.unsubscribe()
+        realtimeSubscriptionRef.current = null
+      }
+    }
+  }, [selectedThread?.id]) // Only depend on threadId, not the whole object
 
   useEffect(() => {
     scrollToBottom()
@@ -179,15 +198,88 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         throw new Error(errorData.error || "Failed to load messages")
       }
       const data = await response.json()
+      
+      // Only update messages, don't update selectedThread (prevents refetch loop)
       setMessages(data.messages || [])
-      setSelectedThread(data)
+      
+      // Update selectedThread metadata only if it's missing or different
+      setSelectedThread(prev => {
+        if (!prev || prev.id !== threadId) {
+          return data
+        }
+        // Merge new data but keep the same object reference if threadId matches
+        return {
+          ...prev,
+          ...data,
+          messages: data.messages || []
+        }
+      })
+      
       setError(null)
+      
+      // Setup realtime subscription for this thread
+      setupRealtimeSubscription(threadId)
     } catch (error: any) {
       console.error("Error loading messages:", error)
       setError(error.message || "Failed to load messages")
     } finally {
       setMessagesLoading(false)
     }
+  }
+
+  const setupRealtimeSubscription = (threadId: string) => {
+    // Cleanup existing subscription
+    if (realtimeSubscriptionRef.current) {
+      realtimeSubscriptionRef.current.unsubscribe()
+      realtimeSubscriptionRef.current = null
+    }
+
+    // Subscribe to new messages for this thread
+    const subscription = supabaseClient
+      .channel(`messages:${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `thread_id=eq.${threadId}`
+        },
+        async (payload) => {
+          // Skip if this is our optimistic message
+          if (optimisticMessageIdRef.current === payload.new.id) {
+            optimisticMessageIdRef.current = null
+            return
+          }
+
+          // Fetch the new message details from API
+          try {
+            const response = await fetch(`/api/messages/threads/${threadId}`)
+            if (response.ok) {
+              const data = await response.json()
+              // Deduplicate: only add messages we don't already have
+              setMessages(prev => {
+                const existingIds = new Set(prev.map(m => m.id))
+                const newMessages = (data.messages || []).filter((m: Message) => !existingIds.has(m.id))
+                if (newMessages.length === 0) return prev
+                
+                // Merge and sort by created_at
+                const merged = [...prev, ...newMessages]
+                return merged.sort((a, b) => {
+                  const aTime = new Date(a.createdAt).getTime()
+                  const bTime = new Date(b.createdAt).getTime()
+                  return aTime - bTime
+                })
+              })
+            }
+          } catch (error) {
+            console.error("Error fetching new message details:", error)
+          }
+        }
+      )
+      .subscribe()
+
+    realtimeSubscriptionRef.current = subscription
   }
 
   const handleSendMessage = async () => {
@@ -198,6 +290,31 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       return
     }
 
+    const messageText = messageBody.trim()
+    const messageAttachments = attachments.length > 0 ? attachments : []
+    
+    // Create optimistic message
+    const tempId = `temp-${Date.now()}-${Math.random()}`
+    // Try to get user info from contacts or use placeholder
+    const currentUserContact = contacts.find(c => c.id === userId)
+    const optimisticMessage: Message = {
+      id: tempId,
+      body: messageText,
+      attachments: messageAttachments,
+      createdAt: new Date(),
+      creator: {
+        id: userId,
+        name: currentUserContact?.name || null,
+        email: currentUserContact?.email || ""
+      }
+    }
+
+    // Add optimistic message immediately
+    setMessages(prev => [...prev, optimisticMessage])
+    setMessageBody("")
+    setAttachments([])
+    setError(null)
+
     setLoading(true)
     try {
       const response = await fetch("/api/messages/send", {
@@ -205,14 +322,16 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           threadId: selectedThread.id,
-          body: messageBody,
-          attachments: attachments.length > 0 ? attachments : [],
+          body: messageText,
+          attachments: messageAttachments,
         }),
       })
 
       const responseData = await response.json()
 
       if (!response.ok) {
+        // Remove optimistic message on error
+        setMessages(prev => prev.filter(m => m.id !== tempId))
         const errorMessage = responseData.error || responseData.details || "Failed to send message"
         const fullError = responseData.details || responseData.code 
           ? `${errorMessage}${responseData.details ? ` (${responseData.details})` : ''}${responseData.code ? ` [${responseData.code}]` : ''}`
@@ -225,12 +344,24 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         throw new Error(fullError)
       }
 
+      // Replace optimistic message with real message
       const newMessage = responseData
-      setMessages([...messages, newMessage])
-      setMessageBody("")
-      setAttachments([])
-      setError(null)
-      loadThreads() // Refresh thread list to update last message
+      optimisticMessageIdRef.current = newMessage.id
+      setMessages(prev => {
+        // Remove optimistic message and add real message
+        const filtered = prev.filter(m => m.id !== tempId)
+        // Check if message already exists (from realtime)
+        const exists = filtered.some(m => m.id === newMessage.id)
+        if (exists) {
+          return filtered
+        }
+        return [...filtered, newMessage].sort((a, b) => 
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+      })
+      
+      // Refresh thread list to update last message
+      loadThreads()
     } catch (error: any) {
       const errorMessage = error.message || "Error sending message"
       setError(errorMessage)

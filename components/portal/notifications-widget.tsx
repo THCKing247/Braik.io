@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Bell, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
 
 interface Notification {
   id: string
@@ -21,6 +23,7 @@ interface NotificationsWidgetProps {
 }
 
 export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
+  const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
@@ -105,8 +108,29 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
     if (!notification.read) {
       markAsRead(notification.id)
     }
-    if (notification.linkUrl) {
-      window.location.href = notification.linkUrl
+    
+    // Build route using centralized routing utility
+    const route = buildNotificationRoute(
+      notification.linkType,
+      notification.linkId,
+      notification.linkUrl,
+      teamId
+    )
+    
+    if (route) {
+      // Close notification dropdown
+      setIsOpen(false)
+      
+      // Navigate using Next.js router for better UX
+      const url = buildNotificationUrl(route)
+      
+      // If it's an absolute URL, use window.location
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        window.location.href = url
+      } else {
+        // Use Next.js router for internal navigation
+        router.push(url)
+      }
     }
   }
 

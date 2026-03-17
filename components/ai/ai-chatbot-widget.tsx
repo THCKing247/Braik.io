@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { MessageSquare, X, Send, Upload, Sparkles, File, AlertTriangle } from "lucide-react"
 import { AIActionConfirmation } from "@/components/ai/ai-action-confirmation"
 import { useCoachB } from "@/components/portal/coach-b-context"
+import { cn } from "@/lib/utils"
 
 interface Message {
   id: string
@@ -203,6 +204,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   }
 
   const showFloatingButton = !isOpen && !coachB?.isDesktop
+  const isMobile = !coachB?.isDesktop
 
   return (
     <>
@@ -211,7 +213,10 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         <button
           data-ai-widget
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center z-50 p-0 overflow-hidden bg-transparent border-0"
+          className={cn(
+            "fixed bottom-6 h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center z-50 p-0 overflow-hidden bg-transparent border-0",
+            isMobile ? "left-6" : "right-6"
+          )}
           style={{
             boxShadow: "0 10px 15px -3px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.1)"
           }}
@@ -236,7 +241,10 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       {/* Chat Widget: fixed-height column, scrollable messages, pinned header/footer */}
       {isOpen && (
         <div
-          className="fixed bottom-6 right-6 w-96 h-[600px] rounded-xl shadow-2xl z-50 flex flex-col min-h-0 overflow-hidden border-2 border-[#0B2A5B] bg-white"
+          className={cn(
+            "fixed bottom-6 w-96 h-[600px] rounded-xl shadow-2xl z-50 flex flex-col min-h-0 overflow-hidden border-2 border-[#0B2A5B] bg-white",
+            isMobile ? "left-6" : "right-6"
+          )}
         >
           <Card className="flex flex-col flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-white">
             <CardHeader className="shrink-0 rounded-t-xl bg-[#3B82F6] text-white">

@@ -10,13 +10,13 @@ export function AIWidgetWrapper() {
     return null
   }
 
+  // Widget always renders - on mobile it shows as fixed-position floating button/chat on left
+  // On desktop it renders at the bottom of the layout
   return (
-    <div className="min-h-0 flex-shrink-0">
-      <AIChatbotWidget
-        teamId={session.user.teamId}
-        userRole={session.user.role}
-        primaryColor="#1e3a5f"
-      />
-    </div>
+    <AIChatbotWidget
+      teamId={session.user.teamId}
+      userRole={session.user.role}
+      primaryColor="#1e3a5f"
+    />
   )
 }

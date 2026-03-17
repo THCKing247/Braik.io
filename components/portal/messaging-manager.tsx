@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -57,6 +58,7 @@ interface MessagingManagerProps {
 }
 
 export function MessagingManager({ teamId, userRole, userId, initialThreads = [] }: MessagingManagerProps) {
+  const searchParams = useSearchParams()
   const [threads, setThreads] = useState<Thread[]>(initialThreads)
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -87,6 +89,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [unreadCount, setUnreadCount] = useState(0)
   const isUserScrollingRef = useRef<boolean>(false)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const urlThreadIdProcessedRef = useRef<boolean>(false)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
@@ -273,8 +276,23 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
       const data = await response.json()
       setThreads(data)
-      // Auto-select General Chat if available and no thread selected
-      if (!selectedThread && data.length > 0) {
+      
+      // Check for threadId in URL params (from notification deep link)
+      const urlThreadId = searchParams?.get("threadId")
+      
+      if (urlThreadId && !urlThreadIdProcessedRef.current) {
+        // Find thread by ID from URL
+        const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
+        if (threadFromUrl) {
+          setSelectedThread(threadFromUrl)
+          urlThreadIdProcessedRef.current = true
+        } else {
+          // Thread not found, might not be loaded yet or user doesn't have access
+          // This is handled by role-based access in the API
+          console.warn(`Thread ${urlThreadId} not found or access denied`)
+        }
+      } else if (!selectedThread && data.length > 0) {
+        // Auto-select General Chat if available and no thread selected
         const generalChat = data.find((t: Thread) => t.threadType === "GENERAL")
         if (generalChat) {
           setSelectedThread(generalChat)

@@ -90,10 +90,14 @@ export function DashboardLayoutClient({
             </div>
           </main>
         </div>
-        {/* Widget slot: min-h-0 so flex chain does not block modal's internal scroll */}
-        <div className="min-h-0 flex-shrink-0">
-          <AIWidgetWrapper />
-        </div>
+        {/* Widget slot for desktop: min-h-0 so flex chain does not block modal's internal scroll */}
+        {isDesktop && (
+          <div className="min-h-0 flex-shrink-0">
+            <AIWidgetWrapper />
+          </div>
+        )}
+        {/* Widget for mobile: rendered but uses fixed positioning, so doesn't affect layout */}
+        {!isDesktop && <AIWidgetWrapper />}
       </div>
       </PlaybookToastProvider>
     </CoachBProvider>

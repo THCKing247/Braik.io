@@ -95,11 +95,39 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
     }
   }
 
+  // Program-level access: if team belongs to a program and user is a coach/AD in that program, grant membership
+  const teamRow = team as { program_id?: string } | null
+  const programId = teamRow?.program_id
+  if (programId) {
+    try {
+      const programMembership = await getProgramMembership(programId)
+      if (programMembership && ["head_coach", "assistant_coach", "athletic_director"].includes(programMembership.role)) {
+        const role =
+          programMembership.role === "head_coach"
+            ? ROLES.HEAD_COACH
+            : programMembership.role === "assistant_coach"
+              ? ROLES.ASSISTANT_COACH
+              : ROLES.ATHLETIC_DIRECTOR
+        return {
+          userId: session.user.id,
+          teamId,
+          role,
+          permissions: undefined,
+          positionGroups: undefined,
+        }
+      }
+    } catch (err) {
+      if (err instanceof MembershipLookupError) throw err
+      console.warn("[getUserMembership] program membership check failed", { userId: session.user.id, teamId, programId, err })
+    }
+  }
+
   console.warn("[getUserMembership] no membership", {
     userId: session.user.id,
     teamId,
     profileTeamId: profile?.team_id ?? null,
     teamCreatedBy: createdBy ?? null,
+    programId: programId ?? null,
   })
   return null
 }

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
-import { MessageSquare, Plus, Paperclip, Send, Lock, Search, Users, X } from "lucide-react"
+import { MessageSquare, Plus, Paperclip, Send, Lock, Search, Users, X, RefreshCw } from "lucide-react"
 import { getMessagingPermissions, getUserType } from "@/lib/enforcement/messaging-permissions"
 import { supabaseClient } from "@/src/lib/supabaseClient"
 
@@ -79,6 +79,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const menuRef = useRef<HTMLDivElement>(null)
   const realtimeSubscriptionRef = useRef<any>(null)
   const optimisticMessageIdRef = useRef<string | null>(null)
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const isRefreshingRef = useRef<boolean>(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
@@ -110,6 +113,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     const threadId = selectedThread?.id
     if (threadId) {
       loadMessages(threadId)
+      
+      // Set up automatic refresh every 10 seconds
+      refreshIntervalRef.current = setInterval(() => {
+        // Use a closure to capture the current threadId
+        const currentThreadId = selectedThread?.id
+        if (currentThreadId && !isRefreshingRef.current) {
+          refreshMessages(currentThreadId)
+        }
+      }, 10000) // Refresh every 10 seconds
     } else {
       setMessages([])
       // Cleanup subscription when no thread selected
@@ -118,13 +130,18 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         realtimeSubscriptionRef.current = null
       }
     }
-    // Cleanup: unsubscribe from previous thread's realtime
+    // Cleanup: unsubscribe from previous thread's realtime and clear interval
     return () => {
       if (realtimeSubscriptionRef.current) {
         realtimeSubscriptionRef.current.unsubscribe()
         realtimeSubscriptionRef.current = null
       }
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+        refreshIntervalRef.current = null
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThread?.id]) // Only depend on threadId, not the whole object
 
   useEffect(() => {
@@ -189,8 +206,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
   }
 
-  const loadMessages = async (threadId: string) => {
-    setMessagesLoading(true)
+  const loadMessages = async (threadId: string, showLoading = true) => {
+    if (showLoading) {
+      setMessagesLoading(true)
+    }
     try {
       const response = await fetch(`/api/messages/threads/${threadId}`)
       if (!response.ok) {
@@ -217,13 +236,44 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       
       setError(null)
       
-      // Setup realtime subscription for this thread
-      setupRealtimeSubscription(threadId)
+      // Setup realtime subscription for this thread (only on initial load)
+      if (showLoading) {
+        setupRealtimeSubscription(threadId)
+      }
     } catch (error: any) {
       console.error("Error loading messages:", error)
       setError(error.message || "Failed to load messages")
     } finally {
-      setMessagesLoading(false)
+      if (showLoading) {
+        setMessagesLoading(false)
+      }
+    }
+  }
+
+  const refreshMessages = async (threadId: string) => {
+    if (isRefreshingRef.current) return // Prevent concurrent refreshes
+    isRefreshingRef.current = true
+    try {
+      await loadMessages(threadId, false) // Don't show loading spinner for background refresh
+      // Also refresh thread list to update last message timestamps
+      await loadThreads()
+    } catch (error) {
+      console.error("Error refreshing messages:", error)
+    } finally {
+      isRefreshingRef.current = false
+    }
+  }
+
+  const handleManualRefresh = async () => {
+    if (!selectedThread?.id) return
+    setRefreshing(true)
+    try {
+      await loadMessages(selectedThread.id, true)
+      await loadThreads()
+    } catch (error) {
+      console.error("Error refreshing messages:", error)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -837,6 +887,17 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                     </Button>
                   </div>
                 </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleManualRefresh}
+                  disabled={refreshing || messagesLoading}
+                  className="h-8 w-8 p-0"
+                  title="Refresh messages"
+                  style={{ color: "rgb(var(--accent))" }}
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                </Button>
               </div>
             </div>
 

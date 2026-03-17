@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
-import { MessageSquare, Plus, Paperclip, Send, Lock, Search, Users, X, RefreshCw } from "lucide-react"
+import { MessageSquare, Plus, Paperclip, Send, Lock, Search, Users, X, RefreshCw, ChevronDown } from "lucide-react"
 import { getMessagingPermissions, getUserType } from "@/lib/enforcement/messaging-permissions"
 import { supabaseClient } from "@/src/lib/supabaseClient"
 
@@ -76,12 +76,17 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [searchQuery, setSearchQuery] = useState("")
   const [filteredThreads, setFilteredThreads] = useState<Thread[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const realtimeSubscriptionRef = useRef<any>(null)
   const optimisticMessageIdRef = useRef<string | null>(null)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isRefreshingRef = useRef<boolean>(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [showJumpToNewest, setShowJumpToNewest] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const isUserScrollingRef = useRef<boolean>(false)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
@@ -144,9 +149,87 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThread?.id]) // Only depend on threadId, not the whole object
 
+  // Track scroll position and show "jump to newest" button when user is scrolled up
+  const lastMessageCountRef = useRef<number>(0)
+  const lastScrollTopRef = useRef<number>(0)
+  
   useEffect(() => {
-    scrollToBottom()
+    const currentCount = messages.length
+    const container = messagesContainerRef.current
+    
+    if (!container) return
+    
+    // Check if user is near bottom (within 100px)
+    const isNearBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      return scrollHeight - scrollTop - clientHeight < 100
+    }
+    
+    // On initial load, scroll to bottom
+    if (lastMessageCountRef.current === 0 && currentCount > 0) {
+      requestAnimationFrame(() => {
+        scrollToBottom()
+        setShowJumpToNewest(false)
+        setUnreadCount(0)
+      })
+      lastMessageCountRef.current = currentCount
+      return
+    }
+    
+    // If new messages arrived
+    if (currentCount > lastMessageCountRef.current && lastMessageCountRef.current > 0) {
+      // Only auto-scroll if user is already near bottom
+      if (isNearBottom() && !isUserScrollingRef.current) {
+        requestAnimationFrame(() => {
+          scrollToBottom()
+          setShowJumpToNewest(false)
+          setUnreadCount(0)
+        })
+      } else {
+        // User is scrolled up - show jump button
+        const newMessagesCount = currentCount - lastMessageCountRef.current
+        setUnreadCount(prev => prev + newMessagesCount)
+        setShowJumpToNewest(true)
+      }
+    }
+    
+    lastMessageCountRef.current = currentCount
   }, [messages])
+  
+  // Monitor scroll position to hide/show jump button
+  useEffect(() => {
+    const container = messagesContainerRef.current
+    if (!container) return
+    
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+      
+      // If user scrolls to bottom, hide jump button
+      if (isNearBottom) {
+        setShowJumpToNewest(false)
+        setUnreadCount(0)
+      }
+      
+      // Track if user is actively scrolling
+      isUserScrollingRef.current = true
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+      scrollTimeoutRef.current = setTimeout(() => {
+        isUserScrollingRef.current = false
+      }, 150)
+    }
+    
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+    }
+  }, [selectedThread?.id])
 
   useEffect(() => {
     // Filter threads based on search query
@@ -163,7 +246,22 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }, [searchQuery, threads])
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    // Use both smooth and instant scroll as fallback
+    if (messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
+      } catch {
+        // Fallback to instant scroll if smooth fails
+        messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" })
+      }
+    }
+    // Hide jump button when manually scrolling to bottom
+    setShowJumpToNewest(false)
+    setUnreadCount(0)
+  }
+  
+  const handleJumpToNewest = () => {
+    scrollToBottom()
   }
 
   const loadThreads = async () => {
@@ -218,8 +316,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
       const data = await response.json()
       
-      // Only update messages, don't update selectedThread (prevents refetch loop)
-      setMessages(data.messages || [])
+      // Update messages state - ensure proper sorting
+      const sortedMessages = (data.messages || []).sort((a: Message, b: Message) => {
+        const aTime = new Date(a.createdAt).getTime()
+        const bTime = new Date(b.createdAt).getTime()
+        return aTime - bTime
+      })
+      setMessages(sortedMessages)
       
       // Update selectedThread metadata only if it's missing or different
       setSelectedThread(prev => {
@@ -230,15 +333,31 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         return {
           ...prev,
           ...data,
-          messages: data.messages || []
+          messages: sortedMessages
         }
       })
       
       setError(null)
       
+      // Mark thread as read when messages are loaded
+      if (showLoading) {
+        // Mark as read in background (non-blocking)
+        fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
+          .catch(err => console.error("Error marking thread as read:", err))
+      }
+      
       // Setup realtime subscription for this thread (only on initial load)
       if (showLoading) {
         setupRealtimeSubscription(threadId)
+      }
+      
+      // Scroll to bottom after initial load (only if loading was shown)
+      if (showLoading && sortedMessages.length > 0) {
+        requestAnimationFrame(() => {
+          scrollToBottom()
+          setShowJumpToNewest(false)
+          setUnreadCount(0)
+        })
       }
     } catch (error: any) {
       console.error("Error loading messages:", error)
@@ -254,9 +373,41 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     if (isRefreshingRef.current) return // Prevent concurrent refreshes
     isRefreshingRef.current = true
     try {
-      await loadMessages(threadId, false) // Don't show loading spinner for background refresh
-      // Also refresh thread list to update last message timestamps
-      await loadThreads()
+      // Fetch latest messages without showing loading spinner
+      const response = await fetch(`/api/messages/threads/${threadId}`)
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Update messages with deduplication
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id))
+          const newMessages = (data.messages || []).filter((m: Message) => !existingIds.has(m.id))
+          
+          if (newMessages.length === 0) {
+            // No new messages, but ensure order is correct
+            const allIds = new Set(data.messages?.map((m: Message) => m.id) || [])
+            const reordered = prev
+              .filter(m => allIds.has(m.id))
+              .sort((a, b) => {
+                const aTime = new Date(a.createdAt).getTime()
+                const bTime = new Date(b.createdAt).getTime()
+                return aTime - bTime
+              })
+            return reordered
+          }
+          
+          // Merge new messages and sort
+          const merged = [...prev, ...newMessages]
+          return merged.sort((a, b) => {
+            const aTime = new Date(a.createdAt).getTime()
+            const bTime = new Date(b.createdAt).getTime()
+            return aTime - bTime
+          })
+        })
+      }
+      
+      // Refresh thread list to update last message timestamps (non-blocking)
+      loadThreads().catch(err => console.error("Error refreshing threads:", err))
     } catch (error) {
       console.error("Error refreshing messages:", error)
     } finally {
@@ -296,34 +447,79 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           filter: `thread_id=eq.${threadId}`
         },
         async (payload) => {
+          const newMessageId = payload.new.id as string
+          
           // Skip if this is our optimistic message
-          if (optimisticMessageIdRef.current === payload.new.id) {
+          if (optimisticMessageIdRef.current === newMessageId) {
             optimisticMessageIdRef.current = null
             return
           }
 
-          // Fetch the new message details from API
-          try {
-            const response = await fetch(`/api/messages/threads/${threadId}`)
-            if (response.ok) {
-              const data = await response.json()
-              // Deduplicate: only add messages we don't already have
-              setMessages(prev => {
-                const existingIds = new Set(prev.map(m => m.id))
-                const newMessages = (data.messages || []).filter((m: Message) => !existingIds.has(m.id))
-                if (newMessages.length === 0) return prev
-                
-                // Merge and sort by created_at
-                const merged = [...prev, ...newMessages]
-                return merged.sort((a, b) => {
-                  const aTime = new Date(a.createdAt).getTime()
-                  const bTime = new Date(b.createdAt).getTime()
-                  return aTime - bTime
-                })
-              })
+          // Check if message already exists (prevent duplicates)
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id))
+            if (existingIds.has(newMessageId)) {
+              return prev // Already have this message
             }
-          } catch (error) {
-            console.error("Error fetching new message details:", error)
+            return prev // Will update below
+          })
+
+          // Extract message data from payload
+          const senderId = payload.new.sender_id as string
+          const content = payload.new.content as string
+          const createdAt = payload.new.created_at as string
+
+          // Fetch sender info for the new message (lightweight API call)
+          try {
+            const senderResponse = await fetch(`/api/messages/sender/${senderId}`)
+            const senderData = senderResponse.ok ? await senderResponse.json() : null
+
+            const newMessage: Message = {
+              id: newMessageId,
+              body: content,
+              attachments: [], // Attachments loaded on next full refresh if needed
+              createdAt: new Date(createdAt),
+              creator: senderData || { id: senderId, name: null, email: "" }
+            }
+
+            // Add message and sort
+            setMessages(prev => {
+              const existingIds = new Set(prev.map(m => m.id))
+              if (existingIds.has(newMessageId)) {
+                return prev // Already added (race condition protection)
+              }
+              
+              const updated = [...prev, newMessage]
+              return updated.sort((a, b) => {
+                const aTime = new Date(a.createdAt).getTime()
+                const bTime = new Date(b.createdAt).getTime()
+                return aTime - bTime
+              })
+            })
+          } catch (err) {
+            console.error("Error fetching sender info for realtime message:", err)
+            // Add message with minimal sender info if fetch fails
+            const newMessage: Message = {
+              id: newMessageId,
+              body: content,
+              attachments: [],
+              createdAt: new Date(createdAt),
+              creator: { id: senderId, name: null, email: "" }
+            }
+            
+            setMessages(prev => {
+              const existingIds = new Set(prev.map(m => m.id))
+              if (existingIds.has(newMessageId)) {
+                return prev
+              }
+              
+              const updated = [...prev, newMessage]
+              return updated.sort((a, b) => {
+                const aTime = new Date(a.createdAt).getTime()
+                const bTime = new Date(b.createdAt).getTime()
+                return aTime - bTime
+              })
+            })
           }
         }
       )
@@ -397,21 +593,45 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       // Replace optimistic message with real message
       const newMessage = responseData
       optimisticMessageIdRef.current = newMessage.id
+      
+      // Update messages state atomically
       setMessages(prev => {
-        // Remove optimistic message and add real message
+        // Remove optimistic message
         const filtered = prev.filter(m => m.id !== tempId)
-        // Check if message already exists (from realtime)
+        
+        // Check if message already exists (from realtime or previous update)
         const exists = filtered.some(m => m.id === newMessage.id)
         if (exists) {
-          return filtered
+          // Message already exists, just ensure it's properly formatted
+          return filtered.map(m => 
+            m.id === newMessage.id ? newMessage : m
+          )
         }
-        return [...filtered, newMessage].sort((a, b) => 
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        )
+        
+        // Add new message and sort
+        const updated = [...filtered, newMessage]
+        return updated.sort((a, b) => {
+          const aTime = new Date(a.createdAt).getTime()
+          const bTime = new Date(b.createdAt).getTime()
+          return aTime - bTime
+        })
       })
       
-      // Refresh thread list to update last message
-      loadThreads()
+      // Check if we should scroll (only if user is near bottom)
+      const container = messagesContainerRef.current
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+        
+        if (isNearBottom && !isUserScrollingRef.current) {
+          requestAnimationFrame(() => {
+            scrollToBottom()
+          })
+        }
+      }
+      
+      // Refresh thread list to update last message (non-blocking)
+      loadThreads().catch(err => console.error("Error refreshing threads:", err))
     } catch (error: any) {
       const errorMessage = error.message || "Error sending message"
       setError(errorMessage)
@@ -902,7 +1122,34 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
+            <div 
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto p-4 space-y-4 relative messages-container" 
+              style={{ 
+                minHeight: 0
+              }}
+            >
+              {/* Jump to Newest Button */}
+              {showJumpToNewest && (
+                <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-10">
+                  <Button
+                    onClick={handleJumpToNewest}
+                    size="sm"
+                    className="shadow-lg"
+                    style={{ 
+                      backgroundColor: "rgb(var(--accent))", 
+                      color: "white",
+                      borderRadius: "24px",
+                      padding: "8px 16px",
+                      fontSize: "14px",
+                      fontWeight: "500"
+                    }}
+                  >
+                    <ChevronDown className="h-4 w-4 mr-2" />
+                    {unreadCount > 0 ? `${unreadCount} new message${unreadCount !== 1 ? "s" : ""}` : "New messages"}
+                  </Button>
+                </div>
+              )}
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" />

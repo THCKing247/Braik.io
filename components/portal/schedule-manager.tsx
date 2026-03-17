@@ -84,17 +84,20 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
       alert("End must be after start")
       return
     }
+    if (!teamId) {
+      alert("No team selected. Switch to a team in the header and try again.")
+      return
+    }
 
     setLoading(true)
     try {
       const start = startDate.toISOString()
       const end = endDate.toISOString()
-      // Create the event first
-      const response = await fetch("/api/events", {
+      // Use team-scoped endpoint so teamId comes from the URL (same as the page), not from body/session
+      const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/calendar/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          teamId,
           type,
           title,
           start,

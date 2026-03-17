@@ -37,11 +37,32 @@ export async function requireTeamOperationAccess(
   operation: TeamOperation
 ): Promise<void> {
   const supabase = getSupabaseServer()
-  const { data: team } = await supabase
+  const { data: team, error: teamError } = await supabase
     .from("teams")
     .select("id, team_status, subscription_status, base_ai_credits")
     .eq("id", teamId)
     .maybeSingle()
+
+  // Debug: log raw lookup result (no extra filters; service role bypasses RLS)
+  console.log("[requireTeamOperationAccess] team lookup", {
+    teamId,
+    teamIdLength: teamId?.length,
+    operation,
+    teamFound: !!team,
+    hasError: !!teamError,
+    errorMessage: teamError?.message ?? null,
+    errorCode: teamError?.code ?? null,
+  })
+
+  if (teamError) {
+    console.error("[requireTeamOperationAccess] teams query error", { teamId, operation, error: teamError })
+    throw new TeamOperationBlockedError(
+      500,
+      "TEAM_LOOKUP_FAILED",
+      "Team lookup failed",
+      { teamId, operation, dbError: teamError.message }
+    )
+  }
 
   if (!team) {
     console.log("[requireTeamOperationAccess] team not found", { teamId, operation })

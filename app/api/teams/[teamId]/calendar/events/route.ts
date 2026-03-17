@@ -173,6 +173,42 @@ export async function POST(
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const userId = session.user.id
+
+    // Debug: route params and raw team lookup (service role client; no RLS)
+    const supabaseDebug = getSupabaseServer()
+    const { data: teamRowDebug, error: teamLookupError } = await supabaseDebug
+      .from("teams")
+      .select("id, program_id, team_status, created_by")
+      .eq("id", teamId)
+      .maybeSingle()
+
+    console.log("[POST /api/teams/.../calendar/events] debug", {
+      routeTeamId: teamId,
+      routeTeamIdLength: teamId?.length,
+      userId,
+      teamLookupFound: !!teamRowDebug,
+      teamLookupError: teamLookupError?.message ?? null,
+      teamProgramId: teamRowDebug?.program_id ?? null,
+    })
+
+    let membershipResult: Awaited<ReturnType<typeof getUserMembership>> = null
+    try {
+      membershipResult = await getUserMembership(teamId)
+    } catch (membershipErr) {
+      console.log("[POST /api/teams/.../calendar/events] membership lookup error", {
+        teamId,
+        userId,
+        error: membershipErr instanceof Error ? membershipErr.message : String(membershipErr),
+      })
+      throw membershipErr
+    }
+    console.log("[POST /api/teams/.../calendar/events] membership", {
+      teamId,
+      userId,
+      hasMembership: !!membershipResult,
+      role: membershipResult?.role ?? null,
+    })
 
     stage = "access_check"
     try {
@@ -180,15 +216,56 @@ export async function POST(
       await requireTeamOperationAccess(teamId, "write")
       await auditImpersonatedActionFromRequest(request, "event_create", { teamId })
       await requireBillingPermission(teamId, "editEvents")
+      console.log("[POST /api/teams/.../calendar/events] access_check passed", { teamId, userId })
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error"
+      console.log("[POST /api/teams/.../calendar/events] access_check failed", {
+        teamId,
+        userId,
+        errorMessage: message,
+        isTeamOperationBlocked: e instanceof TeamOperationBlockedError,
+        code: e instanceof TeamOperationBlockedError ? e.code : null,
+      })
+
       if (e instanceof TeamOperationBlockedError) {
+        if (e.code === "TEAM_NOT_FOUND" && teamRowDebug) {
+          // Team exists in our direct lookup but guard said not found (e.g. client/filter mismatch)
+          console.warn("[POST /api/teams/.../calendar/events] TEAM_NOT_FOUND but team row exists in route lookup", {
+            teamId,
+            userId,
+          })
+          return NextResponse.json(
+            {
+              error: {
+                code: "PERMISSION_DENIED",
+                message: "Write access to this team could not be verified.",
+                teamId,
+                operation: "write",
+              },
+            },
+            { status: 403 }
+          )
+        }
         return NextResponse.json(toStructuredTeamAccessError(e), { status: e.statusCode })
       }
-      const status = message.includes("Forbidden") || message.includes("Not a member") ? 403 : 500
+
+      const isPermissionDenied = message.includes("Forbidden") || message.includes("Not a member") || message.includes("Access denied")
+      if (isPermissionDenied) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "PERMISSION_DENIED",
+              message: "You do not have permission to create events for this team.",
+              teamId,
+              operation: "write",
+            },
+          },
+          { status: 403 }
+        )
+      }
       return NextResponse.json(
         { error: "Event creation failed", stage: "access_check", message },
-        { status }
+        { status: 500 }
       )
     }
 

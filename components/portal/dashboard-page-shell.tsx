@@ -20,7 +20,8 @@ function DashboardPageShellContent({
   const searchParams = useSearchParams()
   const teamIdFromQuery = searchParams.get("teamId")
   const effectiveTeamId = useEffectiveTeamId(teamIdFromQuery, session?.user?.teamId)
-  const teamId = effectiveTeamId || teamIdFromQuery || session?.user?.teamId || ""
+  // Use only context-resolved or URL teamId; never fall back to session.teamId so we never send a stale/deleted team id to APIs
+  const teamId = effectiveTeamId || teamIdFromQuery || ""
   const userRole = session?.user?.role ?? "PLAYER"
   const userId = session?.user?.id ?? ""
   const canEdit = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"

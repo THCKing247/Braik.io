@@ -106,7 +106,19 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
       })
 
       if (!response.ok) {
-        throw new Error("Failed to add event")
+        const errBody = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string } }
+        const code = errBody?.error?.code
+        const msg = errBody?.error?.message || "Failed to add event"
+        if (code === "TEAM_NOT_FOUND") {
+          throw new Error("Team not found. Try switching teams in the header or refreshing the page.")
+        }
+        if (code === "TEAM_ACCESS_DENIED") {
+          throw new Error("You don't have permission to add events for this team.")
+        }
+        if (code === "TEAM_ID_REQUIRED") {
+          throw new Error("No team selected. Switch to a team in the header and try again.")
+        }
+        throw new Error(msg)
       }
 
       const newEvent = await response.json()
@@ -176,7 +188,8 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
       setFiles([])
       setShowAddForm(false)
     } catch (error) {
-      alert("Error adding event")
+      const message = error instanceof Error ? error.message : "Error adding event"
+      alert(message)
     } finally {
       setLoading(false)
     }

@@ -44,6 +44,7 @@ export async function requireTeamOperationAccess(
     .maybeSingle()
 
   if (!team) {
+    console.log("[requireTeamOperationAccess] team not found", { teamId, operation })
     throw new TeamOperationBlockedError(404, "TEAM_NOT_FOUND", "Team not found", { teamId, operation })
   }
 

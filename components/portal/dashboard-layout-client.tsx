@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
 import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
+import { PortalTeamProvider } from "@/components/portal/portal-team-context"
 import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { QuickActionsSidebar } from "@/components/portal/quick-actions-sidebar"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
@@ -22,10 +23,12 @@ interface Team {
 
 export function DashboardLayoutClient({
   teams,
+  currentTeamId,
   children,
   className,
 }: {
   teams: Team[]
+  currentTeamId?: string
   children: React.ReactNode
   className?: string
 }) {
@@ -33,8 +36,11 @@ export function DashboardLayoutClient({
   const isDesktop = !isMobileDevice
   const pathname = usePathname()
   const isSchedulePage = pathname?.includes("/dashboard/schedule") ?? false
+  const teamIds = teams.map((t) => t.id)
+  const resolvedCurrentTeamId = currentTeamId ?? teams[0]?.id ?? ""
 
   return (
+    <PortalTeamProvider teamIds={teamIds} currentTeamId={resolvedCurrentTeamId}>
     <CoachBProvider isDesktop={isDesktop}>
       <PlaybookToastProvider>
       <div
@@ -91,5 +97,6 @@ export function DashboardLayoutClient({
       </div>
       </PlaybookToastProvider>
     </CoachBProvider>
+    </PortalTeamProvider>
   )
 }

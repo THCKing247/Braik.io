@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"
 import { ConnectToTeam } from "@/components/portal/connect-to-team"
+import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
 
 /**
  * Internal component that uses useSearchParams - must be wrapped in Suspense
@@ -18,7 +19,8 @@ function DashboardPageShellContent({
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
   const teamIdFromQuery = searchParams.get("teamId")
-  const teamId = teamIdFromQuery || session?.user?.teamId || ""
+  const effectiveTeamId = useEffectiveTeamId(teamIdFromQuery, session?.user?.teamId)
+  const teamId = effectiveTeamId || teamIdFromQuery || session?.user?.teamId || ""
   const userRole = session?.user?.role ?? "PLAYER"
   const userId = session?.user?.id ?? ""
   const canEdit = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"

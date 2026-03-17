@@ -138,9 +138,12 @@ export default async function DashboardLayout({
       redirect("/onboarding")
     }
 
+    // Resolve currentTeamId only from teams we actually loaded (never use stale session.teamId that no longer exists)
+    const validTeamIds = new Set(teams.map((t) => t.id))
+    const sessionTeamId = session.user.teamId
     const currentTeamId = impersonationSession
       ? teams[0]?.id
-      : (session.user.teamId || teams[0]?.id)
+      : (sessionTeamId && validTeamIds.has(sessionTeamId) ? sessionTeamId : teams[0]?.id) ?? ""
     currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
 
     // ── Dev mode: treat all accounts as fully paid ─────────────────────────
@@ -172,7 +175,7 @@ export default async function DashboardLayout({
             <DashboardNav teams={teams} />
           </Suspense>
         </header>
-        <DashboardLayoutClient teams={teams} className="flex flex-1 min-h-0 min-w-0">
+        <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex flex-1 min-h-0 min-w-0">
           <CoachPageDebug
             session={session}
             teamIds={teams.map((t) => t.id)}

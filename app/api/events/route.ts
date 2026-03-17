@@ -78,9 +78,15 @@ export async function POST(req: NextRequest) {
     const startVal = body.start ?? body.startAt
     const endVal = body.end ?? body.endAt
     if (!teamId) {
-      console.log("[api/events] returning 400", { reason: "teamId_required", stage: "validation" })
+      console.log("[api/events] returning 400", { reason: "TEAM_ID_REQUIRED", stage: "validation" })
       return NextResponse.json(
-        { error: "Event creation failed", stage: "validation", message: "teamId is required" },
+        {
+          error: {
+            code: "TEAM_ID_REQUIRED",
+            message: "teamId is required",
+            operation: "write",
+          },
+        },
         { status: 400 }
       )
     }
@@ -142,35 +148,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     const userId = session.user.id
-    console.log("[api/events] auth ok", { userId, teamId })
+
+    stage = "team_lookup"
+    const supabaseForCheck = getSupabaseServer()
+    const { data: teamRow } = await supabaseForCheck
+      .from("teams")
+      .select("id")
+      .eq("id", teamId)
+      .maybeSingle()
+    const teamFound = !!teamRow
+    console.log("[api/events] debug", {
+      userId,
+      submittedTeamId: teamId,
+      teamFound,
+    })
 
     stage = "access_check"
+    let accessPassed = false
     try {
       await requireTeamPermission(teamId, "post_announcements")
       await requireTeamOperationAccess(teamId, "write")
       await auditImpersonatedActionFromRequest(req, "event_create", { teamId })
       await requireBillingPermission(teamId, "editEvents")
+      accessPassed = true
+      console.log("[api/events] debug", { userId, submittedTeamId: teamId, teamFound, accessPassed: true })
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error"
+      console.log("[api/events] debug", {
+        userId,
+        submittedTeamId: teamId,
+        teamFound,
+        accessPassed: false,
+        errorCode: e instanceof TeamOperationBlockedError ? e.code : undefined,
+        errorMessage: message,
+      })
       if (e instanceof TeamOperationBlockedError) {
-        console.log("[api/events] returning from access_check (TeamOperationBlockedError)", {
-          statusCode: e.statusCode,
-          code: e.code,
-          message: e.message,
-          userId,
-          teamId,
-          details: e.details,
-        })
         return NextResponse.json(toStructuredTeamAccessError(e), { status: e.statusCode })
       }
-      console.log("[api/events] error", { stage: "access_check", message, userId, teamId })
-      const status = message.includes("Forbidden") || message.includes("Not a member") ? 403 : 500
+      const isAccessDenied = message.includes("Forbidden") || message.includes("Not a member")
+      if (isAccessDenied) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "TEAM_ACCESS_DENIED",
+              message: "You do not have write access to this team",
+              teamId,
+              operation: "write",
+            },
+          },
+          { status: 403 }
+        )
+      }
       return NextResponse.json(
         { error: "Event creation failed", stage: "access_check", message },
-        { status }
+        { status: 500 }
       )
     }
-    console.log("[api/events] access ok")
 
     const notesVal = typeof body.notes === "string" ? body.notes : null
     const locationVal = typeof body.location === "string" ? body.location : null

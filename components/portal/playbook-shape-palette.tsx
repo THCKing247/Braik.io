@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Pencil, Square, Circle, X, Move } from "lucide-react"
+import { Pencil, Square, Circle, X, Move, Pen, ArrowRight } from "lucide-react"
 import type { SideOfBall } from "@/types/playbook"
 import { OFFENSE_POSITIONS, DEFENSE_POSITIONS, SPECIAL_POSITIONS } from "@/lib/constants/playbook-positions"
 
@@ -90,15 +90,37 @@ export function PlaybookShapePalette({
           </h3>
           <div className="flex flex-col gap-1">
             <Button
+              variant={selectedTool === "draw" ? "default" : "outline"}
+              size="sm"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === "draw" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && onSelectTool("draw")}
+              disabled={!canEdit}
+              title="Pen — freehand ink (not saved with play)"
+            >
+              <Pen className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">Draw</span>
+            </Button>
+            <Button
               variant={selectedTool === "route" ? "default" : "outline"}
               size="sm"
               className={`w-full justify-start h-8 px-2 ${selectedTool === "route" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
               onClick={() => canEdit && currentSide === "offense" && onSelectTool("route")}
               disabled={!canEdit || currentSide !== "offense"}
-              title="Route (R)"
+              title="Route — draw from player (R)"
             >
               <Pencil className="h-3.5 w-3.5 mr-1.5" />
               <span className="text-xs">Route</span>
+            </Button>
+            <Button
+              variant={selectedTool === "ink_arrow" ? "default" : "outline"}
+              size="sm"
+              className={`w-full justify-start h-8 px-2 ${selectedTool === "ink_arrow" ? "ring-2 ring-[#0B2A5B] ring-offset-1 border-l-4 border-l-[#0B2A5B]" : ""}`}
+              onClick={() => canEdit && onSelectTool("ink_arrow")}
+              disabled={!canEdit}
+              title="Arrow — drag straight arrow (ink)"
+            >
+              <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs">Arrow</span>
             </Button>
             <Button
               variant={selectedTool === "block" ? "default" : "outline"}

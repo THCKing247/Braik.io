@@ -3,10 +3,16 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban, Clock, MoreHorizontal } from "lucide-react"
+import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban, Clock, MoreHorizontal, Pen, ArrowRight, Undo2, Eraser } from "lucide-react"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox as clientToViewBoxLib } from "@/lib/utils/canvas-coords"
-import { canFinishRouteDraft as canFinishRouteDraftLib } from "@/lib/utils/playbook-draft"
+import {
+  type InkSample,
+  smoothFreehandPath,
+  convertPathToRoute,
+  findNearestPlayerOrigin,
+  type XY,
+} from "@/lib/utils/freehand-route"
 import {
   getAnimatedPlayerPosition,
   hasCustomAnimationTiming,
@@ -200,12 +206,58 @@ export function PlaybookBuilder({
   const playersRef = useRef<Player[]>(players)
   playersRef.current = players
 
-  // Draft state: in-progress route/block (never saved until Finish)
-  const [routeDraft, setRouteDraft] = useState<{ playerId: string; points: PointPX[] } | null>(null)
+  // Draft state: freehand route (pointer-up commits); block/motion still click-based
   const [blockDraft, setBlockDraft] = useState<{ playerId: string; endPoint: PointPX } | null>(null)
   const [motionDraft, setMotionDraft] = useState<{ playerId: string; points: PointPX[] } | null>(null)
   const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null)
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null)
+  /** Live polyline while drawing route / draw / arrow (60fps throttled). */
+  const [liveStrokePreview, setLiveStrokePreview] = useState<XY[] | null>(null)
+  const [liveStrokeKind, setLiveStrokeKind] = useState<"route" | "draw" | "arrow" | null>(null)
+  const [liveStrokePlayerId, setLiveStrokePlayerId] = useState<string | null>(null)
+  const [allowFingerDrawing, setAllowFingerDrawing] = useState(false)
+  const [fieldPan, setFieldPan] = useState({ x: 0, y: 0 })
+  const [tabletRailRight, setTabletRailRight] = useState(true)
+  type EditorInkStroke = {
+    kind: "freehand" | "arrow"
+    points: XY[]
+    pressures?: number[]
+    color: string
+    width: number
+    opacity: number
+  }
+  const [editorInkStrokes, setEditorInkStrokes] = useState<EditorInkStroke[]>([])
+  const [editorInkUndoStack, setEditorInkUndoStack] = useState<EditorInkStroke[][]>([])
+  const DRAW_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#fafafa", "#171717"] as const
+  const [drawColorIdx, setDrawColorIdx] = useState(0)
+  const drawColor = DRAW_COLORS[drawColorIdx % DRAW_COLORS.length]
+  const strokeWidthChoices = [2, 4, 7] as const
+  const [drawWidthIdx, setDrawWidthIdx] = useState(1)
+  const drawStrokeWidth = strokeWidthChoices[drawWidthIdx % strokeWidthChoices.length]
+
+  const activePenIdsRef = useRef<Set<number>>(new Set())
+  const freehandSamplesRef = useRef<InkSample[]>([])
+  const freehandMetaRef = useRef<{ kind: "route" | "draw"; playerId?: string; pointerId: number } | null>(null)
+  const arrowDragRef = useRef<{ start: XY; pointerId: number } | null>(null)
+  const previewRafRef = useRef<number | null>(null)
+  const panDragRef = useRef<{ pointerId: number; sx: number; sy: number; px: number; py: number } | null>(null)
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("playbook-allow-finger-draw")
+      setAllowFingerDrawing(v === "1")
+    } catch {
+      /* ignore */
+    }
+  }, [])
+  const setFingerDrawPref = useCallback((on: boolean) => {
+    setAllowFingerDrawing(on)
+    try {
+      localStorage.setItem("playbook-allow-finger-draw", on ? "1" : "0")
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   // Undo/redo: undo stack holds past states; redo stack holds states we undid from
   const [undoStack, setUndoStack] = useState<{ players: Player[]; zones: Zone[]; manCoverages: ManCoverage[] }[]>([])
@@ -304,36 +356,47 @@ export function PlaybookBuilder({
     }
   }, [])
 
-  // Finish/Cancel drawing and tool shortcuts
-  const finishRouteDraft = useCallback(() => {
-    if (!routeDraft || !canFinishRouteDraftLib(routeDraft)) return
-    const pts = routeDraft.points
-    setPlayers((prev) =>
-      prev.map((p) =>
-        p.id === routeDraft.playerId
-          ? {
-              ...p,
-              route: pts.map((pt, i) => ({
-                x: pt.x,
-                y: pt.y,
-                xYards: pt.xYards,
-                yYards: pt.yYards,
-                t: pts.length === 1 ? 1 : i / (pts.length - 1),
-              })),
-            }
-          : p
-      )
-    )
-    pushHistory()
-    setRouteDraft(null)
-    setCursorPosition(null)
-    setSelectedPlayerId(null)
-  }, [routeDraft, pushHistory])
+  const schedulePreviewFlush = useCallback(() => {
+    if (previewRafRef.current != null) return
+    previewRafRef.current = requestAnimationFrame(() => {
+      previewRafRef.current = null
+      const samples = freehandSamplesRef.current
+      if (samples.length === 0) return
+      setLiveStrokePreview(samples.map((s) => ({ x: s.x, y: s.y })))
+    })
+  }, [])
 
   const cancelRouteDraft = useCallback(() => {
-    setRouteDraft(null)
+    freehandSamplesRef.current = []
+    freehandMetaRef.current = null
+    arrowDragRef.current = null
+    setLiveStrokePreview(null)
+    setLiveStrokeKind(null)
+    setLiveStrokePlayerId(null)
     setCursorPosition(null)
-    setSelectedPlayerId(null)
+  }, [])
+
+  const pushEditorInk = useCallback((s: EditorInkStroke) => {
+    setEditorInkStrokes((prev) => {
+      setEditorInkUndoStack((u) => [...u, prev])
+      return [...prev, s]
+    })
+  }, [])
+
+  const undoEditorInk = useCallback(() => {
+    setEditorInkUndoStack((stack) => {
+      if (stack.length === 0) return stack
+      const prev = stack[stack.length - 1]
+      setEditorInkStrokes(prev)
+      return stack.slice(0, -1)
+    })
+  }, [])
+
+  const clearEditorInk = useCallback(() => {
+    setEditorInkStrokes((prev) => {
+      if (prev.length) setEditorInkUndoStack((u) => [...u, prev])
+      return []
+    })
   }, [])
 
   const finishBlockDraft = useCallback(() => {
@@ -405,7 +468,7 @@ export function PlaybookBuilder({
 
       if (e.key === "Escape") {
         e.preventDefault()
-        if (routeDraft || blockDraft || motionDraft) {
+        if (liveStrokeKind || blockDraft || motionDraft) {
           cancelRouteDraft()
           cancelBlockDraft()
           cancelMotionDraft()
@@ -417,10 +480,7 @@ export function PlaybookBuilder({
         return
       }
       if (e.key === "Enter") {
-        if (canFinishRouteDraftLib(routeDraft)) {
-          e.preventDefault()
-          finishRouteDraft()
-        } else if (blockDraft) {
+        if (blockDraft) {
           e.preventDefault()
           finishBlockDraft()
         } else if (canFinishMotionDraft) {
@@ -450,7 +510,7 @@ export function PlaybookBuilder({
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault()
-        if (routeDraft || blockDraft) {
+        if (liveStrokeKind || blockDraft) {
           cancelRouteDraft()
           cancelBlockDraft()
           return
@@ -485,7 +545,7 @@ export function PlaybookBuilder({
     }
     window.addEventListener("keydown", handleKey)
     return () => window.removeEventListener("keydown", handleKey)
-  }, [routeDraft, blockDraft, motionDraft, canFinishMotionDraft, finishRouteDraft, finishBlockDraft, finishMotionDraft, cancelRouteDraft, cancelBlockDraft, cancelMotionDraft, undo, redo, pushHistory, isTemplateMode, selectedPlayerId, selectedZoneId])
+  }, [liveStrokeKind, blockDraft, motionDraft, canFinishMotionDraft, finishBlockDraft, finishMotionDraft, cancelRouteDraft, cancelBlockDraft, cancelMotionDraft, undo, redo, pushHistory, isTemplateMode, selectedPlayerId, selectedZoneId])
 
   // Sync from prop only when we switch to a different play/formation (editorSourceKey change). Otherwise we'd overwrite local edits (e.g. just-finished route/block) whenever the parent re-renders with a new playData reference (e.g. new play or formation mode).
   const lastSyncedSourceKeyRef = useRef<string | null>(null)
@@ -555,6 +615,12 @@ export function PlaybookBuilder({
       isSyncingFromPropsRef.current = false
     }, 0)
   }, [playData, side, initialPlayName, coordSystem, fieldDimensions.width, fieldDimensions.height, editorSourceKey, playId, isTemplateMode, templateName])
+
+  useEffect(() => {
+    setFieldPan({ x: 0, y: 0 })
+    setEditorInkStrokes([])
+    setEditorInkUndoStack([])
+  }, [editorSourceKey])
 
   // Notify parent when user edits content (not when syncing from props or resize).
   useEffect(() => {
@@ -687,6 +753,30 @@ export function PlaybookBuilder({
     return { x: pixel.x, y: pixel.y, xYards: snappedX, yYards: snappedY }
   }
 
+  const getRawViewPoint = (clientX: number, clientY: number): XY | null => {
+    const vb = clientToViewBox(clientX, clientY)
+    if (!vb) return null
+    return {
+      x: Math.max(0, Math.min(fieldDimensions.width, vb.x)),
+      y: Math.max(0, Math.min(fieldDimensions.height, vb.y)),
+    }
+  }
+
+  const pressureFromEvent = (e: React.PointerEvent) => {
+    const p = typeof e.pressure === "number" && e.pressure > 0 ? e.pressure : 0.5
+    return Math.max(0.12, Math.min(1, p))
+  }
+
+  const pointerMayDraw = (e: React.PointerEvent) => {
+    if (e.pointerType === "pen") return true
+    if (e.pointerType === "mouse") return true
+    if (e.pointerType === "touch") return allowFingerDrawing && activePenIdsRef.current.size === 0
+    return false
+  }
+
+  const pointerShouldPanField = (e: React.PointerEvent) =>
+    e.pointerType === "touch" && !allowFingerDrawing && (tool === "route" || tool === "draw" || tool === "ink_arrow")
+
   const getPlayerShape = (player: Player): "circle" | "square" | "triangle" => {
     if (player.positionCode) {
       const def = getPositionByCode(player.positionCode)
@@ -713,6 +803,49 @@ export function PlaybookBuilder({
     if (p.xYards != null && p.yYards != null) return coordSystem.yardToPixel(p.xYards, p.yYards)
     return { x: p.x, y: p.y }
   }
+
+  const commitFreehandRoute = useCallback(
+    (samples: InkSample[], playerId: string) => {
+      if (samples.length < 2) return
+      const player = playersRef.current.find((p) => p.id === playerId)
+      if (!player) return
+      const originPos = getPlayerDisplayPos(player)
+      const ox = player.xYards ?? coordSystem.pixelToYard(originPos.x, originPos.y).xYards
+      const oy = player.yYards ?? coordSystem.pixelToYard(originPos.x, originPos.y).yYards
+      const origin = { x: originPos.x, y: originPos.y, xYards: ox, yYards: oy }
+      const smoothed = smoothFreehandPath(samples)
+      if (smoothed.length < 2) return
+      const waypoints = convertPathToRoute(
+        smoothed,
+        origin,
+        (px, py) => coordSystem.pixelToYard(px, py),
+        (xY, yY) => coordSystem.yardToPixel(xY, yY),
+        (x) => (snapEnabled ? coordSystem.snapX(x) : x),
+        (y) => (snapEnabled ? coordSystem.snapY(y) : y),
+        {}
+      )
+      if (waypoints.length < 2) return
+      pushHistory()
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId
+            ? {
+                ...p,
+                route: waypoints.map((w, i) => ({
+                  x: w.x,
+                  y: w.y,
+                  xYards: w.xYards,
+                  yYards: w.yYards,
+                  t: i / (waypoints.length - 1),
+                })),
+              }
+            : p
+        )
+      )
+      onDirty?.()
+    },
+    [coordSystem, snapEnabled, pushHistory, onDirty]
+  )
 
   /** Convert builder Player to PlayerPathSource for play-animation (yards-based). */
   const playerToPathSource = (p: Player): PlayerPathSource => {
@@ -763,6 +896,189 @@ export function PlaybookBuilder({
     })
   }
 
+  const fieldPanRef = useRef(fieldPan)
+  fieldPanRef.current = fieldPan
+
+  const handleSvgPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!canEdit || previewMode) return
+    if (e.pointerType === "pen") activePenIdsRef.current.add(e.pointerId)
+    if (!pointerMayDraw(e)) return
+    if (tool === "route" && currentSide === "offense") {
+      const pt = getRawViewPoint(e.clientX, e.clientY)
+      if (!pt) return
+      const origins = players.map((p) => ({ id: p.id, ...getPlayerDisplayPos(p) }))
+      const hit = findNearestPlayerOrigin(pt, origins, coordSystem.getMarkerSize() * 3.2)
+      if (!hit) return
+      e.preventDefault()
+      e.stopPropagation()
+      freehandMetaRef.current = { kind: "route", playerId: hit.id, pointerId: e.pointerId }
+      freehandSamplesRef.current = [{ x: hit.x, y: hit.y, pressure: pressureFromEvent(e), t: performance.now() }]
+      setLiveStrokePlayerId(hit.id)
+      setLiveStrokeKind("route")
+      setSelectedPlayerId(hit.id)
+      setLiveStrokePreview([{ x: hit.x, y: hit.y }])
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+    if (tool === "draw") {
+      const pt = getRawViewPoint(e.clientX, e.clientY)
+      if (!pt) return
+      e.preventDefault()
+      freehandMetaRef.current = { kind: "draw", pointerId: e.pointerId }
+      freehandSamplesRef.current = [{ x: pt.x, y: pt.y, pressure: pressureFromEvent(e), t: performance.now() }]
+      setLiveStrokeKind("draw")
+      setLiveStrokePlayerId(null)
+      setLiveStrokePreview([pt])
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+    if (tool === "ink_arrow") {
+      const pt = getRawViewPoint(e.clientX, e.clientY)
+      if (!pt) return
+      e.preventDefault()
+      arrowDragRef.current = { start: pt, pointerId: e.pointerId }
+      setLiveStrokeKind("arrow")
+      setLiveStrokePreview([pt, pt])
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  const handleSvgPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const meta = freehandMetaRef.current
+    if (meta && e.pointerId === meta.pointerId && (tool === "route" || tool === "draw")) {
+      const pt = getRawViewPoint(e.clientX, e.clientY)
+      if (!pt) return
+      e.preventDefault()
+      const last = freehandSamplesRef.current[freehandSamplesRef.current.length - 1]
+      if (!last || Math.hypot(pt.x - last.x, pt.y - last.y) >= 1.2) {
+        freehandSamplesRef.current.push({ x: pt.x, y: pt.y, pressure: pressureFromEvent(e), t: performance.now() })
+        schedulePreviewFlush()
+      }
+      return
+    }
+    const ad = arrowDragRef.current
+    if (ad && e.pointerId === ad.pointerId && tool === "ink_arrow") {
+      const pt = getRawViewPoint(e.clientX, e.clientY)
+      if (!pt) return
+      e.preventDefault()
+      setLiveStrokePreview([ad.start, pt])
+    }
+  }
+
+  const endSvgStroke = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "pen") activePenIdsRef.current.delete(e.pointerId)
+    const meta = freehandMetaRef.current
+    if (meta && e.pointerId === meta.pointerId && meta.kind === "route" && meta.playerId) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      const samples = [...freehandSamplesRef.current]
+      freehandMetaRef.current = null
+      freehandSamplesRef.current = []
+      setLiveStrokePreview(null)
+      setLiveStrokeKind(null)
+      setLiveStrokePlayerId(null)
+      commitFreehandRoute(samples, meta.playerId)
+      return
+    }
+    if (meta && e.pointerId === meta.pointerId && meta.kind === "draw") {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      const samples = [...freehandSamplesRef.current]
+      freehandMetaRef.current = null
+      freehandSamplesRef.current = []
+      setLiveStrokePreview(null)
+      setLiveStrokeKind(null)
+      const smoothed = smoothFreehandPath(samples)
+      if (smoothed.length > 1) {
+        const pressures = samples.map((s) => s.pressure)
+        const avgP = pressures.reduce((a, b) => a + b, 0) / Math.max(1, pressures.length)
+        const w = drawStrokeWidth * (0.65 + 0.55 * avgP)
+        pushEditorInk({
+          kind: "freehand",
+          points: smoothed,
+          color: drawColor,
+          width: w,
+          opacity: 1,
+        })
+      }
+      return
+    }
+    const ad = arrowDragRef.current
+    if (ad && e.pointerId === ad.pointerId && tool === "ink_arrow") {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      arrowDragRef.current = null
+      const pt = getRawViewPoint(e.clientX, e.clientY)
+      const end = pt ?? ad.start
+      setLiveStrokePreview(null)
+      setLiveStrokeKind(null)
+      if (Math.hypot(end.x - ad.start.x, end.y - ad.start.y) > 8) {
+        pushEditorInk({
+          kind: "arrow",
+          points: [ad.start, end],
+          color: drawColor,
+          width: drawStrokeWidth,
+          opacity: 1,
+        })
+      }
+    }
+  }
+
+  const onFieldPanPointerDownCapture = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!canEdit || previewMode) return
+    if (!pointerShouldPanField(e)) return
+    const fp = fieldPanRef.current
+    panDragRef.current = { pointerId: e.pointerId, sx: e.clientX, sy: e.clientY, px: fp.x, py: fp.y }
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const onFieldPanPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = panDragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    setFieldPan({
+      x: d.px + (e.clientX - d.sx),
+      y: d.py + (e.clientY - d.sy),
+    })
+  }
+
+  const onFieldPanPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = panDragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    panDragRef.current = null
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!canEdit || previewMode) return
 
@@ -791,24 +1107,6 @@ export function PlaybookBuilder({
       if (clickedPlayer) {
         setPlayers(players.filter((p) => p.id !== clickedPlayer.id))
         pushHistory()
-      }
-    } else if (tool === "route") {
-      const clickedPlayer = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
-      if (routeDraft) {
-        if (clickedPlayer && clickedPlayer.id === routeDraft.playerId) return
-        setRouteDraft((prev) =>
-          prev ? { ...prev, points: [...prev.points, { x: point.x, y: point.y, xYards: point.xYards, yYards: point.yYards }] } : null
-        )
-      } else if (clickedPlayer) {
-        const displayPos = getPlayerDisplayPos(clickedPlayer)
-        const origin: PointPX = {
-          x: displayPos.x,
-          y: displayPos.y,
-          xYards: clickedPlayer.xYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).xYards,
-          yYards: clickedPlayer.yYards ?? coordSystem.pixelToYard(displayPos.x, displayPos.y).yYards,
-        }
-        setRouteDraft({ playerId: clickedPlayer.id, points: [origin] })
-        setSelectedPlayerId(clickedPlayer.id)
       }
     } else if (tool === "motion") {
       const clickedPlayer = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
@@ -882,12 +1180,12 @@ export function PlaybookBuilder({
   const handleCanvasMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!canEdit || previewMode) return
     const point = getCanvasPoint(e)
-    if ((tool === "route" && routeDraft) || (tool === "block" && blockDraft) || (tool === "motion" && motionDraft)) {
+    if ((tool === "block" && blockDraft) || (tool === "motion" && motionDraft)) {
       setCursorPosition({ x: point.x, y: point.y })
       setHoveredPlayerId(null)
     } else {
       setCursorPosition(null)
-      if ((tool === "route" || tool === "block" || tool === "motion") && !routeDraft && !blockDraft && !motionDraft) {
+      if ((tool === "route" || tool === "block" || tool === "motion") && !blockDraft && !motionDraft) {
         const player = getPlayerAtPoint(point, HIT_RADIUS_MULTIPLIER_ROUTE_BLOCK)
         setHoveredPlayerId(player?.id ?? null)
       } else {
@@ -903,10 +1201,6 @@ export function PlaybookBuilder({
 
   const handleCanvasDoubleClick = () => {
     if (previewMode) return
-    if (tool === "route" && canFinishRouteDraftLib(routeDraft)) {
-      finishRouteDraft()
-      return
-    }
     if (tool === "motion" && canFinishMotionDraft) {
       finishMotionDraft()
       return
@@ -1072,7 +1366,7 @@ export function PlaybookBuilder({
       setZones([])
       setManCoverages([])
     }
-    setRouteDraft(null)
+    cancelRouteDraft()
     setBlockDraft(null)
     setMotionDraft(null)
     setCursorPosition(null)
@@ -1253,16 +1547,16 @@ export function PlaybookBuilder({
               {isTemplateMode ? `${playerCount} players (need 11)` : `${playerCount} on field (expected ${expectedCount})`}
             </p>
           )}
-          {(routeDraft || blockDraft || motionDraft) && (
+          {(liveStrokeKind || blockDraft || motionDraft) && (
             <div className="flex gap-2 flex-wrap">
               <Button
                 size="sm"
                 className="rounded-xl"
                 onClick={() => {
-                  if (canFinishRouteDraftLib(routeDraft)) finishRouteDraft()
-                  else if (canFinishMotionDraft) finishMotionDraft()
+                  if (canFinishMotionDraft) finishMotionDraft()
                   else if (blockDraft) finishBlockDraft()
                 }}
+                disabled={!!liveStrokeKind}
               >
                 <Check className="h-4 w-4 mr-1" />
                 Finish line
@@ -1335,16 +1629,15 @@ export function PlaybookBuilder({
                 <RotateCw className="h-4 w-4 mr-1" />
                 Redo
               </Button>
-              {(routeDraft || blockDraft || motionDraft) && (
+              {(liveStrokeKind || blockDraft || motionDraft) && (
                 <>
                   <Button
                     size="sm"
                     onClick={() => {
-                      if (canFinishRouteDraftLib(routeDraft)) finishRouteDraft()
-                      else if (canFinishMotionDraft) finishMotionDraft()
+                      if (canFinishMotionDraft) finishMotionDraft()
                       else if (blockDraft) finishBlockDraft()
                     }}
-                    disabled={routeDraft ? !canFinishRouteDraftLib(routeDraft) : motionDraft ? !canFinishMotionDraft : false}
+                    disabled={!!liveStrokeKind || (motionDraft ? !canFinishMotionDraft : !blockDraft)}
                     title="Finish (Enter)"
                   >
                     <Check className="h-4 w-4 mr-1" />
@@ -1394,12 +1687,16 @@ export function PlaybookBuilder({
       {/* Drawing helper text — wraps with toolbar strip styling */}
       {canEdit && !isTemplateMode && (
         <div className="hidden lg:flex flex-shrink-0 flex-wrap items-center gap-3 py-2 px-3 border-b border-slate-200 bg-slate-50/50 text-sm text-slate-600">
-          {tool === "route" && !routeDraft && (
-            <span>Route: <strong>Click a player</strong> to start, then add waypoints. Enter to finish, Esc to cancel.</span>
+          {tool === "route" && (
+            <span>
+              Route: <strong>Draw from a player</strong> with pen or mouse (start near a marker). Stylus draws immediately; finger pans unless{" "}
+              <strong>Allow finger drawing</strong> is on. <strong>Esc</strong> cancels an in-progress stroke.
+            </span>
           )}
-          {tool === "route" && routeDraft && (
-            <span>Route: Click to add points · <strong>Double-click</strong> or <strong>Enter</strong> to finish · <strong>Esc</strong> to cancel.</span>
+          {tool === "draw" && (
+            <span>Draw: freehand ink (not saved with the play). Clear ink from the dock. Pen preferred; finger pans unless finger drawing is enabled.</span>
           )}
+          {tool === "ink_arrow" && <span>Arrow: drag to place a straight arrow on the field (ink layer).</span>}
           {tool === "block" && !blockDraft && (
             <span>Block: <strong>Click a player</strong> to start, then click target. Enter to finish, Esc to cancel.</span>
           )}
@@ -1418,8 +1715,49 @@ export function PlaybookBuilder({
           {tool === "motion" && motionDraft && (
             <span>Motion: Click to add points · <strong>Double-click</strong> or <strong>Enter</strong> to finish · <strong>Esc</strong> to cancel.</span>
           )}
-          {tool === "select" && !routeDraft && !blockDraft && !motionDraft && (
+          {tool === "select" && !liveStrokeKind && !blockDraft && !motionDraft && (
             <span>Select: Drag players to move. <strong>V</strong> Select · <strong>R</strong> Route · <strong>B</strong> Block · <strong>M</strong> Motion · <strong>Z</strong> Zone · <strong>E</strong> Erase.</span>
+          )}
+          <label className="flex items-center gap-2 text-xs cursor-pointer border border-slate-200 rounded-lg px-2 py-1 bg-white">
+            <input type="checkbox" checked={allowFingerDrawing} onChange={(e) => setFingerDrawPref(e.target.checked)} className="rounded" />
+            Allow finger drawing
+          </label>
+          {(tool === "draw" || tool === "ink_arrow") && (
+            <>
+              <div className="flex items-center gap-1">
+                {DRAW_COLORS.map((c, i) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`h-7 w-7 rounded-full border-2 ${drawColorIdx === i ? "border-slate-900 scale-110" : "border-slate-300"}`}
+                    style={{ backgroundColor: c }}
+                    title="Color"
+                    onClick={() => setDrawColorIdx(i)}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                {strokeWidthChoices.map((w, i) => (
+                  <Button
+                    key={w}
+                    type="button"
+                    size="sm"
+                    variant={drawWidthIdx === i ? "default" : "outline"}
+                    className="h-8 px-2 text-xs"
+                    onClick={() => setDrawWidthIdx(i)}
+                  >
+                    {w}px
+                  </Button>
+                ))}
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={undoEditorInk} disabled={editorInkUndoStack.length === 0}>
+                <Undo2 className="h-3.5 w-3.5 mr-1" />
+                Ink undo
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={clearEditorInk} disabled={editorInkStrokes.length === 0}>
+                Clear ink
+              </Button>
+            </>
           )}
         </div>
       )}
@@ -1656,12 +1994,20 @@ export function PlaybookBuilder({
           </div>
         )}
 
-        {/* Canvas - fills entire area, no padding */}
+        {/* Canvas - fills entire area; tablet finger-pan on route/draw/arrow when finger draw off */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-hidden"
+          className="flex-1 overflow-hidden flex items-center justify-center min-h-0 min-w-0 relative"
           style={{ backgroundColor: "#2d5016" }}
+          onPointerDownCapture={onFieldPanPointerDownCapture}
+          onPointerMove={onFieldPanPointerMove}
+          onPointerUp={onFieldPanPointerUp}
+          onPointerCancel={onFieldPanPointerUp}
         >
+          <div
+            className="w-full h-full min-h-0 flex items-center justify-center"
+            style={{ transform: `translate(${fieldPan.x}px, ${fieldPan.y}px)` }}
+          >
           <svg
             ref={canvasRef}
             width="100%"
@@ -1669,21 +2015,28 @@ export function PlaybookBuilder({
             viewBox={`0 0 ${fieldDimensions.width} ${fieldDimensions.height}`}
             preserveAspectRatio="xMidYMid meet"
             style={{
+              touchAction: tool === "route" || tool === "draw" || tool === "ink_arrow" ? "none" : undefined,
               cursor:
-                routeDraft || blockDraft || motionDraft
+                liveStrokeKind || blockDraft || motionDraft
                   ? "crosshair"
-                  : tool === "route" || tool === "block" || tool === "motion"
-                    ? "pointer"
-                    : (getPositionByCode(tool) && getPositionByCode(tool)?.unit === currentSide) || tool === "zone" || tool === "erase" || tool === "motion"
-                      ? "crosshair"
-                      : tool === "select"
-                        ? "move"
-                        : "default",
+                  : tool === "route" || tool === "draw" || tool === "ink_arrow"
+                    ? "crosshair"
+                    : tool === "block" || tool === "motion"
+                      ? "pointer"
+                      : (getPositionByCode(tool) && getPositionByCode(tool)?.unit === currentSide) || tool === "zone" || tool === "erase"
+                        ? "crosshair"
+                        : tool === "select"
+                          ? "move"
+                          : "default",
             }}
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
             onDoubleClick={handleCanvasDoubleClick}
             onMouseLeave={handleCanvasMouseLeave}
+            onPointerDown={handleSvgPointerDown}
+            onPointerMove={handleSvgPointerMove}
+            onPointerUp={endSvgStroke}
+            onPointerCancel={endSvgStroke}
           >
             {/* Field surface */}
             <PlaybookFieldSurface
@@ -1693,28 +2046,39 @@ export function PlaybookBuilder({
               yardEnd={yardLineEnd}
             />
 
-            {/* Route draft: dashed blue, larger waypoints — clearly distinct from saved routes */}
-            {routeDraft && routeDraft.points.length > 0 && (
-              <g className="route-draft">
-                <polyline
-                  points={
-                    cursorPosition
-                      ? [...routeDraft.points, cursorPosition].map((p) => `${p.x},${p.y}`).join(" ")
-                      : routeDraft.points.map((p) => `${p.x},${p.y}`).join(" ")
-                  }
-                  fill="none"
-                  stroke="#2563EB"
-                  strokeWidth="4"
-                  strokeDasharray="8,5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={cursorPosition ? 1 : 0.9}
-                />
-                {routeDraft.points.map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r="6" fill="#2563EB" stroke="white" strokeWidth="2" />
-                ))}
-                {cursorPosition && (
-                  <circle cx={cursorPosition.x} cy={cursorPosition.y} r="5" fill="none" stroke="#2563EB" strokeWidth="2" strokeDasharray="3,3" />
+            {/* Live freehand preview (route / draw / arrow drag) */}
+            {liveStrokePreview && liveStrokePreview.length > 1 && (
+              <g className="live-stroke-preview" pointerEvents="none">
+                {liveStrokeKind === "arrow" && liveStrokePreview.length >= 2 ? (
+                  (() => {
+                    const [a, b] = liveStrokePreview
+                    const ang = Math.atan2(b.y - a.y, b.x - a.x)
+                    const ah = 14
+                    const aw = 8
+                    const x1 = b.x - ah * Math.cos(ang)
+                    const y1 = b.y - ah * Math.sin(ang)
+                    return (
+                      <g>
+                        <line x1={a.x} y1={a.y} x2={x1} y2={y1} stroke={drawColor} strokeWidth={drawStrokeWidth} strokeLinecap="round" strokeDasharray="5,4" opacity={0.9} />
+                        <polygon
+                          points={`${b.x},${b.y} ${x1 + aw * Math.sin(ang)},${y1 - aw * Math.cos(ang)} ${x1 - aw * Math.sin(ang)},${y1 + aw * Math.cos(ang)}`}
+                          fill={drawColor}
+                          opacity={0.9}
+                        />
+                      </g>
+                    )
+                  })()
+                ) : (
+                  <polyline
+                    points={liveStrokePreview.map((p) => `${p.x},${p.y}`).join(" ")}
+                    fill="none"
+                    stroke={liveStrokeKind === "draw" ? drawColor : "#2563EB"}
+                    strokeWidth={liveStrokeKind === "draw" ? Math.max(2, drawStrokeWidth * 0.85) : 4}
+                    strokeDasharray={liveStrokeKind === "route" ? "8,5" : undefined}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity={0.92}
+                  />
                 )}
               </g>
             )}
@@ -1829,7 +2193,7 @@ export function PlaybookBuilder({
                 !previewMode &&
                 hoveredPlayerId === player.id &&
                 (tool === "route" || tool === "block") &&
-                !routeDraft &&
+                !liveStrokeKind &&
                 !blockDraft
               const isOffense = currentSide === "offense" || currentSide === "special_teams"
               const playerColor = isOffense ? "#3B82F6" : "#DC2626"
@@ -2104,9 +2468,136 @@ export function PlaybookBuilder({
                 </g>
               )
             })}
+            {editorInkStrokes.map((stroke, i) => {
+              if (stroke.kind === "freehand" && stroke.points.length > 1) {
+                return (
+                  <polyline
+                    key={`editor-ink-${i}`}
+                    points={stroke.points.map((p) => `${p.x},${p.y}`).join(" ")}
+                    fill="none"
+                    stroke={stroke.color}
+                    strokeWidth={stroke.width}
+                    strokeOpacity={stroke.opacity}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ pointerEvents: "none" }}
+                  />
+                )
+              }
+              if (stroke.kind === "arrow" && stroke.points.length >= 2) {
+                const [a, b] = stroke.points
+                const ang = Math.atan2(b.y - a.y, b.x - a.x)
+                const ah = 14
+                const aw = 8
+                const x1 = b.x - ah * Math.cos(ang)
+                const y1 = b.y - ah * Math.sin(ang)
+                return (
+                  <g key={`editor-arrow-${i}`} style={{ pointerEvents: "none" }}>
+                    <line x1={a.x} y1={a.y} x2={x1} y2={y1} stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" />
+                    <polygon
+                      points={`${b.x},${b.y} ${x1 + aw * Math.sin(ang)},${y1 - aw * Math.cos(ang)} ${x1 - aw * Math.sin(ang)},${y1 + aw * Math.cos(ang)}`}
+                      fill={stroke.color}
+                    />
+                  </g>
+                )
+              }
+              return null
+            })}
           </svg>
+          </div>
         </div>
       </div>
+
+      {canEdit && !previewMode && (
+        <div
+          className={`lg:hidden fixed z-40 flex flex-col gap-2 p-2 rounded-2xl bg-slate-950/96 border border-slate-700 shadow-2xl touch-manipulation ${
+            tabletRailRight ? "right-1.5" : "left-1.5"
+          } top-[40%] -translate-y-1/2 max-h-[min(72vh,520px)] overflow-y-auto`}
+          aria-label="Drawing tools"
+        >
+          <Button
+            type="button"
+            size="icon"
+            variant={tool === "select" ? "default" : "secondary"}
+            className="h-14 w-14 shrink-0 rounded-2xl"
+            onClick={() => {
+              cancelRouteDraft()
+              cancelBlockDraft()
+              cancelMotionDraft()
+              setTool("select")
+            }}
+            title="Select"
+          >
+            <Move className="h-7 w-7" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={tool === "draw" ? "default" : "secondary"}
+            className="h-14 w-14 shrink-0 rounded-2xl"
+            onClick={() => {
+              cancelBlockDraft()
+              cancelMotionDraft()
+              setTool("draw")
+            }}
+            title="Pen"
+          >
+            <Pen className="h-7 w-7" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={tool === "route" ? "default" : "secondary"}
+            className="h-14 w-14 shrink-0 rounded-2xl"
+            disabled={currentSide !== "offense"}
+            onClick={() => {
+              cancelBlockDraft()
+              cancelMotionDraft()
+              setTool("route")
+            }}
+            title="Route"
+          >
+            <Pencil className="h-7 w-7" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={tool === "ink_arrow" ? "default" : "secondary"}
+            className="h-14 w-14 shrink-0 rounded-2xl"
+            onClick={() => {
+              cancelBlockDraft()
+              cancelMotionDraft()
+              setTool("ink_arrow")
+            }}
+            title="Arrow"
+          >
+            <ArrowRight className="h-7 w-7" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={tool === "erase" ? "default" : "secondary"}
+            className="h-14 w-14 shrink-0 rounded-2xl"
+            onClick={() => {
+              cancelRouteDraft()
+              setTool("erase")
+            }}
+            title="Erase"
+          >
+            <Eraser className="h-7 w-7" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="secondary"
+            className="h-10 w-14 shrink-0 rounded-xl text-xs"
+            onClick={() => setTabletRailRight((v) => !v)}
+            title="Move tool rail"
+          >
+            ⇄
+          </Button>
+        </div>
+      )}
 
       {canEdit && (
         <>
@@ -2154,14 +2645,69 @@ export function PlaybookBuilder({
             </Button>
             <Button
               type="button"
-              variant={["motion", "block", "zone", "erase", "man"].includes(tool) ? "default" : "secondary"}
-              className={`flex-1 h-[52px] rounded-2xl text-[10px] font-bold min-w-0 px-1 flex-col gap-0.5 ${["motion", "block", "zone", "erase", "man"].includes(tool) ? "bg-amber-600 text-white border-0" : "bg-slate-800 text-slate-100 border-slate-700"}`}
+              variant={["motion", "block", "zone", "erase", "man", "draw", "ink_arrow"].includes(tool) ? "default" : "secondary"}
+              className={`flex-1 h-[52px] rounded-2xl text-[10px] font-bold min-w-0 px-1 flex-col gap-0.5 ${["motion", "block", "zone", "erase", "man", "draw", "ink_arrow"].includes(tool) ? "bg-amber-600 text-white border-0" : "bg-slate-800 text-slate-100 border-slate-700"}`}
               onClick={() => setMobilePaletteOpen(true)}
             >
               <Square className="h-5 w-5" />
               More
             </Button>
           </div>
+          {!isTemplateMode && (
+            <div
+              className="lg:hidden flex flex-wrap items-center justify-center gap-2 px-2 py-2 z-20 bg-slate-900/95 border-t border-slate-800"
+              style={{ paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))" }}
+            >
+              <Button type="button" size="sm" variant="secondary" className="h-10 rounded-xl" onClick={undo} disabled={undoStack.length === 0}>
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Undo
+              </Button>
+              <Button type="button" size="sm" variant="secondary" className="h-10 rounded-xl" onClick={redo} disabled={redoStack.length === 0}>
+                <RotateCw className="h-4 w-4 mr-1" />
+                Redo
+              </Button>
+              <Button type="button" size="sm" variant="secondary" className="h-10 rounded-xl" onClick={undoEditorInk} disabled={editorInkUndoStack.length === 0}>
+                <Undo2 className="h-4 w-4 mr-1" />
+                Ink
+              </Button>
+              <Button type="button" size="sm" variant="secondary" className="h-10 rounded-xl" onClick={clearEditorInk} disabled={editorInkStrokes.length === 0}>
+                Clear ink
+              </Button>
+              <label className="flex items-center gap-1.5 text-[10px] text-slate-300 px-1">
+                <input type="checkbox" checked={allowFingerDrawing} onChange={(e) => setFingerDrawPref(e.target.checked)} className="rounded" />
+                Finger draw
+              </label>
+              {(tool === "draw" || tool === "ink_arrow") && (
+                <div className="flex items-center gap-1">
+                  {DRAW_COLORS.map((c, i) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`h-8 w-8 rounded-full border-2 shrink-0 ${drawColorIdx === i ? "border-white" : "border-slate-600"}`}
+                      style={{ backgroundColor: c }}
+                      onClick={() => setDrawColorIdx(i)}
+                    />
+                  ))}
+                </div>
+              )}
+              {(tool === "draw" || tool === "ink_arrow") && (
+                <div className="flex gap-1">
+                  {strokeWidthChoices.map((w, i) => (
+                    <Button
+                      key={w}
+                      type="button"
+                      size="sm"
+                      variant={drawWidthIdx === i ? "default" : "secondary"}
+                      className="h-9 min-w-[2.25rem] px-2 rounded-lg text-xs"
+                      onClick={() => setDrawWidthIdx(i)}
+                    >
+                      {w}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <PlaybookBottomSheet open={mobilePaletteOpen} onOpenChange={setMobilePaletteOpen} title="Tools & positions" className="max-h-[min(88vh,640px)]">
             <div className="w-full min-w-0 [&>div]:!w-full [&>div]:max-w-full">
             <PlaybookShapePalette

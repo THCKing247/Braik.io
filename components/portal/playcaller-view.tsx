@@ -47,6 +47,7 @@ import { markerMatchesDepthSlot, type DepthChartSlot } from "@/lib/constants/pla
 import { getAnimatedPlayerPosition } from "@/lib/utils/play-animation"
 import { usePlayAnimation, SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/hooks/use-play-animation"
 import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint, FormationRecord } from "@/types/playbook"
+import { type InkSample, smoothPresenterStroke } from "@/lib/utils/freehand-route"
 
 type PresenterTool = "none" | "marker" | "icon"
 type InkTool = "pen" | "highlighter" | "line" | "arrow" | "icon"
@@ -257,6 +258,9 @@ export function PlaycallerView({
   const [inkStrokes, setInkStrokes] = useState<PresenterInkStroke[]>([])
   const [inkUndoStack, setInkUndoStack] = useState<PresenterInkStroke[][]>([])
   const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[] | null>(null)
+  const activeStrokeSamplesRef = useRef<InkSample[]>([])
+  const strokePreviewRafRef = useRef<number | null>(null)
+  const activePenPointerIdsRef = useRef<Set<number>>(new Set())
   const [strokeWidthIdx, setStrokeWidthIdx] = useState(1)
   const strokeWidths = [2, 4, 7] as const
   const [annotations, setAnnotations] = useState<{ id: string; iconType: string; x: number; y: number }[]>([])
@@ -409,11 +413,21 @@ export function PlaycallerView({
     (e: React.PointerEvent) => {
       if (e.pointerType === "pen") return true
       if (e.pointerType === "mouse") return true
-      if (e.pointerType === "touch" && fingerDraw) return true
+      if (e.pointerType === "touch" && fingerDraw && activePenPointerIdsRef.current.size === 0) return true
       return false
     },
     [fingerDraw]
   )
+
+  const scheduleStrokePreview = useCallback(() => {
+    if (strokePreviewRafRef.current != null) return
+    strokePreviewRafRef.current = requestAnimationFrame(() => {
+      strokePreviewRafRef.current = null
+      const s = activeStrokeSamplesRef.current
+      if (s.length === 0) return
+      setActiveStroke(s.map((p) => ({ x: p.x, y: p.y })))
+    })
+  }, [])
 
   const pushInkStroke = useCallback((s: PresenterInkStroke) => {
     setInkStrokes((prev) => {
@@ -438,6 +452,9 @@ export function PlaycallerView({
       if (tool === "marker" && (inkTool === "pen" || inkTool === "highlighter")) {
         if (!canDrawWithPointer(e)) return
         e.preventDefault()
+        if (e.pointerType === "pen") activePenPointerIdsRef.current.add(e.pointerId)
+        const pr = typeof e.pressure === "number" && e.pressure > 0 ? e.pressure : 0.5
+        activeStrokeSamplesRef.current = [{ x: pt.x, y: pt.y, pressure: Math.max(0.15, Math.min(1, pr)), t: performance.now() }]
         setActiveStroke([pt])
         e.currentTarget.setPointerCapture(e.pointerId)
         return
@@ -470,9 +487,20 @@ export function PlaycallerView({
       if (tool !== "marker" || (inkTool !== "pen" && inkTool !== "highlighter") || !activeStroke) return
       e.preventDefault()
       const pt = clientToViewBoxPoint(e.clientX, e.clientY)
-      if (pt) setActiveStroke((prev) => (prev ? [...prev, pt] : [pt]))
+      if (!pt) return
+      const pr = typeof e.pressure === "number" && e.pressure > 0 ? e.pressure : 0.5
+      const last = activeStrokeSamplesRef.current[activeStrokeSamplesRef.current.length - 1]
+      if (!last || Math.hypot(pt.x - last.x, pt.y - last.y) >= 1.1) {
+        activeStrokeSamplesRef.current.push({
+          x: pt.x,
+          y: pt.y,
+          pressure: Math.max(0.12, Math.min(1, pr)),
+          t: performance.now(),
+        })
+        scheduleStrokePreview()
+      }
     },
-    [shiftHeld, tool, inkTool, activeStroke, lineDraft, clientToViewBoxPoint]
+    [shiftHeld, tool, inkTool, activeStroke, lineDraft, clientToViewBoxPoint, scheduleStrokePreview]
   )
 
   const handlePointerUp = useCallback(
@@ -482,6 +510,7 @@ export function PlaycallerView({
       } catch {
         /* ignore */
       }
+      try {
       if (tool === "marker" && (inkTool === "line" || inkTool === "arrow") && lineDraft && linePreview) {
         const dx = linePreview.x - lineDraft.x
         const dy = linePreview.y - lineDraft.y
@@ -504,16 +533,27 @@ export function PlaycallerView({
         activeStroke &&
         activeStroke.length > 0
       ) {
-        if (activeStroke.length > 1) {
-          pushInkStroke({
-            kind: "freehand",
-            points: activeStroke,
-            color: markerColor,
-            width: inkWidth,
-            opacity: inkOpacity,
-          })
+        const samples = activeStrokeSamplesRef.current
+        activeStrokeSamplesRef.current = []
+        if (samples.length > 1) {
+          const smoothed = smoothPresenterStroke(samples)
+          const pressures = samples.map((s) => s.pressure)
+          const avgP = pressures.reduce((a, b) => a + b, 0) / pressures.length
+          const w = inkWidth * (0.55 + 0.65 * avgP)
+          if (smoothed.length > 1) {
+            pushInkStroke({
+              kind: "freehand",
+              points: smoothed,
+              color: markerColor,
+              width: Math.max(1.5, w),
+              opacity: inkOpacity,
+            })
+          }
         }
         setActiveStroke(null)
+      }
+      } finally {
+        if (e.pointerType === "pen") activePenPointerIdsRef.current.delete(e.pointerId)
       }
     },
     [
@@ -531,19 +571,25 @@ export function PlaycallerView({
   )
 
   const handlePointerLeave = useCallback(() => {
-    if (tool === "marker" && (inkTool === "pen" || inkTool === "highlighter") && activeStroke && activeStroke.length > 1) {
-      pushInkStroke({
-        kind: "freehand",
-        points: activeStroke,
-        color: markerColor,
-        width: inkWidth,
-        opacity: inkOpacity,
-      })
+    if (tool === "marker" && (inkTool === "pen" || inkTool === "highlighter") && activeStrokeSamplesRef.current.length > 1) {
+      const samples = [...activeStrokeSamplesRef.current]
+      activeStrokeSamplesRef.current = []
+      const smoothed = smoothPresenterStroke(samples)
+      if (smoothed.length > 1) {
+        const avgP = samples.reduce((a, s) => a + s.pressure, 0) / samples.length
+        pushInkStroke({
+          kind: "freehand",
+          points: smoothed,
+          color: markerColor,
+          width: Math.max(1.5, inkWidth * (0.55 + 0.65 * avgP)),
+          opacity: inkOpacity,
+        })
+      }
     }
     setActiveStroke(null)
     setLineDraft(null)
     setLinePreview(null)
-  }, [tool, inkTool, activeStroke, markerColor, inkWidth, inkOpacity, pushInkStroke])
+  }, [tool, inkTool, markerColor, inkWidth, inkOpacity, pushInkStroke])
 
   const clearDrawings = useCallback(() => {
     setInkStrokes([])
@@ -582,6 +628,7 @@ export function PlaycallerView({
     (e: React.PointerEvent) => {
       if (!compactUi) return false
       if (e.pointerType === "pen") return false
+      if (activePenPointerIdsRef.current.size > 0) return false
       if (!annotateOn) return true
       if (inkTool === "icon") return false
       if (e.pointerType === "touch" && !fingerDraw) return true

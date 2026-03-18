@@ -7,6 +7,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
 import { SubscriptionGuard } from "@/components/portal/subscription-guard"
 import { DashboardLayoutClient } from "@/components/portal/dashboard-layout-client"
+import { DashboardShellWithMobileNav } from "@/components/portal/dashboard-shell-with-mobile-nav"
 import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
@@ -160,34 +161,43 @@ export default async function DashboardLayout({
     // ──────────────────────────────────────────────────────────────────────
 
     return (
-      <div
-        className="app-shell flex flex-col min-h-screen min-h-0 bg-background"
-        style={{
-          height: "100vh",
-          maxHeight: "100vh",
-          overflow: "hidden",
-        }}
+      <DashboardShellWithMobileNav
+        teams={teams}
+        showAdminLink={Boolean(session.user?.isPlatformOwner)}
       >
-        <header className="flex-shrink-0">
-          <Suspense fallback={
-            <div className="h-[54px] w-full border-b border-border bg-card" />
-          }>
-            <DashboardNav teams={teams} />
-          </Suspense>
-        </header>
-        <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex flex-1 min-h-0 min-w-0">
-          <CoachPageDebug
-            session={session}
-            teamIds={teams.map((t) => t.id)}
-            accessAllowed={true}
-          />
-          {impersonationSession && <ImpersonationBanner />}
-          <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session?.user?.role} />
-          <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
-            {children}
-          </SubscriptionGuard>
-        </DashboardLayoutClient>
-      </div>
+        <div
+          className="app-shell flex min-h-0 min-h-screen flex-col overflow-hidden bg-background"
+          style={{
+            height: "100dvh",
+            maxHeight: "100dvh",
+          }}
+        >
+          <header className="shrink-0">
+            <Suspense
+              fallback={
+                <div
+                  className="min-h-[52px] w-full border-b border-border bg-card pt-[env(safe-area-inset-top,0px)]"
+                  style={{ minHeight: "max(52px, calc(52px + env(safe-area-inset-top, 0px)))" }}
+                />
+              }
+            >
+              <DashboardNav teams={teams} />
+            </Suspense>
+          </header>
+          <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex min-h-0 min-w-0 flex-1">
+            <CoachPageDebug
+              session={session}
+              teamIds={teams.map((t) => t.id)}
+              accessAllowed={true}
+            />
+            {impersonationSession && <ImpersonationBanner />}
+            <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session?.user?.role} />
+            <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
+              {children}
+            </SubscriptionGuard>
+          </DashboardLayoutClient>
+        </div>
+      </DashboardShellWithMobileNav>
     )
   } catch (err) {
     if (isRedirectError(err)) throw err

@@ -229,21 +229,21 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
   if (loading) {
     return (
       <Card
-        className="min-w-0 w-full max-w-full border overflow-hidden"
+        className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
         style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
       >
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
-          <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-            <Calendar className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+          <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+            <Calendar className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
             Schedule
           </CardTitle>
-          <Link href="/dashboard/schedule">
-            <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
+          <Link href="/dashboard/schedule" className="shrink-0">
+            <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
               Full view
             </Button>
           </Link>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
           <div className="flex min-h-[300px] items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
           </div>
@@ -254,41 +254,43 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
 
   return (
     <Card
-      className="min-w-0 w-full max-w-full border overflow-hidden"
+      className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
       style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
     >
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-          <Calendar className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+        <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+          <Calendar className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
           Schedule
         </CardTitle>
-        <Link href="/dashboard/schedule">
-          <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
+        <Link href="/dashboard/schedule" className="shrink-0">
+          <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
             Full view
           </Button>
         </Link>
       </CardHeader>
-      <CardContent className="min-w-0 px-2 sm:px-6">
+      <CardContent className="min-w-0 px-3 pb-4 sm:px-5 md:px-6 md:pb-6">
         <div className="space-y-2 sm:space-y-3">
           <div className="flex items-center justify-between gap-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-              className="h-7 w-7 p-0"
+              className="h-10 w-10 shrink-0 p-0 md:h-7 md:w-7"
+              aria-label="Previous month"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
             </Button>
-            <div className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+            <div className="min-w-0 truncate text-center text-sm font-bold md:font-semibold" style={{ color: "rgb(var(--text))" }}>
               {format(currentMonth, "MMMM yyyy")}
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-              className="h-7 w-7 p-0"
+              className="h-10 w-10 shrink-0 p-0 md:h-7 md:w-7"
+              aria-label="Next month"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-5 w-5 md:h-4 md:w-4" />
             </Button>
           </div>
 

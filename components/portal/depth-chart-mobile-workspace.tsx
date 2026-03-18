@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { X, Users, LayoutGrid, Lightbulb, UserPlus, Filter, ChevronDown, MessageCircle } from "lucide-react"
 import { MobileBottomSheet } from "./depth-chart-mobile-sheet"
 import { DepthSlotCard } from "./depth-slot-card"
+import { FormationFieldView, getSlotPositions } from "./depth-chart-formation-field"
 import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
 import {
   getPresetsForSide,
@@ -112,6 +113,8 @@ export function DepthChartMobileWorkspace({
   const [slotActionsSwapMode, setSlotActionsSwapMode] = useState(false)
   /** Search inside Assign Player sheet when selecting a player. */
   const [assignSheetSearch, setAssignSheetSearch] = useState("")
+  /** When false, Formation mode shows structured list instead of field (fallback). */
+  const [useFormationFieldView, setUseFormationFieldView] = useState(true)
 
   const selectedPresetId = selectedPresetByUnit[selectedUnit] ?? DEFAULT_PRESET_BY_SIDE[selectedUnit]
   const preset = getPreset(selectedUnit, selectedPresetId) ?? getPreset(selectedUnit, DEFAULT_PRESET_BY_SIDE[selectedUnit])
@@ -747,111 +750,166 @@ export function DepthChartMobileWorkspace({
         )}
 
         {mode === "formation" && preset && (
-          <div className="space-y-6 p-4 pb-8">
+          <div className="space-y-4 p-4 pb-8">
             {(() => {
-              const rows = preset.rows?.length
-                ? preset.rows
-                : [{ alignment: "center" as const, slots: preset.slots }]
-              return rows.map((row, rowIdx) => (
-                <div key={row.id ?? rowIdx} className="space-y-3">
-                  {row.slots.map((slot) => {
-                    const resolved = getResolvedPlayersForSlot(slot.slotKey)
-                    const starter = resolved.find((r) => r.string === 1)?.player
-                    const second = resolved.find((r) => r.string === 2)?.player
-                    const third = resolved.find((r) => r.string === 3)?.player
-                    const slotLabel = slot.displayLabel + (slot.alias ? ` (${slot.alias})` : "")
-                    return (
-                      <div
-                        key={slot.slotKey}
-                        className="rounded-2xl border border-border bg-card p-4 shadow-sm"
-                      >
-                        <div className="mb-3 flex items-center justify-between">
-                          <span className="font-semibold text-foreground">{slotLabel}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {getAcceptedGroupsDisplay(slot)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-3">
-                          {[1, 2, 3].map((str) => {
-                            const p = str === 1 ? starter : str === 2 ? second : third
-                            const depthLevel = (str === 1 ? 1 : str === 2 ? 2 : 3) as 1 | 2 | 3
-                            if (p) {
-                              return (
-                                <div key={str} className="flex items-center gap-3">
-                                  <span className="w-8 shrink-0 text-xs font-medium text-muted-foreground">
-                                    {str}
-                                  </span>
-                                  <div
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() =>
-                                      setSlotDetails({
-                                        position: slot.slotKey,
-                                        string: str,
-                                        label: slotLabel,
-                                        player: p,
-                                      })
-                                    }
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault()
-                                        setSlotDetails({
-                                          position: slot.slotKey,
-                                          string: str,
-                                          label: slotLabel,
-                                          player: p,
-                                        })
-                                      }
-                                    }}
-                                    className="min-h-[56px] flex-1 cursor-pointer rounded-xl border border-border bg-background p-3 text-left transition-colors hover:bg-muted/50"
-                                  >
-                                    <DepthSlotCard
-                                      player={p}
-                                      depthLevel={depthLevel}
-                                      canEdit={canEdit}
-                                      onRemove={
-                                        canEdit
-                                          ? () => handleRemove(slot.slotKey, str)
-                                          : undefined
-                                      }
-                                      onPromote={
-                                        canEdit && str !== 1
-                                          ? () => handleReorder(slot.slotKey, str, 1)
-                                          : undefined
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                              )
-                            }
-                            return (
-                              <div key={str} className="flex items-center gap-3">
-                                <span className="w-8 shrink-0 text-xs font-medium text-muted-foreground">
-                                  {str}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    canEdit &&
-                                    setAssignSheetSlot({
-                                      position: slot.slotKey,
-                                      string: str,
-                                      label: slotLabel,
-                                    })
-                                  }
-                                  className="flex min-h-[56px] flex-1 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/20 text-sm font-medium text-muted-foreground hover:border-primary/50 hover:bg-primary/5"
-                                >
-                                  + Assign player
-                                </button>
-                              </div>
-                            )
-                          })}
-                        </div>
+              const fieldPositions = getSlotPositions(preset)
+              const showField = useFormationFieldView && fieldPositions.length > 0
+
+              return (
+                <>
+                  {showField ? (
+                    <>
+                      <FormationFieldView
+                        preset={preset}
+                        getResolvedPlayersForSlot={getResolvedPlayersForSlot}
+                        selectedSlotKey={assignSheetSlot?.position ?? null}
+                        canEdit={canEdit}
+                        onTapEmpty={(slotKey, str, label) =>
+                          setAssignSheetSlot({ position: slotKey, string: str, label })
+                        }
+                        onTapFilled={(slotKey, str, label, player) =>
+                          setSlotDetails({
+                            position: slotKey,
+                            string: str,
+                            label,
+                            player,
+                          })
+                        }
+                      />
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setUseFormationFieldView(false)}
+                          className="text-sm font-medium text-muted-foreground underline hover:text-foreground"
+                        >
+                          List view
+                        </button>
                       </div>
-                    )
-                  })}
-                </div>
-              ))
+                    </>
+                  ) : (
+                    <>
+                      {fieldPositions.length > 0 && (
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setUseFormationFieldView(true)}
+                            className="text-sm font-medium text-muted-foreground underline hover:text-foreground"
+                          >
+                            Field view
+                          </button>
+                        </div>
+                      )}
+                      <div className="space-y-6">
+                        {(() => {
+                          const rows = preset.rows?.length
+                            ? preset.rows
+                            : [{ alignment: "center" as const, slots: preset.slots }]
+                          return rows.map((row, rowIdx) => (
+                            <div key={row.id ?? rowIdx} className="space-y-3">
+                              {row.slots.map((slot) => {
+                                const resolved = getResolvedPlayersForSlot(slot.slotKey)
+                                const starter = resolved.find((r) => r.string === 1)?.player
+                                const second = resolved.find((r) => r.string === 2)?.player
+                                const third = resolved.find((r) => r.string === 3)?.player
+                                const slotLabel = slot.displayLabel + (slot.alias ? ` (${slot.alias})` : "")
+                                return (
+                                  <div
+                                    key={slot.slotKey}
+                                    className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+                                  >
+                                    <div className="mb-3 flex items-center justify-between">
+                                      <span className="font-semibold text-foreground">{slotLabel}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {getAcceptedGroupsDisplay(slot)}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                      {[1, 2, 3].map((str) => {
+                                        const p = str === 1 ? starter : str === 2 ? second : third
+                                        const depthLevel = (str === 1 ? 1 : str === 2 ? 2 : 3) as 1 | 2 | 3
+                                        if (p) {
+                                          return (
+                                            <div key={str} className="flex items-center gap-3">
+                                              <span className="w-8 shrink-0 text-xs font-medium text-muted-foreground">
+                                                {str}
+                                              </span>
+                                              <div
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={() =>
+                                                  setSlotDetails({
+                                                    position: slot.slotKey,
+                                                    string: str,
+                                                    label: slotLabel,
+                                                    player: p,
+                                                  })
+                                                }
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault()
+                                                    setSlotDetails({
+                                                      position: slot.slotKey,
+                                                      string: str,
+                                                      label: slotLabel,
+                                                      player: p,
+                                                    })
+                                                  }
+                                                }}
+                                                className="min-h-[56px] flex-1 cursor-pointer rounded-xl border border-border bg-background p-3 text-left transition-colors hover:bg-muted/50"
+                                              >
+                                                <DepthSlotCard
+                                                  player={p}
+                                                  depthLevel={depthLevel}
+                                                  canEdit={canEdit}
+                                                  onRemove={
+                                                    canEdit
+                                                      ? () => handleRemove(slot.slotKey, str)
+                                                      : undefined
+                                                  }
+                                                  onPromote={
+                                                    canEdit && str !== 1
+                                                      ? () => handleReorder(slot.slotKey, str, 1)
+                                                      : undefined
+                                                  }
+                                                />
+                                              </div>
+                                            </div>
+                                          )
+                                        }
+                                        return (
+                                          <div key={str} className="flex items-center gap-3">
+                                            <span className="w-8 shrink-0 text-xs font-medium text-muted-foreground">
+                                              {str}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                canEdit &&
+                                                setAssignSheetSlot({
+                                                  position: slot.slotKey,
+                                                  string: str,
+                                                  label: slotLabel,
+                                                })
+                                              }
+                                              className="flex min-h-[56px] flex-1 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/20 text-sm font-medium text-muted-foreground hover:border-primary/50 hover:bg-primary/5"
+                                            >
+                                              + Assign player
+                                            </button>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                    </>
+                  )}
+                </>
+              )
             })()}
           </div>
         )}

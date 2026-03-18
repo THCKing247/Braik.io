@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Dialog,
   DialogContent,
@@ -13,7 +12,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Megaphone, MoreVertical, X, Pin } from "lucide-react"
+import { Megaphone, Plus, X, Pin } from "lucide-react"
 import {
   AUDIENCE_LABELS,
   formatAnnouncementDateTime,
@@ -54,7 +53,6 @@ export function DashboardAnnouncementsCard({
   const role = sessionRoleToRole(viewerRole)
   const [announcements, setAnnouncements] = useState<TeamAnnouncementRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [viewOpen, setViewOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -94,10 +92,15 @@ export function DashboardAnnouncementsCard({
     load()
   }, [load])
 
-  const previewItems = announcements.slice(0, 4)
+  useEffect(() => {
+    if (!teamId) return
+    const id = window.setInterval(() => {
+      load()
+    }, 10000)
+    return () => clearInterval(id)
+  }, [teamId, load])
 
   const openCreate = () => {
-    setMenuOpen(false)
     setCreateError(null)
     setCreateTitle("")
     setCreateBody("")
@@ -105,11 +108,6 @@ export function DashboardAnnouncementsCard({
     setCreatePinned(false)
     setCreateNotify(false)
     setCreateOpen(true)
-  }
-
-  const openView = () => {
-    setMenuOpen(false)
-    setViewOpen(true)
   }
 
   const submitCreate = async () => {
@@ -215,49 +213,38 @@ export function DashboardAnnouncementsCard({
             <Megaphone className="h-4 w-4 shrink-0 md:h-4" style={{ color: "rgb(var(--accent))" }} />
             Announcements
           </CardTitle>
-          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-            <PopoverTrigger asChild>
+          <div className="flex shrink-0 items-center gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 px-3 text-xs font-medium md:h-7 md:px-2"
+              style={{ color: "rgb(var(--accent))" }}
+              onClick={() => setViewOpen(true)}
+            >
+              View
+            </Button>
+            {canCreate && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 shrink-0 px-2 md:h-8"
-                style={{ color: "rgb(var(--muted))" }}
-                aria-label="Announcement actions"
+                className="h-9 w-9 shrink-0 p-0 md:h-7 md:w-7"
+                style={{ color: "rgb(var(--accent))" }}
+                onClick={openCreate}
+                aria-label="Create announcement"
               >
-                <MoreVertical className="h-4 w-4" />
+                <Plus className="h-5 w-5 md:h-4 md:w-4" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-52 p-1">
-              <div className="flex flex-col py-1">
-                <button
-                  type="button"
-                  className="rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[rgb(var(--platinum))]"
-                  style={{ color: "rgb(var(--text))" }}
-                  onClick={openView}
-                >
-                  View Announcements
-                </button>
-                {canCreate && (
-                  <button
-                    type="button"
-                    className="rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[rgb(var(--platinum))]"
-                    style={{ color: "rgb(var(--accent))" }}
-                    onClick={openCreate}
-                  >
-                    Create Announcement
-                  </button>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
           {loading ? (
             <div className="flex justify-center py-10">
               <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-          ) : previewItems.length === 0 ? (
+          ) : announcements.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <div
                 className="flex h-12 w-12 items-center justify-center rounded-xl"
@@ -270,27 +257,16 @@ export function DashboardAnnouncementsCard({
                   No announcements yet
                 </p>
                 <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                  Team news and updates will appear here.
+                  Team news and updates will appear here{canCreate ? ". Use + to post." : "."}
                 </p>
               </div>
-              {canCreate && (
-                <Button
-                  type="button"
-                  size="sm"
-                  className="text-xs font-medium text-white"
-                  style={{ backgroundColor: "rgb(var(--accent))" }}
-                  onClick={openCreate}
-                >
-                  Create Announcement
-                </Button>
-              )}
             </div>
           ) : (
-            previewItems.map((a) => (
+            announcements.map((a) => (
               <button
                 key={a.id}
                 type="button"
-                onClick={openView}
+                onClick={() => setViewOpen(true)}
                 className="flex w-full gap-2 rounded-lg p-2.5 text-left transition-colors hover:bg-[rgb(var(--platinum))]"
               >
                 <div className="flex w-4 shrink-0 justify-center pt-0.5">
@@ -336,7 +312,7 @@ export function DashboardAnnouncementsCard({
                   No announcements yet
                 </p>
                 <p className="mt-1 text-xs" style={{ color: "rgb(var(--muted))" }}>
-                  {canCreate ? "Create the first one from the menu on the dashboard card." : "Check back later."}
+                  {canCreate ? "Use the + button on this card to post the first announcement." : "Check back later."}
                 </p>
               </div>
             ) : (

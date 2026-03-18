@@ -6,11 +6,12 @@ import { AnnouncementsManager } from "@/components/portal/announcements-manager"
 export default function AnnouncementsPage() {
   return (
     <DashboardPageShell>
-      {({ teamId, canEdit }) => (
+      {({ teamId, canEdit, userId, userRole }) => (
         <AnnouncementsManager
           teamId={teamId}
-          announcements={[]}
           canPost={canEdit}
+          viewerUserId={userId}
+          viewerRole={userRole}
         />
       )}
     </DashboardPageShell>

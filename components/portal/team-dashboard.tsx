@@ -93,7 +93,7 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl"
+      className="relative overflow-hidden rounded-2xl shadow-lg shadow-slate-900/15 ring-1 ring-white/10 md:shadow-md md:ring-0"
       style={{
         background: "linear-gradient(135deg, #1e3a5f 0%, #0B2A5B 60%, #162d4a 100%)",
       }}
@@ -106,12 +106,12 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
         }}
       />
 
-      <div className="relative flex min-w-0 flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 md:flex-row md:items-center md:justify-between">
+      <div className="relative flex min-w-0 flex-col gap-3 px-4 py-4 sm:gap-4 sm:px-5 sm:py-5 md:flex-row md:items-center md:justify-between md:gap-4 md:px-6">
         {/* Left: Logo + name */}
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           {/* Team logo or placeholder */}
           <div
-            className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border-2 border-white/20 bg-white/10 overflow-hidden"
+            className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/20 bg-white/10 sm:h-16 sm:w-16 sm:rounded-xl"
             title={hasTeam ? "Team logo" : "Connect to a team"}
           >
             {logoUrl ? (
@@ -121,52 +121,52 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
             )}
           </div>
 
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">
+          <div className="min-w-0 flex-1 text-left">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55 sm:text-xs sm:tracking-[0.15em]">
               {hasTeam ? `Welcome back, ${roleLabel === "Head Coach" ? "Coach" : roleLabel}${lastName ? ` ${lastName}` : ""}` : `Welcome, ${user.name || roleLabel}`}
             </p>
             <h1
-              className="break-words text-xl font-bold uppercase tracking-tight text-white sm:text-2xl md:text-3xl"
+              className="mt-1 break-words text-lg font-bold uppercase leading-tight tracking-tight text-white sm:text-2xl md:text-3xl"
               style={{ fontFamily: "var(--font-teko, var(--font-oswald, sans-serif))" }}
             >
               {hasTeam ? teamName : "Welcome to Your Portal"}
             </h1>
-            <p className="mt-0.5 text-xs text-white/50">{hasTeam ? roleLabel : "Connect to a team to get started"}</p>
+            <p className="mt-1 text-[11px] text-white/45 sm:text-xs sm:text-white/50">{hasTeam ? roleLabel : "Connect to a team to get started"}</p>
           </div>
         </div>
 
         {/* Right: Record (only show if has team) */}
         {hasTeam && (
-        <div className="flex flex-shrink-0 flex-wrap items-center justify-start gap-4 sm:gap-5 md:justify-end">
+        <div className="flex shrink-0 flex-wrap items-center justify-start gap-6 border-t border-white/10 pt-3 sm:gap-5 sm:border-t-0 sm:pt-0 md:justify-end">
           {/* Overall record */}
-          <div className="text-center min-w-[4.5rem]">
-            <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-white/50">
+          <div className="min-w-[4rem] text-center sm:min-w-[4.5rem]">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px] sm:tracking-[0.15em]">
               Overall
             </p>
-            <div className="mt-0.5 flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums text-white">{wins}</span>
-              <span className="text-lg font-semibold text-white/40">-</span>
-              <span className="text-3xl font-bold tabular-nums text-white">{losses}</span>
+            <div className="mt-0.5 flex items-baseline justify-center gap-1">
+              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{wins}</span>
+              <span className="text-base font-semibold text-white/40 sm:text-lg">-</span>
+              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{losses}</span>
             </div>
-            <p className="text-[10px] text-white/40">W – L</p>
+            <p className="text-[9px] text-white/35 sm:text-[10px]">W – L</p>
           </div>
 
           <div className="hidden h-10 w-px bg-white/15 sm:block" aria-hidden />
 
           {/* District record */}
-          <div className="text-center min-w-[4.5rem]">
+          <div className="min-w-[4rem] text-center sm:min-w-[4.5rem]">
             <div className="flex items-center justify-center gap-1">
               <Trophy className="h-3 w-3 text-white/50" />
-              <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-white/50">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px] sm:tracking-[0.15em]">
                 District
               </p>
             </div>
-            <div className="mt-0.5 flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums text-white">{districtWins}</span>
-              <span className="text-lg font-semibold text-white/40">-</span>
-              <span className="text-3xl font-bold tabular-nums text-white">{districtLosses}</span>
+            <div className="mt-0.5 flex items-baseline justify-center gap-1">
+              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{districtWins}</span>
+              <span className="text-base font-semibold text-white/40 sm:text-lg">-</span>
+              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{districtLosses}</span>
             </div>
-            <p className="text-[10px] text-white/40">W – L</p>
+            <p className="text-[9px] text-white/35 sm:text-[10px]">W – L</p>
           </div>
         </div>
         )}
@@ -183,19 +183,25 @@ function UpdatesCard() {
   ]
 
   return (
-    <Card className="border h-full" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
-        <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-          <Megaphone className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+    <Card
+      className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+    >
+      <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+        <CardTitle
+          className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
+          style={{ color: "rgb(var(--text))" }}
+        >
+          <Megaphone className="h-4 w-4 shrink-0 md:h-4" style={{ color: "rgb(var(--accent))" }} />
           Team Updates
         </CardTitle>
-        <Link href="/dashboard/announcements">
-          <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
+        <Link href="/dashboard/announcements" className="shrink-0">
+          <Button variant="ghost" size="sm" className="h-9 min-w-[4rem] px-3 text-xs font-medium md:h-7 md:min-w-0 md:px-2" style={{ color: "rgb(var(--accent))" }}>
             View all
           </Button>
         </Link>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-2 px-4 pb-4 md:px-6 md:pb-6">
         {updates.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <div
@@ -282,19 +288,22 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
   if (forbidden || loading || !summary) return null
 
   return (
-    <Card className="border h-full" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
-        <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-          <ClipboardCheck className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+    <Card
+      className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+    >
+      <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+        <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+          <ClipboardCheck className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
           Roster Readiness
         </CardTitle>
-        <Link href={`/dashboard/roster?teamId=${teamId}`}>
-          <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
+        <Link href={`/dashboard/roster?teamId=${teamId}`} className="shrink-0">
+          <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
             View
           </Button>
         </Link>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-2 px-4 pb-4 md:px-6 md:pb-6">
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{summary.total}</span>
           <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>players</span>
@@ -331,10 +340,13 @@ function NotificationsCard() {
   }
 
   return (
-    <Card className="border h-full" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
-        <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
-          <Bell className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+    <Card
+      className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+    >
+      <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+        <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+          <Bell className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
           Notifications
           {notifications.length > 0 && (
             <span
@@ -345,11 +357,11 @@ function NotificationsCard() {
             </span>
           )}
         </CardTitle>
-        <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--muted))" }}>
+        <Button variant="ghost" size="sm" className="h-9 px-2 text-xs md:h-7" style={{ color: "rgb(var(--muted))" }}>
           Mark all read
         </Button>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-2 px-4 pb-4 md:px-6 md:pb-6">
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <div
@@ -559,7 +571,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const isHeadCoach = user.role?.toUpperCase() === "HEAD_COACH"
 
   return (
-    <div className="min-w-0 space-y-4 pb-4 md:pb-6">
+    <div className="min-w-0 space-y-3 pb-2 sm:space-y-4 md:space-y-6 md:pb-6">
 
       {/* ── Team Banner ── */}
       <TeamBanner user={user} teamId={teamId} />
@@ -574,7 +586,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
 
       {/* ── Updates + Notifications + Readiness (coach) ── */}
       {hasTeam && (
-      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
         <UpdatesCard />
         <NotificationsCard />
         <ReadinessSummaryCard teamId={teamId} />

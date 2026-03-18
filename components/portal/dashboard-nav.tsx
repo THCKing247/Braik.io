@@ -41,19 +41,22 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
     <>
       {/* Mobile / tablet &lt; md: single compact bar + slide-out (drawer lives in DashboardMobileNav) */}
       <nav
-        className="sticky top-0 z-50 flex w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b md:hidden"
-        style={navBarStyle}
+        className="sticky top-0 z-50 flex w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b shadow-[0_1px_0_rgba(0,0,0,0.04)] md:hidden"
+        style={{
+          ...navBarStyle,
+          paddingTop: "max(0.375rem, env(safe-area-inset-top, 0px))",
+        }}
         aria-label="App navigation"
       >
-        <div className="flex w-full min-w-0 max-w-full items-center gap-2 px-3 py-2">
+        <div className="flex min-h-[44px] w-full min-w-0 max-w-full items-center gap-2 px-3 pb-2 sm:px-4">
           <DashboardMobileNav teams={teams} showAdminLink={showAdminLink} />
           <div className="min-w-0 flex-1">
             <Link
               href="/dashboard"
-              className="mx-auto flex max-w-full min-w-0 justify-center"
+              className="mx-auto flex max-w-full min-w-0 justify-center active:opacity-80"
               aria-label="Braik - Return to dashboard"
             >
-              <div className="flex h-9 max-h-9 w-auto max-w-[min(160px,42vw)] items-center overflow-hidden">
+              <div className="flex h-8 max-h-9 w-auto max-w-[min(148px,40vw)] items-center overflow-hidden sm:h-9">
                 <Image
                   src="/braik-logo.png"
                   alt="Braik"
@@ -65,7 +68,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               </div>
             </Link>
           </div>
-          <div className="flex shrink-0 items-center">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center [&_button]:h-10 [&_button]:w-10">
             <ThemeToggle />
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react"
 import { 
   format, 
   startOfWeek, 
@@ -31,6 +31,13 @@ import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from "lucide-react"
 import { EventDetailModal } from "./event-detail-modal"
 import { DayEventsModal } from "./day-events-modal"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 interface CalendarEvent {
   id: string
@@ -53,7 +60,7 @@ interface CalendarWidgetProps {
   defaultView?: "day" | "week" | "month" | "year"
 }
 
-type CalendarView = "day" | "week" | "month" | "year"
+type CalendarView = "agenda" | "day" | "week" | "month" | "year"
 
 /** Day view infinite scroll: 3 stacked copies of the day; we keep scroll in the middle copy and jump when near edges. */
 const DAY_VIEW_HOUR_HEIGHT = 60
@@ -82,8 +89,36 @@ export function CalendarWidgetEnhanced({
   onCreateEvent,
   defaultView = "day",
 }: CalendarWidgetProps) {
-  const [view, setView] = useState<CalendarView>(defaultView as CalendarView)
+  const [view, setView] = useState<CalendarView>((defaultView as CalendarView) || "week")
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [mobileCalendarsOpen, setMobileCalendarsOpen] = useState(false)
+
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)")
+    if (mq.matches) return
+    if (window.innerWidth < 768) setView("agenda")
+    else setView("day")
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)")
+    const onChange = () => {
+      if (mq.matches) {
+        setView((prev) =>
+          prev === "agenda" ? ((defaultView as CalendarView) || "week") : prev
+        )
+        return
+      }
+      const narrow = window.innerWidth < 768
+      setView((prev) => {
+        if (narrow && (prev === "week" || prev === "month" || prev === "year")) return "agenda"
+        if (!narrow && prev === "agenda") return "day"
+        return prev
+      })
+    }
+    mq.addEventListener("change", onChange)
+    return () => mq.removeEventListener("change", onChange)
+  }, [defaultView])
   const [events, setEvents] = useState(initialEvents)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showEventDetail, setShowEventDetail] = useState(false)
@@ -252,8 +287,10 @@ export function CalendarWidgetEnhanced({
   }
 
   const navigateDate = (direction: "prev" | "next") => {
-    if (view === "week") {
-      setCurrentDate(direction === "next" ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1))
+    if (view === "week" || view === "agenda") {
+      const next = direction === "next" ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1)
+      setCurrentDate(next)
+      setMiniCalendarMonth(next)
     } else if (view === "month") {
       setCurrentDate(direction === "next" ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
     } else if (view === "year") {
@@ -265,9 +302,90 @@ export function CalendarWidgetEnhanced({
 
   const handleMiniCalendarDateClick = (date: Date) => {
     setCurrentDate(date)
-    if (view === "month") {
-      setMiniCalendarMonth(date)
+    setMiniCalendarMonth(date)
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
+      setMobileCalendarsOpen(false)
     }
+  }
+
+  const renderAgendaView = () => {
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    const todayStart = startOfDay(new Date())
+    const tomorrowStart = addDays(todayStart, 1)
+
+    return (
+      <div className="w-full max-w-full min-w-0 space-y-4 overflow-x-hidden pb-24 lg:pb-6">
+        {weekDays.map((day) => {
+          const dayEvents = getEventsForDate(day).sort(
+            (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+          )
+          let sectionLabel: string
+          if (isSameDay(day, todayStart)) sectionLabel = `Today · ${format(day, "MMM d")}`
+          else if (isSameDay(day, tomorrowStart)) sectionLabel = `Tomorrow · ${format(day, "MMM d")}`
+          else sectionLabel = format(day, "EEEE, MMM d")
+
+          return (
+            <section
+              key={day.toISOString()}
+              className="overflow-hidden rounded-xl border bg-white shadow-sm"
+              style={{ borderColor: "rgb(var(--border))" }}
+            >
+              <div
+                className="sticky top-0 z-[1] border-b bg-white/95 px-4 py-3 backdrop-blur-sm"
+                style={{ borderColor: "rgb(var(--border))" }}
+              >
+                <h2 className="text-sm font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
+                  {sectionLabel}
+                </h2>
+              </div>
+              <div className="divide-y" style={{ borderColor: "rgb(var(--border))" }}>
+                {dayEvents.length === 0 ? (
+                  <div className="px-4 py-5 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
+                    No events
+                  </div>
+                ) : (
+                  dayEvents.map((event) => {
+                    const es = new Date(event.start)
+                    const ee = new Date(event.end)
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => handleEventClick(event)}
+                        className="flex w-full min-w-0 gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+                      >
+                        <div
+                          className="mt-0.5 h-14 w-1 shrink-0 rounded-full"
+                          style={{ backgroundColor: event.color || "#3B82F6" }}
+                          aria-hidden
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
+                            {event.title}
+                          </div>
+                          <div className="mt-1.5 text-sm" style={{ color: "rgb(var(--text2))" }}>
+                            {format(es, "h:mm a")} – {format(ee, "h:mm a")}
+                          </div>
+                          <div className="mt-1 text-xs font-medium capitalize" style={{ color: "rgb(var(--muted))" }}>
+                            {event.eventType}
+                          </div>
+                          {event.location ? (
+                            <div className="mt-1.5 truncate text-sm" style={{ color: "rgb(var(--text2))" }}>
+                              📍 {event.location}
+                            </div>
+                          ) : null}
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    )
   }
 
   // Render Year View
@@ -400,7 +518,7 @@ export function CalendarWidgetEnhanced({
     const weekBodyHeight = DAY_VIEW_DAY_HEIGHT * DAY_VIEW_COPIES
 
     return (
-      <div className="flex min-h-0 min-w-full flex-1 flex-col">
+      <div className="flex min-h-0 min-w-full max-lg:min-w-[780px] flex-1 flex-col">
         {/* Weekday headers — fixed above scroll; not part of looping content; grid aligns with body columns */}
         <div
           className="grid calendar-grid flex-shrink-0 border-b bg-white shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
@@ -1072,7 +1190,7 @@ export function CalendarWidgetEnhanced({
       return format(currentDate, "yyyy")
     } else if (view === "month") {
       return format(currentDate, "MMMM yyyy")
-    } else if (view === "week") {
+    } else if (view === "week" || view === "agenda") {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
       const weekEnd = addDays(weekStart, 6)
       return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`
@@ -1081,146 +1199,279 @@ export function CalendarWidgetEnhanced({
     }
   }
 
+  const viewPillClass = (active: boolean) =>
+    cn(
+      "shrink-0 rounded-xl px-3 py-2 text-sm font-medium shadow-sm lg:px-4",
+      active
+        ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90"
+        : "text-[rgb(var(--text))] hover:bg-gray-100"
+    )
+
+  const calendarFiltersBlock = (
+    <div className="space-y-1">
+      {calendarFilters.map((filter) => (
+        <label
+          key={filter.id}
+          className="flex cursor-pointer items-center gap-2 rounded p-2 hover:bg-gray-50"
+        >
+          <input
+            type="checkbox"
+            checked={filter.enabled}
+            onChange={(e) => {
+              setCalendarFilters((prev) =>
+                prev.map((f) => (f.id === filter.id ? { ...f, enabled: e.target.checked } : f))
+              )
+            }}
+            className="rounded"
+            style={{ accentColor: filter.color }}
+          />
+          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: filter.color }} />
+          <span className="text-sm" style={{ color: "rgb(var(--text))" }}>
+            {filter.name}
+          </span>
+        </label>
+      ))}
+    </div>
+  )
+
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
-        {/* Top Navigation Bar - fixed; does not scroll with time grid */}
-        <div className="flex flex-shrink-0 items-center justify-between p-4 border-b relative z-10 bg-white" style={{ borderColor: "rgb(var(--border))" }}>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
-              <h1 className="text-xl font-semibold" style={{ color: "rgb(var(--text))" }}>
-                Calendar
-              </h1>
+      <div
+        className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-hidden bg-white"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
+        <header
+          className="sticky top-0 z-20 flex-shrink-0 border-b bg-white px-3 py-3 lg:relative lg:px-4 lg:py-4"
+          style={{ borderColor: "rgb(var(--border))" }}
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center justify-between gap-2 lg:justify-start">
+              <div className="flex min-w-0 items-center gap-2">
+                <CalendarIcon className="h-5 w-5 shrink-0" style={{ color: "rgb(var(--accent))" }} />
+                <h1
+                  className="truncate text-lg font-semibold lg:text-xl"
+                  style={{ color: "rgb(var(--text))" }}
+                >
+                  <span className="lg:hidden">Schedule</span>
+                  <span className="hidden lg:inline">Calendar</span>
+                </h1>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 lg:hidden"
+                onClick={() => setMobileCalendarsOpen(true)}
+              >
+                Calendars
+              </Button>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToToday}
-              className="font-medium"
-            >
-              Today
-            </Button>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigateDate("prev")}
-                className="h-8 w-8 p-0"
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+                <Button variant="outline" size="sm" onClick={goToToday} className="shrink-0 font-medium">
+                  Today
+                </Button>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigateDate("prev")}
+                    className="h-9 w-9 p-0"
+                    aria-label="Previous"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigateDate("next")}
+                    className="h-9 w-9 p-0"
+                    aria-label="Next"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div
+                  className="min-w-0 max-w-full flex-1 px-1 text-center text-sm font-medium sm:min-w-[10rem] sm:max-w-[20rem] lg:min-w-[12rem]"
+                  style={{ color: "rgb(var(--text))" }}
+                >
+                  <span className="break-words">{getDateDisplay()}</span>
+                </div>
+              </div>
+
+              <div
+                className="flex flex-wrap items-center justify-center gap-1 border-t border-transparent pt-1 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-3"
+                style={{ borderColor: "rgb(var(--border))" }}
               >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigateDate("next")}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+                {/* Phone: Agenda + Day */}
+                <div className="flex flex-wrap justify-center gap-1 md:hidden">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("agenda")}
+                    className={viewPillClass(view === "agenda")}
+                  >
+                    Agenda
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("day")}
+                    className={viewPillClass(view === "day")}
+                  >
+                    Day
+                  </Button>
+                </div>
+                <div className="hidden flex-wrap justify-center gap-1 md:flex lg:hidden">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("agenda")}
+                    className={viewPillClass(view === "agenda")}
+                  >
+                    Agenda
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("day")}
+                    className={viewPillClass(view === "day")}
+                  >
+                    Day
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("week")}
+                    className={viewPillClass(view === "week")}
+                  >
+                    Week
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("month")}
+                    className={viewPillClass(view === "month")}
+                  >
+                    Month
+                  </Button>
+                </div>
+                <div className="hidden flex-wrap justify-center gap-1 lg:flex">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("day")}
+                    className={viewPillClass(view === "day")}
+                  >
+                    Day
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("week")}
+                    className={viewPillClass(view === "week")}
+                  >
+                    Week
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("month")}
+                    className={viewPillClass(view === "month")}
+                  >
+                    Month
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("year")}
+                    className={viewPillClass(view === "year")}
+                  >
+                    Year
+                  </Button>
+                </div>
+                {canEdit && onCreateEvent && (
+                  <Button size="sm" onClick={() => onCreateEvent()} className="ml-0 hidden shrink-0 lg:inline-flex">
+                    <Plus className="mr-1 h-4 w-4" />
+                    Create
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="text-sm font-medium px-3" style={{ color: "rgb(var(--text))", minWidth: "200px", textAlign: "center" }}>
-              {getDateDisplay()}
-            </div>
-            <div className="flex items-center gap-1 border-l pl-2 relative z-10" style={{ borderColor: "rgb(var(--border))" }}>
-              <Button
-                variant={view === "day" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setView("day")}
-                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "day" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
-              >
-                Day
-              </Button>
-              <Button
-                variant={view === "week" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setView("week")}
-                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "week" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
-              >
-                Week
-              </Button>
-              <Button
-                variant={view === "month" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setView("month")}
-                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "month" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
-              >
-                Month
-              </Button>
-              <Button
-                variant={view === "year" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setView("year")}
-                className={`font-medium relative z-10 rounded-xl px-4 py-2 shadow ${view === "year" ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90" : ""}`}
-              >
-                Year
-              </Button>
-            </div>
-            {canEdit && onCreateEvent && (
-              <Button size="sm" onClick={() => onCreateEvent()} className="ml-2">
-                <Plus className="mr-1 h-4 w-4" />
-                Create
-              </Button>
-            )}
           </div>
+        </header>
+
+        <div
+          className="scrollbar-hidden flex gap-2 overflow-x-auto border-b px-3 py-2 md:hidden"
+          style={{ borderColor: "rgb(var(--border))" }}
+        >
+          {calendarFilters.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() =>
+                setCalendarFilters((prev) =>
+                  prev.map((f) => (f.id === filter.id ? { ...f, enabled: !f.enabled } : f))
+                )
+              }
+              className={cn(
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                filter.enabled
+                  ? "border-[rgb(var(--accent))] bg-[rgb(var(--accent))]/10"
+                  : "border-gray-200 bg-gray-50 opacity-70"
+              )}
+              style={filter.enabled ? { color: "rgb(var(--text))" } : undefined}
+            >
+              {filter.name}
+            </button>
+          ))}
         </div>
 
-        {/* Main Content Area - flex row: sidebar fixed width, right pane gets remainder and contains the only scroll (time grid) */}
-        <div className="flex flex-1 min-h-0 overflow-hidden min-w-0">
-          {/* Left Sidebar - fixed width so right pane height/width is bounded */}
-          <div className="scrollbar-hidden w-64 flex-shrink-0 border-r p-4 overflow-y-auto overflow-x-hidden" style={{ borderColor: "rgb(var(--border))" }}>
+        <div className="grid min-h-0 min-w-0 flex-1 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside
+            className="scrollbar-hidden hidden min-h-0 w-full max-w-full flex-col overflow-y-auto overflow-x-hidden border-r p-4 lg:flex"
+            style={{ borderColor: "rgb(var(--border))" }}
+          >
             <div className="space-y-6">
-              {/* Mini Calendar */}
               <div>
                 <MiniCalendar />
               </div>
-
-              {/* Calendar Filters */}
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "rgb(var(--muted))" }}>
+                <div
+                  className="mb-2 text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: "rgb(var(--muted))" }}
+                >
                   My calendars
                 </div>
-                <div className="space-y-1">
-                  {calendarFilters.map((filter) => (
-                    <label
-                      key={filter.id}
-                      className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filter.enabled}
-                        onChange={(e) => {
-                          setCalendarFilters((prev) =>
-                            prev.map((f) => (f.id === filter.id ? { ...f, enabled: e.target.checked } : f))
-                          )
-                        }}
-                        className="rounded"
-                        style={{ accentColor: filter.color }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: filter.color }}
-                      />
-                      <span className="text-sm" style={{ color: "rgb(var(--text))" }}>
-                        {filter.name}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                {calendarFiltersBlock}
               </div>
-
-              {/* Time Insights (placeholder) */}
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "rgb(var(--muted))" }}>
+                <div
+                  className="mb-2 text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: "rgb(var(--muted))" }}
+                >
                   Time Insights
                 </div>
                 <div className="text-sm" style={{ color: "rgb(var(--text2))" }}>
                   {view === "week" && (
                     <>
-                      <div>{format(startOfWeek(currentDate, { weekStartsOn: 0 }), "MMM d")} - {format(addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), 6), "MMM d, yyyy")}</div>
+                      <div>
+                        {format(startOfWeek(currentDate, { weekStartsOn: 0 }), "MMM d")} -{" "}
+                        {format(
+                          addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), 6),
+                          "MMM d, yyyy"
+                        )}
+                      </div>
                       <div className="mt-1">
                         {filteredEvents.length} event{filteredEvents.length !== 1 ? "s" : ""}
                       </div>
@@ -1234,20 +1485,32 @@ export function CalendarWidgetEnhanced({
                       </div>
                     </>
                   )}
+                  {(view === "day" || view === "year") && (
+                    <div className="mt-1">
+                      {filteredEvents.length} event{filteredEvents.length !== 1 ? "s" : ""}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          </aside>
 
-          {/* Main Calendar View - day/week: only the time grid scrolls; month/year: whole area scrolls */}
           <div
-            className={
+            className={cn(
+              "flex min-h-0 min-w-0 max-w-full flex-col overflow-x-hidden",
+              view === "week" && "overflow-x-auto lg:overflow-x-hidden",
               view === "day" || view === "week"
-                ? "flex-1 flex flex-col min-h-0 overflow-hidden min-w-0"
-                : "scrollbar-hidden flex-1 overflow-y-auto min-w-0"
-            }
+                ? "overflow-y-hidden"
+                : "scrollbar-hidden overflow-y-auto"
+            )}
           >
-            <div className={view === "day" || view === "week" ? "flex-1 flex flex-col min-h-0 p-4 min-w-0" : "p-4"}>
+            <div
+              className={cn(
+                "min-h-0 min-w-0 max-w-full flex-1 px-3 py-3 sm:px-4 sm:py-4",
+                view === "day" || view === "week" ? "flex min-h-0 flex-col overflow-hidden" : ""
+              )}
+            >
+              {view === "agenda" && renderAgendaView()}
               {view === "day" && renderDayView()}
               {view === "week" && renderWeekView()}
               {view === "month" && renderMonthView()}
@@ -1256,6 +1519,35 @@ export function CalendarWidgetEnhanced({
           </div>
         </div>
       </div>
+
+      <Dialog open={mobileCalendarsOpen} onOpenChange={setMobileCalendarsOpen}>
+        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Calendars & date</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 pt-2">
+            <MiniCalendar />
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                My calendars
+              </div>
+              {calendarFiltersBlock}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {canEdit && onCreateEvent && (
+        <Button
+          type="button"
+          size="icon"
+          className="fixed bottom-5 right-5 z-40 h-14 w-14 rounded-full shadow-lg lg:hidden"
+          onClick={() => onCreateEvent()}
+          aria-label="Create event"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      )}
 
       {/* Event Detail Modal */}
       {selectedEvent && (

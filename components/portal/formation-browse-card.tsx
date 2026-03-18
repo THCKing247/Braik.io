@@ -42,26 +42,31 @@ export function FormationBrowseCard({
   const accentBg = isOffense
     ? "bg-blue-500/10 border-blue-200 hover:border-blue-500"
     : isDefense
-    ? "bg-red-500/10 border-red-200 hover:border-red-500"
-    : "bg-amber-500/10 border-amber-200 hover:border-amber-500"
+      ? "bg-red-500/10 border-red-200 hover:border-red-500"
+      : "bg-amber-500/10 border-amber-200 hover:border-amber-500"
   const hasTemplate = formation.templateData?.shapes?.length > 0
 
   return (
     <Card
-      className={`min-w-[220px] cursor-pointer overflow-hidden border-2 transition-all shadow-sm p-0 relative ${accentBg}`}
+      className={`min-w-0 max-w-full cursor-pointer overflow-hidden border-2 transition-all shadow-sm rounded-2xl p-0 relative ${accentBg}`}
       onClick={onSelect}
     >
-      {hasTemplate ? (
-        <FormationThumbnail templateData={formation.templateData} side={formation.side} className="rounded-t-lg" />
-      ) : (
-        <div className="aspect-[200/140] bg-slate-100 rounded-t-lg flex items-center justify-center">
-          <FootballIcon className={`h-14 w-14 ${isOffense ? "text-blue-500/50" : isDefense ? "text-red-500/50" : "text-amber-500/50"}`} />
-        </div>
-      )}
-      <div className={`${barBg} px-4 py-3 text-center min-w-0 relative`}>
-        <span className="font-bold text-white text-lg tracking-tight block truncate" title={formation.name}>{formation.name}</span>
+      <div className="relative w-full min-w-0 overflow-hidden rounded-t-2xl">
+        {hasTemplate ? (
+          <FormationThumbnail templateData={formation.templateData} side={formation.side} className="rounded-t-2xl min-h-[140px] sm:min-h-[160px]" />
+        ) : (
+          <div className="aspect-[200/140] min-h-[120px] flex items-center justify-center bg-slate-100 rounded-t-2xl">
+            <FootballIcon className={`h-14 w-14 sm:h-16 sm:w-16 ${isOffense ? "text-blue-500/50" : isDefense ? "text-red-500/50" : "text-amber-500/50"}`} />
+          </div>
+        )}
+      </div>
+      <div className={`relative ${barBg} px-3 py-2.5 lg:py-3 text-center min-w-0`}>
+        <span className="font-bold text-white text-base lg:text-lg tracking-tight block truncate px-8 lg:px-10" title={formation.name}>
+          {formation.name}
+        </span>
+        {/* Desktop: overlay action icons */}
         {canEdit && (onEdit || onDuplicate || onDelete) && (
-          <div className="absolute top-1/2 right-2 -translate-y-1/2 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+          <div className="hidden lg:flex absolute top-1/2 right-2 -translate-y-1/2 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
             {onEdit && (
               <Button variant="ghost" size="icon" className="h-8 w-8 text-white/90 hover:text-white hover:bg-white/20" onClick={onEdit} title="Edit formation">
                 <Pencil className="h-4 w-4" />
@@ -80,15 +85,35 @@ export function FormationBrowseCard({
           </div>
         )}
       </div>
-      <CardContent className="p-4 flex flex-col min-h-[100px]">
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
-            {subformationCount} {subformationCount === 1 ? "sub-formation" : "sub-formations"}
+      <CardContent className="p-3 lg:p-4 flex flex-col gap-2 lg:gap-3 min-h-0">
+        <div className="flex flex-wrap gap-1.5 lg:gap-2">
+          <span className="rounded-full bg-slate-200/90 px-2 py-0.5 text-[11px] lg:text-xs font-medium text-slate-600 tabular-nums">
+            {subformationCount} sub
           </span>
-          <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600 tabular-nums">
+          <span className="rounded-full bg-slate-200/90 px-2 py-0.5 text-[11px] lg:text-xs font-medium text-slate-600 tabular-nums">
             {playCount} {playCount === 1 ? "play" : "plays"}
           </span>
         </div>
+        {/* Mobile: icon row for secondary actions */}
+        {canEdit && (onEdit || onDuplicate || onDelete) && (
+          <div className="flex lg:hidden items-center justify-end gap-1 pt-1 border-t border-slate-200/80" onClick={(e) => e.stopPropagation()}>
+            {onEdit && (
+              <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0" onClick={onEdit} title="Edit">
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+            {onDuplicate && (
+              <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0" onClick={onDuplicate} title="Duplicate">
+                <Copy className="h-4 w-4" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0 text-red-600 border-red-200" onClick={onDelete} title="Delete">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

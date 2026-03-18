@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, ArrowLeft, Search, FileText, Calendar, Smartphone, Presentation, ListOrdered } from "lucide-react"
+import { Plus, ArrowLeft, Search, FileText, Calendar, Smartphone, Presentation, ListOrdered, MoreHorizontal } from "lucide-react"
+import { PlaybookBottomSheet } from "@/components/portal/playbook-bottom-sheet"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
@@ -47,6 +48,7 @@ function PlaybookDetailContent({
   } | null>(null)
   const [formationDeleteImpactLoading, setFormationDeleteImpactLoading] = useState(false)
   const [formationDeleting, setFormationDeleting] = useState(false)
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false)
 
   useEffect(() => {
     if (!formationToDeleteId) {
@@ -193,14 +195,7 @@ function PlaybookDetailContent({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] bg-slate-50 rounded-2xl">
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
-    )
-  }
-  if (loading) {
-    return (
-      <div className="min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="min-h-[400px] lg:min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5">
           <div className="h-4 w-48 bg-slate-200 rounded animate-pulse mb-3" />
           <div className="h-7 w-64 bg-slate-200 rounded animate-pulse mb-2" />
@@ -209,21 +204,13 @@ function PlaybookDetailContent({
         <div className="flex-1 p-5 sm:p-6 bg-slate-50 space-y-8">
           <section>
             <div className="h-4 w-24 bg-slate-200 rounded animate-pulse mb-4" />
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="rounded-xl border border-slate-200 bg-white p-5 h-40 animate-pulse">
                   <div className="h-5 bg-slate-200 rounded w-2/3 mb-3" />
                   <div className="h-4 bg-slate-100 rounded w-1/2" />
                   <div className="h-4 bg-slate-100 rounded w-1/3 mt-2" />
                 </div>
-              ))}
-            </div>
-          </section>
-          <section>
-            <div className="h-4 w-20 bg-slate-200 rounded animate-pulse mb-4" />
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-14 bg-slate-100 rounded-lg animate-pulse" />
               ))}
             </div>
           </section>
@@ -241,54 +228,148 @@ function PlaybookDetailContent({
       </div>
     )
   }
+  const secondaryActions = (
+    <>
+      {canEdit && (
+        <Button
+          variant="outline"
+          className="w-full justify-start h-12 rounded-xl"
+          onClick={() => {
+            setMoreActionsOpen(false)
+            router.push(`/dashboard/playbooks/${playbookId}/edit`)
+          }}
+        >
+          Edit playbook
+        </Button>
+      )}
+      <Button
+        variant="outline"
+        className="w-full justify-start h-12 rounded-xl gap-2"
+        onClick={() => {
+          setMoreActionsOpen(false)
+          router.push(`/dashboard/playbooks/${playbookId}/present`)
+        }}
+      >
+        <Presentation className="h-4 w-4" /> Presenter
+      </Button>
+      <Button
+        variant="outline"
+        className="w-full justify-start h-12 rounded-xl gap-2"
+        onClick={() => {
+          setMoreActionsOpen(false)
+          router.push(`/dashboard/playbooks/${playbookId}/call-sheet`)
+        }}
+      >
+        <FileText className="h-4 w-4" /> Call sheet
+      </Button>
+      <Button
+        variant="outline"
+        className="w-full justify-start h-12 rounded-xl gap-2"
+        onClick={() => {
+          setMoreActionsOpen(false)
+          router.push(`/dashboard/playbooks/${playbookId}/scripts`)
+        }}
+      >
+        <Calendar className="h-4 w-4" /> Practice scripts
+      </Button>
+      <Button
+        variant="outline"
+        className="w-full justify-start h-12 rounded-xl gap-2"
+        onClick={() => {
+          setMoreActionsOpen(false)
+          router.push(`/dashboard/playbooks/${playbookId}/install-scripts`)
+        }}
+      >
+        <ListOrdered className="h-4 w-4" /> Install scripts
+      </Button>
+      <Button
+        variant="outline"
+        className="w-full justify-start h-12 rounded-xl gap-2"
+        onClick={() => {
+          setMoreActionsOpen(false)
+          router.push(`/dashboard/playbooks/${playbookId}/game-day`)
+        }}
+      >
+        <Smartphone className="h-4 w-4" /> Game day
+      </Button>
+    </>
+  )
+
   return (
-    <div className="min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5">
+    <div className="min-h-[400px] lg:min-h-[775px] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-full">
+            <div className="flex-shrink-0 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
               <PlaybookBreadcrumbs items={breadcrumbs} className="mb-3" />
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                <div className="min-w-0">
-                  <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{playbook.name}</h1>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Formations and top-level plays. Open a formation to manage sub-formations and plays.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/playbooks")}>
+              <div className="min-w-0 mb-4">
+                <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-2xl">{playbook.name}</h1>
+                <p className="mt-1 text-sm text-slate-600 leading-snug">
+                  Formations and top-level plays. Open a formation to manage sub-formations and plays.
+                </p>
+              </div>
+              {/* Mobile / tablet: primary row + More */}
+              <div className="flex flex-col gap-3 lg:hidden">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="rounded-xl h-10" onClick={() => router.push("/dashboard/playbooks")}>
                     <ArrowLeft className="h-4 w-4 mr-1" /> Back
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/call-sheet`)}>
-                    <FileText className="h-4 w-4 mr-1" /> Call sheet
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/scripts`)}>
-                    <Calendar className="h-4 w-4 mr-1" /> Practice scripts
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/install-scripts`)}>
-                    <ListOrdered className="h-4 w-4 mr-1" /> Install scripts
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/game-day`)}>
-                    <Smartphone className="h-4 w-4 mr-1" /> Game day
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/present`)}>
+                  <Button variant="outline" size="sm" className="rounded-xl h-10" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/present`)}>
                     <Presentation className="h-4 w-4 mr-1" /> Presenter
                   </Button>
                   {canEdit && (
                     <>
-                      <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/edit`)}>
-                        Edit playbook
+                      <Button size="sm" className="rounded-xl h-10 flex-1 min-w-[120px]" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/new`)}>
+                        <Plus className="h-4 w-4 mr-1" /> Formation
                       </Button>
-                      <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/new`)}>
-                        <Plus className="h-4 w-4 mr-1" /> New formation
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/play/new`)}>
-                        <Plus className="h-4 w-4 mr-1" /> New play
+                      <Button size="sm" variant="secondary" className="rounded-xl h-10 flex-1 min-w-[100px]" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/play/new`)}>
+                        <Plus className="h-4 w-4 mr-1" /> Play
                       </Button>
                     </>
                   )}
+                  <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl shrink-0" onClick={() => setMoreActionsOpen(true)} title="More actions">
+                    <MoreHorizontal className="h-5 w-5" />
+                  </Button>
                 </div>
+              </div>
+              {/* Desktop: full toolbar */}
+              <div className="hidden lg:flex flex-wrap gap-2 items-center">
+                <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/playbooks")}>
+                  <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/call-sheet`)}>
+                  <FileText className="h-4 w-4 mr-1" /> Call sheet
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/scripts`)}>
+                  <Calendar className="h-4 w-4 mr-1" /> Practice scripts
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/install-scripts`)}>
+                  <ListOrdered className="h-4 w-4 mr-1" /> Install scripts
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/game-day`)}>
+                  <Smartphone className="h-4 w-4 mr-1" /> Game day
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/present`)}>
+                  <Presentation className="h-4 w-4 mr-1" /> Presenter
+                </Button>
+                {canEdit && (
+                  <>
+                    <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/edit`)}>
+                      Edit playbook
+                    </Button>
+                    <Button size="sm" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/formation/new`)}>
+                      <Plus className="h-4 w-4 mr-1" /> New formation
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => router.push(`/dashboard/playbooks/${playbookId}/play/new`)}>
+                      <Plus className="h-4 w-4 mr-1" /> New play
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50 space-y-8">
+            <PlaybookBottomSheet open={moreActionsOpen} onOpenChange={setMoreActionsOpen} title="More actions">
+              {secondaryActions}
+            </PlaybookBottomSheet>
+
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-24 md:pb-28 lg:pb-6 bg-slate-50 space-y-8 min-w-0">
               <section>
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Formations</h2>
                 {formations.length === 0 ? (
@@ -302,7 +383,7 @@ function PlaybookDetailContent({
                     )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
                     {formations.map((f) => (
                       <FormationBrowseCard
                         key={f.id}

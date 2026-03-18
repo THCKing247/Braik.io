@@ -76,7 +76,7 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
           <div className="h-4 w-full max-w-xl bg-slate-100 rounded animate-pulse" />
         </div>
         <div className="flex-1 p-5 sm:p-6 bg-slate-50 rounded-b-2xl border border-t-0 border-slate-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="rounded-xl border border-slate-200 bg-white p-5 h-36 animate-pulse">
                 <div className="h-5 bg-slate-200 rounded w-3/4 mb-3" />
@@ -93,10 +93,10 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
   const breadcrumbs = [{ label: "Playbooks" }]
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5 rounded-t-2xl">
+    <div className="flex flex-col h-full min-w-0 max-w-full overflow-hidden">
+      <div className="flex-shrink-0 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5 rounded-t-2xl">
         <PlaybookBreadcrumbs items={breadcrumbs} className="mb-3" />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Team Playbook</p>
             <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
@@ -107,7 +107,7 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
             </p>
           </div>
           {canEdit && (
-            <Button size="sm" className="h-9 shadow-sm shrink-0" onClick={handleNewPlaybook}>
+            <Button size="sm" className="h-11 lg:h-9 shadow-sm w-full lg:w-auto shrink-0 rounded-xl lg:rounded-md font-semibold" onClick={handleNewPlaybook}>
               <Plus className="h-4 w-4 mr-1.5" />
               New playbook
             </Button>
@@ -115,7 +115,7 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50 rounded-b-2xl border border-t-0 border-slate-200">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-24 md:pb-28 lg:pb-6 bg-slate-50 rounded-b-2xl border border-t-0 border-slate-200 min-w-0">
         {playbooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6 text-center rounded-xl border border-dashed border-slate-200 bg-white/80 max-w-lg mx-auto">
             <p className="text-slate-700 font-medium">No playbooks yet</p>
@@ -130,7 +130,7 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
             {playbooks.map((pb) => (
               <PlaybookCard
                 key={pb.id}

@@ -2,7 +2,8 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Copy, Trash2, Presentation } from "lucide-react"
+import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Copy, Trash2, Presentation, MoreHorizontal, PanelRight } from "lucide-react"
+import { PlaybookBottomSheet } from "@/components/portal/playbook-bottom-sheet"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PlaybookBuilder, type CanvasData } from "@/components/portal/playbook-builder"
@@ -50,6 +51,8 @@ function PlayEditorContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeletingPlay, setIsDeletingPlay] = useState(false)
   const [isDuplicatingPlay, setIsDuplicatingPlay] = useState(false)
+  const [inspectorSheetOpen, setInspectorSheetOpen] = useState(false)
+  const [editorMoreOpen, setEditorMoreOpen] = useState(false)
 
   const {
     progress: animationProgress,
@@ -390,11 +393,38 @@ function PlayEditorContent() {
     )
   }
 
+  const inspectorPanel = (
+    <div className="flex flex-col min-h-0 flex-1 lg:h-full max-h-[min(75vh,560px)] lg:max-h-none">
+      <div className="flex-1 min-h-0 overflow-y-auto min-w-0">
+        <PlaybookInspector
+          play={play}
+          formations={formations}
+          depthChartEntries={depthChartEntries}
+          rosterPlayers={rosterPlayers}
+          onAssignSlot={onAssignSlot}
+          selectedObject={inspectorSelection}
+          selectedPlayer={selectedPlayerInspector}
+          selectedZone={null}
+          onPlayNameChange={handleRenamePlay}
+          playType={editingPlayType}
+          onPlayTypeChange={setEditingPlayType}
+          tags={play.tags ?? null}
+          onTagsChange={handleTagsChange}
+          onApplyRoutePreset={handleApplyRoutePreset}
+          canEdit={true}
+        />
+      </div>
+      <div className="flex-shrink-0 border-t border-slate-200 p-2">
+        <CommentThreadPanel parentType="play" parentId={play.id} defaultCollapsed={true} />
+      </div>
+    </div>
+  )
+
   return (
-    <div className="flex flex-1 h-full min-h-0 gap-px bg-slate-50">
-      <div className="flex-1 flex flex-col min-w-0 rounded-l-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {/* Save status + Preview Play + animation controls + help */}
-        <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-200 bg-slate-50/80 flex-shrink-0 flex-wrap">
+    <div className="flex flex-col lg:flex-row flex-1 h-full min-h-0 gap-0 lg:gap-px bg-slate-50 max-w-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 rounded-none lg:rounded-l-lg border-0 lg:border border-slate-200 bg-white shadow-sm overflow-hidden order-1">
+        {/* Desktop toolbar */}
+        <div className="hidden lg:flex items-center gap-3 px-3 py-2 border-b border-slate-200 bg-slate-50/80 flex-shrink-0 flex-wrap">
           <EditorSaveStatusChip status={saveState.status} lastSavedAt={saveState.lastSavedAt} />
           <div className="flex items-center gap-2">
             <Label htmlFor="auto-save-play" className="text-xs text-slate-600 whitespace-nowrap cursor-pointer">Auto-save</Label>
@@ -532,6 +562,65 @@ function PlayEditorContent() {
             Delete play
           </Button>
         </div>
+
+        <div className="lg:hidden flex items-center gap-2 px-2 py-2 border-b border-slate-200 bg-white flex-shrink-0">
+          <EditorSaveStatusChip status={saveState.status} lastSavedAt={saveState.lastSavedAt} />
+          <Button
+            variant={previewMode ? "secondary" : "default"}
+            size="sm"
+            className="h-9 rounded-xl shrink-0"
+            onClick={() => setPreviewMode((v) => !v)}
+            title="Preview"
+          >
+            <Film className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl gap-1 ml-auto"
+            onClick={() => setInspectorSheetOpen(true)}
+          >
+            <PanelRight className="h-4 w-4" />
+            <span className="text-xs font-semibold">Details</span>
+          </Button>
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0" onClick={() => setEditorMoreOpen(true)} aria-label="More">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <PlaybookBottomSheet open={inspectorSheetOpen} onOpenChange={setInspectorSheetOpen} title="Play details">
+          {inspectorPanel}
+        </PlaybookBottomSheet>
+        <PlaybookBottomSheet open={editorMoreOpen} onOpenChange={setEditorMoreOpen} title="Editor">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Checkbox id="auto-m" checked={autoSaveEnabled} onCheckedChange={setAutoSaveEnabled} />
+              <Label htmlFor="auto-m" className="text-sm">Auto-save</Label>
+            </div>
+            <Button variant="outline" className="w-full justify-start h-12 rounded-xl gap-2" onClick={() => { setEditorMoreOpen(false); router.push(`/dashboard/playbooks/play/${play.id}/present`) }}>
+              <Presentation className="h-4 w-4" /> Presenter
+            </Button>
+            <Button variant="outline" className="w-full justify-start h-12 rounded-xl gap-2" disabled={isDuplicatingPlay} onClick={() => { setEditorMoreOpen(false); handleDuplicatePlay() }}>
+              <Copy className="h-4 w-4" /> Duplicate play
+            </Button>
+            <Button variant="outline" className="w-full justify-start h-12 rounded-xl gap-2 text-red-600 border-red-200" onClick={() => { setEditorMoreOpen(false); setDeleteDialogOpen(true) }}>
+              <Trash2 className="h-4 w-4" /> Delete play
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" className="w-full h-11 rounded-xl">Keyboard shortcuts</Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64" align="center">
+                <p className="font-semibold text-sm mb-2">Shortcuts</p>
+                <ul className="text-xs text-slate-600 space-y-1">
+                  <li>Ctrl+S Save</li>
+                  <li>V / R / B / M Tools</li>
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </PlaybookBottomSheet>
+
         <ConfirmDestructiveDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
@@ -572,29 +661,8 @@ function PlayEditorContent() {
           onCancel={saveState.handleLeaveCancel}
         />
       </div>
-      <div className="w-72 flex-shrink-0 flex flex-col overflow-hidden rounded-r-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <PlaybookInspector
-            play={play}
-            formations={formations}
-            depthChartEntries={depthChartEntries}
-            rosterPlayers={rosterPlayers}
-            onAssignSlot={onAssignSlot}
-            selectedObject={inspectorSelection}
-            selectedPlayer={selectedPlayerInspector}
-            selectedZone={null}
-            onPlayNameChange={handleRenamePlay}
-            playType={editingPlayType}
-            onPlayTypeChange={setEditingPlayType}
-            tags={play.tags ?? null}
-            onTagsChange={handleTagsChange}
-            onApplyRoutePreset={handleApplyRoutePreset}
-            canEdit={true}
-          />
-        </div>
-        <div className="flex-shrink-0 border-t border-slate-200 p-2">
-          <CommentThreadPanel parentType="play" parentId={play.id} defaultCollapsed={true} />
-        </div>
+      <div className="hidden lg:flex w-72 flex-shrink-0 flex-col overflow-hidden rounded-r-lg border border-slate-200 bg-white shadow-sm min-h-0">
+        {inspectorPanel}
       </div>
     </div>
   )

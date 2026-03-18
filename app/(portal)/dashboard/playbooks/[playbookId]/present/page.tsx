@@ -44,6 +44,7 @@ function PlaybookPresenterContent({
   const [playBIndex, setPlayBIndex] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const presenterRef = useRef<HTMLDivElement | null>(null)
+  const [presenterTab, setPresenterTab] = useState<"field" | "plays" | "controls">("field")
 
   const load = useCallback(async () => {
     if (!playbookId || !teamId) return
@@ -327,13 +328,210 @@ function PlaybookPresenterContent({
     )
   }
 
+  const playsList = (
+    <ul className="flex-1 overflow-y-auto overscroll-contain py-2 min-h-0 bg-white" role="list">
+      {filteredPlays.map((play, idx) => {
+        const isSelected = idx === safePlayIndex
+        const isFav = favoriteSet.has(play.id)
+        return (
+          <li key={play.id} className="list-none border-b border-slate-100 last:border-0">
+            <div
+              className={`flex items-start w-full transition-colors ${
+                isSelected ? "bg-slate-100 border-l-4 border-l-slate-700" : "border-l-4 border-l-transparent hover:bg-slate-50"
+              }`}
+            >
+              <button
+                ref={isSelected ? selectedItemRef : undefined}
+                type="button"
+                onClick={() => {
+                  handleIndexChange(idx)
+                  setPresenterTab("field")
+                }}
+                className="flex-1 flex items-start gap-3 px-4 py-3 text-left min-w-0 touch-manipulation"
+                aria-current={isSelected ? "true" : undefined}
+              >
+                <span className="flex-shrink-0 w-20 rounded-lg overflow-hidden bg-slate-200 ring-1 ring-slate-200">
+                  <PlayCardThumbnail canvasData={(play.canvasData ?? null) as PlayCanvasData | null} className="rounded-lg" />
+                </span>
+                <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <span className={`font-semibold truncate text-base ${isSelected ? "text-slate-900" : "text-slate-700"}`}>
+                    {play.name || `Play ${idx + 1}`}
+                  </span>
+                  {(play.formation || play.subFormation) && (
+                    <span className="text-sm text-slate-500 truncate">{[play.formation, play.subFormation].filter(Boolean).join(" · ")}</span>
+                  )}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleFavorite(play.id)}
+                className={`flex-shrink-0 p-3 touch-manipulation ${isFav ? "text-amber-500" : "text-slate-400"}`}
+                aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
+              >
+                <Star className={`h-5 w-5 ${isFav ? "fill-amber-500" : ""}`} />
+              </button>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+
+  const controlsPanel = (
+    <div className="flex flex-col gap-4 p-4 pb-[max(2rem,env(safe-area-inset-bottom))] overflow-y-auto max-h-[70vh]">
+      {!isScriptMode && (
+        <>
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+            Formation
+            <select
+              value={formationId ?? ""}
+              onChange={(e) => {
+                setFormationId(e.target.value || null)
+                setSubFormationId(null)
+              }}
+              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-base w-full touch-manipulation"
+            >
+              <option value="">All formations</option>
+              {formations.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+            Sub-formation
+            <select
+              value={subFormationId ?? ""}
+              onChange={(e) => setSubFormationId(e.target.value || null)}
+              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-base w-full touch-manipulation disabled:opacity-50"
+              disabled={!formationId || subFormationsForFormation.length === 0}
+            >
+              <option value="">All sub-formations</option>
+              {subFormationsForFormation.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+      <div className="flex items-center justify-center gap-2 py-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-11 w-11 rounded-xl shrink-0"
+          onClick={() => (compareMode ? handleCompareIndexChange(-1) : handleIndexChange(safePlayIndex - 1))}
+          disabled={compareMode ? safePlayAIndex <= 0 : safePlayIndex <= 0}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <span className="font-semibold tabular-nums min-w-[100px] text-center text-slate-800">
+          {compareMode ? `A ${safePlayAIndex + 1} · B ${safePlayBIndex + 1}` : `${safePlayIndex + 1} / ${filteredPlays.length}`}
+        </span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-11 w-11 rounded-xl shrink-0"
+          onClick={() => (compareMode ? handleCompareIndexChange(1) : handleIndexChange(safePlayIndex + 1))}
+          disabled={compareMode ? safePlayBIndex >= filteredPlays.length - 1 : safePlayIndex >= filteredPlays.length - 1}
+        >
+          <ChevronRight className="h-5 w-5" />
+        </Button>
+      </div>
+      {compareMode ? (
+        <>
+          <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+            Play A
+            <select
+              value={filteredPlays[safePlayAIndex]?.id ?? ""}
+              onChange={(e) => {
+                const idx = filteredPlays.findIndex((p) => p.id === e.target.value)
+                if (idx >= 0) setPlayAIndex(idx)
+              }}
+              className="h-11 rounded-xl border border-slate-300 px-3 w-full"
+            >
+              {filteredPlays.map((p, i) => (
+                <option key={p.id} value={p.id}>
+                  {p.name || `Play ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+            Play B
+            <select
+              value={filteredPlays[safePlayBIndex]?.id ?? ""}
+              onChange={(e) => {
+                const idx = filteredPlays.findIndex((p) => p.id === e.target.value)
+                if (idx >= 0) setPlayBIndex(idx)
+              }}
+              className="h-11 rounded-xl border border-slate-300 px-3 w-full"
+            >
+              {filteredPlays.map((p, i) => (
+                <option key={p.id} value={p.id}>
+                  {p.name || `Play ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      ) : (
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+          Current play
+          <select
+            value={currentPlay?.id ?? ""}
+            onChange={(e) => {
+              const idx = filteredPlays.findIndex((p) => p.id === e.target.value)
+              if (idx >= 0) setPlayIndex(idx)
+            }}
+            className="h-11 rounded-xl border border-slate-300 px-3 w-full text-base"
+          >
+            {filteredPlays.map((p, i) => (
+              <option key={p.id} value={p.id}>
+                {p.name || `Play ${i + 1}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <button
+        type="button"
+        onClick={handleCompareToggle}
+        className={`flex items-center justify-center gap-2 h-12 rounded-xl border text-sm font-semibold ${
+          compareMode ? "border-slate-600 bg-slate-200" : "border-slate-300 bg-white"
+        }`}
+      >
+        <Columns className="h-4 w-4" />
+        {compareMode ? "Exit compare" : "Compare two plays"}
+      </button>
+      {!isScriptMode && (
+        <button
+          type="button"
+          onClick={() => setFavoritesOnly((v) => !v)}
+          className={`flex items-center justify-center gap-2 h-12 rounded-xl border text-sm font-semibold ${
+            favoritesOnly ? "border-amber-400 bg-amber-50" : "border-slate-300 bg-white"
+          }`}
+        >
+          <Star className={`h-4 w-4 ${favoritesOnly ? "fill-amber-500 text-amber-500" : ""}`} />
+          Favorites only
+        </button>
+      )}
+      <p className="text-xs text-slate-500">Drawing, highlights, and view-as options are on the Field tab (top of the canvas).</p>
+    </div>
+  )
+
   return (
     <div
       ref={presenterRef}
-      className={`presenter-root flex flex-col bg-slate-50 ${isFullscreen ? "h-full w-full" : "h-screen"}`}
+      className={`presenter-root flex flex-col bg-slate-50 min-w-0 max-w-full overflow-hidden ${
+        isFullscreen ? "h-full w-full" : "h-[100dvh] max-h-[100dvh] lg:h-screen lg:max-h-none"
+      } ${!isFullscreen ? "max-lg:pb-[env(safe-area-inset-bottom)]" : ""}`}
     >
+      {/* Desktop toolbar (lg+) */}
       <div
-        className={`flex-shrink-0 flex items-center gap-3 flex-wrap ${
+        className={`hidden lg:flex flex-shrink-0 items-center gap-3 flex-wrap ${
           isFullscreen
             ? "border-b border-slate-700/80 bg-slate-900/95 px-3 py-2"
             : "border-b border-slate-200 bg-white px-4 py-3"
@@ -506,7 +704,50 @@ function PlaybookPresenterContent({
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
       </div>
-      <div className="flex-1 min-h-0 flex">
+
+      {!isFullscreen && (
+        <div className="lg:hidden flex-shrink-0 border-b border-slate-200 bg-white px-3 py-2 space-y-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button variant="outline" size="sm" className="h-9 rounded-xl shrink-0" onClick={handleClose}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-semibold text-slate-800 truncate flex-1 min-w-0">{playbook.name}</span>
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0" onClick={handleFullscreenToggle} aria-label="Fullscreen">
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
+          {!compareMode && (
+            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1">
+              {(["field", "plays", "controls"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setPresenterTab(t)}
+                  className={`flex-1 py-2.5 text-xs font-bold rounded-lg ${
+                    presenterTab === t ? "bg-slate-900 text-white shadow-sm" : "text-slate-600"
+                  }`}
+                >
+                  {t === "field" ? "Field" : t === "plays" ? "Plays" : "Controls"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isFullscreen && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="lg:hidden fixed top-3 right-3 z-[70] rounded-xl shadow-lg"
+          onClick={handleFullscreenToggle}
+        >
+          <Minimize2 className="h-4 w-4 mr-1" /> Exit
+        </Button>
+      )}
+
+      {/* Desktop: field + play list */}
+      <div className="hidden lg:flex flex-1 min-h-0 min-w-0">
         {compareMode ? (
           <div className="flex-1 min-h-0 flex min-w-0">
             <div className="flex-1 min-h-0 min-w-0 relative border-r border-slate-200">
@@ -535,109 +776,148 @@ function PlaybookPresenterContent({
             </div>
           </div>
         ) : (
-        <div className="flex-1 min-h-0 relative">
-          <PlaycallerView
-            plays={filteredPlays}
-            currentIndex={safePlayIndex}
-            onClose={handleClose}
-            onIndexChange={handleIndexChange}
-            formations={formations}
-            depthChartEntries={depthChartEntries}
-            embedded
-            fullscreen={isFullscreen}
-          />
-        </div>
+          <>
+            <div className="flex-1 min-h-0 min-w-0 relative">
+              <PlaycallerView
+                plays={filteredPlays}
+                currentIndex={safePlayIndex}
+                onClose={handleClose}
+                onIndexChange={handleIndexChange}
+                formations={formations}
+                depthChartEntries={depthChartEntries}
+                embedded
+                fullscreen={isFullscreen}
+              />
+            </div>
+            <aside
+              className={`flex-shrink-0 flex flex-col min-h-0 border-l ${
+                isFullscreen
+                  ? "w-[260px] min-w-[240px] border-slate-700/60 bg-slate-900/80"
+                  : "w-[220px] min-w-[200px] border-slate-200 bg-white"
+              }`}
+              aria-label="Play list"
+            >
+              {!isFullscreen && (
+                <div className="flex-shrink-0 px-3 py-2 border-b border-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Plays ({filteredPlays.length})</p>
+                </div>
+              )}
+              {isFullscreen && (
+                <div className="flex-shrink-0 px-3 py-1.5 border-b border-slate-700/60">
+                  <p className="text-xs text-slate-500 tabular-nums">{filteredPlays.length} plays</p>
+                </div>
+              )}
+              <ul className="flex-1 overflow-y-auto overscroll-contain py-1 min-h-0" role="list">
+                {filteredPlays.map((play, idx) => {
+                  const isSelected = idx === safePlayIndex
+                  const isFav = favoriteSet.has(play.id)
+                  return (
+                    <li key={play.id} className="list-none">
+                      <div
+                        className={`flex items-start w-full rounded-none border-l-2 transition-colors ${
+                          isFullscreen
+                            ? isSelected
+                              ? "bg-slate-700/80 border-slate-400"
+                              : "border-transparent hover:bg-slate-800/60"
+                            : isSelected
+                              ? "bg-slate-100 border-slate-600"
+                              : "border-transparent hover:bg-slate-50"
+                        }`}
+                      >
+                        <button
+                          ref={isSelected ? selectedItemRef : undefined}
+                          type="button"
+                          onClick={() => handleIndexChange(idx)}
+                          className="flex-1 flex items-start gap-2 px-3 py-2 text-left min-w-0 focus:outline-none rounded-none"
+                          aria-current={isSelected ? "true" : undefined}
+                        >
+                          <span className="flex-shrink-0 w-16 rounded overflow-hidden bg-slate-200 ring-1 ring-slate-200">
+                            <PlayCardThumbnail canvasData={(play.canvasData ?? null) as PlayCanvasData | null} className="rounded" />
+                          </span>
+                          <span className="flex-1 min-w-0 flex flex-col gap-0.5 py-0.5">
+                            <span
+                              className={`font-medium truncate text-sm ${
+                                isFullscreen
+                                  ? isSelected
+                                    ? "text-white"
+                                    : "text-slate-300"
+                                  : isSelected
+                                    ? "text-slate-900"
+                                    : "text-slate-700"
+                              }`}
+                            >
+                              {play.name || `Play ${idx + 1}`}
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFavorite(play.id)}
+                          className={`flex-shrink-0 p-1.5 self-center ${isFav ? "text-amber-500" : isFullscreen ? "text-slate-500" : "text-slate-400"}`}
+                        >
+                          <Star className={`h-4 w-4 ${isFav ? "fill-amber-500" : ""}`} />
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </aside>
+          </>
         )}
-        {!compareMode && (
-        <aside
-          className={`flex-shrink-0 flex flex-col min-h-0 ${isFullscreen ? "w-[260px] min-w-[240px] border-l border-slate-700/60 bg-slate-900/80" : "w-[220px] min-w-[200px] border-l border-slate-200 bg-white"}`}
-          aria-label="Play list"
-        >
-          {!isFullscreen && (
-            <div className="flex-shrink-0 px-3 py-2 border-b border-slate-200">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Plays ({filteredPlays.length})
-              </p>
+      </div>
+
+      {/* Mobile / tablet: tabbed workspace */}
+      <div className="lg:hidden flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+        {compareMode ? (
+          <div className="flex-1 flex flex-col min-h-0 gap-2 p-2">
+            <div className="flex-1 min-h-[38vh] min-w-0 relative rounded-xl overflow-hidden border border-slate-300 shadow-sm">
+              <PlaycallerView
+                plays={filteredPlays}
+                currentIndex={safePlayAIndex}
+                onClose={handleClose}
+                onIndexChange={(i) => setPlayAIndex(i)}
+                formations={formations}
+                depthChartEntries={depthChartEntries}
+                embedded
+                fullscreen={false}
+              />
             </div>
-          )}
-          {isFullscreen && (
-            <div className="flex-shrink-0 px-3 py-1.5 border-b border-slate-700/60">
-              <p className="text-xs text-slate-500 tabular-nums">{filteredPlays.length} plays</p>
+            <div className="flex-1 min-h-[38vh] min-w-0 relative rounded-xl overflow-hidden border border-slate-300 shadow-sm">
+              <PlaycallerView
+                plays={filteredPlays}
+                currentIndex={safePlayBIndex}
+                onClose={handleClose}
+                onIndexChange={(i) => setPlayBIndex(i)}
+                formations={formations}
+                depthChartEntries={depthChartEntries}
+                embedded
+                fullscreen={false}
+              />
             </div>
-          )}
-          <ul className="flex-1 overflow-y-auto overscroll-contain py-1 min-h-0" role="list">
-            {filteredPlays.map((play, idx) => {
-              const isSelected = idx === safePlayIndex
-              const isFav = favoriteSet.has(play.id)
-              return (
-                <li key={play.id} className="list-none">
-                  <div
-                    className={`flex items-start w-full rounded-none border-l-2 transition-colors ${
-                      isFullscreen
-                        ? isSelected
-                          ? "bg-slate-700/80 border-slate-400"
-                          : "border-transparent hover:bg-slate-800/60"
-                        : isSelected
-                          ? "bg-slate-100 border-slate-600"
-                          : "border-transparent hover:bg-slate-50"
-                    }`}
-                  >
-                    <button
-                      ref={isSelected ? selectedItemRef : undefined}
-                      type="button"
-                      onClick={() => handleIndexChange(idx)}
-                      className="flex-1 flex items-start gap-2 px-3 py-2 text-left min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-inset rounded-none"
-                      aria-current={isSelected ? "true" : undefined}
-                      aria-label={play.name ? `Switch to ${play.name}` : `Switch to play ${idx + 1}`}
-                    >
-                      <span className="flex-shrink-0 w-16 rounded overflow-hidden bg-slate-200 ring-1 ring-slate-200">
-                        <PlayCardThumbnail
-                          canvasData={(play.canvasData ?? null) as PlayCanvasData | null}
-                          className="rounded"
-                        />
-                      </span>
-                      <span className="flex-1 min-w-0 flex flex-col gap-0.5 py-0.5">
-                        <span className={`font-medium truncate ${isFullscreen ? "text-base" : "text-sm"} ${
-                          isFullscreen ? (isSelected ? "text-white" : "text-slate-300 hover:text-white") : (isSelected ? "text-slate-900" : "text-slate-700 hover:text-slate-900")
-                        }`}>
-                          {play.name || `Play ${idx + 1}`}
-                        </span>
-                        {(play.formation || play.subFormation) && (
-                          <span className={`truncate ${isFullscreen ? "text-sm text-slate-400" : "text-xs text-slate-500"}`}>
-                            {[play.formation, play.subFormation].filter(Boolean).join(" · ")}
-                          </span>
-                        )}
-                        {play.tags && play.tags.length > 0 && (
-                          <span className="flex flex-wrap gap-1">
-                            {play.tags.slice(0, 2).map((tag) => (
-                              <span
-                                key={tag}
-                                className="inline-block max-w-[72px] truncate rounded px-1.5 py-0.5 text-[10px] font-medium bg-slate-200/80 text-slate-600"
-                                title={tag}
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleFavorite(play.id)}
-                      className={`flex-shrink-0 p-1.5 rounded touch-manipulation self-center ${
-                        isFav ? "text-amber-500 hover:text-amber-600" : isFullscreen ? "text-slate-500 hover:text-slate-400" : "text-slate-400 hover:text-slate-600"
-                      }`}
-                      aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      <Star className={`h-4 w-4 ${isFav ? "fill-amber-500" : ""}`} />
-                    </button>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </aside>
+          </div>
+        ) : presenterTab === "field" ? (
+          <div className="flex-1 min-h-0 min-w-0 relative">
+            <PlaycallerView
+              plays={filteredPlays}
+              currentIndex={safePlayIndex}
+              onClose={handleClose}
+              onIndexChange={handleIndexChange}
+              formations={formations}
+              depthChartEntries={depthChartEntries}
+              embedded
+              fullscreen={isFullscreen}
+            />
+          </div>
+        ) : presenterTab === "plays" ? (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden border-t border-slate-200">
+            <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200 bg-white">
+              <p className="text-sm font-bold text-slate-800">Plays ({filteredPlays.length})</p>
+            </div>
+            {playsList}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50">{controlsPanel}</div>
         )}
       </div>
     </div>

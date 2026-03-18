@@ -15,6 +15,7 @@ import {
 } from "@/lib/utils/play-animation"
 import { PlaybookFileTree } from "@/components/portal/playbook-file-tree"
 import { PlaybookShapePalette } from "@/components/portal/playbook-shape-palette"
+import { PlaybookBottomSheet } from "@/components/portal/playbook-bottom-sheet"
 import { validateTemplateSave } from "@/lib/utils/playbook-validation"
 import {
   getPositionByCode,
@@ -192,6 +193,7 @@ export function PlaybookBuilder({
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
   const [manCoverageStart, setManCoverageStart] = useState<string | null>(null)
   const [snapEnabled, setSnapEnabled] = useState(true)
+  const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false)
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState("")
   const playersRef = useRef<Player[]>(players)
@@ -1123,7 +1125,7 @@ export function PlaybookBuilder({
   const markerSize = coordSystem.getMarkerSize()
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
+    <div className="flex flex-col h-full min-h-0 max-h-full lg:h-screen overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
       {/* Header */}
       <div className="flex items-center justify-between p-2 border-b-2 flex-shrink-0" style={{ borderBottomColor: "#0B2A5B" }}>
         <div className="flex items-center gap-4">
@@ -1272,7 +1274,7 @@ export function PlaybookBuilder({
         const def = sel.positionCode ? getPositionByCode(sel.positionCode) : null
         const inputClass = "h-8 min-w-[70px] px-2 rounded-md border border-slate-200 text-sm"
         return (
-          <div className="flex-shrink-0 py-2 px-3 border-b border-slate-200 bg-slate-50/50">
+          <div className="flex-shrink-0 py-2 px-3 border-b border-slate-200 bg-slate-50/50 max-lg:max-h-[30vh] max-lg:overflow-y-auto">
             <div className="flex flex-wrap items-center gap-4 text-sm">
               {/* Group 1: Marker selector */}
               <div className="flex items-center gap-2 flex-wrap">
@@ -1458,7 +1460,7 @@ export function PlaybookBuilder({
       <div className="flex flex-1 overflow-hidden">
         {/* Left: File Tree */}
         {teamId && (
-          <div className="w-64 border-r flex-shrink-0 overflow-hidden" style={{ borderColor: "#E5E7EB" }}>
+          <div className="hidden lg:flex w-64 border-r flex-shrink-0 overflow-hidden" style={{ borderColor: "#E5E7EB" }}>
             <PlaybookFileTree
               plays={builderPlays || []}
               selectedPlayId={playId}
@@ -1477,21 +1479,23 @@ export function PlaybookBuilder({
 
         {/* Shape Palette */}
         {canEdit && (
-          <PlaybookShapePalette
-            currentSide={currentSide}
-            selectedTool={tool}
-            onSelectTool={(newTool) => {
-              cancelRouteDraft()
-              cancelBlockDraft()
-              cancelMotionDraft()
-              setHoveredPlayerId(null)
-              setTool(newTool)
-              if (newTool === "select") setSelectedPlayerId(null)
-              else if (newTool === "man") setManCoverageStart(null)
-            }}
-            isTemplateMode={isTemplateMode}
-            canEdit={canEdit}
-          />
+          <div className="hidden lg:flex flex-shrink-0 h-full min-h-0">
+            <PlaybookShapePalette
+              currentSide={currentSide}
+              selectedTool={tool}
+              onSelectTool={(newTool) => {
+                cancelRouteDraft()
+                cancelBlockDraft()
+                cancelMotionDraft()
+                setHoveredPlayerId(null)
+                setTool(newTool)
+                if (newTool === "select") setSelectedPlayerId(null)
+                else if (newTool === "man") setManCoverageStart(null)
+              }}
+              isTemplateMode={isTemplateMode}
+              canEdit={canEdit}
+            />
+          </div>
         )}
 
         {/* Canvas - fills entire area, no padding */}
@@ -1930,6 +1934,78 @@ export function PlaybookBuilder({
           </svg>
         </div>
       </div>
+
+      {canEdit && (
+        <>
+          <div
+            className="lg:hidden flex-shrink-0 flex items-stretch gap-2 px-2 py-2 border-t-2 bg-white z-30"
+            style={{ borderTopColor: "#0B2A5B", paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+          >
+            <Button
+              type="button"
+              variant={mobilePaletteOpen ? "default" : "outline"}
+              className="flex-1 h-12 rounded-xl text-xs font-bold shrink min-w-0"
+              onClick={() => setMobilePaletteOpen(true)}
+            >
+              Tools
+            </Button>
+            <Button
+              type="button"
+              variant={tool === "select" ? "default" : "outline"}
+              className="flex-1 h-12 rounded-xl text-xs font-bold min-w-0"
+              onClick={() => {
+                cancelRouteDraft()
+                cancelBlockDraft()
+                cancelMotionDraft()
+                setTool("select")
+                setSelectedPlayerId(null)
+              }}
+            >
+              Select
+            </Button>
+            <Button
+              type="button"
+              variant={tool === "route" ? "default" : "outline"}
+              className="flex-1 h-12 rounded-xl text-xs font-bold min-w-0"
+              onClick={() => {
+                cancelBlockDraft()
+                cancelMotionDraft()
+                setTool("route")
+              }}
+            >
+              Routes
+            </Button>
+            <Button
+              type="button"
+              variant={["motion", "block", "zone", "erase", "man"].includes(tool) ? "default" : "outline"}
+              className="flex-1 h-12 rounded-xl text-xs font-bold min-w-0 px-1"
+              onClick={() => setMobilePaletteOpen(true)}
+            >
+              More
+            </Button>
+          </div>
+          <PlaybookBottomSheet open={mobilePaletteOpen} onOpenChange={setMobilePaletteOpen} title="Tools & positions" className="max-h-[min(88vh,640px)]">
+            <div className="w-full min-w-0 [&>div]:!w-full [&>div]:max-w-full">
+            <PlaybookShapePalette
+              currentSide={currentSide}
+              selectedTool={tool}
+              onSelectTool={(newTool) => {
+                cancelRouteDraft()
+                cancelBlockDraft()
+                cancelMotionDraft()
+                setHoveredPlayerId(null)
+                setTool(newTool)
+                if (newTool === "select") setSelectedPlayerId(null)
+                else if (newTool === "man") setManCoverageStart(null)
+                setMobilePaletteOpen(false)
+              }}
+              isTemplateMode={isTemplateMode}
+              canEdit={canEdit}
+            />
+            </div>
+          </PlaybookBottomSheet>
+        </>
+      )}
     </div>
   )
 }

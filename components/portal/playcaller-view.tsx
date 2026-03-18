@@ -735,12 +735,14 @@ export function PlaycallerView({
         </div>
       )}
 
-      <div className="flex-1 flex items-center justify-center min-h-0 p-4">
+      <div className={`flex-1 flex items-center justify-center min-h-0 min-w-0 overflow-hidden ${embedded ? "p-2 sm:p-4" : "p-4"}`}>
         <div
-          className={`w-full aspect-[53.33/35] overflow-hidden ${
+          className={`w-full max-w-full min-w-0 aspect-[53.33/35] overflow-hidden ${
             embedded && fullscreen
               ? "max-w-[90vw] max-h-[85vh] rounded-lg border border-slate-700/50 shadow-2xl"
-              : "max-w-4xl max-h-[85vh] rounded-lg shadow-2xl border border-slate-300"
+              : embedded
+                ? "max-w-full max-h-[min(72vh,520px)] sm:max-h-[85vh] sm:max-w-4xl rounded-xl shadow-2xl border border-slate-300"
+                : "max-w-4xl max-h-[85vh] rounded-lg shadow-2xl border border-slate-300"
           }`}
         >
           <svg

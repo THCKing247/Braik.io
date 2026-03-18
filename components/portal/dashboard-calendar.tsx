@@ -4,11 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DateTimePicker } from "@/components/portal/date-time-picker"
-import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Calendar, ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import {
   format,
   startOfMonth,
@@ -20,8 +16,8 @@ import {
   isSameMonth,
   addMonths,
   subMonths,
-  addHours,
 } from "date-fns"
+import { CreateEventOverlay } from "@/components/portal/create-event-overlay"
 
 type DashboardCalendarEvent = {
   id: string
@@ -70,22 +66,16 @@ export type DashboardCalendarProps = {
 
 /**
  * Home dashboard schedule strip + month grid.
- * Quick-add uses POST /api/teams/[teamId]/calendar/events (same as ScheduleManager).
+ * Create event uses shared CreateEventOverlay (same as Schedule page).
  */
 export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarProps) {
   const [events, setEvents] = useState<DashboardCalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [currentMonth, setCurrentMonth] = useState(new Date())
 
-  const [quickAddOpen, setQuickAddOpen] = useState(false)
-  const [quickAddDate, setQuickAddDate] = useState<Date | null>(null)
-  const [qaTitle, setQaTitle] = useState("")
-  const [qaType, setQaType] = useState("practice")
-  const [qaStartDate, setQaStartDate] = useState<Date | null>(null)
-  const [qaEndDate, setQaEndDate] = useState<Date | null>(null)
-  const [qaLocation, setQaLocation] = useState("")
-  const [qaAudience, setQaAudience] = useState("all")
-  const [qaSaving, setQaSaving] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createKey, setCreateKey] = useState(0)
+  const [createRange, setCreateRange] = useState<{ start: Date; end: Date } | null>(null)
 
   const refetchEventsSilently = useCallback(() => {
     fetch(`/api/teams/${teamId}/calendar/events`)
@@ -141,76 +131,20 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
     }
   }, [teamId])
 
-  const openQuickAdd = (day: Date) => {
-    setQuickAddDate(day)
+  const openCreateForDay = (day: Date) => {
     const start = new Date(day)
     start.setHours(16, 0, 0, 0)
     const end = new Date(day)
     end.setHours(17, 30, 0, 0)
-    setQaStartDate(start)
-    setQaEndDate(end)
-    setQaTitle("")
-    setQaType("practice")
-    setQaLocation("")
-    setQaAudience("all")
-    setQuickAddOpen(true)
+    setCreateRange({ start, end })
+    setCreateKey((k) => k + 1)
+    setCreateOpen(true)
   }
 
-  useEffect(() => {
-    if (!qaStartDate) return
-    if (!qaEndDate || qaEndDate <= qaStartDate) {
-      setQaEndDate(addHours(qaStartDate, 1))
-    }
-  }, [qaStartDate])
-
-  const handleQuickAddSubmit = async () => {
-    if (!quickAddDate || !qaStartDate || !qaEndDate) return
-    const title = qaTitle.trim()
-    if (!title) {
-      alert("Please enter a title for the event.")
-      return
-    }
-    const start = qaStartDate
-    const end = qaEndDate
-    if (end <= start) {
-      alert("End time must be after start time.")
-      return
-    }
-    setQaSaving(true)
-    try {
-      const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/calendar/events`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: qaType,
-          title,
-          start: start.toISOString(),
-          end: end.toISOString(),
-          location: qaLocation.trim() || null,
-          audience: qaAudience,
-        }),
-      })
-      if (!response.ok) {
-        const errBody = (await response.json().catch(() => ({}))) as Record<string, unknown>
-        const nested = errBody.error
-        const msg =
-          (typeof errBody.message === "string" && errBody.message) ||
-          (typeof nested === "object" &&
-            nested !== null &&
-            typeof (nested as { message?: string }).message === "string" &&
-            (nested as { message: string }).message) ||
-          (typeof nested === "string" && nested) ||
-          "Could not create event."
-        throw new Error(msg)
-      }
-      setQuickAddOpen(false)
-      setQuickAddDate(null)
-      refetchEventsSilently()
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Could not create event.")
-    } finally {
-      setQaSaving(false)
-    }
+  const openCreateGeneric = () => {
+    setCreateRange(null)
+    setCreateKey((k) => k + 1)
+    setCreateOpen(true)
   }
 
   const getEventsForDate = (date: Date) => {
@@ -253,81 +187,147 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
   }
 
   return (
-    <Card
-      className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
-      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
-    >
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
-        <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
-          <Calendar className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
-          Schedule
-        </CardTitle>
-        <Link href="/dashboard/schedule" className="shrink-0">
-          <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
-            Full view
-          </Button>
-        </Link>
-      </CardHeader>
-      <CardContent className="min-w-0 px-3 pb-4 sm:px-5 md:px-6 md:pb-6">
-        <div className="space-y-2 sm:space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-              className="h-10 w-10 shrink-0 p-0 md:h-7 md:w-7"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
-            </Button>
-            <div className="min-w-0 truncate text-center text-sm font-bold md:font-semibold" style={{ color: "rgb(var(--text))" }}>
-              {format(currentMonth, "MMMM yyyy")}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-              className="h-10 w-10 shrink-0 p-0 md:h-7 md:w-7"
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-5 w-5 md:h-4 md:w-4" />
-            </Button>
-          </div>
+    <>
+      {canAddEvents && (
+        <CreateEventOverlay
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          teamId={teamId}
+          initialRange={createRange}
+          openKey={createKey}
+          onCreated={() => refetchEventsSilently()}
+        />
+      )}
 
-          <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
-            {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
-              <div
-                key={day}
-                className="py-0.5 text-center text-[10px] font-semibold sm:py-1 sm:text-xs"
-                style={{ color: "rgb(var(--muted))" }}
+      <Card
+        className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      >
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+          <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+            <Calendar className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
+            Schedule
+          </CardTitle>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+            {canAddEvents && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1 px-3 text-xs font-semibold md:h-8"
+                style={{ color: "rgb(var(--accent))", borderColor: "rgb(var(--border))" }}
+                onClick={openCreateGeneric}
               >
-                {day}
-              </div>
-            ))}
+                <Plus className="h-4 w-4" />
+                Add event
+              </Button>
+            )}
+            <Link href="/dashboard/schedule">
+              <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
+                Full view
+              </Button>
+            </Link>
           </div>
+        </CardHeader>
+        <CardContent className="min-w-0 px-3 pb-4 sm:px-5 md:px-6 md:pb-6">
+          <div className="space-y-2 sm:space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                className="h-10 w-10 shrink-0 p-0 md:h-7 md:w-7"
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
+              </Button>
+              <div className="min-w-0 truncate text-center text-sm font-bold md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+                {format(currentMonth, "MMMM yyyy")}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                className="h-10 w-10 shrink-0 p-0 md:h-7 md:w-7"
+                aria-label="Next month"
+              >
+                <ChevronRight className="h-5 w-5 md:h-4 md:w-4" />
+              </Button>
+            </div>
 
-          <div className="grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
-            {calendarDays.map((day) => {
-              const dayEvents = getEventsForDate(day)
-              const isToday = isSameDay(day, new Date())
-              const isCurrentMonth = isSameMonth(day, currentMonth)
-              const cellClass = `min-h-[44px] sm:min-h-[52px] md:min-h-[60px] border rounded p-0.5 sm:p-1 md:p-1.5 cursor-pointer hover:shadow-sm transition-all text-left w-full min-w-0 ${
-                !isCurrentMonth ? "opacity-30" : ""
-              } ${isToday ? "ring-2 ring-blue-500" : ""}`
-              const cellStyle = {
-                backgroundColor: "#FFFFFF" as const,
-                borderColor: isToday ? "#3B82F6" : "rgb(var(--border))",
-              }
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+              {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
+                <div
+                  key={day}
+                  className="py-0.5 text-center text-[10px] font-semibold sm:py-1 sm:text-xs"
+                  style={{ color: "rgb(var(--muted))" }}
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
 
-              if (canAddEvents) {
+            <div className="grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
+              {calendarDays.map((day) => {
+                const dayEvents = getEventsForDate(day)
+                const isToday = isSameDay(day, new Date())
+                const isCurrentMonth = isSameMonth(day, currentMonth)
+                const cellClass = `min-h-[44px] sm:min-h-[52px] md:min-h-[60px] border rounded p-0.5 sm:p-1 md:p-1.5 cursor-pointer hover:shadow-sm transition-all text-left w-full min-w-0 ${
+                  !isCurrentMonth ? "opacity-30" : ""
+                } ${isToday ? "ring-2 ring-blue-500" : ""}`
+                const cellStyle = {
+                  backgroundColor: "#FFFFFF" as const,
+                  borderColor: isToday ? "#3B82F6" : "rgb(var(--border))",
+                }
+
+                if (canAddEvents) {
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      type="button"
+                      onClick={() => openCreateForDay(day)}
+                      className={cellClass}
+                      style={cellStyle}
+                      aria-label={`Create event on ${format(day, "MMMM d, yyyy")}`}
+                    >
+                      <div
+                        className={`text-xs font-semibold mb-1 ${isToday ? "text-blue-500" : ""}`}
+                        style={!isToday ? { color: "rgb(var(--text))" } : {}}
+                      >
+                        {format(day, "d")}
+                      </div>
+                      <div className="pointer-events-none space-y-0.5">
+                        {dayEvents.slice(0, 2).map((event) => (
+                          <div
+                            key={event.id}
+                            className="text-[10px] p-0.5 rounded truncate border-l-2"
+                            style={{
+                              backgroundColor: "#FFFFFF",
+                              borderLeftColor: event.color || "#3B82F6",
+                              borderLeftWidth: "2px",
+                            }}
+                          >
+                            <span className="block truncate" style={{ color: "rgb(var(--text))" }}>
+                              {event.title}
+                            </span>
+                          </div>
+                        ))}
+                        {dayEvents.length > 2 && (
+                          <div className="text-[10px] font-medium" style={{ color: "rgb(var(--muted))" }}>
+                            +{dayEvents.length - 2}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  )
+                }
+
                 return (
-                  <button
+                  <Link
                     key={day.toISOString()}
-                    type="button"
-                    onClick={() => openQuickAdd(day)}
+                    href="/dashboard/schedule"
                     className={cellClass}
                     style={cellStyle}
-                    aria-label={`Add event on ${format(day, "MMMM d, yyyy")}`}
                   >
                     <div
                       className={`text-xs font-semibold mb-1 ${isToday ? "text-blue-500" : ""}`}
@@ -335,7 +335,7 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                     >
                       {format(day, "d")}
                     </div>
-                    <div className="space-y-0.5 pointer-events-none">
+                    <div className="space-y-0.5">
                       {dayEvents.slice(0, 2).map((event) => (
                         <div
                           key={event.id}
@@ -346,7 +346,7 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                             borderLeftWidth: "2px",
                           }}
                         >
-                          <span className="truncate block" style={{ color: "rgb(var(--text))" }}>
+                          <span className="block truncate" style={{ color: "rgb(var(--text))" }}>
                             {event.title}
                           </span>
                         </div>
@@ -357,176 +357,13 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                         </div>
                       )}
                     </div>
-                  </button>
+                  </Link>
                 )
-              }
-
-              return (
-                <Link
-                  key={day.toISOString()}
-                  href="/dashboard/schedule"
-                  className={cellClass}
-                  style={cellStyle}
-                >
-                  <div
-                    className={`text-xs font-semibold mb-1 ${isToday ? "text-blue-500" : ""}`}
-                    style={!isToday ? { color: "rgb(var(--text))" } : {}}
-                  >
-                    {format(day, "d")}
-                  </div>
-                  <div className="space-y-0.5">
-                    {dayEvents.slice(0, 2).map((event) => (
-                      <div
-                        key={event.id}
-                        className="text-[10px] p-0.5 rounded truncate border-l-2"
-                        style={{
-                          backgroundColor: "#FFFFFF",
-                          borderLeftColor: event.color || "#3B82F6",
-                          borderLeftWidth: "2px",
-                        }}
-                      >
-                        <span className="truncate block" style={{ color: "rgb(var(--text))" }}>
-                          {event.title}
-                        </span>
-                      </div>
-                    ))}
-                    {dayEvents.length > 2 && (
-                      <div className="text-[10px] font-medium" style={{ color: "rgb(var(--muted))" }}>
-                        +{dayEvents.length - 2}
-                      </div>
-                    )}
-                  </div>
-                </Link>
-              )
-            })}
+              })}
+            </div>
           </div>
-
-          {canAddEvents && quickAddDate && (
-            <Dialog
-              open={quickAddOpen}
-              onOpenChange={(o) => {
-                setQuickAddOpen(o)
-                if (!o) setQuickAddDate(null)
-              }}
-            >
-              <DialogContent className="max-w-md relative pt-10">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuickAddOpen(false)
-                    setQuickAddDate(null)
-                  }}
-                  disabled={qaSaving}
-                  className="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--accent))] disabled:opacity-50"
-                  aria-label="Close"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-                <DialogHeader className="pr-8">
-                  <DialogTitle>Quick add event</DialogTitle>
-                  <DialogDescription>
-                    {format(quickAddDate, "EEEE, MMMM d, yyyy")} — saved to team schedule and calendar for everyone.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="qa-title" style={{ color: "rgb(var(--text))" }}>
-                      Title *
-                    </Label>
-                    <Input
-                      id="qa-title"
-                      value={qaTitle}
-                      onChange={(e) => setQaTitle(e.target.value)}
-                      placeholder="e.g. Practice, Film, Team dinner"
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="qa-type" style={{ color: "rgb(var(--text))" }}>
-                        Type
-                      </Label>
-                      <select
-                        id="qa-type"
-                        value={qaType}
-                        onChange={(e) => setQaType(e.target.value)}
-                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-white"
-                        style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-                      >
-                        <option value="practice">Practice</option>
-                        <option value="game">Game</option>
-                        <option value="meeting">Meeting</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="qa-audience" style={{ color: "rgb(var(--text))" }}>
-                        Who sees it
-                      </Label>
-                      <select
-                        id="qa-audience"
-                        value={qaAudience}
-                        onChange={(e) => setQaAudience(e.target.value)}
-                        className="flex h-10 w-full rounded-md border px-3 py-2 text-sm bg-white"
-                        style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-                      >
-                        <option value="all">Everyone</option>
-                        <option value="players">Players</option>
-                        <option value="parents">Parents</option>
-                        <option value="staff">Staff only</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <DateTimePicker
-                      id="qa-start"
-                      label="Start *"
-                      value={qaStartDate}
-                      onChange={setQaStartDate}
-                      placeholder="Start date & time"
-                      defaultTime={qaStartDate ?? quickAddDate ?? undefined}
-                    />
-                    <DateTimePicker
-                      id="qa-end"
-                      label="End *"
-                      value={qaEndDate}
-                      onChange={setQaEndDate}
-                      placeholder="End date & time"
-                      minDate={qaStartDate}
-                      defaultTime={qaStartDate ? addHours(qaStartDate, 1) : quickAddDate ?? undefined}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="qa-loc" style={{ color: "rgb(var(--text))" }}>
-                      Location
-                    </Label>
-                    <Input
-                      id="qa-loc"
-                      value={qaLocation}
-                      onChange={(e) => setQaLocation(e.target.value)}
-                      placeholder="Optional"
-                    />
-                  </div>
-                </div>
-                <DialogFooter className="flex flex-row gap-2 sm:gap-3 mt-4">
-                  <Button type="button" variant="outline" className="flex-1" asChild>
-                    <Link href="/dashboard/schedule">Open full schedule</Link>
-                  </Button>
-                  <Button
-                    type="button"
-                    className="flex-1 text-white"
-                    onClick={handleQuickAddSubmit}
-                    disabled={qaSaving}
-                    style={{ backgroundColor: "rgb(var(--accent))" }}
-                  >
-                    {qaSaving ? "Saving…" : "Add to schedule"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </>
   )
 }

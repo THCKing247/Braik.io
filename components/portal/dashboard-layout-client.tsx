@@ -57,9 +57,13 @@ export function DashboardLayoutClient({
 
               <main
                 className={cn(
-                  "min-w-0 w-full flex-1 overflow-x-hidden",
+                  "min-w-0 w-full max-w-full flex-1 overflow-x-hidden",
                   "p-4 md:p-6 md:pt-5",
-                  "max-lg:pb-28 lg:pb-6",
+                  "lg:pb-6",
+                  /* Reserve space for fixed tab bar + home indicator on phone/tablet */
+                  isSchedulePage
+                    ? "max-lg:pb-[max(7.5rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(8.5rem,calc(6rem+env(safe-area-inset-bottom,0px)))]"
+                    : "max-lg:pb-28",
                   isSchedulePage &&
                     "flex min-h-[calc(100dvh-9rem)] flex-col overflow-hidden lg:min-h-[calc(100dvh-8rem)]"
                 )}

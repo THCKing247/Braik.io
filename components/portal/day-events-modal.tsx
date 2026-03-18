@@ -22,9 +22,20 @@ interface DayEventsModalProps {
   isOpen: boolean
   onClose: () => void
   onEventClick: (event: CalendarEvent) => void
+  /** Opens shared Create Event flow for this day */
+  canCreate?: boolean
+  onCreateEvent?: () => void
 }
 
-export function DayEventsModal({ date, events, isOpen, onClose, onEventClick }: DayEventsModalProps) {
+export function DayEventsModal({
+  date,
+  events,
+  isOpen,
+  onClose,
+  onEventClick,
+  canCreate,
+  onCreateEvent,
+}: DayEventsModalProps) {
   if (!isOpen) return null
 
   const sortedEvents = [...events].sort(
@@ -71,6 +82,19 @@ export function DayEventsModal({ date, events, isOpen, onClose, onEventClick }: 
                     There are no scheduled events for this day.
                   </p>
                 </div>
+                {canCreate && onCreateEvent && (
+                  <Button
+                    type="button"
+                    className="mt-2 w-full max-w-xs text-white sm:w-auto"
+                    style={{ backgroundColor: "rgb(var(--accent))" }}
+                    onClick={() => {
+                      onCreateEvent()
+                      onClose()
+                    }}
+                  >
+                    Create event
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -116,6 +140,22 @@ export function DayEventsModal({ date, events, isOpen, onClose, onEventClick }: 
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            {canCreate && onCreateEvent && sortedEvents.length > 0 && (
+              <div className="border-t pt-4" style={{ borderColor: "rgb(var(--border))" }}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full font-semibold sm:w-auto"
+                  style={{ borderColor: "rgb(var(--accent))", color: "rgb(var(--accent))" }}
+                  onClick={() => {
+                    onCreateEvent()
+                    onClose()
+                  }}
+                >
+                  Create event this day
+                </Button>
               </div>
             )}
           </CardContent>

@@ -315,7 +315,9 @@ export function CalendarWidgetEnhanced({
     const tomorrowStart = addDays(todayStart, 1)
 
     return (
-      <div className="w-full max-w-full min-w-0 space-y-4 overflow-x-hidden pb-24 lg:pb-6">
+      <div
+        className="w-full max-w-full min-w-0 space-y-5 overflow-x-hidden pb-[max(7rem,calc(5.25rem+env(safe-area-inset-bottom,0px)))] md:pb-[max(8rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:space-y-4 lg:pb-6"
+      >
         {weekDays.map((day) => {
           const dayEvents = getEventsForDate(day).sort(
             (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
@@ -328,21 +330,54 @@ export function CalendarWidgetEnhanced({
           return (
             <section
               key={day.toISOString()}
-              className="overflow-hidden rounded-xl border bg-white shadow-sm"
+              className="overflow-hidden rounded-2xl border bg-white shadow-sm"
               style={{ borderColor: "rgb(var(--border))" }}
             >
               <div
-                className="sticky top-0 z-[1] border-b bg-white/95 px-4 py-3 backdrop-blur-sm"
+                className="sticky top-0 z-[1] flex items-center justify-between gap-2 border-b bg-white/95 px-4 py-3 backdrop-blur-sm"
                 style={{ borderColor: "rgb(var(--border))" }}
               >
-                <h2 className="text-sm font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
+                <h2 className="min-w-0 text-sm font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
                   {sectionLabel}
                 </h2>
+                {canEdit && onCreateEvent && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0 px-2.5 text-xs font-semibold"
+                    onClick={() => {
+                      const s = new Date(day)
+                      s.setHours(9, 0, 0, 0)
+                      onCreateEvent({ start: s, end: addHours(s, 1) })
+                    }}
+                  >
+                    Add
+                  </Button>
+                )}
               </div>
               <div className="divide-y" style={{ borderColor: "rgb(var(--border))" }}>
                 {dayEvents.length === 0 ? (
-                  <div className="px-4 py-5 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
-                    No events
+                  <div className="flex flex-col items-center gap-3 px-4 py-5 text-center">
+                    <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                      No events
+                    </span>
+                    {canEdit && onCreateEvent && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs font-semibold"
+                        style={{ color: "rgb(var(--accent))" }}
+                        onClick={() => {
+                          const s = new Date(day)
+                          s.setHours(9, 0, 0, 0)
+                          onCreateEvent({ start: s, end: addHours(s, 1) })
+                        }}
+                      >
+                        Create event
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   dayEvents.map((event) => {
@@ -353,7 +388,7 @@ export function CalendarWidgetEnhanced({
                         key={event.id}
                         type="button"
                         onClick={() => handleEventClick(event)}
-                        className="flex w-full min-w-0 gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+                        className="flex w-full min-w-0 gap-3 px-4 py-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
                       >
                         <div
                           className="mt-0.5 h-14 w-1 shrink-0 rounded-full"
@@ -395,21 +430,21 @@ export function CalendarWidgetEnhanced({
     const months = eachMonthOfInterval({ start: yearStart, end: yearEnd })
 
     return (
-      <div className="space-y-4">
+      <div className="w-full max-w-full min-w-0 space-y-4 pb-[max(7rem,calc(5.25rem+env(safe-area-inset-bottom,0px)))] md:pb-[max(8rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:pb-0">
         <div className="grid grid-cols-3 gap-6">
           {months.map((month) => {
             const monthStart = startOfMonth(month)
             const monthEnd = endOfMonth(month)
             // Only get days from the current month
             const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
-            
+
             // Group days by week
             const weeks: Date[][] = []
             let currentWeek: Date[] = []
-            
+
             monthDays.forEach((day) => {
               const dayOfWeek = day.getDay()
-              
+
               if (dayOfWeek === 0 && currentWeek.length > 0) {
                 weeks.push(currentWeek)
                 currentWeek = []
@@ -563,7 +598,7 @@ export function CalendarWidgetEnhanced({
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-auto"
+          className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-auto max-lg:pb-[max(6.5rem,calc(5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(7.5rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:pb-0"
           onScroll={handleDayViewScroll}
           onMouseMove={handleTimeGridPointerMove}
           onMouseLeave={handleTimeGridPointerLeave}
@@ -772,7 +807,7 @@ export function CalendarWidgetEnhanced({
     }
 
     return (
-      <div className="space-y-2">
+      <div className="w-full max-w-full min-w-0 space-y-2 pb-[max(7rem,calc(5.25rem+env(safe-area-inset-bottom,0px)))] md:pb-[max(8rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:pb-0">
         {/* Day headers */}
         <div className="grid grid-cols-7 gap-1 border-b pb-2" style={{ borderColor: "rgb(var(--border))" }}>
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
@@ -874,7 +909,7 @@ export function CalendarWidgetEnhanced({
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-hidden"
+          className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-hidden max-lg:pb-[max(6.5rem,calc(5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(7.5rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:pb-0"
           onScroll={handleDayViewScroll}
           onMouseMove={handleTimeGridPointerMove}
           onMouseLeave={handleTimeGridPointerLeave}
@@ -1201,7 +1236,7 @@ export function CalendarWidgetEnhanced({
 
   const viewPillClass = (active: boolean) =>
     cn(
-      "shrink-0 rounded-xl px-3 py-2 text-sm font-medium shadow-sm lg:px-4",
+      "inline-flex h-10 shrink-0 items-center justify-center rounded-xl px-3 text-sm font-medium shadow-sm lg:h-10 lg:px-4",
       active
         ? "bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent))]/90"
         : "text-[rgb(var(--text))] hover:bg-gray-100"
@@ -1241,15 +1276,15 @@ export function CalendarWidgetEnhanced({
         style={{ backgroundColor: "#FFFFFF" }}
       >
         <header
-          className="sticky top-0 z-20 flex-shrink-0 border-b bg-white px-3 py-3 lg:relative lg:px-4 lg:py-4"
+          className="sticky top-0 z-20 flex-shrink-0 border-b bg-white px-4 py-3.5 lg:relative lg:px-4 lg:py-4"
           style={{ borderColor: "rgb(var(--border))" }}
         >
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center justify-between gap-2 lg:justify-start">
-              <div className="flex min-w-0 items-center gap-2">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+            <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <CalendarIcon className="h-5 w-5 shrink-0" style={{ color: "rgb(var(--accent))" }} />
                 <h1
-                  className="truncate text-lg font-semibold lg:text-xl"
+                  className="truncate text-lg font-semibold tracking-tight lg:text-xl"
                   style={{ color: "rgb(var(--text))" }}
                 >
                   <span className="lg:hidden">Schedule</span>
@@ -1259,40 +1294,45 @@ export function CalendarWidgetEnhanced({
               <Button
                 variant="outline"
                 size="sm"
-                className="shrink-0 lg:hidden"
+                className="h-10 shrink-0 px-3 text-sm font-medium lg:hidden"
                 onClick={() => setMobileCalendarsOpen(true)}
               >
                 Calendars
               </Button>
             </div>
 
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:gap-2">
-              <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                <Button variant="outline" size="sm" onClick={goToToday} className="shrink-0 font-medium">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center md:justify-end lg:gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToToday}
+                  className="h-10 shrink-0 px-4 font-medium"
+                >
                   Today
                 </Button>
-                <div className="flex shrink-0 items-center gap-0.5">
+                <div className="flex shrink-0 items-center gap-1 rounded-lg border border-transparent lg:border-0">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => navigateDate("prev")}
-                    className="h-9 w-9 p-0"
+                    className="h-10 w-10 p-0"
                     aria-label="Previous"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-5 w-5" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => navigateDate("next")}
-                    className="h-9 w-9 p-0"
+                    className="h-10 w-10 p-0"
                     aria-label="Next"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-5 w-5" />
                   </Button>
                 </div>
                 <div
-                  className="min-w-0 max-w-full flex-1 px-1 text-center text-sm font-medium sm:min-w-[10rem] sm:max-w-[20rem] lg:min-w-[12rem]"
+                  className="min-w-0 w-full max-w-full px-1 text-center text-sm font-semibold leading-snug sm:min-w-[11rem] sm:max-w-[22rem] sm:flex-1 lg:min-w-[12rem]"
                   style={{ color: "rgb(var(--text))" }}
                 >
                   <span className="break-words">{getDateDisplay()}</span>
@@ -1300,11 +1340,10 @@ export function CalendarWidgetEnhanced({
               </div>
 
               <div
-                className="flex flex-wrap items-center justify-center gap-1 border-t border-transparent pt-1 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-3"
+                className="flex flex-wrap items-center justify-center gap-2 border-t border-transparent pt-2 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-4 lg:pt-0"
                 style={{ borderColor: "rgb(var(--border))" }}
               >
-                {/* Phone: Agenda + Day */}
-                <div className="flex flex-wrap justify-center gap-1 md:hidden">
+                <div className="flex flex-wrap justify-center gap-2 md:hidden">
                   <Button
                     type="button"
                     variant="ghost"
@@ -1324,7 +1363,7 @@ export function CalendarWidgetEnhanced({
                     Day
                   </Button>
                 </div>
-                <div className="hidden flex-wrap justify-center gap-1 md:flex lg:hidden">
+                <div className="hidden flex-wrap justify-center gap-2 md:flex lg:hidden">
                   <Button
                     type="button"
                     variant="ghost"
@@ -1362,7 +1401,7 @@ export function CalendarWidgetEnhanced({
                     Month
                   </Button>
                 </div>
-                <div className="hidden flex-wrap justify-center gap-1 lg:flex">
+                <div className="hidden flex-wrap justify-center gap-2 lg:flex">
                   <Button
                     type="button"
                     variant="ghost"
@@ -1412,7 +1451,7 @@ export function CalendarWidgetEnhanced({
         </header>
 
         <div
-          className="scrollbar-hidden flex gap-2 overflow-x-auto border-b px-3 py-2 md:hidden"
+          className="scrollbar-hidden flex gap-2.5 overflow-x-auto border-b py-2.5 pl-4 pr-6 [-ms-overflow-style:none] [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
           style={{ borderColor: "rgb(var(--border))" }}
         >
           {calendarFilters.map((filter) => (
@@ -1425,10 +1464,10 @@ export function CalendarWidgetEnhanced({
                 )
               }
               className={cn(
-                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                "min-h-[40px] shrink-0 touch-manipulation rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors active:scale-[0.98]",
                 filter.enabled
                   ? "border-[rgb(var(--accent))] bg-[rgb(var(--accent))]/10"
-                  : "border-gray-200 bg-gray-50 opacity-70"
+                  : "border-gray-200 bg-gray-50 opacity-75"
               )}
               style={filter.enabled ? { color: "rgb(var(--text))" } : undefined}
             >
@@ -1521,17 +1560,19 @@ export function CalendarWidgetEnhanced({
       </div>
 
       <Dialog open={mobileCalendarsOpen} onOpenChange={setMobileCalendarsOpen}>
-        <DialogContent className="max-h-[85vh] max-w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(88dvh,640px)] w-[calc(100vw-1.25rem)] max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-h-[85vh]">
+          <DialogHeader className="shrink-0 border-b border-[rgb(var(--border))] px-5 pb-3 pt-5 sm:px-6">
             <DialogTitle>Calendars & date</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 pt-2">
-            <MiniCalendar />
-            <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-                My calendars
+          <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 pb-[max(1.5rem,calc(1rem+env(safe-area-inset-bottom,0px)))] sm:px-6 md:pb-[max(2rem,calc(1.25rem+env(safe-area-inset-bottom,0px)))]">
+            <div className="space-y-6">
+              <MiniCalendar />
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                  My calendars
+                </div>
+                {calendarFiltersBlock}
               </div>
-              {calendarFiltersBlock}
             </div>
           </div>
         </DialogContent>
@@ -1541,7 +1582,7 @@ export function CalendarWidgetEnhanced({
         <Button
           type="button"
           size="icon"
-          className="fixed bottom-5 right-5 z-40 h-14 w-14 rounded-full shadow-lg lg:hidden"
+          className="fixed right-4 z-[45] h-14 w-14 rounded-full shadow-lg lg:hidden bottom-[max(5.75rem,calc(4.65rem+env(safe-area-inset-bottom,0px)))] md:bottom-[max(6.5rem,calc(5.35rem+env(safe-area-inset-bottom,0px)))]"
           onClick={() => onCreateEvent()}
           aria-label="Create event"
         >
@@ -1583,6 +1624,13 @@ export function CalendarWidgetEnhanced({
             setSelectedDay(null)
           }}
           onEventClick={handleEventClick}
+          canCreate={canEdit && !!onCreateEvent}
+          onCreateEvent={() => {
+            if (!selectedDay || !onCreateEvent) return
+            const s = new Date(selectedDay)
+            s.setHours(9, 0, 0, 0)
+            onCreateEvent({ start: s, end: addHours(s, 1) })
+          }}
         />
       )}
     </>

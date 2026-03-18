@@ -1,13 +1,24 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useLayoutEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { LayoutGrid, List, ClipboardCheck, AlertCircle, History, AlertTriangle } from "lucide-react"
+import {
+  LayoutGrid,
+  List,
+  ClipboardCheck,
+  AlertCircle,
+  History,
+  AlertTriangle,
+  X,
+  MoreHorizontal,
+  Printer,
+  Mail,
+} from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -635,6 +646,9 @@ export function RosterManagerEnhanced({
   const [inviteLoading, setInviteLoading] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
+  const [showRosterToolbarMore, setShowRosterToolbarMore] = useState(false)
+  /** One DepthChartView at a time — layout switches at lg without double-mount on same breakpoint */
+  const [depthChartIsDesktop, setDepthChartIsDesktop] = useState(false)
   const [promotePlayer, setPromotePlayer] = useState<{ player: Player; currentTeamId: string } | null>(null)
   const [rosterViewMode, setRosterViewMode] = useState<"card" | "list">(initialView)
   const [rosterSearchQuery, setRosterSearchQuery] = useState(initialSearch)
@@ -697,6 +711,15 @@ export function RosterManagerEnhanced({
   }, [canEdit, teamId, activeTab])
 
   const isFootball = teamSport?.toLowerCase() === "football"
+
+  useLayoutEffect(() => {
+    if (!showDepthChartModal || !isFootball) return
+    const mq = window.matchMedia("(min-width: 1024px)")
+    const apply = () => setDepthChartIsDesktop(mq.matches)
+    apply()
+    mq.addEventListener("change", apply)
+    return () => mq.removeEventListener("change", apply)
+  }, [showDepthChartModal, isFootball])
 
   const readinessFilteredPlayerIds = useMemo(() => {
     if (!teamReadiness || readinessFilter === "all") return null
@@ -1243,48 +1266,50 @@ export function RosterManagerEnhanced({
     return `/dashboard/roster/${p.id}${q ? `?${q}` : ""}`
   }
 
+  const tabBtnClass = (active: boolean) =>
+    `flex min-h-[44px] shrink-0 items-center justify-center whitespace-nowrap px-3 text-sm font-semibold transition-colors sm:px-4 lg:min-h-10 lg:rounded-none lg:border-b-2 lg:px-4 ${
+      active
+        ? "rounded-t-lg border-b-[3px] border-primary bg-primary/10 text-foreground lg:border-primary lg:bg-transparent"
+        : "rounded-t-lg border-b-[3px] border-transparent text-foreground/70 hover:bg-muted/50 hover:text-foreground lg:border-transparent lg:hover:bg-muted/30"
+    }`
+
   return (
-    <div className="w-full min-w-0 max-w-full overflow-x-hidden">
-      {/* Tab Navigation */}
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden px-4 pb-6 lg:px-0 lg:pb-0">
+      {/* Tab Navigation — scrollable on small screens, 44px tap targets */}
       <div className="mb-4 border-b border-border lg:mb-6">
-        <div className="-mx-1 flex gap-1 overflow-x-auto pb-1 lg:flex-wrap lg:gap-4 lg:overflow-visible lg:pb-0">
+        <div
+          className="-mx-4 flex gap-0 overflow-x-auto overscroll-x-contain px-2 pb-0 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:gap-1 lg:overflow-visible lg:px-0 lg:pt-0 [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label="Roster sections"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "roster"}
             onClick={() => setActiveTab("roster")}
-            className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
-              activeTab === "roster"
-                ? "border-b-2"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={activeTab === "roster" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+            className={tabBtnClass(activeTab === "roster")}
           >
             Roster View
           </button>
           {canEdit && (
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === "readiness"}
               onClick={() => setActiveTab("readiness")}
-              className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
-                activeTab === "readiness"
-                  ? "border-b-2"
-                  : "opacity-60 hover:opacity-100"
-              }`}
-              style={activeTab === "readiness" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+              className={`${tabBtnClass(activeTab === "readiness")} gap-2`}
             >
-              <ClipboardCheck className="h-4 w-4" />
+              <ClipboardCheck className="h-4 w-4 shrink-0" />
               Readiness
             </button>
           )}
           {isFootball && (
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === "depth-chart"}
               onClick={handleOpenDepthChart}
-              className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
-                activeTab === "depth-chart"
-                  ? "border-b-2"
-                  : "opacity-60 hover:opacity-100"
-              }`}
-              style={activeTab === "depth-chart" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+              className={tabBtnClass(activeTab === "depth-chart")}
             >
               Depth Chart
             </button>
@@ -1292,13 +1317,10 @@ export function RosterManagerEnhanced({
           {isFootball && programId && canEdit && (
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === "program-depth"}
               onClick={() => setActiveTab("program-depth")}
-              className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
-                activeTab === "program-depth"
-                  ? "border-b-2"
-                  : "opacity-60 hover:opacity-100"
-              }`}
-              style={activeTab === "program-depth" ? { borderBottomColor: "#3B82F6", color: "#000000" } : { color: "#000000" }}
+              className={tabBtnClass(activeTab === "program-depth")}
             >
               Program Depth
             </button>
@@ -1310,116 +1332,130 @@ export function RosterManagerEnhanced({
         <>
           {/* Phone / tablet: sticky toolbar + touch roster cards */}
           <div className="lg:hidden">
-            <div className="sticky top-0 z-20 -mx-4 mb-4 space-y-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/90">
+            <div className="sticky top-0 z-20 -mx-4 mb-6 space-y-4 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/90">
               <Input
                 type="search"
                 placeholder="Search players…"
                 value={rosterSearchQuery}
                 onChange={(e) => setRosterSearchQuery(e.target.value)}
-                className="h-11 w-full min-w-0 rounded-xl text-base"
+                className="h-12 w-full min-w-0 rounded-xl text-base"
               />
-              <div className="flex flex-wrap gap-2 md:flex-nowrap md:items-center md:gap-3">
-                <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] md:flex-initial md:overflow-visible [&::-webkit-scrollbar]:hidden">
-                  <select
-                    value={rosterPositionFilter}
-                    onChange={(e) => setRosterPositionFilter(e.target.value)}
-                    className="h-11 min-w-[130px] shrink-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    aria-label="Filter by position"
-                  >
-                    <option value="">All positions</option>
-                    <optgroup label="Offense">
-                      <option value="QB">QB</option>
-                      <option value="RB">RB</option>
-                      <option value="WR">WR</option>
-                      <option value="TE">TE</option>
-                      <option value="OL">OL</option>
-                    </optgroup>
-                    <optgroup label="Defense">
-                      <option value="DL">DL</option>
-                      <option value="LB">LB</option>
-                      <option value="DB">DB</option>
-                    </optgroup>
-                    <optgroup label="Special">
-                      <option value="K">K</option>
-                      <option value="P">P</option>
-                    </optgroup>
-                  </select>
-                  <select
-                    value={rosterGradeFilter}
-                    onChange={(e) => setRosterGradeFilter(e.target.value)}
-                    className="h-11 min-w-[120px] shrink-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    aria-label="Filter by grade"
-                  >
-                    <option value="">All grades</option>
-                    <option value="9">Freshman (9)</option>
-                    <option value="10">Sophomore (10)</option>
-                    <option value="11">Junior (11)</option>
-                    <option value="12">Senior (12)</option>
-                    <option value="1">College Yr 1</option>
-                    <option value="2">College Yr 2</option>
-                    <option value="3">College Yr 3</option>
-                    <option value="4">College Yr 4</option>
-                  </select>
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={rosterPositionFilter}
+                  onChange={(e) => setRosterPositionFilter(e.target.value)}
+                  className="min-h-[44px] w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Filter by position"
+                >
+                  <option value="">All positions</option>
+                  <optgroup label="Offense">
+                    <option value="QB">QB</option>
+                    <option value="RB">RB</option>
+                    <option value="WR">WR</option>
+                    <option value="TE">TE</option>
+                    <option value="OL">OL</option>
+                  </optgroup>
+                  <optgroup label="Defense">
+                    <option value="DL">DL</option>
+                    <option value="LB">LB</option>
+                    <option value="DB">DB</option>
+                  </optgroup>
+                  <optgroup label="Special">
+                    <option value="K">K</option>
+                    <option value="P">P</option>
+                  </optgroup>
+                </select>
+                <select
+                  value={rosterGradeFilter}
+                  onChange={(e) => setRosterGradeFilter(e.target.value)}
+                  className="min-h-[44px] w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Filter by grade"
+                >
+                  <option value="">All grades</option>
+                  <option value="9">Freshman (9)</option>
+                  <option value="10">Sophomore (10)</option>
+                  <option value="11">Junior (11)</option>
+                  <option value="12">Senior (12)</option>
+                  <option value="1">College Yr 1</option>
+                  <option value="2">College Yr 2</option>
+                  <option value="3">College Yr 3</option>
+                  <option value="4">College Yr 4</option>
+                </select>
+                {canEdit && teamReadiness ? (
+                  <>
+                    <select
+                      value={readinessFilter}
+                      onChange={(e) => setReadinessFilter(e.target.value)}
+                      className="min-h-[44px] w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      aria-label="Filter by readiness"
+                    >
+                      <option value="all">All readiness</option>
+                      <option value="ready">Ready</option>
+                      <option value="incomplete">Incomplete</option>
+                      <option value="missing_physical">Missing physical</option>
+                      <option value="missing_waiver">Missing waiver</option>
+                      <option value="not_account_linked">Account not linked</option>
+                      <option value="incomplete_profile">Incomplete profile</option>
+                      <option value="no_equipment">No equipment</option>
+                      <option value="no_guardians">No guardians</option>
+                      <option value="eligibility_missing">Eligibility N/A</option>
+                    </select>
+                    <select
+                      value={mobileRosterSort}
+                      onChange={(e) => setMobileRosterSort(e.target.value as MobileRosterSort)}
+                      className="min-h-[44px] w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      aria-label="Sort roster"
+                    >
+                      <option value="name_az">Sort: Name A–Z</option>
+                      <option value="jersey">Sort: Jersey</option>
+                      <option value="position">Sort: Position</option>
+                      <option value="updated">Sort: Recently updated</option>
+                    </select>
+                  </>
+                ) : (
                   <select
                     value={mobileRosterSort}
                     onChange={(e) => setMobileRosterSort(e.target.value as MobileRosterSort)}
-                    className="h-11 min-w-[150px] shrink-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="col-span-2 min-h-[44px] w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     aria-label="Sort roster"
                   >
-                    <option value="name_az">Name A–Z</option>
-                    <option value="jersey">Jersey number</option>
-                    <option value="position">Position</option>
-                    <option value="updated">Recently updated</option>
-                  </select>
-                </div>
-                {canEdit && teamReadiness && (
-                  <select
-                    value={readinessFilter}
-                    onChange={(e) => setReadinessFilter(e.target.value)}
-                    className="h-11 w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary md:min-w-[160px] md:max-w-[200px]"
-                    aria-label="Filter by readiness"
-                  >
-                    <option value="all">All readiness</option>
-                    <option value="ready">Ready</option>
-                    <option value="incomplete">Incomplete</option>
-                    <option value="missing_physical">Missing physical</option>
-                    <option value="missing_waiver">Missing waiver</option>
-                    <option value="not_account_linked">Account not linked</option>
-                    <option value="incomplete_profile">Incomplete profile</option>
-                    <option value="no_equipment">No equipment</option>
-                    <option value="no_guardians">No guardians</option>
-                    <option value="eligibility_missing">Eligibility N/A</option>
+                    <option value="name_az">Sort: Name A–Z</option>
+                    <option value="jersey">Sort: Jersey</option>
+                    <option value="position">Sort: Position</option>
+                    <option value="updated">Sort: Recently updated</option>
                   </select>
                 )}
               </div>
-              {canEdit && !showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (
-                <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <Button className="min-h-[44px] shrink-0 rounded-xl px-4" onClick={() => setShowAddModal(true)}>
-                    Add Player
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="min-h-[44px] shrink-0 rounded-xl px-4"
-                    onClick={() => setShowImportForm(true)}
-                  >
-                    Import CSV
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="min-h-[44px] shrink-0 rounded-xl px-4"
-                    onClick={() => setShowPrintModal(true)}
-                  >
-                    Print
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="min-h-[44px] shrink-0 rounded-xl px-4"
-                    onClick={() => setShowEmailModal(true)}
-                  >
-                    Email
-                  </Button>
-                </div>
-              )}
+              {canEdit &&
+                !showAddModal &&
+                !showImportForm &&
+                !showPrintModal &&
+                !showEmailModal &&
+                !showRosterToolbarMore && (
+                  <div className="flex flex-wrap items-stretch gap-3">
+                    <Button
+                      className="min-h-[44px] min-w-0 flex-1 rounded-xl px-4 sm:flex-initial sm:min-w-[140px]"
+                      onClick={() => setShowAddModal(true)}
+                    >
+                      Add Player
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="min-h-[44px] min-w-0 flex-1 rounded-xl px-4 sm:flex-initial sm:min-w-[120px]"
+                      onClick={() => setShowImportForm(true)}
+                    >
+                      Import CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="min-h-[44px] shrink-0 rounded-xl px-4"
+                      onClick={() => setShowRosterToolbarMore(true)}
+                      aria-label="More roster actions"
+                    >
+                      <MoreHorizontal className="h-5 w-5" />
+                    </Button>
+                  </div>
+                )}
             </div>
             {!showPrintModal && !showEmailModal && (
               <RosterMobileView
@@ -2213,6 +2249,59 @@ export function RosterManagerEnhanced({
         <RosterEmailModal teamId={teamId} onClose={() => setShowEmailModal(false)} />
       )}
 
+      {/* Mobile: Print / Email in "More" sheet */}
+      {showRosterToolbarMore && canEdit && (
+        <div className="fixed inset-0 z-[55] lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close"
+            onClick={() => setShowRosterToolbarMore(false)}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-10 rounded-t-3xl border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
+            role="dialog"
+            aria-labelledby="roster-more-actions-title"
+          >
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
+            <h2 id="roster-more-actions-title" className="mb-4 text-lg font-semibold text-foreground">
+              More actions
+            </h2>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                className="min-h-[48px] w-full justify-start gap-3 rounded-xl"
+                onClick={() => {
+                  setShowRosterToolbarMore(false)
+                  setShowPrintModal(true)
+                }}
+              >
+                <Printer className="h-5 w-5 shrink-0" />
+                Print roster
+              </Button>
+              <Button
+                variant="outline"
+                className="min-h-[48px] w-full justify-start gap-3 rounded-xl"
+                onClick={() => {
+                  setShowRosterToolbarMore(false)
+                  setShowEmailModal(true)
+                }}
+              >
+                <Mail className="h-5 w-5 shrink-0" />
+                Email roster
+              </Button>
+              <Button
+                variant="secondary"
+                className="min-h-[48px] w-full rounded-xl"
+                onClick={() => setShowRosterToolbarMore(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Promote / Move player modal */}
       {promotePlayer && programId && (
         <PlayerPromoteModal
@@ -2229,60 +2318,146 @@ export function RosterManagerEnhanced({
         />
       )}
 
-      {/* Depth Chart Full-Screen Modal */}
-      {showDepthChartModal && isFootball && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/50" aria-hidden />
-          <div className="fixed inset-0 z-50 flex flex-col bg-white">
-            {/* Header with close button */}
-            <div className="flex items-center justify-between p-4 border-b border-border bg-card">
-              <h2 className="text-2xl font-semibold text-foreground">Depth Chart</h2>
-              <div className="flex items-center gap-3">
-                {hasUnsavedChanges && (
-                  <span className="text-sm text-amber-600 font-medium">Unsaved changes</span>
-                )}
-                {hasUnsavedChanges && (
-                  <Button onClick={handleSaveDepthChart} variant="default">
-                    Save
+      {/* Depth Chart: bottom sheet on mobile/tablet · full screen on lg+ (single DepthChartView) */}
+      {showDepthChartModal && isFootball && !depthChartIsDesktop && (
+        <div
+          className="fixed inset-0 z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="depth-chart-sheet-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close depth chart"
+            onClick={handleCloseDepthChart}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-10 flex max-h-[85vh] flex-col rounded-t-3xl bg-background shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="shrink-0 rounded-t-3xl border-b border-border bg-background pt-2">
+              <div className="mx-auto h-1.5 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
+              <div className="flex items-center justify-between gap-2 px-4 py-3">
+                <h2 id="depth-chart-sheet-title" className="min-w-0 truncate text-lg font-semibold text-foreground">
+                  Depth Chart
+                </h2>
+                <div className="flex shrink-0 items-center gap-2">
+                  {hasUnsavedChanges && (
+                    <Button
+                      type="button"
+                      onClick={handleSaveDepthChart}
+                      className="min-h-10 rounded-xl px-3 text-sm"
+                    >
+                      Save
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-11 w-11 shrink-0 rounded-full"
+                    onClick={handleCloseDepthChart}
+                    aria-label="Close"
+                  >
+                    <X className="h-5 w-5" />
                   </Button>
-                )}
-                <Button variant="outline" onClick={handleCloseDepthChart}>
-                  Close
-                </Button>
+                </div>
               </div>
+              {hasUnsavedChanges && (
+                <p className="px-4 pb-2 text-xs font-medium text-amber-600">Unsaved changes</p>
+              )}
             </div>
-            {/* Full-screen depth chart content + call-up suggestions */}
-            <div className="flex-1 flex overflow-hidden">
-              <div className="flex-1 overflow-auto">
-                <DepthChartView
-                  teamId={teamId}
-                  players={players}
-                  depthChart={depthChart}
-                  onUpdate={handleDepthChartChange}
-                  canEdit={canEdit}
-                  isHeadCoach={userRole === "HEAD_COACH"}
-                />
-              </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <DepthChartView
+                teamId={teamId}
+                players={players}
+                depthChart={depthChart}
+                onUpdate={handleDepthChartChange}
+                canEdit={canEdit}
+                isHeadCoach={userRole === "HEAD_COACH"}
+              />
               {programId && canEdit && (
-                <div className="w-80 shrink-0 border-l border-border overflow-auto p-4 bg-muted/20">
+                <div className="border-t border-border bg-muted/20 p-4">
                   <CallUpSuggestionsPanel programId={programId} />
                 </div>
               )}
             </div>
           </div>
-        </>
+        </div>
+      )}
+      {showDepthChartModal && isFootball && depthChartIsDesktop && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          <div className="flex items-center justify-between border-b border-border bg-card p-4">
+            <h2 className="text-2xl font-semibold text-foreground">Depth Chart</h2>
+            <div className="flex items-center gap-3">
+              {hasUnsavedChanges && (
+                <span className="text-sm font-medium text-amber-600">Unsaved changes</span>
+              )}
+              {hasUnsavedChanges && (
+                <Button onClick={handleSaveDepthChart} variant="default">
+                  Save
+                </Button>
+              )}
+              <Button variant="outline" onClick={handleCloseDepthChart}>
+                Close
+              </Button>
+            </div>
+          </div>
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+              <DepthChartView
+                teamId={teamId}
+                players={players}
+                depthChart={depthChart}
+                onUpdate={handleDepthChartChange}
+                canEdit={canEdit}
+                isHeadCoach={userRole === "HEAD_COACH"}
+              />
+            </div>
+            {programId && canEdit && (
+              <div className="w-80 shrink-0 overflow-auto border-l border-border bg-muted/20 p-4">
+                <CallUpSuggestionsPanel programId={programId} />
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* Save Prompt Modal */}
+      {/* Depth chart unsaved prompt: bottom sheet on mobile, centered on lg+ */}
       {showSavePrompt && (
         <>
-          <div
-            className="fixed inset-0 z-[60] bg-black/50"
-            onClick={() => setShowSavePrompt(false)}
-            aria-hidden
-          />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <Card className="w-full max-w-md bg-card border border-border" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[60] lg:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40"
+              aria-label="Dismiss"
+              onClick={() => setShowSavePrompt(false)}
+            />
+            <div
+              className="absolute bottom-0 left-0 right-0 z-10 rounded-t-3xl border-t border-border bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
+              <h3 className="text-lg font-semibold text-foreground">Unsaved changes</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                You have unsaved changes to the depth chart. What would you like to do?
+              </p>
+              <div className="mt-4 flex flex-col gap-3">
+                <Button className="min-h-[48px] w-full rounded-xl" onClick={handleSaveAndClose}>
+                  Save &amp; close
+                </Button>
+                <Button variant="outline" className="min-h-[48px] w-full rounded-xl" onClick={handleDiscardAndClose}>
+                  Discard changes
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="hidden lg:fixed lg:inset-0 lg:z-[60] lg:flex lg:items-center lg:justify-center lg:bg-black/50 lg:p-4">
+            <Card
+              className="w-full max-w-md border border-border bg-card"
+              onClick={(e) => e.stopPropagation()}
+            >
               <CardHeader>
                 <CardTitle className="text-foreground">Unsaved Changes</CardTitle>
               </CardHeader>
@@ -2290,7 +2465,7 @@ export function RosterManagerEnhanced({
                 <p className="text-sm text-muted-foreground">
                   You have unsaved changes to the depth chart. What would you like to do?
                 </p>
-                <div className="flex gap-3 justify-end">
+                <div className="flex justify-end gap-3">
                   <Button variant="outline" onClick={handleDiscardAndClose}>
                     Discard Changes
                   </Button>

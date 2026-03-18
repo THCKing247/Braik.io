@@ -25,6 +25,8 @@ type PlayerRow = {
   created_by?: string | null
   weight?: number | null
   height?: string | null
+  secondary_position?: string | null
+  updated_at?: string | null
 }
 
 /**
@@ -59,7 +61,9 @@ export async function GET(request: Request) {
     // Use a minimal select so roster loads even if optional columns (health_status, weight, height, missing_forms, forms_complete) are missing
     const { data: rows, error } = await supabase
       .from("players")
-      .select("id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by")
+      .select(
+        "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
+      )
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
@@ -124,7 +128,9 @@ export async function GET(request: Request) {
         grade: p.grade ?? null,
         jerseyNumber: p.jersey_number ?? null,
         positionGroup: p.position_group ?? null,
+        secondaryPosition: (p as PlayerRow).secondary_position ?? null,
         status: p.status ?? "active",
+        updatedAt: (p as PlayerRow).updated_at ?? null,
         notes: p.notes ?? null,
         imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
         email: p.email ?? null,

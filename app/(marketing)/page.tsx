@@ -1,9 +1,10 @@
-﻿"use client"
+"use client"
 
 import Link from "next/link"
-import { useEffect, useRef } from "react"
+import { Suspense, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { SiteHeader } from "@/components/marketing/site-header"
+import { HeroLoginForm } from "@/components/marketing/hero-login-form"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { ScrollReveal } from "@/components/marketing/scroll-reveal"
 import { SectionDivider } from "@/components/marketing/section-divider"
@@ -39,7 +40,84 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-white">
+    <>
+      {/* Phone / tablet: app-style sign-in entry */}
+      <div className="flex min-h-screen min-h-[100dvh] flex-col overflow-x-hidden bg-gradient-to-b from-[#F8FAFC] to-white lg:hidden">
+        <header className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB]/50 px-4 py-3">
+          <Link href="/" className="flex items-center" aria-label="Braik home">
+            <div className="flex h-10 w-[150px] items-center overflow-hidden">
+              <img
+                src="/braik-logo.png"
+                alt="Braik"
+                className="block h-auto w-full object-contain object-left"
+              />
+            </div>
+          </Link>
+          <Link
+            href="/why-braik"
+            className="shrink-0 text-sm font-medium text-[#3B82F6] hover:underline"
+          >
+            Why Braik
+          </Link>
+        </header>
+        <main className="flex flex-1 flex-col justify-center px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto w-full max-w-md space-y-5">
+            <div className="space-y-1 text-center">
+              <h1 className="text-2xl font-athletic font-bold uppercase tracking-tight text-[#212529]">
+                Welcome back
+              </h1>
+              <p className="text-sm text-[#495057]">Sign in to your Braik account</p>
+            </div>
+            <Suspense
+              fallback={
+                <div
+                  className="h-56 w-full animate-pulse rounded-2xl bg-[#E5E7EB]/50"
+                  aria-hidden
+                />
+              }
+            >
+              <HeroLoginForm variant="entry" />
+            </Suspense>
+            <div className="text-center">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-[#6c757d] transition-colors hover:text-[#3B82F6]"
+              >
+                Forgot your password?
+              </Link>
+            </div>
+            <div className="space-y-4 border-t border-[#E5E7EB] pt-5 text-center">
+              <p className="text-sm text-[#6c757d]">
+                Don&apos;t have an account?{" "}
+                <Link href="/signup/role" className="font-medium text-[#3B82F6] hover:underline">
+                  Get started free
+                </Link>
+              </p>
+              <Link
+                href="/admin/login"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] px-5 text-sm font-medium text-[#495057] transition-colors hover:bg-[#E9ECEF]"
+              >
+                Admin login
+              </Link>
+            </div>
+            <p className="text-center text-xs leading-relaxed text-[#6c757d]">
+              <Link href="/features" className="underline hover:text-[#3B82F6]">
+                Features
+              </Link>
+              {" · "}
+              <Link href="/pricing" className="underline hover:text-[#3B82F6]">
+                Pricing
+              </Link>
+              {" · "}
+              <Link href="/faq" className="underline hover:text-[#3B82F6]">
+                FAQ
+              </Link>
+            </p>
+          </div>
+        </main>
+      </div>
+
+    <div className="hidden min-h-screen bg-white lg:block">
       <SiteHeader />
 
       {/* Hero Identity Section */}
@@ -493,5 +571,6 @@ export default function Home() {
 
       <SiteFooter />
     </div>
+    </>
   )
 }

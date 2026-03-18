@@ -9,7 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff } from "lucide-react"
 
-export function HeroLoginForm() {
+type HeroLoginFormProps = {
+  /** Compact layout for mobile homepage entry (no duplicate “Sign In” card title). */
+  variant?: "default" | "entry"
+}
+
+export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -96,11 +101,17 @@ export function HeroLoginForm() {
     }
   }
 
+  const isEntry = variant === "entry"
+
   return (
-    <div className="w-full bg-white rounded-2xl border border-[#E5E7EB] p-8 shadow-sm">
-      <h2 className="text-xl font-athletic font-semibold mb-6 text-[#212529] uppercase tracking-wide text-center">
-        Sign In
-      </h2>
+    <div
+      className={`w-full rounded-2xl border border-[#E5E7EB] bg-white shadow-sm ${isEntry ? "p-6 sm:p-7" : "p-8"}`}
+    >
+      {!isEntry && (
+        <h2 className="mb-6 text-center text-xl font-athletic font-semibold uppercase tracking-wide text-[#212529]">
+          Sign In
+        </h2>
+      )}
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="hero-email" className="text-sm font-medium text-[#495057]">
@@ -113,7 +124,7 @@ export function HeroLoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="Enter your email"
-            className="bg-white"
+            className="min-h-[44px] bg-white text-base sm:text-sm"
           />
         </div>
         <div className="space-y-2">
@@ -128,7 +139,7 @@ export function HeroLoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="Enter your password"
-              className="bg-white pr-10"
+              className="min-h-[44px] bg-white pr-10 text-base sm:text-sm"
             />
             <button
               type="button"
@@ -163,7 +174,13 @@ export function HeroLoginForm() {
             {error}
           </div>
         )}
-        <Button type="submit" variant="signIn" className="w-full font-athletic uppercase tracking-wide" disabled={loading} size="lg">
+        <Button
+          type="submit"
+          variant="signIn"
+          className="min-h-[48px] w-full font-athletic uppercase tracking-wide"
+          disabled={loading}
+          size="lg"
+        >
           {loading ? "Logging in..." : "Login"}
         </Button>
       </form>

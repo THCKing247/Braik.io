@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { RosterGridView } from "./roster-grid-view"
 import { RosterListView } from "./roster-list-view"
+import { RosterMobileView, type MobileRosterSort } from "./roster-mobile-view"
 import { DepthChartView } from "./depth-chart-view"
 import { ProgramDepthChartView } from "./program-depth-chart-view"
 import { PlayerPromoteModal } from "./player-promote-modal"
@@ -54,6 +55,8 @@ interface Player {
   guardianLinks: Array<{
     guardian: { user: { email: string } }
   }>
+  secondaryPosition?: string | null
+  updatedAt?: string | null
 }
 
 interface DepthChartEntry {
@@ -636,6 +639,8 @@ export function RosterManagerEnhanced({
   const [rosterViewMode, setRosterViewMode] = useState<"card" | "list">(initialView)
   const [rosterSearchQuery, setRosterSearchQuery] = useState(initialSearch)
   const [rosterPositionFilter, setRosterPositionFilter] = useState<string>(initialPosition)
+  const [rosterGradeFilter, setRosterGradeFilter] = useState("")
+  const [mobileRosterSort, setMobileRosterSort] = useState<MobileRosterSort>("name_az")
 
   useEffect(() => {
     setRosterViewMode(initialView)
@@ -657,7 +662,7 @@ export function RosterManagerEnhanced({
 
   useEffect(() => {
     syncRosterParamsToUrl(rosterViewMode, rosterSearchQuery.trim(), rosterPositionFilter)
-  }, [rosterViewMode, rosterPositionFilter, syncRosterParamsToUrl])
+  }, [rosterViewMode, rosterPositionFilter, rosterSearchQuery, syncRosterParamsToUrl])
 
   useEffect(() => {
     if (!canEdit || !teamId) return
@@ -727,8 +732,12 @@ export function RosterManagerEnhanced({
     if (rosterPositionFilter) {
       list = list.filter((p) => (p.positionGroup?.toUpperCase() ?? "") === rosterPositionFilter.toUpperCase())
     }
+    if (rosterGradeFilter) {
+      const g = parseInt(rosterGradeFilter, 10)
+      if (!Number.isNaN(g)) list = list.filter((p) => p.grade === g)
+    }
     return list
-  }, [players, rosterSearchQuery, rosterPositionFilter, readinessFilteredPlayerIds])
+  }, [players, rosterSearchQuery, rosterPositionFilter, rosterGradeFilter, readinessFilteredPlayerIds])
 
   // Load depth chart data when modal opens
   useEffect(() => {
@@ -1224,14 +1233,25 @@ export function RosterManagerEnhanced({
     }
   }
 
+  const rosterProfileHref = (p: Player) => {
+    const params = new URLSearchParams()
+    params.set("teamId", teamId)
+    if (rosterViewMode) params.set("view", rosterViewMode)
+    if (rosterSearchQuery.trim()) params.set("q", rosterSearchQuery.trim())
+    if (rosterPositionFilter) params.set("position", rosterPositionFilter)
+    const q = params.toString()
+    return `/dashboard/roster/${p.id}${q ? `?${q}` : ""}`
+  }
+
   return (
-    <div>
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden">
       {/* Tab Navigation */}
-      <div className="mb-6 border-b border-border">
-        <div className="flex flex-wrap gap-4">
+      <div className="mb-4 border-b border-border lg:mb-6">
+        <div className="-mx-1 flex gap-1 overflow-x-auto pb-1 lg:flex-wrap lg:gap-4 lg:overflow-visible lg:pb-0">
           <button
+            type="button"
             onClick={() => setActiveTab("roster")}
-            className={`px-4 py-2 font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
               activeTab === "roster"
                 ? "border-b-2"
                 : "opacity-60 hover:opacity-100"
@@ -1242,8 +1262,9 @@ export function RosterManagerEnhanced({
           </button>
           {canEdit && (
             <button
+              type="button"
               onClick={() => setActiveTab("readiness")}
-              className={`flex items-center gap-2 px-4 py-2 font-semibold transition-colors ${
+              className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
                 activeTab === "readiness"
                   ? "border-b-2"
                   : "opacity-60 hover:opacity-100"
@@ -1256,8 +1277,9 @@ export function RosterManagerEnhanced({
           )}
           {isFootball && (
             <button
+              type="button"
               onClick={handleOpenDepthChart}
-              className={`px-4 py-2 font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
                 activeTab === "depth-chart"
                   ? "border-b-2"
                   : "opacity-60 hover:opacity-100"
@@ -1269,8 +1291,9 @@ export function RosterManagerEnhanced({
           )}
           {isFootball && programId && canEdit && (
             <button
+              type="button"
               onClick={() => setActiveTab("program-depth")}
-              className={`px-4 py-2 font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors sm:py-2 ${
                 activeTab === "program-depth"
                   ? "border-b-2"
                   : "opacity-60 hover:opacity-100"
@@ -1283,99 +1306,244 @@ export function RosterManagerEnhanced({
         </div>
       </div>
 
-      {/* Add/Import Controls + View Toggle */}
       {activeTab === "roster" && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Input
-              type="search"
-              placeholder="Search by name..."
-              value={rosterSearchQuery}
-              onChange={(e) => setRosterSearchQuery(e.target.value)}
-              className="max-w-[220px] h-9 text-sm"
-            />
-            <select
-              value={rosterPositionFilter}
-              onChange={(e) => setRosterPositionFilter(e.target.value)}
-              className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              aria-label="Filter by position"
-            >
-              <option value="">All positions</option>
-              <optgroup label="Offense">
-                <option value="QB">QB</option>
-                <option value="RB">RB</option>
-                <option value="WR">WR</option>
-                <option value="TE">TE</option>
-                <option value="OL">OL</option>
-              </optgroup>
-              <optgroup label="Defense">
-                <option value="DL">DL</option>
-                <option value="LB">LB</option>
-                <option value="DB">DB</option>
-              </optgroup>
-              <optgroup label="Special">
-                <option value="K">K</option>
-                <option value="P">P</option>
-              </optgroup>
-            </select>
-            {canEdit && teamReadiness && (
-              <select
-                value={readinessFilter}
-                onChange={(e) => setReadinessFilter(e.target.value)}
-                className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                aria-label="Filter by readiness"
-              >
-                <option value="all">All readiness</option>
-                <option value="ready">Ready</option>
-                <option value="incomplete">Incomplete</option>
-                <option value="missing_physical">Missing physical</option>
-                <option value="missing_waiver">Missing waiver</option>
-                <option value="not_account_linked">Account not linked</option>
-                <option value="incomplete_profile">Incomplete profile</option>
-                <option value="no_equipment">No equipment</option>
-                <option value="no_guardians">No guardians linked</option>
-                <option value="eligibility_missing">Eligibility not set</option>
-              </select>
+        <>
+          {/* Phone / tablet: sticky toolbar + touch roster cards */}
+          <div className="lg:hidden">
+            <div className="sticky top-0 z-20 -mx-4 mb-4 space-y-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/90">
+              <Input
+                type="search"
+                placeholder="Search players…"
+                value={rosterSearchQuery}
+                onChange={(e) => setRosterSearchQuery(e.target.value)}
+                className="h-11 w-full min-w-0 rounded-xl text-base"
+              />
+              <div className="flex flex-wrap gap-2 md:flex-nowrap md:items-center md:gap-3">
+                <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] md:flex-initial md:overflow-visible [&::-webkit-scrollbar]:hidden">
+                  <select
+                    value={rosterPositionFilter}
+                    onChange={(e) => setRosterPositionFilter(e.target.value)}
+                    className="h-11 min-w-[130px] shrink-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    aria-label="Filter by position"
+                  >
+                    <option value="">All positions</option>
+                    <optgroup label="Offense">
+                      <option value="QB">QB</option>
+                      <option value="RB">RB</option>
+                      <option value="WR">WR</option>
+                      <option value="TE">TE</option>
+                      <option value="OL">OL</option>
+                    </optgroup>
+                    <optgroup label="Defense">
+                      <option value="DL">DL</option>
+                      <option value="LB">LB</option>
+                      <option value="DB">DB</option>
+                    </optgroup>
+                    <optgroup label="Special">
+                      <option value="K">K</option>
+                      <option value="P">P</option>
+                    </optgroup>
+                  </select>
+                  <select
+                    value={rosterGradeFilter}
+                    onChange={(e) => setRosterGradeFilter(e.target.value)}
+                    className="h-11 min-w-[120px] shrink-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    aria-label="Filter by grade"
+                  >
+                    <option value="">All grades</option>
+                    <option value="9">Freshman (9)</option>
+                    <option value="10">Sophomore (10)</option>
+                    <option value="11">Junior (11)</option>
+                    <option value="12">Senior (12)</option>
+                    <option value="1">College Yr 1</option>
+                    <option value="2">College Yr 2</option>
+                    <option value="3">College Yr 3</option>
+                    <option value="4">College Yr 4</option>
+                  </select>
+                  <select
+                    value={mobileRosterSort}
+                    onChange={(e) => setMobileRosterSort(e.target.value as MobileRosterSort)}
+                    className="h-11 min-w-[150px] shrink-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    aria-label="Sort roster"
+                  >
+                    <option value="name_az">Name A–Z</option>
+                    <option value="jersey">Jersey number</option>
+                    <option value="position">Position</option>
+                    <option value="updated">Recently updated</option>
+                  </select>
+                </div>
+                {canEdit && teamReadiness && (
+                  <select
+                    value={readinessFilter}
+                    onChange={(e) => setReadinessFilter(e.target.value)}
+                    className="h-11 w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary md:min-w-[160px] md:max-w-[200px]"
+                    aria-label="Filter by readiness"
+                  >
+                    <option value="all">All readiness</option>
+                    <option value="ready">Ready</option>
+                    <option value="incomplete">Incomplete</option>
+                    <option value="missing_physical">Missing physical</option>
+                    <option value="missing_waiver">Missing waiver</option>
+                    <option value="not_account_linked">Account not linked</option>
+                    <option value="incomplete_profile">Incomplete profile</option>
+                    <option value="no_equipment">No equipment</option>
+                    <option value="no_guardians">No guardians</option>
+                    <option value="eligibility_missing">Eligibility N/A</option>
+                  </select>
+                )}
+              </div>
+              {canEdit && !showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (
+                <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <Button className="min-h-[44px] shrink-0 rounded-xl px-4" onClick={() => setShowAddModal(true)}>
+                    Add Player
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="min-h-[44px] shrink-0 rounded-xl px-4"
+                    onClick={() => setShowImportForm(true)}
+                  >
+                    Import CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="min-h-[44px] shrink-0 rounded-xl px-4"
+                    onClick={() => setShowPrintModal(true)}
+                  >
+                    Print
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="min-h-[44px] shrink-0 rounded-xl px-4"
+                    onClick={() => setShowEmailModal(true)}
+                  >
+                    Email
+                  </Button>
+                </div>
+              )}
+            </div>
+            {!showPrintModal && !showEmailModal && (
+              <RosterMobileView
+                players={filteredRosterPlayers}
+                sort={mobileRosterSort}
+                teamId={teamId}
+                canEdit={canEdit}
+                onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
+                onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+                onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
+                onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
+                onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
+                onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+                onPromotePlayer={
+                  programId && userRole === "HEAD_COACH" && canEdit
+                    ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
+                    : undefined
+                }
+                getProfileHref={(p) => rosterProfileHref(p as Player)}
+                onAddPlayer={canEdit ? () => setShowAddModal(true) : undefined}
+                onImport={canEdit ? () => setShowImportForm(true) : undefined}
+              />
             )}
-            <span className="text-sm font-medium text-muted-foreground">View:</span>
-            <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
-              <button
-                type="button"
-                onClick={() => setRosterViewMode("card")}
-                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  rosterViewMode === "card"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                }`}
-                aria-pressed={rosterViewMode === "card"}
-              >
-                <LayoutGrid className="h-4 w-4" />
-                Cards
-              </button>
-              <button
-                type="button"
-                onClick={() => setRosterViewMode("list")}
-                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  rosterViewMode === "list"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                }`}
-                aria-pressed={rosterViewMode === "list"}
-              >
-                <List className="h-4 w-4" />
-                List
-              </button>
-            </div>
           </div>
-          {canEdit && !showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (
-            <div className="flex gap-2">
-              <Button onClick={() => setShowAddModal(true)}>Add Player</Button>
-              <Button variant="outline" onClick={() => setShowImportForm(true)}>Import CSV</Button>
-              <Button variant="outline" onClick={() => setShowPrintModal(true)}>Print Roster</Button>
-              <Button variant="outline" onClick={() => setShowEmailModal(true)}>Email Roster</Button>
+
+          {/* Desktop: table / card grid */}
+          <div className="mb-6 hidden items-center justify-between gap-4 lg:flex lg:flex-wrap">
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                type="search"
+                placeholder="Search by name..."
+                value={rosterSearchQuery}
+                onChange={(e) => setRosterSearchQuery(e.target.value)}
+                className="h-9 max-w-[220px] text-sm"
+              />
+              <select
+                value={rosterPositionFilter}
+                onChange={(e) => setRosterPositionFilter(e.target.value)}
+                className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                aria-label="Filter by position"
+              >
+                <option value="">All positions</option>
+                <optgroup label="Offense">
+                  <option value="QB">QB</option>
+                  <option value="RB">RB</option>
+                  <option value="WR">WR</option>
+                  <option value="TE">TE</option>
+                  <option value="OL">OL</option>
+                </optgroup>
+                <optgroup label="Defense">
+                  <option value="DL">DL</option>
+                  <option value="LB">LB</option>
+                  <option value="DB">DB</option>
+                </optgroup>
+                <optgroup label="Special">
+                  <option value="K">K</option>
+                  <option value="P">P</option>
+                </optgroup>
+              </select>
+              {canEdit && teamReadiness && (
+                <select
+                  value={readinessFilter}
+                  onChange={(e) => setReadinessFilter(e.target.value)}
+                  className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  aria-label="Filter by readiness"
+                >
+                  <option value="all">All readiness</option>
+                  <option value="ready">Ready</option>
+                  <option value="incomplete">Incomplete</option>
+                  <option value="missing_physical">Missing physical</option>
+                  <option value="missing_waiver">Missing waiver</option>
+                  <option value="not_account_linked">Account not linked</option>
+                  <option value="incomplete_profile">Incomplete profile</option>
+                  <option value="no_equipment">No equipment</option>
+                  <option value="no_guardians">No guardians linked</option>
+                  <option value="eligibility_missing">Eligibility not set</option>
+                </select>
+              )}
+              <span className="text-sm font-medium text-muted-foreground">View:</span>
+              <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setRosterViewMode("card")}
+                  className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    rosterViewMode === "card"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  }`}
+                  aria-pressed={rosterViewMode === "card"}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  Cards
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRosterViewMode("list")}
+                  className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    rosterViewMode === "list"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  }`}
+                  aria-pressed={rosterViewMode === "list"}
+                >
+                  <List className="h-4 w-4" />
+                  List
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+            {canEdit && !showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setShowAddModal(true)}>Add Player</Button>
+                <Button variant="outline" onClick={() => setShowImportForm(true)}>
+                  Import CSV
+                </Button>
+                <Button variant="outline" onClick={() => setShowPrintModal(true)}>
+                  Print Roster
+                </Button>
+                <Button variant="outline" onClick={() => setShowEmailModal(true)}>
+                  Email Roster
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Team Readiness Dashboard */}
@@ -1995,50 +2163,44 @@ export function RosterManagerEnhanced({
 
       {/* Content Views */}
       {activeTab === "roster" && !showPrintModal && !showEmailModal && (
-        rosterViewMode === "card" ? (
-          <RosterGridView
-            players={filteredRosterPlayers}
-            canEdit={canEdit}
-            onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
-            onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
-            onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
-            onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
-            onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
-            onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
-            onPromotePlayer={programId && userRole === "HEAD_COACH" && canEdit ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId }) : undefined}
-            onImageUploadSuccess={handlePlayerImageUploaded}
-            getProfileHref={(p) => {
-              const params = new URLSearchParams()
-              params.set("teamId", teamId)
-              if (rosterViewMode) params.set("view", rosterViewMode)
-              if (rosterSearchQuery.trim()) params.set("q", rosterSearchQuery.trim())
-              if (rosterPositionFilter) params.set("position", rosterPositionFilter)
-              const q = params.toString()
-              return `/dashboard/roster/${p.id}${q ? `?${q}` : ""}`
-            }}
-          />
-        ) : (
-          <RosterListView
-            players={filteredRosterPlayers}
-            canEdit={canEdit}
-            onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
-            onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
-            onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
-            onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
-            onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
-            onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
-            onPromotePlayer={programId && userRole === "HEAD_COACH" && canEdit ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId }) : undefined}
-            getProfileHref={(p) => {
-              const params = new URLSearchParams()
-              params.set("teamId", teamId)
-              if (rosterViewMode) params.set("view", rosterViewMode)
-              if (rosterSearchQuery.trim()) params.set("q", rosterSearchQuery.trim())
-              if (rosterPositionFilter) params.set("position", rosterPositionFilter)
-              const q = params.toString()
-              return `/dashboard/roster/${p.id}${q ? `?${q}` : ""}`
-            }}
-          />
-        )
+        <div className="hidden min-w-0 w-full max-w-full overflow-x-hidden lg:block">
+          {rosterViewMode === "card" ? (
+            <RosterGridView
+              players={filteredRosterPlayers}
+              canEdit={canEdit}
+              onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
+              onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+              onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
+              onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
+              onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
+              onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+              onPromotePlayer={
+                programId && userRole === "HEAD_COACH" && canEdit
+                  ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
+                  : undefined
+              }
+              onImageUploadSuccess={handlePlayerImageUploaded}
+              getProfileHref={(p) => rosterProfileHref(p as Player)}
+            />
+          ) : (
+            <RosterListView
+              players={filteredRosterPlayers}
+              canEdit={canEdit}
+              onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
+              onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+              onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
+              onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
+              onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
+              onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+              onPromotePlayer={
+                programId && userRole === "HEAD_COACH" && canEdit
+                  ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
+                  : undefined
+              }
+              getProfileHref={(p) => rosterProfileHref(p as Player)}
+            />
+          )}
+        </div>
       )}
 
       {/* Print Modal */}

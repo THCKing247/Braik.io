@@ -51,7 +51,10 @@ export async function sendSMS(to: string, body: string): Promise<SendSmsResult> 
       from,
       body,
     })
-    return { sid: message.sid, status: message.status ?? undefined }
+    return {
+      sid: message.sid,
+      status: typeof message.status === "string" ? message.status : undefined,
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Twilio request failed"
     const code = err && typeof err === "object" && "code" in err ? (err as { code?: number }).code : undefined

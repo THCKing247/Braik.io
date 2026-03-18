@@ -9,8 +9,8 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   images: {
-    domains: ['localhost'],
-    // Optimize image loading to reduce memory usage
+    domains: ['localhost', 'braik.io'],
+    // Add your Supabase project hostname (e.g. abc123.supabase.co) when using Next Image with storage
     formats: ['image/avif', 'image/webp'],
   },
   experimental: {

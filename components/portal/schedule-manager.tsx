@@ -1,11 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { addHours } from "date-fns"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { CalendarWidgetEnhanced } from "./calendar-widget-enhanced"
 import { DateTimePicker } from "./date-time-picker"
 
@@ -42,9 +48,17 @@ interface ScheduleManagerProps {
   defaultView?: "day" | "week" | "month" | "year"
 }
 
+function defaultCreateWindow(): { start: Date; end: Date } {
+  const now = new Date()
+  const start = new Date(now)
+  start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0)
+  if (start <= now) start.setMinutes(start.getMinutes() + 15)
+  return { start, end: addHours(start, 1) }
+}
+
 export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaultView = "day" }: ScheduleManagerProps) {
   const [events, setEvents] = useState(initialEvents)
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const [type, setType] = useState("practice")
@@ -57,6 +71,19 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
   const [files, setFiles] = useState<File[]>([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
 
+  const openCreateModal = useCallback((opts?: { start: Date; end: Date }) => {
+    const { start, end } = opts ?? defaultCreateWindow()
+    setStartDate(start)
+    setEndDate(end <= start ? addHours(start, 1) : end)
+    setTitle("")
+    setType("practice")
+    setLocation("")
+    setNotes("")
+    setAudience("all")
+    setFiles([])
+    setCreateModalOpen(true)
+  }, [])
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files))
@@ -67,7 +94,6 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
     setFiles(files.filter((_, i) => i !== index))
   }
 
-  // When Start changes: if End is empty or earlier than Start, set End = Start + 1 hour
   useEffect(() => {
     if (!startDate) return
     if (!endDate || endDate < startDate) {
@@ -75,13 +101,17 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
     }
   }, [startDate])
 
-  const handleAddEvent = async () => {
-    if (!title || !startDate || !endDate) {
-      alert("Title, start, and end are required")
+  useEffect(() => {
+    setEvents(initialEvents)
+  }, [initialEvents])
+
+  const handleCreateEvent = async () => {
+    if (!title?.trim() || !startDate || !endDate) {
+      alert("Title, start, and end are required.")
       return
     }
     if (endDate < startDate) {
-      alert("End must be after start")
+      alert("End must be after start.")
       return
     }
     if (!teamId) {
@@ -93,13 +123,12 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
     try {
       const start = startDate.toISOString()
       const end = endDate.toISOString()
-      // Use team-scoped endpoint so teamId comes from the URL (same as the page), not from body/session
       const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/calendar/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          title,
+          title: title.trim(),
           start,
           end,
           location: location || null,
@@ -108,30 +137,40 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
         }),
       })
 
+      const errBody = (await response.json().catch(() => ({}))) as Record<string, unknown>
       if (!response.ok) {
-        const errBody = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string } }
-        const code = errBody?.error?.code
-        const msg = errBody?.error?.message || "Failed to add event"
+        const nested = errBody.error
+        const code =
+          typeof nested === "object" && nested !== null && "code" in nested
+            ? String((nested as { code?: string }).code)
+            : ""
+        let msg =
+          (typeof errBody.message === "string" && errBody.message) ||
+          (typeof nested === "object" &&
+            nested !== null &&
+            typeof (nested as { message?: string }).message === "string" &&
+            (nested as { message: string }).message) ||
+          (typeof nested === "string" && nested) ||
+          "Failed to create event."
         if (code === "TEAM_NOT_FOUND") {
-          throw new Error("Team not found. Try switching teams in the header or refreshing the page.")
-        }
-        if (code === "TEAM_ACCESS_DENIED") {
-          throw new Error("You don't have permission to add events for this team.")
-        }
-        if (code === "TEAM_ID_REQUIRED") {
-          throw new Error("No team selected. Switch to a team in the header and try again.")
+          msg = "Team not found. Try switching teams in the header or refreshing the page."
+        } else if (code === "TEAM_ACCESS_DENIED" || code === "PERMISSION_DENIED") {
+          msg = "You don't have permission to create events for this team."
+        } else if (code === "TEAM_ID_REQUIRED") {
+          msg = "No team selected. Switch to a team in the header and try again."
         }
         throw new Error(msg)
       }
 
-      const newEvent = await response.json()
+      const newEvent = errBody as Record<string, unknown>
+      const eventId = typeof newEvent.id === "string" ? newEvent.id : ""
+      const startRaw = newEvent.start as string
+      const endRaw = newEvent.end as string
 
-      // Upload and link files if any
-      if (files.length > 0) {
+      if (files.length > 0 && eventId) {
         setUploadingFiles(true)
         try {
           for (const file of files) {
-            // Upload the document
             const formData = new FormData()
             formData.append("file", file)
             formData.append("teamId", teamId)
@@ -151,54 +190,54 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
 
             const document = await docResponse.json()
 
-            // Link document to event
             await fetch(`/api/documents/${document.id}/link`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 linkType: "event",
-                targetId: newEvent.id,
+                targetId: eventId,
               }),
             })
           }
         } catch (error) {
           console.error("Error uploading files:", error)
-          // Don't fail the entire operation if file upload fails
         } finally {
           setUploadingFiles(false)
         }
       }
 
-      // Update events state with the new event
-      // The linked documents will be loaded when the page refreshes or when viewing the event
-      setEvents([...events, {
-        ...newEvent,
-        type: type,
-        start: new Date(newEvent.start),
-        end: new Date(newEvent.end),
-        location: newEvent.location,
-        notes: newEvent.description || newEvent.notes,
-        audience: audience,
-        linkedDocuments: [], // Will be populated on next page load
-      }])
+      setEvents([
+        ...events,
+        {
+          id: eventId || crypto.randomUUID(),
+          type,
+          title: title.trim(),
+          start: new Date(startRaw || start),
+          end: new Date(endRaw || end),
+          location: (newEvent.location as string | null | undefined) ?? (location.trim() || null),
+          notes: (newEvent.description as string | null | undefined) ?? (notes.trim() || null),
+          audience,
+          creator: events[0]?.creator ?? { name: null, email: "" },
+          rsvps: [],
+          linkedDocuments: [],
+        },
+      ])
 
-      // Reset form
       setTitle("")
       setStartDate(null)
       setEndDate(null)
       setLocation("")
       setNotes("")
       setFiles([])
-      setShowAddForm(false)
+      setCreateModalOpen(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error adding event"
+      const message = error instanceof Error ? error.message : "Error creating event"
       alert(message)
     } finally {
       setLoading(false)
     }
   }
 
-  // Convert events to calendar format
   const calendarEvents = events.map((event) => ({
     id: event.id,
     eventType: event.type.toUpperCase(),
@@ -213,144 +252,129 @@ export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaul
   }))
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col">
       {canEdit && (
-        <div className="mb-6 flex-shrink-0">
-          {!showAddForm ? (
-            <Button onClick={() => setShowAddForm(true)}>Add Event</Button>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Add Event</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Type</Label>
-                      <select
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        className="flex h-10 w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:border-[#3B82F6] transition-all duration-200"
+        <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+          <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-[rgb(var(--text))]">Create event</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    className="flex h-10 w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:border-[#3B82F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2"
+                  >
+                    <option value="practice">Practice</option>
+                    <option value="game">Game</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Title *</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event name" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <DateTimePicker
+                  label="Start *"
+                  value={startDate}
+                  onChange={setStartDate}
+                  placeholder="Start date and time"
+                  id="create-event-start"
+                />
+                <DateTimePicker
+                  label="End *"
+                  value={endDate}
+                  onChange={setEndDate}
+                  placeholder="End date and time"
+                  minDate={startDate}
+                  defaultTime={startDate ? addHours(startDate, 1) : null}
+                  id="create-event-end"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Location</Label>
+                <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="flex min-h-[80px] w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:border-[#3B82F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Audience</Label>
+                <select
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value)}
+                  className="flex h-10 w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:border-[#3B82F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2"
+                >
+                  <option value="all">All</option>
+                  <option value="players">Players</option>
+                  <option value="parents">Parents</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Attach files</Label>
+                <Input type="file" multiple onChange={handleFileChange} className="cursor-pointer" />
+                {files.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {files.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between rounded border p-2"
+                        style={{
+                          borderColor: "rgb(var(--border))",
+                          backgroundColor: "rgb(var(--platinum))",
+                        }}
                       >
-                        <option value="practice">Practice</option>
-                        <option value="game">Game</option>
-                        <option value="meeting">Meeting</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Title *</Label>
-                      <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DateTimePicker
-                      label="Start *"
-                      value={startDate}
-                      onChange={setStartDate}
-                      placeholder="Select start date and time"
-                      id="add-event-start"
-                    />
-                    <DateTimePicker
-                      label="End *"
-                      value={endDate}
-                      onChange={setEndDate}
-                      placeholder="Select end date and time"
-                      minDate={startDate}
-                      defaultTime={startDate ? addHours(startDate, 1) : null}
-                      id="add-event-end"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Location</Label>
-                    <Input value={location} onChange={(e) => setLocation(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Notes</Label>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="flex min-h-[80px] w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:border-[#3B82F6] transition-all duration-200"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Audience</Label>
-                    <select
-                      value={audience}
-                      onChange={(e) => setAudience(e.target.value)}
-                      className="flex h-10 w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:border-[#3B82F6] transition-all duration-200"
-                    >
-                      <option value="all">All</option>
-                      <option value="players">Players</option>
-                      <option value="parents">Parents</option>
-                      <option value="staff">Staff</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Attach Files (Practice Sheets, etc.)</Label>
-                    <Input
-                      type="file"
-                      multiple
-                      onChange={handleFileChange}
-                      className="cursor-pointer"
-                    />
-                    {files.length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        {files.map((file, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between p-2 rounded border"
-                            style={{
-                              borderColor: "rgb(var(--border))",
-                              backgroundColor: "rgb(var(--platinum))",
-                            }}
-                          >
-                            <span className="text-sm" style={{ color: "rgb(var(--text))" }}>
-                              {file.name}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeFile(index)}
-                              className="h-6 w-6 p-0"
-                            >
-                              ×
-                            </Button>
-                          </div>
-                        ))}
+                        <span className="text-sm" style={{ color: "rgb(var(--text))" }}>
+                          {file.name}
+                        </span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeFile(index)} className="h-6 w-6 p-0">
+                          ×
+                        </Button>
                       </div>
-                    )}
-                    <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                      Upload practice sheets, playbooks, or other files to attach to this event
-                    </p>
+                    ))}
                   </div>
-                </div>
-                <div className="flex gap-4 mt-4">
-                  <Button onClick={handleAddEvent} disabled={loading}>
-                    {loading ? "Adding..." : "Add Event"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowAddForm(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter className="mt-4 flex-col gap-2 sm:flex-row">
+              <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={loading || uploadingFiles}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateEvent}
+                disabled={loading || uploadingFiles}
+                className="text-white"
+                style={{ backgroundColor: "rgb(var(--accent))" }}
+              >
+                {uploadingFiles ? "Uploading…" : loading ? "Creating…" : "Create event"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-      <CalendarWidgetEnhanced
-        teamId={teamId}
-        events={calendarEvents}
-        canEdit={canEdit}
-        defaultView={defaultView}
-        onCreateEvent={canEdit ? () => setShowAddForm(true) : undefined}
-      />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <CalendarWidgetEnhanced
+          teamId={teamId}
+          events={calendarEvents}
+          canEdit={canEdit}
+          defaultView={defaultView}
+          onCreateEvent={canEdit ? openCreateModal : undefined}
+        />
       </div>
     </div>
   )
 }
-

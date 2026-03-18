@@ -23,11 +23,12 @@ import {
   subYears,
   startOfDay,
   isToday as isTodayDate,
-  isSameYear
+  isSameYear,
+  addHours,
 } from "date-fns"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Plus, Search, Settings, HelpCircle, Calendar as CalendarIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from "lucide-react"
 import { EventDetailModal } from "./event-detail-modal"
 import { DayEventsModal } from "./day-events-modal"
 
@@ -47,7 +48,8 @@ interface CalendarWidgetProps {
   events: CalendarEvent[]
   canEdit: boolean
   onEventClick?: (event: CalendarEvent) => void
-  onCreateEvent?: () => void
+  /** Open create-event modal; optional start/end from day/week grid selection */
+  onCreateEvent?: (opts?: { start: Date; end: Date }) => void
   defaultView?: "day" | "week" | "month" | "year"
 }
 
@@ -58,6 +60,12 @@ const DAY_VIEW_HOUR_HEIGHT = 60
 const DAY_VIEW_HOURS_PER_DAY = 24
 const DAY_VIEW_DAY_HEIGHT = DAY_VIEW_HOUR_HEIGHT * DAY_VIEW_HOURS_PER_DAY
 const DAY_VIEW_COPIES = 3
+const SLOT_SNAP_MINUTES = 15
+
+function pxToSnappedMinutes(py: number): number {
+  const m = (py / DAY_VIEW_HOUR_HEIGHT) * 60
+  return Math.max(0, Math.min(24 * 60 - SLOT_SNAP_MINUTES, Math.round(m / SLOT_SNAP_MINUTES) * SLOT_SNAP_MINUTES))
+}
 
 interface CalendarFilter {
   id: string
@@ -84,6 +92,60 @@ export function CalendarWidgetEnhanced({
   const [currentTime, setCurrentTime] = useState(new Date())
   const [miniCalendarMonth, setMiniCalendarMonth] = useState(new Date())
   const timeGridScrollRef = useRef<HTMLDivElement | null>(null)
+  /** Picked time on the grid (blue dashed line) — separate from the red “now” line */
+  const [slotPreview, setSlotPreview] = useState<{ dateKey: string; minutes: number } | null>(null)
+
+  const getSlotFromPointer = useCallback(
+    (clientX: number, clientY: number): { dateKey: string; minutes: number } | null => {
+      const el = timeGridScrollRef.current
+      if (!el || (view !== "day" && view !== "week")) return null
+      const rect = el.getBoundingClientRect()
+      if (clientY < rect.top || clientY > rect.bottom) return null
+      const yContent = clientY - rect.top + el.scrollTop
+      const mod = ((yContent % DAY_VIEW_DAY_HEIGHT) + DAY_VIEW_DAY_HEIGHT) % DAY_VIEW_DAY_HEIGHT
+      const minutes = pxToSnappedMinutes(mod)
+      if (view === "day") {
+        if (clientX - rect.left < 80) return null
+        return { dateKey: format(currentDate, "yyyy-MM-dd"), minutes }
+      }
+      const xContent = clientX - rect.left + el.scrollLeft
+      if (xContent < 80) return null
+      const totalW = Math.max(el.scrollWidth - 80, 1)
+      const colW = totalW / 7
+      const col = Math.min(6, Math.max(0, Math.floor((xContent - 80) / colW)))
+      const ws = startOfWeek(currentDate, { weekStartsOn: 0 })
+      const day = addDays(ws, col)
+      return { dateKey: format(day, "yyyy-MM-dd"), minutes }
+    },
+    [view, currentDate]
+  )
+
+  const handleTimeGridPointerMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!canEdit || !onCreateEvent) return
+      const slot = getSlotFromPointer(e.clientX, e.clientY)
+      setSlotPreview(slot)
+    },
+    [canEdit, onCreateEvent, getSlotFromPointer]
+  )
+
+  const handleTimeGridPointerLeave = useCallback(() => {
+    setSlotPreview(null)
+  }, [])
+
+  const handleTimeGridClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!canEdit || !onCreateEvent) return
+      if ((e.target as HTMLElement).closest("[data-calendar-event]")) return
+      const slot = getSlotFromPointer(e.clientX, e.clientY)
+      if (!slot) return
+      const [yy, mm, dd] = slot.dateKey.split("-").map(Number)
+      const start = new Date(yy, mm - 1, dd, 0, 0, 0, 0)
+      start.setMinutes(slot.minutes)
+      onCreateEvent({ start, end: addHours(start, 1) })
+    },
+    [canEdit, onCreateEvent, getSlotFromPointer]
+  )
   
   // Calendar filters (like Google Calendar's "My calendars")
   const [calendarFilters, setCalendarFilters] = useState<CalendarFilter[]>([
@@ -377,8 +439,12 @@ export function CalendarWidgetEnhanced({
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overflow-x-auto"
+          className="scrollbar-hidden min-h-0 flex-1 cursor-crosshair overflow-y-auto overflow-x-auto"
           onScroll={handleDayViewScroll}
+          onMouseMove={handleTimeGridPointerMove}
+          onMouseLeave={handleTimeGridPointerLeave}
+          onClick={handleTimeGridClick}
+          title={canEdit && onCreateEvent ? "Move to choose a time, click empty space to create an event" : undefined}
         >
           <div className="relative" style={{ height: weekBodyHeight }}>
             {[0, 1, 2].map((copyIndex) => (
@@ -434,6 +500,24 @@ export function CalendarWidgetEnhanced({
                         className="relative min-w-0 border-r"
                         style={{ borderColor: "rgb(var(--border))", minHeight: DAY_VIEW_DAY_HEIGHT }}
                       >
+                        {slotPreview &&
+                          slotPreview.dateKey === format(day, "yyyy-MM-dd") &&
+                          canEdit &&
+                          onCreateEvent && (
+                            <div
+                              className="pointer-events-none absolute left-1 right-1 z-[25]"
+                              style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
+                              aria-hidden
+                            >
+                              <div className="flex items-center">
+                                <div
+                                  className="h-2 w-2 shrink-0 rounded-full border border-white bg-blue-600"
+                                  style={{ marginLeft: "-4px" }}
+                                />
+                                <div className="h-0 flex-1 border-t-2 border-dashed border-blue-600" />
+                              </div>
+                            </div>
+                          )}
                         {dayEvents.map((event) => {
                           const eventStart = new Date(event.start)
                           const eventEnd = new Date(event.end)
@@ -444,8 +528,12 @@ export function CalendarWidgetEnhanced({
                           return (
                             <div
                               key={`${copyIndex}-${event.id}`}
-                              onClick={() => handleEventClick(event)}
-                              className="absolute left-1 right-1 cursor-pointer rounded p-1 text-xs shadow-md hover:shadow-md border-l-2"
+                              data-calendar-event
+                              onClick={(ev) => {
+                                ev.stopPropagation()
+                                handleEventClick(event)
+                              }}
+                              className="absolute left-1 right-1 z-20 cursor-pointer rounded border-l-2 p-1 text-xs shadow-md hover:shadow-md"
                               style={{
                                 top: `${startMinutes}px`,
                                 height: `${height}px`,
@@ -662,8 +750,12 @@ export function CalendarWidgetEnhanced({
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="scrollbar-hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+          className="scrollbar-hidden flex-1 min-h-0 cursor-crosshair overflow-y-auto overflow-x-hidden"
           onScroll={handleDayViewScroll}
+          onMouseMove={handleTimeGridPointerMove}
+          onMouseLeave={handleTimeGridPointerLeave}
+          onClick={handleTimeGridClick}
+          title={canEdit && onCreateEvent ? "Move to choose a time, click empty space to create an event" : undefined}
         >
           <div className="relative" style={{ height: totalHeight }}>
             {[0, 1, 2].map((copyIndex) => (
@@ -747,8 +839,37 @@ export function CalendarWidgetEnhanced({
                     </div>
                   )}
 
+                  {slotPreview &&
+                    slotPreview.dateKey === format(currentDate, "yyyy-MM-dd") &&
+                    canEdit &&
+                    onCreateEvent && (
+                      <div
+                        className="pointer-events-none absolute left-20 right-4 z-[25]"
+                        style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
+                        aria-hidden
+                      >
+                        <div className="flex items-center">
+                          <div
+                            className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-blue-600 shadow-sm"
+                            style={{ marginLeft: "-5px" }}
+                          />
+                          <div className="h-0 flex-1 border-t-2 border-dashed border-blue-600" />
+                        </div>
+                        <div className="ml-1 mt-0.5 text-[11px] font-semibold text-blue-700">
+                          {format(
+                            (() => {
+                              const d = new Date()
+                              d.setHours(0, slotPreview.minutes, 0, 0)
+                              return d
+                            })(),
+                            "h:mm a"
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                   {/* Events — same events in each copy for visual continuity */}
-                  <div className="absolute inset-0 ml-20 pr-4">
+                  <div className="pointer-events-none absolute inset-0 ml-20 pr-4">
                     {dayEvents.map((event) => {
                       const eventStart = new Date(event.start)
                       const eventEnd = new Date(event.end)
@@ -759,8 +880,21 @@ export function CalendarWidgetEnhanced({
                       return (
                         <div
                           key={`${copyIndex}-${event.id}`}
-                          onClick={() => handleEventClick(event)}
-                          className="absolute left-0 right-0 p-2 rounded cursor-pointer hover:shadow-md border-l-4"
+                          data-calendar-event
+                          role="button"
+                          tabIndex={0}
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            handleEventClick(event)
+                          }}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter" || ev.key === " ") {
+                              ev.preventDefault()
+                              ev.stopPropagation()
+                              handleEventClick(event)
+                            }
+                          }}
+                          className="pointer-events-auto absolute left-0 right-0 cursor-pointer rounded border-l-4 p-2 hover:shadow-md"
                           style={{
                             top: `${startMinutes}px`,
                             height: `${height}px`,
@@ -1020,17 +1154,11 @@ export function CalendarWidgetEnhanced({
               </Button>
             </div>
             {canEdit && onCreateEvent && (
-              <Button size="sm" onClick={onCreateEvent} className="ml-2">
-                <Plus className="h-4 w-4 mr-1" />
+              <Button size="sm" onClick={() => onCreateEvent()} className="ml-2">
+                <Plus className="mr-1 h-4 w-4" />
                 Create
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <Search className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <Settings className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 

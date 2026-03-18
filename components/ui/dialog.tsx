@@ -16,6 +16,7 @@ interface DialogContentProps {
 }
 
 interface DialogHeaderProps {
+  className?: string
   children: React.ReactNode
 }
 
@@ -56,8 +57,8 @@ export function DialogContent({ className, children }: DialogContentProps) {
   )
 }
 
-export function DialogHeader({ children }: DialogHeaderProps) {
-  return <div className="mb-4">{children}</div>
+export function DialogHeader({ className, children }: DialogHeaderProps) {
+  return <div className={cn("mb-4", className)}>{children}</div>
 }
 
 export function DialogTitle({ className, children }: DialogTitleProps) {

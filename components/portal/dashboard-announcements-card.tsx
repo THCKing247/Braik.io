@@ -1,0 +1,556 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Megaphone, MoreVertical, X, Pin } from "lucide-react"
+import {
+  AUDIENCE_LABELS,
+  formatAnnouncementDateTime,
+  userCanEditTeamAnnouncement,
+  type TeamAnnouncementRow,
+} from "@/lib/team-announcements"
+import { ROLES, type Role } from "@/lib/auth/roles"
+
+function sessionRoleToRole(s?: string | null): Role {
+  const u = (s || "").toUpperCase().replace(/-/g, "_")
+  if (u === ROLES.HEAD_COACH) return ROLES.HEAD_COACH
+  if (u === ROLES.ASSISTANT_COACH) return ROLES.ASSISTANT_COACH
+  if (u === ROLES.ATHLETIC_DIRECTOR) return ROLES.ATHLETIC_DIRECTOR
+  if (u === ROLES.PARENT) return ROLES.PARENT
+  if (u === ROLES.SCHOOL_ADMIN || u === "ADMIN") return ROLES.SCHOOL_ADMIN
+  return ROLES.PLAYER
+}
+
+const BODY_PREVIEW_LEN = 100
+
+function bodyPreview(body: string, max = BODY_PREVIEW_LEN) {
+  const t = body.replace(/\s+/g, " ").trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max)}…`
+}
+
+export function DashboardAnnouncementsCard({
+  teamId,
+  canCreate,
+  viewerUserId,
+  viewerRole,
+}: {
+  teamId: string
+  canCreate: boolean
+  viewerUserId: string
+  viewerRole?: string | null
+}) {
+  const role = sessionRoleToRole(viewerRole)
+  const [announcements, setAnnouncements] = useState<TeamAnnouncementRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [viewOpen, setViewOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+
+  const [createTitle, setCreateTitle] = useState("")
+  const [createBody, setCreateBody] = useState("")
+  const [createAudience, setCreateAudience] = useState<string>("all")
+  const [createPinned, setCreatePinned] = useState(false)
+  const [createNotify, setCreateNotify] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createSubmitting, setCreateSubmitting] = useState(false)
+
+  const [expandedInView, setExpandedInView] = useState<Record<string, boolean>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState("")
+  const [editBody, setEditBody] = useState("")
+  const [editAudience, setEditAudience] = useState("all")
+  const [editPinned, setEditPinned] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!teamId) return
+    try {
+      const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/team-announcements`)
+      if (!res.ok) return
+      const data = await res.json()
+      setAnnouncements(Array.isArray(data.announcements) ? data.announcements : [])
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [teamId])
+
+  useEffect(() => {
+    setLoading(true)
+    load()
+  }, [load])
+
+  const previewItems = announcements.slice(0, 4)
+
+  const openCreate = () => {
+    setMenuOpen(false)
+    setCreateError(null)
+    setCreateTitle("")
+    setCreateBody("")
+    setCreateAudience("all")
+    setCreatePinned(false)
+    setCreateNotify(false)
+    setCreateOpen(true)
+  }
+
+  const openView = () => {
+    setMenuOpen(false)
+    setViewOpen(true)
+  }
+
+  const submitCreate = async () => {
+    const t = createTitle.trim()
+    const b = createBody.trim()
+    if (!t || !b) {
+      setCreateError("Title and message are required.")
+      return
+    }
+    setCreateError(null)
+    setCreateSubmitting(true)
+    try {
+      const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/team-announcements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: t,
+          body: b,
+          audience: createAudience,
+          is_pinned: createPinned,
+          send_notification: createNotify,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCreateError(typeof j.error === "string" ? j.error : "Could not post announcement.")
+        return
+      }
+      setCreateOpen(false)
+      await load()
+    } catch {
+      setCreateError("Network error. Try again.")
+    } finally {
+      setCreateSubmitting(false)
+    }
+  }
+
+  const startEdit = (row: TeamAnnouncementRow) => {
+    setEditingId(row.id)
+    setEditTitle(row.title)
+    setEditBody(row.body)
+    setEditAudience(row.audience || "all")
+    setEditPinned(row.is_pinned)
+    setEditError(null)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditError(null)
+  }
+
+  const saveEdit = async (id: string) => {
+    const t = editTitle.trim()
+    const b = editBody.trim()
+    if (!t || !b) {
+      setEditError("Title and message are required.")
+      return
+    }
+    setEditError(null)
+    setEditSaving(true)
+    try {
+      const res = await fetch(
+        `/api/teams/${encodeURIComponent(teamId)}/team-announcements/${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: t,
+            body: b,
+            audience: editAudience,
+            is_pinned: editPinned,
+          }),
+        }
+      )
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setEditError(typeof j.error === "string" ? j.error : "Could not save.")
+        return
+      }
+      setEditingId(null)
+      await load()
+    } catch {
+      setEditError("Network error.")
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const canEditRow = (row: TeamAnnouncementRow) =>
+    viewerUserId && userCanEditTeamAnnouncement(viewerUserId, role, row.author_id)
+
+  return (
+    <>
+      <Card
+        className="flex h-full flex-col rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      >
+        <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+          <CardTitle
+            className="flex min-w-0 flex-1 items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
+            style={{ color: "rgb(var(--text))" }}
+          >
+            <Megaphone className="h-4 w-4 shrink-0 md:h-4" style={{ color: "rgb(var(--accent))" }} />
+            Announcements
+          </CardTitle>
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 shrink-0 px-2 md:h-8"
+                style={{ color: "rgb(var(--muted))" }}
+                aria-label="Announcement actions"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-1">
+              <div className="flex flex-col py-1">
+                <button
+                  type="button"
+                  className="rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[rgb(var(--platinum))]"
+                  style={{ color: "rgb(var(--text))" }}
+                  onClick={openView}
+                >
+                  View Announcements
+                </button>
+                {canCreate && (
+                  <button
+                    type="button"
+                    className="rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[rgb(var(--platinum))]"
+                    style={{ color: "rgb(var(--accent))" }}
+                    onClick={openCreate}
+                  >
+                    Create Announcement
+                  </button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </CardHeader>
+        <CardContent className="max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : previewItems.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-xl"
+                style={{ backgroundColor: "rgb(var(--platinum))" }}
+              >
+                <Megaphone className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                  No announcements yet
+                </p>
+                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                  Team news and updates will appear here.
+                </p>
+              </div>
+              {canCreate && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="text-xs font-medium text-white"
+                  style={{ backgroundColor: "rgb(var(--accent))" }}
+                  onClick={openCreate}
+                >
+                  Create Announcement
+                </Button>
+              )}
+            </div>
+          ) : (
+            previewItems.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={openView}
+                className="flex w-full gap-2 rounded-lg p-2.5 text-left transition-colors hover:bg-[rgb(var(--platinum))]"
+              >
+                <div className="flex w-4 shrink-0 justify-center pt-0.5">
+                  {a.is_pinned ? <Pin className="h-3.5 w-3.5 text-amber-600" aria-hidden /> : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "rgb(var(--text))" }}>
+                    {a.title}
+                  </p>
+                  <p className="mt-0.5 text-xs line-clamp-2" style={{ color: "rgb(var(--muted))" }}>
+                    {bodyPreview(a.body)}
+                  </p>
+                  <p className="mt-0.5 text-[11px]" style={{ color: "rgb(var(--muted))" }}>
+                    {a.author_name ? `${a.author_name} · ` : ""}
+                    {formatAnnouncementDateTime(a.created_at)}
+                  </p>
+                </div>
+              </button>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* View all modal */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="relative max-h-[85vh] max-w-3xl w-[calc(100%-2rem)] overflow-hidden border border-[rgb(var(--border))] bg-white p-0">
+          <button
+            type="button"
+            className="absolute right-3 top-3 z-10 rounded-lg p-1.5 transition-colors hover:bg-[rgb(var(--platinum))]"
+            onClick={() => setViewOpen(false)}
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
+          </button>
+          <DialogHeader className="border-b border-[rgb(var(--border))] px-6 pb-4 pt-6 pr-14">
+            <DialogTitle className="text-xl text-[rgb(var(--text))]">Announcements</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[min(70vh,560px)] overflow-y-auto px-6 py-4">
+            {announcements.length === 0 ? (
+              <div className="py-12 text-center">
+                <Megaphone className="mx-auto h-10 w-10 opacity-30" style={{ color: "rgb(var(--muted))" }} />
+                <p className="mt-3 text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                  No announcements yet
+                </p>
+                <p className="mt-1 text-xs" style={{ color: "rgb(var(--muted))" }}>
+                  {canCreate ? "Create the first one from the menu on the dashboard card." : "Check back later."}
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-6">
+                {announcements.map((a) => {
+                  const expanded = expandedInView[a.id]
+                  const long = a.body.length > 400
+                  const showBody = !long || expanded ? a.body : `${a.body.slice(0, 400)}…`
+                  const edited = a.updated_at !== a.created_at
+
+                  return (
+                    <li
+                      key={a.id}
+                      className="rounded-xl border p-4"
+                      style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
+                    >
+                      {editingId === a.id ? (
+                        <div className="space-y-3">
+                          {editError && (
+                            <p className="text-sm text-red-600" role="alert">
+                              {editError}
+                            </p>
+                          )}
+                          <div>
+                            <Label className="text-xs">Title</Label>
+                            <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="mt-1" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Message</Label>
+                            <textarea
+                              value={editBody}
+                              onChange={(e) => setEditBody(e.target.value)}
+                              className="mt-1 min-h-[140px] w-full rounded-md border px-3 py-2 text-sm"
+                              style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                            />
+                          </div>
+                          <div className="flex flex-wrap gap-3">
+                            <label className="flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={editPinned}
+                                onChange={(e) => setEditPinned(e.target.checked)}
+                              />
+                              Pin
+                            </label>
+                            <select
+                              value={editAudience}
+                              onChange={(e) => setEditAudience(e.target.value)}
+                              className="rounded-md border px-2 py-1 text-xs"
+                              style={{ borderColor: "rgb(var(--border))" }}
+                            >
+                              <option value="all">Everyone</option>
+                              <option value="staff">Staff only</option>
+                              <option value="players">Players</option>
+                              <option value="parents">Parents</option>
+                            </select>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button type="button" size="sm" variant="outline" onClick={cancelEdit}>
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={editSaving}
+                              onClick={() => saveEdit(a.id)}
+                              style={{ backgroundColor: "rgb(var(--accent))", color: "#fff" }}
+                            >
+                              {editSaving ? "Saving…" : "Save"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="flex min-w-0 items-start gap-2">
+                              {a.is_pinned && <Pin className="mt-1 h-4 w-4 shrink-0 text-amber-600" />}
+                              <h3 className="text-lg font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
+                                {a.title}
+                              </h3>
+                            </div>
+                            {canEditRow(a) && (
+                              <Button type="button" variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => startEdit(a)}>
+                                Edit
+                              </Button>
+                            )}
+                          </div>
+                          <span
+                            className="mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+                            style={{
+                              backgroundColor: "rgb(var(--platinum))",
+                              color: "rgb(var(--muted))",
+                            }}
+                          >
+                            {AUDIENCE_LABELS[(a.audience as keyof typeof AUDIENCE_LABELS) || "all"] || a.audience}
+                          </span>
+                          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed" style={{ color: "rgb(var(--text))" }}>
+                            {showBody}
+                          </p>
+                          {long && (
+                            <button
+                              type="button"
+                              className="mt-1 text-xs font-medium"
+                              style={{ color: "rgb(var(--accent))" }}
+                              onClick={() =>
+                                setExpandedInView((prev) => ({ ...prev, [a.id]: !prev[a.id] }))
+                              }
+                            >
+                              {expanded ? "Show less" : "Read more"}
+                            </button>
+                          )}
+                          <div className="mt-4 space-y-0.5 border-t pt-3 text-xs" style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--muted))" }}>
+                            <p>
+                              Posted by {a.author_name || "Team staff"} · {formatAnnouncementDateTime(a.created_at)}
+                            </p>
+                            {edited && (
+                              <p>Updated {formatAnnouncementDateTime(a.updated_at)}</p>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create modal */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="relative max-w-lg w-[calc(100%-2rem)] border border-[rgb(var(--border))] bg-white">
+          <button
+            type="button"
+            className="absolute right-3 top-3 rounded-lg p-1.5 hover:bg-[rgb(var(--platinum))]"
+            onClick={() => setCreateOpen(false)}
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
+          </button>
+          <DialogHeader className="pr-10">
+            <DialogTitle className="text-[rgb(var(--text))]">Create Announcement</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {createError && (
+              <p className="text-sm text-red-600" role="alert">
+                {createError}
+              </p>
+            )}
+            <div>
+              <Label htmlFor="ann-title">Title *</Label>
+              <Input
+                id="ann-title"
+                value={createTitle}
+                onChange={(e) => setCreateTitle(e.target.value)}
+                className="mt-1.5"
+                placeholder="Short headline"
+                maxLength={500}
+              />
+            </div>
+            <div>
+              <Label htmlFor="ann-body">Message *</Label>
+              <textarea
+                id="ann-body"
+                value={createBody}
+                onChange={(e) => setCreateBody(e.target.value)}
+                className="mt-1.5 min-h-[140px] w-full rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                placeholder="What should the team know?"
+              />
+            </div>
+            <div>
+              <Label htmlFor="ann-audience">Audience</Label>
+              <select
+                id="ann-audience"
+                value={createAudience}
+                onChange={(e) => setCreateAudience(e.target.value)}
+                className="mt-1.5 flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: "rgb(var(--border))" }}
+              >
+                <option value="all">Everyone on the team</option>
+                <option value="staff">Staff only</option>
+                <option value="players">Players</option>
+                <option value="parents">Parents</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm" style={{ color: "rgb(var(--text))" }}>
+                <input type="checkbox" checked={createPinned} onChange={(e) => setCreatePinned(e.target.checked)} />
+                Pin to top of list
+              </label>
+              <label className="flex items-center gap-2 text-sm" style={{ color: "rgb(var(--text))" }}>
+                <input type="checkbox" checked={createNotify} onChange={(e) => setCreateNotify(e.target.checked)} />
+                Send notification (saved for future delivery)
+              </label>
+            </div>
+          </div>
+          <DialogFooter className="mt-6 flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={createSubmitting}
+              onClick={submitCreate}
+              className="text-white"
+              style={{ backgroundColor: "rgb(var(--accent))" }}
+            >
+              {createSubmitting ? "Posting…" : "Post Announcement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}

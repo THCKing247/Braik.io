@@ -16,11 +16,9 @@ import {
   MapPin,
   Clock,
   ClipboardCheck,
-  Calendar,
-  FileText,
-  BookOpen,
 } from "lucide-react"
 import { DashboardCalendar } from "@/components/portal/dashboard-calendar"
+import { DashboardAnnouncementsCard } from "@/components/portal/dashboard-announcements-card"
 import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -189,149 +187,6 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
         )}
       </div>
     </div>
-  )
-}
-
-// ─── Updates Card (announcements + team-wide shared content; polls like messages) ─
-
-type TeamUpdateRow = {
-  id: string
-  kind: "announcement" | "schedule" | "document" | "playbook"
-  title: string
-  subtitle: string | null
-  href: string
-  at: string
-}
-
-function UpdatesCard({ teamId, canPost }: { teamId: string; canPost: boolean }) {
-  const [updates, setUpdates] = useState<TeamUpdateRow[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/team-updates`)
-      if (!res.ok) return
-      const data = await res.json()
-      setUpdates(Array.isArray(data.updates) ? data.updates : [])
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false)
-    }
-  }, [teamId])
-
-  useEffect(() => {
-    load()
-    const interval = setInterval(load, 10000)
-    return () => clearInterval(interval)
-  }, [load])
-
-  const iconFor = (kind: TeamUpdateRow["kind"]) => {
-    switch (kind) {
-      case "announcement":
-        return Megaphone
-      case "schedule":
-        return Calendar
-      case "document":
-        return FileText
-      case "playbook":
-        return BookOpen
-      default:
-        return Megaphone
-    }
-  }
-
-  const annHref = `/dashboard/announcements?teamId=${encodeURIComponent(teamId)}`
-
-  return (
-    <Card
-      className="flex h-full flex-col rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
-      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
-    >
-      <CardHeader className="flex shrink-0 flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
-        <CardTitle
-          className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
-          style={{ color: "rgb(var(--text))" }}
-        >
-          <Megaphone className="h-4 w-4 shrink-0 md:h-4" style={{ color: "rgb(var(--accent))" }} />
-          Team Updates
-        </CardTitle>
-        <Link href={annHref} className="shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 min-w-[4rem] px-3 text-xs font-medium md:h-7 md:min-w-0 md:px-2"
-            style={{ color: "rgb(var(--accent))" }}
-          >
-            View all
-          </Button>
-        </Link>
-      </CardHeader>
-      <CardContent className="max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
-        {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        ) : updates.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded-xl"
-              style={{ backgroundColor: "rgb(var(--platinum))" }}
-            >
-              <Megaphone className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>No updates yet</p>
-              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                Announcements, team-wide schedule items, shared documents, and team playbooks show here. Updates every 10 seconds.
-              </p>
-            </div>
-            {canPost && (
-              <Link href={annHref}>
-                <Button
-                  size="sm"
-                  className="text-xs font-medium text-white"
-                  style={{ backgroundColor: "rgb(var(--accent))" }}
-                >
-                  Post an announcement
-                </Button>
-              </Link>
-            )}
-          </div>
-        ) : (
-          updates.map((u) => {
-            const Icon = iconFor(u.kind)
-            return (
-              <Link
-                key={u.id}
-                href={u.href}
-                className="flex items-start gap-3 rounded-lg p-2.5 transition-colors hover:bg-[rgb(var(--platinum))]"
-              >
-                <div
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: "rgb(var(--platinum))" }}
-                >
-                  <Icon className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium leading-snug line-clamp-2" style={{ color: "rgb(var(--text))" }}>
-                    {u.title}
-                  </p>
-                  {u.subtitle ? (
-                    <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "rgb(var(--muted))" }}>
-                      {u.subtitle}
-                    </p>
-                  ) : null}
-                  <p className="mt-0.5 text-[11px]" style={{ color: "rgb(var(--muted))" }}>
-                    {formatRelativeTime(u.at)}
-                  </p>
-                </div>
-              </Link>
-            )
-          })
-        )}
-      </CardContent>
-    </Card>
   )
 }
 
@@ -797,10 +652,15 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         <DashboardCalendar teamId={teamId} canAddEvents={canAddCalendarEvents} />
       )}
 
-      {/* ── Updates + Notifications + Readiness (coach) ── */}
+      {/* ── Announcements + Notifications + Readiness ── */}
       {hasTeam && (
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-        <UpdatesCard teamId={teamId} canPost={canAddCalendarEvents} />
+        <DashboardAnnouncementsCard
+          teamId={teamId}
+          canCreate={canAddCalendarEvents}
+          viewerUserId={user.id}
+          viewerRole={user.role}
+        />
         <NotificationsCard teamId={teamId} />
         <ReadinessSummaryCard teamId={teamId} />
       </div>

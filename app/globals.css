@@ -166,8 +166,10 @@
   html {
     background-color: rgb(var(--snow));
     min-height: 100vh;
-    scroll-behavior: smooth;
+    height: auto;
     overflow-x: hidden;
+    overflow-y: auto;
+    scroll-behavior: smooth;
     width: 100%;
   }
   
@@ -177,7 +179,9 @@
     color: rgb(var(--text));
     transition: background-color 0.3s ease, color 0.3s ease;
     min-height: 100vh;
+    height: auto;
     overflow-x: hidden;
+    overflow-y: auto;
     width: 100%;
   }
 
@@ -206,6 +210,11 @@
 }
 
 @layer utilities {
+  /* Momentum scrolling for dashboard sidebar / main (iOS) */
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+
   .font-athletic {
     font-family: var(--font-teko), var(--font-oswald), sans-serif;
   }

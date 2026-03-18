@@ -37,76 +37,82 @@ export function DashboardLayoutClient({
 
   return (
     <PortalTeamProvider teamIds={teamIds} currentTeamId={resolvedCurrentTeamId}>
-    <CoachBProvider isDesktop={isMdUp}>
-      <PlaybookToastProvider>
-      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>
-        {/* One horizontal row: sidebar + main; height is viewport-based so sidebar stays consistent */}
-        <div className="flex w-full min-w-0 max-w-full flex-1">
-          <div className="hidden h-full min-h-0 shrink-0 md:flex">
-            <DashboardSidebar teams={teams} />
-          </div>
-          {/* On schedule: main must NOT scroll (overflow-hidden) so only the time grid scrolls. */}
-          <main
+      <CoachBProvider isDesktop={isMdUp}>
+        <PlaybookToastProvider>
+          <div
             className={cn(
-              "w-full min-w-0 flex-1 min-h-0",
-              isSchedulePage
-                ? "flex flex-col overflow-hidden"
-                : cn(
-                    "overflow-x-hidden overflow-y-auto overscroll-y-contain",
-                    "md:flex md:flex-col md:overflow-hidden"
-                  ),
-              "pl-0 md:pl-6",
-              "max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]"
+              "flex min-h-0 min-w-0 flex-1 flex-col",
+              className
             )}
-            style={{
-              backgroundColor: "rgb(var(--snow))",
-            }}
           >
-            <div
-              className={cn(
-                "w-full min-w-0 max-w-full flex-1 flex flex-col min-h-0",
-                "px-3 py-3 sm:px-4 md:min-h-0 md:px-6 md:py-4"
-              )}
-            >
-              {/* Desktop: bordered card shell. Mobile: full-bleed snow canvas */}
-              <div
+            {/* Sidebar + main: stack on mobile; row on md+. Schedule keeps nested scroll for calendar grid. */}
+            <div className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overscroll-contain md:flex-row">
+              <aside
                 className={cn(
-                  "min-w-0 w-full max-w-full min-h-0",
-                  "md:rounded-xl md:border-2 md:border-[#E5E7EB] md:bg-white md:shadow-sm",
-                  isSchedulePage
-                    ? "flex flex-1 flex-col overflow-hidden md:[scrollbar-gutter:stable]"
-                    : cn(
-                        "md:flex md:flex-1 md:flex-col md:overflow-y-auto md:[scrollbar-gutter:stable]",
-                        "md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none]"
-                      )
+                  "flex w-full max-w-full shrink-0 flex-col overflow-hidden overscroll-contain",
+                  "max-h-[40vh] shrink-0 border-b border-border bg-card md:max-h-none md:w-64 md:min-h-0 md:self-stretch md:border-b-0 md:border-r"
                 )}
-                aria-label="Page content"
+                style={{
+                  background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
+                  boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
+                }}
+                aria-label="Dashboard navigation"
+              >
+                <DashboardSidebar teams={teams} />
+              </aside>
+
+              <main
+                className={cn(
+                  "min-h-0 w-full min-w-0 flex-1 overscroll-contain touch-scroll scroll-smooth",
+                  "p-4 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:p-6 md:pb-6",
+                  isSchedulePage
+                    ? "flex min-h-0 flex-col overflow-hidden"
+                    : "overflow-x-hidden overflow-y-auto"
+                )}
+                style={{
+                  backgroundColor: "rgb(var(--snow))",
+                }}
               >
                 <div
                   className={cn(
-                    "min-w-0 w-full max-w-full",
-                    "md:p-6",
-                    isSchedulePage && "flex min-h-0 flex-1 flex-col"
+                    "w-full min-w-0 max-w-full min-h-0",
+                    isSchedulePage
+                      ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                      : "min-h-min"
                   )}
                 >
-                  {children}
+                  <div
+                    className={cn(
+                      "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
+                      "md:rounded-xl md:border-2 md:border-[#E5E7EB] md:bg-white md:p-6 md:shadow-sm",
+                      isSchedulePage &&
+                        "flex min-h-0 flex-1 flex-col overflow-hidden md:[scrollbar-gutter:stable]"
+                    )}
+                    aria-label="Page content"
+                  >
+                    <div
+                      className={cn(
+                        "min-w-0 w-full max-w-full",
+                        isSchedulePage && "flex min-h-0 flex-1 flex-col"
+                      )}
+                    >
+                      {children}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </main>
             </div>
-          </main>
-        </div>
-        {/* Widget slot for md+: min-h-0 so flex chain does not block modal's internal scroll */}
-        {isMdUp && (
-          <div className="min-h-0 flex-shrink-0">
-            <AIWidgetWrapper />
+
+            {isMdUp && (
+              <div className="min-h-0 flex-shrink-0">
+                <AIWidgetWrapper />
+              </div>
+            )}
+            {!isMdUp && <AIWidgetWrapper />}
+            {!isMdUp && <DashboardMobileTabBar />}
           </div>
-        )}
-        {/* Below md: fixed-position floating Coach B */}
-        {!isMdUp && <AIWidgetWrapper />}
-        {!isMdUp && <DashboardMobileTabBar />}
-      </div>
-      </PlaybookToastProvider>
-    </CoachBProvider>
+        </PlaybookToastProvider>
+      </CoachBProvider>
     </PortalTeamProvider>
   )
 }

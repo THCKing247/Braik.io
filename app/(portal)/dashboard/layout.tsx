@@ -165,13 +165,7 @@ export default async function DashboardLayout({
         teams={teams}
         showAdminLink={Boolean(session.user?.isPlatformOwner)}
       >
-        <div
-          className="app-shell flex min-h-0 min-h-screen flex-col overflow-hidden bg-background"
-          style={{
-            height: "100dvh",
-            maxHeight: "100dvh",
-          }}
-        >
+        <div className="app-shell flex min-h-screen flex-col bg-background">
           <header className="shrink-0">
             <Suspense
               fallback={

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DollarSign, Plus, CreditCard, CheckCircle, XCircle, Edit, Trash2 } from "lucide-react"
 import { format } from "date-fns"
+import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 
 interface PaymentAccount {
   connected: boolean
@@ -317,17 +318,16 @@ export function CoachPaymentsManager({ teamId, isHeadCoach }: CoachPaymentsManag
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dueDate">Due Date (Optional)</Label>
-                  <Input
-                    id="dueDate"
-                    type="date"
-                    value={collectionForm.dueDate}
-                    onChange={(e) =>
-                      setCollectionForm({ ...collectionForm, dueDate: e.target.value })
-                    }
-                  />
-                </div>
+                <DatePicker
+                  id="dueDate"
+                  label="Due Date (Optional)"
+                  value={collectionForm.dueDate ? ymdToDate(collectionForm.dueDate) : null}
+                  onChange={(d) =>
+                    setCollectionForm({ ...collectionForm, dueDate: d ? dateToYmd(d) : "" })
+                  }
+                  placeholder="Optional"
+                  allowClear
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="visibility">Visibility</Label>

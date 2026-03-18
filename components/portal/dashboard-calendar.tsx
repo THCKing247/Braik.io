@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react"
+import { DateTimePicker } from "@/components/portal/date-time-picker"
+import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react"
 import {
   format,
   startOfMonth,
@@ -19,14 +20,8 @@ import {
   isSameMonth,
   addMonths,
   subMonths,
+  addHours,
 } from "date-fns"
-
-function combineDateAndTime(date: Date, timeHHmm: string): Date {
-  const [h, m] = timeHHmm.split(":").map((x) => parseInt(x, 10))
-  const out = new Date(date)
-  out.setHours(Number.isFinite(h) ? h : 16, Number.isFinite(m) ? m : 0, 0, 0)
-  return out
-}
 
 type DashboardCalendarEvent = {
   id: string
@@ -86,8 +81,8 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
   const [quickAddDate, setQuickAddDate] = useState<Date | null>(null)
   const [qaTitle, setQaTitle] = useState("")
   const [qaType, setQaType] = useState("practice")
-  const [qaStartTime, setQaStartTime] = useState("16:00")
-  const [qaEndTime, setQaEndTime] = useState("17:30")
+  const [qaStartDate, setQaStartDate] = useState<Date | null>(null)
+  const [qaEndDate, setQaEndDate] = useState<Date | null>(null)
   const [qaLocation, setQaLocation] = useState("")
   const [qaAudience, setQaAudience] = useState("all")
   const [qaSaving, setQaSaving] = useState(false)
@@ -148,24 +143,35 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
 
   const openQuickAdd = (day: Date) => {
     setQuickAddDate(day)
+    const start = new Date(day)
+    start.setHours(16, 0, 0, 0)
+    const end = new Date(day)
+    end.setHours(17, 30, 0, 0)
+    setQaStartDate(start)
+    setQaEndDate(end)
     setQaTitle("")
     setQaType("practice")
-    setQaStartTime("16:00")
-    setQaEndTime("17:30")
     setQaLocation("")
     setQaAudience("all")
     setQuickAddOpen(true)
   }
 
+  useEffect(() => {
+    if (!qaStartDate) return
+    if (!qaEndDate || qaEndDate <= qaStartDate) {
+      setQaEndDate(addHours(qaStartDate, 1))
+    }
+  }, [qaStartDate])
+
   const handleQuickAddSubmit = async () => {
-    if (!quickAddDate) return
+    if (!quickAddDate || !qaStartDate || !qaEndDate) return
     const title = qaTitle.trim()
     if (!title) {
       alert("Please enter a title for the event.")
       return
     }
-    const start = combineDateAndTime(quickAddDate, qaStartTime)
-    const end = combineDateAndTime(quickAddDate, qaEndTime)
+    const start = qaStartDate
+    const end = qaEndDate
     if (end <= start) {
       alert("End time must be after start time.")
       return
@@ -391,8 +397,20 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                 if (!o) setQuickAddDate(null)
               }}
             >
-              <DialogContent className="max-w-md">
-                <DialogHeader>
+              <DialogContent className="max-w-md relative pt-10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickAddOpen(false)
+                    setQuickAddDate(null)
+                  }}
+                  disabled={qaSaving}
+                  className="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--accent))] disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <DialogHeader className="pr-8">
                   <DialogTitle>Quick add event</DialogTitle>
                   <DialogDescription>
                     {format(quickAddDate, "EEEE, MMMM d, yyyy")} — saved to team schedule and calendar for everyone.
@@ -447,19 +465,24 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                       </select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="qa-start" style={{ color: "rgb(var(--text))" }}>
-                        Start
-                      </Label>
-                      <Input id="qa-start" type="time" value={qaStartTime} onChange={(e) => setQaStartTime(e.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="qa-end" style={{ color: "rgb(var(--text))" }}>
-                        End
-                      </Label>
-                      <Input id="qa-end" type="time" value={qaEndTime} onChange={(e) => setQaEndTime(e.target.value)} />
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <DateTimePicker
+                      id="qa-start"
+                      label="Start *"
+                      value={qaStartDate}
+                      onChange={setQaStartDate}
+                      placeholder="Start date & time"
+                      defaultTime={qaStartDate ?? quickAddDate ?? undefined}
+                    />
+                    <DateTimePicker
+                      id="qa-end"
+                      label="End *"
+                      value={qaEndDate}
+                      onChange={setQaEndDate}
+                      placeholder="End date & time"
+                      minDate={qaStartDate}
+                      defaultTime={qaStartDate ? addHours(qaStartDate, 1) : quickAddDate ?? undefined}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="qa-loc" style={{ color: "rgb(var(--text))" }}>
@@ -473,19 +496,16 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                     />
                   </div>
                 </div>
-                <DialogFooter className="gap-2 sm:gap-2">
-                  <Button type="button" variant="outline" onClick={() => setQuickAddOpen(false)} disabled={qaSaving}>
-                    Cancel
-                  </Button>
-                  <Button type="button" variant="ghost" asChild className="hidden sm:inline-flex">
+                <DialogFooter className="flex flex-row gap-2 sm:gap-3 mt-4">
+                  <Button type="button" variant="outline" className="flex-1" asChild>
                     <Link href="/dashboard/schedule">Open full schedule</Link>
                   </Button>
                   <Button
                     type="button"
+                    className="flex-1 text-white"
                     onClick={handleQuickAddSubmit}
                     disabled={qaSaving}
                     style={{ backgroundColor: "rgb(var(--accent))" }}
-                    className="text-white"
                   >
                     {qaSaving ? "Saving…" : "Add to schedule"}
                   </Button>

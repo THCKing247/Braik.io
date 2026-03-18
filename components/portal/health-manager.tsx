@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { startOfDay } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
 import { Stethoscope, Plus, X } from "lucide-react"
 
 interface Player {
@@ -43,8 +45,8 @@ export function HealthManager({ teamId }: HealthManagerProps) {
   const [showInjuryModal, setShowInjuryModal] = useState(false)
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("")
   const [injuryReason, setInjuryReason] = useState("")
-  const [injuryDate, setInjuryDate] = useState(new Date().toISOString().split("T")[0])
-  const [expectedReturnDate, setExpectedReturnDate] = useState("")
+  const [injuryDate, setInjuryDate] = useState<Date>(() => startOfDay(new Date()))
+  const [expectedReturnDate, setExpectedReturnDate] = useState<Date | null>(null)
   const [notes, setNotes] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -96,8 +98,8 @@ export function HealthManager({ teamId }: HealthManagerProps) {
           playerId: selectedPlayerId,
           teamId,
           injuryReason,
-          injuryDate,
-          expectedReturnDate: expectedReturnDate || null,
+          injuryDate: dateToYmd(injuryDate),
+          expectedReturnDate: expectedReturnDate ? dateToYmd(expectedReturnDate) : null,
           notes: notes || null,
         }),
       })
@@ -146,8 +148,8 @@ export function HealthManager({ teamId }: HealthManagerProps) {
   const resetForm = () => {
     setSelectedPlayerId("")
     setInjuryReason("")
-    setInjuryDate(new Date().toISOString().split("T")[0])
-    setExpectedReturnDate("")
+    setInjuryDate(startOfDay(new Date()))
+    setExpectedReturnDate(null)
     setNotes("")
   }
 
@@ -261,33 +263,24 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="injuryDate" style={{ color: "rgb(var(--text))" }}>Injury Date</Label>
-                <Input
-                  id="injuryDate"
-                  type="date"
-                  value={injuryDate}
-                  onChange={(e) => setInjuryDate(e.target.value)}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
-                />
-              </div>
+              <DatePicker
+                id="injuryDate"
+                label="Injury Date"
+                value={injuryDate}
+                onChange={(d) => d && setInjuryDate(d)}
+                placeholder="Select injury date"
+                maxDate={new Date()}
+              />
 
               <div className="space-y-2">
-                <Label htmlFor="returnDate" style={{ color: "rgb(var(--text))" }}>Expected Return Date</Label>
-                <Input
+                <DatePicker
                   id="returnDate"
-                  type="date"
+                  label="Expected Return Date"
                   value={expectedReturnDate}
-                  onChange={(e) => setExpectedReturnDate(e.target.value)}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
+                  onChange={setExpectedReturnDate}
+                  placeholder="Optional"
+                  minDate={injuryDate}
+                  allowClear
                 />
                 <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
                   This will create a calendar event for the expected return date

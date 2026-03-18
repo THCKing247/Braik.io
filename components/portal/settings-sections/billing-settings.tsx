@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
+import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 
 interface Team {
   id: string
@@ -22,8 +23,8 @@ export function BillingSettings({ team }: BillingSettingsProps) {
   const [loading, setLoading] = useState(false)
   const [editingDues, setEditingDues] = useState(false)
   const [duesAmount, setDuesAmount] = useState(team.duesAmount.toString())
-  const [duesDueDate, setDuesDueDate] = useState(
-    team.duesDueDate ? new Date(team.duesDueDate).toISOString().split("T")[0] : ""
+  const [duesDueDate, setDuesDueDate] = useState<Date | null>(() =>
+    team.duesDueDate ? ymdToDate(new Date(team.duesDueDate).toISOString().split("T")[0]) : null
   )
 
   const handleSaveDues = async () => {
@@ -34,7 +35,7 @@ export function BillingSettings({ team }: BillingSettingsProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           duesAmount: parseFloat(duesAmount),
-          duesDueDate: duesDueDate || null,
+          duesDueDate: duesDueDate ? dateToYmd(duesDueDate) : null,
         }),
       })
 
@@ -97,16 +98,14 @@ export function BillingSettings({ team }: BillingSettingsProps) {
                   className="bg-background border-border text-foreground"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="duesDueDate" className="text-foreground">Due Date</Label>
-                <Input
-                  id="duesDueDate"
-                  type="date"
-                  value={duesDueDate}
-                  onChange={(e) => setDuesDueDate(e.target.value)}
-                  className="bg-background border-border text-foreground"
-                />
-              </div>
+              <DatePicker
+                id="duesDueDate"
+                label="Due Date"
+                value={duesDueDate}
+                onChange={setDuesDueDate}
+                placeholder="Select due date"
+                allowClear
+              />
               <div className="flex gap-2">
                 <Button onClick={handleSaveDues} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
                   Save Changes
@@ -117,7 +116,9 @@ export function BillingSettings({ team }: BillingSettingsProps) {
                     setEditingDues(false)
                     setDuesAmount(team.duesAmount.toString())
                     setDuesDueDate(
-                      team.duesDueDate ? new Date(team.duesDueDate).toISOString().split("T")[0] : ""
+                      team.duesDueDate
+                        ? ymdToDate(new Date(team.duesDueDate).toISOString().split("T")[0])
+                        : null
                     )
                   }}
                   className="border-border text-foreground"

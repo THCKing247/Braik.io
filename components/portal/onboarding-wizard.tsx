@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
 
 export function OnboardingWizard() {
   const router = useRouter()
@@ -22,11 +23,11 @@ export function OnboardingWizard() {
   const [primaryColor, setPrimaryColor] = useState("#1e3a5f")
   const [secondaryColor, setSecondaryColor] = useState("#FFFFFF")
   const [seasonName, setSeasonName] = useState("")
-  const [seasonStart, setSeasonStart] = useState("")
-  const [seasonEnd, setSeasonEnd] = useState("")
+  const [seasonStart, setSeasonStart] = useState<Date | null>(null)
+  const [seasonEnd, setSeasonEnd] = useState<Date | null>(null)
   const [rosterCap, setRosterCap] = useState("50")
   const [duesAmount, setDuesAmount] = useState("5.00")
-  const [duesDueDate, setDuesDueDate] = useState("")
+  const [duesDueDate, setDuesDueDate] = useState<Date | null>(null)
   const [teamLevels, setTeamLevels] = useState<("varsity" | "jv" | "freshman")[]>(["varsity"])
   const [rosterCreationMode, setRosterCreationMode] = useState<"coach_precreated" | "player_self_create">("coach_precreated")
 
@@ -69,11 +70,11 @@ export function OnboardingWizard() {
           primaryColor,
           secondaryColor,
           seasonName,
-          seasonStart,
-          seasonEnd,
+          seasonStart: dateToYmd(seasonStart),
+          seasonEnd: dateToYmd(seasonEnd),
           rosterCap: parseInt(rosterCap),
           duesAmount: parseFloat(duesAmount),
-          duesDueDate,
+          duesDueDate: dateToYmd(duesDueDate),
           teamLevels,
           rosterCreationMode,
         }),
@@ -266,25 +267,22 @@ export function OnboardingWizard() {
                 placeholder="e.g., Fall 2024"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="seasonStart">Season Start *</Label>
-                <Input
-                  id="seasonStart"
-                  type="date"
-                  value={seasonStart}
-                  onChange={(e) => setSeasonStart(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="seasonEnd">Season End *</Label>
-                <Input
-                  id="seasonEnd"
-                  type="date"
-                  value={seasonEnd}
-                  onChange={(e) => setSeasonEnd(e.target.value)}
-                />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <DatePicker
+                id="seasonStart"
+                label="Season Start *"
+                value={seasonStart}
+                onChange={setSeasonStart}
+                placeholder="Select start date"
+              />
+              <DatePicker
+                id="seasonEnd"
+                label="Season End *"
+                value={seasonEnd}
+                onChange={setSeasonEnd}
+                placeholder="Select end date"
+                minDate={seasonStart}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="rosterCap">Roster Cap</Label>
@@ -319,15 +317,13 @@ export function OnboardingWizard() {
                 min="0"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="duesDueDate">Dues Due Date *</Label>
-              <Input
-                id="duesDueDate"
-                type="date"
-                value={duesDueDate}
-                onChange={(e) => setDuesDueDate(e.target.value)}
-              />
-            </div>
+            <DatePicker
+              id="duesDueDate"
+              label="Dues Due Date *"
+              value={duesDueDate}
+              onChange={setDuesDueDate}
+              placeholder="Select due date"
+            />
             {error && <div className="text-sm text-danger">{error}</div>}
             <div className="flex gap-4">
               <Button variant="outline" onClick={() => setStep(2)} className="flex-1">

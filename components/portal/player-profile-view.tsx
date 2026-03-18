@@ -12,6 +12,8 @@ import type { PlayerProfile } from "@/types/player-profile"
 import { PlayerProfileStatsForm } from "./player-profile-stats-form"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
 import { PlayerDevelopmentTab } from "./player-development-tab"
+import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
+import { startOfDay } from "date-fns"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity" | "development"
 
@@ -945,6 +947,18 @@ function InfoTab({
   setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
   value: (k: keyof PlayerProfile) => unknown
 }) {
+  const dateOfBirthValue = ((): Date | null => {
+    const v = value("dateOfBirth")
+    if (v == null || v === "") return null
+    const s = String(v).trim()
+    if (s.length >= 10) {
+      const d = ymdToDate(s.slice(0, 10))
+      if (d) return d
+    }
+    const parsed = new Date(s)
+    return Number.isNaN(parsed.getTime()) ? null : startOfDay(parsed)
+  })()
+
   const fields: { key: keyof PlayerProfile; label: string; type?: string }[] = [
     { key: "firstName", label: "First name" },
     { key: "lastName", label: "Last name" },
@@ -971,7 +985,19 @@ function InfoTab({
           <div key={key} className="space-y-2">
             <Label className="text-[#64748B]">{label}</Label>
             {canEdit ? (
-              key === "weight" || key === "jerseyNumber" || key === "graduationYear" ? (
+              key === "dateOfBirth" ? (
+                <DatePicker
+                  id={`profile-dob-${playerId}`}
+                  label=""
+                  value={dateOfBirthValue}
+                  onChange={(d) =>
+                    setEditDraft((p) => ({ ...p, dateOfBirth: d ? dateToYmd(d) : null }))
+                  }
+                  placeholder="Select date of birth"
+                  maxDate={new Date()}
+                  allowClear
+                />
+              ) : key === "weight" || key === "jerseyNumber" || key === "graduationYear" ? (
                 <Input
                   type="number"
                   value={value(key) != null ? String(value(key)) : ""}

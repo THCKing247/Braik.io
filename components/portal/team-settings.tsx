@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
 
 interface Team {
   id: string
@@ -34,10 +35,10 @@ export function TeamSettings({ team: initialTeam }: { team: Team }) {
   const [logoBackground, setLogoBackground] = useState("#FFFFFF")
   const [removeBackground, setRemoveBackground] = useState(false)
   const [newSeasonName, setNewSeasonName] = useState("")
-  const [newSeasonStart, setNewSeasonStart] = useState("")
-  const [newSeasonEnd, setNewSeasonEnd] = useState("")
+  const [newSeasonStart, setNewSeasonStart] = useState<Date | null>(null)
+  const [newSeasonEnd, setNewSeasonEnd] = useState<Date | null>(null)
   const [newDuesAmount, setNewDuesAmount] = useState(team.duesAmount.toString())
-  const [newDuesDueDate, setNewDuesDueDate] = useState("")
+  const [newDuesDueDate, setNewDuesDueDate] = useState<Date | null>(null)
   const [editingLogo, setEditingLogo] = useState(false)
 
   const handleSaveIdentity = async () => {
@@ -89,10 +90,10 @@ export function TeamSettings({ team: initialTeam }: { team: Team }) {
         body: JSON.stringify({
           teamId: team.id,
           seasonName: newSeasonName,
-          seasonStart: newSeasonStart,
-          seasonEnd: newSeasonEnd,
+          seasonStart: dateToYmd(newSeasonStart),
+          seasonEnd: dateToYmd(newSeasonEnd),
           duesAmount: parseFloat(newDuesAmount),
-          duesDueDate: newDuesDueDate || null,
+          duesDueDate: newDuesDueDate ? dateToYmd(newDuesDueDate) : null,
         }),
       })
 
@@ -372,25 +373,24 @@ export function TeamSettings({ team: initialTeam }: { team: Team }) {
                   placeholder="e.g., Fall 2025"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Season Start *</Label>
-                  <Input
-                    type="date"
-                    value={newSeasonStart}
-                    onChange={(e) => setNewSeasonStart(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Season End *</Label>
-                  <Input
-                    type="date"
-                    value={newSeasonEnd}
-                    onChange={(e) => setNewSeasonEnd(e.target.value)}
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DatePicker
+                  id="team-new-season-start"
+                  label="Season Start *"
+                  value={newSeasonStart}
+                  onChange={setNewSeasonStart}
+                  placeholder="Select start date"
+                />
+                <DatePicker
+                  id="team-new-season-end"
+                  label="Season End *"
+                  value={newSeasonEnd}
+                  onChange={setNewSeasonEnd}
+                  placeholder="Select end date"
+                  minDate={newSeasonStart}
+                />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Dues Amount ($)</Label>
                   <Input
@@ -400,14 +400,14 @@ export function TeamSettings({ team: initialTeam }: { team: Team }) {
                     onChange={(e) => setNewDuesAmount(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Dues Due Date</Label>
-                  <Input
-                    type="date"
-                    value={newDuesDueDate}
-                    onChange={(e) => setNewDuesDueDate(e.target.value)}
-                  />
-                </div>
+                <DatePicker
+                  id="team-new-dues-due"
+                  label="Dues Due Date"
+                  value={newDuesDueDate}
+                  onChange={setNewDuesDueDate}
+                  placeholder="Optional"
+                  allowClear
+                />
               </div>
               <div className="bg-surface-2 border border-border rounded-lg p-4">
                 <p className="text-sm text-[#0F172A]">

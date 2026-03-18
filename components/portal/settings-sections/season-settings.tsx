@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
 
 interface Team {
   id: string
@@ -21,8 +22,8 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
   const [showRollover, setShowRollover] = useState(false)
   const [rosterCap, setRosterCap] = useState(team.rosterCap.toString())
   const [newSeasonName, setNewSeasonName] = useState("")
-  const [newSeasonStart, setNewSeasonStart] = useState("")
-  const [newSeasonEnd, setNewSeasonEnd] = useState("")
+  const [newSeasonStart, setNewSeasonStart] = useState<Date | null>(null)
+  const [newSeasonEnd, setNewSeasonEnd] = useState<Date | null>(null)
   
   // Division/Standing state
   const [division, setDivision] = useState("")
@@ -115,8 +116,8 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
         body: JSON.stringify({
           teamId: team.id,
           seasonName: newSeasonName,
-          seasonStart: newSeasonStart,
-          seasonEnd: newSeasonEnd,
+          seasonStart: dateToYmd(newSeasonStart),
+          seasonEnd: dateToYmd(newSeasonEnd),
         }),
       })
 
@@ -246,27 +247,22 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
                   className="bg-background border-border text-foreground"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="newSeasonStart" className="text-foreground">Season Start *</Label>
-                  <Input
-                    id="newSeasonStart"
-                    type="date"
-                    value={newSeasonStart}
-                    onChange={(e) => setNewSeasonStart(e.target.value)}
-                    className="bg-background border-border text-foreground"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newSeasonEnd" className="text-foreground">Season End *</Label>
-                  <Input
-                    id="newSeasonEnd"
-                    type="date"
-                    value={newSeasonEnd}
-                    onChange={(e) => setNewSeasonEnd(e.target.value)}
-                    className="bg-background border-border text-foreground"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DatePicker
+                  id="newSeasonStart"
+                  label="Season Start *"
+                  value={newSeasonStart}
+                  onChange={setNewSeasonStart}
+                  placeholder="Select start date"
+                />
+                <DatePicker
+                  id="newSeasonEnd"
+                  label="Season End *"
+                  value={newSeasonEnd}
+                  onChange={setNewSeasonEnd}
+                  placeholder="Select end date"
+                  minDate={newSeasonStart}
+                />
               </div>
               <div className="rounded-lg border border-border bg-muted/30 p-4">
                 <p className="text-sm text-muted-foreground">

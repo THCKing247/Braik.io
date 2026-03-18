@@ -273,7 +273,17 @@ export async function POST(
     const locationVal = typeof body.location === "string" ? body.location : null
 
     stage = "insert"
-    const supabase = getSupabaseServer()
+    let supabase
+    try {
+      supabase = getSupabaseServer()
+    } catch (supabaseErr) {
+      const msg = supabaseErr instanceof Error ? supabaseErr.message : "Supabase not configured"
+      console.error("[POST /api/teams/.../calendar/events] getSupabaseServer failed", supabaseErr)
+      return NextResponse.json(
+        { error: "Event creation failed", stage: "config", message: msg },
+        { status: 500 }
+      )
+    }
     const { data: event, error: eventError } = await supabase
       .from("events")
       .insert({
@@ -291,9 +301,21 @@ export async function POST(
       .single()
 
     if (eventError || !event) {
+      const code = eventError?.code ?? ""
       const message = eventError?.message ?? "no event returned"
+      console.error("[POST /api/teams/.../calendar/events] insert failed", {
+        teamId,
+        userId: session.user.id,
+        code,
+        message,
+        details: eventError?.details,
+      })
+      const friendlyMessage =
+        code === "23503"
+          ? "User or team record missing. Please sign out and sign in again, then try creating the event."
+          : message
       return NextResponse.json(
-        { error: "Event creation failed", stage: "insert", message },
+        { error: "Event creation failed", stage: "insert", message: friendlyMessage },
         { status: 500 }
       )
     }
@@ -340,6 +362,11 @@ export async function POST(
     return NextResponse.json(event, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
+    console.error("[POST /api/teams/.../calendar/events] unhandled error", {
+      stage,
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.json(
       { error: "Event creation failed", stage, message },
       { status: 500 }

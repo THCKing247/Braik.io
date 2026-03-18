@@ -42,3 +42,12 @@ next-env.d.ts
 /uploads
 !/uploads/.gitkeep
 
+# Capacitor / native builds
+android/.gradle
+android/app/build
+android/build
+android/local.properties
+android/.idea
+ios/App/Pods
+ios/DerivedData
+

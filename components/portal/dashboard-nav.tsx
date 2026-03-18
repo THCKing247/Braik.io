@@ -7,7 +7,6 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
-import { DashboardMobileNav } from "@/components/portal/dashboard-mobile-nav"
 
 interface Team {
   id: string
@@ -29,8 +28,8 @@ const navBarStyle = {
 }
 
 /**
- * Phone + tablet (< lg): top app bar with menu → sheet. Sign out lives in sheet only.
- * Desktop (lg+): full header; sign out only in left sidebar.
+ * &lt; lg: simple bar — centered logo, theme. Overflow nav is bottom "More" sheet.
+ * lg+: desktop header with team switcher and Admin.
  */
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const { data: session } = useSession()
@@ -50,27 +49,42 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         }}
         aria-label="App navigation"
       >
-        <div className="flex min-h-[48px] w-full min-w-0 max-w-full items-center gap-3 px-3 py-1.5 sm:px-4">
-          <DashboardMobileNav teams={teams} showAdminLink={showAdminLink} />
-          <div className="min-w-0 flex-1">
+        <div className="grid min-h-[52px] w-full grid-cols-3 items-center gap-2 px-3 py-2 sm:px-5 md:px-6">
+          <div className="min-w-0 justify-self-start">
+            {teams.length > 1 ? (
+              <div className="max-w-[28vw] truncate text-xs font-semibold text-foreground sm:max-w-[140px] sm:text-sm">
+                <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
+              </div>
+            ) : currentTeamId && teams[0]?.name ? (
+              <span
+                className="block max-w-[28vw] truncate text-xs font-semibold text-muted-foreground sm:max-w-[160px] sm:text-sm"
+                title={teams[0].name}
+              >
+                {teams[0].name}
+              </span>
+            ) : (
+              <span className="w-10" aria-hidden />
+            )}
+          </div>
+          <div className="flex min-w-0 justify-center">
             <Link
               href="/dashboard"
-              className="mx-auto flex max-w-full min-w-0 justify-center active:opacity-80 md:justify-start"
-              aria-label="Braik - Return to dashboard"
+              className="flex max-w-[min(200px,42vw)] min-w-0 justify-center active:opacity-80"
+              aria-label="Braik - Home"
             >
-              <div className="flex h-9 max-h-10 w-auto max-w-[min(160px,45vw)] items-center overflow-hidden sm:h-10">
+              <div className="flex h-9 items-center overflow-hidden sm:h-10 md:h-11">
                 <Image
                   src="/braik-logo.png"
                   alt="Braik"
                   width={720}
                   height={360}
-                  className="h-auto w-full object-contain object-center md:object-left"
+                  className="h-auto w-full max-h-9 object-contain object-center sm:max-h-10 md:max-h-11"
                   priority
                 />
               </div>
             </Link>
           </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center [&_button]:h-10 [&_button]:w-10">
+          <div className="flex justify-end [&_button]:h-10 [&_button]:w-10">
             <ThemeToggle />
           </div>
         </div>
@@ -109,7 +123,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               <Link
                 href="/admin/dashboard"
                 className={cn(
-                  "rounded-md px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px] inline-flex items-center",
+                  "inline-flex min-h-[44px] items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                   pathname?.startsWith("/admin")
                     ? "border-b-2 font-semibold"
                     : "hover:bg-[rgb(var(--platinum))]"

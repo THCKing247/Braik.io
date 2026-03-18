@@ -2,14 +2,14 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { useCoachB } from "@/components/portal/coach-b-context"
 import { Sparkles } from "lucide-react"
 
 export function AIAssistantCard() {
+  const coachB = useCoachB()
+
   const handleOpenAI = () => {
-    const widget = document.querySelector('[data-ai-widget]') as HTMLElement
-    if (widget) {
-      widget.click()
-    }
+    coachB?.open()
   }
 
   return (

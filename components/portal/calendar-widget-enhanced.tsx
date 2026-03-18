@@ -205,16 +205,22 @@ export function CalendarWidgetEnhanced({
     }
   }, [view])
 
-  // Day view infinite scroll: shift by exactly one DAY_HEIGHT when nearing edges so we stay in the middle copy.
-  // Because all three copies are identical, this preserves the now-line (and everything else) at the same viewport position—reset is invisible.
+  // Day view infinite scroll: when user hits top or bottom of the 3-copy strip, jump by one DAY_HEIGHT
+  // so they stay in the middle copy and current time stays in view. Uses rAF so the jump is stable.
   const handleDayViewScroll = useCallback(() => {
     const el = timeGridScrollRef.current
     if (!el) return
     const scrollTop = el.scrollTop
     if (scrollTop < DAY_VIEW_DAY_HEIGHT * 0.5) {
-      el.scrollTop += DAY_VIEW_DAY_HEIGHT
+      const next = scrollTop + DAY_VIEW_DAY_HEIGHT
+      requestAnimationFrame(() => {
+        if (el.scrollTop < DAY_VIEW_DAY_HEIGHT * 0.5) el.scrollTop = next
+      })
     } else if (scrollTop > DAY_VIEW_DAY_HEIGHT * 2.5) {
-      el.scrollTop -= DAY_VIEW_DAY_HEIGHT
+      const next = scrollTop - DAY_VIEW_DAY_HEIGHT
+      requestAnimationFrame(() => {
+        if (el.scrollTop > DAY_VIEW_DAY_HEIGHT * 2.5) el.scrollTop = next
+      })
     }
   }, [])
 
@@ -394,7 +400,7 @@ export function CalendarWidgetEnhanced({
     const weekBodyHeight = DAY_VIEW_DAY_HEIGHT * DAY_VIEW_COPIES
 
     return (
-      <div className="flex flex-1 flex-col min-h-0 min-w-full">
+      <div className="flex min-h-0 min-w-full flex-1 flex-col">
         {/* Weekday headers — fixed above scroll; not part of looping content; grid aligns with body columns */}
         <div
           className="grid calendar-grid flex-shrink-0 border-b bg-white shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
@@ -435,11 +441,11 @@ export function CalendarWidgetEnhanced({
           })}
         </div>
 
-        {/* Scrollable looping body — only this part scrolls; 3 copies so grid rotates underneath the fixed headers */}
+        {/* Scrollable looping body: constrained height so scroll is inside the card; infinite scroll recenters at top/bottom */}
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="scrollbar-hidden min-h-0 flex-1 cursor-crosshair overflow-y-auto overflow-x-auto"
+          className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-auto"
           onScroll={handleDayViewScroll}
           onMouseMove={handleTimeGridPointerMove}
           onMouseLeave={handleTimeGridPointerLeave}
@@ -745,12 +751,12 @@ export function CalendarWidgetEnhanced({
     const totalHeight = DAY_VIEW_DAY_HEIGHT * DAY_VIEW_COPIES
 
     return (
-      <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        {/* Only vertical scroll region for day view */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Scroll region: constrained height so user scrolls inside the card, not the full page. Infinite scroll recenters at top/bottom. */}
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
-          className="scrollbar-hidden flex-1 min-h-0 cursor-crosshair overflow-y-auto overflow-x-hidden"
+          className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-hidden"
           onScroll={handleDayViewScroll}
           onMouseMove={handleTimeGridPointerMove}
           onMouseLeave={handleTimeGridPointerLeave}
@@ -1077,7 +1083,7 @@ export function CalendarWidgetEnhanced({
 
   return (
     <>
-      <div className="flex flex-col h-full min-h-0" style={{ backgroundColor: "#FFFFFF" }}>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
         {/* Top Navigation Bar - fixed; does not scroll with time grid */}
         <div className="flex flex-shrink-0 items-center justify-between p-4 border-b relative z-10 bg-white" style={{ borderColor: "rgb(var(--border))" }}>
           <div className="flex items-center gap-4">

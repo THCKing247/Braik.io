@@ -3,7 +3,7 @@
 import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
-import { ConnectToTeam } from "@/components/portal/connect-to-team"
+import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { TeamDashboard } from "@/components/portal/team-dashboard"
 
 export const dynamic = "force-dynamic"
@@ -12,8 +12,6 @@ export default function DashboardPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
   const role = session?.user?.role
-  const isHeadCoach = role === "HEAD_COACH"
-  const hasTeam = Boolean(session?.user?.teamId)
 
   useEffect(() => {
     if (status === "authenticated" && role === "ATHLETIC_DIRECTOR") {
@@ -29,7 +27,6 @@ export default function DashboardPage() {
     )
   }
 
-  // Authenticated but missing user payload (e.g. session API returned incomplete data)
   if (status === "authenticated" && !session?.user) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-6" style={{ backgroundColor: "rgb(var(--snow))" }}>
@@ -43,5 +40,15 @@ export default function DashboardPage() {
     )
   }
 
-  return <TeamDashboard session={session} />
+  return (
+    <DashboardPageShell>
+      {({ teamId, canEdit }) => (
+        <TeamDashboard
+          session={session}
+          teamId={teamId}
+          canAddCalendarEvents={canEdit}
+        />
+      )}
+    </DashboardPageShell>
+  )
 }

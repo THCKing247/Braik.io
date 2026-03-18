@@ -57,9 +57,9 @@ export function DashboardLayoutClient({
 
               <main
                 className={cn(
-                  "min-w-0 flex-1 overflow-x-hidden",
-                  "p-4 md:p-6",
-                  "max-md:pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-6",
+                  "min-w-0 w-full flex-1 overflow-x-hidden",
+                  "p-4 md:p-6 md:pt-5",
+                  "max-lg:pb-28 lg:pb-6",
                   isSchedulePage &&
                     "flex min-h-[calc(100dvh-9rem)] flex-col overflow-hidden lg:min-h-[calc(100dvh-8rem)]"
                 )}

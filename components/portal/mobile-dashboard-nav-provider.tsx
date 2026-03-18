@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
-import { DashboardMobileDrawer } from "@/components/portal/dashboard-mobile-drawer"
+import { DashboardMoreBottomSheet } from "@/components/portal/dashboard-more-bottom-sheet"
 
 interface Team {
   id: string
@@ -12,9 +12,9 @@ interface Team {
 }
 
 type MobileNavContextValue = {
-  openDrawer: () => void
-  closeDrawer: () => void
-  drawerOpen: boolean
+  openMoreSheet: () => void
+  closeMoreSheet: () => void
+  moreSheetOpen: boolean
 }
 
 const MobileNavContext = createContext<MobileNavContextValue | null>(null)
@@ -23,9 +23,9 @@ export function useMobileDashboardNav(): MobileNavContextValue {
   const ctx = useContext(MobileNavContext)
   if (!ctx) {
     return {
-      openDrawer: () => {},
-      closeDrawer: () => {},
-      drawerOpen: false,
+      openMoreSheet: () => {},
+      closeMoreSheet: () => {},
+      moreSheetOpen: false,
     }
   }
   return ctx
@@ -40,20 +40,20 @@ export function MobileDashboardNavProvider({
   showAdminLink?: boolean
   children: ReactNode
 }) {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const openDrawer = useCallback(() => setDrawerOpen(true), [])
-  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+  const [moreOpen, setMoreOpen] = useState(false)
+  const openMoreSheet = useCallback(() => setMoreOpen(true), [])
+  const closeMoreSheet = useCallback(() => setMoreOpen(false), [])
   const value = useMemo(
-    () => ({ openDrawer, closeDrawer, drawerOpen }),
-    [openDrawer, closeDrawer, drawerOpen]
+    () => ({ openMoreSheet, closeMoreSheet, moreSheetOpen: moreOpen }),
+    [openMoreSheet, closeMoreSheet, moreOpen]
   )
 
   return (
     <MobileNavContext.Provider value={value}>
       {children}
-      <DashboardMobileDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+      <DashboardMoreBottomSheet
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
         teams={teams}
         showAdminLink={showAdminLink}
       />

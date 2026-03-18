@@ -106,9 +106,9 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
         }}
       />
 
-      <div className="relative flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative flex min-w-0 flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 md:flex-row md:items-center md:justify-between">
         {/* Left: Logo + name */}
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           {/* Team logo or placeholder */}
           <div
             className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl border-2 border-white/20 bg-white/10 overflow-hidden"
@@ -121,12 +121,12 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
             )}
           </div>
 
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">
               {hasTeam ? `Welcome back, ${roleLabel === "Head Coach" ? "Coach" : roleLabel}${lastName ? ` ${lastName}` : ""}` : `Welcome, ${user.name || roleLabel}`}
             </p>
             <h1
-              className="text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl"
+              className="break-words text-xl font-bold uppercase tracking-tight text-white sm:text-2xl md:text-3xl"
               style={{ fontFamily: "var(--font-teko, var(--font-oswald, sans-serif))" }}
             >
               {hasTeam ? teamName : "Welcome to Your Portal"}
@@ -137,9 +137,9 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
 
         {/* Right: Record (only show if has team) */}
         {hasTeam && (
-        <div className="flex items-center gap-5">
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-start gap-4 sm:gap-5 md:justify-end">
           {/* Overall record */}
-          <div className="text-center">
+          <div className="text-center min-w-[4.5rem]">
             <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-white/50">
               Overall
             </p>
@@ -151,10 +151,10 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
             <p className="text-[10px] text-white/40">W – L</p>
           </div>
 
-          <div className="h-10 w-px bg-white/15" />
+          <div className="hidden h-10 w-px bg-white/15 sm:block" aria-hidden />
 
           {/* District record */}
-          <div className="text-center">
+          <div className="text-center min-w-[4.5rem]">
             <div className="flex items-center justify-center gap-1">
               <Trophy className="h-3 w-3 text-white/50" />
               <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-white/50">
@@ -559,7 +559,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const isHeadCoach = user.role?.toUpperCase() === "HEAD_COACH"
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="min-w-0 space-y-4 pb-4 md:pb-6">
 
       {/* ── Team Banner ── */}
       <TeamBanner user={user} teamId={teamId} />
@@ -574,7 +574,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
 
       {/* ── Updates + Notifications + Readiness (coach) ── */}
       {hasTeam && (
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
         <UpdatesCard />
         <NotificationsCard />
         <ReadinessSummaryCard teamId={teamId} />

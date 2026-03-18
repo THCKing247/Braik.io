@@ -228,8 +228,11 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
 
   if (loading) {
     return (
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+      <Card
+        className="min-w-0 w-full max-w-full border overflow-hidden"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      >
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
           <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
             <Calendar className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
             Schedule
@@ -250,8 +253,11 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
   }
 
   return (
-    <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+    <Card
+      className="min-w-0 w-full max-w-full border overflow-hidden"
+      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+    >
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
         <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
           <Calendar className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
           Schedule
@@ -262,9 +268,9 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
           </Button>
         </Link>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
+      <CardContent className="min-w-0 px-2 sm:px-6">
+        <div className="space-y-2 sm:space-y-3">
+          <div className="flex items-center justify-between gap-2">
             <Button
               variant="ghost"
               size="sm"
@@ -286,20 +292,24 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
             </Button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
             {["S", "M", "T", "W", "T", "F", "S"].map((day) => (
-              <div key={day} className="text-center text-xs font-semibold py-1" style={{ color: "rgb(var(--muted))" }}>
+              <div
+                key={day}
+                className="py-0.5 text-center text-[10px] font-semibold sm:py-1 sm:text-xs"
+                style={{ color: "rgb(var(--muted))" }}
+              >
                 {day}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
             {calendarDays.map((day) => {
               const dayEvents = getEventsForDate(day)
               const isToday = isSameDay(day, new Date())
               const isCurrentMonth = isSameMonth(day, currentMonth)
-              const cellClass = `min-h-[60px] border rounded p-1.5 cursor-pointer hover:shadow-sm transition-all text-left w-full ${
+              const cellClass = `min-h-[44px] sm:min-h-[52px] md:min-h-[60px] border rounded p-0.5 sm:p-1 md:p-1.5 cursor-pointer hover:shadow-sm transition-all text-left w-full min-w-0 ${
                 !isCurrentMonth ? "opacity-30" : ""
               } ${isToday ? "ring-2 ring-blue-500" : ""}`
               const cellStyle = {

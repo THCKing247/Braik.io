@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
+import { DashboardMobileNav } from "@/components/portal/dashboard-mobile-nav"
 
 interface Team {
   id: string
@@ -41,48 +42,50 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         borderRight: "none"
       }}
     >
-      <div className="w-full px-4">
-        <div className="flex items-center py-2">
-          {/* Logo - Far Left */}
-          <div className="flex-shrink-0">
-            <Link 
-              href="/dashboard" 
-              className="flex items-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B] rounded transition-all"
+      <div className="w-full min-w-0 px-3 md:px-4">
+        <div className="flex min-w-0 items-center gap-2 py-1.5 md:gap-3 md:py-2">
+          <DashboardMobileNav teams={teams} showAdminLink={showAdminLink} />
+
+          {/* Logo */}
+          <div className="min-w-0 flex-1 md:flex-initial">
+            <Link
+              href="/dashboard"
+              className="flex min-w-0 items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
               aria-label="Braik - Return to dashboard"
             >
-              <div className="h-12 w-[200px] overflow-hidden flex items-center">
-                <Image 
-                  src="/braik-logo.png" 
-                  alt="Braik Logo" 
-                  width={720} 
-                  height={360} 
-                  className="w-full h-auto object-contain object-left"
+              <div className="flex h-9 max-w-[140px] items-center overflow-hidden md:h-12 md:max-w-none md:w-[200px]">
+                <Image
+                  src="/braik-logo.png"
+                  alt="Braik Logo"
+                  width={720}
+                  height={360}
+                  className="h-auto w-full max-w-[200px] object-contain object-left md:max-w-none"
                 />
               </div>
             </Link>
           </div>
-          
-          {/* Center: team switcher only when multiple teams */}
-          <div className="flex-1 flex justify-center items-center">
+
+          {/* Center: team switcher (desktop / tablet md+) */}
+          <div className="hidden min-w-0 flex-1 items-center justify-center md:flex">
             {teams.length > 1 && (
               <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
             )}
           </div>
-          
-          {/* User Controls - Far Right */}
-          <div className="flex-shrink-0 flex items-center gap-3">
+
+          {/* User controls — full bar on md+ */}
+          <div className="ml-auto hidden shrink-0 items-center gap-2 md:flex md:gap-3">
             {showAdminLink && (
               <Link
                 href="/admin/dashboard"
                 className={cn(
-                  "text-sm font-medium transition-colors px-3 py-2 rounded-md",
+                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   pathname?.startsWith("/admin")
-                    ? "font-semibold border-b-2"
+                    ? "border-b-2 font-semibold"
                     : "hover:bg-[rgb(var(--platinum))]"
                 )}
                 style={{
                   color: "rgb(var(--text))",
-                  borderBottomColor: pathname?.startsWith("/admin") ? "rgb(var(--accent))" : "transparent"
+                  borderBottomColor: pathname?.startsWith("/admin") ? "rgb(var(--accent))" : "transparent",
                 }}
               >
                 Admin
@@ -92,6 +95,11 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             <Button variant="destructive" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
               Sign Out
             </Button>
+          </div>
+
+          {/* Mobile: theme only (menu + sign out live in drawer) */}
+          <div className="ml-auto flex shrink-0 items-center md:hidden">
+            <ThemeToggle />
           </div>
         </div>
       </div>

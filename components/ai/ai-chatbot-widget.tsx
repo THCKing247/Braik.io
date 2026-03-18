@@ -242,8 +242,8 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       {isOpen && (
         <div
           className={cn(
-            "fixed bottom-6 w-96 h-[600px] rounded-xl shadow-2xl z-50 flex flex-col min-h-0 overflow-hidden border-2 border-[#0B2A5B] bg-white",
-            isMobile ? "left-6" : "right-6"
+            "fixed bottom-6 z-50 flex h-[min(600px,85vh)] w-[min(24rem,calc(100vw-3rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border-2 border-[#0B2A5B] bg-white shadow-2xl min-h-0",
+            isMobile ? "left-3 right-auto sm:left-6" : "right-6"
           )}
         >
           <Card className="flex flex-col flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-white">

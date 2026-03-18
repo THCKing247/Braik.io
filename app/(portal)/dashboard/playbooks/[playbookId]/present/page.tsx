@@ -525,9 +525,9 @@ function PlaybookPresenterContent({
   return (
     <div
       ref={presenterRef}
-      className={`presenter-root flex flex-col bg-slate-50 min-w-0 max-w-full overflow-hidden ${
+      className={`presenter-root flex flex-col bg-slate-950 min-w-0 max-w-full overflow-x-hidden ${
         isFullscreen ? "h-full w-full" : "h-[100dvh] max-h-[100dvh] lg:h-screen lg:max-h-none"
-      } ${!isFullscreen ? "max-lg:pb-[env(safe-area-inset-bottom)]" : ""}`}
+      } ${!isFullscreen ? "pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] lg:pt-0 lg:pb-0" : ""}`}
     >
       {/* Desktop toolbar (lg+) */}
       <div
@@ -706,25 +706,27 @@ function PlaybookPresenterContent({
       </div>
 
       {!isFullscreen && (
-        <div className="lg:hidden flex-shrink-0 border-b border-slate-200 bg-white px-3 py-2 space-y-2">
+        <div className="lg:hidden flex-shrink-0 border-b border-slate-800 bg-slate-950 px-3 py-2 space-y-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
           <div className="flex items-center gap-2 min-w-0">
-            <Button variant="outline" size="sm" className="h-9 rounded-xl shrink-0" onClick={handleClose}>
+            <Button variant="secondary" size="sm" className="h-9 rounded-xl shrink-0 bg-slate-800 border-slate-700 text-slate-100" onClick={handleClose}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-semibold text-slate-800 truncate flex-1 min-w-0">{playbook.name}</span>
-            <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0" onClick={handleFullscreenToggle} aria-label="Fullscreen">
-              <Maximize2 className="h-4 w-4" />
+            <Button variant="outline" size="sm" className="h-9 rounded-xl shrink-0 border-slate-600 bg-slate-800 text-slate-200" onClick={handleFullscreenToggle} aria-label="Fullscreen">
+              <Maximize2 className="h-4 w-4 mr-1" />
+              Fullscreen
             </Button>
+            <span className="text-sm font-semibold text-slate-100 truncate flex-1 min-w-0 text-center">{playbook.name}</span>
+            <div className="w-2 shrink-0" aria-hidden />
           </div>
           {!compareMode && (
-            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1">
+            <div className="flex rounded-xl border border-slate-700 bg-slate-900 p-1 gap-1">
               {(["field", "plays", "controls"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setPresenterTab(t)}
-                  className={`flex-1 py-2.5 text-xs font-bold rounded-lg ${
-                    presenterTab === t ? "bg-slate-900 text-white shadow-sm" : "text-slate-600"
+                  className={`flex-1 py-2.5 text-xs font-bold rounded-lg touch-manipulation ${
+                    presenterTab === t ? "bg-emerald-600 text-white shadow-md" : "text-slate-400"
                   }`}
                 >
                   {t === "field" ? "Field" : t === "plays" ? "Plays" : "Controls"}
@@ -736,14 +738,16 @@ function PlaybookPresenterContent({
       )}
 
       {isFullscreen && (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="lg:hidden fixed top-3 right-3 z-[70] rounded-xl shadow-lg"
-          onClick={handleFullscreenToggle}
-        >
-          <Minimize2 className="h-4 w-4 mr-1" /> Exit
-        </Button>
+        <div className="lg:hidden fixed left-1/2 -translate-x-1/2 z-[85] w-[min(92vw,420px)] bottom-[max(11.5rem,calc(env(safe-area-inset-bottom)+10.5rem))] pointer-events-none">
+          <Button
+            type="button"
+            size="lg"
+            className="pointer-events-auto w-full h-13 min-h-[52px] rounded-2xl text-base font-bold shadow-2xl bg-white text-slate-900 hover:bg-slate-100 border border-slate-200"
+            onClick={handleFullscreenToggle}
+          >
+            <Minimize2 className="h-5 w-5 mr-2 shrink-0" /> Exit fullscreen
+          </Button>
+        </div>
       )}
 
       {/* Desktop: field + play list */}

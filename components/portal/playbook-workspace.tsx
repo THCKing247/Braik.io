@@ -873,7 +873,7 @@ export function PlaybookWorkspace({
             </div>
           ) : (
             /* Editor mode: stacked resizable panels — Browser (top) | Canvas (middle) | Inspector (bottom) */
-            <div className="flex-1 flex flex-col min-h-0 gap-0">
+            <div className="flex-1 flex flex-col min-h-0 gap-0 max-lg:min-h-[65dvh]">
               {/* Browser panel */}
               <div
                 className="flex-shrink-0 overflow-y-auto min-h-0 rounded-t-xl border border-slate-200 bg-white shadow-sm"

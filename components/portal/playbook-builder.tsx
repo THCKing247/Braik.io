@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban, Clock } from "lucide-react"
+import { Play, Square, Move, Pencil, RotateCcw, RotateCw, Save, X, Circle, Maximize2, Minimize2, Users, Check, Ban, Clock, MoreHorizontal } from "lucide-react"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox as clientToViewBoxLib } from "@/lib/utils/canvas-coords"
 import { canFinishRouteDraft as canFinishRouteDraftLib } from "@/lib/utils/playbook-draft"
@@ -194,6 +194,7 @@ export function PlaybookBuilder({
   const [manCoverageStart, setManCoverageStart] = useState<string | null>(null)
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false)
+  const [mobileEditorMenuOpen, setMobileEditorMenuOpen] = useState(false)
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null)
   const [editingLabelValue, setEditingLabelValue] = useState("")
   const playersRef = useRef<Player[]>(players)
@@ -915,14 +916,14 @@ export function PlaybookBuilder({
     }
   }
 
-  const handlePlayerDrag = (playerId: string, e: React.MouseEvent) => {
+  const handlePlayerDrag = (playerId: string, e: React.MouseEvent | React.PointerEvent) => {
     if (!canEdit || tool !== "select") return
     e.preventDefault()
     const player = players.find((p) => p.id === playerId)
     if (!player) return
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const vb = clientToViewBox(moveEvent.clientX, moveEvent.clientY)
+    const applyMove = (clientX: number, clientY: number) => {
+      const vb = clientToViewBox(clientX, clientY)
       if (!vb) return
       const { xYards, yYards } = coordSystem.pixelToYard(vb.x, vb.y)
       const snappedY = snapEnabled ? coordSystem.snapY(yYards) : yYards
@@ -942,6 +943,38 @@ export function PlaybookBuilder({
             : p
         )
       )
+    }
+
+    if ("pointerId" in e && (e.pointerType === "pen" || e.pointerType === "touch")) {
+      const pid = e.pointerId
+      try {
+        ;(e.currentTarget as HTMLElement).setPointerCapture(pid)
+      } catch {
+        /* ignore */
+      }
+      const move = (ev: PointerEvent) => {
+        if (ev.pointerId !== pid) return
+        applyMove(ev.clientX, ev.clientY)
+      }
+      const up = (ev: PointerEvent) => {
+        if (ev.pointerId !== pid) return
+        document.removeEventListener("pointermove", move)
+        document.removeEventListener("pointerup", up)
+        document.removeEventListener("pointercancel", up)
+        try {
+          ;(e.currentTarget as HTMLElement).releasePointerCapture(pid)
+        } catch {
+          /* ignore */
+        }
+      }
+      document.addEventListener("pointermove", move)
+      document.addEventListener("pointerup", up)
+      document.addEventListener("pointercancel", up)
+      return
+    }
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      applyMove(moveEvent.clientX, moveEvent.clientY)
     }
 
     const handleMouseUp = () => {
@@ -1126,8 +1159,133 @@ export function PlaybookBuilder({
 
   return (
     <div className="flex flex-col h-full min-h-0 max-h-full lg:h-screen overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-2 border-b-2 flex-shrink-0" style={{ borderBottomColor: "#0B2A5B" }}>
+      <div className="lg:hidden flex-shrink-0 flex items-center gap-1.5 px-2 py-2 border-b border-slate-800 bg-slate-950 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <Button variant="ghost" size="icon" className="text-slate-200 h-10 w-10 shrink-0 rounded-xl" onClick={onClose} aria-label="Close editor">
+          <X className="h-5 w-5" />
+        </Button>
+        {canEdit && !isTemplateMode && (
+          <>
+            <Button variant="ghost" size="icon" className="text-slate-200 h-10 w-10 rounded-xl" onClick={undo} disabled={undoStack.length === 0} title="Undo">
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="text-slate-200 h-10 w-10 rounded-xl" onClick={redo} disabled={redoStack.length === 0} title="Redo">
+              <RotateCw className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        <div className="flex-1 min-w-0 text-center px-1">
+          <p className="text-sm font-semibold text-slate-100 truncate">{isTemplateMode ? templateNameState || "Formation" : playName || "Play"}</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide">{currentSide.replace("_", " ")}</p>
+        </div>
+        {canEdit && (
+          <Button
+            size="sm"
+            className="h-10 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 font-semibold"
+            onClick={handleSave}
+            disabled={isSaving || (isTemplateMode ? (!templateNameState.trim() || players.length !== 11) : !playName.trim())}
+          >
+            <Save className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">{isSaving ? "…" : "Save"}</span>
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 rounded-xl border-slate-600 bg-slate-900 text-slate-200 shrink-0"
+          onClick={() => setMobileEditorMenuOpen(true)}
+          aria-label="More options"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </Button>
+      </div>
+
+      <PlaybookBottomSheet open={mobileEditorMenuOpen} onOpenChange={setMobileEditorMenuOpen} title="Playbook setup">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={currentSide === "offense" ? "default" : "outline"}
+              size="sm"
+              className="rounded-xl"
+              onClick={() => setCurrentSide("offense")}
+              disabled={!canEdit}
+            >
+              Offense
+            </Button>
+            <Button
+              variant={currentSide === "defense" ? "default" : "outline"}
+              size="sm"
+              className="rounded-xl"
+              onClick={() => setCurrentSide("defense")}
+              disabled={!canEdit}
+            >
+              Defense
+            </Button>
+            <Button
+              variant={currentSide === "special_teams" ? "default" : "outline"}
+              size="sm"
+              className="rounded-xl"
+              onClick={() => setCurrentSide("special_teams")}
+              disabled={!canEdit}
+            >
+              Special teams
+            </Button>
+          </div>
+          {isTemplateMode ? (
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Formation name
+              <Input
+                value={templateNameState}
+                onChange={(e) => setTemplateNameState(e.target.value)}
+                className="h-11 rounded-xl"
+                disabled={!canEdit}
+              />
+            </label>
+          ) : (
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Play name
+              <Input value={playName} onChange={(e) => setPlayName(e.target.value)} className="h-11 rounded-xl" disabled={!canEdit} />
+            </label>
+          )}
+          {(showPlayerCountWarning || (isTemplateMode && playerCount !== 11)) && (
+            <p className="text-sm text-red-600 flex items-center gap-2">
+              <Users className="h-4 w-4 shrink-0" />
+              {isTemplateMode ? `${playerCount} players (need 11)` : `${playerCount} on field (expected ${expectedCount})`}
+            </p>
+          )}
+          {(routeDraft || blockDraft || motionDraft) && (
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                className="rounded-xl"
+                onClick={() => {
+                  if (canFinishRouteDraftLib(routeDraft)) finishRouteDraft()
+                  else if (canFinishMotionDraft) finishMotionDraft()
+                  else if (blockDraft) finishBlockDraft()
+                }}
+              >
+                <Check className="h-4 w-4 mr-1" />
+                Finish line
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl"
+                onClick={() => {
+                  cancelRouteDraft()
+                  cancelBlockDraft()
+                  cancelMotionDraft()
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      </PlaybookBottomSheet>
+
+      {/* Desktop header */}
+      <div className="hidden lg:flex items-center justify-between p-2 border-b-2 flex-shrink-0" style={{ borderBottomColor: "#0B2A5B" }}>
         <div className="flex items-center gap-4">
           <div className="flex gap-2">
             <Button
@@ -1235,7 +1393,7 @@ export function PlaybookBuilder({
 
       {/* Drawing helper text — wraps with toolbar strip styling */}
       {canEdit && !isTemplateMode && (
-        <div className="flex-shrink-0 flex flex-wrap items-center gap-3 py-2 px-3 border-b border-slate-200 bg-slate-50/50 text-sm text-slate-600">
+        <div className="hidden lg:flex flex-shrink-0 flex-wrap items-center gap-3 py-2 px-3 border-b border-slate-200 bg-slate-50/50 text-sm text-slate-600">
           {tool === "route" && !routeDraft && (
             <span>Route: <strong>Click a player</strong> to start, then add waypoints. Enter to finish, Esc to cancel.</span>
           )}
@@ -1274,7 +1432,7 @@ export function PlaybookBuilder({
         const def = sel.positionCode ? getPositionByCode(sel.positionCode) : null
         const inputClass = "h-8 min-w-[70px] px-2 rounded-md border border-slate-200 text-sm"
         return (
-          <div className="flex-shrink-0 py-2 px-3 border-b border-slate-200 bg-slate-50/50 max-lg:max-h-[30vh] max-lg:overflow-y-auto">
+          <div className="flex-shrink-0 py-2 px-3 border-b border-slate-200 bg-slate-50/50 max-lg:max-h-[min(30vh,260px)] max-lg:overflow-y-auto max-lg:rounded-2xl max-lg:mx-2 max-lg:mb-1 max-lg:bg-white max-lg:shadow-md max-lg:border max-lg:border-slate-200">
             <div className="flex flex-wrap items-center gap-4 text-sm">
               {/* Group 1: Marker selector */}
               <div className="flex items-center gap-2 flex-wrap">
@@ -1785,6 +1943,11 @@ export function PlaybookBuilder({
                           handlePlayerDrag(player.id, e)
                         }
                       }}
+                      onPointerDown={(e) => {
+                        if (canEdit && tool === "select" && (e.pointerType === "pen" || e.pointerType === "touch")) {
+                          handlePlayerDrag(player.id, e)
+                        }
+                      }}
                     />
                   )}
                   {player.shape === "square" && (
@@ -1807,6 +1970,11 @@ export function PlaybookBuilder({
                           handlePlayerDrag(player.id, e)
                         }
                       }}
+                      onPointerDown={(e) => {
+                        if (canEdit && tool === "select" && (e.pointerType === "pen" || e.pointerType === "touch")) {
+                          handlePlayerDrag(player.id, e)
+                        }
+                      }}
                     />
                   )}
                   {player.shape === "triangle" && (
@@ -1823,6 +1991,11 @@ export function PlaybookBuilder({
                       }}
                       onMouseDown={(e) => {
                         if (canEdit && tool === "select") {
+                          handlePlayerDrag(player.id, e)
+                        }
+                      }}
+                      onPointerDown={(e) => {
+                        if (canEdit && tool === "select" && (e.pointerType === "pen" || e.pointerType === "touch")) {
                           handlePlayerDrag(player.id, e)
                         }
                       }}
@@ -1938,21 +2111,22 @@ export function PlaybookBuilder({
       {canEdit && (
         <>
           <div
-            className="lg:hidden flex-shrink-0 flex items-stretch gap-2 px-2 py-2 border-t-2 bg-white z-30"
-            style={{ borderTopColor: "#0B2A5B", paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+            className="lg:hidden flex-shrink-0 flex items-stretch gap-1.5 px-2 pt-2 z-30 rounded-t-3xl bg-slate-950/98 backdrop-blur-xl border-t border-slate-800 shadow-[0_-12px_40px_rgba(0,0,0,0.35)]"
+            style={{ paddingBottom: "max(0.65rem, env(safe-area-inset-bottom))" }}
           >
             <Button
               type="button"
-              variant={mobilePaletteOpen ? "default" : "outline"}
-              className="flex-1 h-12 rounded-xl text-xs font-bold shrink min-w-0"
+              variant={mobilePaletteOpen ? "default" : "secondary"}
+              className="flex-1 h-[52px] rounded-2xl text-[10px] font-bold shrink min-w-0 flex-col gap-0.5 bg-slate-800 text-slate-100 border-slate-700"
               onClick={() => setMobilePaletteOpen(true)}
             >
-              Tools
+              <MoreHorizontal className="h-5 w-5" />
+              Players
             </Button>
             <Button
               type="button"
-              variant={tool === "select" ? "default" : "outline"}
-              className="flex-1 h-12 rounded-xl text-xs font-bold min-w-0"
+              variant={tool === "select" ? "default" : "secondary"}
+              className={`flex-1 h-[52px] rounded-2xl text-[10px] font-bold min-w-0 flex-col gap-0.5 ${tool === "select" ? "bg-emerald-600 hover:bg-emerald-500 text-white border-0" : "bg-slate-800 text-slate-100 border-slate-700"}`}
               onClick={() => {
                 cancelRouteDraft()
                 cancelBlockDraft()
@@ -1961,26 +2135,30 @@ export function PlaybookBuilder({
                 setSelectedPlayerId(null)
               }}
             >
+              <Move className="h-5 w-5" />
               Select
             </Button>
             <Button
               type="button"
-              variant={tool === "route" ? "default" : "outline"}
-              className="flex-1 h-12 rounded-xl text-xs font-bold min-w-0"
+              variant={tool === "route" ? "default" : "secondary"}
+              className={`flex-1 h-[52px] rounded-2xl text-[10px] font-bold min-w-0 flex-col gap-0.5 ${tool === "route" ? "bg-emerald-600 text-white border-0" : "bg-slate-800 text-slate-100 border-slate-700"}`}
               onClick={() => {
                 cancelBlockDraft()
                 cancelMotionDraft()
                 setTool("route")
               }}
+              disabled={currentSide !== "offense"}
             >
-              Routes
+              <Pencil className="h-5 w-5" />
+              Route
             </Button>
             <Button
               type="button"
-              variant={["motion", "block", "zone", "erase", "man"].includes(tool) ? "default" : "outline"}
-              className="flex-1 h-12 rounded-xl text-xs font-bold min-w-0 px-1"
+              variant={["motion", "block", "zone", "erase", "man"].includes(tool) ? "default" : "secondary"}
+              className={`flex-1 h-[52px] rounded-2xl text-[10px] font-bold min-w-0 px-1 flex-col gap-0.5 ${["motion", "block", "zone", "erase", "man"].includes(tool) ? "bg-amber-600 text-white border-0" : "bg-slate-800 text-slate-100 border-slate-700"}`}
               onClick={() => setMobilePaletteOpen(true)}
             >
+              <Square className="h-5 w-5" />
               More
             </Button>
           </div>

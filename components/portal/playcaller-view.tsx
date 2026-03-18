@@ -8,8 +8,37 @@ import {
   useRef,
   useState,
 } from "react"
-import { X, ChevronLeft, ChevronRight, Pencil, Eraser, Play, Pause, RotateCcw, SkipBack, Repeat, ChevronsLeft, ChevronsRight, Route, Circle, Flag, Star, Hand, ArrowRight, Triangle, Music2 } from "lucide-react"
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Eraser,
+  Play,
+  Pause,
+  RotateCcw,
+  SkipBack,
+  Repeat,
+  ChevronsLeft,
+  ChevronsRight,
+  Route,
+  Circle,
+  Flag,
+  Star,
+  Hand,
+  ArrowRight,
+  Triangle,
+  Music2,
+  MoreHorizontal,
+  Undo2,
+  ZoomIn,
+  ZoomOut,
+  Highlighter,
+  Minus,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { PlaybookBottomSheet } from "@/components/portal/playbook-bottom-sheet"
+import { useIsLgUp } from "@/lib/hooks/use-media-query"
 import { PlaybookFieldSurface, FieldCoordinateSystem } from "@/components/portal/playbook-field-surface"
 import { clientToViewBox } from "@/lib/utils/canvas-coords"
 import { getPlayFormationDisplayName } from "@/lib/utils/playbook-formation"
@@ -19,6 +48,14 @@ import { usePlayAnimation, SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/hooks
 import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint, FormationRecord } from "@/types/playbook"
 
 type PresenterTool = "none" | "marker" | "icon"
+type InkTool = "pen" | "highlighter" | "line" | "arrow" | "icon"
+export type PresenterInkStroke = {
+  kind: "freehand" | "line" | "arrow"
+  points: { x: number; y: number }[]
+  color: string
+  width: number
+  opacity: number
+}
 
 export const ANNOTATION_ICON_TYPES = [
   { id: "football", label: "Football", Icon: Circle },
@@ -185,19 +222,41 @@ export function PlaycallerView({
   embedded = false,
   fullscreen = false,
 }: PlaycallerViewProps) {
+  const isLg = useIsLgUp()
+  const compactUi = !isLg
   const coord = usePresenterCoord()
   const play = plays[currentIndex]
   const canvasData = play?.canvasData as PlayCanvasData | null
   const players = getPlayersFromCanvas(canvasData, coord)
   const svgRef = useRef<SVGSVGElement>(null)
-  const [tool, setTool] = useState<PresenterTool>("none")
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const panRef = useRef({ x: 0, y: 0 })
+  const [annotateOn, setAnnotateOn] = useState(false)
+  const [inkTool, setInkTool] = useState<InkTool>("pen")
+  const [fingerDraw, setFingerDraw] = useState(false)
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [lineDraft, setLineDraft] = useState<{ x: number; y: number } | null>(null)
+  const [linePreview, setLinePreview] = useState<{ x: number; y: number } | null>(null)
+  const pinchRef = useRef<{ dist: number; zoom: number; panX: number; panY: number; cx: number; cy: number } | null>(null)
+  const panDragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null)
+
+  const tool: PresenterTool =
+    !annotateOn ? "none" : inkTool === "icon" ? "icon" : "marker"
   const [markerColor, setMarkerColor] = useState<string>(MARKER_COLORS[0].value)
-  const [strokes, setStrokes] = useState<{ points: { x: number; y: number }[]; color: string }[]>([])
+  const [inkStrokes, setInkStrokes] = useState<PresenterInkStroke[]>([])
+  const [inkUndoStack, setInkUndoStack] = useState<PresenterInkStroke[][]>([])
   const [activeStroke, setActiveStroke] = useState<{ x: number; y: number }[] | null>(null)
+  const [strokeWidthIdx, setStrokeWidthIdx] = useState(1)
+  const strokeWidths = [2, 4, 7] as const
   const [annotations, setAnnotations] = useState<{ id: string; iconType: string; x: number; y: number }[]>([])
   const [selectedIconType, setSelectedIconType] = useState<string>(ANNOTATION_ICON_TYPES[0].id)
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const markerStrokeColor = markerColor
+  const inkWidth =
+    inkTool === "highlighter" ? Math.max(12, strokeWidths[strokeWidthIdx] * 2.5) : strokeWidths[strokeWidthIdx]
+  const inkOpacity = inkTool === "highlighter" ? 0.38 : 1
   const annotationIdRef = useRef(0)
   const [viewAsRoleId, setViewAsRoleId] = useState<string | null>(null)
   const [viewAsRosterPlayerId, setViewAsRosterPlayerId] = useState<string | null>(null)
@@ -269,6 +328,13 @@ export function PlaycallerView({
     setViewAsRosterPlayerId(null)
     setAnnotations([])
     setSelectedAnnotationId(null)
+    setInkStrokes([])
+    setInkUndoStack([])
+    setActiveStroke(null)
+    setLineDraft(null)
+    setLinePreview(null)
+    setPan({ x: 0, y: 0 })
+    setZoom(1)
   }, [currentIndex])
 
   // Reset animation when switching to another play
@@ -330,15 +396,44 @@ export function PlaycallerView({
     return { x: Math.max(0, Math.min(VIEWBOX_W, pt.x)), y: Math.max(0, Math.min(VIEWBOX_H, pt.y)) }
   }, [])
 
+  const canDrawWithPointer = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.pointerType === "pen") return true
+      if (e.pointerType === "mouse") return true
+      if (e.pointerType === "touch" && fingerDraw) return true
+      return false
+    },
+    [fingerDraw]
+  )
+
+  const pushInkStroke = useCallback((s: PresenterInkStroke) => {
+    setInkStrokes((prev) => {
+      setInkUndoStack((u) => [...u, prev])
+      return [...prev, s]
+    })
+  }, [])
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const pt = clientToViewBoxPoint(e.clientX, e.clientY)
       if (!pt) return
-      if (tool === "marker") {
+      if (shiftHeld) return
+      if (tool === "marker" && (inkTool === "line" || inkTool === "arrow")) {
+        if (!canDrawWithPointer(e)) return
+        e.preventDefault()
+        setLineDraft(pt)
+        setLinePreview(pt)
+        e.currentTarget.setPointerCapture(e.pointerId)
+        return
+      }
+      if (tool === "marker" && (inkTool === "pen" || inkTool === "highlighter")) {
+        if (!canDrawWithPointer(e)) return
         e.preventDefault()
         setActiveStroke([pt])
         e.currentTarget.setPointerCapture(e.pointerId)
-      } else if (tool === "icon") {
+        return
+      }
+      if (tool === "icon") {
         e.preventDefault()
         const id = `icon-${++annotationIdRef.current}`
         setAnnotations((prev) => [...prev, { id, iconType: selectedIconType, x: pt.x, y: pt.y }])
@@ -347,7 +442,7 @@ export function PlaycallerView({
         setSelectedAnnotationId(null)
       }
     },
-    [tool, clientToViewBoxPoint, selectedIconType]
+    [tool, inkTool, clientToViewBoxPoint, selectedIconType, shiftHeld, canDrawWithPointer]
   )
 
   const handlePointerMove = useCallback(
@@ -357,39 +452,197 @@ export function PlaycallerView({
         if (pt) setLaserPosition(pt)
         return
       }
-      if (tool !== "marker" || !activeStroke) return
+      if (tool === "marker" && (inkTool === "line" || inkTool === "arrow") && lineDraft) {
+        e.preventDefault()
+        const pt = clientToViewBoxPoint(e.clientX, e.clientY)
+        if (pt) setLinePreview(pt)
+        return
+      }
+      if (tool !== "marker" || (inkTool !== "pen" && inkTool !== "highlighter") || !activeStroke) return
       e.preventDefault()
       const pt = clientToViewBoxPoint(e.clientX, e.clientY)
       if (pt) setActiveStroke((prev) => (prev ? [...prev, pt] : [pt]))
     },
-    [shiftHeld, tool, activeStroke, clientToViewBoxPoint]
+    [shiftHeld, tool, inkTool, activeStroke, lineDraft, clientToViewBoxPoint]
   )
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-      if (tool === "marker" && activeStroke && activeStroke.length > 0) {
-        setStrokes((prev) => [...prev, { points: activeStroke, color: markerColor }])
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+      if (tool === "marker" && (inkTool === "line" || inkTool === "arrow") && lineDraft && linePreview) {
+        const dx = linePreview.x - lineDraft.x
+        const dy = linePreview.y - lineDraft.y
+        if (Math.hypot(dx, dy) > 4) {
+          pushInkStroke({
+            kind: inkTool === "arrow" ? "arrow" : "line",
+            points: [lineDraft, linePreview],
+            color: markerColor,
+            width: strokeWidths[strokeWidthIdx],
+            opacity: 1,
+          })
+        }
+        setLineDraft(null)
+        setLinePreview(null)
+        return
+      }
+      if (
+        tool === "marker" &&
+        (inkTool === "pen" || inkTool === "highlighter") &&
+        activeStroke &&
+        activeStroke.length > 0
+      ) {
+        if (activeStroke.length > 1) {
+          pushInkStroke({
+            kind: "freehand",
+            points: activeStroke,
+            color: markerColor,
+            width: inkWidth,
+            opacity: inkOpacity,
+          })
+        }
         setActiveStroke(null)
       }
     },
-    [tool, activeStroke, markerColor]
+    [
+      tool,
+      inkTool,
+      lineDraft,
+      linePreview,
+      activeStroke,
+      markerColor,
+      inkWidth,
+      inkOpacity,
+      strokeWidthIdx,
+      pushInkStroke,
+    ]
   )
 
   const handlePointerLeave = useCallback(() => {
-    if (tool === "marker" && activeStroke && activeStroke.length > 0) {
-      setStrokes((prev) => [...prev, { points: activeStroke, color: markerColor }])
-      setActiveStroke(null)
+    if (tool === "marker" && (inkTool === "pen" || inkTool === "highlighter") && activeStroke && activeStroke.length > 1) {
+      pushInkStroke({
+        kind: "freehand",
+        points: activeStroke,
+        color: markerColor,
+        width: inkWidth,
+        opacity: inkOpacity,
+      })
     }
-  }, [tool, activeStroke, markerColor])
+    setActiveStroke(null)
+    setLineDraft(null)
+    setLinePreview(null)
+  }, [tool, inkTool, activeStroke, markerColor, inkWidth, inkOpacity, pushInkStroke])
 
   const clearDrawings = useCallback(() => {
-    setStrokes([])
+    setInkStrokes([])
+    setInkUndoStack([])
     setActiveStroke(null)
+    setLineDraft(null)
+    setLinePreview(null)
     setAnnotations([])
     setSelectedAnnotationId(null)
-    setTool("none")
+    setAnnotateOn(false)
+    setInkTool("pen")
   }, [])
+
+  const undoLastInk = useCallback(() => {
+    setInkUndoStack((stack) => {
+      if (stack.length === 0) return stack
+      const prev = stack[stack.length - 1]
+      setInkStrokes(prev)
+      return stack.slice(0, -1)
+    })
+  }, [])
+
+  const zoomRef = useRef(zoom)
+  const panRefState = useRef(pan)
+  zoomRef.current = zoom
+  panRefState.current = pan
+
+  useEffect(() => {
+    if (isLg) {
+      setPan({ x: 0, y: 0 })
+      setZoom(1)
+    }
+  }, [isLg])
+
+  const shouldPanFieldPointer = useCallback(
+    (e: React.PointerEvent) => {
+      if (!compactUi) return false
+      if (e.pointerType === "pen") return false
+      if (!annotateOn) return true
+      if (inkTool === "icon") return false
+      if (e.pointerType === "touch" && !fingerDraw) return true
+      return false
+    },
+    [compactUi, annotateOn, inkTool, fingerDraw]
+  )
+
+  const onViewportPointerDownCapture = useCallback(
+    (e: React.PointerEvent) => {
+      if (!shouldPanFieldPointer(e)) return
+      if ((e.target as HTMLElement).closest("[data-timeline]")) return
+      panDragRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        panX: panRefState.current.x,
+        panY: panRefState.current.y,
+      }
+      ;(e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId)
+      e.preventDefault()
+      e.stopPropagation()
+    },
+    [shouldPanFieldPointer]
+  )
+
+  const onViewportPointerMove = useCallback((e: React.PointerEvent) => {
+    const d = panDragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    setPan({
+      x: d.panX + (e.clientX - d.startX),
+      y: d.panY + (e.clientY - d.startY),
+    })
+  }, [])
+
+  const onViewportPointerUp = useCallback((e: React.PointerEvent) => {
+    const d = panDragRef.current
+    if (d?.pointerId === e.pointerId) panDragRef.current = null
+    try {
+      ;(e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const onViewportWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (!compactUi) return
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -0.08 : 0.08
+      setZoom((z) => Math.min(2.5, Math.max(0.65, z + delta)))
+    },
+    [compactUi]
+  )
+
+  const onTouchPinch = useCallback((e: React.TouchEvent) => {
+    if (!compactUi || e.touches.length !== 2) return
+    const a = e.touches[0]
+    const b = e.touches[1]
+    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+    if (e.type === "touchstart") {
+      pinchRef.current = { dist, zoom: zoomRef.current, panX: panRefState.current.x, panY: panRefState.current.y, cx: (a.clientX + b.clientX) / 2, cy: (a.clientY + b.clientY) / 2 }
+    } else if (pinchRef.current && e.type === "touchmove") {
+      const p = pinchRef.current
+      const scale = dist / p.dist
+      const nz = Math.min(2.5, Math.max(0.65, p.zoom * scale))
+      setZoom(nz)
+    }
+    if (e.type === "touchend" || e.type === "touchcancel") pinchRef.current = null
+  }, [compactUi])
 
   const removeSelectedAnnotation = useCallback(() => {
     if (selectedAnnotationId) {
@@ -430,9 +683,17 @@ export function PlaycallerView({
         return
       }
       if (e.key === "Escape") {
+        if (moreSheetOpen) {
+          setMoreSheetOpen(false)
+          return
+        }
+        if (annotateOn) {
+          setAnnotateOn(false)
+          return
+        }
         setSelectedAnnotationId(null)
         if (embedded && fullscreen) {
-          // Let parent page handle exit fullscreen; do not close view
+          /* parent may handle fullscreen exit */
         } else {
           onClose()
         }
@@ -453,7 +714,7 @@ export function PlaycallerView({
     }
     window.addEventListener("keydown", handleKey)
     return () => window.removeEventListener("keydown", handleKey)
-  }, [onClose, goPrev, goNext, selectedAnnotationId, removeSelectedAnnotation, embedded, fullscreen, isAnimationPlaying, animationPlay, animationPause, animationRestart])
+  }, [onClose, goPrev, goNext, selectedAnnotationId, removeSelectedAnnotation, embedded, fullscreen, isAnimationPlaying, animationPlay, animationPause, animationRestart, moreSheetOpen, annotateOn])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -507,30 +768,29 @@ export function PlaycallerView({
 
   return (
     <div className={`flex flex-col bg-slate-900 ${embedded ? "absolute inset-0 z-0" : "fixed inset-0 z-50"}`}>
-      {!embedded && (
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
-        <Button variant="secondary" size="sm" onClick={onClose} className="shadow-lg">
-          <X className="h-4 w-4 mr-2" />
-          Exit
-        </Button>
-        <div className="flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg">
-          <Button variant="outline" size="icon" onClick={goPrev} disabled={currentIndex <= 0}>
-            <ChevronLeft className="h-4 w-4" />
+      {!embedded && isLg && (
+        <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center gap-2 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(5.5rem,env(safe-area-inset-right))] bg-slate-950/92 backdrop-blur-xl border-b border-slate-800/80">
+          <Button variant="secondary" size="sm" onClick={onClose} className="shadow-lg border-slate-700 bg-slate-800 text-slate-100">
+            <X className="h-4 w-4 mr-1" />
+            Exit
           </Button>
-          <span className="text-sm font-medium min-w-[120px] text-center">
-            {currentIndex + 1} / {plays.length}
-          </span>
-          <Button variant="outline" size="icon" onClick={goNext} disabled={currentIndex >= plays.length - 1}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg">
-          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-            View as:
+          <div className="flex items-center gap-1 rounded-xl bg-slate-800/90 px-2 py-1 border border-slate-700">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-200" onClick={goPrev} disabled={currentIndex <= 0}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-xs font-medium min-w-[72px] text-center text-slate-300">
+              {currentIndex + 1} / {plays.length}
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-200" onClick={goNext} disabled={currentIndex >= plays.length - 1}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <label className="text-xs text-slate-400 flex items-center gap-1">
+            View as
             <select
               value={viewAsValue}
               onChange={(e) => setViewAsValue(e.target.value)}
-              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[140px]"
+              className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-2 text-xs min-w-[120px]"
             >
               <option value="">All</option>
               {viewAsRoleOptions.length > 0 && (
@@ -549,86 +809,138 @@ export function PlaycallerView({
               )}
             </select>
           </label>
-          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-            Highlight:
+          <label className="text-xs text-slate-400 flex items-center gap-1">
+            Highlight
             <select
               value={highlightedGroup}
               onChange={(e) => setHighlightedGroup(e.target.value)}
-              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[80px]"
-              title="Highlight position group"
+              className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-2 text-xs min-w-[64px]"
             >
               {PLAYER_GROUP_OPTIONS.map((opt) => (
                 <option key={opt.value || "none"} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-            Color:
-            <select
-              value={markerColor}
-              onChange={(e) => setMarkerColor(e.target.value)}
-              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[90px]"
-              title="Marker color"
-            >
-              {MARKER_COLORS.map((c) => (
-                <option key={c.value} value={c.value}>{c.name}</option>
-              ))}
-            </select>
-          </label>
           <Button
-            variant={tool === "marker" ? "secondary" : "outline"}
-            size="icon"
-            onClick={() => setTool((t) => (t === "marker" ? "none" : "marker"))}
-            title="Draw on play"
+            variant={annotateOn ? "default" : "outline"}
+            size="sm"
+            className={annotateOn ? "bg-amber-600 hover:bg-amber-500" : "border-slate-600 text-slate-200"}
+            onClick={() => setAnnotateOn((a) => !a)}
           >
-            <Pencil className="h-4 w-4" />
+            Annotate
           </Button>
-          <Button variant="outline" size="icon" onClick={clearDrawings} title="Clear all drawings and icons">
-            <Eraser className="h-4 w-4" />
-          </Button>
-          <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-            Icon:
-            <select
-              value={selectedIconType}
-              onChange={(e) => setSelectedIconType(e.target.value)}
-              className="h-8 rounded border border-input bg-background px-2 text-sm min-w-[90px]"
-              title="Annotation icon"
-            >
-              {ANNOTATION_ICON_TYPES.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
-          </label>
-          <Button
-            variant={tool === "icon" ? "secondary" : "outline"}
-            size="icon"
-            onClick={() => setTool((t) => (t === "icon" ? "none" : "icon"))}
-            title="Add icon (click on field)"
-          >
-            <Flag className="h-4 w-4" />
-          </Button>
-          {selectedAnnotationId && (
-            <Button variant="outline" size="sm" onClick={removeSelectedAnnotation} title="Remove selected icon (or press Delete)">
-              Remove icon
-            </Button>
+          {annotateOn && (
+            <>
+              <div className="flex rounded-lg border border-slate-600 overflow-hidden">
+                {(
+                  [
+                    { id: "pen" as const, Icon: Pencil },
+                    { id: "highlighter" as const, Icon: Highlighter },
+                    { id: "line" as const, Icon: Minus },
+                    { id: "arrow" as const, Icon: ArrowRight },
+                    { id: "icon" as const, Icon: Flag },
+                  ] as const
+                ).map(({ id, Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setInkTool(id)}
+                    className={`p-2 ${inkTool === id ? "bg-slate-600 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}
+                    title={id}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+              <label className="text-xs text-slate-400 flex items-center gap-1">
+                Color
+                <select
+                  value={markerColor}
+                  onChange={(e) => setMarkerColor(e.target.value)}
+                  className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-1 text-xs min-w-[72px]"
+                >
+                  {MARKER_COLORS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
+              <select
+                value={selectedIconType}
+                onChange={(e) => setSelectedIconType(e.target.value)}
+                className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-1 text-xs min-w-[80px]"
+              >
+                {ANNOTATION_ICON_TYPES.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+              <Button variant="outline" size="sm" className="border-slate-600 text-slate-200 h-8" onClick={undoLastInk} disabled={inkUndoStack.length === 0}>
+                <Undo2 className="h-3.5 w-3.5 mr-1" />
+                Undo
+              </Button>
+              <Button variant="outline" size="sm" className="border-slate-600 text-slate-200 h-8" onClick={clearDrawings}>
+                Clear
+              </Button>
+              {selectedAnnotationId && (
+                <Button variant="outline" size="sm" className="border-slate-600 h-8" onClick={removeSelectedAnnotation}>
+                  Remove icon
+                </Button>
+              )}
+              <label className="flex items-center gap-1 text-xs text-slate-400">
+                <input type="checkbox" checked={fingerDraw} onChange={(e) => setFingerDraw(e.target.checked)} className="rounded" />
+                Finger draw
+              </label>
+            </>
           )}
         </div>
-      </div>
       )}
-      {embedded && (
+      {!embedded && !isLg && (
+        <header className="flex-shrink-0 z-30 border-b border-slate-800/90 bg-slate-950/95 backdrop-blur-xl px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-10 rounded-2xl shadow-lg border-slate-700 bg-slate-800 text-slate-100 px-3"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-2xl border-slate-600 bg-slate-800/90 text-slate-200 shadow-md"
+                onClick={() => setMoreSheetOpen(true)}
+                title="Presentation options"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="flex-1 min-w-0 text-center px-1">
+              <p className="text-sm font-semibold text-slate-100 truncate">{play.name}</p>
+              <p className="text-[11px] text-slate-500 truncate tabular-nums">
+                {getPlayFormationDisplayName(play, formations)}
+                {plays.length > 1 ? ` · ${currentIndex + 1}/${plays.length}` : ""}
+              </p>
+            </div>
+            <div className="w-12 sm:w-16 shrink-0" aria-hidden />
+          </div>
+        </header>
+      )}
+      {embedded && isLg && (
         <div
           className={
             fullscreen
-              ? "fixed top-0 left-0 right-0 z-20 flex items-center justify-end gap-2 px-3 py-2 bg-slate-800/95 backdrop-blur border-b border-slate-700"
-              : "flex-shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-slate-800/90 border-b border-slate-700"
+              ? "fixed top-0 left-0 right-0 z-20 flex flex-wrap items-center gap-2 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(5.5rem,env(safe-area-inset-right))] bg-slate-950/95 backdrop-blur-xl border-b border-slate-800"
+              : "flex-shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-950/95 border-b border-slate-800"
           }
         >
-          <label className="text-xs text-slate-400 flex items-center gap-1.5">
-            View as:
+          <label className="text-xs text-slate-400 flex items-center gap-1">
+            View as
             <select
               value={viewAsValue}
               onChange={(e) => setViewAsValue(e.target.value)}
-              className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-2 text-xs min-w-[120px]"
+              className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-2 text-xs min-w-[120px]"
             >
               <option value="">All</option>
               {viewAsRoleOptions.length > 0 && (
@@ -648,68 +960,105 @@ export function PlaycallerView({
             </select>
           </label>
           <label className="text-xs text-slate-400 flex items-center gap-1">
-            Highlight:
+            Highlight
             <select
               value={highlightedGroup}
               onChange={(e) => setHighlightedGroup(e.target.value)}
-              className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[72px]"
-              title="Highlight position group"
+              className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[68px]"
             >
               {PLAYER_GROUP_OPTIONS.map((opt) => (
                 <option key={opt.value || "none"} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-xs text-slate-400 flex items-center gap-1">
-            Color:
-            <select
-              value={markerColor}
-              onChange={(e) => setMarkerColor(e.target.value)}
-              className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[80px]"
-              title="Marker color"
-            >
-              {MARKER_COLORS.map((c) => (
-                <option key={c.value} value={c.value}>{c.name}</option>
-              ))}
-            </select>
-          </label>
           <Button
-            variant={tool === "marker" ? "secondary" : "outline"}
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setTool((t) => (t === "marker" ? "none" : "marker"))}
-            title="Draw on play"
+            variant={annotateOn ? "default" : "outline"}
+            size="sm"
+            className={annotateOn ? "bg-amber-600" : "border-slate-600 text-slate-200 h-8"}
+            onClick={() => setAnnotateOn((a) => !a)}
           >
-            <Pencil className="h-3.5 w-3.5" />
+            Annotate
           </Button>
-          <Button variant="outline" size="icon" className="h-7 w-7" onClick={clearDrawings} title="Clear all">
-            <Eraser className="h-3.5 w-3.5" />
-          </Button>
-          <select
-            value={selectedIconType}
-            onChange={(e) => setSelectedIconType(e.target.value)}
-            className="h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[72px]"
-            title="Icon"
-          >
-            {ANNOTATION_ICON_TYPES.map((c) => (
-              <option key={c.id} value={c.id}>{c.label}</option>
-            ))}
-          </select>
-          <Button
-            variant={tool === "icon" ? "secondary" : "outline"}
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setTool((t) => (t === "icon" ? "none" : "icon"))}
-            title="Add icon"
-          >
-            <Flag className="h-3.5 w-3.5" />
-          </Button>
-          {selectedAnnotationId && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={removeSelectedAnnotation} title="Remove selected icon (or press Delete)">
+          {annotateOn && (
+            <>
+              <div className="flex rounded-lg border border-slate-600 overflow-hidden">
+                {(
+                  [
+                    { id: "pen" as const, Icon: Pencil },
+                    { id: "highlighter" as const, Icon: Highlighter },
+                    { id: "line" as const, Icon: Minus },
+                    { id: "arrow" as const, Icon: ArrowRight },
+                    { id: "icon" as const, Icon: Flag },
+                  ] as const
+                ).map(({ id, Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setInkTool(id)}
+                    className={`p-2 ${inkTool === id ? "bg-slate-600 text-white" : "bg-slate-800 text-slate-400"}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+              <select
+                value={markerColor}
+                onChange={(e) => setMarkerColor(e.target.value)}
+                className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-1 text-xs min-w-[72px]"
+              >
+                {MARKER_COLORS.map((c) => (
+                  <option key={c.value} value={c.value}>{c.name}</option>
+                ))}
+              </select>
+              <Button variant="outline" size="icon" className="h-8 w-8 border-slate-600" onClick={undoLastInk} disabled={inkUndoStack.length === 0}>
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8 border-slate-600" onClick={clearDrawings}>
+                <Eraser className="h-4 w-4" />
+              </Button>
+              <select
+                value={selectedIconType}
+                onChange={(e) => setSelectedIconType(e.target.value)}
+                className="h-8 rounded-lg border border-slate-600 bg-slate-800 text-slate-200 px-1 text-xs min-w-[72px]"
+              >
+                {ANNOTATION_ICON_TYPES.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                <input type="checkbox" checked={fingerDraw} onChange={(e) => setFingerDraw(e.target.checked)} />
+                Finger
+              </label>
+            </>
+          )}
+          {selectedAnnotationId && annotateOn && (
+            <Button variant="outline" size="sm" className="h-8 border-slate-600 text-xs" onClick={removeSelectedAnnotation}>
               Remove icon
             </Button>
           )}
         </div>
+      )}
+      {embedded && !isLg && (
+        <header className="flex-shrink-0 z-30 border-b border-slate-800/90 bg-slate-950/95 backdrop-blur-xl px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" className="h-10 rounded-2xl border-slate-700 bg-slate-800 text-slate-100 px-3" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-2xl border-slate-600 bg-slate-800/90 text-slate-200"
+              onClick={() => setMoreSheetOpen(true)}
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0 text-center">
+              <p className="text-sm font-semibold text-slate-100 truncate">{play.name}</p>
+            </div>
+            <div className="w-10 shrink-0" aria-hidden />
+          </div>
+        </header>
       )}
 
       {/* Resolved "Viewing as" label and no-roles message (hidden in fullscreen) */}
@@ -735,20 +1084,41 @@ export function PlaycallerView({
         </div>
       )}
 
-      <div className={`flex-1 flex items-center justify-center min-h-0 min-w-0 overflow-hidden ${embedded ? "p-2 sm:p-4" : "p-4"}`}>
-        <div
-          className={`w-full max-w-full min-w-0 aspect-[53.33/35] overflow-hidden ${
-            embedded && fullscreen
-              ? "max-w-[90vw] max-h-[85vh] rounded-lg border border-slate-700/50 shadow-2xl"
-              : embedded
-                ? "max-w-full max-h-[min(72vh,520px)] sm:max-h-[85vh] sm:max-w-4xl rounded-xl shadow-2xl border border-slate-300"
-                : "max-w-4xl max-h-[85vh] rounded-lg shadow-2xl border border-slate-300"
-          }`}
-        >
+      <div
+        ref={viewportRef}
+        className={`flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden touch-none ${compactUi ? "" : ""} ${embedded ? "p-1 md:p-2" : isLg ? "p-2 pt-14" : "p-1"}`}
+        onPointerDownCapture={onViewportPointerDownCapture}
+        onPointerMove={onViewportPointerMove}
+        onPointerUp={onViewportPointerUp}
+        onPointerCancel={onViewportPointerUp}
+        onWheel={onViewportWheel}
+        onTouchStart={onTouchPinch}
+        onTouchMove={onTouchPinch}
+        onTouchEnd={onTouchPinch}
+      >
+        <div className="flex-1 flex items-center justify-center min-h-0 min-w-0 w-full">
+          <div
+            className="w-full max-w-full min-w-0 max-h-full flex items-center justify-center"
+            style={{
+              transform: compactUi ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` : undefined,
+              transformOrigin: "center center",
+            }}
+          >
+            <div
+              className={`w-full min-w-0 aspect-[53.33/35] max-h-full overflow-hidden rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.45)] ring-1 ${
+                embedded && fullscreen
+                  ? "max-w-[min(96vw,1200px)] max-h-[min(78vh,900px)] ring-slate-700/60"
+                  : embedded
+                    ? "max-w-full max-h-[min(70vh,560px)] lg:max-h-[min(82vh,720px)] lg:max-w-5xl ring-slate-700/40"
+                    : isLg
+                      ? "max-w-5xl max-h-[min(82vh,720px)] ring-slate-600/30"
+                      : "max-w-full max-h-[calc(100dvh-200px)] ring-slate-700/50"
+              }`}
+            >
           <svg
             ref={svgRef}
             viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
-            className="w-full h-full touch-none"
+            className="w-full h-full touch-manipulation"
             preserveAspectRatio="xMidYMid meet"
             style={{ background: "#2d5016" }}
             onPointerDown={handlePointerDown}
@@ -923,38 +1293,78 @@ export function PlaycallerView({
               </g>
             )
             })}
-            {/* Marker strokes (presenter drawings); non-interactive so capture rect receives pointer */}
-            {strokes.map((stroke, i) =>
-              stroke.points.length > 1 ? (
-                <polyline
-                  key={i}
-                  points={stroke.points.map((p) => `${p.x},${p.y}`).join(" ")}
-                  fill="none"
-                  stroke={stroke.color}
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ pointerEvents: "none" }}
+            {inkStrokes.map((stroke, i) => {
+              if (stroke.kind === "freehand" && stroke.points.length > 1) {
+                return (
+                  <polyline
+                    key={i}
+                    points={stroke.points.map((p) => `${p.x},${p.y}`).join(" ")}
+                    fill="none"
+                    stroke={stroke.color}
+                    strokeWidth={stroke.width}
+                    strokeOpacity={stroke.opacity}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ pointerEvents: "none" }}
+                  />
+                )
+              }
+              if ((stroke.kind === "line" || stroke.kind === "arrow") && stroke.points.length >= 2) {
+                const [a, b] = stroke.points
+                const ang = Math.atan2(b.y - a.y, b.x - a.x)
+                const ah = 14
+                const aw = 8
+                const x1 = b.x - ah * Math.cos(ang)
+                const y1 = b.y - ah * Math.sin(ang)
+                return (
+                  <g key={i} style={{ pointerEvents: "none" }}>
+                    <line x1={a.x} y1={a.y} x2={stroke.kind === "arrow" ? x1 : b.x} y2={stroke.kind === "arrow" ? y1 : b.y} stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" />
+                    {stroke.kind === "arrow" && (
+                      <polygon
+                        points={`${b.x},${b.y} ${x1 + aw * Math.sin(ang)},${y1 - aw * Math.cos(ang)} ${x1 - aw * Math.sin(ang)},${y1 + aw * Math.cos(ang)}`}
+                        fill={stroke.color}
+                      />
+                    )}
+                  </g>
+                )
+              }
+              return null
+            })}
+            {lineDraft && linePreview && (
+              <g pointerEvents="none">
+                <line
+                  x1={lineDraft.x}
+                  y1={lineDraft.y}
+                  x2={inkTool === "arrow" ? linePreview.x - 12 * Math.cos(Math.atan2(linePreview.y - lineDraft.y, linePreview.x - lineDraft.x)) : linePreview.x}
+                  y2={inkTool === "arrow" ? linePreview.y - 12 * Math.sin(Math.atan2(linePreview.y - lineDraft.y, linePreview.x - lineDraft.x)) : linePreview.y}
+                  stroke={markerStrokeColor}
+                  strokeWidth={strokeWidths[strokeWidthIdx]}
+                  strokeDasharray="6 4"
+                  opacity={0.85}
                 />
-              ) : null
+              </g>
             )}
             {activeStroke && activeStroke.length > 1 && (
               <polyline
                 points={activeStroke.map((p) => `${p.x},${p.y}`).join(" ")}
                 fill="none"
                 stroke={markerStrokeColor}
-                strokeWidth={3}
+                strokeWidth={inkWidth}
+                strokeOpacity={inkOpacity}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 style={{ pointerEvents: "none" }}
               />
             )}
-            {/* Capture rect: receives pointer when marker or icon tool active; behind annotations so icon clicks work */}
             <rect
               width={VIEWBOX_W}
               height={VIEWBOX_H}
               fill="transparent"
-              pointerEvents={tool === "marker" || tool === "icon" ? "all" : "none"}
+              pointerEvents={
+                annotateOn && (inkTool === "pen" || inkTool === "highlighter" || inkTool === "line" || inkTool === "arrow" || inkTool === "icon")
+                  ? "all"
+                  : "none"
+              }
             />
             {/* Annotation icons (on top so they receive clicks) */}
             {annotations.map((a) => {
@@ -1014,19 +1424,22 @@ export function PlaycallerView({
               </g>
             )}
           </svg>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Animation controls (always visible; compact in fullscreen) */}
       <div
+        data-presenter-dock
         className={
-          fullscreen
-            ? "fixed bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 w-full max-w-lg px-3"
-            : "absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-full max-w-xl px-4"
+          compactUi
+            ? "fixed left-0 right-0 bottom-0 z-40 flex flex-col gap-2 px-2 sm:px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-950 via-slate-950/98 to-slate-950/85 backdrop-blur-xl border-t border-slate-800/90 max-w-[100vw] overflow-x-auto"
+            : fullscreen
+              ? "fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4 pr-[max(3rem,env(safe-area-inset-right))]"
+              : "absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4"
         }
       >
-        {/* Timeline scrubber */}
-        <div className="w-full flex flex-col gap-1">
+        <div className="w-full max-w-lg mx-auto flex flex-col gap-1.5" data-timeline>
           <div
             ref={timelineRef}
             role="slider"
@@ -1035,11 +1448,7 @@ export function PlaycallerView({
             aria-valuemax={1}
             aria-valuenow={animationProgress}
             tabIndex={0}
-            className={
-              fullscreen
-                ? "relative h-5 w-full rounded bg-slate-700/90 cursor-pointer touch-none flex items-center overflow-visible"
-                : "relative h-6 w-full rounded bg-muted/80 cursor-pointer touch-none flex items-center overflow-visible"
-            }
+            className="relative h-4 sm:h-5 w-full rounded-full bg-slate-800/95 cursor-pointer touch-none flex items-center overflow-visible ring-1 ring-slate-700/80"
             onPointerDown={handleTimelinePointerDown}
             onPointerMove={handleTimelinePointerMove}
             onPointerUp={handleTimelinePointerUp}
@@ -1047,148 +1456,265 @@ export function PlaycallerView({
             onPointerCancel={handleTimelinePointerUp}
           >
             <div
-              className={
-                fullscreen
-                  ? "h-full rounded-l bg-slate-500/80 transition-none pointer-events-none"
-                  : "h-full rounded-l bg-primary/70 transition-none pointer-events-none"
-              }
+              className="h-full rounded-full bg-emerald-600/90 transition-none pointer-events-none"
               style={{ width: `${animationProgress * 100}%` }}
             />
             <div
-              className={
-                fullscreen
-                  ? "absolute top-1/2 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-slate-800 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
-                  : "absolute top-1/2 w-3 h-3 rounded-full bg-primary border-2 border-background shadow -translate-y-1/2 -translate-x-1/2 pointer-events-none"
-              }
+              className="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-emerald-700 shadow-md -translate-y-1/2 -translate-x-1/2 pointer-events-none"
               style={{ left: `${animationProgress * 100}%` }}
             />
           </div>
         </div>
         <div
-          className={
-            fullscreen
-              ? "flex items-center gap-1.5 bg-slate-800/95 backdrop-blur px-2.5 py-1.5 rounded-md border border-slate-700/50"
-              : "flex items-center gap-2 bg-background/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg"
-          }
+          className={`flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5 mx-auto rounded-2xl px-2 py-1.5 shadow-lg border border-slate-700/60 bg-slate-900/95 backdrop-blur-md ${
+            compactUi ? "min-w-0 max-w-full overflow-x-auto" : ""
+          }`}
         >
-          <Button
-            variant="outline"
-            size="icon"
-            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
-            onClick={animationStepToStart}
-            title="Step back to start"
-          >
-            <SkipBack className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          {plays.length > 1 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800"
+                onClick={goPrev}
+                disabled={currentIndex <= 0}
+                title="Previous play"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            </>
+          )}
+          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepToStart} title="Start">
+            <SkipBack className="h-4 w-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
-            onClick={animationStepBackward}
-            title="Step backward (one frame)"
-          >
-            <ChevronsLeft className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepBackward} title="Step back">
+            <ChevronsLeft className="h-4 w-4" />
           </Button>
           {isAnimationPlaying ? (
-            <Button
-              variant="secondary"
-              size="icon"
-              className={fullscreen ? "h-7 w-7 bg-slate-600 text-white hover:bg-slate-500" : ""}
-              onClick={animationPause}
-              title="Pause (Space)"
-            >
-              <Pause className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
+            <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPause} title="Pause">
+              <Pause className="h-5 w-5" />
             </Button>
           ) : (
-            <Button
-              variant="secondary"
-              size="icon"
-              className={fullscreen ? "h-7 w-7 bg-slate-600 text-white hover:bg-slate-500" : ""}
-              onClick={animationPlay}
-              title="Play (Space)"
-            >
-              <Play className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
+            <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPlay} title="Play">
+              <Play className="h-5 w-5 ml-0.5" />
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="icon"
-            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
-            onClick={animationStepForward}
-            title="Step forward (one frame)"
-          >
-            <ChevronsRight className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepForward} title="Step forward">
+            <ChevronsRight className="h-4 w-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className={fullscreen ? "h-7 w-7 border-slate-600 text-slate-200 hover:bg-slate-700" : ""}
-            onClick={animationRestart}
-            title="Restart (R)"
-          >
-            <RotateCcw className={fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} />
-          </Button>
-          <Button
-            variant={animationLoop ? "secondary" : "outline"}
-            size="icon"
-            className={fullscreen ? `h-7 w-7 ${animationLoop ? "bg-slate-600 text-white" : "border-slate-600 text-slate-200 hover:bg-slate-700"}` : ""}
-            onClick={() => setAnimationLoop(!animationLoop)}
-            title={animationLoop ? "Loop on" : "Loop off"}
-          >
-            <Repeat className={`${fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} ${animationLoop ? "text-primary" : ""}`} />
-          </Button>
-          <Button
-            variant={showRoutes ? "secondary" : "outline"}
-            size="icon"
-            className={fullscreen ? `h-7 w-7 ${showRoutes ? "bg-slate-600 text-white" : "border-slate-600 text-slate-200 hover:bg-slate-700"}` : ""}
-            onClick={() => setShowRoutes((v) => !v)}
-            title={showRoutes ? "Hide routes" : "Show routes"}
-          >
-            <Route className={`${fullscreen ? "h-3.5 w-3.5" : "h-4 w-4"} ${showRoutes ? "text-primary" : ""}`} />
+          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationRestart} title="Replay">
+            <RotateCcw className="h-4 w-4" />
           </Button>
           <select
             value={animationSpeed}
             onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
-            className={
-              fullscreen
-                ? "h-7 rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 text-xs min-w-[52px]"
-                : "h-8 rounded border border-input bg-background px-2 text-sm min-w-[64px]"
-            }
+            className="h-9 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 px-2 text-xs font-semibold min-w-[52px] shrink-0"
             title="Speed"
           >
             {SPEED_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}x</option>
+              <option key={s} value={s}>
+                {s}x
+              </option>
             ))}
           </select>
+          <Button
+            variant={annotateOn ? "default" : "ghost"}
+            size="icon"
+            className={`h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl ${annotateOn ? "bg-amber-500 hover:bg-amber-400 text-slate-900" : "text-slate-200 hover:bg-slate-800"}`}
+            onClick={() => setAnnotateOn((a) => !a)}
+            title="Annotate (stylus / pen)"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          {compactUi && (
+            <>
+              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={() => setZoom((z) => Math.min(2.5, z + 0.12))} title="Zoom in">
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={() => setZoom((z) => Math.max(0.65, z - 0.12))} title="Zoom out">
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={() => setMoreSheetOpen(true)} title="More">
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </>
+          )}
+          {!compactUi && (
+            <>
+              <Button variant={animationLoop ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setAnimationLoop(!animationLoop)} title="Loop">
+                <Repeat className="h-4 w-4" />
+              </Button>
+              <Button variant={showRoutes ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setShowRoutes((v) => !v)} title="Routes">
+                <Route className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {plays.length > 1 && (
+            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goNext} disabled={currentIndex >= plays.length - 1} title="Next play">
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          )}
         </div>
-        {!fullscreen && (
-          <p className="text-xs text-muted-foreground">
-            {animationState === "playing"
-              ? "Playing"
-              : animationState === "paused"
-                ? "Paused"
-                : animationState === "ended"
-                  ? "Ended"
-                  : "Ready"}
-            {" · "}
-            Speed: {animationSpeed}x
-            {animationLoop ? " · Loop on" : ""}
-            {" · "}
-            Routes: {showRoutes ? "on" : "off"}
+        {annotateOn && compactUi && (
+          <div className="flex flex-wrap items-center justify-center gap-1.5 px-1 pb-1">
+            <div className="flex rounded-xl border border-slate-600 overflow-hidden bg-slate-800/80">
+              {(
+                [
+                  { id: "pen" as const, Icon: Pencil, label: "Pen" },
+                  { id: "highlighter" as const, Icon: Highlighter, label: "Hi" },
+                  { id: "line" as const, Icon: Minus, label: "Line" },
+                  { id: "arrow" as const, Icon: ArrowRight, label: "Arrow" },
+                  { id: "icon" as const, Icon: Flag, label: "Icon" },
+                ] as const
+              ).map(({ id, Icon, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setInkTool(id)}
+                  className={`px-3 py-2 text-[10px] font-bold uppercase flex flex-col items-center gap-0.5 min-w-[3rem] ${
+                    inkTool === id ? "bg-amber-500/25 text-amber-300" : "text-slate-400"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" className="h-9 rounded-xl border-slate-600 text-slate-200" onClick={undoLastInk} disabled={inkUndoStack.length === 0}>
+              <Undo2 className="h-4 w-4 mr-1" />
+              Undo
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 rounded-xl border-slate-600 text-slate-200" onClick={clearDrawings}>
+              Clear
+            </Button>
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-400 px-2">
+              <input type="checkbox" checked={fingerDraw} onChange={(e) => setFingerDraw(e.target.checked)} className="rounded border-slate-500" />
+              Draw w/ finger
+            </label>
+          </div>
+        )}
+        {isLg && !compactUi && (
+          <p className="text-[11px] text-slate-500 text-center">
+            {animationState} · {animationSpeed}x{animationLoop ? " · loop" : ""} · routes {showRoutes ? "on" : "off"}
           </p>
         )}
       </div>
 
-      <div
-        className={`absolute left-1/2 -translate-x-1/2 px-4 py-2 ${
-          fullscreen ? "bottom-6 bg-slate-900/80 backdrop-blur rounded-md border border-slate-700/50 pointer-events-none" : "bottom-4 bg-background/90 backdrop-blur rounded-lg shadow-lg"
-        }`}
-      >
-        <p className={fullscreen ? "text-base font-semibold text-slate-100" : "text-sm font-semibold text-foreground"}>{play.name}</p>
-        <p className={fullscreen ? "text-sm text-slate-400" : "text-xs text-muted-foreground"}>
-          {getPlayFormationDisplayName(play, formations)} · {play.side.replace("_", " ")}
-        </p>
-      </div>
+      {isLg && (
+        <div
+          className={`pointer-events-none absolute left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl border border-slate-800/80 bg-slate-950/75 backdrop-blur-sm ${
+            embedded && fullscreen ? "bottom-28" : "bottom-24"
+          } max-w-[90vw]`}
+        >
+          <p className="text-center text-sm font-semibold text-slate-100 truncate">{play.name}</p>
+          <p className="text-center text-xs text-slate-500 truncate">{getPlayFormationDisplayName(play, formations)} · {play.side.replace("_", " ")}</p>
+        </div>
+      )}
+
+      <PlaybookBottomSheet variant="dark" open={moreSheetOpen} onOpenChange={setMoreSheetOpen} title="Presentation & annotate">
+        <div className="flex flex-col gap-4 text-slate-200">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-400">View as</span>
+            <select
+              value={viewAsValue}
+              onChange={(e) => setViewAsValue(e.target.value)}
+              className="h-11 rounded-xl border border-slate-600 bg-slate-800 px-3 text-base"
+            >
+              <option value="">All players</option>
+              {viewAsRoleOptions.map((opt) => (
+                <option key={opt.id} value={`role:${opt.id}`}>{opt.displayLabel}</option>
+              ))}
+              {viewAsPlayerOptions.map((opt) => (
+                <option key={opt.id} value={`player:${opt.id}`}>{opt.displayLabel}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-400">Highlight group</span>
+            <select
+              value={highlightedGroup}
+              onChange={(e) => setHighlightedGroup(e.target.value)}
+              className="h-11 rounded-xl border border-slate-600 bg-slate-800 px-3"
+            >
+              {PLAYER_GROUP_OPTIONS.map((opt) => (
+                <option key={opt.value || "n"} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-400">Ink color</span>
+            <select value={markerColor} onChange={(e) => setMarkerColor(e.target.value)} className="h-11 rounded-xl border border-slate-600 bg-slate-800 px-3">
+              {MARKER_COLORS.map((c) => (
+                <option key={c.value} value={c.value}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-400">Line weight</span>
+            <div className="flex gap-2">
+              {strokeWidths.map((w, i) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setStrokeWidthIdx(i)}
+                  className={`flex-1 h-11 rounded-xl border font-medium ${strokeWidthIdx === i ? "border-amber-500 bg-amber-500/15" : "border-slate-600 bg-slate-800"}`}
+                >
+                  {w}px
+                </button>
+              ))}
+            </div>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-slate-400">Field icon</span>
+            <select value={selectedIconType} onChange={(e) => setSelectedIconType(e.target.value)} className="h-11 rounded-xl border border-slate-600 bg-slate-800 px-3">
+              {ANNOTATION_ICON_TYPES.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={fingerDraw} onChange={(e) => setFingerDraw(e.target.checked)} className="rounded border-slate-500 h-4 w-4" />
+            Allow finger drawing (stylus still preferred)
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="border-slate-600 text-slate-200 rounded-xl" onClick={() => setAnimationLoop((l) => !l)}>
+              <Repeat className="h-4 w-4 mr-2" />
+              {animationLoop ? "Loop on" : "Loop off"}
+            </Button>
+            <Button variant="outline" className="border-slate-600 text-slate-200 rounded-xl" onClick={() => setShowRoutes((v) => !v)}>
+              <Route className="h-4 w-4 mr-2" />
+              Routes {showRoutes ? "on" : "off"}
+            </Button>
+          </div>
+          {plays.length > 1 && (
+            <div className="flex items-center justify-center gap-3 py-2">
+              <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl border-slate-600" onClick={goPrev} disabled={currentIndex <= 0}>
+                <ChevronLeft className="h-6 w-6" />
+              </Button>
+              <span className="text-slate-300 font-semibold tabular-nums">
+                {currentIndex + 1} / {plays.length}
+              </span>
+              <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl border-slate-600" onClick={goNext} disabled={currentIndex >= plays.length - 1}>
+                <ChevronRight className="h-6 w-6" />
+              </Button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1 rounded-xl bg-slate-700" onClick={undoLastInk} disabled={inkUndoStack.length === 0}>
+              <Undo2 className="h-4 w-4 mr-2" />
+              Undo stroke
+            </Button>
+            <Button variant="destructive" className="flex-1 rounded-xl" onClick={clearDrawings}>
+              Clear annotations
+            </Button>
+          </div>
+          {selectedAnnotationId && (
+            <Button variant="outline" className="w-full border-slate-600 rounded-xl" onClick={removeSelectedAnnotation}>
+              Remove selected icon
+            </Button>
+          )}
+        </div>
+      </PlaybookBottomSheet>
     </div>
   )
 }

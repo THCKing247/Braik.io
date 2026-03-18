@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Serve favicon from existing logo so /favicon.ico does not 404
+  async rewrites() {
+    return [{ source: '/favicon.ico', destination: '/braik-logo.png' }]
+  },
   eslint: {
     // Allow production deploys while lint issues are addressed incrementally
     ignoreDuringBuilds: true,

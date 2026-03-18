@@ -7,6 +7,7 @@ import { createNotifications } from "@/lib/utils/notifications"
 import { logEventAction } from "@/lib/audit/structured-logger"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 
 /**
  * GET /api/teams/[teamId]/calendar/events
@@ -287,6 +288,7 @@ export async function POST(
 
     // Ensure public.users has a row for this auth user (events.created_by references public.users.id).
     // If the user signed in via a path that didn't run the login upsert, they may be missing.
+    const userTableRole = profileRoleToUserRole((session.user.role ?? "user").toLowerCase())
     try {
       await supabase
         .from("users")
@@ -295,7 +297,7 @@ export async function POST(
             id: userId,
             email: session.user.email,
             name: session.user.name ?? null,
-            role: session.user.role ?? "user",
+            role: userTableRole,
             status: "active",
           },
           { onConflict: "id" }

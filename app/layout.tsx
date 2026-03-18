@@ -26,6 +26,7 @@ const oswald = Oswald({
 export const metadata: Metadata = {
   title: "Braik - Break the Huddle. Break the Norm.",
   description: "Sports team operating system for roster, dues, comms, schedule, docs, and AI admin assistant.",
+  icons: { icon: "/favicon.ico" },
 }
 
 export const dynamic = "force-dynamic"

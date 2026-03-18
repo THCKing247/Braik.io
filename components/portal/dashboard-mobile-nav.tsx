@@ -56,7 +56,7 @@ export function DashboardMobileNav({
     : ""
 
   return (
-    <div className="flex md:hidden items-center shrink-0">
+    <div className="flex shrink-0 items-center">
       <Button
         type="button"
         variant="outline"

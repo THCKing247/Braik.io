@@ -20,60 +20,87 @@ interface Team {
   seasonName: string
 }
 
+const navBarStyle = {
+  backgroundColor: "#FFFFFF" as const,
+  borderColor: "rgb(var(--border))",
+  borderWidth: "1px" as const,
+  borderTop: "none" as const,
+  borderLeft: "none" as const,
+  borderRight: "none" as const,
+}
+
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const { data: session } = useSession()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const isPlatformOwner = session?.user?.isPlatformOwner || false
-
-  // Dashboard, Invoice, and Settings live in the left sidebar; only Admin remains in top nav for Platform Owners
   const showAdminLink = isPlatformOwner
 
   return (
-    <nav 
-      className="border-b sticky top-0 z-50"
-      style={{ 
-        backgroundColor: "#FFFFFF",
-        borderColor: "rgb(var(--border))",
-        borderWidth: "1px",
-        borderTop: "none",
-        borderLeft: "none",
-        borderRight: "none"
-      }}
-    >
-      <div className="w-full min-w-0 px-3 md:px-4">
-        <div className="flex min-w-0 items-center gap-2 py-1.5 md:gap-3 md:py-2">
+    <>
+      {/* Mobile / tablet &lt; md: single compact bar + slide-out (drawer lives in DashboardMobileNav) */}
+      <nav
+        className="sticky top-0 z-50 flex w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b md:hidden"
+        style={navBarStyle}
+        aria-label="App navigation"
+      >
+        <div className="flex w-full min-w-0 max-w-full items-center gap-2 px-3 py-2">
           <DashboardMobileNav teams={teams} showAdminLink={showAdminLink} />
-
-          {/* Logo */}
-          <div className="min-w-0 flex-1 md:flex-initial">
+          <div className="min-w-0 flex-1">
             <Link
               href="/dashboard"
-              className="flex min-w-0 items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
+              className="mx-auto flex max-w-full min-w-0 justify-center"
               aria-label="Braik - Return to dashboard"
             >
-              <div className="flex h-9 max-w-[140px] items-center overflow-hidden md:h-12 md:max-w-none md:w-[200px]">
+              <div className="flex h-9 max-h-9 w-auto max-w-[min(160px,42vw)] items-center overflow-hidden">
+                <Image
+                  src="/braik-logo.png"
+                  alt="Braik"
+                  width={720}
+                  height={360}
+                  className="h-auto w-full object-contain object-center"
+                  priority
+                />
+              </div>
+            </Link>
+          </div>
+          <div className="flex shrink-0 items-center">
+            <ThemeToggle />
+          </div>
+        </div>
+      </nav>
+
+      {/* Desktop md+: original full header (unchanged structure) */}
+      <nav
+        className="sticky top-0 z-50 hidden w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b md:flex"
+        style={navBarStyle}
+        aria-label="App navigation"
+      >
+        <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-2 md:px-6">
+          <div className="shrink-0">
+            <Link
+              href="/dashboard"
+              className="flex items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
+              aria-label="Braik - Return to dashboard"
+            >
+              <div className="flex h-12 w-[200px] items-center overflow-hidden">
                 <Image
                   src="/braik-logo.png"
                   alt="Braik Logo"
                   width={720}
                   height={360}
-                  className="h-auto w-full max-w-[200px] object-contain object-left md:max-w-none"
+                  className="h-auto w-full object-contain object-left"
                 />
               </div>
             </Link>
           </div>
-
-          {/* Center: team switcher (desktop / tablet md+) */}
-          <div className="hidden min-w-0 flex-1 items-center justify-center md:flex">
+          <div className="flex min-w-0 flex-1 items-center justify-center">
             {teams.length > 1 && (
               <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
             )}
           </div>
-
-          {/* User controls — full bar on md+ */}
-          <div className="ml-auto hidden shrink-0 items-center gap-2 md:flex md:gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             {showAdminLink && (
               <Link
                 href="/admin/dashboard"
@@ -85,7 +112,9 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 )}
                 style={{
                   color: "rgb(var(--text))",
-                  borderBottomColor: pathname?.startsWith("/admin") ? "rgb(var(--accent))" : "transparent",
+                  borderBottomColor: pathname?.startsWith("/admin")
+                    ? "rgb(var(--accent))"
+                    : "transparent",
                 }}
               >
                 Admin
@@ -96,14 +125,8 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               Sign Out
             </Button>
           </div>
-
-          {/* Mobile: theme only (menu + sign out live in drawer) */}
-          <div className="ml-auto flex shrink-0 items-center md:hidden">
-            <ThemeToggle />
-          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </>
   )
 }
-

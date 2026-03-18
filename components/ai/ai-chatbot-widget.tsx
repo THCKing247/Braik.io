@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -203,47 +202,17 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
   }
 
-  const showFloatingButton = !isOpen && !coachB?.isDesktop
-  const isMobile = !coachB?.isDesktop
+  /** Below lg: no floating FAB — Coach B from More sheet / sidebar only. */
+  const isMobileLayout = !coachB?.isDesktop
 
   return (
     <>
-      {/* Floating Button - only on smaller screens; on desktop the sidebar "Ask Coach B" opens the chat */}
-      {showFloatingButton && (
-        <button
-          data-ai-widget
-          onClick={() => setIsOpen(true)}
-          className={cn(
-            "fixed bottom-6 h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center z-50 p-0 overflow-hidden bg-transparent border-0",
-            isMobile ? "left-6" : "right-6"
-          )}
-          style={{
-            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.1)"
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.1)"
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = "0 10px 15px -3px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.1)"
-          }}
-          aria-label="Open Coach B"
-        >
-          <Image
-            src="/images/ai-chat-icon-no-bg.png"
-            alt="Coach B"
-            width={64}
-            height={64}
-            className="rounded-full object-cover w-full h-full"
-          />
-        </button>
-      )}
-
-      {/* Chat Widget: fixed-height column, scrollable messages, pinned header/footer */}
+      {/* Chat panel: sidebar / More sheet opens via coachB.registerOpen */}
       {isOpen && (
         <div
           className={cn(
             "fixed bottom-6 z-50 flex h-[min(600px,85vh)] w-[min(24rem,calc(100vw-3rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border-2 border-[#0B2A5B] bg-white shadow-2xl min-h-0",
-            isMobile ? "left-3 right-auto sm:left-6" : "right-6"
+            isMobileLayout ? "left-3 right-auto sm:left-6" : "right-6"
           )}
         >
           <Card className="flex flex-col flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-white">

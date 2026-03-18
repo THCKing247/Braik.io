@@ -95,12 +95,7 @@ export function DashboardLayoutClient({
               </main>
             </div>
 
-            {isLgUp && (
-              <div className="w-full shrink-0">
-                <AIWidgetWrapper />
-              </div>
-            )}
-            {!isLgUp && <AIWidgetWrapper />}
+            <AIWidgetWrapper />
             <DashboardMobileTabBar />
           </div>
         </PlaybookToastProvider>

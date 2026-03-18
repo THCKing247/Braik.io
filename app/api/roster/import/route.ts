@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
+import { createNotifications } from "@/lib/utils/notifications"
 import {
   parseRosterCsv,
   rosterKeyByEmail,
@@ -300,6 +301,26 @@ export async function POST(request: Request) {
       skipped: skippedRows.length,
       conflicts: conflicts.length,
       ...(importMode === "replace_roster" && { replaced: replacedCount }),
+    }
+
+    if (created > 0 || updated > 0 || (importMode === "replace_roster" && replacedCount > 0)) {
+      try {
+        const parts = [
+          created > 0 ? `${created} added` : null,
+          updated > 0 ? `${updated} updated` : null,
+          importMode === "replace_roster" && replacedCount > 0 ? `roster replaced (${replacedCount} removed)` : null,
+        ].filter(Boolean)
+        await createNotifications({
+          type: "roster_import",
+          teamId,
+          title: "Roster updated (import)",
+          body: parts.join(" · ") || "Import completed",
+          linkType: "roster",
+          excludeUserIds: [session.user.id],
+        })
+      } catch {
+        /* non-fatal */
+      }
     }
 
     return NextResponse.json({

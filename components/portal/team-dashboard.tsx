@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,8 +16,12 @@ import {
   MapPin,
   Clock,
   ClipboardCheck,
+  Calendar,
+  FileText,
+  BookOpen,
 } from "lucide-react"
 import { DashboardCalendar } from "@/components/portal/dashboard-calendar"
+import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +53,18 @@ function getRoleLabel(role?: string) {
     case "PARENT": return "Parent"
     default: return "Team Member"
   }
+}
+
+function formatRelativeTime(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return "Just now"
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return d.toLocaleDateString()
 }
 
 
@@ -175,28 +192,76 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
   )
 }
 
-// ─── Updates Card ─────────────────────────────────────────────────────────────
+// ─── Updates Card (announcements + team-wide shared content; polls like messages) ─
 
-function UpdatesCard() {
-  const updates: Array<{ icon: React.ElementType; text: string; time: string; href: string }> = [
-    // Placeholder — will be replaced with real data
-  ]
+type TeamUpdateRow = {
+  id: string
+  kind: "announcement" | "schedule" | "document" | "playbook"
+  title: string
+  subtitle: string | null
+  href: string
+  at: string
+}
+
+function UpdatesCard({ teamId, canPost }: { teamId: string; canPost: boolean }) {
+  const [updates, setUpdates] = useState<TeamUpdateRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/team-updates`)
+      if (!res.ok) return
+      const data = await res.json()
+      setUpdates(Array.isArray(data.updates) ? data.updates : [])
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [teamId])
+
+  useEffect(() => {
+    load()
+    const interval = setInterval(load, 10000)
+    return () => clearInterval(interval)
+  }, [load])
+
+  const iconFor = (kind: TeamUpdateRow["kind"]) => {
+    switch (kind) {
+      case "announcement":
+        return Megaphone
+      case "schedule":
+        return Calendar
+      case "document":
+        return FileText
+      case "playbook":
+        return BookOpen
+      default:
+        return Megaphone
+    }
+  }
+
+  const annHref = `/dashboard/announcements?teamId=${encodeURIComponent(teamId)}`
 
   return (
-    <Card className="border h-full" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+    <Card className="border h-full flex flex-col" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between shrink-0">
         <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
           <Megaphone className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
           Team Updates
         </CardTitle>
-        <Link href="/dashboard/announcements">
+        <Link href={annHref}>
           <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--accent))" }}>
             View all
           </Button>
         </Link>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {updates.length === 0 ? (
+      <CardContent className="space-y-2 flex-1 min-h-0 overflow-y-auto max-h-[320px]">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : updates.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <div
               className="flex h-12 w-12 items-center justify-center rounded-xl"
@@ -207,38 +272,52 @@ function UpdatesCard() {
             <div className="space-y-1">
               <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>No updates yet</p>
               <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                Announcements and team updates will appear here.
+                Announcements, team-wide schedule items, shared documents, and team playbooks show here. Updates every 10 seconds.
               </p>
             </div>
-            <Link href="/dashboard/announcements">
-              <Button
-                size="sm"
-                className="text-xs font-medium text-white"
-                style={{ backgroundColor: "rgb(var(--accent))" }}
-              >
-                Post an Announcement
-              </Button>
-            </Link>
+            {canPost && (
+              <Link href={annHref}>
+                <Button
+                  size="sm"
+                  className="text-xs font-medium text-white"
+                  style={{ backgroundColor: "rgb(var(--accent))" }}
+                >
+                  Post an announcement
+                </Button>
+              </Link>
+            )}
           </div>
         ) : (
-          updates.map(({ icon: Icon, text, time, href }, i) => (
-            <Link
-              key={i}
-              href={href}
-              className="flex items-start gap-3 rounded-lg p-2.5 transition-colors hover:bg-[rgb(var(--platinum))]"
-            >
-              <div
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
-                style={{ backgroundColor: "rgb(var(--platinum))" }}
+          updates.map((u) => {
+            const Icon = iconFor(u.kind)
+            return (
+              <Link
+                key={u.id}
+                href={u.href}
+                className="flex items-start gap-3 rounded-lg p-2.5 transition-colors hover:bg-[rgb(var(--platinum))]"
               >
-                <Icon className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm leading-snug" style={{ color: "rgb(var(--text))" }}>{text}</p>
-                <p className="mt-0.5 text-xs" style={{ color: "rgb(var(--muted))" }}>{time}</p>
-              </div>
-            </Link>
-          ))
+                <div
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: "rgb(var(--platinum))" }}
+                >
+                  <Icon className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-snug line-clamp-2" style={{ color: "rgb(var(--text))" }}>
+                    {u.title}
+                  </p>
+                  {u.subtitle ? (
+                    <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "rgb(var(--muted))" }}>
+                      {u.subtitle}
+                    </p>
+                  ) : null}
+                  <p className="mt-0.5 text-[11px]" style={{ color: "rgb(var(--muted))" }}>
+                    {formatRelativeTime(u.at)}
+                  </p>
+                </div>
+              </Link>
+            )
+          })
         )}
       </CardContent>
     </Card>
@@ -319,38 +398,142 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
 
 // ─── Notifications Card ───────────────────────────────────────────────────────
 
-function NotificationsCard() {
-  const notifications: Array<{ type: "info" | "warning" | "success"; text: string; time: string }> = [
-    // Placeholder — will be replaced with real notifications
-  ]
+type DashNotification = {
+  id: string
+  title: string
+  body: string | null
+  linkUrl: string | null
+  linkType: string | null
+  linkId: string | null
+  read: boolean
+  createdAt: string
+  type: string
+}
 
-  const typeStyles = {
-    info: { dot: "rgb(var(--accent))", bg: "rgba(37,99,235,0.06)", border: "rgba(37,99,235,0.2)" },
-    warning: { dot: "#F59E0B", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.25)" },
-    success: { dot: "#22C55E", bg: "rgba(34,197,94,0.06)", border: "rgba(34,197,94,0.25)" },
+const NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE = new Set([
+  "roster_change",
+  "roster_import",
+  "message",
+  "thread_reply",
+  "event_created",
+  "event_updated",
+  "event_starting_soon",
+])
+
+function notificationStyle(t: string) {
+  const x = t.toLowerCase()
+  if (x.includes("message") || x.includes("thread")) {
+    return { dot: "#2563EB", bg: "rgba(37,99,235,0.07)", border: "rgba(37,99,235,0.2)" }
+  }
+  if (x.includes("event") || x.includes("schedule")) {
+    return { dot: "#7C3AED", bg: "rgba(124,58,237,0.07)", border: "rgba(124,58,237,0.2)" }
+  }
+  if (x.includes("roster")) {
+    return { dot: "#059669", bg: "rgba(5,150,105,0.07)", border: "rgba(5,150,105,0.2)" }
+  }
+  return { dot: "rgb(var(--accent))", bg: "rgba(37,99,235,0.06)", border: "rgba(37,99,235,0.2)" }
+}
+
+function NotificationsCard({ teamId }: { teamId: string }) {
+  const router = useRouter()
+  const [notifications, setNotifications] = useState<DashNotification[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15`)
+      if (!res.ok) return
+      const data = await res.json()
+      const raw = (data.notifications || []) as DashNotification[]
+      const list = raw.filter((n) => NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE.has(n.type))
+      setNotifications(list)
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [teamId])
+
+  useEffect(() => {
+    load()
+    const interval = setInterval(load, 10000)
+    return () => clearInterval(interval)
+  }, [load])
+
+  const openNotification = async (n: DashNotification) => {
+    if (!n.read) {
+      try {
+        await fetch(`/api/notifications/${n.id}`, { method: "PATCH" })
+        setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
+      } catch {
+        /* ignore */
+      }
+    }
+    const route = buildNotificationRoute(n.linkType, n.linkId, n.linkUrl, teamId)
+    if (route) {
+      router.push(buildNotificationUrl(route))
+      return
+    }
+    if (n.linkUrl?.startsWith("/")) {
+      try {
+        const u = new URL(n.linkUrl, "http://x")
+        if (teamId && !u.searchParams.has("teamId")) u.searchParams.set("teamId", teamId)
+        router.push(`${u.pathname}${u.search}`)
+      } catch {
+        router.push(n.linkUrl)
+      }
+    }
   }
 
+  const markAllRead = async () => {
+    try {
+      await fetch("/api/notifications/mark-all-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId }),
+      })
+      setNotifications((prev) => prev.map((x) => ({ ...x, read: true })))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const unread = notifications.filter((n) => !n.read).length
+
   return (
-    <Card className="border h-full" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+    <Card className="border h-full flex flex-col" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between shrink-0">
         <CardTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "rgb(var(--text))" }}>
           <Bell className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
           Notifications
-          {notifications.length > 0 && (
+          {unread > 0 && (
             <span
-              className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              className="ml-1 inline-flex min-w-[1.25rem] h-5 px-1 items-center justify-center rounded-full text-[10px] font-bold text-white"
               style={{ backgroundColor: "rgb(var(--accent))" }}
             >
-              {notifications.length}
+              {unread > 99 ? "99+" : unread}
             </span>
           )}
         </CardTitle>
-        <Button variant="ghost" size="sm" className="text-xs h-7 px-2" style={{ color: "rgb(var(--muted))" }}>
-          Mark all read
-        </Button>
+        {notifications.length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7 px-2"
+            style={{ color: "rgb(var(--muted))" }}
+            onClick={markAllRead}
+          >
+            Mark all read
+          </Button>
+        )}
       </CardHeader>
-      <CardContent className="space-y-2">
-        {notifications.length === 0 ? (
+      <CardContent className="space-y-2 flex-1 min-h-0 overflow-y-auto max-h-[320px]">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <div
               className="flex h-12 w-12 items-center justify-center rounded-xl"
@@ -361,25 +544,45 @@ function NotificationsCard() {
             <div className="space-y-1">
               <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>All caught up!</p>
               <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                Roster updates, messages, and schedule changes will appear here.
+                Roster changes, new messages, and schedule updates only. Refreshes every 10 seconds.
               </p>
             </div>
           </div>
         ) : (
-          notifications.map(({ type, text, time }, i) => {
-            const s = typeStyles[type]
+          notifications.map((n) => {
+            const s = notificationStyle(n.type)
+            const clickable =
+              Boolean(
+                buildNotificationRoute(n.linkType, n.linkId, n.linkUrl, teamId) ||
+                  (n.linkUrl && n.linkUrl.startsWith("/"))
+              )
             return (
-              <div
-                key={i}
-                className="flex items-start gap-3 rounded-lg border p-3"
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => clickable && openNotification(n)}
+                disabled={!clickable}
+                className={`flex w-full text-left items-start gap-3 rounded-lg border p-3 transition-opacity ${
+                  clickable ? "cursor-pointer hover:opacity-95" : "cursor-default opacity-90"
+                } ${!n.read ? "ring-1 ring-blue-200/60" : ""}`}
                 style={{ backgroundColor: s.bg, borderColor: s.border }}
               >
                 <div className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: s.dot }} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm leading-snug" style={{ color: "rgb(var(--text))" }}>{text}</p>
-                  <p className="mt-0.5 text-xs" style={{ color: "rgb(var(--muted))" }}>{time}</p>
+                  <p className="text-sm font-medium leading-snug" style={{ color: "rgb(var(--text))" }}>
+                    {n.title}
+                  </p>
+                  {n.body ? (
+                    <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "rgb(var(--muted))" }}>
+                      {n.body}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-[11px]" style={{ color: "rgb(var(--muted))" }}>
+                    {formatRelativeTime(n.createdAt)}
+                    {clickable ? " · Tap to open" : ""}
+                  </p>
                 </div>
-              </div>
+              </button>
             )
           })
         )}
@@ -575,8 +778,8 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {/* ── Updates + Notifications + Readiness (coach) ── */}
       {hasTeam && (
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-        <UpdatesCard />
-        <NotificationsCard />
+        <UpdatesCard teamId={teamId} canPost={canAddCalendarEvents} />
+        <NotificationsCard teamId={teamId} />
         <ReadinessSummaryCard teamId={teamId} />
       </div>
       )}

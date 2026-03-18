@@ -104,6 +104,8 @@ export interface PlayerProfileUpdateBody {
   parentGuardianContact?: string | null
   medicalNotes?: string | null
   activeStatus?: string
+  /** Injury / availability (coach) */
+  healthStatus?: "active" | "injured" | "unavailable"
   eligibilityStatus?: string | null
   roleDepthNotes?: string | null
   seasonStats?: Record<string, unknown>

@@ -129,7 +129,7 @@ export async function PATCH(
     const supabase = getSupabaseServer()
     const { data: player, error: fetchErr } = await supabase
       .from("players")
-      .select("id, team_id, user_id")
+      .select("id, team_id, user_id, health_status")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -170,6 +170,12 @@ export async function PATCH(
       if (bodyToUse.parentGuardianContact !== undefined) updates.parent_guardian_contact = (bodyToUse.parentGuardianContact as string)?.trim() ?? null
       if (bodyToUse.medicalNotes !== undefined) updates.medical_notes = (bodyToUse.medicalNotes as string)?.trim() ?? null
       if (bodyToUse.activeStatus !== undefined) updates.status = (bodyToUse.activeStatus as string) ?? "active"
+      if (bodyToUse.healthStatus !== undefined) {
+        const h = bodyToUse.healthStatus
+        if (h === "active" || h === "injured" || h === "unavailable") {
+          updates.health_status = h
+        }
+      }
       if (bodyToUse.eligibilityStatus !== undefined) updates.eligibility_status = (bodyToUse.eligibilityStatus as string)?.trim() ?? null
       if (bodyToUse.roleDepthNotes !== undefined) updates.role_depth_notes = (bodyToUse.roleDepthNotes as string)?.trim() ?? null
       if (bodyToUse.seasonStats !== undefined) updates.season_stats = bodyToUse.seasonStats ?? {}
@@ -234,15 +240,41 @@ export async function PATCH(
       bodyToUse.seasonStats !== undefined ||
       bodyToUse.gameStats !== undefined ||
       bodyToUse.practiceMetrics !== undefined
-    await logPlayerProfileActivity({
-      playerId,
-      teamId,
-      actorId: session.user.id,
-      actionType: hadStats ? PLAYER_PROFILE_ACTION_TYPES.STATS_UPDATED : PLAYER_PROFILE_ACTION_TYPES.PROFILE_UPDATED,
-      targetType: "player",
-      targetId: playerId,
-      metadata: hadStats ? { updatedFields: ["stats"] } : {},
-    })
+    const prevHealth = (player as { health_status?: string | null }).health_status ?? "active"
+    const nextHealth = (updated as { health_status?: string | null }).health_status ?? prevHealth
+    const healthChanged =
+      isCoach &&
+      bodyToUse.healthStatus !== undefined &&
+      String(nextHealth) !== String(prevHealth)
+
+    if (healthChanged) {
+      await logPlayerProfileActivity({
+        playerId,
+        teamId,
+        actorId: session.user.id,
+        actionType: PLAYER_PROFILE_ACTION_TYPES.HEALTH_STATUS_UPDATED,
+        targetType: "player",
+        targetId: playerId,
+        metadata: { healthStatus: nextHealth },
+      })
+    }
+
+    const updateKeys = Object.keys(updates).filter((k) => k !== "updated_at")
+    const nonHealthKeys = updateKeys.filter((k) => k !== "health_status")
+    const shouldLogProfileOrStats =
+      hadStats || (nonHealthKeys.length > 0 && !(healthChanged && updateKeys.length === 1))
+
+    if (shouldLogProfileOrStats) {
+      await logPlayerProfileActivity({
+        playerId,
+        teamId,
+        actorId: session.user.id,
+        actionType: hadStats ? PLAYER_PROFILE_ACTION_TYPES.STATS_UPDATED : PLAYER_PROFILE_ACTION_TYPES.PROFILE_UPDATED,
+        targetType: "player",
+        targetId: playerId,
+        metadata: hadStats ? { updatedFields: ["stats"] } : {},
+      })
+    }
 
     return NextResponse.json({ profile })
   } catch (err) {

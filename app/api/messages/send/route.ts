@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
+import { createNotifications } from "@/lib/utils/notifications"
 
 /**
  * POST /api/messages/send
@@ -167,6 +168,40 @@ export async function POST(request: Request) {
 
     console.log("[POST /api/messages/send] Message created successfully:", message.id)
 
+    const { data: senderRow } = await supabase
+      .from("users")
+      .select("id, name, email")
+      .eq("id", session.user.id)
+      .maybeSingle()
+
+    try {
+      const { data: participants } = await supabase
+        .from("message_thread_participants")
+        .select("user_id")
+        .eq("thread_id", threadId)
+      const targetIds = (participants ?? [])
+        .map((p) => p.user_id)
+        .filter((id): id is string => Boolean(id) && id !== session.user.id)
+      if (targetIds.length > 0) {
+        const snippet =
+          messageBody.trim().length > 80
+            ? `${messageBody.trim().slice(0, 77)}…`
+            : messageBody.trim()
+        const senderName = senderRow?.name?.trim() || null
+        await createNotifications({
+          type: "message",
+          teamId: thread.team_id,
+          title: "New message",
+          body: senderName ? `${senderName}: ${snippet}` : snippet,
+          linkType: "message_thread",
+          linkId: threadId,
+          targetUserIds: targetIds,
+        })
+      }
+    } catch {
+      /* non-fatal */
+    }
+
     // Link attachments if provided
     if (attachmentArray.length > 0) {
       // Update existing attachments to link to this message
@@ -184,12 +219,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Get sender info
-    const { data: sender } = await supabase
-      .from("users")
-      .select("id, name, email")
-      .eq("id", session.user.id)
-      .maybeSingle()
+    const sender = senderRow
 
     // Get message attachments
     const { data: messageAttachments } = await supabase

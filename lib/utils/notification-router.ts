@@ -25,11 +25,14 @@
  * - health: Routes to /dashboard/health
  * - inventory: Routes to /dashboard/inventory
  * - settings: Routes to /dashboard/settings
+ * - stats: Routes to /dashboard/stats
+ * - messages: Routes to /dashboard/messages (inbox)
  * - custom: Uses linkUrl if provided
  */
 
 export type NotificationLinkType = 
   | "message_thread"
+  | "messages"
   | "event"
   | "roster"
   | "player"
@@ -40,6 +43,7 @@ export type NotificationLinkType =
   | "health"
   | "inventory"
   | "settings"
+  | "stats"
   | "custom"
 
 export interface NotificationRoute {
@@ -84,18 +88,50 @@ export function buildNotificationRoute(
     return { path: linkUrl, queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined }
   }
 
-  // Build route from linkType and linkId
-  if (!linkType || !linkId) {
-    return null
-  }
-
   const basePath = "/dashboard"
   const queryParams: Record<string, string> = {}
   if (teamId) {
     queryParams.teamId = teamId
   }
 
-  switch (linkType.toLowerCase()) {
+  const t = (linkType || "").toLowerCase()
+
+  /** Section links: linkId optional */
+  if (t && !linkId) {
+    switch (t) {
+      case "roster":
+        return { path: `${basePath}/roster`, queryParams }
+      case "schedule":
+        return { path: `${basePath}/schedule`, queryParams }
+      case "messages":
+        return { path: `${basePath}/messages`, queryParams }
+      case "document":
+      case "documents":
+        return { path: `${basePath}/documents`, queryParams }
+      case "playbook":
+      case "playbooks":
+        return { path: `${basePath}/playbooks`, queryParams }
+      case "announcement":
+      case "announcements":
+        return { path: `${basePath}/announcements`, queryParams }
+      case "health":
+        return { path: `${basePath}/health`, queryParams }
+      case "inventory":
+        return { path: `${basePath}/inventory`, queryParams }
+      case "stats":
+        return { path: `${basePath}/stats`, queryParams }
+      case "settings":
+        return { path: `${basePath}/settings`, queryParams }
+      default:
+        break
+    }
+  }
+
+  if (!linkType || !linkId) {
+    return null
+  }
+
+  switch (t) {
     case "message_thread":
       return {
         path: `${basePath}/messages`,
@@ -147,13 +183,19 @@ export function buildNotificationRoute(
     case "health":
       return {
         path: `${basePath}/health`,
-        queryParams: queryParams
+        queryParams: { ...queryParams, playerId: linkId }
       }
     
     case "inventory":
       return {
         path: `${basePath}/inventory`,
         queryParams: queryParams
+      }
+    
+    case "stats":
+      return {
+        path: `${basePath}/stats`,
+        queryParams: { ...queryParams, playerId: linkId }
       }
     
     case "settings":

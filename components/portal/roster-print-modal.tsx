@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { X, Printer, Settings } from "lucide-react"
@@ -49,6 +49,7 @@ interface RosterData {
     }
   }
   players: Array<{
+    id: string
     jerseyNumber: number | null
     name: string
     grade: number | null
@@ -65,6 +66,23 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   const [rosterData, setRosterData] = useState<RosterData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const togglePlayer = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }, [])
+
+  const selectAllPlayers = useCallback(() => {
+    if (!rosterData?.players?.length) return
+    setSelectedIds(new Set(rosterData.players.map((p) => p.id)))
+  }, [rosterData])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
   useEffect(() => {
     const loadRoster = async () => {
@@ -79,6 +97,8 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
             teamName: data?.team?.name,
           })
           setRosterData(data)
+          const ids = (data.players || []).map((p: { id: string }) => p.id)
+          setSelectedIds(new Set(ids))
         } else {
           const body = await response.json().catch(() => ({}))
           const message = typeof body?.error === "string" ? body.error : "Failed to load roster data"
@@ -140,7 +160,13 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   }
 
   const { team, template, players, generatedAt } = rosterData
-  const hasPlayers = Array.isArray(players) && players.length > 0
+  const playersToPrint = useMemo(
+    () => (players || []).filter((p) => selectedIds.has(p.id)),
+    [players, selectedIds]
+  )
+  const hasPlayers = playersToPrint.length > 0
+  const allSelected =
+    (players?.length ?? 0) > 0 && (players || []).every((p) => selectedIds.has(p.id))
 
   const printBody = (
     <>
@@ -196,8 +222,8 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {players.map((player, idx) => (
-                    <tr key={idx}>
+                  {playersToPrint.map((player, idx) => (
+                    <tr key={player.id || idx}>
                       {template.body.showJerseyNumber && (
                         <td className="border border-gray-300 px-4 py-2 text-black">
                           {player.jerseyNumber ?? ""}
@@ -234,7 +260,9 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
         </table>
       ) : (
         <p className="text-gray-700 py-8 text-center font-medium">
-          No roster data to print. Add players to this team first.
+          {players?.length
+            ? "Select at least one player to print."
+            : "No roster data to print. Add players to this team first."}
         </p>
       )}
       {(template.footer.showGeneratedDate || template.footer.customText) && (
@@ -282,6 +310,66 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
           </CardHeader>
 
           <CardContent className="no-print flex-1 overflow-y-auto">
+            <div className="no-print mb-4 p-4 bg-white/10 rounded-lg border border-white/20">
+              <h3 className="text-white font-semibold mb-2">Players to print</h3>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-white border-white/30"
+                  onClick={selectAllPlayers}
+                >
+                  Select all
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-white border-white/30"
+                  onClick={clearSelection}
+                >
+                  Clear
+                </Button>
+                <span className="text-white/80 text-sm self-center">
+                  {playersToPrint.length} of {players?.length ?? 0} selected
+                </span>
+              </div>
+              <div className="max-h-36 overflow-y-auto rounded border border-white/20 bg-black/20">
+                <table className="w-full text-sm text-white">
+                  <thead>
+                    <tr className="border-b border-white/20">
+                      <th className="w-10 p-2 text-left">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={(e) => (e.target.checked ? selectAllPlayers() : clearSelection())}
+                          aria-label="Select all"
+                        />
+                      </th>
+                      <th className="p-2 text-left">Name</th>
+                      <th className="p-2 text-left w-14">#</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(players || []).map((p) => (
+                      <tr key={p.id} className="border-b border-white/10">
+                        <td className="p-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(p.id)}
+                            onChange={() => togglePlayer(p.id)}
+                          />
+                        </td>
+                        <td className="p-2">{p.name}</td>
+                        <td className="p-2">{p.jerseyNumber ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {showSettings && (
               <div className="no-print mb-6 p-4 bg-white/10 rounded-lg border border-white/20">
                 <h3 className="text-white font-semibold mb-2">Printer Settings</h3>
@@ -300,7 +388,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
             </div>
 
             <div className="no-print flex gap-3 mt-6">
-              <Button onClick={handlePrint} className="flex-1">
+              <Button onClick={handlePrint} className="flex-1" disabled={!hasPlayers}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print Roster
               </Button>

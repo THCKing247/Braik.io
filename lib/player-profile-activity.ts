@@ -34,6 +34,7 @@ export const PLAYER_PROFILE_ACTION_TYPES = {
   STATS_UPDATED: "stats_updated",
   FOLLOW_UP_CREATED: "follow_up_created",
   FOLLOW_UP_RESOLVED: "follow_up_resolved",
+  HEALTH_STATUS_UPDATED: "health_status_updated",
 } as const
 
 export type PlayerProfileActionType = (typeof PLAYER_PROFILE_ACTION_TYPES)[keyof typeof PLAYER_PROFILE_ACTION_TYPES]
@@ -87,8 +88,4 @@ export async function logPlayerProfileActivity(params: LogPlayerProfileActivityP
   if (error) {
     console.warn("[player-profile-activity]", error.message)
   }
-  // NOTIFICATION_INTEGRATION: Here, resolve playerUserId (from players.user_id) and
-  // guardianUserIds (from guardian_links + guardians.user_id), then call
-  // createNotifications({ ...payload, targetUserIds: [playerUserId, ...guardianUserIds] })
-  // for relevant action types.
 }

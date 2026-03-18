@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
+import { createNotifications } from "@/lib/utils/notifications"
 
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
@@ -317,6 +318,20 @@ export async function POST(request: Request) {
     }
 
     const p = player as PlayerRow & { email?: string | null; invite_code?: string | null; invite_status?: string; created_by?: string | null }
+    try {
+      await createNotifications({
+        type: "roster_change",
+        teamId,
+        title: `Roster: ${p.first_name} ${p.last_name} added`,
+        body: "New player added",
+        linkType: "player",
+        linkId: p.id,
+        excludeUserIds: [session.user.id],
+      })
+    } catch {
+      /* non-fatal */
+    }
+
     const out = {
       id: p.id,
       firstName: p.first_name,

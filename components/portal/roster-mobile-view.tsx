@@ -171,11 +171,11 @@ export function RosterMobileView({
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-hidden pb-8">
-      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-4">
+      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:gap-4">
         {sorted.map((player) => (
           <li
             key={player.id}
-            className="list-none rounded-2xl border border-border bg-card p-4 shadow-sm"
+            className="list-none min-w-0 max-w-full rounded-2xl border border-border bg-card p-4 shadow-sm"
           >
             {/* Row 1: avatar, name, jersey */}
             <div className="flex items-start gap-3">
@@ -244,31 +244,41 @@ export function RosterMobileView({
                   )}
                 </div>
                 {/* Row 4: actions */}
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 grid grid-cols-2 gap-3">
                   <Link
                     href={getProfileHref(player)}
-                    className="inline-flex min-h-[44px] min-w-[72px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-muted/80 sm:flex-initial"
+                    className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-muted/80"
                   >
                     <Eye className="h-4 w-4 shrink-0" />
                     View
                   </Link>
-                  {canEdit && onEditPlayer && (
+                  {canEdit && onEditPlayer ? (
                     <button
                       type="button"
                       onClick={() => onEditPlayer(player)}
-                      className="inline-flex min-h-[44px] min-w-[72px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-sm font-medium hover:bg-muted/80 sm:flex-initial"
+                      className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium hover:bg-muted/80"
                     >
                       <Pencil className="h-4 w-4 shrink-0" />
                       Edit
                     </button>
+                  ) : (
+                    <Link
+                      href={`/dashboard/messages?teamId=${encodeURIComponent(teamId)}`}
+                      className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium hover:bg-muted/80"
+                    >
+                      <MessageCircle className="h-4 w-4 shrink-0" />
+                      Message
+                    </Link>
                   )}
-                  <Link
-                    href={`/dashboard/messages?teamId=${encodeURIComponent(teamId)}`}
-                    className="inline-flex min-h-[44px] min-w-[72px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-sm font-medium hover:bg-muted/80 sm:flex-initial"
-                  >
-                    <MessageCircle className="h-4 w-4 shrink-0" />
-                    Message
-                  </Link>
+                  {canEdit && onEditPlayer && (
+                    <Link
+                      href={`/dashboard/messages?teamId=${encodeURIComponent(teamId)}`}
+                      className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium hover:bg-muted/80"
+                    >
+                      <MessageCircle className="h-4 w-4 shrink-0" />
+                      Message
+                    </Link>
+                  )}
                   {canEdit &&
                     (onSendInvite ||
                       onCopyJoinLink ||
@@ -279,7 +289,9 @@ export function RosterMobileView({
                       <button
                         type="button"
                         onClick={() => setMorePlayer(player)}
-                        className="inline-flex min-h-[44px] min-w-[72px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-sm font-medium hover:bg-muted/80 sm:flex-initial"
+                        className={`inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium hover:bg-muted/80 ${
+                          !onEditPlayer ? "col-span-2" : ""
+                        }`}
                       >
                         <MoreHorizontal className="h-4 w-4 shrink-0" />
                         More

@@ -1,10 +1,9 @@
 "use client"
 
-import { useSession, signOut } from "@/lib/auth/client-auth"
+import { useSession } from "@/lib/auth/client-auth"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
@@ -29,6 +28,10 @@ const navBarStyle = {
   borderRight: "none" as const,
 }
 
+/**
+ * Phone + tablet (< lg): top app bar with menu → sheet. Sign out lives in sheet only.
+ * Desktop (lg+): full header; sign out only in left sidebar.
+ */
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const { data: session } = useSession()
   const pathname = usePathname()
@@ -39,30 +42,29 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
 
   return (
     <>
-      {/* Mobile / tablet &lt; md: single compact bar + slide-out (drawer lives in DashboardMobileNav) */}
       <nav
-        className="sticky top-0 z-50 flex w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b shadow-[0_1px_0_rgba(0,0,0,0.04)] md:hidden"
+        className="sticky top-0 z-50 flex w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b shadow-[0_1px_0_rgba(0,0,0,0.04)] lg:hidden"
         style={{
           ...navBarStyle,
           paddingTop: "max(0.375rem, env(safe-area-inset-top, 0px))",
         }}
         aria-label="App navigation"
       >
-        <div className="flex min-h-[44px] w-full min-w-0 max-w-full items-center gap-2 px-3 pb-2 sm:px-4">
+        <div className="flex min-h-[48px] w-full min-w-0 max-w-full items-center gap-3 px-3 py-1.5 sm:px-4">
           <DashboardMobileNav teams={teams} showAdminLink={showAdminLink} />
           <div className="min-w-0 flex-1">
             <Link
               href="/dashboard"
-              className="mx-auto flex max-w-full min-w-0 justify-center active:opacity-80"
+              className="mx-auto flex max-w-full min-w-0 justify-center active:opacity-80 md:justify-start"
               aria-label="Braik - Return to dashboard"
             >
-              <div className="flex h-8 max-h-9 w-auto max-w-[min(148px,40vw)] items-center overflow-hidden sm:h-9">
+              <div className="flex h-9 max-h-10 w-auto max-w-[min(160px,45vw)] items-center overflow-hidden sm:h-10">
                 <Image
                   src="/braik-logo.png"
                   alt="Braik"
                   width={720}
                   height={360}
-                  className="h-auto w-full object-contain object-center"
+                  className="h-auto w-full object-contain object-center md:object-left"
                   priority
                 />
               </div>
@@ -74,13 +76,12 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         </div>
       </nav>
 
-      {/* Desktop md+: original full header (unchanged structure) */}
       <nav
-        className="sticky top-0 z-50 hidden w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b md:flex"
+        className="sticky top-0 z-50 hidden w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b lg:flex"
         style={navBarStyle}
         aria-label="App navigation"
       >
-        <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-2 md:px-6">
+        <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-2.5 md:px-6">
           <div className="shrink-0">
             <Link
               href="/dashboard"
@@ -108,7 +109,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               <Link
                 href="/admin/dashboard"
                 className={cn(
-                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "rounded-md px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px] inline-flex items-center",
                   pathname?.startsWith("/admin")
                     ? "border-b-2 font-semibold"
                     : "hover:bg-[rgb(var(--platinum))]"
@@ -124,9 +125,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               </Link>
             )}
             <ThemeToggle />
-            <Button variant="destructive" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
-              Sign Out
-            </Button>
           </div>
         </div>
       </nav>

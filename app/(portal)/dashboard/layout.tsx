@@ -178,7 +178,7 @@ export default async function DashboardLayout({
               <DashboardNav teams={teams} />
             </Suspense>
           </header>
-          <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex min-h-0 min-w-0 flex-1">
+          <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex w-full min-w-0 flex-col">
             <CoachPageDebug
               session={session}
               teamIds={teams.map((t) => t.id)}

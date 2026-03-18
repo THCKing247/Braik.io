@@ -29,8 +29,7 @@ const tabs = [
 ] as const
 
 /**
- * Fixed bottom navigation for phone/tablet. "More" opens the app drawer (full nav).
- * Hidden at md+ where sidebar is used.
+ * Phone only (< md). Tablet/desktop use header menu + sidebar (lg+).
  */
 export function DashboardMobileTabBar() {
   const pathname = usePathname() ?? ""

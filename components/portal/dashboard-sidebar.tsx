@@ -65,7 +65,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           </div>
         </div>
 
-        <nav className="space-y-1 p-3" aria-label="Main navigation">
+        <nav className="space-y-1.5 p-3" aria-label="Main navigation">
           <SidebarNavItem
             href="/dashboard"
             label="Dashboard"
@@ -162,11 +162,11 @@ function SidebarNavItem({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+        "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
         "focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]",
         isActive
-          ? "border border-white/20 bg-[#2563EB] text-white shadow-md"
-          : "text-white/90 hover:bg-white/15 hover:text-white"
+          ? "border border-white/25 bg-[#2563EB] text-white shadow-md"
+          : "text-white/[0.88] hover:bg-white/15 hover:text-white"
       )}
       aria-current={isActive ? "page" : undefined}
     >

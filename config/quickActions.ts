@@ -95,3 +95,13 @@ export function getQuickActionsForRole(role: string | undefined): QuickAction[] 
   if (!role) return []
   return QUICK_ACTIONS.filter((action) => action.roles.includes(role))
 }
+
+/** Routes covered by mobile bottom tabs — omit from phone sheet to avoid duplication. */
+export function isPrimaryMobileTabPath(href: string): boolean {
+  return (
+    href === "/dashboard" ||
+    href.startsWith("/dashboard/roster") ||
+    href.startsWith("/dashboard/schedule") ||
+    href.startsWith("/dashboard/messages")
+  )
+}

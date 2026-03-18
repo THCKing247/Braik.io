@@ -5,6 +5,15 @@ import { requireTeamAccess } from "@/lib/auth/rbac"
 
 const TEAM_WIDE_EVENT_VISIBILITY = ["TEAM", "PARENTS_AND_TEAM", "CUSTOM"]
 
+type TeamUpdateItem = {
+  id: string
+  kind: "announcement" | "schedule" | "document" | "playbook"
+  title: string
+  subtitle: string
+  href: string
+  at: string
+}
+
 /**
  * GET /api/teams/[teamId]/team-updates
  * Announcements + team-wide shared content (schedule events, documents, playbooks)

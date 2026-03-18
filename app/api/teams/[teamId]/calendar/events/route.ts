@@ -284,6 +284,30 @@ export async function POST(
         { status: 500 }
       )
     }
+
+    // Ensure public.users has a row for this auth user (events.created_by references public.users.id).
+    // If the user signed in via a path that didn't run the login upsert, they may be missing.
+    try {
+      await supabase
+        .from("users")
+        .upsert(
+          {
+            id: userId,
+            email: session.user.email,
+            name: session.user.name ?? null,
+            role: session.user.role ?? "user",
+            status: "active",
+          },
+          { onConflict: "id" }
+        )
+    } catch (userUpsertErr) {
+      console.warn("[POST /api/teams/.../calendar/events] users upsert best-effort failed", {
+        userId,
+        message: userUpsertErr instanceof Error ? userUpsertErr.message : String(userUpsertErr),
+      })
+      // Continue — insert may still succeed if user already exists
+    }
+
     const { data: event, error: eventError } = await supabase
       .from("events")
       .insert({

@@ -137,6 +137,55 @@ export function DepthChartView({
   const [activeOnly, setActiveOnly] = useState(false)
   const [unassignedOnly, setUnassignedOnly] = useState(true)
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
+  /** When false (default), offense/defense depth is stored on the canonical formation and shown on every formation. */
+  const [independentDepthByFormation, setIndependentDepthByFormation] = useState(false)
+
+  const depthInferredRef = useRef(false)
+  useEffect(() => {
+    depthInferredRef.current = false
+  }, [teamId])
+  useEffect(() => {
+    if (depthInferredRef.current) return
+    try {
+      const key = `braik-depth-independent-${teamId}`
+      const v = localStorage.getItem(key)
+      if (v === "1" || v === "0") {
+        setIndependentDepthByFormation(v === "1")
+        depthInferredRef.current = true
+        return
+      }
+      if (depthChart.length === 0) return
+      depthInferredRef.current = true
+      const canonOff = DEFAULT_PRESET_BY_SIDE.offense
+      const canonDef = DEFAULT_PRESET_BY_SIDE.defense
+      const offForms = new Set(
+        depthChart
+          .filter((e) => e.unit === "offense" && e.playerId && e.formation)
+          .map((e) => e.formation as string)
+      )
+      const defForms = new Set(
+        depthChart
+          .filter((e) => e.unit === "defense" && e.playerId && e.formation)
+          .map((e) => e.formation as string)
+      )
+      const offenseIndependent =
+        offForms.size > 1 || (offForms.size === 1 && !offForms.has(canonOff))
+      const defenseIndependent =
+        defForms.size > 1 || (defForms.size === 1 && !defForms.has(canonDef))
+      setIndependentDepthByFormation(offenseIndependent || defenseIndependent)
+    } catch {
+      depthInferredRef.current = true
+    }
+  }, [teamId, depthChart])
+
+  const setIndependentDepth = (value: boolean) => {
+    setIndependentDepthByFormation(value)
+    try {
+      localStorage.setItem(`braik-depth-independent-${teamId}`, value ? "1" : "0")
+    } catch {
+      /* ignore */
+    }
+  }
 
   // Clear drag state on dragend (drop, cancel, or release outside) so UI never stays stuck
   useEffect(() => {
@@ -162,6 +211,23 @@ export function DepthChartView({
   // Formation/specialTeamType for current view (used when saving and filtering assignments)
   const currentFormation = selectedUnit === "special_teams" ? null : selectedPresetId
   const currentSpecialTeamType = selectedUnit === "special_teams" ? selectedPresetId : null
+
+  /** DB formation id for offense/defense depth rows; canonical preset when synced. Null for special teams. */
+  const persistDepthFormation = useMemo(() => {
+    if (selectedUnit === "special_teams") return null
+    if (!independentDepthByFormation) return DEFAULT_PRESET_BY_SIDE[selectedUnit]
+    return currentFormation
+  }, [selectedUnit, independentDepthByFormation, currentFormation])
+
+  const depthFormationField =
+    selectedUnit === "special_teams" ? null : persistDepthFormation ?? null
+  const depthSpecialField =
+    selectedUnit === "special_teams" ? currentSpecialTeamType ?? null : null
+
+  const matchesPersistedDepthRow = (e: DepthChartEntry) =>
+    selectedUnit === "special_teams"
+      ? e.specialTeamType === currentSpecialTeamType
+      : !e.specialTeamType && e.formation === persistDepthFormation
 
   const getLabelKey = (position: string, unit: string, specialTeamType?: string | null) => {
     return specialTeamType ? `${unit}-${position}-${specialTeamType}` : `${unit}-${position}`
@@ -239,12 +305,12 @@ export function DepthChartView({
             e.playerId &&
             (selectedUnit === "special_teams"
               ? e.specialTeamType === currentSpecialTeamType
-              : !e.specialTeamType && e.formation === currentFormation)
+              : !e.specialTeamType && e.formation === persistDepthFormation)
         )
         .map((e) => e.playerId!)
         .filter(Boolean)
     )
-  }, [depthChart, selectedUnit, currentFormation, currentSpecialTeamType])
+  }, [depthChart, selectedUnit, persistDepthFormation, currentSpecialTeamType])
 
   const filteredRosterForSidebar = useMemo(() => {
     let list = players
@@ -340,9 +406,9 @@ export function DepthChartView({
           e.unit === selectedUnit &&
           (selectedUnit === "special_teams"
             ? e.specialTeamType === currentSpecialTeamType
-            : !e.specialTeamType && e.formation === currentFormation)
+            : !e.specialTeamType && e.formation === persistDepthFormation)
       ) as DepthAssignment[],
-    [depthChart, selectedUnit, currentFormation, currentSpecialTeamType]
+    [depthChart, selectedUnit, persistDepthFormation, currentSpecialTeamType]
   )
 
   const handleDrop = (position: string, string: number, playerId: string) => {
@@ -352,9 +418,7 @@ export function DepthChartView({
         e.unit === selectedUnit &&
         e.position === position &&
         e.string === string &&
-        (selectedUnit === "special_teams"
-          ? e.specialTeamType === currentSpecialTeamType
-          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
+        matchesPersistedDepthRow(e)
     )
 
     if (string === 1) {
@@ -363,9 +427,7 @@ export function DepthChartView({
           (e) =>
             e.playerId === playerId &&
             e.unit === selectedUnit &&
-            (selectedUnit === "special_teams"
-              ? e.specialTeamType === currentSpecialTeamType
-              : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
+            matchesPersistedDepthRow(e)
         )
         .forEach((e) => {
           updates.push({
@@ -373,8 +435,8 @@ export function DepthChartView({
             position: e.position,
             string: e.string,
             playerId: null,
-            formation: currentFormation ?? null,
-            specialTeamType: currentSpecialTeamType ?? null,
+            formation: depthFormationField,
+            specialTeamType: depthSpecialField,
           })
         })
       if (existingEntry?.playerId) {
@@ -383,8 +445,8 @@ export function DepthChartView({
           position,
           string: 2,
           playerId: existingEntry.playerId,
-          formation: currentFormation ?? null,
-          specialTeamType: currentSpecialTeamType ?? null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
       }
       updates.push({
@@ -392,8 +454,8 @@ export function DepthChartView({
         position,
         string: 1,
         playerId,
-        formation: currentFormation ?? null,
-        specialTeamType: currentSpecialTeamType ?? null,
+        formation: depthFormationField,
+        specialTeamType: depthSpecialField,
       })
     } else {
       depthChart
@@ -401,9 +463,7 @@ export function DepthChartView({
           (e) =>
             e.playerId === playerId &&
             e.unit === selectedUnit &&
-            (selectedUnit === "special_teams"
-              ? e.specialTeamType === currentSpecialTeamType
-              : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
+            matchesPersistedDepthRow(e)
         )
         .forEach((e) => {
           updates.push({
@@ -411,8 +471,8 @@ export function DepthChartView({
             position: e.position,
             string: e.string,
             playerId: null,
-            formation: currentFormation ?? null,
-            specialTeamType: currentSpecialTeamType ?? null,
+            formation: depthFormationField,
+            specialTeamType: depthSpecialField,
           })
         })
       if (existingEntry?.playerId) {
@@ -420,9 +480,7 @@ export function DepthChartView({
           (e) =>
             e.playerId === playerId &&
             e.unit === selectedUnit &&
-            (selectedUnit === "special_teams"
-              ? e.specialTeamType === currentSpecialTeamType
-              : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
+            matchesPersistedDepthRow(e)
         )
         if (droppedEntry) {
           updates.push({
@@ -430,16 +488,16 @@ export function DepthChartView({
             position,
             string,
             playerId: existingEntry.playerId,
-            formation: currentFormation ?? null,
-            specialTeamType: currentSpecialTeamType ?? null,
+            formation: depthFormationField,
+            specialTeamType: depthSpecialField,
           })
           updates.push({
             unit: selectedUnit,
             position: droppedEntry.position,
             string: droppedEntry.string,
             playerId,
-            formation: currentFormation ?? null,
-            specialTeamType: currentSpecialTeamType ?? null,
+            formation: depthFormationField,
+            specialTeamType: depthSpecialField,
           })
         } else {
           updates.push({
@@ -447,8 +505,8 @@ export function DepthChartView({
             position,
             string,
             playerId,
-            formation: currentFormation ?? null,
-            specialTeamType: currentSpecialTeamType ?? null,
+            formation: depthFormationField,
+            specialTeamType: depthSpecialField,
           })
         }
       } else {
@@ -457,8 +515,8 @@ export function DepthChartView({
           position,
           string,
           playerId,
-          formation: currentFormation ?? null,
-          specialTeamType: currentSpecialTeamType ?? null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
       }
     }
@@ -471,9 +529,7 @@ export function DepthChartView({
         e.unit === selectedUnit &&
         e.position === position &&
         e.string === string &&
-        (selectedUnit === "special_teams"
-          ? e.specialTeamType === currentSpecialTeamType
-          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
+        matchesPersistedDepthRow(e)
     )
     if (entry) {
       onUpdate([
@@ -482,8 +538,8 @@ export function DepthChartView({
           position,
           string,
           playerId: null,
-          formation: currentFormation ?? null,
-          specialTeamType: currentSpecialTeamType ?? null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         },
       ])
     }
@@ -495,18 +551,14 @@ export function DepthChartView({
         e.unit === selectedUnit &&
         e.position === position &&
         e.string === fromString &&
-        (selectedUnit === "special_teams"
-          ? e.specialTeamType === currentSpecialTeamType
-          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
+        matchesPersistedDepthRow(e)
     )
     const toEntry = depthChart.find(
       (e) =>
         e.unit === selectedUnit &&
         e.position === position &&
         e.string === toString &&
-        (selectedUnit === "special_teams"
-          ? e.specialTeamType === currentSpecialTeamType
-          : !e.specialTeamType && (currentFormation ? e.formation === currentFormation : true))
+        matchesPersistedDepthRow(e)
     )
     const updates: DepthChartUpdate[] = []
     if (fromEntry?.playerId) {
@@ -516,16 +568,16 @@ export function DepthChartView({
           position,
           string: toString,
           playerId: fromEntry.playerId,
-          formation: currentFormation ?? null,
-          specialTeamType: currentSpecialTeamType ?? null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
         updates.push({
           unit: selectedUnit,
           position,
           string: fromString,
           playerId: toEntry.playerId,
-          formation: currentFormation ?? null,
-          specialTeamType: currentSpecialTeamType ?? null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
       } else {
         updates.push({
@@ -533,16 +585,16 @@ export function DepthChartView({
           position,
           string: fromString,
           playerId: null,
-          formation: currentFormation ?? null,
-          specialTeamType: currentSpecialTeamType ?? null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
         updates.push({
           unit: selectedUnit,
           position,
           string: toString,
           playerId: fromEntry.playerId,
-          formation: currentFormation ?? null,
-          specialTeamType: currentSpecialTeamType ?? null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
       }
       if (updates.length > 0) onUpdate(updates)
@@ -741,6 +793,22 @@ export function DepthChartView({
                   )
                 })}
               </div>
+              {(selectedUnit === "offense" || selectedUnit === "defense") && (
+                <label className="flex items-start gap-2 text-sm text-foreground max-w-[220px] print:hidden cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 shrink-0"
+                    checked={independentDepthByFormation}
+                    onChange={(e) => setIndependentDepth(e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-medium">Different players per formation</span>
+                    <span className="block text-xs text-muted-foreground font-normal mt-0.5">
+                      Off by default: same depth applies to every formation on this side.
+                    </span>
+                  </span>
+                </label>
+              )}
             </div>
             <div className="flex items-center gap-2 print:hidden">
               <Button
@@ -775,7 +843,7 @@ export function DepthChartView({
                 assignments={assignmentsForCurrentView}
                 playersById={playersById}
                 unit={selectedUnit}
-                formation={currentFormation}
+                formation={depthFormationField}
                 specialTeamType={currentSpecialTeamType}
                 canEdit={canEdit}
                 validSlotKeysForDraggingPlayer={validSlotKeysForDraggingPlayer}

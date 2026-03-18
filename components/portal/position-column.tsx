@@ -95,7 +95,7 @@ export function PositionColumn({
       >
         {/* Starter (1st String) - visually emphasized */}
         <div
-          className="flex-1 min-h-[120px]"
+          className="h-[104px] shrink-0"
           onDragOver={(e) => {
             e.preventDefault()
             e.dataTransfer.dropEffect = "move"
@@ -121,7 +121,7 @@ export function PositionColumn({
             />
           ) : (
             <div
-              className="w-full h-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center min-h-[100px] gap-1 py-3 px-2 bg-slate-50/50"
+              className="w-full h-[104px] border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1 py-2 px-2 bg-slate-50/50 box-border shrink-0"
               style={{ borderColor: "rgb(var(--focus))" }}
             >
               <span className="text-sm font-medium text-slate-600">Empty</span>
@@ -136,7 +136,7 @@ export function PositionColumn({
 
         {/* 2nd String */}
         <div
-          className="flex-shrink-0"
+          className="h-[76px] shrink-0"
           onDragOver={(e) => {
             e.preventDefault()
             e.dataTransfer.dropEffect = "move"
@@ -163,7 +163,7 @@ export function PositionColumn({
             />
           ) : (
             <div
-              className="w-full h-16 border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50"
+              className="w-full h-[76px] border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50 box-border shrink-0"
               style={{ borderColor: "rgb(var(--focus))" }}
             >
               <span className="text-xs font-medium text-slate-500">2nd</span>
@@ -173,7 +173,7 @@ export function PositionColumn({
 
         {/* 3rd String */}
         <div
-          className="flex-shrink-0"
+          className="h-[64px] shrink-0"
           onDragOver={(e) => {
             e.preventDefault()
             e.dataTransfer.dropEffect = "move"
@@ -200,7 +200,7 @@ export function PositionColumn({
             />
           ) : (
             <div
-              className="w-full h-12 border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50"
+              className="w-full h-[64px] border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50 box-border shrink-0"
               style={{ borderColor: "rgb(var(--focus))" }}
             >
               <span className="text-xs font-medium text-slate-500">3rd</span>

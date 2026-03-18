@@ -65,12 +65,13 @@ export function DepthSlotCard({
 }: DepthSlotCardProps) {
   if (!player) return null
   const isStarter = depthLevel === 1
-  const heightClass = depthLevel === 1 ? "min-h-[100px]" : depthLevel === 2 ? "min-h-[72px]" : "min-h-[60px]"
+  const heightClass =
+    depthLevel === 1 ? "h-[104px]" : depthLevel === 2 ? "h-[76px]" : "h-[64px]"
   const opacity = depthLevel === 1 ? 1 : depthLevel === 2 ? 0.85 : 0.7
 
   return (
     <Card
-      className={`relative w-full transition-all duration-200 cursor-pointer rounded-lg ${heightClass} ${
+      className={`relative w-full max-w-full overflow-hidden transition-all duration-200 cursor-pointer rounded-lg ${heightClass} shrink-0 ${
         draggable ? "cursor-move" : ""
       } ${canEdit && onPromote && !isStarter ? "hover:opacity-90" : ""}`}
       style={{
@@ -85,16 +86,16 @@ export function DepthSlotCard({
       onClick={canEdit && onPromote && !isStarter ? onPromote : undefined}
       title={canEdit && onPromote && !isStarter ? "Click to promote to starter" : ""}
     >
-      <CardContent className="p-3 flex items-center gap-3">
-        <PlayerPhoto player={player} size={isStarter ? 48 : 36} />
-        <div className="flex-1 min-w-0 text-left">
-          <div className="flex items-baseline gap-1.5 flex-wrap">
+      <CardContent className="p-2.5 flex items-center gap-2 h-full box-border">
+        <PlayerPhoto player={player} size={isStarter ? 44 : 32} />
+        <div className="flex-1 min-w-0 text-left overflow-hidden">
+          <div className="flex items-baseline gap-1 min-w-0">
             {player.jerseyNumber != null && (
-              <span className="text-sm font-bold text-slate-900">
+              <span className="text-sm font-bold text-slate-900 shrink-0">
                 #{player.jerseyNumber}
               </span>
             )}
-            <span className="text-sm font-semibold truncate text-slate-900">
+            <span className="text-sm font-semibold truncate text-slate-900 min-w-0">
               {player.lastName}
             </span>
           </div>

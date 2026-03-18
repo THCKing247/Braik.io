@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { FileText, User } from "lucide-react"
-import { PlayerFormsModal } from "./player-forms-modal"
+import { ArrowUpDown } from "lucide-react"
 
 export interface Player {
   id: string
@@ -30,6 +29,8 @@ export interface Player {
   guardianLinks?: Array<{ guardian: { user: { email: string } } }>
 }
 
+type SortKey = "name" | "jersey" | "position" | "grade" | "weight" | "height" | "status"
+
 interface RosterListViewProps {
   players: Player[]
   canEdit: boolean
@@ -40,7 +41,6 @@ interface RosterListViewProps {
   onRevokeInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
   onPromotePlayer?: (player: Player) => void
-  /** If provided, each row gets a "View Profile" link. */
   getProfileHref?: (player: Player) => string
 }
 
@@ -48,6 +48,82 @@ function getInitials(firstName: string, lastName: string) {
   const first = (firstName || "")[0] || ""
   const last = (lastName || "")[0] || ""
   return `${first}${last}`.toUpperCase() || "?"
+}
+
+function sortPlayers(list: Player[], key: SortKey, dir: "asc" | "desc"): Player[] {
+  const mult = dir === "asc" ? 1 : -1
+  const out = [...list]
+  const statusOrder = (p: Player) => {
+    const s = p.healthStatus || (p.status === "active" ? "active" : "inactive")
+    if (s === "active") return 0
+    if (s === "injured") return 1
+    return 2
+  }
+  out.sort((a, b) => {
+    switch (key) {
+      case "name": {
+        const an = `${a.lastName ?? ""} ${a.firstName ?? ""}`.toLowerCase().trim()
+        const bn = `${b.lastName ?? ""} ${b.firstName ?? ""}`.toLowerCase().trim()
+        return mult * an.localeCompare(bn)
+      }
+      case "jersey": {
+        const aj = a.jerseyNumber ?? 9999
+        const bj = b.jerseyNumber ?? 9999
+        return mult * (aj - bj)
+      }
+      case "position":
+        return mult * (a.positionGroup ?? "").localeCompare(b.positionGroup ?? "")
+      case "grade": {
+        const ag = a.grade ?? -1
+        const bg = b.grade ?? -1
+        return mult * (ag - bg)
+      }
+      case "weight": {
+        const aw = a.weight ?? -1
+        const bw = b.weight ?? -1
+        return mult * (aw - bw)
+      }
+      case "height":
+        return mult * (a.height ?? "").localeCompare(b.height ?? "")
+      case "status":
+        return mult * (statusOrder(a) - statusOrder(b))
+      default:
+        return 0
+    }
+  })
+  return out
+}
+
+function SortTh({
+  label,
+  sortKey,
+  currentKey,
+  dir,
+  onSort,
+  className = "",
+}: {
+  label: string
+  sortKey: SortKey
+  currentKey: SortKey
+  dir: "asc" | "desc"
+  onSort: (k: SortKey) => void
+  className?: string
+}) {
+  const active = currentKey === sortKey
+  return (
+    <th className={`px-4 py-3 font-semibold text-[#0F172A] ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 hover:text-[#2563EB] focus:outline-none focus-visible:ring-2 rounded"
+        title={`Sort by ${label}`}
+      >
+        {label}
+        <ArrowUpDown className={`h-3.5 w-3.5 shrink-0 ${active ? "text-[#2563EB]" : "text-[#94A3B8] opacity-70"}`} />
+        {active && <span className="sr-only">{dir === "asc" ? "ascending" : "descending"}</span>}
+      </button>
+    </th>
+  )
 }
 
 export function RosterListView({
@@ -63,50 +139,38 @@ export function RosterListView({
   getProfileHref,
 }: RosterListViewProps) {
   const [playersState, setPlayersState] = useState<Player[]>(players)
-  const [formsModalPlayer, setFormsModalPlayer] = useState<Player | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>("name")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
-  // Update local state when players prop changes
   useEffect(() => {
     setPlayersState(players)
   }, [players])
 
-  const handleFormsUpdate = async (playerId: string, formsComplete: boolean, missingForms: string[]) => {
-    try {
-      const response = await fetch(`/api/roster/${playerId}/forms`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          formsComplete,
-          missingForms,
-        }),
-      })
+  const sortedPlayers = useMemo(
+    () => sortPlayers(playersState, sortKey, sortDir),
+    [playersState, sortKey, sortDir]
+  )
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error?.error || "Failed to update forms")
-      }
-
-      const updated = await response.json()
-      
-      // Update local state
-      setPlayersState(prev => prev.map(p => 
-        p.id === playerId 
-          ? { ...p, missingForms: updated.missingForms || [], healthStatus: updated.healthStatus }
-          : p
-      ))
-
-      // Trigger parent refresh
-      window.location.reload()
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to update forms")
-      throw error
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    else {
+      setSortKey(key)
+      setSortDir("asc")
     }
   }
 
+  const showActions =
+    getProfileHref ||
+    (canEdit &&
+      (onEditPlayer ||
+        onSendInvite ||
+        onCopyJoinLink ||
+        onResendInvite ||
+        onRevokeInvite ||
+        onDeletePlayer ||
+        onPromotePlayer))
+
   return (
-    <>
     <div
       className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white overflow-x-hidden [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       style={{ minHeight: "420px", maxHeight: "800px" }}
@@ -116,20 +180,18 @@ export function RosterListView({
           <thead>
             <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
               <th className="px-4 py-3 font-semibold text-[#0F172A] w-12">Photo</th>
-              <th className="px-4 py-3 font-semibold text-[#0F172A]">Name</th>
-              <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">#</th>
-              <th className="px-4 py-3 font-semibold text-[#0F172A] w-24">Position</th>
-              <th className="px-4 py-3 font-semibold text-[#0F172A] w-24">Grade</th>
-              <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Weight</th>
-              <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Height</th>
-              <th className="px-4 py-3 font-semibold text-[#0F172A] w-20">Status</th>
-              {(getProfileHref || (canEdit && (onEditPlayer || onSendInvite || onCopyJoinLink || onResendInvite || onRevokeInvite || onDeletePlayer || onPromotePlayer))) && (
-                <th className="px-4 py-3 font-semibold text-[#0F172A] text-right">Actions</th>
-              )}
+              <SortTh label="Name" sortKey="name" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="#" sortKey="jersey" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="w-20" />
+              <SortTh label="Position" sortKey="position" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="w-28" />
+              <SortTh label="Grade" sortKey="grade" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="w-24" />
+              <SortTh label="Weight" sortKey="weight" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="w-24" />
+              <SortTh label="Height" sortKey="height" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="w-24" />
+              <SortTh label="Status" sortKey="status" currentKey={sortKey} dir={sortDir} onSort={handleSort} className="w-24" />
+              {showActions && <th className="px-4 py-3 font-semibold text-[#0F172A] text-right">Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {playersState.map((player) => (
+            {sortedPlayers.map((player) => (
               <RosterListRow
                 key={player.id}
                 player={player}
@@ -141,28 +203,14 @@ export function RosterListView({
                 onRevokeInvite={onRevokeInvite}
                 onDeletePlayer={onDeletePlayer}
                 onPromotePlayer={onPromotePlayer}
-                onOpenFormsModal={() => setFormsModalPlayer(player)}
                 profileHref={getProfileHref?.(player)}
               />
             ))}
           </tbody>
         </table>
       </div>
-      {playersState.length === 0 && (
-        <div className="py-12 text-center text-[#64748B]">
-          No players in roster
-        </div>
-      )}
+      {sortedPlayers.length === 0 && <div className="py-12 text-center text-[#64748B]">No players in roster</div>}
     </div>
-    {formsModalPlayer && (
-      <PlayerFormsModal
-        player={formsModalPlayer}
-        isOpen={!!formsModalPlayer}
-        onClose={() => setFormsModalPlayer(null)}
-        onFormsUpdate={canEdit ? handleFormsUpdate : undefined}
-      />
-    )}
-    </>
   )
 }
 
@@ -176,7 +224,6 @@ function RosterListRow({
   onRevokeInvite,
   onDeletePlayer,
   onPromotePlayer,
-  onOpenFormsModal,
   profileHref,
 }: {
   player: Player
@@ -188,7 +235,6 @@ function RosterListRow({
   onRevokeInvite?: (player: Player) => void | Promise<void>
   onDeletePlayer?: (player: Player) => void | Promise<void>
   onPromotePlayer?: (player: Player) => void
-  onOpenFormsModal?: () => void
   profileHref?: string
 }) {
   const [imageError, setImageError] = useState(false)
@@ -207,6 +253,16 @@ function RosterListRow({
     }
   }
 
+  const showActions =
+    canEdit &&
+    (onEditPlayer ||
+      onSendInvite ||
+      onCopyJoinLink ||
+      onResendInvite ||
+      onRevokeInvite ||
+      onDeletePlayer ||
+      onPromotePlayer)
+
   return (
     <tr className="border-b border-[#E5E7EB] hover:bg-[#F8FAFC]/60 transition-colors">
       <td className="px-4 py-2">
@@ -222,43 +278,37 @@ function RosterListRow({
               sizes="40px"
             />
           ) : (
-            <span className="text-xs font-semibold text-[#64748B]">
-              {getInitials(player.firstName, player.lastName)}
-            </span>
+            <span className="text-xs font-semibold text-[#64748B]">{getInitials(player.firstName, player.lastName)}</span>
           )}
         </div>
       </td>
       <td className="px-4 py-2 font-medium text-[#0F172A]">
         <div className="flex items-center gap-2">
           {profileHref && (
-            <Link 
-              href={profileHref} 
+            <Link
+              href={profileHref}
               aria-label={`View ${player.firstName} ${player.lastName} profile`}
               onClick={(e) => e.stopPropagation()}
-              className="text-lg hover:opacity-70 transition-opacity"
-              title="View profile"
+              className="text-[#2563EB] hover:opacity-80 transition-opacity shrink-0"
+              title="Profile"
             >
-              👤
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E7EB] bg-white hover:bg-[#F8FAFC]">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </span>
             </Link>
           )}
-          <span>{player.firstName} {player.lastName}</span>
+          <span>
+            {player.firstName} {player.lastName}
+          </span>
         </div>
       </td>
-      <td className="px-4 py-2 text-[#475569]">
-        {player.jerseyNumber != null ? `#${player.jerseyNumber}` : "—"}
-      </td>
-      <td className="px-4 py-2 text-[#475569]">
-        {player.positionGroup ?? "—"}
-      </td>
-      <td className="px-4 py-2 text-[#475569]">
-        {player.grade != null ? player.grade : "—"}
-      </td>
-      <td className="px-4 py-2 text-[#475569]">
-        {player.weight != null ? `${player.weight}` : "—"}
-      </td>
-      <td className="px-4 py-2 text-[#475569]">
-        {player.height ?? "—"}
-      </td>
+      <td className="px-4 py-2 text-[#475569]">{player.jerseyNumber != null ? `#${player.jerseyNumber}` : "—"}</td>
+      <td className="px-4 py-2 text-[#475569]">{player.positionGroup ?? "—"}</td>
+      <td className="px-4 py-2 text-[#475569]">{player.grade != null ? player.grade : "—"}</td>
+      <td className="px-4 py-2 text-[#475569]">{player.weight != null ? `${player.weight}` : "—"}</td>
+      <td className="px-4 py-2 text-[#475569]">{player.height ?? "—"}</td>
       <td className="px-4 py-2">
         <div className="flex flex-col gap-0.5">
           <span
@@ -266,12 +316,8 @@ function RosterListRow({
           >
             {getStatusDisplay().text}
           </span>
-          {player.inviteStatus === "email_sent" && (
-            <span className="text-[10px] text-blue-700">Email sent</span>
-          )}
-          {player.inviteStatus === "sms_sent" && (
-            <span className="text-[10px] text-sky-700">SMS sent</span>
-          )}
+          {player.inviteStatus === "email_sent" && <span className="text-[10px] text-blue-700">Email sent</span>}
+          {player.inviteStatus === "sms_sent" && <span className="text-[10px] text-sky-700">SMS sent</span>}
           {(player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
             <span className="text-[10px] text-amber-700">Invite created</span>
           )}
@@ -280,38 +326,16 @@ function RosterListRow({
           )}
         </div>
       </td>
-      {(canEdit && (onEditPlayer || onSendInvite || onCopyJoinLink || onResendInvite || onRevokeInvite || onDeletePlayer || onPromotePlayer || onOpenFormsModal)) && (
+      {showActions && (
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap gap-1 justify-end">
-            {canEdit && onOpenFormsModal && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7"
-                onClick={onOpenFormsModal}
-                title="Manage Forms"
-              >
-                <FileText className="h-3.5 w-3.5" />
-              </Button>
-            )}
             {onEditPlayer && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7"
-                onClick={() => onEditPlayer(player)}
-              >
+              <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => onEditPlayer(player)}>
                 Edit
               </Button>
             )}
             {onPromotePlayer && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7"
-                onClick={() => onPromotePlayer(player)}
-                title="Move to another team level"
-              >
+              <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => onPromotePlayer(player)} title="Move to another team level">
                 Move to…
               </Button>
             )}
@@ -327,41 +351,51 @@ function RosterListRow({
                 Invite
               </Button>
             )}
-            {onCopyJoinLink && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && player.joinLink && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7"
-                onClick={() => onCopyJoinLink(player)}
-                title="Copy join link"
-              >
-                Copy link
-              </Button>
-            )}
-            {onResendInvite && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7"
-                onClick={() => onResendInvite(player)}
-                disabled={!!player.user}
-                title="Resend invite"
-              >
-                Resend
-              </Button>
-            )}
-            {onRevokeInvite && (player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited" || player.inviteStatus === "email_sent" || player.inviteStatus === "sms_sent") && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7 text-amber-700 hover:bg-amber-50"
-                onClick={() => onRevokeInvite(player)}
-                disabled={!!player.user}
-                title="Revoke invite"
-              >
-                Revoke
-              </Button>
-            )}
+            {onCopyJoinLink &&
+              (player.inviteStatus === "invite_created" ||
+                player.inviteStatus === "invite_sent" ||
+                player.inviteStatus === "invited" ||
+                player.inviteStatus === "email_sent" ||
+                player.inviteStatus === "sms_sent") &&
+              player.joinLink && (
+                <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => onCopyJoinLink(player)} title="Copy join link">
+                  Copy link
+                </Button>
+              )}
+            {onResendInvite &&
+              (player.inviteStatus === "invite_created" ||
+                player.inviteStatus === "invite_sent" ||
+                player.inviteStatus === "invited" ||
+                player.inviteStatus === "email_sent" ||
+                player.inviteStatus === "sms_sent") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => onResendInvite(player)}
+                  disabled={!!player.user}
+                  title="Resend invite"
+                >
+                  Resend
+                </Button>
+              )}
+            {onRevokeInvite &&
+              (player.inviteStatus === "invite_created" ||
+                player.inviteStatus === "invite_sent" ||
+                player.inviteStatus === "invited" ||
+                player.inviteStatus === "email_sent" ||
+                player.inviteStatus === "sms_sent") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7 text-amber-700 hover:bg-amber-50"
+                  onClick={() => onRevokeInvite(player)}
+                  disabled={!!player.user}
+                  title="Revoke invite"
+                >
+                  Revoke
+                </Button>
+              )}
             {onDeletePlayer && (
               <Button
                 variant="outline"

@@ -34,7 +34,7 @@ export async function GET(
 
     const { data: players, error: playersErr } = await supabase
       .from("players")
-      .select("id, first_name, last_name, email, player_phone, parent_guardian_contact, eligibility_status")
+      .select("id, first_name, last_name, email, player_phone, parent_guardian_contact, eligibility_status, user_id")
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
@@ -47,6 +47,7 @@ export async function GET(
           incompleteCount: 0,
           missingPhysicalCount: 0,
           missingWaiverCount: 0,
+          notAccountLinkedCount: 0,
           incompleteProfileCount: 0,
           noEquipmentCount: 0,
           eligibilityMissingCount: 0,
@@ -103,6 +104,7 @@ export async function GET(
       profileComplete: boolean
       physicalOnFile: boolean
       waiverOnFile: boolean
+      accountLinked: boolean
       requiredDocsComplete: boolean
       equipmentAssigned: boolean
       assignedEquipmentCount: number
@@ -114,6 +116,7 @@ export async function GET(
     let readyCount = 0
     let missingPhysicalCount = 0
     let missingWaiverCount = 0
+    let notAccountLinkedCount = 0
     let incompleteProfileCount = 0
     let noEquipmentCount = 0
     let eligibilityMissingCount = 0
@@ -128,7 +131,9 @@ export async function GET(
         player_phone: string | null
         parent_guardian_contact: string | null
         eligibility_status: string | null
+        user_id: string | null
       }
+      const accountLinked = Boolean(row.user_id)
       const hasName = Boolean(row.first_name?.trim()) && Boolean(row.last_name?.trim())
       const hasContact =
         Boolean(row.player_phone?.trim()) ||
@@ -149,10 +154,16 @@ export async function GET(
       if (result.ready) readyCount++
       if (!result.physicalOnFile) missingPhysicalCount++
       if (!result.waiverOnFile) missingWaiverCount++
+      if (!accountLinked) notAccountLinkedCount++
       if (!result.profileComplete) incompleteProfileCount++
       if (!result.equipmentAssigned) noEquipmentCount++
       if (!result.eligibilityStatus?.trim()) eligibilityMissingCount++
       if (!hasGuardians) noGuardiansCount++
+
+      const missingItems = [
+        ...result.missingItems,
+        ...(!accountLinked ? ["Account not linked"] : []),
+      ]
 
       playerReadinessList.push({
         playerId: row.id,
@@ -162,12 +173,13 @@ export async function GET(
         profileComplete: result.profileComplete,
         physicalOnFile: result.physicalOnFile,
         waiverOnFile: result.waiverOnFile,
+        accountLinked,
         requiredDocsComplete: result.requiredDocsComplete,
         equipmentAssigned: result.equipmentAssigned,
         assignedEquipmentCount: result.assignedEquipmentCount,
         eligibilityStatus: result.eligibilityStatus,
         hasGuardians,
-        missingItems: result.missingItems,
+        missingItems,
       })
     }
 
@@ -181,6 +193,7 @@ export async function GET(
         incompleteCount,
         missingPhysicalCount,
         missingWaiverCount,
+        notAccountLinkedCount,
         incompleteProfileCount,
         noEquipmentCount,
         eligibilityMissingCount,

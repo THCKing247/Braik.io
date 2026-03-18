@@ -85,6 +85,7 @@ type TeamReadinessSummary = {
   incompleteCount: number
   missingPhysicalCount: number
   missingWaiverCount: number
+  notAccountLinkedCount: number
   incompleteProfileCount: number
   noEquipmentCount: number
   eligibilityMissingCount: number
@@ -99,6 +100,7 @@ type PlayerReadinessItem = {
   profileComplete: boolean
   physicalOnFile: boolean
   waiverOnFile: boolean
+  accountLinked: boolean
   requiredDocsComplete: boolean
   equipmentAssigned: boolean
   assignedEquipmentCount: number
@@ -698,6 +700,8 @@ export function RosterManagerEnhanced({
     if (readinessFilter === "incomplete") return new Set(list.filter((p) => !p.ready).map((p) => p.playerId))
     if (readinessFilter === "missing_physical") return new Set(list.filter((p) => !p.physicalOnFile).map((p) => p.playerId))
     if (readinessFilter === "missing_waiver") return new Set(list.filter((p) => !p.waiverOnFile).map((p) => p.playerId))
+    if (readinessFilter === "not_account_linked")
+      return new Set(list.filter((p) => !p.accountLinked).map((p) => p.playerId))
     if (readinessFilter === "incomplete_profile") return new Set(list.filter((p) => !p.profileComplete).map((p) => p.playerId))
     if (readinessFilter === "no_equipment") return new Set(list.filter((p) => !p.equipmentAssigned).map((p) => p.playerId))
     if (readinessFilter === "no_guardians") return new Set(list.filter((p) => !p.hasGuardians).map((p) => p.playerId))
@@ -1326,6 +1330,7 @@ export function RosterManagerEnhanced({
                 <option value="incomplete">Incomplete</option>
                 <option value="missing_physical">Missing physical</option>
                 <option value="missing_waiver">Missing waiver</option>
+                <option value="not_account_linked">Account not linked</option>
                 <option value="incomplete_profile">Incomplete profile</option>
                 <option value="no_equipment">No equipment</option>
                 <option value="no_guardians">No guardians linked</option>
@@ -1423,6 +1428,14 @@ export function RosterManagerEnhanced({
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Account not linked</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">
+                      {teamReadiness.summary.notAccountLinkedCount ?? 0}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="border border-border bg-card">
+                  <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Incomplete profile</p>
                     <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.incompleteProfileCount}</p>
                   </CardContent>
@@ -1452,6 +1465,61 @@ export function RosterManagerEnhanced({
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className="border border-border bg-card">
+                <CardHeader>
+                  <CardTitle className="text-foreground">Roster checklist</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Physical, waiver, required forms, and whether the player has linked their app account.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto max-h-[min(420px,50vh)] overflow-y-auto rounded-md border border-border">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm z-[1]">
+                        <tr className="border-b border-border text-left text-muted-foreground">
+                          <th className="p-2 pl-3 font-medium">Player</th>
+                          <th className="p-2 font-medium text-center w-[88px]">Physical</th>
+                          <th className="p-2 font-medium text-center w-[88px]">Waiver</th>
+                          <th className="p-2 font-medium text-center w-[88px]">Forms</th>
+                          <th className="p-2 pr-3 font-medium text-center w-[100px]">Acct linked</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teamReadiness.players.map((p) => {
+                          const params = new URLSearchParams()
+                          params.set("teamId", teamId)
+                          const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                          const cell = (ok: boolean) => (
+                            <span
+                              className={
+                                ok
+                                  ? "text-emerald-700 font-medium"
+                                  : "text-amber-700 font-medium"
+                              }
+                            >
+                              {ok ? "Yes" : "No"}
+                            </span>
+                          )
+                          return (
+                            <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
+                              <td className="p-2 pl-3">
+                                <Link href={profileHref} className="font-medium text-primary hover:underline">
+                                  {p.firstName} {p.lastName}
+                                </Link>
+                              </td>
+                              <td className="p-2 text-center">{cell(p.physicalOnFile)}</td>
+                              <td className="p-2 text-center">{cell(p.waiverOnFile)}</td>
+                              <td className="p-2 text-center">{cell(p.requiredDocsComplete)}</td>
+                              <td className="p-2 pr-3 text-center">{cell(Boolean(p.accountLinked))}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
 
               <Card className="border border-border bg-card">
                 <CardHeader>
@@ -1536,7 +1604,7 @@ export function RosterManagerEnhanced({
                   size="sm"
                   onClick={() => {
                     if (!teamReadiness) return
-                    const headers = ["First Name", "Last Name", "Ready", "Profile Complete", "Physical", "Waiver", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
+                    const headers = ["First Name", "Last Name", "Ready", "Profile Complete", "Physical", "Waiver", "Forms complete", "Account linked", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
                     const rows = teamReadiness.players.map((p) => [
                       p.firstName,
                       p.lastName,
@@ -1544,6 +1612,8 @@ export function RosterManagerEnhanced({
                       p.profileComplete ? "Yes" : "No",
                       p.physicalOnFile ? "Yes" : "No",
                       p.waiverOnFile ? "Yes" : "No",
+                      p.requiredDocsComplete ? "Yes" : "No",
+                      p.accountLinked ? "Yes" : "No",
                       p.equipmentAssigned ? "Yes" : "No",
                       p.hasGuardians ? "Yes" : "No",
                       p.eligibilityStatus ?? "",
@@ -1568,13 +1638,15 @@ export function RosterManagerEnhanced({
                   onClick={() => {
                     if (!teamReadiness) return
                     const incomplete = teamReadiness.players.filter((p) => !p.ready)
-                    const headers = ["First Name", "Last Name", "Profile Complete", "Physical", "Waiver", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
+                    const headers = ["First Name", "Last Name", "Profile Complete", "Physical", "Waiver", "Forms complete", "Account linked", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
                     const rows = incomplete.map((p) => [
                       p.firstName,
                       p.lastName,
                       p.profileComplete ? "Yes" : "No",
                       p.physicalOnFile ? "Yes" : "No",
                       p.waiverOnFile ? "Yes" : "No",
+                      p.requiredDocsComplete ? "Yes" : "No",
+                      p.accountLinked ? "Yes" : "No",
                       p.equipmentAssigned ? "Yes" : "No",
                       p.hasGuardians ? "Yes" : "No",
                       p.eligibilityStatus ?? "",

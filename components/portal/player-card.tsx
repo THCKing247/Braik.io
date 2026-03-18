@@ -5,9 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, User, Edit, Mail, Trash2, MoreVertical, ArrowUpDown, Link2, Send, Ban } from "lucide-react"
+import { User, Mail, Trash2, MoreVertical, ArrowUpDown, Link2, Send, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PlayerFormsModal } from "./player-forms-modal"
 
 interface PlayerCardPlayer {
   id: string
@@ -39,34 +38,25 @@ interface PlayerCardProps {
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
   onImageUpload?: (playerId: string, file: File) => void
-  onFormsUpdate?: (playerId: string, formsComplete: boolean, missingForms: string[]) => void | Promise<void>
-  /** When set, clicking the card (excluding forms/image upload) opens the player profile. */
   profileHref?: string
-  /** Callbacks for player actions - accepts any player-like object */
   onEditPlayer?: (player: any) => void
   onSendInvite?: (player: any) => void | Promise<void>
   onCopyJoinLink?: (player: any) => void
   onResendInvite?: (player: any) => void | Promise<void>
   onRevokeInvite?: (player: any) => void | Promise<void>
   onDeletePlayer?: (player: any) => void | Promise<void>
-  /** Head coach: promote/move player to another team level (JV, Varsity, etc.). */
   onPromotePlayer?: (player: any) => void
-  /** True while this card's photo is uploading; shows spinner and disables upload. */
   isUploading?: boolean
-  /** Optional local preview URL (object URL) to show while upload is in progress. */
   previewImageUrl?: string | null
-  /** Optional eligibility hint for depth chart (e.g. "Best fit: X, Z"). Rendered as small muted text. */
   eligibilityHint?: string | null
 }
 
 export function PlayerCard({
   player,
   canEdit = false,
-  size = "medium",
   draggable = false,
   onDragStart,
   onImageUpload,
-  onFormsUpdate,
   profileHref,
   onEditPlayer,
   onSendInvite,
@@ -82,14 +72,11 @@ export function PlayerCard({
   const router = useRouter()
   const [imageError, setImageError] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-  const [showFormsModal, setShowFormsModal] = useState(false)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
 
   const handleProfileClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (profileHref) {
-      router.push(profileHref)
-    }
+    if (profileHref) router.push(profileHref)
   }
 
   const handleThreeDotClick = (e: React.MouseEvent) => {
@@ -161,7 +148,6 @@ export function PlayerCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Three Dot Menu - Top Right */}
       {(onSendInvite || onDeletePlayer || onCopyJoinLink || onResendInvite || onRevokeInvite) && (
         <button
           type="button"
@@ -173,13 +159,11 @@ export function PlayerCard({
           <MoreVertical className="h-4 w-4" />
         </button>
       )}
-      
-      {/* Health Status Indicator - Top Right (if no three dots) */}
+
       {player.healthStatus && player.healthStatus !== "active" && !(onSendInvite || onDeletePlayer || onCopyJoinLink || onResendInvite || onRevokeInvite) && (
         <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getHealthStatusColor()}`} title={player.healthStatus === "injured" ? "Injured" : "Unavailable"} />
       )}
       <CardContent className="p-3 flex flex-col items-center h-full">
-        {/* Player Image / Placeholder - stop propagation so upload works without navigating */}
         <div
           className={`w-20 h-28 relative mb-3 rounded border overflow-hidden ${
             canEdit && onImageUpload && !isUploading ? "cursor-pointer" : ""
@@ -187,9 +171,12 @@ export function PlayerCard({
           style={{
             borderColor: "rgb(var(--border))",
             backgroundColor: "rgb(var(--platinum))",
-            borderWidth: "1px"
+            borderWidth: "1px",
           }}
-          onClick={(e) => { e.stopPropagation(); handleImageClick() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleImageClick()
+          }}
           title={canEdit && onImageUpload && !isUploading ? "Click to upload image" : ""}
         >
           {displayImageUrl ? (
@@ -219,16 +206,13 @@ export function PlayerCard({
           )}
         </div>
 
-        {/* Player Info */}
         <div className="w-full text-center flex-1 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-semibold truncate mb-1" style={{ color: "#000000" }}>
               {player.firstName} {player.lastName}
             </h3>
             <div className="text-xs mb-2" style={{ color: "#000000" }}>
-              {player.jerseyNumber && (
-                <span className="font-bold">#{player.jerseyNumber}</span>
-              )}
+              {player.jerseyNumber && <span className="font-bold">#{player.jerseyNumber}</span>}
               {player.jerseyNumber && player.positionGroup && " • "}
               {player.positionGroup && <span>{player.positionGroup}</span>}
             </div>
@@ -239,81 +223,45 @@ export function PlayerCard({
             )}
           </div>
           <div className="flex items-center justify-between w-full mt-2">
-            {/* Forms and Profile Icons - Bottom Left */}
-            <div className="flex items-center gap-1.5">
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setShowFormsModal(true)
-                  }}
-                  className="p-1.5 rounded hover:bg-gray-100 transition-colors flex items-center justify-center"
-                  title="Manage Forms"
-                  style={{ minWidth: "24px", minHeight: "24px" }}
-                >
-                  <FileText className="h-4 w-4" style={{ color: "rgb(var(--text))" }} />
-                </button>
-              )}
+            <div className="flex items-center gap-1.5 min-h-[28px]">
               {profileHref && (
                 <button
                   type="button"
                   onClick={handleProfileClick}
-                  className="p-1.5 rounded hover:bg-gray-100 transition-colors flex items-center justify-center text-lg leading-none"
-                  title="View Profile"
-                  style={{ minWidth: "24px", minHeight: "24px" }}
+                  className="p-1.5 rounded hover:bg-gray-100 transition-colors flex items-center justify-center"
+                  title="View profile (forms & details)"
+                  style={{ minWidth: "28px", minHeight: "28px" }}
+                  aria-label="View profile"
                 >
-                  👤
+                  <User className="h-4 w-4" style={{ color: "rgb(var(--accent))" }} />
                 </button>
               )}
             </div>
-            {!canEdit && !profileHref && <div />}
-            {/* Status Badge - Bottom Right (health + invite) */}
+            {!profileHref && <div />}
             <div className="flex flex-col items-end gap-1">
               {(player.inviteStatus === "email_sent") && (
-                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                  Email sent
-                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-blue-100 text-blue-800 border border-blue-200">Email sent</span>
               )}
               {(player.inviteStatus === "sms_sent") && (
-                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-sky-100 text-sky-800 border border-sky-200">
-                  SMS sent
-                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-sky-100 text-sky-800 border border-sky-200">SMS sent</span>
               )}
               {(player.inviteStatus === "invite_created" || player.inviteStatus === "invite_sent" || player.inviteStatus === "invited") && (
-                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                  Invite created
-                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-amber-100 text-amber-800 border border-amber-200">Invite created</span>
               )}
               {(player.inviteStatus === "claimed" || player.inviteStatus === "joined") && player.user && (
-                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Claimed
-                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Claimed</span>
               )}
               {(!player.inviteStatus || player.inviteStatus === "not_invited") && !player.user && canEdit && (
-                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                  Not invited
-                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-600 border border-gray-200">Not invited</span>
               )}
-              <span
-                className={`text-[10px] px-2 py-1 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}
-              >
+              <span className={`text-[10px] px-2 py-1 rounded font-semibold ${getStatusDisplay().color} ${getStatusDisplay().bgColor} border`}>
                 {getStatusDisplay().text}
               </span>
             </div>
           </div>
         </div>
       </CardContent>
-      {showFormsModal && (
-        <PlayerFormsModal
-          player={player}
-          isOpen={showFormsModal}
-          onClose={() => setShowFormsModal(false)}
-          onFormsUpdate={onFormsUpdate}
-        />
-      )}
 
-      {/* Actions Menu Modal - Three Dot Menu */}
       <Dialog open={showActionsMenu} onOpenChange={setShowActionsMenu}>
         <DialogContent className="bg-white">
           <DialogHeader>

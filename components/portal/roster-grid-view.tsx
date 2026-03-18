@@ -88,44 +88,6 @@ export function RosterGridView({
     }
   }, [uploadPreviewUrl])
 
-  const handleFormsUpdate = async (playerId: string, formsComplete: boolean, missingForms: string[]) => {
-    try {
-      const response = await fetch(`/api/roster/${playerId}/forms`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          formsComplete,
-          missingForms,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error?.error || "Failed to update forms")
-      }
-
-      const updated = await response.json()
-      
-      // Update local state
-      setPlayersState(prev => prev.map(p => 
-        p.id === playerId 
-          ? { ...p, missingForms: updated.missingForms || [], healthStatus: updated.healthStatus }
-          : p
-      ))
-
-      // Trigger parent refresh if callback exists
-      if (onImageUploadSuccess) {
-        // Re-fetch roster to get updated data
-        window.location.reload()
-      }
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to update forms")
-      throw error
-    }
-  }
-
   const uploadFileForPlayer = useCallback(
     async (playerId: string, file: File) => {
       setUploadError(null)
@@ -236,7 +198,6 @@ export function RosterGridView({
               e.dataTransfer.effectAllowed = "move"
             }}
             onImageUpload={canEdit ? handleImageUpload : undefined}
-            onFormsUpdate={canEdit ? handleFormsUpdate : undefined}
             profileHref={getProfileHref?.(player)}
             onEditPlayer={onEditPlayer}
             onSendInvite={onSendInvite}

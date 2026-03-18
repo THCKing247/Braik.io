@@ -35,6 +35,7 @@ import {
   ZoomOut,
   Highlighter,
   Minus,
+  Settings,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookBottomSheet } from "@/components/portal/playbook-bottom-sheet"
@@ -235,6 +236,14 @@ export function PlaycallerView({
   const [inkTool, setInkTool] = useState<InkTool>("pen")
   const [fingerDraw, setFingerDraw] = useState(false)
   const [moreSheetOpen, setMoreSheetOpen] = useState(false)
+  const [documentFullscreen, setDocumentFullscreen] = useState(false)
+  useEffect(() => {
+    const onFs = () => setDocumentFullscreen(!!document.fullscreenElement)
+    onFs()
+    document.addEventListener("fullscreenchange", onFs)
+    return () => document.removeEventListener("fullscreenchange", onFs)
+  }, [])
+  const presentationImmersive = fullscreen || documentFullscreen
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [lineDraft, setLineDraft] = useState<{ x: number; y: number } | null>(null)
@@ -1433,164 +1442,197 @@ export function PlaycallerView({
         data-presenter-dock
         className={
           compactUi
-            ? "fixed left-0 right-0 bottom-0 z-40 flex flex-col gap-2 px-2 sm:px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-950 via-slate-950/98 to-slate-950/85 backdrop-blur-xl border-t border-slate-800/90 max-w-[100vw] overflow-x-auto"
+            ? `fixed left-0 right-0 bottom-0 z-40 flex flex-col gap-1.5 px-2 sm:px-3 pt-1.5 max-w-[100vw] overflow-x-hidden bg-gradient-to-t from-slate-950 from-80% via-slate-950/98 to-transparent backdrop-blur-xl border-t border-slate-800/90 ${
+                presentationImmersive
+                  ? "pb-[calc(2.25rem+env(safe-area-inset-bottom,0px))]"
+                  : "pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]"
+              }`
             : fullscreen
-              ? "fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4 pr-[max(3rem,env(safe-area-inset-right))]"
-              : "absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4"
+              ? "fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pr-[max(3rem,env(safe-area-inset-right))]"
+              : "absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
         }
       >
-        <div className="w-full max-w-lg mx-auto flex flex-col gap-1.5" data-timeline>
+        {!compactUi && (
+          <div className="w-full max-w-lg mx-auto flex flex-col gap-1.5" data-timeline>
+            <div
+              ref={timelineRef}
+              role="slider"
+              aria-label="Playback position"
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={animationProgress}
+              tabIndex={0}
+              className="relative h-4 sm:h-5 w-full rounded-full bg-slate-800/95 cursor-pointer touch-none flex items-center overflow-visible ring-1 ring-slate-700/80"
+              onPointerDown={handleTimelinePointerDown}
+              onPointerMove={handleTimelinePointerMove}
+              onPointerUp={handleTimelinePointerUp}
+              onPointerLeave={handleTimelinePointerUp}
+              onPointerCancel={handleTimelinePointerUp}
+            >
+              <div
+                className="h-full rounded-full bg-emerald-600/90 transition-none pointer-events-none"
+                style={{ width: `${animationProgress * 100}%` }}
+              />
+              <div
+                className="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-emerald-700 shadow-md -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+                style={{ left: `${animationProgress * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {compactUi && (
           <div
-            ref={timelineRef}
-            role="slider"
-            aria-label="Playback position"
-            aria-valuemin={0}
-            aria-valuemax={1}
-            aria-valuenow={animationProgress}
-            tabIndex={0}
-            className="relative h-4 sm:h-5 w-full rounded-full bg-slate-800/95 cursor-pointer touch-none flex items-center overflow-visible ring-1 ring-slate-700/80"
-            onPointerDown={handleTimelinePointerDown}
-            onPointerMove={handleTimelinePointerMove}
-            onPointerUp={handleTimelinePointerUp}
-            onPointerLeave={handleTimelinePointerUp}
-            onPointerCancel={handleTimelinePointerUp}
+            className="h-1.5 w-full max-w-md mx-auto rounded-full bg-slate-800 pointer-events-none shrink-0"
+            aria-hidden
+            title="Open settings to scrub timeline"
           >
             <div
-              className="h-full rounded-full bg-emerald-600/90 transition-none pointer-events-none"
+              className="h-full rounded-full bg-emerald-600/70 transition-[width] duration-150"
               style={{ width: `${animationProgress * 100}%` }}
             />
-            <div
-              className="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-emerald-700 shadow-md -translate-y-1/2 -translate-x-1/2 pointer-events-none"
-              style={{ left: `${animationProgress * 100}%` }}
-            />
           </div>
-        </div>
-        <div
-          className={`flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5 mx-auto rounded-2xl px-2 py-1.5 shadow-lg border border-slate-700/60 bg-slate-900/95 backdrop-blur-md ${
-            compactUi ? "min-w-0 max-w-full overflow-x-auto" : ""
-          }`}
-        >
-          {plays.length > 1 && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800"
-                onClick={goPrev}
-                disabled={currentIndex <= 0}
-                title="Previous play"
+        )}
+        {compactUi ? (
+          <>
+            <div className="flex flex-nowrap items-center justify-center gap-1 mx-auto rounded-2xl px-1.5 py-1 shadow-lg border border-slate-700/70 bg-slate-900/98 backdrop-blur-md max-w-full overflow-x-auto">
+              {plays.length > 1 && (
+                <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goPrev} disabled={currentIndex <= 0} title="Previous play">
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+              )}
+              {isAnimationPlaying ? (
+                <Button size="icon" className="h-12 w-12 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPause} title="Pause">
+                  <Pause className="h-6 w-6" />
+                </Button>
+              ) : (
+                <Button size="icon" className="h-12 w-12 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPlay} title="Play">
+                  <Play className="h-6 w-6 ml-0.5" />
+                </Button>
+              )}
+              <select
+                value={animationSpeed}
+                onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
+                className="h-10 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 px-2 text-xs font-bold min-w-[52px] shrink-0"
+                title="Speed"
               >
+                {SPEED_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}x
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant={annotateOn ? "default" : "ghost"}
+                size="icon"
+                className={`h-11 w-11 shrink-0 rounded-xl ${annotateOn ? "bg-amber-500 hover:bg-amber-400 text-slate-900" : "text-slate-200 hover:bg-slate-800"}`}
+                onClick={() => setAnnotateOn((a) => !a)}
+                title="Draw / annotate"
+              >
+                <Pencil className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800 disabled:opacity-40" onClick={undoLastInk} disabled={inkUndoStack.length === 0} title="Undo stroke">
+                <Undo2 className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={clearDrawings} title="Clear annotations">
+                <Eraser className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800 ring-1 ring-slate-600" onClick={() => setMoreSheetOpen(true)} title="Settings & timeline">
+                <Settings className="h-5 w-5" />
+              </Button>
+              {plays.length > 1 && (
+                <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goNext} disabled={currentIndex >= plays.length - 1} title="Next play">
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+            {annotateOn && (
+              <div className="flex flex-nowrap items-center justify-center gap-0.5 overflow-x-auto pb-0.5">
+                <div className="flex rounded-xl border border-slate-600 overflow-hidden bg-slate-800/90 shrink-0">
+                  {(
+                    [
+                      { id: "pen" as const, Icon: Pencil },
+                      { id: "highlighter" as const, Icon: Highlighter },
+                      { id: "line" as const, Icon: Minus },
+                      { id: "arrow" as const, Icon: ArrowRight },
+                      { id: "icon" as const, Icon: Flag },
+                    ] as const
+                  ).map(({ id, Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setInkTool(id)}
+                      className={`p-2.5 ${inkTool === id ? "bg-amber-500/30 text-amber-200" : "text-slate-400"}`}
+                      title={id}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div
+            className={`flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5 mx-auto rounded-2xl px-2 py-1.5 shadow-lg border border-slate-700/60 bg-slate-900/95 backdrop-blur-md`}
+          >
+            {plays.length > 1 && (
+              <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goPrev} disabled={currentIndex <= 0} title="Previous play">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
-            </>
-          )}
-          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepToStart} title="Start">
-            <SkipBack className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepBackward} title="Step back">
-            <ChevronsLeft className="h-4 w-4" />
-          </Button>
-          {isAnimationPlaying ? (
-            <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPause} title="Pause">
-              <Pause className="h-5 w-5" />
+            )}
+            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepToStart} title="Start">
+              <SkipBack className="h-4 w-4" />
             </Button>
-          ) : (
-            <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPlay} title="Play">
-              <Play className="h-5 w-5 ml-0.5" />
+            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepBackward} title="Step back">
+              <ChevronsLeft className="h-4 w-4" />
             </Button>
-          )}
-          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepForward} title="Step forward">
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationRestart} title="Replay">
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-          <select
-            value={animationSpeed}
-            onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
-            className="h-9 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 px-2 text-xs font-semibold min-w-[52px] shrink-0"
-            title="Speed"
-          >
-            {SPEED_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}x
-              </option>
-            ))}
-          </select>
-          <Button
-            variant={annotateOn ? "default" : "ghost"}
-            size="icon"
-            className={`h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl ${annotateOn ? "bg-amber-500 hover:bg-amber-400 text-slate-900" : "text-slate-200 hover:bg-slate-800"}`}
-            onClick={() => setAnnotateOn((a) => !a)}
-            title="Annotate (stylus / pen)"
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          {compactUi && (
-            <>
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={() => setZoom((z) => Math.min(2.5, z + 0.12))} title="Zoom in">
-                <ZoomIn className="h-4 w-4" />
+            {isAnimationPlaying ? (
+              <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPause} title="Pause">
+                <Pause className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={() => setZoom((z) => Math.max(0.65, z - 0.12))} title="Zoom out">
-                <ZoomOut className="h-4 w-4" />
+            ) : (
+              <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPlay} title="Play">
+                <Play className="h-5 w-5 ml-0.5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={() => setMoreSheetOpen(true)} title="More">
-                <MoreHorizontal className="h-5 w-5" />
-              </Button>
-            </>
-          )}
-          {!compactUi && (
-            <>
-              <Button variant={animationLoop ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setAnimationLoop(!animationLoop)} title="Loop">
-                <Repeat className="h-4 w-4" />
-              </Button>
-              <Button variant={showRoutes ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setShowRoutes((v) => !v)} title="Routes">
-                <Route className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-          {plays.length > 1 && (
-            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goNext} disabled={currentIndex >= plays.length - 1} title="Next play">
-              <ChevronRight className="h-5 w-5" />
+            )}
+            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepForward} title="Step forward">
+              <ChevronsRight className="h-4 w-4" />
             </Button>
-          )}
-        </div>
-        {annotateOn && compactUi && (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 px-1 pb-1">
-            <div className="flex rounded-xl border border-slate-600 overflow-hidden bg-slate-800/80">
-              {(
-                [
-                  { id: "pen" as const, Icon: Pencil, label: "Pen" },
-                  { id: "highlighter" as const, Icon: Highlighter, label: "Hi" },
-                  { id: "line" as const, Icon: Minus, label: "Line" },
-                  { id: "arrow" as const, Icon: ArrowRight, label: "Arrow" },
-                  { id: "icon" as const, Icon: Flag, label: "Icon" },
-                ] as const
-              ).map(({ id, Icon, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setInkTool(id)}
-                  className={`px-3 py-2 text-[10px] font-bold uppercase flex flex-col items-center gap-0.5 min-w-[3rem] ${
-                    inkTool === id ? "bg-amber-500/25 text-amber-300" : "text-slate-400"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </button>
+            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationRestart} title="Replay">
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <select
+              value={animationSpeed}
+              onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
+              className="h-9 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 px-2 text-xs font-semibold min-w-[52px] shrink-0"
+              title="Speed"
+            >
+              {SPEED_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}x
+                </option>
               ))}
-            </div>
-            <Button variant="outline" size="sm" className="h-9 rounded-xl border-slate-600 text-slate-200" onClick={undoLastInk} disabled={inkUndoStack.length === 0}>
-              <Undo2 className="h-4 w-4 mr-1" />
-              Undo
+            </select>
+            <Button
+              variant={annotateOn ? "default" : "ghost"}
+              size="icon"
+              className={`h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl ${annotateOn ? "bg-amber-500 hover:bg-amber-400 text-slate-900" : "text-slate-200 hover:bg-slate-800"}`}
+              onClick={() => setAnnotateOn((a) => !a)}
+              title="Annotate"
+            >
+              <Pencil className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" className="h-9 rounded-xl border-slate-600 text-slate-200" onClick={clearDrawings}>
-              Clear
+            <Button variant={animationLoop ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setAnimationLoop(!animationLoop)} title="Loop">
+              <Repeat className="h-4 w-4" />
             </Button>
-            <label className="flex items-center gap-1.5 text-[11px] text-slate-400 px-2">
-              <input type="checkbox" checked={fingerDraw} onChange={(e) => setFingerDraw(e.target.checked)} className="rounded border-slate-500" />
-              Draw w/ finger
-            </label>
+            <Button variant={showRoutes ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setShowRoutes((v) => !v)} title="Routes">
+              <Route className="h-4 w-4" />
+            </Button>
+            {plays.length > 1 && (
+              <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goNext} disabled={currentIndex >= plays.length - 1} title="Next play">
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            )}
           </div>
         )}
         {isLg && !compactUi && (
@@ -1611,8 +1653,64 @@ export function PlaycallerView({
         </div>
       )}
 
-      <PlaybookBottomSheet variant="dark" open={moreSheetOpen} onOpenChange={setMoreSheetOpen} title="Presentation & annotate">
-        <div className="flex flex-col gap-4 text-slate-200">
+      <PlaybookBottomSheet
+        variant="dark"
+        isFullscreen={presentationImmersive}
+        open={moreSheetOpen}
+        onOpenChange={setMoreSheetOpen}
+        title="Settings"
+        footer={
+          <div className="space-y-3 text-slate-200">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Timeline & zoom</p>
+            <div data-timeline className="rounded-xl bg-slate-800/90 p-2 border border-slate-600">
+              <div
+                ref={timelineRef}
+                role="slider"
+                aria-label="Playback position"
+                aria-valuemin={0}
+                aria-valuemax={1}
+                aria-valuenow={animationProgress}
+                tabIndex={0}
+                className="relative h-6 w-full rounded-full bg-slate-950 cursor-pointer touch-none flex items-center"
+                onPointerDown={handleTimelinePointerDown}
+                onPointerMove={handleTimelinePointerMove}
+                onPointerUp={handleTimelinePointerUp}
+                onPointerLeave={handleTimelinePointerUp}
+                onPointerCancel={handleTimelinePointerUp}
+              >
+                <div className="h-full rounded-full bg-emerald-500 transition-none pointer-events-none" style={{ width: `${animationProgress * 100}%` }} />
+                <div
+                  className="absolute top-1/2 w-5 h-5 rounded-full bg-white border-2 border-emerald-600 -translate-y-1/2 -translate-x-1/2 pointer-events-none shadow-md"
+                  style={{ left: `${animationProgress * 100}%` }}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button type="button" variant="secondary" size="icon" className="h-11 w-11 rounded-xl bg-slate-800 border-slate-600" onClick={animationStepToStart} title="Start">
+                <SkipBack className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="secondary" size="icon" className="h-11 w-11 rounded-xl bg-slate-800 border-slate-600" onClick={animationStepBackward} title="Step back">
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="secondary" size="icon" className="h-11 w-11 rounded-xl bg-slate-800 border-slate-600" onClick={animationStepForward} title="Step forward">
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="secondary" size="icon" className="h-11 w-11 rounded-xl bg-slate-800 border-slate-600" onClick={animationRestart} title="Replay">
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="secondary" size="icon" className="h-11 w-11 rounded-xl bg-slate-800 border-slate-600" onClick={() => setZoom((z) => Math.max(0.65, z - 0.12))} title="Zoom out">
+                <ZoomOut className="h-5 w-5" />
+              </Button>
+              <Button type="button" variant="secondary" size="icon" className="h-11 w-11 rounded-xl bg-slate-800 border-slate-600" onClick={() => setZoom((z) => Math.min(2.5, z + 0.12))} title="Zoom in">
+                <ZoomIn className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-5 text-slate-200">
+          <section className="space-y-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Presentation</p>
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-slate-400">View as</span>
             <select
@@ -1687,7 +1785,7 @@ export function PlaycallerView({
             </Button>
           </div>
           {plays.length > 1 && (
-            <div className="flex items-center justify-center gap-3 py-2">
+            <div className="flex items-center justify-center gap-3 py-1">
               <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl border-slate-600" onClick={goPrev} disabled={currentIndex <= 0}>
                 <ChevronLeft className="h-6 w-6" />
               </Button>
@@ -1699,20 +1797,12 @@ export function PlaycallerView({
               </Button>
             </div>
           )}
-          <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1 rounded-xl bg-slate-700" onClick={undoLastInk} disabled={inkUndoStack.length === 0}>
-              <Undo2 className="h-4 w-4 mr-2" />
-              Undo stroke
-            </Button>
-            <Button variant="destructive" className="flex-1 rounded-xl" onClick={clearDrawings}>
-              Clear annotations
-            </Button>
-          </div>
           {selectedAnnotationId && (
             <Button variant="outline" className="w-full border-slate-600 rounded-xl" onClick={removeSelectedAnnotation}>
               Remove selected icon
             </Button>
           )}
+          </section>
         </div>
       </PlaybookBottomSheet>
     </div>

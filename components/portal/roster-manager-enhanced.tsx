@@ -30,6 +30,7 @@ import { RosterGridView } from "./roster-grid-view"
 import { RosterListView } from "./roster-list-view"
 import { RosterMobileView, type MobileRosterSort } from "./roster-mobile-view"
 import { DepthChartView } from "./depth-chart-view"
+import { DepthChartMobileWorkspace } from "./depth-chart-mobile-workspace"
 import { ProgramDepthChartView } from "./program-depth-chart-view"
 import { PlayerPromoteModal } from "./player-promote-modal"
 import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
@@ -2318,7 +2319,7 @@ export function RosterManagerEnhanced({
         />
       )}
 
-      {/* Depth Chart: bottom sheet on mobile/tablet · full screen on lg+ (single DepthChartView) */}
+      {/* Depth Chart: mobile/tablet UX (bottom sheet) · desktop uses full-screen below */}
       {showDepthChartModal && isFootball && !depthChartIsDesktop && (
         <div
           className="fixed inset-0 z-50"
@@ -2333,55 +2334,22 @@ export function RosterManagerEnhanced({
             onClick={handleCloseDepthChart}
           />
           <div
-            className="absolute bottom-0 left-0 right-0 z-10 flex max-h-[85vh] flex-col rounded-t-3xl bg-background shadow-2xl"
+            className="absolute bottom-0 left-0 right-0 z-10 flex max-h-[90vh] flex-col rounded-t-3xl bg-background shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="shrink-0 rounded-t-3xl border-b border-border bg-background pt-2">
-              <div className="mx-auto h-1.5 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
-              <div className="flex items-center justify-between gap-2 px-4 py-3">
-                <h2 id="depth-chart-sheet-title" className="min-w-0 truncate text-lg font-semibold text-foreground">
-                  Depth Chart
-                </h2>
-                <div className="flex shrink-0 items-center gap-2">
-                  {hasUnsavedChanges && (
-                    <Button
-                      type="button"
-                      onClick={handleSaveDepthChart}
-                      className="min-h-10 rounded-xl px-3 text-sm"
-                    >
-                      Save
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-11 w-11 shrink-0 rounded-full"
-                    onClick={handleCloseDepthChart}
-                    aria-label="Close"
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-              {hasUnsavedChanges && (
-                <p className="px-4 pb-2 text-xs font-medium text-amber-600">Unsaved changes</p>
-              )}
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <DepthChartView
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-3xl">
+              <DepthChartMobileWorkspace
                 teamId={teamId}
                 players={players}
                 depthChart={depthChart}
                 onUpdate={handleDepthChartChange}
                 canEdit={canEdit}
                 isHeadCoach={userRole === "HEAD_COACH"}
+                programId={programId ?? null}
+                onClose={handleCloseDepthChart}
+                onSave={handleSaveDepthChart}
+                hasUnsavedChanges={hasUnsavedChanges}
               />
-              {programId && canEdit && (
-                <div className="border-t border-border bg-muted/20 p-4">
-                  <CallUpSuggestionsPanel programId={programId} />
-                </div>
-              )}
             </div>
           </div>
         </div>

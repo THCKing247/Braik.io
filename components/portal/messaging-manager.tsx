@@ -1,16 +1,32 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
-import { MessageSquare, Plus, Paperclip, Send, Lock, Search, Users, X, RefreshCw, ChevronDown } from "lucide-react"
-import { getMessagingPermissions, getUserType } from "@/lib/enforcement/messaging-permissions"
+import {
+  MessageSquare,
+  Paperclip,
+  Send,
+  Lock,
+  Search,
+  Users,
+  X,
+  RefreshCw,
+  ArrowDown,
+  Star,
+  ChevronLeft,
+  UserRound,
+  Shield,
+  Heart,
+  UsersRound,
+} from "lucide-react"
+import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
 import { supabaseClient } from "@/src/lib/supabaseClient"
+import { cn } from "@/lib/utils"
 
 interface Message {
   id: string
@@ -20,11 +36,14 @@ interface Message {
   creator: { id: string; name: string | null; email: string }
 }
 
+type ParticipantKind = "player" | "coach" | "parent" | "staff"
+
 interface ThreadParticipant {
   id: string
   userId: string
   readOnly: boolean
-  user: { id: string; name: string | null; email: string }
+  participantKind?: ParticipantKind
+  user: { id: string; name: string | null; email: string; displayName?: string }
 }
 
 interface Thread {
@@ -36,9 +55,30 @@ interface Thread {
   creator: { id: string; name: string | null; email: string }
   participants: ThreadParticipant[]
   messages: Message[]
+  unreadCount?: number
   _count: { messages: number }
   isReadOnly?: boolean
   canReply?: boolean
+}
+
+function displayNameForParticipantUser(u: ThreadParticipant["user"]) {
+  return (u.displayName || u.name || u.email || "Member").trim()
+}
+
+function initialsFromDisplayName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function starredStorageKey(uid: string, tid: string) {
+  return `braik-msg-starred:${uid}:${tid}`
+}
+
+function isNearBottomEl(el: HTMLElement, thresholdPx = 56) {
+  const { scrollTop, scrollHeight, clientHeight } = el
+  return scrollHeight - scrollTop - clientHeight <= thresholdPx
 }
 
 interface Contact {
@@ -70,16 +110,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [messageBody, setMessageBody] = useState("")
   const [attachments, setAttachments] = useState<any[]>([])
   const [showCreateThread, setShowCreateThread] = useState(false)
-  const [showThreadTypeMenu, setShowThreadTypeMenu] = useState(false)
   const [threadType, setThreadType] = useState<"coach" | "player" | "parent" | "group" | null>(null)
   const [newThreadSubject, setNewThreadSubject] = useState("")
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [filteredThreads, setFilteredThreads] = useState<Thread[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
   const realtimeSubscriptionRef = useRef<any>(null)
   const optimisticMessageIdRef = useRef<string | null>(null)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -90,6 +127,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const isUserScrollingRef = useRef<boolean>(false)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const urlThreadIdProcessedRef = useRef<boolean>(false)
+  const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(new Set())
+  const [isWide, setIsWide] = useState(false)
+  const [mobileShowList, setMobileShowList] = useState(true)
+  const [composeGroupFilter, setComposeGroupFilter] = useState<null | "staff">(null)
+  const [participantsModalPurpose, setParticipantsModalPurpose] = useState<"pick" | "view">("pick")
+  const [priorityCollapsed, setPriorityCollapsed] = useState(false)
+  const messageIngressRef = useRef<"idle" | "full-load" | "poll" | "realtime" | "user-send" | "optimistic">("idle")
+  const scrollIntentAfterNextMessagesRef = useRef<"bottom" | "keep">("keep")
+  const lastMessageCountRef = useRef<number>(0)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
@@ -112,14 +158,37 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }, [teamId])
 
   useEffect(() => {
-    // Initialize filtered threads when threads change
-    setFilteredThreads(threads)
-  }, [threads])
+    const mq = window.matchMedia("(min-width: 1024px)")
+    const apply = () => setIsWide(mq.matches)
+    apply()
+    mq.addEventListener("change", apply)
+    return () => mq.removeEventListener("change", apply)
+  }, [])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(starredStorageKey(userId, teamId))
+      if (raw) {
+        const arr = JSON.parse(raw) as string[]
+        if (Array.isArray(arr)) setStarredThreadIds(new Set(arr))
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [userId, teamId])
+
+  useEffect(() => {
+    if (searchParams?.get("threadId")) return
+    if (!isWide || selectedThread || threads.length === 0) return
+    const generalChat = threads.find((t) => t.threadType === "GENERAL")
+    setSelectedThread(generalChat || threads[0])
+  }, [isWide, threads, selectedThread, searchParams])
 
   // Load messages only when threadId changes (not when selectedThread object changes)
   useEffect(() => {
     const threadId = selectedThread?.id
     if (threadId) {
+      lastMessageCountRef.current = 0
       loadMessages(threadId)
       
       // Set up automatic refresh every 10 seconds
@@ -129,7 +198,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         if (currentThreadId && !isRefreshingRef.current) {
           refreshMessages(currentThreadId)
         }
-      }, 10000) // Refresh every 10 seconds
+      }, 15000)
     } else {
       setMessages([])
       // Cleanup subscription when no thread selected
@@ -152,64 +221,71 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThread?.id]) // Only depend on threadId, not the whole object
 
-  // Track scroll position and show "jump to newest" button when user is scrolled up
-  const lastMessageCountRef = useRef<number>(0)
-  const lastScrollTopRef = useRef<number>(0)
-  
-  useEffect(() => {
-    const currentCount = messages.length
+  useLayoutEffect(() => {
+    const ingress = messageIngressRef.current
+    messageIngressRef.current = "idle"
     const container = messagesContainerRef.current
-    
-    if (!container) return
-    
-    // Check if user is near bottom (within 100px)
-    const isNearBottom = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container
-      return scrollHeight - scrollTop - clientHeight < 100
+    const curr = messages.length
+    const prev = lastMessageCountRef.current
+
+    const scrollToEndInstant = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" })
     }
-    
-    // On initial load, scroll to bottom
-    if (lastMessageCountRef.current === 0 && currentCount > 0) {
-      requestAnimationFrame(() => {
-        scrollToBottom()
-        setShowJumpToNewest(false)
-        setUnreadCount(0)
-      })
-      lastMessageCountRef.current = currentCount
+
+    if (ingress === "full-load") {
+      if (curr > 0) scrollToEndInstant()
+      setShowJumpToNewest(false)
+      setUnreadCount(0)
+      lastMessageCountRef.current = curr
+      scrollIntentAfterNextMessagesRef.current = "keep"
       return
     }
-    
-    // If new messages arrived
-    if (currentCount > lastMessageCountRef.current && lastMessageCountRef.current > 0) {
-      // Only auto-scroll if user is already near bottom
-      if (isNearBottom() && !isUserScrollingRef.current) {
-        requestAnimationFrame(() => {
-          scrollToBottom()
-          setShowJumpToNewest(false)
-          setUnreadCount(0)
-        })
-      } else {
-        // User is scrolled up - show jump button
-        const newMessagesCount = currentCount - lastMessageCountRef.current
-        setUnreadCount(prev => prev + newMessagesCount)
-        setShowJumpToNewest(true)
-      }
+
+    if (ingress === "idle" || curr <= prev) {
+      lastMessageCountRef.current = curr
+      return
     }
-    
-    lastMessageCountRef.current = currentCount
+
+    const delta = curr - prev
+    const intent = scrollIntentAfterNextMessagesRef.current
+    scrollIntentAfterNextMessagesRef.current = "keep"
+
+    if (ingress === "user-send" || ingress === "optimistic") {
+      if (intent === "bottom" || (container && isNearBottomEl(container))) {
+        scrollToEndInstant()
+        setShowJumpToNewest(false)
+        setUnreadCount(0)
+      } else {
+        setShowJumpToNewest(true)
+        setUnreadCount((u) => u + delta)
+      }
+      lastMessageCountRef.current = curr
+      return
+    }
+
+    if (ingress === "poll" || ingress === "realtime") {
+      if (intent === "bottom") {
+        scrollToEndInstant()
+        setShowJumpToNewest(false)
+        setUnreadCount(0)
+      } else {
+        setShowJumpToNewest(true)
+        setUnreadCount((u) => u + delta)
+      }
+      lastMessageCountRef.current = curr
+      return
+    }
+
+    lastMessageCountRef.current = curr
   }, [messages])
-  
+
   // Monitor scroll position to hide/show jump button
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container) return
     
     const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
-      
-      // If user scrolls to bottom, hide jump button
-      if (isNearBottom) {
+      if (isNearBottomEl(container)) {
         setShowJumpToNewest(false)
         setUnreadCount(0)
       }
@@ -233,20 +309,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
     }
   }, [selectedThread?.id])
-
-  useEffect(() => {
-    // Filter threads based on search query
-    if (searchQuery.trim()) {
-      const filtered = threads.filter(thread => {
-        const displayName = getThreadDisplayName(thread).toLowerCase()
-        const lastMessage = thread.messages[0]?.body?.toLowerCase() || ""
-        return displayName.includes(searchQuery.toLowerCase()) || lastMessage.includes(searchQuery.toLowerCase())
-      })
-      setFilteredThreads(filtered)
-    } else {
-      setFilteredThreads(threads)
-    }
-  }, [searchQuery, threads])
 
   const scrollToBottom = () => {
     // Use both smooth and instant scroll as fallback
@@ -276,7 +338,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
       const data = await response.json()
       setThreads(data)
-      
+      setSelectedThread((prev) => {
+        if (!prev) return prev
+        const match = data.find((t: Thread) => t.id === prev.id)
+        if (!match) return prev
+        return { ...match, messages: prev.messages }
+      })
+
       // Check for threadId in URL params (from notification deep link)
       const urlThreadId = searchParams?.get("threadId")
       
@@ -285,19 +353,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
         if (threadFromUrl) {
           setSelectedThread(threadFromUrl)
+          setMobileShowList(false)
           urlThreadIdProcessedRef.current = true
         } else {
           // Thread not found, might not be loaded yet or user doesn't have access
           // This is handled by role-based access in the API
           console.warn(`Thread ${urlThreadId} not found or access denied`)
-        }
-      } else if (!selectedThread && data.length > 0) {
-        // Auto-select General Chat if available and no thread selected
-        const generalChat = data.find((t: Thread) => t.threadType === "GENERAL")
-        if (generalChat) {
-          setSelectedThread(generalChat)
-        } else {
-          setSelectedThread(data[0])
         }
       }
       setError(null)
@@ -340,6 +401,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         const bTime = new Date(b.createdAt).getTime()
         return aTime - bTime
       })
+      if (showLoading) {
+        messageIngressRef.current = "full-load"
+      }
       setMessages(sortedMessages)
       
       // Update selectedThread metadata only if it's missing or different
@@ -368,15 +432,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       if (showLoading) {
         setupRealtimeSubscription(threadId)
       }
-      
-      // Scroll to bottom after initial load (only if loading was shown)
-      if (showLoading && sortedMessages.length > 0) {
-        requestAnimationFrame(() => {
-          scrollToBottom()
-          setShowJumpToNewest(false)
-          setUnreadCount(0)
-        })
-      }
     } catch (error: any) {
       console.error("Error loading messages:", error)
       setError(error.message || "Failed to load messages")
@@ -390,31 +445,34 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const refreshMessages = async (threadId: string) => {
     if (isRefreshingRef.current) return // Prevent concurrent refreshes
     isRefreshingRef.current = true
+    {
+      const c = messagesContainerRef.current
+      scrollIntentAfterNextMessagesRef.current =
+        c && isNearBottomEl(c) ? "bottom" : "keep"
+    }
     try {
       // Fetch latest messages without showing loading spinner
       const response = await fetch(`/api/messages/threads/${threadId}`)
       if (response.ok) {
         const data = await response.json()
-        
-        // Update messages with deduplication
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id))
+
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id))
           const newMessages = (data.messages || []).filter((m: Message) => !existingIds.has(m.id))
-          
+
           if (newMessages.length === 0) {
-            // No new messages, but ensure order is correct
             const allIds = new Set(data.messages?.map((m: Message) => m.id) || [])
-            const reordered = prev
-              .filter(m => allIds.has(m.id))
+            return prev
+              .filter((m) => allIds.has(m.id))
               .sort((a, b) => {
                 const aTime = new Date(a.createdAt).getTime()
                 const bTime = new Date(b.createdAt).getTime()
                 return aTime - bTime
               })
-            return reordered
           }
-          
-          // Merge new messages and sort
+
+          messageIngressRef.current = "poll"
+
           const merged = [...prev, ...newMessages]
           return merged.sort((a, b) => {
             const aTime = new Date(a.createdAt).getTime()
@@ -466,28 +524,35 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         },
         async (payload) => {
           const newMessageId = payload.new.id as string
-          
-          // Skip if this is our optimistic message
+
           if (optimisticMessageIdRef.current === newMessageId) {
             optimisticMessageIdRef.current = null
             return
           }
 
-          // Check if message already exists (prevent duplicates)
-          setMessages(prev => {
-            const existingIds = new Set(prev.map(m => m.id))
-            if (existingIds.has(newMessageId)) {
-              return prev // Already have this message
-            }
-            return prev // Will update below
-          })
-
-          // Extract message data from payload
           const senderId = payload.new.sender_id as string
           const content = payload.new.content as string
           const createdAt = payload.new.created_at as string
 
-          // Fetch sender info for the new message (lightweight API call)
+          {
+            const c = messagesContainerRef.current
+            scrollIntentAfterNextMessagesRef.current =
+              c && isNearBottomEl(c) ? "bottom" : "keep"
+          }
+
+          const appendRealtimeMessage = (newMessage: Message) => {
+            messageIngressRef.current = "realtime"
+            setMessages((prev) => {
+              const existingIds = new Set(prev.map((m) => m.id))
+              if (existingIds.has(newMessageId)) return prev
+              return [...prev, newMessage].sort((a, b) => {
+                const aTime = new Date(a.createdAt).getTime()
+                const bTime = new Date(b.createdAt).getTime()
+                return aTime - bTime
+              })
+            })
+          }
+
           try {
             const senderResponse = await fetch(`/api/messages/sender/${senderId}`)
             const senderData = senderResponse.ok ? await senderResponse.json() : null
@@ -495,48 +560,20 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             const newMessage: Message = {
               id: newMessageId,
               body: content,
-              attachments: [], // Attachments loaded on next full refresh if needed
+              attachments: [],
               createdAt: new Date(createdAt),
-              creator: senderData || { id: senderId, name: null, email: "" }
+              creator: senderData || { id: senderId, name: null, email: "" },
             }
 
-            // Add message and sort
-            setMessages(prev => {
-              const existingIds = new Set(prev.map(m => m.id))
-              if (existingIds.has(newMessageId)) {
-                return prev // Already added (race condition protection)
-              }
-              
-              const updated = [...prev, newMessage]
-              return updated.sort((a, b) => {
-                const aTime = new Date(a.createdAt).getTime()
-                const bTime = new Date(b.createdAt).getTime()
-                return aTime - bTime
-              })
-            })
+            appendRealtimeMessage(newMessage)
           } catch (err) {
             console.error("Error fetching sender info for realtime message:", err)
-            // Add message with minimal sender info if fetch fails
-            const newMessage: Message = {
+            appendRealtimeMessage({
               id: newMessageId,
               body: content,
               attachments: [],
               createdAt: new Date(createdAt),
-              creator: { id: senderId, name: null, email: "" }
-            }
-            
-            setMessages(prev => {
-              const existingIds = new Set(prev.map(m => m.id))
-              if (existingIds.has(newMessageId)) {
-                return prev
-              }
-              
-              const updated = [...prev, newMessage]
-              return updated.sort((a, b) => {
-                const aTime = new Date(a.createdAt).getTime()
-                const bTime = new Date(b.createdAt).getTime()
-                return aTime - bTime
-              })
+              creator: { id: senderId, name: null, email: "" },
             })
           }
         }
@@ -573,6 +610,8 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
     }
 
+    scrollIntentAfterNextMessagesRef.current = "bottom"
+    messageIngressRef.current = "optimistic"
     // Add optimistic message immediately
     setMessages(prev => [...prev, optimisticMessage])
     setMessageBody("")
@@ -611,7 +650,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       // Replace optimistic message with real message
       const newMessage = responseData
       optimisticMessageIdRef.current = newMessage.id
-      
+
+      scrollIntentAfterNextMessagesRef.current = "bottom"
+      messageIngressRef.current = "user-send"
+
       // Update messages state atomically
       setMessages(prev => {
         // Remove optimistic message
@@ -634,20 +676,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           return aTime - bTime
         })
       })
-      
-      // Check if we should scroll (only if user is near bottom)
-      const container = messagesContainerRef.current
-      if (container) {
-        const { scrollTop, scrollHeight, clientHeight } = container
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
-        
-        if (isNearBottom && !isUserScrollingRef.current) {
-          requestAnimationFrame(() => {
-            scrollToBottom()
-          })
-        }
-      }
-      
+
       // Refresh thread list to update last message (non-blocking)
       loadThreads().catch(err => console.error("Error refreshing threads:", err))
     } catch (error: any) {
@@ -706,7 +735,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       setSelectedContacts([])
       setShowCreateThread(false)
       setThreadType(null)
+      setComposeGroupFilter(null)
       setError(null)
+      setMobileShowList(false)
     } catch (error: any) {
       const errorMessage = error.message || "Error creating thread"
       setError(errorMessage)
@@ -787,16 +818,72 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     if (thread.subject) {
       return thread.subject
     }
-    // Show participant names
     const otherParticipants = thread.participants
-      .filter(p => p.user.id !== userId)
-      .map(p => p.user.name || p.user.email)
+      .filter((p) => p.user.id !== userId)
+      .map((p) => displayNameForParticipantUser(p.user))
     return otherParticipants.join(", ") || "New Thread"
   }
 
+  const threadCategoryLabel = (thread: Thread) => {
+    const t = thread.threadType
+    if (t === "GENERAL") return "Team"
+    if (t === "GROUP" || t === "group") return "Group"
+    const other = thread.participants.find((p) => p.user.id !== userId)
+    if (other?.participantKind === "player") return "Player"
+    if (other?.participantKind === "parent") return "Parent"
+    if (other?.participantKind === "coach" || other?.participantKind === "staff") return "Staff"
+    return "Chat"
+  }
+
+  const primaryThreadPeer = (thread: Thread) => {
+    const others = thread.participants.filter((p) => p.user.id !== userId)
+    if (others.length === 1) return others[0]
+    return null
+  }
+
+  const toggleThreadStar = (threadId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setStarredThreadIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(threadId)) next.delete(threadId)
+      else next.add(threadId)
+      try {
+        localStorage.setItem(starredStorageKey(userId, teamId), JSON.stringify([...next]))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
+
+  const sortedThreadSections = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const base = q
+      ? threads.filter((thread) => {
+          const displayName = getThreadDisplayName(thread).toLowerCase()
+          const lastMessage = thread.messages[0]?.body?.toLowerCase() || ""
+          return displayName.includes(q) || lastMessage.includes(q)
+        })
+      : threads
+
+    const byUpdated = (a: Thread, b: Thread) =>
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+
+    const starred = base.filter((t) => starredThreadIds.has(t.id)).sort(byUpdated)
+    const rest = base.filter((t) => !starredThreadIds.has(t.id)).sort(byUpdated)
+    return { starred, rest }
+  }, [threads, searchQuery, starredThreadIds])
+
   const getFilteredContacts = () => {
     if (!threadType) return contacts
-    
+
+    if (threadType === "group" && composeGroupFilter === "staff") {
+      return contacts.filter((c) => {
+        const typeUpper = (c.type || "").toUpperCase()
+        return typeUpper !== "PLAYER" && typeUpper !== "PARENT"
+      })
+    }
+
     switch (threadType) {
       case "coach":
         return contacts.filter(c => {
@@ -826,35 +913,139 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
   }
 
-  const handleThreadTypeSelect = (type: "coach" | "player" | "parent" | "group") => {
-    setThreadType(type)
-    setShowCreateThread(true)
-    setShowThreadTypeMenu(false)
-    setSelectedContacts([])
-    setNewThreadSubject("")
-  }
-
   const handleCancelCreate = () => {
     setShowCreateThread(false)
     setThreadType(null)
-    setShowThreadTypeMenu(false)
+    setComposeGroupFilter(null)
     setNewThreadSubject("")
     setSelectedContacts([])
   }
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowThreadTypeMenu(false)
-      }
-    }
+  const openComposeCategory = (type: "coach" | "player" | "parent" | "group") => {
+    setComposeGroupFilter(null)
+    setThreadType(type)
+    setShowCreateThread(true)
+    setSelectedContacts([])
+    setNewThreadSubject("")
+  }
 
-    if (showThreadTypeMenu) {
-      document.addEventListener("mousedown", handleClickOutside)
-      return () => document.removeEventListener("mousedown", handleClickOutside)
+  const openStaffCompose = () => {
+    setComposeGroupFilter("staff")
+    setThreadType("group")
+    setShowCreateThread(true)
+    setSelectedContacts([])
+    setNewThreadSubject("")
+  }
+
+  const avatarClassForKind = (kind?: ParticipantKind) => {
+    switch (kind) {
+      case "player":
+        return "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80"
+      case "parent":
+        return "bg-violet-100 text-violet-800 ring-1 ring-violet-200/80"
+      case "coach":
+      case "staff":
+        return "bg-orange-100 text-orange-900 ring-1 ring-orange-200/80"
+      default:
+        return "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
     }
-  }, [showThreadTypeMenu])
+  }
+
+  const renderThreadCard = (thread: Thread) => {
+    const isSelected = selectedThread?.id === thread.id
+    const lastMessage = thread.messages[0]
+    const isReadOnly = thread.isReadOnly || false
+    const peer = primaryThreadPeer(thread)
+    const peerName = peer ? displayNameForParticipantUser(peer.user) : getThreadDisplayName(thread)
+    const peerKind = peer?.participantKind
+    const initials = initialsFromDisplayName(peerName)
+    const starred = starredThreadIds.has(thread.id)
+    const unread = (thread.unreadCount ?? 0) > 0
+
+    return (
+      <div
+        key={thread.id}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            setSelectedThread(thread)
+            setMobileShowList(false)
+          }
+        }}
+        onClick={() => {
+          setSelectedThread(thread)
+          setMobileShowList(false)
+        }}
+        className={cn(
+          "relative mx-3 mb-3 cursor-pointer rounded-2xl border p-4 text-left shadow-sm transition-all md:mx-4 md:mb-3 md:p-4 lg:rounded-2xl lg:p-4",
+          isSelected ? "border-[rgb(var(--accent))] bg-[rgb(var(--platinum))] ring-1 ring-[rgb(var(--accent))]/25" : "border-[rgb(var(--border))] bg-white hover:border-[rgb(var(--accent))]/40"
+        )}
+        style={{ borderColor: isSelected ? undefined : "rgb(var(--border))" }}
+      >
+        <button
+          type="button"
+          aria-label={starred ? "Remove from priority" : "Mark as priority"}
+          className="absolute right-3 top-3 rounded-full p-1.5 text-[rgb(var(--muted))] transition hover:bg-black/5 hover:text-[rgb(var(--accent))]"
+          onClick={(e) => toggleThreadStar(thread.id, e)}
+        >
+          <Star
+            className={cn("h-5 w-5", starred && "fill-amber-400 text-amber-500")}
+            strokeWidth={starred ? 0 : 1.75}
+          />
+        </button>
+        <div className="flex gap-3 pr-10">
+          <div
+            className={cn(
+              "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold",
+              avatarClassForKind(peerKind)
+            )}
+          >
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="truncate pr-2 text-[15px] font-semibold leading-tight text-[rgb(var(--text))]">
+                {getThreadDisplayName(thread)}
+              </h3>
+            </div>
+            {lastMessage ? (
+              <p className="mt-1 line-clamp-2 text-sm leading-snug text-[rgb(var(--text2))]">
+                <span className="font-medium text-[rgb(var(--text))]">
+                  {lastMessage.creator.name || lastMessage.creator.email}:
+                </span>{" "}
+                {lastMessage.body}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm italic text-[rgb(var(--muted))]">No messages yet</p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span
+                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-600"
+              >
+                {threadCategoryLabel(thread)}
+              </span>
+              {isReadOnly && (
+                <span className="inline-flex items-center gap-0.5 text-[11px] text-[rgb(var(--muted))]">
+                  <Lock className="h-3 w-3" /> Read-only
+                </span>
+              )}
+              {unread && (
+                <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[rgb(var(--accent))] px-2 py-0.5 text-[11px] font-semibold text-white">
+                  {(thread.unreadCount ?? 0) > 9 ? "9+" : thread.unreadCount}
+                </span>
+              )}
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[rgb(var(--muted))]">
+              <span className="truncate font-medium text-[rgb(var(--text2))]">{peerName}</span>
+              <time className="shrink-0 tabular-nums">{format(new Date(thread.updatedAt), "MMM d, h:mm a")}</time>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (initialLoading) {
     return (
@@ -865,86 +1056,105 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }
 
   return (
-    <div className="flex h-[calc(100vh-200px)] rounded-lg overflow-hidden border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
-      {/* Error Banner */}
+    <div
+      className="relative flex h-[calc(100vh-200px)] flex-col overflow-hidden rounded-2xl border lg:flex-row"
+      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}
+    >
       {error && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-50 border border-red-200 text-red-800 px-4 py-2 rounded-md text-sm max-w-md">
+        <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2 transform rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
           {error}
-          <button
-            onClick={() => setError(null)}
-            className="ml-2 text-red-600 hover:text-red-800"
-          >
+          <button type="button" onClick={() => setError(null)} className="ml-2 text-red-600 hover:text-red-800">
             ×
           </button>
         </div>
       )}
-      
-      {/* Thread List Sidebar */}
-      <div className="w-80 border-r flex flex-col h-full" style={{ backgroundColor: "#FFFFFF", borderRightColor: "rgb(var(--border))" }}>
-        <div className="p-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
-          <h2 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>Messages</h2>
-          {canCreateThread && (
-            <div className="relative" ref={menuRef}>
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (showCreateThread) {
-                    handleCancelCreate()
-                  } else {
-                    setShowThreadTypeMenu(!showThreadTypeMenu)
-                  }
-                }}
-                className="h-8 w-8 p-0"
-                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              {showThreadTypeMenu && !showCreateThread && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white border rounded-md shadow-lg min-w-[180px]" style={{ borderColor: "rgb(var(--border))" }}>
-                  <button
-                    onClick={() => handleThreadTypeSelect("coach")}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 first:rounded-t-md"
-                    style={{ color: "rgb(var(--text))" }}
-                  >
-                    Message Coach
-                  </button>
-                  <button
-                    onClick={() => handleThreadTypeSelect("player")}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                    style={{ color: "rgb(var(--text))" }}
-                  >
-                    Message Player
-                  </button>
-                  <button
-                    onClick={() => handleThreadTypeSelect("parent")}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                    style={{ color: "rgb(var(--text))" }}
-                  >
-                    Message Parent
-                  </button>
-                  <button
-                    onClick={() => handleThreadTypeSelect("group")}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 last:rounded-b-md border-t"
-                    style={{ color: "rgb(var(--text))", borderTopColor: "rgb(var(--border))" }}
-                  >
-                    Create Group
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+
+      <div
+        className={cn(
+          "flex min-h-0 flex-col border-b lg:h-full lg:w-[min(100%,22rem)] lg:max-w-md lg:flex-none lg:border-b-0 lg:border-r",
+          !isWide && selectedThread && !mobileShowList ? "hidden" : "flex-1 lg:flex-none"
+        )}
+        style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+      >
+        <div
+          className="flex flex-shrink-0 items-center justify-between border-b px-4 py-3 md:px-5 md:py-4"
+          style={{ borderBottomColor: "rgb(var(--border))" }}
+        >
+          <div>
+            <h2 className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>
+              Messages
+            </h2>
+            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+              Inbox & conversations
+            </p>
+          </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="p-4 border-b flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
+        {canCreateThread && (
+          <div className="border-b px-3 py-3 md:px-4 md:py-4" style={{ borderBottomColor: "rgb(var(--border))" }}>
+            <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-[rgb(var(--muted))] md:text-left">
+              Start a conversation
+            </p>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:gap-3">
+              <button
+                type="button"
+                onClick={() => openComposeCategory("player")}
+                className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
+              >
+                <UserRound className="h-5 w-5 text-emerald-600" aria-hidden />
+                <span className="text-xs font-semibold text-[rgb(var(--text))]">Players</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openComposeCategory("coach")}
+                className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
+              >
+                <Shield className="h-5 w-5 text-orange-600" aria-hidden />
+                <span className="text-xs font-semibold text-[rgb(var(--text))]">Coaches</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openComposeCategory("parent")}
+                className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
+              >
+                <Heart className="h-5 w-5 text-violet-600" aria-hidden />
+                <span className="text-xs font-semibold text-[rgb(var(--text))]">Parents</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openStaffCompose()}
+                className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
+              >
+                <UsersRound className="h-5 w-5 text-slate-600" aria-hidden />
+                <span className="text-xs font-semibold text-[rgb(var(--text))]">Staff</span>
+              </button>
+            </div>
+            <p className="mt-2 text-center text-[11px] leading-snug text-[rgb(var(--muted))] md:text-left">
+              Staff opens a group chat with coaches & team staff (multi-select).
+            </p>
+          </div>
+        )}
+
+        {!canCreateThread && (
+          <div className="border-b px-4 py-3 text-center text-sm md:text-left" style={{ borderBottomColor: "rgb(var(--border))" }}>
+            <p style={{ color: "rgb(var(--muted))" }}>
+              Your coaches manage new threads. You can reply in conversations you are added to.
+            </p>
+          </div>
+        )}
+
+        <div className="flex-shrink-0 border-b px-4 py-3 md:px-5" style={{ borderBottomColor: "rgb(var(--border))" }}>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4" style={{ color: "rgb(var(--muted))" }} />
+            <Search
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform"
+              style={{ color: "rgb(var(--muted))" }}
+            />
             <Input
-              type="text"
-              placeholder="Search messages..."
+              type="search"
+              placeholder="Search threads..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-9 text-sm"
+              className="h-10 rounded-xl pl-10 text-sm"
               style={{
                 backgroundColor: "#FFFFFF",
                 borderColor: "rgb(var(--border))",
@@ -955,16 +1165,23 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         </div>
 
         {showCreateThread && threadType && (
-          <div className="p-4 border-b flex-shrink-0" style={{ backgroundColor: "rgb(var(--platinum))", borderBottomColor: "rgb(var(--border))" }}>
+          <div className="flex-shrink-0 border-b px-4 py-4" style={{ backgroundColor: "rgb(var(--platinum))", borderBottomColor: "rgb(var(--border))" }}>
             <div className="space-y-3">
+              {composeGroupFilter === "staff" && (
+                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                  Choose one or more staff members for this group.
+                </p>
+              )}
               {threadType === "group" && (
                 <div>
-                  <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>Group Name</Label>
+                  <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>
+                    Group name
+                  </Label>
                   <Input
                     value={newThreadSubject}
                     onChange={(e) => setNewThreadSubject(e.target.value)}
-                    placeholder="Enter group name"
-                    className="h-8 text-sm"
+                    placeholder={composeGroupFilter === "staff" ? "e.g. Staff coordination" : "Enter group name"}
+                    className="mt-1 h-9 rounded-xl text-sm"
                     style={{
                       backgroundColor: "#FFFFFF",
                       borderColor: "rgb(var(--border))",
@@ -975,21 +1192,28 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               )}
               <div>
                 <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>
-                  {threadType === "group" ? "Select Members" : `Select ${threadType.charAt(0).toUpperCase() + threadType.slice(1)}`}
+                  {threadType === "group"
+                    ? composeGroupFilter === "staff"
+                      ? "Select staff"
+                      : "Select members"
+                    : `Select ${threadType.charAt(0).toUpperCase() + threadType.slice(1)}`}
                 </Label>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowParticipantsModal(true)}
-                  className="w-full justify-start"
+                  onClick={() => {
+                    setParticipantsModalPurpose("pick")
+                    setShowParticipantsModal(true)
+                  }}
+                  className="mt-1 w-full justify-start rounded-xl"
                   style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                 >
-                  <Users className="h-4 w-4 mr-2" />
-                  {selectedContacts.length > 0 
+                  <Users className="mr-2 h-4 w-4" />
+                  {selectedContacts.length > 0
                     ? threadType === "group"
                       ? `${selectedContacts.length} member${selectedContacts.length !== 1 ? "s" : ""} selected`
-                      : contacts.find(c => c.id === selectedContacts[0])?.name || "Selected"
-                    : `Select ${threadType === "group" ? "members" : threadType}`}
+                      : contacts.find((c) => c.id === selectedContacts[0])?.name || "Selected"
+                    : `Choose ${threadType === "group" ? "people" : "someone"}`}
                 </Button>
                 {selectedContacts.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1018,19 +1242,26 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  onClick={handleCreateThread} 
-                  disabled={loading || (threadType === "group" && !newThreadSubject.trim()) || selectedContacts.length === 0 || (threadType !== "group" && selectedContacts.length !== 1)}
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  onClick={handleCreateThread}
+                  disabled={
+                    loading ||
+                    (threadType === "group" && !newThreadSubject.trim()) ||
+                    selectedContacts.length === 0 ||
+                    (threadType !== "group" && selectedContacts.length !== 1)
+                  }
+                  className="rounded-xl"
                   style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
                 >
                   Create
                 </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={handleCancelCreate}
+                  className="rounded-xl"
                   style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                 >
                   Cancel
@@ -1040,68 +1271,73 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="messages-thread-list min-h-0 flex-1 overflow-y-auto py-3 md:py-4">
           {threads.length === 0 ? (
-            <div className="p-4 text-center">
-              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-                {canCreateThread ? "No threads yet. Create one to get started!" : "No threads available."}
+            <div className="mx-4 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/40 px-4 py-10 text-center">
+              <MessageSquare className="mx-auto mb-3 h-10 w-10 text-[rgb(var(--accent))]" aria-hidden />
+              <p className="text-sm font-medium text-[rgb(var(--text))]">No conversations yet</p>
+              <p className="mt-2 text-sm leading-relaxed text-[rgb(var(--muted))]">
+                {canCreateThread
+                  ? "Use the buttons above to message players, coaches, parents, or staff."
+                  : "When your team adds you to a thread, it will show up here."}
               </p>
             </div>
           ) : (
-            (searchQuery ? filteredThreads : threads).map((thread) => {
-              const isSelected = selectedThread?.id === thread.id
-              const lastMessage = thread.messages[0]
-              const isReadOnly = thread.isReadOnly || false
-
-              return (
-                <div
-                  key={thread.id}
-                  onClick={() => setSelectedThread(thread)}
-                  className={`p-3 cursor-pointer transition-colors ${
-                    isSelected ? "" : ""
-                  }`}
-                  style={{
-                    backgroundColor: isSelected ? "rgb(var(--platinum))" : "transparent",
-                    borderLeft: isSelected ? "4px solid rgb(var(--accent))" : "4px solid transparent",
-                    borderBottom: "1px solid rgb(var(--border))",
-                  }}
-                >
-                  <div className="flex items-start gap-2">
-                    <MessageSquare className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "rgb(var(--accent))" }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
-                          {getThreadDisplayName(thread)}
-                        </h3>
-                        {isReadOnly && <Lock className="h-3 w-3" style={{ color: "rgb(var(--muted))" }} />}
-                      </div>
-                      {lastMessage && (
-                        <p className="text-xs truncate mt-1" style={{ color: "rgb(var(--text2))" }}>
-                          {lastMessage.creator.name || lastMessage.creator.email}: {lastMessage.body.substring(0, 50)}
-                          {lastMessage.body.length > 50 ? "..." : ""}
-                        </p>
-                      )}
-                      <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>
-                        {format(new Date(thread.updatedAt), "MMM d, h:mm a")}
-                      </p>
-                    </div>
-                  </div>
+            <>
+              {sortedThreadSections.starred.length > 0 && (
+                <div className="mb-1">
+                  <button
+                    type="button"
+                    onClick={() => setPriorityCollapsed((c) => !c)}
+                    className="sticky top-0 z-[1] mb-2 flex w-full items-center justify-between bg-white/95 px-4 py-2 text-left backdrop-blur-sm md:px-5"
+                  >
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--muted))]">
+                      Priority · Starred
+                    </span>
+                    <span className="text-xs text-[rgb(var(--accent))]">{priorityCollapsed ? "Show" : "Hide"}</span>
+                  </button>
+                  {!priorityCollapsed && sortedThreadSections.starred.map((t) => renderThreadCard(t))}
                 </div>
-              )
-            })
+              )}
+              <div className="mt-1">
+                {sortedThreadSections.rest.length > 0 && (
+                  <h3 className="sticky top-0 z-[1] mb-2 bg-white/95 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--muted))] backdrop-blur-sm md:px-5">
+                    All threads
+                  </h3>
+                )}
+                {sortedThreadSections.rest.map((t) => renderThreadCard(t))}
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Message View */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          !isWide && (!selectedThread || mobileShowList) ? "hidden" : ""
+        )}
+      >
         {selectedThread ? (
           <>
-            {/* Thread Header */}
-            <div className="p-4 border-b flex-shrink-0" style={{ borderBottomColor: "rgb(var(--border))" }}>
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h2 className="font-semibold text-lg" style={{ color: "rgb(var(--text))" }}>
+            <div className="flex-shrink-0 border-b px-3 py-3 md:px-5 md:py-4" style={{ borderBottomColor: "rgb(var(--border))" }}>
+              <div className="flex items-start gap-2 md:items-center md:justify-between">
+                {!isWide && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="mt-0.5 h-9 shrink-0 px-2"
+                    aria-label="Back to threads"
+                    onClick={() => {
+                      setMobileShowList(true)
+                    }}
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
                     {getThreadDisplayName(selectedThread)}
                     {selectedThread.isReadOnly && (
                       <span className="ml-2 text-xs font-normal" style={{ color: "rgb(var(--muted))" }}>
@@ -1109,19 +1345,28 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                       </span>
                     )}
                   </h2>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span
+                      className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-600"
+                    >
+                      {threadCategoryLabel(selectedThread)}
+                    </span>
                     <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                      {selectedThread.participants.length} participant{selectedThread.participants.length !== 1 ? "s" : ""}
+                      {selectedThread.participants.length} participant
+                      {selectedThread.participants.length !== 1 ? "s" : ""}
                     </p>
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setShowParticipantsModal(true)}
-                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        setParticipantsModalPurpose("view")
+                        setShowParticipantsModal(true)
+                      }}
+                      className="h-7 px-2 text-xs"
                       style={{ color: "rgb(var(--accent))" }}
                     >
-                      <Users className="h-3 w-3 mr-1" />
-                      Manage
+                      <Users className="mr-1 h-3 w-3" />
+                      People
                     </Button>
                   </div>
                 </div>
@@ -1130,7 +1375,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                   variant="ghost"
                   onClick={handleManualRefresh}
                   disabled={refreshing || messagesLoading}
-                  className="h-8 w-8 p-0"
+                  className="h-9 w-9 shrink-0 p-0"
                   title="Refresh messages"
                   style={{ color: "rgb(var(--accent))" }}
                 >
@@ -1140,34 +1385,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             </div>
 
             {/* Messages */}
-            <div 
-              ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto p-4 space-y-4 relative messages-container" 
-              style={{ 
-                minHeight: 0
-              }}
-            >
-              {/* Jump to Newest Button */}
-              {showJumpToNewest && (
-                <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-10">
-                  <Button
-                    onClick={handleJumpToNewest}
-                    size="sm"
-                    className="shadow-lg"
-                    style={{ 
-                      backgroundColor: "rgb(var(--accent))", 
-                      color: "white",
-                      borderRadius: "24px",
-                      padding: "8px 16px",
-                      fontSize: "14px",
-                      fontWeight: "500"
-                    }}
-                  >
-                    <ChevronDown className="h-4 w-4 mr-2" />
-                    {unreadCount > 0 ? `${unreadCount} new message${unreadCount !== 1 ? "s" : ""}` : "New messages"}
-                  </Button>
-                </div>
-              )}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <div
+                ref={messagesContainerRef}
+                className="messages-container min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5"
+              >
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" />
@@ -1235,6 +1457,26 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 )
               }))}
               <div ref={messagesEndRef} />
+            </div>
+            {showJumpToNewest && (
+              <div className="pointer-events-none absolute bottom-3 right-4 z-20 md:bottom-4 md:right-5">
+                <Button
+                  type="button"
+                  onClick={handleJumpToNewest}
+                  size="sm"
+                  className="pointer-events-auto rounded-full px-4 py-2 shadow-lg"
+                  style={{
+                    backgroundColor: "rgb(var(--accent))",
+                    color: "white",
+                  }}
+                >
+                  <ArrowDown className="mr-2 inline h-4 w-4 align-middle" />
+                  {unreadCount > 0
+                    ? `${unreadCount} new message${unreadCount !== 1 ? "s" : ""}`
+                    : "Jump to latest"}
+                </Button>
+              </div>
+            )}
             </div>
 
             {/* Message Input */}
@@ -1306,72 +1548,130 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         )}
       </div>
 
-      {/* Participants Modal */}
-      <Dialog open={showParticipantsModal} onOpenChange={setShowParticipantsModal}>
-        <DialogContent className="bg-white">
+      <Dialog
+        open={showParticipantsModal}
+        onOpenChange={(open) => {
+          setShowParticipantsModal(open)
+          if (!open) setParticipantsModalPurpose("pick")
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto bg-white">
           <DialogHeader>
             <DialogTitle>
-              {threadType === "group" 
-                ? "Select Group Members" 
-                : `Select ${threadType ? threadType.charAt(0).toUpperCase() + threadType.slice(1) : "Participant"}`}
+              {participantsModalPurpose === "view"
+                ? "People in this thread"
+                : threadType === "group"
+                  ? composeGroupFilter === "staff"
+                    ? "Select staff members"
+                    : "Select group members"
+                  : `Select ${threadType ? threadType.charAt(0).toUpperCase() + threadType.slice(1) : "someone"}`}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="max-h-96 overflow-y-auto space-y-2">
-              {getFilteredContacts().length === 0 ? (
-                <p className="text-sm text-center py-4" style={{ color: "rgb(var(--muted))" }}>
-                  No {threadType}s available
-                </p>
-              ) : (
-                getFilteredContacts().map((contact) => (
-                  <label
-                    key={contact.id}
-                    className="flex items-center space-x-3 p-2 rounded cursor-pointer hover:bg-gray-100"
-                  >
-                    <input
-                      type={threadType === "group" ? "checkbox" : "radio"}
-                      name={threadType === "group" ? undefined : "participant"}
-                      checked={selectedContacts.includes(contact.id)}
-                      onChange={(e) => {
-                        if (threadType === "group") {
-                          // Multiple selection for groups
-                          if (e.target.checked) {
-                            setSelectedContacts([...selectedContacts, contact.id])
-                          } else {
-                            setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
-                          }
-                        } else {
-                          // Single selection for individual threads
-                          if (e.target.checked) {
+          <div className="mt-4 space-y-4">
+            {participantsModalPurpose === "view" && selectedThread ? (
+              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+                {selectedThread.participants.map((p) => {
+                  const name = displayNameForParticipantUser(p.user)
+                  const initials = initialsFromDisplayName(name)
+                  return (
+                    <div
+                      key={p.userId}
+                      className="flex items-center gap-3 rounded-xl border border-[rgb(var(--border))] p-3"
+                    >
+                      <div
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-semibold",
+                          avatarClassForKind(p.participantKind)
+                        )}
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[rgb(var(--text))]">{name}</p>
+                        <p className="truncate text-xs text-[rgb(var(--muted))]">{p.user.email}</p>
+                      </div>
+                      {p.participantKind && (
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
+                          {p.participantKind}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+                {getFilteredContacts().length === 0 ? (
+                  <p className="py-4 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
+                    {threadType ? `No ${threadType}s available` : "No contacts available"}
+                  </p>
+                ) : (
+                  getFilteredContacts().map((contact) => (
+                    <label
+                      key={contact.id}
+                      className="flex cursor-pointer items-center space-x-3 rounded-xl p-2 hover:bg-gray-100"
+                    >
+                      <input
+                        type={threadType === "group" ? "checkbox" : "radio"}
+                        name={threadType === "group" ? undefined : "participant"}
+                        checked={selectedContacts.includes(contact.id)}
+                        onChange={(e) => {
+                          if (threadType === "group") {
+                            if (e.target.checked) {
+                              setSelectedContacts([...selectedContacts, contact.id])
+                            } else {
+                              setSelectedContacts(selectedContacts.filter((id) => id !== contact.id))
+                            }
+                          } else if (e.target.checked) {
                             setSelectedContacts([contact.id])
                           }
-                        }
-                      }}
-                      className={threadType === "group" ? "w-4 h-4" : "w-4 h-4"}
-                      style={{ accentColor: "rgb(var(--accent))" }}
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
-                        {contact.name}
-                      </p>
-                      <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                        {contact.email} • {contact.role}
-                      </p>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
-            <div className="flex gap-2 pt-4 border-t" style={{ borderTopColor: "rgb(var(--border))" }}>
+                        }}
+                        className="h-4 w-4"
+                        style={{ accentColor: "rgb(var(--accent))" }}
+                      />
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div
+                          className={cn(
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold",
+                            avatarClassForKind(
+                              contact.type?.toUpperCase() === "PLAYER"
+                                ? "player"
+                                : contact.type?.toUpperCase() === "PARENT"
+                                  ? "parent"
+                                  : "coach"
+                            )
+                          )}
+                        >
+                          {initialsFromDisplayName(contact.name)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                            {contact.name}
+                          </p>
+                          <p className="truncate text-xs" style={{ color: "rgb(var(--muted))" }}>
+                            {contact.email} · {contact.role}
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+            <div className="flex gap-2 border-t pt-4" style={{ borderTopColor: "rgb(var(--border))" }}>
               <Button
                 onClick={() => {
                   setShowParticipantsModal(false)
-                  // If no selection and not a group, close the create thread form
-                  if (threadType !== "group" && selectedContacts.length === 0) {
+                  if (
+                    participantsModalPurpose === "pick" &&
+                    threadType !== "group" &&
+                    selectedContacts.length === 0
+                  ) {
                     handleCancelCreate()
                   }
                 }}
                 variant="outline"
+                className="rounded-xl"
                 style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
               >
                 Done

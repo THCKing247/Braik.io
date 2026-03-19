@@ -22,6 +22,7 @@ import {
   addYears,
   subYears,
   startOfDay,
+  endOfDay,
   isToday as isTodayDate,
   isSameYear,
   addHours,
@@ -62,12 +63,14 @@ interface CalendarWidgetProps {
 
 type CalendarView = "agenda" | "day" | "week" | "month" | "year"
 
-/** Day view infinite scroll: 3 stacked copies of the day; we keep scroll in the middle copy and jump when near edges. */
+/** One day column height in px (24h × px/hour). Day and week time grids render a single bounded range — no stacked copies. */
 const DAY_VIEW_HOUR_HEIGHT = 60
 const DAY_VIEW_HOURS_PER_DAY = 24
 const DAY_VIEW_DAY_HEIGHT = DAY_VIEW_HOUR_HEIGHT * DAY_VIEW_HOURS_PER_DAY
-const DAY_VIEW_COPIES = 3
 const SLOT_SNAP_MINUTES = 15
+const AGENDA_WEEKS_INITIAL = 2
+const AGENDA_WEEKS_MAX = 16
+const SWIPE_THRESHOLD_PX = 56
 
 function pxToSnappedMinutes(py: number): number {
   const m = (py / DAY_VIEW_HOUR_HEIGHT) * 60
@@ -127,8 +130,30 @@ export function CalendarWidgetEnhanced({
   const [currentTime, setCurrentTime] = useState(new Date())
   const [miniCalendarMonth, setMiniCalendarMonth] = useState(new Date())
   const timeGridScrollRef = useRef<HTMLDivElement | null>(null)
+  const agendaLoadMoreRef = useRef<HTMLDivElement | null>(null)
+  const [agendaWeekSpan, setAgendaWeekSpan] = useState(AGENDA_WEEKS_INITIAL)
+  const swipeRef = useRef<{ x: number; t: number } | null>(null)
   /** Picked time on the grid (blue dashed line) — separate from the red “now” line */
   const [slotPreview, setSlotPreview] = useState<{ dateKey: string; minutes: number } | null>(null)
+
+  const visibleRange = useMemo(() => {
+    if (view === "day") {
+      const start = startOfDay(currentDate)
+      return { start, end: endOfDay(currentDate) }
+    }
+    if (view === "week" || view === "agenda") {
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 })
+      const end = endOfDay(addDays(start, view === "agenda" ? agendaWeekSpan * 7 - 1 : 6))
+      return { start, end }
+    }
+    if (view === "month") {
+      return { start: startOfMonth(currentDate), end: endOfMonth(currentDate) }
+    }
+    if (view === "year") {
+      return { start: startOfYear(currentDate), end: endOfYear(currentDate) }
+    }
+    return { start: startOfDay(currentDate), end: endOfDay(currentDate) }
+  }, [view, currentDate, agendaWeekSpan])
 
   const getSlotFromPointer = useCallback(
     (clientX: number, clientY: number): { dateKey: string; minutes: number } | null => {
@@ -137,8 +162,8 @@ export function CalendarWidgetEnhanced({
       const rect = el.getBoundingClientRect()
       if (clientY < rect.top || clientY > rect.bottom) return null
       const yContent = clientY - rect.top + el.scrollTop
-      const mod = ((yContent % DAY_VIEW_DAY_HEIGHT) + DAY_VIEW_DAY_HEIGHT) % DAY_VIEW_DAY_HEIGHT
-      const minutes = pxToSnappedMinutes(mod)
+      const clampedY = Math.max(0, Math.min(DAY_VIEW_DAY_HEIGHT - 1, yContent))
+      const minutes = pxToSnappedMinutes(clampedY)
       if (view === "day") {
         if (clientX - rect.left < 80) return null
         return { dateKey: format(currentDate, "yyyy-MM-dd"), minutes }
@@ -217,6 +242,13 @@ export function CalendarWidgetEnhanced({
     })
   }, [events, calendarFilters])
 
+  const filteredEventsInVisibleRange = useMemo(() => {
+    return filteredEvents.filter((ev) => {
+      const d = new Date(ev.start)
+      return d >= visibleRange.start && d <= visibleRange.end
+    })
+  }, [filteredEvents, visibleRange])
+
   useEffect(() => {
     setEvents(initialEvents)
   }, [initialEvents])
@@ -236,42 +268,42 @@ export function CalendarWidgetEnhanced({
     return (nowMinutes / 60) * DAY_VIEW_HOUR_HEIGHT
   }, [currentTime])
 
-  // Auto-scroll: Day and Week place now line in middle copy; Day ~30% from top, Week at current time.
+  // Auto-scroll once when entering day/week: bring “now” into view (single bounded grid, no loop).
   useEffect(() => {
     if ((view !== "day" && view !== "week") || !timeGridScrollRef.current) return
     const el = timeGridScrollRef.current
     const now = new Date()
     const nowMinutes = now.getHours() * 60 + now.getMinutes()
     const nowOffset = (nowMinutes / 60) * DAY_VIEW_HOUR_HEIGHT
+    const maxScroll = Math.max(0, DAY_VIEW_DAY_HEIGHT - el.clientHeight)
     if (view === "day") {
       const desiredViewportOffset = 0.3 * el.clientHeight
-      const targetScroll = DAY_VIEW_DAY_HEIGHT + nowOffset - desiredViewportOffset
-      const minScroll = DAY_VIEW_DAY_HEIGHT
-      const maxScroll = Math.max(minScroll, 2 * DAY_VIEW_DAY_HEIGHT - el.clientHeight)
-      el.scrollTop = Math.max(minScroll, Math.min(maxScroll, targetScroll))
+      const targetScroll = nowOffset - desiredViewportOffset
+      el.scrollTop = Math.max(0, Math.min(maxScroll, targetScroll))
     } else {
-      el.scrollTop = DAY_VIEW_DAY_HEIGHT + nowOffset
+      el.scrollTop = Math.max(0, Math.min(maxScroll, nowOffset - el.clientHeight * 0.15))
     }
-  }, [view])
+  }, [view, currentDate])
 
-  // Day view infinite scroll: when user hits top or bottom of the 3-copy strip, jump by one DAY_HEIGHT
-  // so they stay in the middle copy and current time stays in view. Uses rAF so the jump is stable.
-  const handleDayViewScroll = useCallback(() => {
-    const el = timeGridScrollRef.current
-    if (!el) return
-    const scrollTop = el.scrollTop
-    if (scrollTop < DAY_VIEW_DAY_HEIGHT * 0.5) {
-      const next = scrollTop + DAY_VIEW_DAY_HEIGHT
-      requestAnimationFrame(() => {
-        if (el.scrollTop < DAY_VIEW_DAY_HEIGHT * 0.5) el.scrollTop = next
-      })
-    } else if (scrollTop > DAY_VIEW_DAY_HEIGHT * 2.5) {
-      const next = scrollTop - DAY_VIEW_DAY_HEIGHT
-      requestAnimationFrame(() => {
-        if (el.scrollTop > DAY_VIEW_DAY_HEIGHT * 2.5) el.scrollTop = next
-      })
-    }
-  }, [])
+  useEffect(() => {
+    if (view === "agenda") setAgendaWeekSpan(AGENDA_WEEKS_INITIAL)
+  }, [view, currentDate])
+
+  useEffect(() => {
+    if (view !== "agenda") return
+    const sentinel = agendaLoadMoreRef.current
+    if (!sentinel) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setAgendaWeekSpan((w) => Math.min(AGENDA_WEEKS_MAX, w + 1))
+        }
+      },
+      { root: null, rootMargin: "240px", threshold: 0 }
+    )
+    obs.observe(sentinel)
+    return () => obs.disconnect()
+  }, [view, agendaWeekSpan])
 
   const getEventsForDate = (date: Date) => {
     return filteredEvents.filter((event) => {
@@ -300,19 +332,47 @@ export function CalendarWidgetEnhanced({
     setMiniCalendarMonth(today)
   }
 
-  const navigateDate = (direction: "prev" | "next") => {
-    if (view === "week" || view === "agenda") {
-      const next = direction === "next" ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1)
-      setCurrentDate(next)
-      setMiniCalendarMonth(next)
-    } else if (view === "month") {
-      setCurrentDate(direction === "next" ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
-    } else if (view === "year") {
-      setCurrentDate(direction === "next" ? addYears(currentDate, 1) : subYears(currentDate, 1))
-    } else {
-      setCurrentDate(direction === "next" ? addDays(currentDate, 1) : addDays(currentDate, -1))
-    }
-  }
+  const navigateDate = useCallback(
+    (direction: "prev" | "next") => {
+      if (view === "week" || view === "agenda") {
+        const next = direction === "next" ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1)
+        setCurrentDate(next)
+        setMiniCalendarMonth(next)
+      } else if (view === "month") {
+        setCurrentDate(direction === "next" ? addMonths(currentDate, 1) : subMonths(currentDate, 1))
+      } else if (view === "year") {
+        setCurrentDate(direction === "next" ? addYears(currentDate, 1) : subYears(currentDate, 1))
+      } else {
+        setCurrentDate(direction === "next" ? addDays(currentDate, 1) : addDays(currentDate, -1))
+      }
+    },
+    [view, currentDate]
+  )
+
+  const handleSwipeTouchStart = useCallback((e: React.TouchEvent) => {
+    if (typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches) return
+    if (view !== "day" && view !== "week") return
+    const t = e.touches[0]
+    if (!t) return
+    swipeRef.current = { x: t.clientX, t: Date.now() }
+  }, [view])
+
+  const handleSwipeTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches) return
+      if (view !== "day" && view !== "week") return
+      const start = swipeRef.current
+      swipeRef.current = null
+      if (!start) return
+      const t = e.changedTouches[0]
+      const dx = t.clientX - start.x
+      if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return
+      if (Date.now() - start.t > 600) return
+      if (dx < 0) navigateDate("next")
+      else navigateDate("prev")
+    },
+    [view, navigateDate]
+  )
 
   const handleMiniCalendarDateClick = (date: Date) => {
     setCurrentDate(date)
@@ -323,8 +383,8 @@ export function CalendarWidgetEnhanced({
   }
 
   const renderAgendaView = () => {
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
-    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    const anchorWeekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
+    const agendaDays = Array.from({ length: agendaWeekSpan * 7 }, (_, i) => addDays(anchorWeekStart, i))
     const todayStart = startOfDay(new Date())
     const tomorrowStart = addDays(todayStart, 1)
 
@@ -332,7 +392,7 @@ export function CalendarWidgetEnhanced({
       <div
         className="w-full max-w-full min-w-0 space-y-5 overflow-x-hidden pb-[max(7rem,calc(5.25rem+env(safe-area-inset-bottom,0px)))] md:pb-[max(8rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:space-y-4 lg:pb-6"
       >
-        {weekDays.map((day) => {
+        {agendaDays.map((day) => {
           const dayEvents = getEventsForDate(day).sort(
             (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
           )
@@ -433,6 +493,9 @@ export function CalendarWidgetEnhanced({
             </section>
           )
         })}
+        {agendaWeekSpan < AGENDA_WEEKS_MAX ? (
+          <div ref={agendaLoadMoreRef} className="h-8 w-full shrink-0" aria-hidden />
+        ) : null}
       </div>
     )
   }
@@ -554,7 +617,7 @@ export function CalendarWidgetEnhanced({
     )
   }
 
-  // Render Week View (enhanced) — header fixed; only the time-grid body scrolls and loops (3 copies)
+  // Render Week View — one bounded week; body scrolls within a single 24h strip (no stacked copies).
   const renderWeekView = () => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -571,7 +634,7 @@ export function CalendarWidgetEnhanced({
       ? currentTime.getHours() * 60 + currentTime.getMinutes()
       : null
 
-    const weekBodyHeight = DAY_VIEW_DAY_HEIGHT * DAY_VIEW_COPIES
+    const weekBodyHeight = DAY_VIEW_DAY_HEIGHT
 
     return (
       <div className="flex min-h-0 min-w-full max-lg:min-w-[780px] flex-1 flex-col">
@@ -615,186 +678,160 @@ export function CalendarWidgetEnhanced({
           })}
         </div>
 
-        {/* Scrollable looping body: constrained height so scroll is inside the card; infinite scroll recenters at top/bottom */}
+        {/* Single bounded week body */}
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
           className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-auto max-lg:pb-[max(6.5rem,calc(5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(7.5rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:pb-0"
-          onScroll={handleDayViewScroll}
           onMouseMove={handleTimeGridPointerMove}
           onMouseLeave={handleTimeGridPointerLeave}
           onClick={handleTimeGridClick}
+          onTouchStart={handleSwipeTouchStart}
+          onTouchEnd={handleSwipeTouchEnd}
           title={canEdit && onCreateEvent ? "Move to choose a time, click empty space to create an event" : undefined}
         >
           <div className="relative" style={{ height: weekBodyHeight }}>
-            {[0, 1, 2].map((copyIndex) => (
+            <div className="relative grid h-full calendar-grid" style={{ minHeight: DAY_VIEW_DAY_HEIGHT }}>
               <div
-                key={copyIndex}
-                className="absolute left-0 right-0"
-                style={{
-                  top: copyIndex * DAY_VIEW_DAY_HEIGHT,
-                  height: DAY_VIEW_DAY_HEIGHT,
-                }}
+                className="sticky left-0 relative z-20 min-w-0 w-[80px] flex-shrink-0 border-r"
+                style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
               >
-                <div className="relative grid h-full calendar-grid" style={{ minHeight: DAY_VIEW_DAY_HEIGHT }}>
-                  {/* Time column — sticky left when scrolling horizontally */}
+                {timeSlots.map((slot, index) => {
+                  const hour = index
+                  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+                  const ampm = hour >= 12 ? "PM" : "AM"
+                  return (
+                    <div
+                      key={slot.toISOString()}
+                      className="absolute text-right whitespace-nowrap"
+                      style={{
+                        top: `${index * 60}px`,
+                        left: 0,
+                        right: 0,
+                        maxWidth: "80px",
+                        transform: "translateY(-50%)",
+                      }}
+                    >
+                      <span className="relative z-10 bg-white px-2 text-sm" style={{ color: "rgb(var(--text2))" }}>
+                        {`${displayHour} ${ampm}`}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {weekDays.map((day) => {
+                const dayEvents = getEventsForDate(day).sort(
+                  (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+                )
+                return (
                   <div
-                    className="sticky left-0 relative z-20 min-w-0 w-[80px] flex-shrink-0 border-r"
-                    style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+                    key={day.toISOString()}
+                    className="relative min-w-0 border-r"
+                    style={{ borderColor: "rgb(var(--border))", minHeight: DAY_VIEW_DAY_HEIGHT }}
                   >
-                    {timeSlots.map((slot, index) => {
-                      const hour = index
-                      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-                      const ampm = hour >= 12 ? "PM" : "AM"
+                    {slotPreview &&
+                      slotPreview.dateKey === format(day, "yyyy-MM-dd") &&
+                      canEdit &&
+                      onCreateEvent &&
+                      !getEventsForDate(day).some((ev) => {
+                        const es = new Date(ev.start)
+                        const ee = new Date(ev.end)
+                        const startM = es.getHours() * 60 + es.getMinutes()
+                        const endM = ee.getHours() * 60 + ee.getMinutes()
+                        const slotM = slotPreview.minutes
+                        return slotM >= startM && slotM < endM
+                      }) && (
+                        <div
+                          className="pointer-events-none absolute left-1 right-1 z-[25]"
+                          style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
+                          aria-hidden
+                        >
+                          <div className="flex items-center">
+                            <div
+                              className="h-2 w-2 shrink-0 rounded-full border border-white bg-blue-600"
+                              style={{ marginLeft: "-4px" }}
+                            />
+                            <div className="h-0 flex-1 border-t-2 border-dashed border-blue-600" />
+                          </div>
+                        </div>
+                      )}
+                    {dayEvents.map((event) => {
+                      const eventStart = new Date(event.start)
+                      const eventEnd = new Date(event.end)
+                      const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
+                      const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
+                      const duration = endMinutes - startMinutes
+                      const height = Math.max(duration, 30)
                       return (
                         <div
-                          key={`${copyIndex}-${slot.toISOString()}`}
-                          className="absolute text-right whitespace-nowrap"
-                          style={{
-                            top: `${index * 60}px`,
-                            left: 0,
-                            right: 0,
-                            maxWidth: "80px",
-                            transform: "translateY(-50%)",
+                          key={event.id}
+                          data-calendar-event
+                          role="button"
+                          tabIndex={0}
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            handleEventClick(event)
                           }}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter" || ev.key === " ") {
+                              ev.preventDefault()
+                              ev.stopPropagation()
+                              handleEventClick(event)
+                            }
+                          }}
+                          className="absolute left-1 right-1 z-20 cursor-pointer rounded border-l-2 p-1 text-xs shadow-md hover:shadow-md"
+                          style={{
+                            top: `${startMinutes}px`,
+                            height: `${height}px`,
+                            backgroundColor: getEventTypeColor(event.eventType),
+                            borderLeftColor: "rgba(0,0,0,0.2)",
+                            borderColor: "rgba(0,0,0,0.1)",
+                            overflow: "hidden",
+                            color: "#FFFFFF",
+                          }}
+                          title="Click for event details"
                         >
-                          <span
-                            className="relative z-10 bg-white px-2 text-sm"
-                            style={{ color: "rgb(var(--text2))" }}
-                          >
-                            {`${displayHour} ${ampm}`}
-                          </span>
+                          <div className="font-semibold truncate">{format(eventStart, "h:mm a")}</div>
+                          <div className="truncate">{event.title}</div>
                         </div>
                       )
                     })}
                   </div>
+                )
+              })}
 
-                  {/* Day columns — events */}
-                  {weekDays.map((day) => {
-                    const dayEvents = getEventsForDate(day).sort(
-                      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
-                    )
-                    return (
-                      <div
-                        key={day.toISOString()}
-                        className="relative min-w-0 border-r"
-                        style={{ borderColor: "rgb(var(--border))", minHeight: DAY_VIEW_DAY_HEIGHT }}
-                      >
-                        {slotPreview &&
-                          slotPreview.dateKey === format(day, "yyyy-MM-dd") &&
-                          canEdit &&
-                          onCreateEvent &&
-                          !getEventsForDate(day).some((ev) => {
-                            const es = new Date(ev.start)
-                            const ee = new Date(ev.end)
-                            const startM = es.getHours() * 60 + es.getMinutes()
-                            const endM = ee.getHours() * 60 + ee.getMinutes()
-                            const slotM = slotPreview.minutes
-                            return slotM >= startM && slotM < endM
-                          }) && (
-                            <div
-                              className="pointer-events-none absolute left-1 right-1 z-[25]"
-                              style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
-                              aria-hidden
-                            >
-                              <div className="flex items-center">
-                                <div
-                                  className="h-2 w-2 shrink-0 rounded-full border border-white bg-blue-600"
-                                  style={{ marginLeft: "-4px" }}
-                                />
-                                <div className="h-0 flex-1 border-t-2 border-dashed border-blue-600" />
-                              </div>
-                            </div>
-                          )}
-                        {dayEvents.map((event) => {
-                          const eventStart = new Date(event.start)
-                          const eventEnd = new Date(event.end)
-                          const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
-                          const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
-                          const duration = endMinutes - startMinutes
-                          const height = Math.max(duration, 30)
-                          return (
-                            <div
-                              key={`${copyIndex}-${event.id}`}
-                              data-calendar-event
-                              role="button"
-                              tabIndex={0}
-                              onClick={(ev) => {
-                                ev.stopPropagation()
-                                handleEventClick(event)
-                              }}
-                              onKeyDown={(ev) => {
-                                if (ev.key === "Enter" || ev.key === " ") {
-                                  ev.preventDefault()
-                                  ev.stopPropagation()
-                                  handleEventClick(event)
-                                }
-                              }}
-                              className="absolute left-1 right-1 z-20 cursor-pointer rounded border-l-2 p-1 text-xs shadow-md hover:shadow-md"
-                              style={{
-                                top: `${startMinutes}px`,
-                                height: `${height}px`,
-                                backgroundColor: getEventTypeColor(event.eventType),
-                                borderLeftColor: "rgba(0,0,0,0.2)",
-                                borderColor: "rgba(0,0,0,0.1)",
-                                overflow: "hidden",
-                                color: "#FFFFFF",
-                              }}
-                              title="Click for event details"
-                            >
-                              <div className="font-semibold truncate">
-                                {format(eventStart, "h:mm a")}
-                              </div>
-                              <div className="truncate">
-                                {event.title}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-
-                  {/* Overlay: hour lines and now line — in every copy so now line stays visible while scrolling */}
+              <div className="pointer-events-none absolute top-0 bottom-0 left-[80px] right-0 z-10" aria-hidden>
+                {timeSlots.map((slot, index) => (
                   <div
-                    className="pointer-events-none absolute top-0 bottom-0 left-[80px] right-0 z-10"
-                    aria-hidden
-                  >
-                    {timeSlots.map((slot, index) => (
+                    key={`line-${slot.toISOString()}`}
+                    className="absolute z-0 border-t"
+                    style={{
+                      top: `${index * 60}px`,
+                      left: 0,
+                      right: 0,
+                      borderColor: "rgb(var(--border))",
+                      opacity: 0.3,
+                    }}
+                  />
+                ))}
+                {isCurrentWeek && currentTimePosition !== null && (
+                  <div className="absolute left-0 right-0 z-30" style={{ top: `${currentTimePosition}px` }}>
+                    <div className="flex items-center">
                       <div
-                        key={`line-${copyIndex}-${slot.toISOString()}`}
-                        className="absolute border-t z-0"
+                        className="h-3 w-3 flex-shrink-0 rounded-full"
                         style={{
-                          top: `${index * 60}px`,
-                          left: 0,
-                          right: 0,
-                          borderColor: "rgb(var(--border))",
-                          opacity: 0.3,
+                          backgroundColor: "#EA4335",
+                          marginLeft: "-6px",
+                          boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
                         }}
                       />
-                    ))}
-                    {isCurrentWeek && currentTimePosition !== null && (
-                      <div
-                        className="absolute left-0 right-0 z-30"
-                        style={{ top: `${currentTimePosition}px` }}
-                      >
-                        <div className="flex items-center">
-                          <div
-                            className="h-3 w-3 flex-shrink-0 rounded-full"
-                            style={{
-                              backgroundColor: "#EA4335",
-                              marginLeft: "-6px",
-                              boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
-                            }}
-                          />
-                          <div className="h-0.5 flex-1" style={{ backgroundColor: "#EA4335" }} />
-                        </div>
-                      </div>
-                    )}
+                      <div className="h-0.5 flex-1" style={{ backgroundColor: "#EA4335" }} />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
@@ -934,7 +971,7 @@ export function CalendarWidgetEnhanced({
     )
   }
 
-  // Render Day View (enhanced) — infinite vertical scroll via 3 stacked copies of the day
+  // Render Day View — single bounded day timeline; use prev/next or swipe to change date.
   const renderDayView = () => {
     const dayEvents = getEventsForDate(currentDate).sort(
       (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
@@ -950,202 +987,176 @@ export function CalendarWidgetEnhanced({
     const isToday = isTodayDate(currentDate)
     const nowOffsetPx = getNowOffsetPx()
 
-    // We render 3 copies of the day timeline and reposition scrollTop when the user
-    // approaches the top or bottom. This creates the illusion of infinite vertical scrolling.
-    const totalHeight = DAY_VIEW_DAY_HEIGHT * DAY_VIEW_COPIES
-
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Scroll region: constrained height so user scrolls inside the card, not the full page. Infinite scroll recenters at top/bottom. */}
         <div
           ref={timeGridScrollRef}
           data-schedule-scroll="time-grid"
           className="scrollbar-hidden min-h-[min(50vh,400px)] flex-1 cursor-crosshair overflow-y-auto overflow-x-hidden max-lg:pb-[max(6.5rem,calc(5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(7.5rem,calc(5.75rem+env(safe-area-inset-bottom,0px)))] lg:pb-0"
-          onScroll={handleDayViewScroll}
           onMouseMove={handleTimeGridPointerMove}
           onMouseLeave={handleTimeGridPointerLeave}
           onClick={handleTimeGridClick}
+          onTouchStart={handleSwipeTouchStart}
+          onTouchEnd={handleSwipeTouchEnd}
           title={canEdit && onCreateEvent ? "Move to choose a time, click empty space to create an event" : undefined}
         >
-          <div className="relative" style={{ height: totalHeight }}>
-            {[0, 1, 2].map((copyIndex) => (
-              <div
-                key={copyIndex}
-                className="absolute left-0 right-0"
-                style={{
-                  top: copyIndex * DAY_VIEW_DAY_HEIGHT,
-                  height: DAY_VIEW_DAY_HEIGHT,
-                }}
-              >
-                <div className="relative w-full h-full">
-                  {/* Time column - z-20 so labels sit above hour lines */}
+          <div className="relative w-full" style={{ height: DAY_VIEW_DAY_HEIGHT }}>
+            <div
+              className="absolute left-0 top-0 bottom-0 z-20 w-20 border-r"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+            >
+              {timeSlots.map((slot, index) => {
+                const hour = index
+                const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+                const ampm = hour >= 12 ? "PM" : "AM"
+                return (
                   <div
-                    className="absolute left-0 top-0 bottom-0 w-20 border-r z-20"
-                    style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+                    key={slot.toISOString()}
+                    className="absolute"
+                    style={{
+                      top: `${index * DAY_VIEW_HOUR_HEIGHT}px`,
+                      left: 0,
+                      right: 0,
+                      height: `${DAY_VIEW_HOUR_HEIGHT}px`,
+                    }}
                   >
-                    {timeSlots.map((slot, index) => {
-                      const hour = index
-                      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-                      const ampm = hour >= 12 ? "PM" : "AM"
-                      return (
-                        <div
-                          key={`${copyIndex}-${slot.toISOString()}`}
-                          className="absolute"
-                          style={{
-                            top: `${index * DAY_VIEW_HOUR_HEIGHT}px`,
-                            left: 0,
-                            right: 0,
-                            height: `${DAY_VIEW_HOUR_HEIGHT}px`,
-                          }}
-                        >
-                          <span
-                            className="relative z-10 whitespace-nowrap bg-white px-2 text-sm font-medium"
-                            style={{
-                              color: "rgb(var(--text2))",
-                              transform: "translateY(-50%)",
-                              display: "inline-block",
-                            }}
-                          >
-                            {displayHour}:00 {ampm}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Hour lines */}
-                  {timeSlots.map((slot, index) => (
-                    <div
-                      key={`line-${copyIndex}-${slot.toISOString()}`}
-                      className="absolute border-t z-0"
+                    <span
+                      className="relative z-10 inline-block whitespace-nowrap bg-white px-2 text-sm font-medium"
                       style={{
-                        top: `${index * DAY_VIEW_HOUR_HEIGHT}px`,
-                        left: "80px",
-                        right: 0,
-                        borderColor: "rgb(var(--border))",
-                        opacity: 0.3,
+                        color: "rgb(var(--text2))",
+                        transform: "translateY(-50%)",
                       }}
-                    />
-                  ))}
-
-                  {/* Current time (now) line — in every copy so it stays visible while scrolling; z-30 above grid/events */}
-                  {isToday && (
-                    <div
-                      className="absolute left-20 right-0 pointer-events-none z-30"
-                      style={{ top: `${nowOffsetPx}px` }}
-                      aria-hidden
                     >
-                      <div className="flex items-center">
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{
-                            backgroundColor: "#EA4335",
-                            marginLeft: "-6px",
-                            boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
-                          }}
-                        />
-                        <div className="flex-1 h-0.5" style={{ backgroundColor: "#EA4335" }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {slotPreview &&
-                    slotPreview.dateKey === format(currentDate, "yyyy-MM-dd") &&
-                    canEdit &&
-                    onCreateEvent &&
-                    !getEventsForDate(currentDate).some((ev) => {
-                      const es = new Date(ev.start)
-                      const ee = new Date(ev.end)
-                      const startM = es.getHours() * 60 + es.getMinutes()
-                      const endM = ee.getHours() * 60 + ee.getMinutes()
-                      const slotM = slotPreview.minutes
-                      return slotM >= startM && slotM < endM
-                    }) && (
-                      <div
-                        className="pointer-events-none absolute left-20 right-4 z-[25]"
-                        style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
-                        aria-hidden
-                      >
-                        <div className="flex items-center">
-                          <div
-                            className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-blue-600 shadow-sm"
-                            style={{ marginLeft: "-5px" }}
-                          />
-                          <div className="h-0 flex-1 border-t-2 border-dashed border-blue-600" />
-                        </div>
-                        <div className="ml-1 mt-0.5 text-[11px] font-semibold text-blue-700">
-                          {format(
-                            (() => {
-                              const d = new Date()
-                              d.setHours(0, slotPreview.minutes, 0, 0)
-                              return d
-                            })(),
-                            "h:mm a"
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                  {/* Events — same events in each copy for visual continuity */}
-                  <div className="pointer-events-none absolute inset-0 ml-20 pr-4">
-                    {dayEvents.map((event) => {
-                      const eventStart = new Date(event.start)
-                      const eventEnd = new Date(event.end)
-                      const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
-                      const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
-                      const duration = endMinutes - startMinutes
-                      const height = Math.max(duration, 30)
-                      return (
-                        <div
-                          key={`${copyIndex}-${event.id}`}
-                          data-calendar-event
-                          role="button"
-                          tabIndex={0}
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            handleEventClick(event)
-                          }}
-                          onKeyDown={(ev) => {
-                            if (ev.key === "Enter" || ev.key === " ") {
-                              ev.preventDefault()
-                              ev.stopPropagation()
-                              handleEventClick(event)
-                            }
-                          }}
-                          className="pointer-events-auto absolute left-0 right-0 cursor-pointer rounded border-l-4 p-2 hover:shadow-md flex flex-row items-start justify-between gap-2"
-                          style={{
-                            top: `${startMinutes}px`,
-                            height: `${height}px`,
-                            minHeight: "30px",
-                            backgroundColor: getEventTypeColor(event.eventType),
-                            borderLeftColor: "rgba(0,0,0,0.2)",
-                            borderColor: "rgba(0,0,0,0.1)",
-                            borderWidth: "1px",
-                            borderLeftWidth: "4px",
-                            color: "#FFFFFF",
-                          }}
-                          title="Click for event details"
-                        >
-                          <div className="min-w-0 flex-1 truncate">
-                            <div className="font-semibold text-sm">
-                              {format(eventStart, "h:mm a")} - {format(eventEnd, "h:mm a")}
-                            </div>
-                            <div className="font-medium text-sm truncate">
-                              {event.title}
-                            </div>
-                          </div>
-                          {event.location && (
-                            <div className="text-xs shrink-0 truncate max-w-[45%]" style={{ opacity: 0.95 }}>
-                              📍 {event.location}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
+                      {displayHour}:00 {ampm}
+                    </span>
                   </div>
+                )
+              })}
+            </div>
+
+            {timeSlots.map((slot, index) => (
+              <div
+                key={`line-${slot.toISOString()}`}
+                className="absolute z-0 border-t"
+                style={{
+                  top: `${index * DAY_VIEW_HOUR_HEIGHT}px`,
+                  left: "80px",
+                  right: 0,
+                  borderColor: "rgb(var(--border))",
+                  opacity: 0.3,
+                }}
+              />
+            ))}
+
+            {isToday && (
+              <div
+                className="pointer-events-none absolute left-20 right-0 z-30"
+                style={{ top: `${nowOffsetPx}px` }}
+                aria-hidden
+              >
+                <div className="flex items-center">
+                  <div
+                    className="h-3 w-3 flex-shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: "#EA4335",
+                      marginLeft: "-6px",
+                      boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
+                    }}
+                  />
+                  <div className="h-0.5 flex-1" style={{ backgroundColor: "#EA4335" }} />
                 </div>
               </div>
-            ))}
+            )}
+
+            {slotPreview &&
+              slotPreview.dateKey === format(currentDate, "yyyy-MM-dd") &&
+              canEdit &&
+              onCreateEvent &&
+              !getEventsForDate(currentDate).some((ev) => {
+                const es = new Date(ev.start)
+                const ee = new Date(ev.end)
+                const startM = es.getHours() * 60 + es.getMinutes()
+                const endM = ee.getHours() * 60 + ee.getMinutes()
+                const slotM = slotPreview.minutes
+                return slotM >= startM && slotM < endM
+              }) && (
+                <div
+                  className="pointer-events-none absolute left-20 right-4 z-[25]"
+                  style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
+                  aria-hidden
+                >
+                  <div className="flex items-center">
+                    <div
+                      className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-blue-600 shadow-sm"
+                      style={{ marginLeft: "-5px" }}
+                    />
+                    <div className="h-0 flex-1 border-t-2 border-dashed border-blue-600" />
+                  </div>
+                  <div className="ml-1 mt-0.5 text-[11px] font-semibold text-blue-700">
+                    {format(
+                      (() => {
+                        const d = new Date()
+                        d.setHours(0, slotPreview.minutes, 0, 0)
+                        return d
+                      })(),
+                      "h:mm a"
+                    )}
+                  </div>
+                </div>
+              )}
+
+            <div className="pointer-events-none absolute inset-0 ml-20 pr-4">
+              {dayEvents.map((event) => {
+                const eventStart = new Date(event.start)
+                const eventEnd = new Date(event.end)
+                const startMinutes = eventStart.getHours() * 60 + eventStart.getMinutes()
+                const endMinutes = eventEnd.getHours() * 60 + eventEnd.getMinutes()
+                const duration = endMinutes - startMinutes
+                const height = Math.max(duration, 30)
+                return (
+                  <div
+                    key={event.id}
+                    data-calendar-event
+                    role="button"
+                    tabIndex={0}
+                    onClick={(ev) => {
+                      ev.stopPropagation()
+                      handleEventClick(event)
+                    }}
+                    onKeyDown={(ev) => {
+                      if (ev.key === "Enter" || ev.key === " ") {
+                        ev.preventDefault()
+                        ev.stopPropagation()
+                        handleEventClick(event)
+                      }
+                    }}
+                    className="pointer-events-auto absolute left-0 right-0 flex cursor-pointer flex-row items-start justify-between gap-2 rounded border border-[rgba(0,0,0,0.1)] border-l-4 p-2 hover:shadow-md"
+                    style={{
+                      top: `${startMinutes}px`,
+                      height: `${height}px`,
+                      minHeight: "30px",
+                      backgroundColor: getEventTypeColor(event.eventType),
+                      borderLeftColor: "rgba(0,0,0,0.2)",
+                      borderLeftWidth: "4px",
+                      color: "#FFFFFF",
+                    }}
+                    title="Click for event details"
+                  >
+                    <div className="min-w-0 flex-1 truncate">
+                      <div className="text-sm font-semibold">
+                        {format(eventStart, "h:mm a")} - {format(eventEnd, "h:mm a")}
+                      </div>
+                      <div className="truncate text-sm font-medium">{event.title}</div>
+                    </div>
+                    {event.location && (
+                      <div className="max-w-[45%] shrink-0 truncate text-xs" style={{ opacity: 0.95 }}>
+                        📍 {event.location}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1282,19 +1293,13 @@ export function CalendarWidgetEnhanced({
     )
   }
 
-  // Get formatted date display based on view
   const getDateDisplay = () => {
-    if (view === "year") {
-      return format(currentDate, "yyyy")
-    } else if (view === "month") {
-      return format(currentDate, "MMMM yyyy")
-    } else if (view === "week" || view === "agenda") {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
-      const weekEnd = addDays(weekStart, 6)
-      return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`
-    } else {
-      return format(currentDate, "EEEE, MMMM d, yyyy")
+    if (view === "year") return format(currentDate, "yyyy")
+    if (view === "month") return format(currentDate, "MMMM yyyy")
+    if (view === "week" || view === "agenda") {
+      return `${format(visibleRange.start, "MMM d")} – ${format(visibleRange.end, "MMM d, yyyy")}`
     }
+    return format(currentDate, "EEEE, MMMM d, yyyy")
   }
 
   const viewPillClass = (active: boolean) =>
@@ -1454,15 +1459,6 @@ export function CalendarWidgetEnhanced({
                   >
                     Week
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setView("month")}
-                    className={viewPillClass(view === "month")}
-                  >
-                    Month
-                  </Button>
                 </div>
                 <div className="hidden flex-wrap justify-center gap-2 lg:flex">
                   <Button
@@ -1565,17 +1561,14 @@ export function CalendarWidgetEnhanced({
                   Time Insights
                 </div>
                 <div className="text-sm" style={{ color: "rgb(var(--text2))" }}>
-                  {view === "week" && (
+                  {(view === "week" || view === "agenda") && (
                     <>
                       <div>
-                        {format(startOfWeek(currentDate, { weekStartsOn: 0 }), "MMM d")} -{" "}
-                        {format(
-                          addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), 6),
-                          "MMM d, yyyy"
-                        )}
+                        {format(visibleRange.start, "MMM d")} – {format(visibleRange.end, "MMM d, yyyy")}
                       </div>
                       <div className="mt-1">
-                        {filteredEvents.length} event{filteredEvents.length !== 1 ? "s" : ""}
+                        {filteredEventsInVisibleRange.length} event{filteredEventsInVisibleRange.length !== 1 ? "s" : ""}{" "}
+                        in this range
                       </div>
                     </>
                   )}

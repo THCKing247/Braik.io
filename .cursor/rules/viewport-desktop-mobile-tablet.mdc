@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+description: Desktop vs mobile/tablet viewport rules - preserve mobile/tablet UI, desktop-only structural changes
+---
+
+# Viewport Rules: Desktop vs Mobile/Tablet
+
+This rule protects the mobile and tablet UI while allowing desktop-focused work. One developer owns desktop features; another owns mobile/tablet. Changes must not conflict.
+
+## Core Principles
+
+1. **Desktop changes stay structural on desktop only** – New layouts, form structure, and desktop-only UI must not alter how mobile and tablet views are built or structured.
+2. **Feature updates apply everywhere** – Bug fixes, new behavior, and data/API changes should work across all viewports (desktop, tablet, mobile).
+3. **Do not restructure mobile/tablet** – Do not refactor, reflow, or change the structure of existing mobile/tablet forms or layouts. Do not remove or rename mobile/tablet-specific components or breakpoints.
+4. **Add, don’t replace** – Prefer adding desktop-specific code (e.g. under `md:`/`lg:` breakpoints or desktop-only components) over changing shared layout that affects mobile/tablet.
+
+## Allowed
+
+- Adding or changing **desktop-only** layout, forms, or components (e.g. wrapped in `@media (min-width: 1024px)` or Tailwind `lg:`/`xl:`).
+- Fixing bugs and adding features that work on **all** viewports without changing mobile/tablet structure.
+- New shared logic, API usage, or state that all viewports use.
+- Styling tweaks that only affect desktop breakpoints and leave mobile/tablet CSS/layout unchanged.
+
+## Not Allowed
+
+- Restructuring or refactoring forms/layouts that are used on mobile or tablet.
+- Changing breakpoints, class names, or DOM structure of mobile/tablet-specific UI.
+- Removing or replacing mobile/tablet-only components or branches.
+- “Improving” or “cleaning up” shared layout in a way that changes how mobile/tablet renders.
+
+## Implementation Guidance
+
+- **Desktop-specific UI**: Use `lg:` / `xl:` (or equivalent) so new structure only appears on desktop; keep existing `sm:`/`md:` and base styles as-is for mobile/tablet.
+- **Shared components**: When adding props or variants, default behavior should remain the same for small viewports; opt-in or desktop-only variants are fine.
+- **Forms**: If desktop gets a new form layout (e.g. multi-column, sidebar), implement it in a desktop-only branch or component; do not replace the single-column or existing mobile/tablet form structure.
+- **Before changing shared layout**: Check that the change does not alter DOM structure or key classes used in mobile/tablet breakpoints.
+
+## Summary
+
+- **Desktop**: You may add and change structure and layout freely for desktop.
+- **Mobile/Tablet**: Do not restructure; only add features and fixes that preserve existing UI. Leave mobile/tablet layout and structure to the owner of that work.

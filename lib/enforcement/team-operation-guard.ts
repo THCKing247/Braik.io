@@ -37,11 +37,38 @@ export async function requireTeamOperationAccess(
   operation: TeamOperation
 ): Promise<void> {
   const supabase = getSupabaseServer()
-  const { data: team, error: teamError } = await supabase
+  let team: { id: string; team_status?: string; subscription_status?: string } | null = null
+  let teamError: { message: string; code?: string } | null = null
+
+  const { data: fullTeam, error: fullError } = await supabase
     .from("teams")
     .select("id, team_status, subscription_status, base_ai_credits")
     .eq("id", teamId)
     .maybeSingle()
+
+  if (!fullError && fullTeam) {
+    team = fullTeam
+  } else if (fullError) {
+    const msg = fullError.message ?? ""
+    const code = (fullError as { code?: string }).code ?? ""
+    // Missing column (e.g. team_status) from older migrations — fallback to id-only lookup
+    const likelyMissingColumn =
+      /column.*does not exist/i.test(msg) || code === "PGRST204" || /undefined_column/i.test(msg)
+    if (likelyMissingColumn) {
+      const { data: minimalTeam, error: minimalError } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("id", teamId)
+        .maybeSingle()
+      if (!minimalError && minimalTeam) {
+        team = { id: minimalTeam.id, team_status: "active", subscription_status: "active" }
+      } else {
+        teamError = minimalError ?? fullError
+      }
+    } else {
+      teamError = fullError
+    }
+  }
 
   // Debug: log raw lookup result (no extra filters; service role bypasses RLS)
   console.log("[requireTeamOperationAccess] team lookup", {

@@ -158,6 +158,10 @@ export function CalendarWidgetEnhanced({
   const handleTimeGridPointerMove = useCallback(
     (e: React.MouseEvent) => {
       if (!canEdit || !onCreateEvent) return
+      if ((e.target as HTMLElement).closest("[data-calendar-event]")) {
+        setSlotPreview(null)
+        return
+      }
       const slot = getSlotFromPointer(e.clientX, e.clientY)
       setSlotPreview(slot)
     },
@@ -182,7 +186,7 @@ export function CalendarWidgetEnhanced({
     [canEdit, onCreateEvent, getSlotFromPointer]
   )
   
-  // Calendar filters (like Google Calendar's "My calendars")
+  // Calendar filters (like Google Calendar's "My calendars") — colors must match getEventTypeColor()
   const [calendarFilters, setCalendarFilters] = useState<CalendarFilter[]>([
     { id: "all", name: "Team Events", color: "#3B82F6", enabled: true },
     { id: "practice", name: "Practices", color: "#10B981", enabled: true },
@@ -190,6 +194,16 @@ export function CalendarWidgetEnhanced({
     { id: "meeting", name: "Meetings", color: "#F59E0B", enabled: true },
     { id: "other", name: "Other", color: "#8B5CF6", enabled: true },
   ])
+
+  // Map event type to sidebar category color so schedule blocks match "My calendars" colors
+  const getEventTypeColor = useCallback((eventType: string) => {
+    const t = (eventType || "").toLowerCase()
+    if (t === "practice") return "#10B981"
+    if (t === "game") return "#EF4444"
+    if (t === "meeting") return "#F59E0B"
+    if (t === "custom" || t === "other") return "#8B5CF6"
+    return "#3B82F6" // Team Events / default
+  }, [])
 
   // Filter events based on enabled calendars
   const filteredEvents = useMemo(() => {
@@ -392,7 +406,7 @@ export function CalendarWidgetEnhanced({
                       >
                         <div
                           className="mt-0.5 h-14 w-1 shrink-0 rounded-full"
-                          style={{ backgroundColor: event.color || "#3B82F6" }}
+                          style={{ backgroundColor: getEventTypeColor(event.eventType) }}
                           aria-hidden
                         />
                         <div className="min-w-0 flex-1">
@@ -498,7 +512,14 @@ export function CalendarWidgetEnhanced({
                         return (
                           <div
                             key={day.toISOString()}
-                            onClick={() => handleMiniCalendarDateClick(day)}
+                            onClick={() => {
+                              if (dayEvents.length > 0) {
+                                setSelectedDay(day)
+                                setShowDayEvents(true)
+                              } else {
+                                handleMiniCalendarDateClick(day)
+                              }
+                            }}
                             className={`text-xs p-1 rounded cursor-pointer transition-all text-center ${
                               isToday ? "font-bold" : ""
                             } ${isSelected ? "ring-2 ring-blue-500" : ""}`}
@@ -514,7 +535,7 @@ export function CalendarWidgetEnhanced({
                                   <div
                                     key={idx}
                                     className="w-1 h-1 rounded-full"
-                                    style={{ backgroundColor: event.color || "#3B82F6" }}
+                                    style={{ backgroundColor: getEventTypeColor(event.eventType) }}
                                   />
                                 ))}
                               </div>
@@ -662,7 +683,15 @@ export function CalendarWidgetEnhanced({
                         {slotPreview &&
                           slotPreview.dateKey === format(day, "yyyy-MM-dd") &&
                           canEdit &&
-                          onCreateEvent && (
+                          onCreateEvent &&
+                          !getEventsForDate(day).some((ev) => {
+                            const es = new Date(ev.start)
+                            const ee = new Date(ev.end)
+                            const startM = es.getHours() * 60 + es.getMinutes()
+                            const endM = ee.getHours() * 60 + ee.getMinutes()
+                            const slotM = slotPreview.minutes
+                            return slotM >= startM && slotM < endM
+                          }) && (
                             <div
                               className="pointer-events-none absolute left-1 right-1 z-[25]"
                               style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
@@ -688,24 +717,35 @@ export function CalendarWidgetEnhanced({
                             <div
                               key={`${copyIndex}-${event.id}`}
                               data-calendar-event
+                              role="button"
+                              tabIndex={0}
                               onClick={(ev) => {
                                 ev.stopPropagation()
                                 handleEventClick(event)
+                              }}
+                              onKeyDown={(ev) => {
+                                if (ev.key === "Enter" || ev.key === " ") {
+                                  ev.preventDefault()
+                                  ev.stopPropagation()
+                                  handleEventClick(event)
+                                }
                               }}
                               className="absolute left-1 right-1 z-20 cursor-pointer rounded border-l-2 p-1 text-xs shadow-md hover:shadow-md"
                               style={{
                                 top: `${startMinutes}px`,
                                 height: `${height}px`,
-                                backgroundColor: "#FFFFFF",
-                                borderLeftColor: event.color || "#3B82F6",
-                                borderColor: "rgb(var(--border))",
+                                backgroundColor: getEventTypeColor(event.eventType),
+                                borderLeftColor: "rgba(0,0,0,0.2)",
+                                borderColor: "rgba(0,0,0,0.1)",
                                 overflow: "hidden",
+                                color: "#FFFFFF",
                               }}
+                              title="Click for event details"
                             >
-                              <div className="font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
+                              <div className="font-semibold truncate">
                                 {format(eventStart, "h:mm a")}
                               </div>
-                              <div className="truncate" style={{ color: "rgb(var(--text))" }}>
+                              <div className="truncate">
                                 {event.title}
                               </div>
                             </div>
@@ -853,18 +893,29 @@ export function CalendarWidgetEnhanced({
                       {dayEvents.slice(0, 3).map((event) => (
                         <div
                           key={event.id}
+                          role="button"
+                          tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation()
                             handleEventClick(event)
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleEventClick(event)
+                            }
+                          }}
                           className="text-xs p-1 rounded truncate cursor-pointer hover:shadow-sm border-l-2"
                           style={{
-                            backgroundColor: "#FFFFFF",
-                            borderLeftColor: event.color || "#3B82F6",
+                            backgroundColor: getEventTypeColor(event.eventType),
+                            borderLeftColor: "rgba(0,0,0,0.2)",
                             borderLeftWidth: "3px",
+                            color: "#FFFFFF",
                           }}
+                          title="Click for event details"
                         >
-                          <span style={{ color: "rgb(var(--text))" }}>{event.title}</span>
+                          <span>{event.title}</span>
                         </div>
                       ))}
                       {dayEvents.length > 3 && (
@@ -1001,7 +1052,15 @@ export function CalendarWidgetEnhanced({
                   {slotPreview &&
                     slotPreview.dateKey === format(currentDate, "yyyy-MM-dd") &&
                     canEdit &&
-                    onCreateEvent && (
+                    onCreateEvent &&
+                    !getEventsForDate(currentDate).some((ev) => {
+                      const es = new Date(ev.start)
+                      const ee = new Date(ev.end)
+                      const startM = es.getHours() * 60 + es.getMinutes()
+                      const endM = ee.getHours() * 60 + ee.getMinutes()
+                      const slotM = slotPreview.minutes
+                      return slotM >= startM && slotM < endM
+                    }) && (
                       <div
                         className="pointer-events-none absolute left-20 right-4 z-[25]"
                         style={{ top: `${(slotPreview.minutes / 60) * DAY_VIEW_HOUR_HEIGHT}px` }}
@@ -1053,26 +1112,30 @@ export function CalendarWidgetEnhanced({
                               handleEventClick(event)
                             }
                           }}
-                          className="pointer-events-auto absolute left-0 right-0 cursor-pointer rounded border-l-4 p-2 hover:shadow-md"
+                          className="pointer-events-auto absolute left-0 right-0 cursor-pointer rounded border-l-4 p-2 hover:shadow-md flex flex-row items-start justify-between gap-2"
                           style={{
                             top: `${startMinutes}px`,
                             height: `${height}px`,
                             minHeight: "30px",
-                            backgroundColor: "#FFFFFF",
-                            borderLeftColor: event.color || "#3B82F6",
-                            borderColor: "rgb(var(--border))",
+                            backgroundColor: getEventTypeColor(event.eventType),
+                            borderLeftColor: "rgba(0,0,0,0.2)",
+                            borderColor: "rgba(0,0,0,0.1)",
                             borderWidth: "1px",
                             borderLeftWidth: "4px",
+                            color: "#FFFFFF",
                           }}
+                          title="Click for event details"
                         >
-                          <div className="font-semibold text-sm" style={{ color: "rgb(var(--text))" }}>
-                            {format(eventStart, "h:mm a")} - {format(eventEnd, "h:mm a")}
-                          </div>
-                          <div className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
-                            {event.title}
+                          <div className="min-w-0 flex-1 truncate">
+                            <div className="font-semibold text-sm">
+                              {format(eventStart, "h:mm a")} - {format(eventEnd, "h:mm a")}
+                            </div>
+                            <div className="font-medium text-sm truncate">
+                              {event.title}
+                            </div>
                           </div>
                           {event.location && (
-                            <div className="text-xs mt-1 truncate" style={{ color: "rgb(var(--text2))" }}>
+                            <div className="text-xs shrink-0 truncate max-w-[45%]" style={{ opacity: 0.95 }}>
                               📍 {event.location}
                             </div>
                           )}
@@ -1205,7 +1268,7 @@ export function CalendarWidgetEnhanced({
                       <div className="flex justify-center gap-0.5 mt-0.5">
                         <div
                           className="w-1 h-1 rounded-full"
-                          style={{ backgroundColor: dayEvents[0]?.color || "#3B82F6" }}
+                          style={{ backgroundColor: getEventTypeColor(dayEvents[0]?.eventType) }}
                         />
                       </div>
                     )}

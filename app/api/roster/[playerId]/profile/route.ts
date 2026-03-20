@@ -69,7 +69,9 @@ export async function GET(
     const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()
     const { data: invItems } = await supabase
       .from("inventory_items")
-      .select("id, category, name, condition, status, notes")
+      .select(
+        "id, category, name, condition, status, notes, damage_report_text, damage_reported_at, damage_reported_by_player_id"
+      )
       .eq("team_id", teamId)
       .eq("assigned_to_player_id", playerId)
 
@@ -80,6 +82,9 @@ export async function GET(
       condition: i.condition ?? null,
       status: i.status ?? null,
       notes: i.notes ?? null,
+      damage_report_text: i.damage_report_text ?? null,
+      damage_reported_at: i.damage_reported_at ?? null,
+      damage_reported_by_player_id: i.damage_reported_by_player_id ?? null,
     }))
 
     const profile = mapRowToProfile(
@@ -217,7 +222,9 @@ export async function PATCH(
     const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()
     const { data: invItems } = await supabase
       .from("inventory_items")
-      .select("id, category, name, condition, status, notes")
+      .select(
+        "id, category, name, condition, status, notes, damage_report_text, damage_reported_at, damage_reported_by_player_id"
+      )
       .eq("team_id", teamId)
       .eq("assigned_to_player_id", playerId)
 
@@ -228,6 +235,9 @@ export async function PATCH(
       condition: i.condition ?? null,
       status: i.status ?? null,
       notes: i.notes ?? null,
+      damage_report_text: i.damage_report_text ?? null,
+      damage_reported_at: i.damage_reported_at ?? null,
+      damage_reported_by_player_id: i.damage_reported_by_player_id ?? null,
     }))
 
     const profile = mapRowToProfile(

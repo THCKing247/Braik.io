@@ -53,6 +53,9 @@ export type AssignedEquipmentItemRow = {
   condition: string | null
   status: string | null
   notes: string | null
+  damage_report_text?: string | null
+  damage_reported_at?: string | null
+  damage_reported_by_player_id?: string | null
 }
 
 /** Map DB player row + team name + assigned inventory items to PlayerProfile. */
@@ -97,6 +100,9 @@ export function mapRowToProfile(
       condition: i.condition ?? undefined,
       status: i.status ?? undefined,
       notes: i.notes ?? null,
+      damageReportText: i.damage_report_text ?? null,
+      damageReportedAt: i.damage_reported_at ?? null,
+      damageReportedByPlayerId: i.damage_reported_by_player_id ?? null,
     })),
     assignedEquipment: normalizeJsonRecord(row.assigned_equipment),
     equipmentIssueReturnNotes: row.equipment_issue_return_notes ?? null,

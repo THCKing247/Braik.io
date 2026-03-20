@@ -45,6 +45,7 @@ export function PlayerProfileView({
 }: PlayerProfileViewProps) {
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [canEditProfile, setCanEditProfile] = useState(false)
+  const [isOwnProfileFromApi, setIsOwnProfileFromApi] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>("overview")
@@ -187,10 +188,11 @@ export function PlayerProfileView({
         if (!res.ok) return
         return res.json()
       })
-      .then((data: { profile: PlayerProfile; canEdit: boolean } | undefined) => {
+      .then((data: { profile: PlayerProfile; canEdit: boolean; isOwnProfile?: boolean } | undefined) => {
         if (data?.profile) {
           setProfile(data.profile)
           setCanEditProfile(data.canEdit)
+          if (data.isOwnProfile !== undefined) setIsOwnProfileFromApi(!!data.isOwnProfile)
         }
       })
       .catch(() => {})
@@ -209,6 +211,7 @@ export function PlayerProfileView({
         if (!cancelled) {
           setProfile(data.profile)
           setCanEditProfile(data.canEdit)
+          setIsOwnProfileFromApi(!!data.isOwnProfile)
           setEditDraft({})
         }
       })
@@ -471,6 +474,7 @@ export function PlayerProfileView({
               teamId={teamId}
               playerId={playerId}
               canEdit={canEditProfile}
+              isOwnProfile={isOwnProfile || isOwnProfileFromApi}
               onProfileRefetch={refetchProfile}
             />
           )}
@@ -1179,12 +1183,14 @@ function EquipmentTab({
   teamId,
   playerId,
   canEdit,
+  isOwnProfile,
   onProfileRefetch,
 }: {
   profile: PlayerProfile
   teamId: string
   playerId: string
   canEdit: boolean
+  isOwnProfile: boolean
   onProfileRefetch?: () => void
 }) {
   const items = profile.assignedItems ?? []
@@ -1198,6 +1204,8 @@ function EquipmentTab({
   const [assignItemId, setAssignItemId] = useState<string | null>(null)
   const [equipmentError, setEquipmentError] = useState<string | null>(null)
   const [equipmentActivity, setEquipmentActivity] = useState<{ id: string; actionType: string; metadata: Record<string, unknown>; createdAt: string }[]>([])
+  const [damageDraft, setDamageDraft] = useState<Record<string, string>>({})
+  const [damageSubmitting, setDamageSubmitting] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/api/roster/${playerId}/activity?teamId=${encodeURIComponent(teamId)}&limit=50`)
@@ -1347,25 +1355,84 @@ function EquipmentTab({
               const condition = (i as { condition?: string }).condition ?? ""
               const status = (i as { status?: string }).status ?? ""
               const id = (i as { id?: string }).id ?? ""
+              const dmg = (i as { damageReportText?: string | null }).damageReportText
+              const dmgAt = (i as { damageReportedAt?: string | null }).damageReportedAt
               return (
-                <li key={id || name} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                  <div>
-                    <span className="font-medium text-[#0F172A]">{name}</span>
-                    <span className="ml-2 text-sm text-[#64748B]">
-                      {[category, condition, status].filter(Boolean).join(" · ") || "—"}
-                    </span>
+                <li key={id || name} className="flex flex-col gap-2 px-4 py-3 border-b border-[#E5E7EB] last:border-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-medium text-[#0F172A]">{name}</span>
+                      <span className="ml-2 text-sm text-[#64748B]">
+                        {[category, condition, status].filter(Boolean).join(" · ") || "—"}
+                      </span>
+                    </div>
+                    {canEdit && !isOwnProfile && id && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 shrink-0"
+                        onClick={() => handleUnassign(id)}
+                        disabled={assignItemId === id}
+                      >
+                        {assignItemId === id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Unassign"}
+                      </Button>
+                    )}
                   </div>
-                  {canEdit && id && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 shrink-0"
-                      onClick={() => handleUnassign(id)}
-                      disabled={assignItemId === id}
-                    >
-                      {assignItemId === id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Unassign"}
-                    </Button>
+                  {dmg && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                      <span className="font-semibold">Damage report: </span>
+                      <span className="whitespace-pre-wrap">{dmg}</span>
+                      {dmgAt && (
+                        <p className="mt-1 text-xs text-amber-800/80">
+                          {new Date(dmgAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {isOwnProfile && id && (
+                    <div className="rounded-md border border-[#E5E7EB] bg-white p-3 space-y-2">
+                      <Label className="text-xs text-[#64748B]">Report damage or issue</Label>
+                      <textarea
+                        className="w-full min-h-[72px] rounded-md border border-[#E5E7EB] px-2 py-1.5 text-sm"
+                        placeholder="Describe what happened…"
+                        value={damageDraft[id] ?? ""}
+                        onChange={(e) => setDamageDraft((d) => ({ ...d, [id]: e.target.value }))}
+                        disabled={damageSubmitting === id}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={damageSubmitting === id || !(damageDraft[id] ?? "").trim()}
+                        onClick={async () => {
+                          const msg = (damageDraft[id] ?? "").trim()
+                          if (!msg) return
+                          setDamageSubmitting(id)
+                          try {
+                            const res = await fetch(
+                              `/api/teams/${teamId}/inventory/${id}/damage-report`,
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ message: msg }),
+                              }
+                            )
+                            if (!res.ok) {
+                              const data = await res.json().catch(() => ({}))
+                              throw new Error((data as { error?: string }).error ?? "Failed to send report")
+                            }
+                            setDamageDraft((d) => ({ ...d, [id]: "" }))
+                            onProfileRefetch?.()
+                          } catch (err) {
+                            setEquipmentError(err instanceof Error ? err.message : "Report failed")
+                          } finally {
+                            setDamageSubmitting(null)
+                          }
+                        }}
+                      >
+                        {damageSubmitting === id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit report"}
+                      </Button>
+                    </div>
                   )}
                 </li>
               )

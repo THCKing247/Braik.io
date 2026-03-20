@@ -46,6 +46,9 @@ export interface AssignedEquipmentItem {
   condition?: string
   status?: string
   notes?: string | null
+  damageReportText?: string | null
+  damageReportedAt?: string | null
+  damageReportedByPlayerId?: string | null
 }
 
 export interface PlayerProfileEquipment {

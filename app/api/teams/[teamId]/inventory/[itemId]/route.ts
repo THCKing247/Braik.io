@@ -4,6 +4,16 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 
+const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
+type InventoryBucket = (typeof INVENTORY_BUCKETS)[number]
+
+function normalizeBucket(v: unknown): InventoryBucket | undefined {
+  if (v === undefined) return undefined
+  const s = typeof v === "string" ? v.trim() : ""
+  if (INVENTORY_BUCKETS.includes(s as InventoryBucket)) return s as InventoryBucket
+  return undefined
+}
+
 /**
  * PATCH /api/teams/[teamId]/inventory/[itemId] - Update inventory item
  */
@@ -67,6 +77,45 @@ export async function PATCH(
     }
     if (body.make !== undefined) {
       updateData.make = body.make || null
+    }
+    if (body.itemCode !== undefined) {
+      const code = typeof body.itemCode === "string" ? body.itemCode.trim() : ""
+      if (code) {
+        const { data: dup } = await supabase
+          .from("inventory_items")
+          .select("id")
+          .eq("team_id", teamId)
+          .eq("item_code", code)
+          .neq("id", itemId)
+          .maybeSingle()
+        if (dup) {
+          return NextResponse.json(
+            { error: "That item code is already in use on this team." },
+            { status: 409 }
+          )
+        }
+      }
+      updateData.item_code = code || null
+    }
+    const bucket = normalizeBucket(body.inventoryBucket)
+    if (bucket !== undefined) {
+      updateData.inventory_bucket = bucket
+    }
+    if (body.costPerUnit !== undefined) {
+      const n = body.costPerUnit === null || body.costPerUnit === "" ? null : Number(body.costPerUnit)
+      updateData.cost_per_unit = n !== null && !Number.isNaN(n) && n >= 0 ? n : null
+      updateData.cost_updated_at = new Date().toISOString()
+    }
+    if (body.costNotes !== undefined) {
+      updateData.cost_notes = typeof body.costNotes === "string" ? body.costNotes.trim() || null : null
+      if (body.costPerUnit === undefined) {
+        updateData.cost_updated_at = new Date().toISOString()
+      }
+    }
+    if (body.clearDamageReport === true) {
+      updateData.damage_report_text = null
+      updateData.damage_reported_at = null
+      updateData.damage_reported_by_player_id = null
     }
 
     const { data: updatedItem, error: updateError } = await supabase
@@ -142,6 +191,14 @@ export async function PATCH(
       size: updatedItem.size ?? null,
       make: updatedItem.make ?? null,
       itemCode: updatedItem.item_code ?? null,
+      inventoryBucket: updatedItem.inventory_bucket ?? "Gear",
+      costPerUnit:
+        updatedItem.cost_per_unit != null ? Number(updatedItem.cost_per_unit) : null,
+      costNotes: updatedItem.cost_notes ?? null,
+      costUpdatedAt: updatedItem.cost_updated_at ?? null,
+      damageReportText: updatedItem.damage_report_text ?? null,
+      damageReportedAt: updatedItem.damage_reported_at ?? null,
+      damageReportedByPlayerId: updatedItem.damage_reported_by_player_id ?? null,
       assignedPlayer,
     })
   } catch (err) {

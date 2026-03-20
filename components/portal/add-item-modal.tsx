@@ -25,6 +25,9 @@ interface AddItemModalProps {
     availability: string
     assignedToPlayerId?: string | null
     notes?: string
+    inventoryBucket: string
+    costPerUnit?: number | null
+    itemCode?: string
   }) => Promise<void>
   players: Player[]
   loading?: boolean
@@ -67,6 +70,9 @@ export function AddItemModal({
   const [availability, setAvailability] = useState<typeof AVAILABILITY_STATUSES[number]>("AVAILABLE")
   const [assignedToPlayerId, setAssignedToPlayerId] = useState<string>("")
   const [notes, setNotes] = useState("")
+  const [inventoryBucket, setInventoryBucket] = useState<string>(INVENTORY_BUCKETS[0])
+  const [costPerUnit, setCostPerUnit] = useState("")
+  const [itemCode, setItemCode] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,14 +93,20 @@ export function AddItemModal({
     }
 
     try {
+      const qty = parseInt(quantity, 10)
+      const costRaw = costPerUnit.trim()
+      const costNum = costRaw === "" ? null : Number(costRaw)
       await onSubmit({
         equipmentType: equipmentType === "preset" ? selectedPreset : "CUSTOM",
         customEquipmentName: equipmentType === "custom" ? customEquipmentName.trim() : undefined,
-        quantity: parseInt(quantity),
+        quantity: qty,
         condition,
         availability,
         assignedToPlayerId: assignedToPlayerId || null,
         notes: notes.trim() || undefined,
+        inventoryBucket,
+        costPerUnit: costNum !== null && !Number.isNaN(costNum) && costNum >= 0 ? costNum : null,
+        itemCode: qty === 1 && itemCode.trim() ? itemCode.trim() : undefined,
       })
 
       // Reset form
@@ -106,6 +118,9 @@ export function AddItemModal({
       setAvailability("AVAILABLE")
       setAssignedToPlayerId("")
       setNotes("")
+      setInventoryBucket(INVENTORY_BUCKETS[0])
+      setCostPerUnit("")
+      setItemCode("")
       onClose()
     } catch (error) {
       // Error handling is done in parent component
@@ -122,6 +137,9 @@ export function AddItemModal({
       setAvailability("AVAILABLE")
       setAssignedToPlayerId("")
       setNotes("")
+      setInventoryBucket(INVENTORY_BUCKETS[0])
+      setCostPerUnit("")
+      setItemCode("")
       onClose()
     }
   }
@@ -212,6 +230,72 @@ export function AddItemModal({
                     color: "rgb(var(--text))",
                   }}
                   required
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="inventoryBucket" style={{ color: "rgb(var(--text))" }}>
+              Inventory category *
+            </Label>
+            <select
+              id="inventoryBucket"
+              value={inventoryBucket}
+              onChange={(e) => setInventoryBucket(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+              style={{
+                backgroundColor: "#FFFFFF",
+                borderColor: "rgb(var(--border))",
+                color: "rgb(var(--text))",
+              }}
+            >
+              {INVENTORY_BUCKETS.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+              Used for filters and expense rollups (Gear, Uniforms, etc.)
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="costPerUnit" style={{ color: "rgb(var(--text))" }}>
+                Cost per unit (optional)
+              </Label>
+              <Input
+                id="costPerUnit"
+                type="number"
+                min="0"
+                step="0.01"
+                value={costPerUnit}
+                onChange={(e) => setCostPerUnit(e.target.value)}
+                placeholder="0.00"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              />
+            </div>
+            {parseInt(quantity, 10) === 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="itemCode" style={{ color: "rgb(var(--text))" }}>
+                  Item code (optional)
+                </Label>
+                <Input
+                  id="itemCode"
+                  value={itemCode}
+                  onChange={(e) => setItemCode(e.target.value)}
+                  placeholder="Leave blank to auto-generate"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
+                  }}
                 />
               </div>
             )}

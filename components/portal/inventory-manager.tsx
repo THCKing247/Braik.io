@@ -17,6 +17,13 @@ interface InventoryItem {
   size?: string | null
   make?: string | null
   itemCode?: string | null
+  inventoryBucket?: string
+  costPerUnit?: number | null
+  costNotes?: string | null
+  costUpdatedAt?: string | null
+  damageReportText?: string | null
+  damageReportedAt?: string | null
+  damageReportedByPlayerId?: string | null
   assignedPlayer?: {
     id: string
     firstName: string
@@ -67,6 +74,9 @@ export function InventoryManager({
     availability: string
     assignedToPlayerId?: string | null
     notes?: string
+    inventoryBucket?: string
+    costPerUnit?: number | null
+    itemCode?: string
   }) => {
     if (!permissions.canCreate) {
       throw new Error("You do not have permission to create items")
@@ -173,6 +183,11 @@ export function InventoryManager({
     make?: string
     quantityTotal?: number
     quantityAvailable?: number
+    itemCode?: string
+    inventoryBucket?: string
+    costPerUnit?: number | null
+    costNotes?: string
+    clearDamageReport?: boolean
   }) => {
     setLoading(true)
     try {
@@ -302,6 +317,8 @@ export function InventoryManager({
               condition: data.condition || templateItem.condition || "GOOD",
               availability: data.status || templateItem.status || "AVAILABLE",
               notes: data.notes !== undefined ? data.notes : templateItem.notes || undefined,
+              inventoryBucket: templateItem.inventoryBucket || "Gear",
+              costPerUnit: templateItem.costPerUnit ?? null,
             }),
           })
           

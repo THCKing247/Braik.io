@@ -3,6 +3,58 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 
+const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
+type InventoryBucket = (typeof INVENTORY_BUCKETS)[number]
+
+function normalizeBucket(v: unknown): InventoryBucket {
+  const s = typeof v === "string" ? v.trim() : ""
+  if (INVENTORY_BUCKETS.includes(s as InventoryBucket)) return s as InventoryBucket
+  return "Gear"
+}
+
+function mapItemRow(
+  i: Record<string, unknown>,
+  playerMap: Map<
+    string,
+    { id: string; firstName: string; lastName: string; jerseyNumber: number | null }
+  >
+) {
+  const assignedId = (i.assigned_to_player_id as string | null) ?? null
+  const p = assignedId ? playerMap.get(assignedId) : undefined
+  return {
+    id: i.id as string,
+    category: (i.category as string) ?? "",
+    name: (i.name as string) ?? "",
+    quantityTotal: (i.quantity_total as number) ?? 0,
+    quantityAvailable: (i.quantity_available as number) ?? 0,
+    condition: (i.condition as string) ?? "GOOD",
+    assignedToPlayerId: assignedId,
+    notes: (i.notes as string | null) ?? null,
+    status: (i.status as string) ?? "AVAILABLE",
+    equipmentType: (i.equipment_type as string | null) ?? null,
+    size: (i.size as string | null) ?? null,
+    make: (i.make as string | null) ?? null,
+    itemCode: (i.item_code as string | null) ?? null,
+    inventoryBucket: normalizeBucket(i.inventory_bucket),
+    costPerUnit: i.cost_per_unit != null ? Number(i.cost_per_unit) : null,
+    costNotes: (i.cost_notes as string | null) ?? null,
+    costUpdatedAt: (i.cost_updated_at as string | null) ?? null,
+    damageReportText: (i.damage_report_text as string | null) ?? null,
+    damageReportedAt: (i.damage_reported_at as string | null) ?? null,
+    damageReportedByPlayerId: (i.damage_reported_by_player_id as string | null) ?? null,
+    assignedPlayer: assignedId
+      ? p
+        ? {
+            id: p.id,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            jerseyNumber: p.jerseyNumber ?? null,
+          }
+        : null
+      : null,
+  }
+}
+
 /**
  * GET /api/teams/[teamId]/inventory
  * Returns inventory items and players for the team (InventoryManager shape).
@@ -84,31 +136,7 @@ export async function GET(
 
     const playerMap = new Map(players.map((p) => [p.id, p]))
 
-    const items = (itemsRes.data ?? []).map((i) => ({
-      id: i.id,
-      category: i.category ?? "",
-      name: i.name ?? "",
-      quantityTotal: i.quantity_total ?? 0,
-      quantityAvailable: i.quantity_available ?? 0,
-      condition: i.condition ?? "GOOD",
-      assignedToPlayerId: i.assigned_to_player_id ?? null,
-      notes: i.notes ?? null,
-      status: i.status ?? "AVAILABLE",
-      equipmentType: i.equipment_type ?? null,
-      size: i.size ?? null,
-      make: i.make ?? null,
-      itemCode: i.item_code ?? null,
-      assignedPlayer: i.assigned_to_player_id
-        ? playerMap.get(i.assigned_to_player_id)
-          ? {
-              id: playerMap.get(i.assigned_to_player_id)!.id,
-              firstName: playerMap.get(i.assigned_to_player_id)!.firstName,
-              lastName: playerMap.get(i.assigned_to_player_id)!.lastName,
-              jerseyNumber: playerMap.get(i.assigned_to_player_id)!.jerseyNumber ?? null,
-            }
-          : null
-        : null,
-    }))
+    const items = (itemsRes.data ?? []).map((i) => mapItemRow(i as Record<string, unknown>, playerMap))
 
     return NextResponse.json({ items, players })
   } catch (err) {
@@ -150,6 +178,9 @@ export async function POST(
       availability,
       assignedToPlayerId,
       notes,
+      inventoryBucket,
+      costPerUnit,
+      itemCode,
     } = body
 
     if (!equipmentType || !quantity || quantity < 1) {
@@ -166,6 +197,14 @@ export async function POST(
     const baseName = equipmentType === "CUSTOM" && customEquipmentName
       ? customEquipmentName
       : equipmentType
+    const bucket = normalizeBucket(inventoryBucket)
+
+    const costNum =
+      costPerUnit !== undefined && costPerUnit !== null && costPerUnit !== ""
+        ? Number(costPerUnit)
+        : null
+    const safeCost =
+      costNum !== null && !Number.isNaN(costNum) && costNum >= 0 ? costNum : null
 
     // Get count of existing items of this type to number sequentially
     const { count: existingCount } = await supabase
@@ -180,7 +219,24 @@ export async function POST(
     const generateItemCode = (equipmentType: string, index: number) => {
       const prefix = equipmentType.substring(0, 3).toUpperCase()
       const timestamp = Date.now().toString(36).toUpperCase()
-      return `${prefix}-${timestamp}-${String(startNumber + index).padStart(4, '0')}`
+      return `${prefix}-${timestamp}-${String(startNumber + index).padStart(4, "0")}`
+    }
+
+    const customCode =
+      typeof itemCode === "string" && itemCode.trim() && quantity === 1 ? itemCode.trim() : null
+    if (customCode) {
+      const { data: dup } = await supabase
+        .from("inventory_items")
+        .select("id")
+        .eq("team_id", teamId)
+        .eq("item_code", customCode)
+        .maybeSingle()
+      if (dup) {
+        return NextResponse.json(
+          { error: "That item code is already in use on this team." },
+          { status: 409 }
+        )
+      }
     }
 
     // Create inventory item(s) - if quantity > 1, create multiple items with sequential numbering
@@ -194,8 +250,12 @@ export async function POST(
       status: availability || "AVAILABLE",
       assigned_to_player_id: assignedToPlayerId || null,
       notes: notes || null,
-      item_code: generateItemCode(equipmentType, index),
+      item_code: customCode ?? generateItemCode(equipmentType, index),
       equipment_type: equipmentType,
+      inventory_bucket: bucket,
+      cost_per_unit: safeCost,
+      cost_notes: null as string | null,
+      cost_updated_at: safeCost != null ? new Date().toISOString() : null,
     }))
 
     const { data: createdItems, error: insertError } = await supabase
@@ -229,22 +289,9 @@ export async function POST(
       ])
     )
 
-    // Format response
-    const formattedItems = (createdItems || []).map((item) => ({
-      id: item.id,
-      category: item.category ?? "",
-      name: item.name ?? "",
-      quantityTotal: item.quantity_total ?? 1,
-      quantityAvailable: item.quantity_available ?? 0,
-      condition: item.condition ?? "GOOD",
-      assignedToPlayerId: item.assigned_to_player_id ?? null,
-      notes: item.notes ?? null,
-      status: item.status ?? "AVAILABLE",
-      equipmentType: item.equipment_type ?? null,
-      assignedPlayer: item.assigned_to_player_id
-        ? playerMap.get(item.assigned_to_player_id) || null
-        : null,
-    }))
+    const formattedItems = (createdItems || []).map((item) =>
+      mapItemRow(item as unknown as Record<string, unknown>, playerMap)
+    )
 
     // If multiple items created, return the first one (for compatibility)
     return NextResponse.json(formattedItems[0] || formattedItems)

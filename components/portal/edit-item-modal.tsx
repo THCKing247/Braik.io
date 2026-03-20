@@ -28,6 +28,12 @@ interface InventoryItem {
   itemCode?: string | null
   quantityTotal?: number
   quantityAvailable?: number
+  inventoryBucket?: string
+  costPerUnit?: number | null
+  costNotes?: string | null
+  costUpdatedAt?: string | null
+  damageReportText?: string | null
+  damageReportedAt?: string | null
 }
 
 interface EditItemModalProps {
@@ -50,6 +56,7 @@ interface EditItemModalProps {
 
 const CONDITIONS = ["EXCELLENT", "GOOD", "FAIR", "NEEDS_REPAIR", "REPLACE"] as const
 const AVAILABILITY_STATUSES = ["AVAILABLE", "ASSIGNED", "MISSING", "NEEDS_REPLACEMENT", "DAMAGED"] as const
+const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 
 export function EditItemModal({
   open,
@@ -67,6 +74,11 @@ export function EditItemModal({
   const [make, setMake] = useState("")
   const [quantityTotal, setQuantityTotal] = useState<string>("1")
   const [quantityAvailable, setQuantityAvailable] = useState<string>("0")
+  const [itemCode, setItemCode] = useState("")
+  const [inventoryBucket, setInventoryBucket] = useState<string>(INVENTORY_BUCKETS[0])
+  const [costPerUnit, setCostPerUnit] = useState("")
+  const [costNotes, setCostNotes] = useState("")
+  const [clearDamageReport, setClearDamageReport] = useState(false)
 
   useEffect(() => {
     if (item) {
@@ -78,6 +90,17 @@ export function EditItemModal({
       setMake(item.make || "")
       setQuantityTotal(item.quantityTotal?.toString() || "1")
       setQuantityAvailable(item.quantityAvailable?.toString() || "0")
+      setItemCode(item.itemCode || "")
+      setInventoryBucket(
+        INVENTORY_BUCKETS.includes((item.inventoryBucket || "") as (typeof INVENTORY_BUCKETS)[number])
+          ? (item.inventoryBucket as (typeof INVENTORY_BUCKETS)[number])
+          : INVENTORY_BUCKETS[0]
+      )
+      setCostPerUnit(
+        item.costPerUnit != null && !Number.isNaN(item.costPerUnit) ? String(item.costPerUnit) : ""
+      )
+      setCostNotes(item.costNotes || "")
+      setClearDamageReport(false)
     }
   }, [item])
 
@@ -105,6 +128,8 @@ export function EditItemModal({
         return
       }
 
+      const costRaw = costPerUnit.trim()
+      const costNum = costRaw === "" ? null : Number(costRaw)
       await onSave({
         condition,
         status: availability,
@@ -114,6 +139,11 @@ export function EditItemModal({
         make: make.trim() || undefined,
         quantityTotal: qtyTotal,
         quantityAvailable: qtyAvailable,
+        itemCode: itemCode.trim(),
+        inventoryBucket,
+        costPerUnit: costNum !== null && !Number.isNaN(costNum) && costNum >= 0 ? costNum : null,
+        costNotes: costNotes.trim(),
+        clearDamageReport: clearDamageReport || undefined,
       })
 
       onClose()
@@ -132,6 +162,17 @@ export function EditItemModal({
       setMake(item.make || "")
       setQuantityTotal(item.quantityTotal?.toString() || "1")
       setQuantityAvailable(item.quantityAvailable?.toString() || "0")
+      setItemCode(item.itemCode || "")
+      setInventoryBucket(
+        INVENTORY_BUCKETS.includes((item.inventoryBucket || "") as (typeof INVENTORY_BUCKETS)[number])
+          ? (item.inventoryBucket as (typeof INVENTORY_BUCKETS)[number])
+          : INVENTORY_BUCKETS[0]
+      )
+      setCostPerUnit(
+        item.costPerUnit != null && !Number.isNaN(item.costPerUnit) ? String(item.costPerUnit) : ""
+      )
+      setCostNotes(item.costNotes || "")
+      setClearDamageReport(false)
       onClose()
     }
   }
@@ -177,6 +218,118 @@ export function EditItemModal({
               }}
             />
           </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="invBucket" style={{ color: "rgb(var(--text))" }}>
+                Inventory category *
+              </Label>
+              <select
+                id="invBucket"
+                value={inventoryBucket}
+                onChange={(e) => setInventoryBucket(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              >
+                {INVENTORY_BUCKETS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="itemCode" style={{ color: "rgb(var(--text))" }}>
+                Item code
+              </Label>
+              <Input
+                id="itemCode"
+                value={itemCode}
+                onChange={(e) => setItemCode(e.target.value)}
+                placeholder="Unique label for this item"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="costPu" style={{ color: "rgb(var(--text))" }}>
+                Cost per unit
+              </Label>
+              <Input
+                id="costPu"
+                type="number"
+                min="0"
+                step="0.01"
+                value={costPerUnit}
+                onChange={(e) => setCostPerUnit(e.target.value)}
+                placeholder="0.00"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              />
+              {item.costUpdatedAt && (
+                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                  Last cost update: {new Date(item.costUpdatedAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="costNotes" style={{ color: "rgb(var(--text))" }}>
+                Cost notes (optional)
+              </Label>
+              <textarea
+                id="costNotes"
+                value={costNotes}
+                onChange={(e) => setCostNotes(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md min-h-[72px] resize-none"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+                placeholder="e.g. vendor, purchase order, replacement plan"
+              />
+            </div>
+          </div>
+
+          {item.damageReportText && (
+            <div
+              className="space-y-2 rounded-md border p-3"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}
+            >
+              <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                Damage report (player)
+              </p>
+              <p className="text-sm whitespace-pre-wrap" style={{ color: "rgb(var(--text))" }}>
+                {item.damageReportText}
+              </p>
+              {item.damageReportedAt && (
+                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                  Reported {new Date(item.damageReportedAt).toLocaleString()}
+                </p>
+              )}
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={clearDamageReport}
+                  onChange={(e) => setClearDamageReport(e.target.checked)}
+                />
+                Clear player damage report
+              </label>
+            </div>
+          )}
 
           {/* Size and Make */}
           <div className="grid grid-cols-2 gap-4">

@@ -599,6 +599,40 @@ export function InventoryTabbedLayout({
     return { color: "rgb(var(--text))" }
   }
 
+  const mainViewToggleEl = (
+    <div className="flex items-center gap-2 text-sm shrink-0" role="tablist" aria-label="Inventory view">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mainView === "items"}
+        onClick={() => setMainView("items")}
+        className="bg-transparent border-0 p-0 cursor-pointer transition-colors"
+        style={{
+          color: mainView === "items" ? "rgb(var(--accent))" : "rgb(var(--muted))",
+          fontWeight: mainView === "items" ? 600 : 500,
+        }}
+      >
+        Items
+      </button>
+      <span className="select-none" style={{ color: "rgb(var(--muted))" }} aria-hidden>
+        |
+      </span>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mainView === "expenses"}
+        onClick={() => setMainView("expenses")}
+        className="bg-transparent border-0 p-0 cursor-pointer transition-colors"
+        style={{
+          color: mainView === "expenses" ? "rgb(var(--accent))" : "rgb(var(--muted))",
+          fontWeight: mainView === "expenses" ? 600 : 500,
+        }}
+      >
+        Expenses
+      </button>
+    </div>
+  )
+
   if (items.length === 0) {
     return (
       <div className="text-center py-12">
@@ -617,41 +651,15 @@ export function InventoryTabbedLayout({
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
-      <div className="flex flex-wrap gap-2 shrink-0">
-        <Button
-          type="button"
-          size="sm"
-          variant={mainView === "items" ? "default" : "outline"}
-          onClick={() => setMainView("items")}
-          style={
-            mainView === "items"
-              ? { backgroundColor: "rgb(var(--accent))", color: "white" }
-              : { borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }
-          }
-        >
-          Items
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={mainView === "expenses" ? "default" : "outline"}
-          onClick={() => setMainView("expenses")}
-          style={
-            mainView === "expenses"
-              ? { backgroundColor: "rgb(var(--accent))", color: "white" }
-              : { borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }
-          }
-        >
-          Expenses
-        </Button>
-      </div>
-
       {mainView === "expenses" ? (
-        <InventoryExpenseLedger
-          items={bucketFilteredItems}
-          expenseBreakdown={expenseBreakdown}
-          onBreakdownChange={setExpenseBreakdown}
-        />
+        <>
+          {mainViewToggleEl}
+          <InventoryExpenseLedger
+            items={bucketFilteredItems}
+            expenseBreakdown={expenseBreakdown}
+            onBreakdownChange={setExpenseBreakdown}
+          />
+        </>
       ) : equipmentTypes.length === 0 ? (
         <div className="text-center py-10 rounded-lg border" style={{ borderColor: "rgb(var(--border))" }}>
           <p className="text-muted-foreground mb-3">No items match this category filter.</p>
@@ -661,33 +669,57 @@ export function InventoryTabbedLayout({
         </div>
       ) : (
         <div className="flex flex-col flex-1 min-h-0 gap-2">
-          <div className="flex flex-wrap gap-2 shrink-0">
-            {(["All", ...INVENTORY_BUCKETS] as const).map((b) => {
-              const active = bucketFilter === b
-              return (
-                <button
-                  key={b}
-                  type="button"
-                  onClick={() => setBucketFilter(b)}
-                  className="rounded-full border px-3 py-1.5 text-sm transition-colors"
-                  style={{
-                    borderColor: active ? "rgb(var(--accent))" : "rgb(var(--border))",
-                    backgroundColor: active ? "rgb(var(--accent))" : "#FFFFFF",
-                    color: active ? "white" : "rgb(var(--text))",
-                    fontWeight: active ? 600 : 400,
-                  }}
-                >
-                  {b}
-                </button>
-              )
-            })}
-          </div>
-
           <div className="flex flex-1 min-h-0 gap-4 overflow-hidden">
       {/* Left Sidebar - item types */}
       <div className="w-64 flex-shrink-0 border-r" style={{ borderColor: "rgb(var(--border))" }}>
         <div className="p-4 border-b" style={{ borderColor: "rgb(var(--border))" }}>
-          <h3 className="font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>Item Types</h3>
+          <div className="mb-3">{mainViewToggleEl}</div>
+          <div className="flex flex-col gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2">
+              {INVENTORY_BUCKETS.slice(0, 2).map((b) => {
+                const active = bucketFilter === b
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => setBucketFilter(b)}
+                    className="rounded-full border px-3 py-1.5 text-sm transition-colors truncate"
+                    style={{
+                      borderColor: active ? "rgb(var(--accent))" : "rgb(var(--border))",
+                      backgroundColor: active ? "rgb(var(--accent))" : "#FFFFFF",
+                      color: active ? "white" : "rgb(var(--text))",
+                      fontWeight: active ? 600 : 400,
+                    }}
+                    title={b}
+                  >
+                    {b}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {INVENTORY_BUCKETS.slice(2).map((b) => {
+                const active = bucketFilter === b
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => setBucketFilter(b)}
+                    className="rounded-full border px-2 py-1.5 text-sm transition-colors truncate"
+                    style={{
+                      borderColor: active ? "rgb(var(--accent))" : "rgb(var(--border))",
+                      backgroundColor: active ? "rgb(var(--accent))" : "#FFFFFF",
+                      color: active ? "white" : "rgb(var(--text))",
+                      fontWeight: active ? 600 : 400,
+                    }}
+                    title={b}
+                  >
+                    {b}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           {permissions.canCreate && (
             <Button
               onClick={() => setShowAddModal(true)}

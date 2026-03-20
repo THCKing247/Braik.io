@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { BRAIK_PERSIST_SESSION_COOKIE } from "@/lib/auth/persist-session-cookie"
 
 export const runtime = "nodejs"
 
@@ -13,6 +14,7 @@ export async function POST() {
   const response = NextResponse.json({ success: true })
   response.cookies.set("sb-access-token", "", { path: "/", maxAge: 0 })
   response.cookies.set("sb-refresh-token", "", { path: "/", maxAge: 0 })
+  response.cookies.set(BRAIK_PERSIST_SESSION_COOKIE, "", { path: "/", maxAge: 0 })
   return response
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
+import { BRAIK_PERSIST_SESSION_COOKIE } from "@/lib/auth/persist-session-cookie"
 
 function getRoleRedirect(role: string) {
   switch (role) {
@@ -183,6 +184,25 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: refreshTokenMaxAge,
     })
+
+    const isProd = process.env.NODE_ENV === "production"
+    if (rememberMe) {
+      response.cookies.set(BRAIK_PERSIST_SESSION_COOKIE, "1", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isProd,
+        path: "/",
+        maxAge: refreshTokenMaxAge,
+      })
+    } else {
+      response.cookies.set(BRAIK_PERSIST_SESSION_COOKIE, "", {
+        path: "/",
+        maxAge: 0,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isProd,
+      })
+    }
 
     return response
   } catch {

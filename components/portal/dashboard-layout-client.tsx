@@ -7,6 +7,7 @@ import { PortalTeamProvider } from "@/components/portal/portal-team-context"
 import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-bar"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
+import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { cn } from "@/lib/utils"
 
@@ -39,6 +40,7 @@ export function DashboardLayoutClient({
     <PortalTeamProvider teamIds={teamIds} currentTeamId={resolvedCurrentTeamId}>
       <CoachBProvider isDesktop={isLgUp}>
         <PlaybookToastProvider>
+          <BiometricEnablePrompt />
           <div className={cn("flex w-full min-w-0 flex-col", className)}>
             <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
               <aside

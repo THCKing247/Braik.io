@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { BiometricUnlockSettingsCard } from "@/components/portal/settings-sections/biometric-unlock-settings"
+import { isNativeAppSync } from "@/lib/native/app-environment"
 
 interface User {
   id: string
@@ -18,6 +20,7 @@ interface AccountSettingsProps {
 }
 
 export function AccountSettings({ user }: AccountSettingsProps) {
+  const [showBiometricSettings, setShowBiometricSettings] = useState(false)
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState(user.name || "")
   const [email, setEmail] = useState(user.email)
@@ -26,6 +29,12 @@ export function AccountSettings({ user }: AccountSettingsProps) {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [editingProfile, setEditingProfile] = useState(false)
   const [editingPassword, setEditingPassword] = useState(false)
+
+  useEffect(() => {
+    setShowBiometricSettings(
+      isNativeAppSync() || process.env.NEXT_PUBLIC_BRAIK_SHOW_BIOMETRIC_SETTINGS === "1"
+    )
+  }, [])
 
   const handleSaveProfile = async () => {
     setLoading(true)
@@ -244,6 +253,8 @@ export function AccountSettings({ user }: AccountSettingsProps) {
           )}
         </CardContent>
       </Card>
+
+      {showBiometricSettings && <BiometricUnlockSettingsCard />}
 
       {/* Security */}
       <Card className="border border-border bg-card">

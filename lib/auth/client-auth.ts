@@ -1,6 +1,16 @@
 "use client"
 
-import { type ReactNode, useEffect, useMemo, useState } from "react"
+import React, {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
+import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
+import { NATIVE_SESSION_UNLOCK_EVENT } from "@/lib/auth/session-unlock-events"
 
 const AUTH_DEBUG = typeof window !== "undefined" && (window as unknown as { __BRAIK_DEBUG_AUTH?: boolean }).__BRAIK_DEBUG_AUTH === true
 
@@ -10,7 +20,7 @@ function authLog(event: string, detail?: Record<string, unknown>) {
   }
 }
 
-type SessionResponse = {
+export type SessionResponse = {
   user: {
     id: string
     email: string
@@ -25,6 +35,17 @@ type SessionResponse = {
   }
 }
 
+export type SessionStatus = "loading" | "authenticated" | "unauthenticated"
+
+type SessionContextValue = {
+  data: SessionResponse | null
+  status: SessionStatus
+  /** Re-run session fetch (e.g. after native biometric unlock restores cookies). */
+  refetch: () => Promise<void>
+}
+
+const SessionContext = createContext<SessionContextValue | null>(null)
+
 type SignInOptions = {
   email?: string
   password?: string
@@ -33,20 +54,7 @@ type SignInOptions = {
   rememberMe?: boolean
 }
 
-function getRedirectFromRole(role?: string) {
-  switch ((role || "").toLowerCase()) {
-    case "admin":
-      return "/admin/dashboard"
-    case "head_coach":
-    case "assistant_coach":
-    case "player":
-    case "parent":
-    case "athlete":
-      return "/dashboard"
-    default:
-      return "/dashboard"
-  }
-}
+export { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 
 export async function signIn(provider: string, options: SignInOptions = {}) {
   if (provider !== "credentials") {
@@ -71,7 +79,7 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
     role?: string
     redirectTo?: string
   }
-  const callbackUrl = options.callbackUrl || data.redirectTo || getRedirectFromRole(data.role)
+  const callbackUrl = options.callbackUrl || data.redirectTo || getDefaultAppPathForRole(data.role)
   const isSuccess = response.ok && data.success === true
 
   if (isSuccess) {
@@ -88,6 +96,8 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
 export async function signOut(options: { callbackUrl?: string } = {}) {
   authLog("SIGNED_OUT", { reason: "user_initiated" })
   await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+  const { clearNativeBiometricUnlockLaunchFlag } = await import("@/lib/native/native-unlock-session")
+  clearNativeBiometricUnlockLaunchFlag()
   const callbackUrl = options.callbackUrl || "/"
   window.location.href = callbackUrl
 }
@@ -148,34 +158,55 @@ export async function getSession(): Promise<SessionResponse | null> {
   return null
 }
 
-export function useSession() {
-  const [data, setData] = useState<SessionResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let active = true
-    getSession()
-      .then((session) => {
-        if (active) setData(session)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
-
-  return useMemo(
-    () => ({
-      data,
-      status: loading ? "loading" : data ? "authenticated" : "unauthenticated",
-    }),
-    [data, loading]
-  )
+export function useSession(): SessionContextValue {
+  const ctx = useContext(SessionContext)
+  if (!ctx) {
+    throw new Error("useSession must be used within SessionProvider")
+  }
+  return ctx
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  return children
+  const [data, setData] = useState<SessionResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true
+    if (!silent) setLoading(true)
+    try {
+      const session = await getSession()
+      setData(session)
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load({ silent: false })
+  }, [load])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load({ silent: true })
+    }
+    const onNativeUnlock = () => void load({ silent: true })
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener(NATIVE_SESSION_UNLOCK_EVENT, onNativeUnlock)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener(NATIVE_SESSION_UNLOCK_EVENT, onNativeUnlock)
+    }
+  }, [load])
+
+  const value = useMemo<SessionContextValue>(
+    () => ({
+      data,
+      status: loading ? "loading" : data ? "authenticated" : "unauthenticated",
+      refetch: () => load({ silent: true }),
+    }),
+    [data, loading, load]
+  )
+
+  return React.createElement(SessionContext.Provider, { value }, children)
 }
 

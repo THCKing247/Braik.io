@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
 
 const AUTH_DEBUG = process.env.DEBUG_AUTH === "true"
 
@@ -190,8 +191,11 @@ export function applyRefreshedSessionCookies(
   refreshed: RefreshedSession,
   options?: { rememberMe?: boolean }
 ): void {
-  const maxAgeAccess = options?.rememberMe ? 60 * 60 * 24 * 7 : refreshed.expires_in
-  const maxAgeRefresh = options?.rememberMe ? 60 * 60 * 24 * 90 : 60 * 60 * 24 * 30
+  const rememberLong =
+    options?.rememberMe ??
+    readPersistLongSessionFromCookies((name) => cookies().get(name)?.value)
+  const maxAgeAccess = rememberLong ? 60 * 60 * 24 * 7 : refreshed.expires_in
+  const maxAgeRefresh = rememberLong ? 60 * 60 * 24 * 90 : 60 * 60 * 24 * 30
   const isProd = process.env.NODE_ENV === "production"
   res.cookies.set("sb-access-token", refreshed.access_token, {
     httpOnly: true,

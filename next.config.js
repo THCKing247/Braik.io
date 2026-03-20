@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: [
+    '@capacitor/core',
+    '@capacitor/preferences',
+    '@aparajita/capacitor-biometric-auth',
+  ],
   // Serve favicon from existing logo so /favicon.ico does not 404
   async rewrites() {
     return [{ source: '/favicon.ico', destination: '/braik-logo.png' }]

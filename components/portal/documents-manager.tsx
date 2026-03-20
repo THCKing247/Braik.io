@@ -1,12 +1,20 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { format } from "date-fns"
-import { FileText, Image as ImageIcon, File, Lock, Users, User, Trash2 } from "lucide-react"
+import { FileText, File, Lock, Users, User, Trash2, Plus, Share2, Copy } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface Document {
   id: string
@@ -16,37 +24,65 @@ interface Document {
   folder: string | null
   visibility: string
   scopedUnit: string | null
-  scopedPositionGroups: any
-  assignedPlayerIds: any
+  scopedPositionGroups: unknown
+  assignedPlayerIds: unknown
   createdAt: Date
+  mimeType?: string | null
+  publicShareToken?: string | null
+  sharedWith?: Array<{ id: string; name: string | null; email: string }>
   creator: { name: string | null; email: string }
   acknowledgements: Array<{ id: string }>
 }
 
-export function DocumentsManager({ teamId, documents: initialDocuments, canUpload, userRole }: { 
+type Contact = { id: string; name: string; email: string }
+
+export function DocumentsManager({
+  teamId,
+  documents: initialDocuments,
+  canUpload,
+  userRole,
+}: {
   teamId: string
   documents: Document[]
   canUpload: boolean
   userRole?: string
 }) {
   const [documents, setDocuments] = useState(initialDocuments)
-  const [showUploadForm, setShowUploadForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<"all" | "folders">("all")
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null)
 
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [title, setTitle] = useState("")
   const [category, setCategory] = useState("other")
   const [folder, setFolder] = useState("")
   const [visibility, setVisibility] = useState("all")
   const [file, setFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Extract unique folders and categories
+  const [shareDoc, setShareDoc] = useState<Document | null>(null)
+  const [shareContacts, setShareContacts] = useState<Contact[]>([])
+  const [sharePick, setSharePick] = useState("")
+  const [shareSaving, setShareSaving] = useState(false)
+  const [publicEnabled, setPublicEnabled] = useState(false)
+
+  const refreshDocuments = useCallback(async (): Promise<Document[] | null> => {
+    const res = await fetch(`/api/documents?teamId=${encodeURIComponent(teamId)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!Array.isArray(data)) return null
+    const mapped: Document[] = data.map((d: Document & { createdAt: string | Date }) => ({
+      ...d,
+      createdAt: typeof d.createdAt === "string" ? new Date(d.createdAt) : d.createdAt,
+    }))
+    setDocuments(mapped)
+    return mapped
+  }, [teamId])
+
   const folders = useMemo(() => {
     const folderSet = new Set<string>()
-    documents.forEach(doc => {
+    documents.forEach((doc) => {
       if (doc.folder) {
         folderSet.add(doc.folder)
       }
@@ -56,45 +92,50 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
 
   const categories = useMemo(() => {
     const categorySet = new Set<string>()
-    documents.forEach(doc => {
+    documents.forEach((doc) => {
       categorySet.add(doc.category)
     })
     return Array.from(categorySet).sort()
   }, [documents])
 
-  // Filter documents based on selected folder and category
-  const filteredDocuments = useMemo(() => {
+  const filteredByFolderCategory = useMemo(() => {
     let filtered = documents
-
     if (selectedFolder) {
-      filtered = filtered.filter(doc => doc.folder === selectedFolder)
+      filtered = filtered.filter((doc) => doc.folder === selectedFolder)
     }
-
     if (selectedCategory) {
-      filtered = filtered.filter(doc => doc.category === selectedCategory)
+      filtered = filtered.filter((doc) => doc.category === selectedCategory)
     }
-
     return filtered
   }, [documents, selectedFolder, selectedCategory])
 
-  // Group documents by folder for folder view
-  const documentsByFolder = useMemo(() => {
-    const grouped: Record<string, Document[]> = {}
-    const noFolder: Document[] = []
-
-    filteredDocuments.forEach(doc => {
-      if (doc.folder) {
-        if (!grouped[doc.folder]) {
-          grouped[doc.folder] = []
-        }
-        grouped[doc.folder].push(doc)
-      } else {
-        noFolder.push(doc)
-      }
+  const visibleDocuments = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return filteredByFolderCategory
+    return filteredByFolderCategory.filter((doc) => {
+      const creatorLabel = (doc.creator?.name || doc.creator?.email || "").toLowerCase()
+      return (
+        doc.title.toLowerCase().includes(q) ||
+        doc.fileName.toLowerCase().includes(q) ||
+        doc.category.toLowerCase().includes(q) ||
+        creatorLabel.includes(q) ||
+        (doc.folder && doc.folder.toLowerCase().includes(q))
+      )
     })
+  }, [filteredByFolderCategory, searchQuery])
 
-    return { grouped, noFolder }
-  }, [filteredDocuments])
+  const handlePickFile = () => {
+    fileInputRef.current?.click()
+  }
+
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ""
+    if (!f) return
+    setFile(f)
+    setTitle(f.name.replace(/\.[^/.]+$/, "") || f.name)
+    setShowUploadDialog(true)
+  }
 
   const handleUpload = async () => {
     if (!title || !file) {
@@ -125,13 +166,19 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
       }
 
       const newDocument = await response.json()
-      setDocuments([newDocument, ...documents])
+      setDocuments([
+        {
+          ...newDocument,
+          createdAt: new Date(newDocument.createdAt),
+        },
+        ...documents,
+      ])
       setTitle("")
       setFolder("")
       setFile(null)
-      setShowUploadForm(false)
-    } catch (error: any) {
-      alert(error.message || "Error uploading document")
+      setShowUploadDialog(false)
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Error uploading document")
     } finally {
       setLoading(false)
     }
@@ -152,14 +199,80 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
         throw new Error("Failed to delete document")
       }
 
-      setDocuments(documents.filter(doc => doc.id !== documentId))
-    } catch (error) {
+      setDocuments(documents.filter((doc) => doc.id !== documentId))
+    } catch {
       alert("Error deleting document")
     }
   }
 
   const handleCardClick = (docId: string) => {
     window.open(`/api/documents/${docId}`, "_blank")
+  }
+
+  const openShare = async (doc: Document, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShareDoc(doc)
+    setPublicEnabled(!!doc.publicShareToken)
+    setSharePick("")
+    try {
+      const res = await fetch(`/api/messages/contacts?teamId=${encodeURIComponent(teamId)}`)
+      if (res.ok) {
+        const data = (await res.json()) as Contact[]
+        setShareContacts(Array.isArray(data) ? data : [])
+      } else {
+        setShareContacts([])
+      }
+    } catch {
+      setShareContacts([])
+    }
+  }
+
+  const applyShareUpdate = async (body: Record<string, unknown>) => {
+    if (!shareDoc) return
+    const docId = shareDoc.id
+    setShareSaving(true)
+    try {
+      const res = await fetch(`/api/documents/${docId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || "Failed to update sharing")
+      }
+      const list = await refreshDocuments()
+      const latest = list?.find((d) => d.id === docId)
+      if (latest) {
+        setShareDoc(latest)
+        setPublicEnabled(!!latest.publicShareToken)
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Share update failed")
+    } finally {
+      setShareSaving(false)
+    }
+  }
+
+  const addShareUser = async () => {
+    if (!sharePick) return
+    await applyShareUpdate({ addUserIds: [sharePick] })
+    setSharePick("")
+  }
+
+  const removeShareUser = async (userId: string) => {
+    await applyShareUpdate({ removeUserIds: [userId] })
+  }
+
+  const togglePublic = async (enabled: boolean) => {
+    setPublicEnabled(enabled)
+    await applyShareUpdate({ publicShareEnabled: enabled })
+  }
+
+  const copyPublicLink = (token: string | null | undefined) => {
+    if (!token) return
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/api/documents/public/${token}`
+    void navigator.clipboard.writeText(url)
   }
 
   const getVisibilityBadge = (visibility: string) => {
@@ -175,255 +288,298 @@ export function DocumentsManager({ teamId, documents: initialDocuments, canUploa
     }
   }
 
-  const getFileType = (fileName: string) => {
+  const getFileType = (fileName: string, mimeType?: string | null) => {
     const ext = fileName.split(".").pop()?.toLowerCase()
-    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "")) {
+    if (mimeType?.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "")) {
       return "image"
     }
-    if (ext === "pdf") {
+    if (ext === "pdf" || mimeType === "application/pdf") {
       return "pdf"
     }
-    if (["doc", "docx"].includes(ext || "")) {
+    if (["doc", "docx"].includes(ext || "") || mimeType?.includes("word")) {
       return "docx"
     }
     return "other"
   }
 
   const getPreviewUrl = (doc: Document) => {
-    const fileType = getFileType(doc.fileName)
+    const fileType = getFileType(doc.fileName, doc.mimeType)
     if (fileType === "image") {
       return `/api/documents/${doc.id}`
     }
-    // For PDFs and other files, we'll show a placeholder for now
-    // In production, you could generate thumbnails server-side
     return null
   }
 
+  const currentShare = shareDoc ? documents.find((d) => d.id === shareDoc.id) ?? shareDoc : null
+
   return (
     <div>
-      {canUpload && (
-        <div className="mb-6">
-          {!showUploadForm ? (
-            <Button onClick={() => setShowUploadForm(true)}>Upload Document</Button>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Upload Document</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Title *</Label>
-                    <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Category</Label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-                      >
-                        <option value="waiver">Waiver</option>
-                        <option value="policy">Policy</option>
-                        <option value="program_document">Program Document</option>
-                        <option value="parent_handbook">Parent Handbook</option>
-                        <option value="team_rules">Team Rules</option>
-                        <option value="form">Form</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Visibility</Label>
-                      <select
-                        value={visibility}
-                        onChange={(e) => setVisibility(e.target.value)}
-                        className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-                      >
-                        <option value="all">All</option>
-                        <option value="staff">Staff Only</option>
-                        <option value="players">Players</option>
-                        <option value="parents">Parents (Explicit Share)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Folder (optional)</Label>
-                    <Input 
-                      value={folder} 
-                      onChange={(e) => setFolder(e.target.value)}
-                      placeholder="e.g., Offense/Passing, Defense/Base"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Use forward slashes (/) to create nested folders
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>File *</Label>
-                    <Input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                  </div>
-                </div>
-                <div className="flex gap-4 mt-4">
-                  <Button onClick={handleUpload} disabled={loading}>
-                    {loading ? "Uploading..." : "Upload"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowUploadForm(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="sr-only"
+        accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,application/pdf,text/plain"
+        onChange={onFileInputChange}
+      />
+
+      {/* Top: search + add (desktop: slightly wider cards in grid below) */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+          <Input
+            type="search"
+            placeholder="Search documents..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full min-w-0"
+            aria-label="Search documents"
+          />
+          {canUpload && (
+            <Button type="button" onClick={handlePickFile} className="shrink-0 gap-1" title="Add document">
+              <Plus className="h-4 w-4" />
+              <span className="sr-only">Add document</span>
+            </Button>
           )}
         </div>
-      )}
-
-      {/* Filters and View Toggle */}
-      <div className="mb-6 flex flex-wrap gap-4 items-center">
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setViewMode("all")
-              setSelectedFolder(null)
-            }}
-          >
-            All Documents
-          </Button>
-          <Button
-            variant={viewMode === "folders" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("folders")}
-          >
-            Browse by Folder
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          {folders.length > 0 && (
+            <select
+              value={selectedFolder || ""}
+              onChange={(e) => setSelectedFolder(e.target.value || null)}
+              className="flex h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              <option value="">All Folders</option>
+              {folders.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          )}
+          {categories.length > 0 && (
+            <select
+              value={selectedCategory || ""}
+              onChange={(e) => setSelectedCategory(e.target.value || null)}
+              className="flex h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
-
-        {viewMode === "all" && (
-          <>
-            {folders.length > 0 && (
-              <select
-                value={selectedFolder || ""}
-                onChange={(e) => setSelectedFolder(e.target.value || null)}
-                className="flex h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="">All Folders</option>
-                {folders.map(f => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
-            )}
-            {categories.length > 0 && (
-              <select
-                value={selectedCategory || ""}
-                onChange={(e) => setSelectedCategory(e.target.value || null)}
-                className="flex h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="">All Categories</option>
-                {categories.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            )}
-          </>
-        )}
       </div>
 
-      {/* Documents Display - Card Grid */}
-      {viewMode === "folders" ? (
-        <div className="space-y-8">
-          {Object.entries(documentsByFolder.grouped).map(([folderName, folderDocs]) => (
-            <div key={folderName}>
-              <h3 className="text-lg font-semibold mb-4 text-foreground">
-                📁 {folderName}
-              </h3>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-6" style={{ gap: "24px" }}>
-                {folderDocs.map((doc) => (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    canDelete={canUpload && userRole === "HEAD_COACH"}
-                    onDelete={handleDelete}
-                    onClick={handleCardClick}
-                    getPreviewUrl={getPreviewUrl}
-                    getFileType={getFileType}
-                    getVisibilityBadge={getVisibilityBadge}
-                  />
-                ))}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload document</DialogTitle>
+            <DialogDescription>
+              {file ? file.name : "Choose a file using the + button."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Title *</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="waiver">Waiver</option>
+                  <option value="policy">Policy</option>
+                  <option value="program_document">Program Document</option>
+                  <option value="parent_handbook">Parent Handbook</option>
+                  <option value="team_rules">Team Rules</option>
+                  <option value="form">Form</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Visibility</Label>
+                <select
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value)}
+                  className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="all">All</option>
+                  <option value="staff">Staff Only</option>
+                  <option value="players">Players</option>
+                  <option value="parents">Parents (Explicit Share)</option>
+                </select>
               </div>
             </div>
-          ))}
-          {documentsByFolder.noFolder.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4 text-foreground">
-                📄 Uncategorized
-              </h3>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-6" style={{ gap: "24px" }}>
-                {documentsByFolder.noFolder.map((doc) => (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    canDelete={canUpload && userRole === "HEAD_COACH"}
-                    onDelete={handleDelete}
-                    onClick={handleCardClick}
-                    getPreviewUrl={getPreviewUrl}
-                    getFileType={getFileType}
-                    getVisibilityBadge={getVisibilityBadge}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))]" style={{ gap: "24px" }}>
-          {filteredDocuments.length === 0 ? (
-            <div className="col-span-full">
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-center text-muted-foreground">No documents found</p>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            filteredDocuments.map((doc) => (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                canDelete={canUpload && userRole === "HEAD_COACH"}
-                onDelete={handleDelete}
-                onClick={handleCardClick}
-                getPreviewUrl={getPreviewUrl}
-                getFileType={getFileType}
-                getVisibilityBadge={getVisibilityBadge}
+            <div className="space-y-2">
+              <Label>Folder (optional)</Label>
+              <Input
+                value={folder}
+                onChange={(e) => setFolder(e.target.value)}
+                placeholder="e.g., Offense/Passing, Defense/Base"
               />
-            ))
+              <p className="text-xs text-muted-foreground">Use forward slashes (/) to create nested folders</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setShowUploadDialog(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleUpload} disabled={loading || !file}>
+              {loading ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!shareDoc} onOpenChange={(o) => !o && setShareDoc(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Share document</DialogTitle>
+            <DialogDescription className="line-clamp-2">
+              {currentShare?.title}
+            </DialogDescription>
+          </DialogHeader>
+          {currentShare && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Share with team member</Label>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={sharePick}
+                    onChange={(e) => setSharePick(e.target.value)}
+                    className="min-w-0 flex-1 h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select user…</option>
+                    {shareContacts
+                      .filter(
+                        (c) => !(currentShare.sharedWith ?? []).some((s) => s.id === c.id)
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name || c.email}
+                        </option>
+                      ))}
+                  </select>
+                  <Button type="button" variant="secondary" onClick={addShareUser} disabled={!sharePick || shareSaving}>
+                    Add
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(currentShare.sharedWith ?? []).map((s) => (
+                    <span
+                      key={s.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-1 text-xs"
+                    >
+                      {s.name || s.email}
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => removeShareUser(s.id)}
+                        disabled={shareSaving}
+                        aria-label={`Remove ${s.name || s.email}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2 border-t border-border pt-4">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={publicEnabled}
+                    onChange={(e) => togglePublic(e.target.checked)}
+                    disabled={shareSaving}
+                  />
+                  Public link (anyone with the link can view)
+                </label>
+                {currentShare.publicShareToken && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => copyPublicLink(currentShare.publicShareToken)}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy link
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-        </div>
-      )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShareDoc(null)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div
+        className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-6 lg:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]"
+      >
+        {visibleDocuments.length === 0 ? (
+          <div className="col-span-full">
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-center text-muted-foreground">No documents found</p>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          visibleDocuments.map((doc) => (
+            <DocumentCard
+              key={doc.id}
+              doc={doc}
+              canDelete={canUpload && userRole === "HEAD_COACH"}
+              canShare={canUpload}
+              onDelete={handleDelete}
+              onClick={handleCardClick}
+              onShare={openShare}
+              getPreviewUrl={getPreviewUrl}
+              getFileType={getFileType}
+              getVisibilityBadge={getVisibilityBadge}
+            />
+          ))
+        )}
+      </div>
     </div>
   )
 }
 
-function DocumentCard({ 
-  doc, 
-  canDelete, 
-  onDelete, 
+function DocumentCard({
+  doc,
+  canDelete,
+  canShare,
+  onDelete,
   onClick,
+  onShare,
   getPreviewUrl,
   getFileType,
-  getVisibilityBadge
-}: { 
+  getVisibilityBadge,
+}: {
   doc: Document
   canDelete: boolean
+  canShare: boolean
   onDelete: (id: string, e: React.MouseEvent) => void
   onClick: (id: string) => void
+  onShare: (doc: Document, e: React.MouseEvent) => void
   getPreviewUrl: (doc: Document) => string | null
-  getFileType: (fileName: string) => string
-  getVisibilityBadge: (visibility: string) => { icon: any, label: string, color: string }
+  getFileType: (fileName: string, mimeType?: string | null) => string
+  getVisibilityBadge: (visibility: string) => { icon: typeof Lock; label: string; color: string }
 }) {
   const previewUrl = getPreviewUrl(doc)
-  const fileType = getFileType(doc.fileName)
+  const fileType = getFileType(doc.fileName, doc.mimeType)
   const visibilityInfo = getVisibilityBadge(doc.visibility)
   const VisibilityIcon = visibilityInfo.icon
 
@@ -449,7 +605,6 @@ function DocumentCard({
         e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.04), 0 10px 30px rgba(11,42,91,0.10)"
       }}
     >
-      {/* Visibility Badge */}
       <div
         style={{
           position: "absolute",
@@ -470,14 +625,11 @@ function DocumentCard({
         <span>{visibilityInfo.label}</span>
       </div>
 
-      {/* Delete Button (only visible on hover) */}
       {canDelete && (
         <button
           onClick={(e) => onDelete(doc.id, e)}
           className="absolute top-2 left-2 z-10 p-1.5 rounded-full bg-red-500 text-white opacity-0 transition-opacity hover:opacity-100"
-          style={{
-            opacity: 0,
-          }}
+          style={{ opacity: 0 }}
           onMouseEnter={(e) => {
             e.currentTarget.style.opacity = "1"
           }}
@@ -489,7 +641,6 @@ function DocumentCard({
         </button>
       )}
 
-      {/* Preview Area */}
       <div
         className="document-preview"
         style={{
@@ -512,33 +663,32 @@ function DocumentCard({
               objectFit: "cover",
             }}
             onError={(e) => {
-              // Fallback to placeholder if image fails to load
               e.currentTarget.style.display = "none"
               const parent = e.currentTarget.parentElement
               if (parent) {
                 parent.innerHTML = `
                   <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; color: #6B7280;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
                     <span style="font-size: 0.75rem;">Image</span>
                   </div>
                 `
               }
             }}
           />
+        ) : fileType === "pdf" ? (
+          <>
+            <iframe
+              title=""
+              src={`/api/documents/${doc.id}`}
+              className="pointer-events-none absolute inset-0 hidden h-full w-full border-0 lg:block"
+            />
+            <div className="flex h-full w-full flex-col items-center justify-center lg:hidden">
+              <FileText className="h-12 w-12 text-red-600 dark:text-red-400" />
+              <span className="text-xs">PDF</span>
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            {fileType === "pdf" ? (
-              <>
-                <FileText className="h-12 w-12 text-red-600 dark:text-red-400" />
-                <span className="text-xs">PDF</span>
-              </>
-            ) : fileType === "docx" ? (
+            {fileType === "docx" ? (
               <>
                 <FileText className="h-12 w-12 text-primary" />
                 <span className="text-xs">Document</span>
@@ -551,22 +701,35 @@ function DocumentCard({
             )}
           </div>
         )}
+        {canShare && (
+          <button
+            type="button"
+            onClick={(e) => onShare(doc, e)}
+            className="absolute bottom-2 right-2 z-10 rounded-full bg-background/90 p-1.5 shadow border border-border"
+            title="Share"
+            aria-label="Share document"
+          >
+            <Share2 className="h-3.5 w-3.5 text-foreground" />
+          </button>
+        )}
       </div>
 
-      {/* Title + Metadata */}
       <div
         className="document-meta"
         style={{
           padding: "12px 14px",
         }}
       >
-        <div
-          className="document-title font-semibold text-[0.95rem] mb-1 leading-tight overflow-hidden text-ellipsis line-clamp-2 text-foreground"
-        >
+        <div className="document-title font-semibold text-[0.95rem] mb-1 leading-tight overflow-hidden text-ellipsis line-clamp-2 text-foreground">
           {doc.title}
         </div>
         <div className="document-sub text-xs mt-1 text-muted-foreground">
           {format(new Date(doc.createdAt), "MMM d, yyyy")}
+          {doc.creator?.name || doc.creator?.email ? (
+            <span className="block truncate">
+              {doc.creator?.name || doc.creator?.email}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>

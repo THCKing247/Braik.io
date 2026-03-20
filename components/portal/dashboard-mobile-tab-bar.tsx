@@ -61,7 +61,6 @@ export function DashboardMobileTabBar() {
       )}
       aria-label="Primary"
     >
-      <div className="mx-auto grid h-16 min-h-[64px] max-w-[min(100%,var(--mobile-shell-max-width))] grid-cols-5 items-stretch px-1 pt-1 sm:px-3 md:px-4">
       <div className="mx-auto grid h-[68px] min-h-[68px] max-w-[min(100%,var(--mobile-shell-max-width))] grid-cols-5 items-stretch px-1 pt-1 sm:px-3 md:px-4">
         {tabs.map(({ href, label, icon: Icon, match }) => {
           const active = match(pathname)

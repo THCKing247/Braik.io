@@ -50,6 +50,11 @@ interface EditItemModalProps {
     make?: string
     quantityTotal?: number
     quantityAvailable?: number
+    itemCode: string
+    inventoryBucket: string
+    costPerUnit: number | null
+    costNotes: string
+    clearDamageReport?: boolean
   }) => Promise<void>
   loading?: boolean
 }

@@ -421,7 +421,7 @@ function PlayEditorContent() {
   )
 
   return (
-    <div className="flex flex-col lg:flex-row flex-1 h-full min-h-0 gap-0 lg:gap-px bg-slate-50 max-w-full overflow-hidden">
+    <div className="flex flex-col lg:flex-row flex-1 h-full min-h-0 max-lg:min-h-[calc(100dvh-3.25rem)] gap-0 lg:gap-px bg-slate-50 max-w-full overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0 min-h-0 rounded-none lg:rounded-l-lg border-0 lg:border border-slate-200 bg-white shadow-sm overflow-hidden order-1">
         {/* Desktop toolbar */}
         <div className="hidden lg:flex items-center gap-3 px-3 py-2 border-b border-slate-200 bg-slate-50/80 flex-shrink-0 flex-wrap">
@@ -563,30 +563,32 @@ function PlayEditorContent() {
           </Button>
         </div>
 
-        <div className="lg:hidden flex items-center gap-2 px-2 py-2 border-b border-slate-200 bg-white flex-shrink-0">
-          <EditorSaveStatusChip status={saveState.status} lastSavedAt={saveState.lastSavedAt} />
-          <Button
-            variant={previewMode ? "secondary" : "default"}
-            size="sm"
-            className="h-9 rounded-xl shrink-0"
-            onClick={() => setPreviewMode((v) => !v)}
-            title="Preview"
-          >
-            <Film className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-xl gap-1 ml-auto"
-            onClick={() => setInspectorSheetOpen(true)}
-          >
-            <PanelRight className="h-4 w-4" />
-            <span className="text-xs font-semibold">Details</span>
-          </Button>
-          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0" onClick={() => setEditorMoreOpen(true)} aria-label="More">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
+        {!previewMode && (
+          <div className="lg:hidden flex items-center gap-2 px-4 py-2 border-b border-slate-200 bg-white flex-shrink-0">
+            <EditorSaveStatusChip status={saveState.status} lastSavedAt={saveState.lastSavedAt} />
+            <Button
+              variant="default"
+              size="touch"
+              className="shrink-0 px-3"
+              onClick={() => setPreviewMode(true)}
+              title="Preview play"
+            >
+              <Film className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="touch"
+              className="gap-1.5 ml-auto min-w-0 px-3"
+              onClick={() => setInspectorSheetOpen(true)}
+            >
+              <PanelRight className="h-4 w-4 shrink-0" />
+              <span className="text-xs font-semibold truncate">Details</span>
+            </Button>
+            <Button variant="outline" size="touch" className="h-11 w-11 shrink-0 p-0" onClick={() => setEditorMoreOpen(true)} aria-label="More">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
 
         <PlaybookBottomSheet open={inspectorSheetOpen} onOpenChange={setInspectorSheetOpen} title="Play details">
           {inspectorPanel}
@@ -654,6 +656,81 @@ function PlayEditorContent() {
           animationProgress={animationProgress}
           showRoutesInPreview={showRoutesInPreview}
         />
+
+        {previewMode && (
+          <div
+            className="lg:hidden fixed inset-x-0 z-[55] rounded-t-2xl border border-b-0 border-slate-200 bg-white/95 pl-4 pt-3 pr-[max(1rem,calc(3.5rem+env(safe-area-inset-right,0px)+0.75rem))] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] backdrop-blur-md"
+            style={{
+              bottom: 0,
+              paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 pb-2">
+              <Button type="button" variant="default" size="touch" className="shrink-0 gap-2" onClick={() => setPreviewMode(false)}>
+                <Film className="h-4 w-4 shrink-0" />
+                Exit preview
+              </Button>
+              <span className="mobile-text-caption max-w-[40%] truncate capitalize text-slate-600" aria-live="polite">
+                {playbackState}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 pt-2">
+              {isAnimationPlaying ? (
+                <Button variant="secondary" size="icon" className="h-11 w-11 rounded-[12px]" onClick={animationPause} aria-label="Pause">
+                  <Pause className="h-5 w-5" />
+                </Button>
+              ) : (
+                <Button variant="default" size="icon" className="h-11 w-11 rounded-[12px]" onClick={animationPlay} aria-label="Play">
+                  <Play className="h-5 w-5" />
+                </Button>
+              )}
+              <Button variant="outline" size="icon" className="h-11 w-11 rounded-[12px]" onClick={animationRestart} aria-label="Restart">
+                <RotateCcw className="h-5 w-5" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-11 w-11 rounded-[12px]" onClick={animationStepToStart} aria-label="Step to start">
+                <SkipBack className="h-5 w-5" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-11 w-11 rounded-[12px]" onClick={animationStepBackward} aria-label="Step back">
+                <ChevronsLeft className="h-5 w-5" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-11 w-11 rounded-[12px]" onClick={animationStepForward} aria-label="Step forward">
+                <ChevronsRight className="h-5 w-5" />
+              </Button>
+              <Button
+                variant={animationLoop ? "secondary" : "outline"}
+                size="icon"
+                className="h-11 w-11 rounded-[12px]"
+                onClick={() => setAnimationLoop(!animationLoop)}
+                aria-label={animationLoop ? "Loop on" : "Loop off"}
+              >
+                <Repeat className={`h-5 w-5 ${animationLoop ? "text-primary" : ""}`} />
+              </Button>
+              <Button
+                variant={showRoutesInPreview ? "secondary" : "outline"}
+                size="icon"
+                className="h-11 w-11 rounded-[12px]"
+                onClick={() => setShowRoutesInPreview((v) => !v)}
+                aria-label="Toggle routes"
+              >
+                <Route className={`h-5 w-5 ${showRoutesInPreview ? "text-primary" : ""}`} />
+              </Button>
+              <select
+                value={animationSpeed}
+                onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
+                className="h-11 min-w-[4.5rem] rounded-[12px] border border-input bg-background px-2 text-sm font-medium"
+                title="Speed"
+                aria-label="Playback speed"
+              >
+                {SPEED_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}x
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
         <LeaveWithoutSavingDialog
           open={saveState.leaveDialogOpen}
           onOpenChange={(open) => { if (!open) saveState.handleLeaveCancel(); saveState.setLeaveDialogOpen(open); }}

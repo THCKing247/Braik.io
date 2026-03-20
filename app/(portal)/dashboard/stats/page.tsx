@@ -296,8 +296,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="mobile-section">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>
             All Stats
@@ -338,7 +338,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
                 id="stats-season"
                 value={season}
                 onChange={(e) => setSeason(e.target.value)}
-                className="flex h-11 w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="mobile-select"
               >
                 <option value="">All / Current</option>
                 {[new Date().getFullYear(), new Date().getFullYear() - 1].map((y) => (
@@ -356,7 +356,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
                 id="stats-position"
                 value={positionFilter}
                 onChange={(e) => setPositionFilter(e.target.value)}
-                className="flex h-11 w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="mobile-select"
               >
                 <option value="">All positions</option>
                 {positions.map((pos) => (
@@ -374,7 +374,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
                 id="stats-side"
                 value={sideFilter}
                 onChange={(e) => setSideFilter(e.target.value)}
-                className="flex h-11 w-full rounded-lg border-2 border-border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="mobile-select"
               >
                 <option value="">All</option>
                 <option value="offense">Offense</option>

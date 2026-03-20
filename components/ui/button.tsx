@@ -5,27 +5,34 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-bg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold ring-offset-bg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
   {
     variants: {
       variant: {
-        default: "bg-[#1E293B] text-white hover:bg-[#3B82F6] hover:shadow-lg hover:scale-105 shadow-md",
+        /** Primary: dark/navy fill */
+        default: "bg-[#0F172A] text-white shadow-sm hover:bg-[#1E293B]",
         destructive:
-          "bg-[#EF4444] text-white hover:bg-[#EF4444]/90 hover:shadow-lg",
+          "bg-[#EF4444] text-white hover:bg-[#DC2626]",
         signIn:
-          "bg-[#1E293B] text-white hover:bg-[#3B82F6] border-0 shadow-md hover:shadow-lg",
+          "bg-[#0F172A] text-white hover:bg-[#1E293B] border-0 shadow-sm",
+        /** Secondary: blue outline */
         outline:
-          "border-2 border-[#3B82F6] bg-transparent text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white",
+          "border border-[#2563EB] bg-transparent text-[#2563EB] hover:bg-[#EFF6FF]",
         secondary:
-          "bg-[#F9FAFB] text-[#111827] hover:bg-[#F3F4F6] hover:shadow-md border border-[#E5E7EB]",
-        ghost: "border border-transparent bg-transparent text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white",
+          "bg-[#F8FAFC] text-[#0F172A] border border-[#E2E8F0] hover:bg-[#F1F5F9]",
+        ghost: "border border-transparent bg-[#F8FAFC] text-[#334155] hover:bg-[#F1F5F9]",
         link: "text-[#3B82F6] underline-offset-4 hover:underline",
+        tertiary: "bg-transparent text-[#334155] hover:bg-[#F1F5F9]",
+        icon: "bg-[#F8FAFC] border border-[#E2E8F0] text-[#334155] hover:bg-[#F1F5F9]",
+        fab: "bg-[#0F172A] text-white shadow-lg hover:bg-[#1E293B]",
       },
       size: {
-        default: "h-11 px-6 py-2.5",
-        sm: "h-9 rounded-lg px-4",
-        lg: "h-12 rounded-lg px-8 text-base",
-        icon: "h-10 w-10",
+        default: "h-11 min-h-[44px] px-5 py-2.5",
+        touch: "h-11 min-h-[44px] px-5 rounded-xl text-[15px] font-semibold",
+        sm: "h-10 min-h-[40px] px-4",
+        lg: "h-12 min-h-[48px] px-7 text-base",
+        icon: "h-11 w-11 min-h-[44px] min-w-[44px]",
+        fab: "h-14 w-14 rounded-full",
       },
     },
     defaultVariants: {

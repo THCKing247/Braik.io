@@ -35,8 +35,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center"
       onClick={() => onOpenChange(false)}
     >
       <div onClick={(e) => e.stopPropagation()}>{children}</div>
@@ -48,10 +47,12 @@ export function DialogContent({ className, children }: DialogContentProps) {
   return (
     <div
       className={cn(
-        "bg-card rounded-lg shadow-lg border border-border p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto",
+        "w-screen max-w-none rounded-t-3xl border border-border bg-card p-4 shadow-2xl max-h-[90dvh] overflow-y-auto",
+        "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:mx-4 md:w-full md:max-w-lg md:rounded-2xl md:p-6",
         className
       )}
     >
+      <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted md:hidden" aria-hidden />
       {children}
     </div>
   )
@@ -84,7 +85,7 @@ interface DialogFooterProps {
 
 export function DialogFooter({ className, children }: DialogFooterProps) {
   return (
-    <div className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2 mt-4", className)}>
+    <div className={cn("mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2", className)}>
       {children}
     </div>
   )

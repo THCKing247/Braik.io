@@ -27,6 +27,11 @@ export const metadata: Metadata = {
   title: "Braik - Break the Huddle. Break the Norm.",
   description: "Sports team operating system for roster, dues, comms, schedule, docs, and AI admin assistant.",
   icons: { icon: "/favicon.ico" },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+  },
 }
 
 export const dynamic = "force-dynamic"

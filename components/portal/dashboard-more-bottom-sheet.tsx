@@ -10,6 +10,7 @@ import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickAc
 import { cn } from "@/lib/utils"
 import { LogOut, Shield, Sparkles, X } from "lucide-react"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
+import { MobileAppCard } from "@/components/mobile/mobile-app-card"
 
 interface Team {
   id: string
@@ -137,7 +138,7 @@ export function DashboardMoreBottomSheet({
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:mx-auto md:max-w-2xl md:w-full md:px-8"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
-          <div className="mb-6 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <MobileAppCard className="mb-6 lg:rounded-xl lg:shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {userRole
                 ? userRole.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
@@ -157,7 +158,7 @@ export function DashboardMoreBottomSheet({
                 <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
               </div>
             )}
-          </div>
+          </MobileAppCard>
 
           <nav className="space-y-2 pb-4" aria-label="More navigation">
             {showAdminLink && (

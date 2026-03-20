@@ -228,8 +228,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
                       <select
                         value={visibility}
                         onChange={(e) => setVisibility(e.target.value)}
-                        className="flex h-10 w-full rounded-md border-2 px-3 py-2 text-sm"
-                        style={{ borderColor: "#0B2A5B" }}
+                        className="mobile-select"
                       >
                         <option value="all">All</option>
                         <option value="staff">Staff Only</option>
@@ -242,8 +241,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
                       <select
                         value={scopedUnit}
                         onChange={(e) => setScopedUnit(e.target.value)}
-                        className="flex h-10 w-full rounded-md border-2 px-3 py-2 text-sm"
-                        style={{ borderColor: "#0B2A5B" }}
+                        className="mobile-select"
                       >
                         <option value="">All Units</option>
                         <option value="OFFENSE">Offense</option>
@@ -283,7 +281,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
       )}
 
       {/* Filters and View Toggle */}
-      <div className="mb-6 flex flex-wrap gap-4 items-center">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="flex gap-2">
           <Button
             variant={viewMode === "all" ? "default" : "outline"}
@@ -310,8 +308,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
               <select
                 value={selectedFolder || ""}
                 onChange={(e) => setSelectedFolder(e.target.value || null)}
-                className="flex h-10 rounded-md border-2 px-3 py-2 text-sm"
-                style={{ borderColor: "#0B2A5B" }}
+                className="mobile-select"
               >
                 <option value="">All Folders</option>
                 {folders.map(f => (
@@ -323,8 +320,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
               <select
                 value={selectedUnit || ""}
                 onChange={(e) => setSelectedUnit(e.target.value || null)}
-                className="flex h-10 rounded-md border-2 px-3 py-2 text-sm"
-                style={{ borderColor: "#0B2A5B" }}
+                className="mobile-select"
               >
                 <option value="">All Units</option>
                 {units.map(u => (
@@ -344,7 +340,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
               <h3 className="text-lg font-semibold mb-4" style={{ color: "rgb(var(--text))" }}>
                 📁 {folderName}
               </h3>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))]" style={{ gap: "24px" }}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {folderPlaybooks.map((playbook) => (
                   <PlaybookCard
                     key={playbook.id}
@@ -365,7 +361,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
               <h3 className="text-lg font-semibold mb-4" style={{ color: "rgb(var(--text))" }}>
                 📄 Uncategorized
               </h3>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))]" style={{ gap: "24px" }}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {playbooksByFolder.noFolder.map((playbook) => (
                   <PlaybookCard
                     key={playbook.id}
@@ -383,7 +379,7 @@ export function PlaybooksManager({ teamId, playbooks: initialPlaybooks, canUploa
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))]" style={{ gap: "24px" }}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredPlaybooks.length === 0 ? (
             <div className="col-span-full">
               <Card>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,6 +9,7 @@ import { MessageSquare, X, Send, Upload, Sparkles, File, AlertTriangle } from "l
 import { AIActionConfirmation } from "@/components/ai/ai-action-confirmation"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { cn } from "@/lib/utils"
+import { MobileFab } from "@/components/mobile/mobile-fab"
 
 interface Message {
   id: string
@@ -47,6 +49,8 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canUseAdvancedActions = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
   const coachB = useCoachB()
+  const pathname = usePathname()
+  const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
 
   // When dashboard sidebar is shown (desktop), register open so "Ask Coach B" in sidebar opens this widget; hide floating button.
   useEffect(() => {
@@ -202,17 +206,33 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
   }
 
-  /** Below lg: no floating FAB — Coach B from More sheet / sidebar only. */
   const isMobileLayout = !coachB?.isDesktop
 
   return (
     <>
+      {isMobileLayout && !isOpen && (
+        <MobileFab
+          immersive={isPlayEditorRoute}
+          aria-label="Open Coach B"
+          onClick={() => setIsOpen(true)}
+          className="border-2 border-[#0B2A5B] bg-[#3B82F6] text-white shadow-xl hover:bg-[#2563EB]"
+        >
+          <Sparkles className="h-7 w-7" aria-hidden />
+        </MobileFab>
+      )}
       {/* Chat panel: sidebar / More sheet opens via coachB.registerOpen */}
       {isOpen && (
         <div
           className={cn(
-            "fixed bottom-6 z-50 flex h-[min(600px,85vh)] w-[min(24rem,calc(100vw-3rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border-2 border-[#0B2A5B] bg-white shadow-2xl min-h-0",
-            isMobileLayout ? "left-3 right-auto sm:left-6" : "right-6"
+            "fixed z-50 flex h-[min(600px,85vh)] w-[min(24rem,calc(100vw-3rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border-2 border-[#0B2A5B] bg-white shadow-2xl min-h-0",
+            isMobileLayout
+              ? cn(
+                  "left-3 right-3 w-auto max-w-none sm:left-6 sm:right-auto sm:w-[min(24rem,calc(100vw-3rem))]",
+                  isPlayEditorRoute
+                    ? "bottom-[max(1rem,env(safe-area-inset-bottom,0px)+0.75rem)]"
+                    : "bottom-[max(1rem,calc(var(--mobile-main-pad-bottom)+0.5rem))]"
+                )
+              : "bottom-6 right-6"
           )}
         >
           <Card className="flex flex-col flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-white">

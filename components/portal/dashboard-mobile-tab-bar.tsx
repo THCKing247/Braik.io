@@ -48,15 +48,21 @@ export function DashboardMobileTabBar() {
     [pathname, session?.user?.role]
   )
 
+  /** Immersive play editor: full-bleed field, no tab bar */
+  if (pathname.startsWith("/dashboard/playbooks/play/")) {
+    return null
+  }
+
   return (
     <nav
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 lg:hidden",
-        "border-t border-border bg-background/95 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md"
+        "border-t border-border bg-background/95 pb-[max(0px,env(safe-area-inset-bottom,0px))] shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md"
       )}
       aria-label="Primary"
     >
-      <div className="mx-auto grid h-16 max-w-2xl grid-cols-5 items-stretch px-1 pt-1 sm:px-3 md:px-4">
+      <div className="mx-auto grid h-16 min-h-[64px] max-w-[min(100%,var(--mobile-shell-max-width))] grid-cols-5 items-stretch px-1 pt-1 sm:px-3 md:px-4">
+      <div className="mx-auto grid h-[68px] min-h-[68px] max-w-[min(100%,var(--mobile-shell-max-width))] grid-cols-5 items-stretch px-1 pt-1 sm:px-3 md:px-4">
         {tabs.map(({ href, label, icon: Icon, match }) => {
           const active = match(pathname)
           return (
@@ -92,10 +98,6 @@ export function DashboardMobileTabBar() {
           <span className="text-[10px] font-semibold leading-tight sm:text-[11px]">More</span>
         </button>
       </div>
-      <div
-        className="h-[max(0.25rem,env(safe-area-inset-bottom))] shrink-0"
-        aria-hidden
-      />
     </nav>
   )
 }

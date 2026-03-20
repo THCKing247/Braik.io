@@ -9,6 +9,24 @@
 
 /* Sign-in button: navy blue with electric blue hover */
 @layer components {
+  /* Native-style mobile typography (sans, not athletic display) */
+  .mobile-text-title {
+    @apply font-sans text-xl font-bold tracking-tight normal-case;
+    color: rgb(var(--text));
+  }
+  .mobile-text-subtitle {
+    @apply font-sans text-sm font-medium normal-case;
+    color: rgb(var(--muted));
+  }
+  .mobile-text-body {
+    @apply font-sans text-[15px] leading-relaxed normal-case;
+    color: rgb(var(--text));
+  }
+  .mobile-text-caption {
+    @apply font-sans text-xs normal-case;
+    color: rgb(var(--muted));
+  }
+
   .btn-signin-red {
     /* Legacy class name kept for compatibility, but now uses navy blue */
     background-color: #1E293B !important;
@@ -93,6 +111,13 @@
     
     /* Radius */
     --radius: 0.75rem;
+
+    /* Mobile portal shell (Capacitor / phone) — used below lg only in layout */
+    --mobile-tab-bar-height: 68px;
+    --mobile-shell-max-width: 480px;
+    --mobile-shell-pad-x: 16px;
+    --mobile-main-pad-bottom: max(80px, calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px)));
+    --mobile-fab-bottom: max(96px, calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 16px));
   }
 
   .dark {
@@ -269,4 +294,37 @@
   width: 100%;
   box-sizing: border-box;
   /* Content is padded inward, total layout width remains 100% */
+}
+
+@layer components {
+  .mobile-page {
+    @apply mx-auto w-full max-w-[min(100%,var(--mobile-shell-max-width))] px-4;
+  }
+
+  .mobile-section {
+    @apply space-y-4;
+  }
+
+  .mobile-panel {
+    @apply rounded-[18px] border border-border/80 bg-card p-4 shadow-[0_2px_14px_rgba(15,23,42,0.08)];
+  }
+
+  .mobile-empty-state {
+    @apply flex min-h-[220px] flex-col items-center justify-center rounded-[18px] border border-dashed border-border bg-surface p-6 text-center;
+  }
+
+  .mobile-input,
+  .mobile-select,
+  .mobile-textarea {
+    @apply w-full rounded-xl border border-border bg-background px-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary;
+  }
+
+  .mobile-input,
+  .mobile-select {
+    @apply h-11 min-h-[44px];
+  }
+
+  .mobile-textarea {
+    @apply min-h-[110px] py-3;
+  }
 }

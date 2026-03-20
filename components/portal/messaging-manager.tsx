@@ -1057,8 +1057,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   return (
     <div
-      className="relative flex h-[calc(100vh-200px)] flex-col overflow-hidden rounded-2xl border lg:flex-row"
-      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}
+      className="relative flex h-[calc(100dvh-12rem)] min-h-[560px] flex-col overflow-hidden rounded-[18px] border border-border bg-white shadow-[0_2px_14px_rgba(15,23,42,0.08)] lg:flex-row"
     >
       {error && (
         <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2 transform rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
@@ -1077,7 +1076,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
       >
         <div
-          className="flex flex-shrink-0 items-center justify-between border-b px-4 py-3 md:px-5 md:py-4"
+          className="flex flex-shrink-0 items-center justify-between border-b px-4 py-4 md:px-5"
           style={{ borderBottomColor: "rgb(var(--border))" }}
         >
           <div>
@@ -1154,7 +1153,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               placeholder="Search threads..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 rounded-xl pl-10 text-sm"
+              className="pl-10"
               style={{
                 backgroundColor: "#FFFFFF",
                 borderColor: "rgb(var(--border))",
@@ -1407,7 +1406,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                     className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[70%] rounded-lg p-3 ${
+                      className={`max-w-[78%] rounded-2xl p-3 ${
                         isOwnMessage
                           ? ""
                           : ""
@@ -1481,7 +1480,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
             {/* Message Input */}
             {!selectedThread.isReadOnly && (
-              <div className="p-4 border-t flex-shrink-0" style={{ borderTopColor: "rgb(var(--border))" }}>
+              <div className="flex-shrink-0 border-t bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]" style={{ borderTopColor: "rgb(var(--border))" }}>
                 {attachments.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {attachments.map((att, idx) => (
@@ -1504,7 +1503,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex items-end gap-2">
                   <label className="cursor-pointer p-2 rounded hover:bg-opacity-50" style={{ backgroundColor: "rgb(var(--platinum))" }}>
                     <Paperclip className="h-4 w-4" style={{ color: "rgb(var(--text))" }} />
                     <input
@@ -1524,16 +1523,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                       }
                     }}
                     placeholder="Type a message..."
-                    className="flex-1 min-h-[60px] rounded-md border-2 border-border bg-background text-foreground px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "#0B2A5B"
-                      e.currentTarget.style.boxShadow = "none"
-                    }}
+                    className="mobile-textarea max-h-40 min-h-[44px] flex-1 resize-none"
                   />
                   <Button 
                     onClick={handleSendMessage} 
                     disabled={loading || !messageBody.trim()}
-                    style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                    className="h-11 min-w-[44px] rounded-xl"
                   >
                     <Send className="h-4 w-4" />
                   </Button>

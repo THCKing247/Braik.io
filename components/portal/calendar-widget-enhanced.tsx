@@ -1638,7 +1638,7 @@ export function CalendarWidgetEnhanced({
         <Button
           type="button"
           size="icon"
-          className="fixed right-4 z-[45] h-14 w-14 rounded-full shadow-lg lg:hidden bottom-[max(5.75rem,calc(4.65rem+env(safe-area-inset-bottom,0px)))] md:bottom-[max(6.5rem,calc(5.35rem+env(safe-area-inset-bottom,0px)))]"
+          className="fixed right-[max(1rem,env(safe-area-inset-right,0px))] z-[45] h-14 w-14 rounded-full shadow-lg lg:hidden bottom-[var(--mobile-fab-bottom)]"
           onClick={() => onCreateEvent()}
           aria-label="Create event"
         >

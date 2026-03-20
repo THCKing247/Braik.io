@@ -29,8 +29,7 @@ export type CreateEventCreatedPayload = {
   audience: string
 }
 
-const selectClass =
-  "flex h-11 w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:border-[#3B82F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2"
+const selectClass = "mobile-select"
 
 type CreateEventOverlayProps = {
   open: boolean
@@ -266,7 +265,7 @@ export function CreateEventOverlay({
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="flex min-h-[88px] w-full rounded-lg border-2 border-[#3B82F6] bg-white px-3 py-2 text-sm text-[#0F172A] focus-visible:border-[#3B82F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2"
+              className="mobile-textarea"
             />
           </div>
           <div className="flex flex-col gap-2">

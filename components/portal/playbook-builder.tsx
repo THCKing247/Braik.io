@@ -1453,7 +1453,8 @@ export function PlaybookBuilder({
 
   return (
     <div className="flex flex-col h-full min-h-0 max-h-full lg:h-screen overflow-hidden" style={{ backgroundColor: "#FFFFFF" }}>
-      <div className="lg:hidden flex-shrink-0 flex items-center gap-1.5 px-2 py-2 border-b border-slate-800 bg-slate-950 pt-[max(0.5rem,env(safe-area-inset-top))]">
+      {!previewMode && (
+      <div className="lg:hidden flex-shrink-0 flex items-center gap-1.5 px-4 py-2 border-b border-slate-800 bg-slate-950 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <Button variant="ghost" size="icon" className="text-slate-200 h-10 w-10 shrink-0 rounded-xl" onClick={onClose} aria-label="Close editor">
           <X className="h-5 w-5" />
         </Button>
@@ -1493,6 +1494,7 @@ export function PlaybookBuilder({
           <MoreHorizontal className="h-5 w-5" />
         </Button>
       </div>
+      )}
 
       <PlaybookBottomSheet open={mobileEditorMenuOpen} onOpenChange={setMobileEditorMenuOpen} title="Playbook setup">
         <div className="flex flex-col gap-4">
@@ -1763,7 +1765,7 @@ export function PlaybookBuilder({
       )}
 
       {/* Selected player: position and depth number editor — wrapping toolbar with logical groups */}
-      {canEdit && selectedPlayerId && (() => {
+      {canEdit && !previewMode && selectedPlayerId && (() => {
         const sel = players.find((p) => p.id === selectedPlayerId)
         if (!sel) return null
         const positions = getPositionsForUnit(currentSide)
@@ -2599,10 +2601,10 @@ export function PlaybookBuilder({
         </div>
       )}
 
-      {canEdit && (
+      {canEdit && !previewMode && (
         <>
           <div
-            className="lg:hidden flex-shrink-0 flex items-stretch gap-1.5 px-2 pt-2 z-30 rounded-t-3xl bg-slate-950/98 backdrop-blur-xl border-t border-slate-800 shadow-[0_-12px_40px_rgba(0,0,0,0.35)]"
+            className="lg:hidden flex-shrink-0 flex items-stretch gap-1.5 px-4 pt-2 z-30 rounded-t-3xl bg-slate-950/98 backdrop-blur-xl border-t border-slate-800 shadow-[0_-12px_40px_rgba(0,0,0,0.35)]"
             style={{ paddingBottom: "max(0.65rem, env(safe-area-inset-bottom))" }}
           >
             <Button

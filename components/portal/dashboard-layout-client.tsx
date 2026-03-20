@@ -6,6 +6,7 @@ import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
 import { PortalTeamProvider } from "@/components/portal/portal-team-context"
 import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-bar"
+import { MobilePortalShell } from "@/components/mobile/mobile-portal-shell"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
 import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
@@ -33,6 +34,8 @@ export function DashboardLayoutClient({
   const isLgUp = useMinWidthLg()
   const pathname = usePathname()
   const isSchedulePage = pathname?.includes("/dashboard/schedule") ?? false
+  const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
+  const useMobilePortalShell = !isPlayEditorRoute && !isSchedulePage
   const teamIds = teams.map((t) => t.id)
   const resolvedCurrentTeamId = currentTeamId ?? teams[0]?.id ?? ""
 
@@ -60,12 +63,18 @@ export function DashboardLayoutClient({
               <main
                 className={cn(
                   "min-w-0 w-full max-w-full flex-1 overflow-x-hidden",
-                  "p-4 md:p-6 md:pt-5",
+                  isPlayEditorRoute
+                    ? "max-lg:p-0 max-lg:pt-0"
+                    : isSchedulePage
+                      ? "px-4 pt-4 md:p-6 md:pt-5"
+                      : "px-0 pt-4 pb-0 md:p-6 md:pt-5",
                   "lg:pb-6",
-                  /* Reserve space for fixed tab bar + home indicator on phone/tablet */
+                  /* Reserve space for 64px tab bar + safe area (80px min) */
                   isSchedulePage
                     ? "max-lg:pb-[max(7.5rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(8.5rem,calc(6rem+env(safe-area-inset-bottom,0px)))]"
-                    : "max-lg:pb-28",
+                    : isPlayEditorRoute
+                      ? "max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
+                      : "max-lg:pb-[var(--mobile-main-pad-bottom)]",
                   isSchedulePage &&
                     "flex min-h-[calc(100dvh-9rem)] flex-col overflow-hidden lg:min-h-[calc(100dvh-8rem)]"
                 )}
@@ -82,7 +91,8 @@ export function DashboardLayoutClient({
                   <div
                     className={cn(
                       "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
-                      "lg:rounded-xl lg:border-2 lg:border-[#E5E7EB] lg:bg-white lg:p-6 lg:shadow-sm",
+                      "lg:rounded-xl lg:border lg:border-[#E5E7EB] lg:bg-white lg:p-6 lg:shadow-sm",
+                      isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0",
                       isSchedulePage &&
                         "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"
                     )}
@@ -94,7 +104,7 @@ export function DashboardLayoutClient({
                         isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
                       )}
                     >
-                      {children}
+                      {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
                     </div>
                   </div>
                 </div>

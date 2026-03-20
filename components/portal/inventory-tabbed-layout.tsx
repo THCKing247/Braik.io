@@ -82,9 +82,9 @@ function InventoryExpenseLedger({
     return m
   }, [rows])
 
-  const largestCategory = useMemo(() => {
+  const largestCategory = useMemo((): { name: string; v: number } | null => {
     let best: { name: string; v: number } | null = null
-    byCategory.forEach((v, name) => {
+    byCategory.forEach((v: number, name: string) => {
       if (!best || v > best.v) best = { name, v }
     })
     return best
@@ -1118,6 +1118,7 @@ export function InventoryTabbedLayout({
                                 )}
                               </div>
                             )}
+                          </div>
                         </CardContent>
                       </Card>
                     )

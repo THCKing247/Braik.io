@@ -1,14 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /**
+   * Static HTML export → writes `out/` for Capacitor (`webDir: 'out'` in capacitor.config.ts).
+   *
+   * After a successful web build:
+   *   - Run `npm run build` to generate `/out`
+   *   - Run `npx cap sync android` to copy assets into the Android project
+   *
+   * Note: `rewrites` / `redirects` / `headers` are not supported with `output: 'export'`.
+   * Serve `/favicon.ico` from `public/favicon.ico` (or a static file) instead of rewrites.
+   *
+   * This app uses many dynamic API routes, Server Actions, and `force-dynamic` patterns;
+   * a full static export may require additional refactors per Next.js static export docs.
+   */
+  output: 'export',
   transpilePackages: [
     '@capacitor/core',
     '@capacitor/preferences',
     '@aparajita/capacitor-biometric-auth',
   ],
-  // Serve favicon from existing logo so /favicon.ico does not 404
-  async rewrites() {
-    return [{ source: '/favicon.ico', destination: '/braik-logo.png' }]
-  },
   eslint: {
     // Allow production deploys while lint issues are addressed incrementally
     ignoreDuringBuilds: true,
@@ -18,6 +28,7 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   images: {
+    unoptimized: true,
     domains: ['localhost', 'braik.io'],
     // Add your Supabase project hostname (e.g. abc123.supabase.co) when using Next Image with storage
     formats: ['image/avif', 'image/webp'],
@@ -43,7 +54,7 @@ const nextConfig = {
   // Optimize webpack for memory
   webpack: (config, { dev, isServer }) => {
     if (dev && !isServer) {
-      // Reduce memory usage in development
+      // Reduce memory usage during development
       config.watchOptions = {
         poll: 1000,
         aggregateTimeout: 300,
@@ -55,4 +66,3 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
-

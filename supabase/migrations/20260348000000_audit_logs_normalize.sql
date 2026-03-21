@@ -8,6 +8,19 @@
 --   metadata_json   jsonb nullable
 --   created_at      timestamptz
 
+-- Base table is created in 20260225_admin_portal / 20260226_super_admin_console; ensure it exists
+-- when this migration runs alone or those files were skipped.
+create table if not exists public.audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid not null references public.users(id) on delete cascade,
+  team_id uuid references public.teams(id) on delete set null,
+  action_type text not null,
+  target_type text,
+  target_id text,
+  metadata_json jsonb,
+  created_at timestamptz not null default now()
+);
+
 alter table public.audit_logs add column if not exists team_id uuid references public.teams(id) on delete set null;
 
 alter table public.audit_logs add column if not exists action_type text;

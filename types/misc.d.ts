@@ -8,7 +8,7 @@ declare module "@capacitor/cli" {
     appId?: string
     appName?: string
     webDir?: string
-    server?: { url?: string; cleartext?: boolean }
+    server?: { url?: string; cleartext?: boolean; allowNavigation?: string[] }
     [key: string]: unknown
   }
 }

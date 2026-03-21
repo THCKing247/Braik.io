@@ -2,12 +2,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'io.braik.app',
-  appName: 'Braik',
+  appName: 'BRAIK',
   server: {
     url: 'https://braik.io',
-    cleartext: false,
+    cleartext: true,
     allowNavigation: ['braik.io'],
-  } as CapacitorConfig['server'],
+  },
 };
 
 export default config;

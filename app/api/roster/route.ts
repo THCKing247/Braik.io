@@ -4,6 +4,9 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 import { createNotifications } from "@/lib/utils/notifications"
+import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
@@ -77,6 +80,30 @@ export async function GET(request: Request) {
     }
 
     const typedRows = (rows ?? []) as PlayerRow[]
+
+    type InjuryRow = {
+      player_id: string
+      injury_reason: string
+      severity: string | null
+      exempt_from_practice: boolean | null
+      expected_return_date: string | null
+    }
+    const injuryByPlayer = new Map<string, InjuryRow>()
+    try {
+      const { data: activeInjuryRows, error: injFetchErr } = await supabase
+        .from("player_injuries")
+        .select("player_id, injury_reason, severity, exempt_from_practice, expected_return_date, status")
+        .eq("team_id", teamId)
+        .eq("status", "active")
+      if (!injFetchErr && activeInjuryRows?.length) {
+        for (const row of activeInjuryRows as InjuryRow[]) {
+          if (!injuryByPlayer.has(row.player_id)) injuryByPlayer.set(row.player_id, row)
+        }
+      }
+    } catch {
+      /* optional columns / table — roster still loads */
+    }
+
     const userIds = [...new Set(typedRows.map((r) => r.user_id).filter(Boolean))] as string[]
     let userMap = new Map<string, { id: string; email: string }>()
     if (userIds.length > 0) {
@@ -145,6 +172,16 @@ export async function GET(request: Request) {
         missingForms: Array.isArray((p as any).missing_forms) ? (p as any).missing_forms : [],
         user: p.user_id ? (userMap.get(p.user_id) ? { email: userMap.get(p.user_id)!.email } : null) : null,
         guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
+        activeInjury: (() => {
+          const inj = injuryByPlayer.get(p.id)
+          if (!inj) return null
+          return {
+            reason: inj.injury_reason,
+            severity: inj.severity,
+            exemptFromPractice: inj.exempt_from_practice === true,
+            expectedReturnDate: inj.expected_return_date,
+          }
+        })(),
       }
     })
 
@@ -293,6 +330,25 @@ export async function POST(request: Request) {
     const weight = body?.weight != null ? Number(body.weight) : null
     const height = typeof body?.height === "string" ? body.height.trim() || null : null
 
+    const capacity = await assertCanAddActivePlayers(supabase, teamId, 1)
+    if (!capacity.ok) {
+      trackProductEventServer({
+        eventName: BRAIK_EVENTS.roster.limit_blocked,
+        eventCategory: "billing",
+        userId: session.user.id,
+        teamId,
+        role: session.user.role ?? null,
+        metadata: {
+          limit: capacity.limit ?? null,
+          current: capacity.current ?? null,
+        },
+      })
+      return NextResponse.json(
+        { error: capacity.message, code: "ROSTER_LIMIT_REACHED", limit: capacity.limit, current: capacity.current },
+        { status: 402 }
+      )
+    }
+
     const insertPayload: Record<string, unknown> = {
       team_id: teamId,
       first_name: firstName,
@@ -337,6 +393,14 @@ export async function POST(request: Request) {
     } catch {
       /* non-fatal */
     }
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.roster.player_created,
+      userId: session.user.id,
+      teamId,
+      role: session.user.role ?? null,
+      metadata: { player_id: p.id },
+    })
 
     const out = {
       id: p.id,

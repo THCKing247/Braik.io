@@ -2,12 +2,16 @@
 
 import { useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
+import type { ProductHealthSnapshot } from "@/lib/admin/product-health-types"
 
 interface AuditEntry {
   id: string
   action: string
   createdAt: string
   actorEmail: string
+  targetType?: string | null
+  targetId?: string | null
+  metadataSummary?: string | null
 }
 
 interface DashboardMetric {
@@ -25,6 +29,7 @@ interface Props {
     pastDueTeams: number
     gracePeriodTeams: number
     recentAuditEntries: AuditEntry[]
+    productHealth?: ProductHealthSnapshot
   }
 }
 
@@ -53,7 +58,9 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
   )
 
   const modalRows = metrics.recentAuditEntries.filter((row) =>
-    `${row.action} ${row.actorEmail}`.toLowerCase().includes(search.toLowerCase())
+    `${row.action} ${row.actorEmail} ${row.targetType ?? ""} ${row.targetId ?? ""} ${row.metadataSummary ?? ""}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
   )
 
   return (
@@ -134,12 +141,103 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
         ))}
       </div>
 
+      {metrics.productHealth ? (
+        <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-4">
+          <h3 className="text-lg font-semibold text-emerald-100">Product health (Phase 7)</h3>
+          <p className="mt-1 text-xs text-emerald-100/70">
+            Counts use the same timeframe filter as audit ({timeframeDays}d) where noted. Orgs/programs/playbooks are
+            totals.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Organizations", value: metrics.productHealth.organizations },
+              { label: "Programs", value: metrics.productHealth.programs },
+              { label: "Teams w/ roster cap", value: metrics.productHealth.teamsWithRosterCap },
+              { label: "Playbooks (all)", value: metrics.productHealth.playbooksTotal },
+              { label: "Coach B events (window)", value: metrics.productHealth.coachBEventsInWindow },
+              { label: "Feedback (window)", value: metrics.productHealth.feedbackInWindow },
+              { label: "Active injuries", value: metrics.productHealth.injuriesActive },
+              { label: "Threads touched (window)", value: metrics.productHealth.threadsTouchedInWindow },
+              { label: "Messages (window)", value: metrics.productHealth.messagesInWindow },
+              { label: "Subscriptions active*", value: metrics.productHealth.subscriptionsActive },
+              { label: "Subscriptions past_due*", value: metrics.productHealth.subscriptionsPastDue },
+              { label: "Reminder queue pending", value: metrics.productHealth.remindersPending },
+            ].map((c) => (
+              <div key={c.label} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                <p className="text-[11px] text-white/60">{c.label}</p>
+                <p className="text-xl font-semibold text-white">{c.value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-white/50">* Stripe-linked `subscriptions` table; team subscription_status cards above remain source for ops alerts.</p>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+              <p className="text-sm font-semibold text-white">Profiles by role (non-zero)</p>
+              <ul className="mt-2 space-y-1 text-xs text-white/80">
+                {metrics.productHealth.usersByRole.length === 0 ? (
+                  <li className="text-white/50">No profile role counts loaded.</li>
+                ) : (
+                  metrics.productHealth.usersByRole.map((r) => (
+                    <li key={r.role}>
+                      {r.role}: {r.count}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Recent signups (profiles)</p>
+              <ul className="mt-2 space-y-1 text-xs text-white/80">
+                {metrics.productHealth.recentSignups.length === 0 ? (
+                  <li className="text-white/50">No recent rows.</li>
+                ) : (
+                  metrics.productHealth.recentSignups.map((s) => (
+                    <li key={s.id}>
+                      {s.label} — {new Date(s.createdAt).toLocaleDateString()}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
+          <div className="mt-4">
+            <p className="text-sm font-semibold text-white">Latest feedback</p>
+            <ul className="mt-2 space-y-2 text-xs text-white/80">
+              {metrics.productHealth.recentFeedback.length === 0 ? (
+                <li className="text-white/50">No feedback yet.</li>
+              ) : (
+                metrics.productHealth.recentFeedback.map((f) => (
+                  <li key={f.id} className="rounded border border-white/10 bg-black/20 p-2">
+                    <span className="font-semibold text-white/90">{f.category}</span> ·{" "}
+                    {new Date(f.createdAt).toLocaleString()}
+                    <div className="mt-1 text-white/70">{f.preview || "—"}</div>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
         <h3 className="text-lg font-semibold">Recent Audit Entries</h3>
         <div className="mt-3 space-y-2">
           {metrics.recentAuditEntries.map((entry) => (
-            <div key={entry.id} className="rounded border border-white/10 bg-black/25 p-2 text-xs">
-              {entry.action} - {entry.actorEmail} - {new Date(entry.createdAt).toLocaleString()}
+            <div key={entry.id} className="rounded border border-white/10 bg-black/25 p-2 text-xs leading-relaxed">
+              <div className="font-medium text-white/95">
+                {entry.action} · {entry.actorEmail}
+              </div>
+              <div className="mt-0.5 text-white/60">{new Date(entry.createdAt).toLocaleString()}</div>
+              {(entry.targetType || entry.targetId) && (
+                <div className="mt-1 text-white/55">
+                  {entry.targetType ? `${entry.targetType}` : ""}
+                  {entry.targetType && entry.targetId ? " · " : ""}
+                  {entry.targetId ? entry.targetId : ""}
+                </div>
+              )}
+              {entry.metadataSummary ? (
+                <div className="mt-1 font-mono text-[10px] text-white/45 break-all">{entry.metadataSummary}</div>
+              ) : null}
             </div>
           ))}
           {metrics.recentAuditEntries.length === 0 ? <p className="text-sm text-white/70">No recent audit entries.</p> : null}
@@ -181,14 +279,20 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
               <tbody>
                 {modalRows.map((row) => (
                   <tr key={row.id} className="border-t border-white/10">
-                    <td className="px-2 py-2">{row.action}</td>
-                    <td className="px-2 py-2">{row.actorEmail}</td>
-                    <td className="px-2 py-2">{new Date(row.createdAt).toLocaleString()}</td>
+                    <td className="px-2 py-2 align-top">{row.action}</td>
+                    <td className="px-2 py-2 align-top">{row.actorEmail}</td>
+                    <td className="px-2 py-2 align-top break-all text-white/70">
+                      {[row.targetType, row.targetId].filter(Boolean).join(" · ") || "—"}
+                      {row.metadataSummary ? (
+                        <div className="mt-1 font-mono text-[10px] text-white/50">{row.metadataSummary}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2 align-top whitespace-nowrap">{new Date(row.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}
                 {modalRows.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-2 py-4 text-center text-white/70">
+                    <td colSpan={4} className="px-2 py-4 text-center text-white/70">
                       No rows for this filter.
                     </td>
                   </tr>

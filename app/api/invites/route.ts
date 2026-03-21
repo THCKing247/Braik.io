@@ -71,12 +71,14 @@ export async function POST(request: Request) {
       throw new Error(inviteError?.message ?? "Failed to create invite")
     }
 
-    await supabase.from("audit_logs").insert({
-      actor_id: session.user.id,
-      action: "invite_sent",
-      target_type: "invite",
-      target_id: invite.id,
-      metadata: { teamId, email: normalizedEmail, role },
+    const { writeAuditLog } = await import("@/lib/audit/write-audit-log")
+    await writeAuditLog({
+      actorUserId: session.user.id,
+      teamId,
+      actionType: "invite_sent",
+      targetType: "invite",
+      targetId: invite.id,
+      metadata: { email: normalizedEmail, role },
     })
 
     return NextResponse.json(invite)

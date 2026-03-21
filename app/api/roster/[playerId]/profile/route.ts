@@ -12,6 +12,7 @@ import {
 } from "@/lib/player-profile-api"
 import type { PlayerProfileUpdateBody } from "@/types/player-profile"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
+import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 
 /**
  * GET /api/roster/[playerId]/profile?teamId=xxx
@@ -134,7 +135,7 @@ export async function PATCH(
     const supabase = getSupabaseServer()
     const { data: player, error: fetchErr } = await supabase
       .from("players")
-      .select("id, team_id, user_id, health_status")
+      .select("id, team_id, user_id, health_status, status")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -160,6 +161,27 @@ export async function PATCH(
       : filterBodyForPlayerSelfEdit(body as Record<string, unknown>)
 
     const updates: Record<string, unknown> = {}
+
+    const prevRosterStatus = ((player as { status?: string }).status ?? "active") as string
+    if (
+      isCoach &&
+      bodyToUse.activeStatus !== undefined &&
+      (bodyToUse.activeStatus as string) === "active" &&
+      prevRosterStatus !== "active"
+    ) {
+      const cap = await assertCanAddActivePlayers(supabase, teamId, 1)
+      if (!cap.ok) {
+        return NextResponse.json(
+          {
+            error: cap.message,
+            code: "ROSTER_LIMIT_REACHED",
+            limit: cap.limit,
+            current: cap.current,
+          },
+          { status: 402 }
+        )
+      }
+    }
 
     if (isCoach) {
       if (bodyToUse.firstName !== undefined) updates.first_name = (bodyToUse.firstName as string)?.trim() ?? null

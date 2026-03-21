@@ -391,13 +391,30 @@ export function summarizeInjuries(context: BraikContext, _message: string): Coor
   if (withReturn.length > 0) {
     out.push(`Expected return noted for: ${withReturn.map((i) => `${i.fullName} (~${String(i.expectedReturn).slice(0, 10)})`).join("; ")}.`)
   }
+  const practiceExempt = context.injuries.filter((i) => i.exemptFromPractice)
+  if (practiceExempt.length > 0) {
+    out.push(`Practice exempt: ${practiceExempt.map((i) => i.fullName).join(", ")}.`)
+  }
+  const withSeverity = context.injuries.filter((i) => (i.severity ?? "").trim().length > 0)
+  if (withSeverity.length > 0) {
+    out.push(
+      `Severity noted: ${withSeverity.map((i) => `${i.fullName} (${i.severity})`).join("; ")}.`
+    )
+  }
   const withParticipation = context.injuries.filter((i) => (i.practiceParticipation ?? "").trim().length > 0)
   if (withParticipation.length > 0) {
     out.push(`Practice participation: ${withParticipation.map((i) => `${i.fullName} (${i.practiceParticipation})`).join("; ")}.`)
   }
 
   const hasParticipation = context.injuries.some((i) => (i.practiceParticipation ?? "").trim().length > 0)
-  const confidence: "high" | "medium" | "low" = context.injuries.length > 0 && (startersImpacted.length > 0 || withReturn.length > 0 || hasParticipation) ? "high" : context.injuries.length > 0 ? "medium" : "low"
+  const hasSeverity = withSeverity.length > 0
+  const confidence: "high" | "medium" | "low" =
+    context.injuries.length > 0 &&
+    (startersImpacted.length > 0 || withReturn.length > 0 || hasParticipation || practiceExempt.length > 0 || hasSeverity)
+      ? "high"
+      : context.injuries.length > 0
+        ? "medium"
+        : "low"
 
   return {
     summary: `Injury report: ${context.injuries.length} player(s). ${out.slice(0, 3).join(" ")}`,

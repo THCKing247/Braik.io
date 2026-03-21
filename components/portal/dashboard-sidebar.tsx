@@ -7,6 +7,8 @@ import { useSession, signOut } from "@/lib/auth/client-auth"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
 import { cn } from "@/lib/utils"
+import { canUseCoachB, type Role } from "@/lib/auth/roles"
+import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
 import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 256
@@ -28,6 +30,8 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
   const quickActions = getQuickActionsForRole(userRole)
+  const showCoachB = userRole && canUseCoachB(userRole as Role)
+  const coachCopy = useCoachBRotatingCopy()
 
   const roleLabel = userRole
     ? userRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
@@ -86,45 +90,48 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           ))}
         </nav>
 
-        <div className="border-t border-white/10 p-3">
-          <div
-            className={cn(
-              "overflow-hidden rounded-xl border border-white/10 bg-white/10 p-4 transition-all duration-200",
-              "hover:bg-white/15"
-            )}
-          >
-            <div className="mb-3 flex justify-center">
-              <Image
-                src="/images/ai-chat-icon-tmp.png"
-                alt="Coach B clipboard mascot"
-                width={140}
-                height={140}
-                className="object-contain"
-              />
-            </div>
-            <div className="mb-2 flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 flex-shrink-0 text-[#93C5FD]" aria-hidden />
-              <span className="text-sm font-semibold text-white">Coach B</span>
-            </div>
-            <p className="mb-3 text-xs text-white/80">
-              Ask about your team, schedule, or get help with tasks.
-            </p>
-            <button
-              type="button"
-              onClick={() => coachB?.open()}
+        {showCoachB && (
+          <div className="border-t border-white/10 p-2 lg:p-3">
+            <div
               className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5",
-                "text-sm font-medium text-white shadow-sm transition-colors",
-                "bg-[#2563EB] hover:bg-[#3B82F6]",
-                "focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
+                "overflow-hidden rounded-xl border border-white/10 bg-white/10 p-3 transition-all duration-200 lg:p-4",
+                "hover:bg-white/15"
               )}
-              aria-label="Ask Coach B"
             >
-              <Sparkles className="h-4 w-4" aria-hidden />
-              Ask Coach B
-            </button>
+              <div className="mb-2 flex justify-center lg:mb-3">
+                <Image
+                  src="/images/ai-chat-icon-tmp.png"
+                  alt="Coach B clipboard mascot"
+                  width={96}
+                  height={96}
+                  className="object-contain lg:h-[110px] lg:w-[110px]"
+                />
+              </div>
+              <div className="mb-1.5 flex items-center gap-2 lg:mb-2">
+                <MessageSquare className="h-5 w-5 flex-shrink-0 text-[#93C5FD]" aria-hidden />
+                <span className="text-sm font-semibold text-white">Coach B</span>
+              </div>
+              <p className="mb-2 text-xs text-white/80 lg:mb-3" key={coachCopy.tick}>
+                {coachCopy.subtitle}
+              </p>
+              <p className="mb-2 text-[11px] leading-snug text-white/65 lg:mb-3">{coachCopy.insight}</p>
+              <button
+                type="button"
+                onClick={() => coachB?.open()}
+                className={cn(
+                  "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5",
+                  "text-sm font-medium text-white shadow-sm transition-colors",
+                  "bg-[#2563EB] hover:bg-[#3B82F6]",
+                  "focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
+                )}
+                aria-label="Ask Coach B"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden />
+                Ask Coach B
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="mt-auto shrink-0 space-y-2 border-t border-white/10 p-4">

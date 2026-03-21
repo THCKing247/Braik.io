@@ -2,6 +2,9 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
+import { validateServerThreadCreation } from "@/lib/messaging/thread-create-validation"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /**
  * POST /api/messages/threads/create
@@ -42,6 +45,19 @@ export async function POST(request: Request) {
     }
 
     await requireTeamAccess(teamId)
+
+    const threadRules = await validateServerThreadCreation(
+      supabase,
+      teamId,
+      session.user.id,
+      participantUserIds
+    )
+    if (!threadRules.ok) {
+      return NextResponse.json(
+        { error: threadRules.error, code: threadRules.code },
+        { status: threadRules.status }
+      )
+    }
 
     // Verify all participant user IDs exist
     const { data: participants } = await supabase
@@ -105,6 +121,18 @@ export async function POST(request: Request) {
       user: { id: u.id, name: u.name ?? null, email: u.email ?? "" },
       readOnly: false,
     }))
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.messaging.thread_created,
+      userId: session.user.id,
+      teamId,
+      role: session.user.role ?? null,
+      metadata: {
+        thread_id: thread.id,
+        thread_type: thread.thread_type,
+        participant_count: allParticipantIds.length,
+      },
+    })
 
     return NextResponse.json({
       id: thread.id,

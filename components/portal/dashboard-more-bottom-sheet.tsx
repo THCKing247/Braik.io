@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { LogOut, Shield, Sparkles, X } from "lucide-react"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
 import { MobileAppCard } from "@/components/mobile/mobile-app-card"
+import { canUseCoachB, type Role } from "@/lib/auth/roles"
 
 interface Team {
   id: string
@@ -186,20 +187,22 @@ export function DashboardMoreBottomSheet({
           </nav>
 
           <div className="space-y-3 border-t border-border pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <button
-              type="button"
-              onClick={() => {
-                coachB?.open()
-                close()
-              }}
-              className={cn(
-                "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99]",
-                "bg-[#2563EB] hover:bg-[#1d4ed8]"
-              )}
-            >
-              <Sparkles className="h-5 w-5 shrink-0" aria-hidden />
-              Ask Coach B
-            </button>
+            {userRole && canUseCoachB(userRole as Role) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  coachB?.open()
+                  close()
+                }}
+                className={cn(
+                  "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-md transition active:scale-[0.99]",
+                  "bg-[#2563EB] hover:bg-[#1d4ed8]"
+                )}
+              >
+                <Sparkles className="h-5 w-5 shrink-0" aria-hidden />
+                Ask Coach B
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/" })}

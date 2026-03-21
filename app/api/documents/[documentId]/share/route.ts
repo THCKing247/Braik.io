@@ -4,6 +4,8 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUserMembership } from "@/lib/auth/rbac"
 import { ROLES } from "@/lib/auth/roles"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 function canShareDocument(createdBy: string, userId: string, role: string): boolean {
   if (createdBy === userId) return true
@@ -148,6 +150,19 @@ export async function POST(
       .select("public_share_token")
       .eq("id", documentId)
       .single()
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.docs.share_updated,
+      userId: session.user.id,
+      teamId: doc.team_id,
+      role: membership.role,
+      metadata: {
+        document_id: documentId,
+        add_count: addIds.length,
+        remove_count: removeIds.length,
+        public_toggled: body.publicShareEnabled !== undefined,
+      },
+    })
 
     return NextResponse.json({
       ok: true,

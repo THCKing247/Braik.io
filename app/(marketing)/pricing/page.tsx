@@ -36,11 +36,17 @@ export default function PricingPage() {
           <p className="text-lg md:text-xl text-[#212529]/85 leading-relaxed">
             Braik is built for coaches, teams, and athletic departments that want a better way to manage athletes, communication, development, and program operations without complicated software pricing.
           </p>
+          <p className="mt-6 text-base text-[#212529]/80">
+            <a href="#how-much-braik-costs" className="font-semibold text-[#2563EB] hover:underline">
+              How much does Braik cost?
+            </a>{" "}
+            — jump to plan summaries and the calculator below.
+          </p>
         </div>
       </section>
 
       {/* Pricing cards */}
-      <section className="relative py-12 md:py-16">
+      <section id="how-much-braik-costs" className="relative py-12 md:py-16 scroll-mt-24">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/2 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/5 blur-3xl" />
         </div>

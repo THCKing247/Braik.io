@@ -179,9 +179,12 @@ When the Coordinator Analysis includes ranked options (#1, #2, Top pick, Close a
  * Build system + Braik context + optional Coordinator Analysis + conversation for OpenAI.
  */
 export function buildCoachBPrompt(input: BuildPromptInput): { instructions: string; input: string | Array<{ role: "user" | "assistant" | "system" | "developer"; content: string; type?: "message" }> } {
-  const { context, message, history, coordinatorAnalysis } = input
+  const { context, message, history, coordinatorAnalysis, role: viewerRole } = input
   const contextBlock = formatContextBlock(context)
-  let instructions = `${SYSTEM_INSTRUCTIONS}\n\nBraik Team Context:\n${contextBlock}`
+  const viewerLine = viewerRole
+    ? `\n\nViewer: Braik user role is ${viewerRole} (coach or program administrator). Do not assume they are a player or parent. Keep answers appropriate for staff.`
+    : ""
+  let instructions = `${SYSTEM_INSTRUCTIONS}${viewerLine}\n\nBraik Team Context:\n${contextBlock}`
 
   if (coordinatorAnalysis?.result) {
     instructions += "\n\n--- " + formatCoordinatorAnalysis(coordinatorAnalysis)

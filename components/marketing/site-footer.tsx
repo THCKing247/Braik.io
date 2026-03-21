@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import Link from "next/link"
 import Image from "next/image"
@@ -131,6 +131,11 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
+                <Link href="/pricing" className="text-[#212529] hover:text-[#3B82F6] transition-colors text-sm">
+                  Pricing
+                </Link>
+              </li>
+              <li>
                 <Link href="/about" className="text-[#212529] hover:text-[#3B82F6] transition-colors text-sm">
                   About
                 </Link>
@@ -226,8 +231,11 @@ export function SiteFooter() {
             <p className="text-[#212529] text-sm">
               &copy; {new Date().getFullYear()} Braik. All rights reserved.
             </p>
-            <p className="text-[#6c757d] text-sm mt-2">
-              Powered by Apex TSG
+            <p className="text-[#6c757d] text-sm mt-2 flex items-center justify-center gap-2">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] text-xs font-bold" title="Apex">
+                A
+              </span>
+              <span>Powered by Apex TSG</span>
             </p>
           </div>
         </div>

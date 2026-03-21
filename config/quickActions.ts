@@ -1,4 +1,18 @@
-import { Calendar, Users, User, FileText, DollarSign, CreditCard, Package, MessageSquare, BookOpen, Receipt, Settings, Stethoscope, TrendingUp } from "lucide-react"
+import {
+  Calendar,
+  Users,
+  User,
+  FileText,
+  Package,
+  MessageSquare,
+  BookOpen,
+  Settings,
+  Stethoscope,
+  TrendingUp,
+  LifeBuoy,
+  Dumbbell,
+  GraduationCap,
+} from "lucide-react"
 import { LucideIcon } from "lucide-react"
 
 export interface QuickAction {
@@ -17,7 +31,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     href: "/dashboard/roster",
     label: "Roster",
     icon: Users,
-    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"],
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT", "ATHLETIC_DIRECTOR", "SCHOOL_ADMIN"],
   },
   {
     id: "profile",
@@ -55,25 +69,46 @@ export const QUICK_ACTIONS: QuickAction[] = [
     roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER"],
   },
   {
+    id: "weight-room",
+    href: "/dashboard/weight-room",
+    label: "Weight room",
+    icon: Dumbbell,
+    roles: ["HEAD_COACH", "ASSISTANT_COACH"],
+  },
+  {
+    id: "study-guides",
+    href: "/dashboard/study-guides",
+    label: "Study guides",
+    icon: GraduationCap,
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"],
+  },
+  {
     id: "inventory",
     href: "/dashboard/inventory",
     label: "Inventory",
     icon: Package,
-    roles: ["HEAD_COACH", "ASSISTANT_COACH"],
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "SCHOOL_ADMIN"],
   },
   {
     id: "health",
     href: "/dashboard/health",
     label: "Injury Report",
     icon: Stethoscope,
-    roles: ["HEAD_COACH", "ASSISTANT_COACH"],
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR", "SCHOOL_ADMIN"],
   },
   {
     id: "stats",
     href: "/dashboard/stats",
     label: "Stats / Analytics",
     icon: TrendingUp,
-    roles: ["HEAD_COACH", "ASSISTANT_COACH"],
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR", "SCHOOL_ADMIN"],
+  },
+  {
+    id: "support",
+    href: "/dashboard/support",
+    label: "Support",
+    icon: LifeBuoy,
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"],
   },
   {
     id: "settings",

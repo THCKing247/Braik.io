@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, ShieldCheck, UserCog, Building2 } from "lucide-react"
+import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, ShieldCheck, UserCog, Building2, Gauge } from "lucide-react"
 import { AccountSettings } from "./settings-sections/account-settings"
 import { TeamSettingsSection } from "./settings-sections/team-settings-section"
 import { SeasonSettings } from "./settings-sections/season-settings"
@@ -15,6 +15,7 @@ import { RosterTemplateSettings } from "./settings-sections/roster-template-sett
 import { UsersListSettings } from "./settings-sections/users-list-settings"
 import { SubscriptionSettings } from "./settings-sections/subscription-settings"
 import { LinkToOrganizationSettings } from "./settings-sections/link-to-organization-settings"
+import { Phase1OpsSettings } from "./settings-sections/phase1-ops-settings"
 
 interface User {
   id: string
@@ -63,6 +64,7 @@ type SettingsSection =
   | "users"
   | "subscription"
   | "linkToOrganization"
+  | "phase1Ops"
 
 export type TeamUpdatePayload = Partial<Pick<Team, "name" | "slogan" | "logoUrl">> | Team
 
@@ -133,6 +135,8 @@ export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLa
         return <SubscriptionSettings teamId={team.id} />
       case "linkToOrganization":
         return <LinkToOrganizationSettings />
+      case "phase1Ops":
+        return <Phase1OpsSettings teamId={team.id} />
       default:
         return <AccountSettings user={user} />
     }
@@ -145,10 +149,10 @@ export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLa
         <p className="text-muted-foreground">Manage your account and team configuration</p>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         {/* Left Navigation */}
-        <div className="w-64 flex-shrink-0">
-          <nav className="space-y-1">
+        <div className="w-full shrink-0 lg:w-64">
+          <nav className="flex flex-row gap-1 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
             {visibleSections.map((section) => {
               const Icon = section.icon
               const isActive = activeSection === section.id
@@ -156,7 +160,7 @@ export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLa
                 <button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                  className={`flex shrink-0 items-center gap-3 whitespace-nowrap rounded-lg px-4 py-3 text-left transition-colors lg:w-full ${
                     isActive
                       ? "bg-primary text-primary-foreground border border-primary"
                       : "text-muted-foreground bg-transparent hover:bg-muted/50 hover:text-foreground"

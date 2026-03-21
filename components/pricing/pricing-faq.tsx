@@ -1,9 +1,16 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 const FAQ_ITEMS = [
+  {
+    q: "How much does Braik cost?",
+    a: "Plans are annual: Head Coach (varsity + optional JV/Freshman add-ons and roster-based spots) or Athletic Director (flat department-wide). Use the calculator on this page for an estimate. Player accounts are included.",
+    linkHref: "#how-much-braik-costs",
+    linkLabel: "Jump to plan details",
+  },
   {
     q: "Is Braik billed monthly or annually?",
     a: "Braik is billed annually. The Head Coach plan and Athletic Director plan are both paid once per year by the program or athletic department, which simplifies budgeting and aligns with typical planning cycles.",
@@ -79,9 +86,16 @@ export function PricingFaq() {
               )}
             >
               <div className="overflow-hidden">
-                <p className="pb-4 px-5 pt-0 text-[#212529]/85 leading-relaxed border-t border-[#e5e7eb]">
-                  {item.a}
-                </p>
+                <div className="pb-4 px-5 pt-0 text-[#212529]/85 leading-relaxed border-t border-[#e5e7eb] space-y-2">
+                  <p>{item.a}</p>
+                  {"linkHref" in item && item.linkHref && item.linkLabel ? (
+                    <p>
+                      <Link href={item.linkHref} className="font-medium text-[#2563EB] hover:underline">
+                        {item.linkLabel}
+                      </Link>
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>

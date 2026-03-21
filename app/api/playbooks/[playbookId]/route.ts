@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /**
  * GET /api/playbooks/[playbookId]
@@ -117,6 +119,14 @@ export async function PATCH(
       console.error("[PATCH /api/playbooks/[playbookId]]", error)
       return NextResponse.json({ error: "Failed to update playbook" }, { status: 500 })
     }
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.playbook.updated,
+      userId: session.user.id,
+      teamId: playbook.team_id,
+      role: session.user.role ?? null,
+      metadata: { playbook_id: playbookId },
+    })
 
     return NextResponse.json({
       id: playbook.id,

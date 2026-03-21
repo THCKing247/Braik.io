@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -75,11 +76,13 @@ export function RosterManager({ teamId, players: initialPlayers, canEdit }: { te
         }),
       })
 
+      const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error("Failed to add player")
+        const r = parseRosterLimitResponse(data)
+        throw new Error(r.message)
       }
 
-      const newPlayer = await response.json()
+      const newPlayer = data
       setPlayers([...players, newPlayer])
       setFirstName("")
       setLastName("")
@@ -114,7 +117,8 @@ export function RosterManager({ teamId, players: initialPlayers, canEdit }: { te
 
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(data.error || "Failed to import CSV")
+        const r = parseRosterLimitResponse(data)
+        throw new Error(r.message)
       }
 
       if (data.summary) {

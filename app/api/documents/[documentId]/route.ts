@@ -4,30 +4,50 @@ import { existsSync } from "fs"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
-import { ROLES } from "@/lib/auth/roles"
+import { ROLES, type Role } from "@/lib/auth/roles"
+import { teamDocumentVisibleToMember } from "@/lib/documents/document-visibility"
 import { getTeamDocumentDiskPath, readTeamDocumentFromUrl } from "@/lib/documents/team-document-storage"
 
 async function assertDocumentReadAccess(
   supabase: ReturnType<typeof getSupabaseServer>,
   userId: string,
-  doc: { id: string; team_id: string }
+  doc: { id: string; team_id: string; visibility?: string | null; assigned_player_ids?: unknown }
 ) {
-  try {
-    await requireTeamAccess(doc.team_id)
-    return
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    if (!msg.includes("Not a member")) throw err
-  }
-  const { data } = await supabase
+  const { data: shareHit } = await supabase
     .from("document_shares")
     .select("id")
     .eq("document_id", doc.id)
     .eq("shared_with_user_id", userId)
     .maybeSingle()
-  if (!data) {
-    throw new Error("Access denied: No permission to view this document")
+  if (shareHit) return
+
+  try {
+    const { membership } = await requireTeamAccess(doc.team_id)
+    const viewerRole = membership.role as Role
+    let viewerPlayerRowIds: string[] = []
+    if (viewerRole === ROLES.PLAYER) {
+      const { data: playerRows } = await supabase
+        .from("players")
+        .select("id")
+        .eq("team_id", doc.team_id)
+        .eq("user_id", userId)
+      viewerPlayerRowIds = (playerRows ?? []).map((p) => p.id as string)
+    }
+    const ok = teamDocumentVisibleToMember({
+      visibility: doc.visibility,
+      assignedPlayerIds: doc.assigned_player_ids,
+      viewerRole,
+      viewerPlayerRowIds,
+    })
+    if (!ok) {
+      throw new Error("Access denied: Document not visible for your role")
+    }
+    return
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!msg.includes("Not a member")) throw err
   }
+  throw new Error("Access denied: No permission to view this document")
 }
 
 /**
@@ -52,7 +72,7 @@ export async function GET(
     const supabase = getSupabaseServer()
     const { data: doc, error } = await supabase
       .from("documents")
-      .select("id, team_id, file_url, file_name, mime_type")
+      .select("id, team_id, file_url, file_name, mime_type, visibility, assigned_player_ids")
       .eq("id", documentId)
       .maybeSingle()
 

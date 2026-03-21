@@ -37,6 +37,9 @@ import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
 import { usePlaybookToast } from "./playbook-toast"
+import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
+import { trackProductEvent } from "@/lib/utils/analytics-client"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
 const ROSTER_BILLING_WARNING =
@@ -851,7 +854,15 @@ export function RosterManagerEnhanced({
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(data?.error ?? "Failed to add player")
+        const r = parseRosterLimitResponse(data)
+        if (r.isRosterLimit) {
+          trackProductEvent(BRAIK_EVENTS.billing.upgrade_prompt_shown, {
+            teamId,
+            eventCategory: "billing",
+            metadata: { source: "add_player", limit: r.limit, current: r.current },
+          })
+        }
+        throw new Error(r.message)
       }
       const newPlayer = data as Player
       setPlayers([...players, newPlayer])
@@ -884,7 +895,15 @@ export function RosterManagerEnhanced({
 
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(data.error || "Failed to import CSV")
+        const r = parseRosterLimitResponse(data)
+        if (r.isRosterLimit) {
+          trackProductEvent(BRAIK_EVENTS.billing.upgrade_prompt_shown, {
+            teamId,
+            eventCategory: "billing",
+            metadata: { source: "csv_import", limit: r.limit, current: r.current },
+          })
+        }
+        throw new Error(r.message)
       }
 
       if (data.summary) {
@@ -969,7 +988,15 @@ export function RosterManagerEnhanced({
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error((data as { error?: string }).error ?? "Failed to update player")
+        const r = parseRosterLimitResponse(data)
+        if (r.isRosterLimit) {
+          trackProductEvent(BRAIK_EVENTS.billing.upgrade_prompt_shown, {
+            teamId,
+            eventCategory: "billing",
+            metadata: { source: "edit_player_active", limit: r.limit, current: r.current },
+          })
+        }
+        throw new Error(r.message)
       }
       const updated = data as Player
       setPlayers((prev) => prev.map((p) => (p.id === updated.id ? { ...updated, user: editingPlayer.user, guardianLinks: editingPlayer.guardianLinks ?? [] } : p)))

@@ -71,6 +71,7 @@ export async function GET(request: Request) {
       .from("messages")
       .select("thread_id")
       .in("thread_id", threadIds)
+      .is("deleted_at", null)
 
     const countMap = new Map<string, number>()
     ;(messageCounts ?? []).forEach((m) => {
@@ -141,6 +142,7 @@ export async function GET(request: Request) {
       .from("messages")
       .select("id, thread_id, sender_id, content, created_at")
       .in("thread_id", threadIds)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(400)
 
@@ -164,6 +166,7 @@ export async function GET(request: Request) {
         .from("messages")
         .select("id", { count: "exact", head: true })
         .eq("thread_id", threadId)
+        .is("deleted_at", null)
         .neq("sender_id", session.user.id)
       if (lr) {
         q = q.gt("created_at", lr)

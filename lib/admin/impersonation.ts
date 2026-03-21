@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto"
 import { cookies } from "next/headers"
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 /** Impersonation session type (cookie-based signed token until DB table exists) */
 export type ImpersonationSession = {
@@ -103,14 +102,13 @@ export async function auditImpersonatedActionFromRequest(
     return
   }
 
-  const supabase = getSupabaseServer()
-  await supabase.from("audit_logs").insert({
-    actor_id: (session as { actorAdminId?: string }).actorAdminId ?? (session as ImpersonationSession).actor_admin_id,
-    action: `impersonation_${action}`,
-    target_type: "user",
-    target_id: (session as { targetUserId?: string }).targetUserId ?? (session as ImpersonationSession).target_user_id,
-    metadata: {
-      ...(metadata || {}),
-    },
+  const { writeAuditLog } = await import("@/lib/audit/write-audit-log")
+  await writeAuditLog({
+    actorUserId:
+      (session as { actorAdminId?: string }).actorAdminId ?? (session as ImpersonationSession).actor_admin_id,
+    actionType: `impersonation_${action}`,
+    targetType: "user",
+    targetId: (session as { targetUserId?: string }).targetUserId ?? (session as ImpersonationSession).target_user_id,
+    metadata: { ...(metadata || {}) },
   })
 }

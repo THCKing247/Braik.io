@@ -31,7 +31,7 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
       const res = await fetch("/api/coach-b/suggest-play", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, playbookId }),
+        body: JSON.stringify({ teamId, prompt: text, playbookId }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -45,7 +45,7 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
     } finally {
       setLoading(false)
     }
-  }, [prompt, loading, playbookId, showToast])
+  }, [prompt, loading, teamId, playbookId, showToast])
 
   const handleInsertDraft = useCallback(
     async (suggestion: PlaySuggestion) => {
@@ -84,7 +84,9 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
       const text = [
         suggestion.playName,
         `Concept: ${suggestion.conceptType}`,
-        ...suggestion.routesByRole.map((r) => `  ${r.role}: ${r.route}`),
+        ...suggestion.routesByRole.map((r) =>
+          `  ${r.role}: ${r.route}${r.yards != null ? ` (${r.yards} yd)` : ""}`
+        ),
         suggestion.rationale,
       ].join("\n")
       void navigator.clipboard.writeText(text)
@@ -153,6 +155,9 @@ export function CoachBSuggestPanel({ teamId, playbookId, returnUrl, className = 
                     {suggestion.routesByRole.map((r) => (
                       <li key={r.role}>
                         <span className="font-medium text-foreground">{r.role}:</span> {r.route}
+                        {r.yards != null ? (
+                          <span className="text-muted-foreground"> · {r.yards} yd</span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

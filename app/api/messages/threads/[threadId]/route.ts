@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { getUserMembership, requireTeamAccess } from "@/lib/auth/rbac"
+import { canModerateMessages } from "@/lib/auth/roles"
+import { MODERATED_MESSAGE_PLACEHOLDER } from "@/lib/messaging/moderation-copy"
 
 /**
  * GET /api/messages/threads/[threadId]
@@ -73,10 +75,10 @@ export async function GET(
 
     const participantUserMap = new Map((participantUsers ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
 
-    // Get messages
+    // Get messages (include soft-deleted; mask content server-side)
     const { data: messages, error: messagesError } = await supabase
       .from("messages")
-      .select("id, sender_id, content, created_at, updated_at")
+      .select("id, sender_id, content, created_at, updated_at, deleted_at")
       .eq("thread_id", threadId)
       .order("created_at", { ascending: true })
 
@@ -116,15 +118,25 @@ export async function GET(
       ])
     })
 
+    let canModerate = false
+    try {
+      const mem = await getUserMembership(thread.team_id)
+      canModerate = mem ? canModerateMessages(mem.role) : false
+    } catch {
+      canModerate = false
+    }
+
     // Format response
     const formattedMessages = (messages ?? []).map((m) => {
       const sender = senderMap.get(m.sender_id) || { id: m.sender_id, name: null, email: "" }
+      const removed = !!(m as { deleted_at?: string | null }).deleted_at
       return {
         id: m.id,
-        body: m.content,
-        attachments: attachmentsByMessage.get(m.id) || [],
+        body: removed ? MODERATED_MESSAGE_PLACEHOLDER : m.content,
+        attachments: removed ? [] : attachmentsByMessage.get(m.id) || [],
         createdAt: m.created_at,
         creator: sender,
+        isRemoved: removed,
       }
     })
 
@@ -152,6 +164,7 @@ export async function GET(
       _count: { messages: formattedMessages.length },
       isReadOnly: false,
       canReply: true,
+      canModerate,
     })
   } catch (error: any) {
     console.error("[GET /api/messages/threads/[threadId]]", error)

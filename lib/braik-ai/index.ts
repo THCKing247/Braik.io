@@ -33,3 +33,4 @@ export type {
   TeamInfo,
   ContextModuleInput,
 } from "./types"
+export type { FootballPlaySuggestionPayload, PlaybookMasterySignal } from "./football-play-ai-types"

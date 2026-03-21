@@ -152,7 +152,7 @@ export function SiteHeader() {
             </Button>
           </Link>
           <Link href="/login" className="block">
-            <Button variant="outline" className="w-full border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 border-2" size="lg">
+            <Button variant="outline" className="w-full border-slate-300 text-slate-800 hover:bg-slate-50" size="lg">
               Sign In
             </Button>
           </Link>

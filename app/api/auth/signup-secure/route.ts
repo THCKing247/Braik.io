@@ -2,6 +2,10 @@ import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
+import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { headCoachSignupTeamLevels } from "@/lib/onboarding/head-coach-team-levels"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 
@@ -19,6 +23,7 @@ class SignupRouteError extends Error {
 type RawSignupBody = {
   fullName?: string
   programName?: string
+  programType?: string
   email?: string
   password?: string
   role?: string
@@ -71,6 +76,7 @@ function parseSignupPayload(body: RawSignupBody) {
   const password = asNonEmptyString(body.password)
   const phone = asNonEmptyString(body.phone)
   const sport = asNonEmptyString(body.sport) ?? asNonEmptyString(body.sportType)
+  const programType = asNonEmptyString(body.programType)
   const programCode =
     (asNonEmptyString(body.programCode) ?? asNonEmptyString(body.teamId))?.toUpperCase() ?? null
   const role = normalizeRole(asNonEmptyString(body.role))
@@ -83,6 +89,7 @@ function parseSignupPayload(body: RawSignupBody) {
     role,
     phone,
     sport,
+    programType,
     programCode,
   }
 }
@@ -115,7 +122,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as RawSignupBody
-    const { fullName, programName, email, password, role, phone, sport, programCode } = parseSignupPayload(body)
+    const { fullName, programName, email, password, role, phone, sport, programType, programCode } = parseSignupPayload(body)
 
     // programName and sport are only required when the user is creating a new team (head_coach)
     const isHeadCoach = role === "head_coach"
@@ -293,58 +300,301 @@ export async function POST(request: Request) {
     let inviteCode: string | null = null
 
     if (role === "head_coach") {
-      // Head Coach always creates a brand-new team immediately.
       inviteCode = generateSecureInviteCode(8)
+      const levels = headCoachSignupTeamLevels(sport, programType)
+      const teamLevelNames: Record<string, string> = {
+        varsity: programName!,
+        jv: `JV ${programName}`,
+        freshman: `Freshman ${programName}`,
+      }
 
-      const { data: insertedTeam, error: teamInsertError } = await supabase
-        .from("teams")
-        .insert({
-          name: programName,
-          created_by: createdAuthUserId,
-          invite_code: inviteCode,
+      let programIdRollback: string | null = null
+      try {
+        const { data: program, error: programError } = await supabase
+          .from("programs")
+          .insert({
+            created_by_user_id: createdAuthUserId,
+            program_name: programName!,
+            sport: sport ?? "football",
+            plan_type: "head_coach",
+          })
+          .select("id")
+          .single()
+
+        if (programError || !program?.id) {
+          throw new SignupRouteError(500, "Database failure while creating program", programError?.message)
+        }
+        programIdRollback = program.id as string
+
+        for (const level of levels) {
+          const name = level === "varsity" ? programName! : teamLevelNames[level] ?? programName!
+          const isVarsity = level === "varsity"
+          const row: Record<string, unknown> = {
+            program_id: program.id,
+            name,
+            created_by: createdAuthUserId,
+            team_level: level,
+            plan_type: "head_coach",
+            sport: sport ?? "football",
+            roster_creation_mode: "coach_precreated",
+          }
+          if (isVarsity) {
+            row.invite_code = inviteCode
+          }
+
+          const { data: insertedTeam, error: teamInsertError } = await supabase
+            .from("teams")
+            .insert(row)
+            .select("id")
+            .single()
+
+          if (teamInsertError || !insertedTeam?.id) {
+            throw new SignupRouteError(500, "Database failure while creating team", teamInsertError?.message)
+          }
+          if (isVarsity) {
+            teamId = insertedTeam.id as string
+          }
+        }
+
+        const { error: pmErr } = await supabase.from("program_members").upsert(
+          {
+            program_id: program.id,
+            user_id: createdAuthUserId,
+            role: "head_coach",
+            active: true,
+          },
+          { onConflict: "program_id,user_id" }
+        )
+        if (pmErr) {
+          throw new SignupRouteError(500, "Database failure while assigning program membership", pmErr.message)
+        }
+
+        const { error: inviteInsertError } = await supabase.from("invites").insert({
+          code: inviteCode,
+          team_id: teamId,
+          uses: 0,
         })
+        if (inviteInsertError) {
+          throw new SignupRouteError(500, "Database failure while creating invite", inviteInsertError.message)
+        }
+
+        programIdRollback = null
+      } finally {
+        if (programIdRollback) {
+          await supabase.from("programs").delete().eq("id", programIdRollback)
+        }
+      }
+    } else if (role === "parent" && programCode) {
+      const { data: teamByPlayerJoinCode } = await supabase.from("teams").select("id").eq("player_code", programCode).maybeSingle()
+      if (teamByPlayerJoinCode?.id) {
+        throw new SignupRouteError(
+          400,
+          "That code is the shared team player join code. Enter your child's personal player code from the coach instead."
+        )
+      }
+
+      let linkedPlayerId: string | null = null
+      let linkedTeamId: string | null = null
+
+      const typedParent = await findInviteCode(supabase, programCode, ["parent_link_invite"])
+      if (typedParent?.target_player_id) {
+        const { data: tp } = await supabase
+          .from("players")
+          .select("id, team_id")
+          .eq("id", typedParent.target_player_id)
+          .maybeSingle()
+        if (tp?.team_id) {
+          linkedPlayerId = tp.id as string
+          linkedTeamId = tp.team_id as string
+          const consume = await consumeInviteCode(supabase, typedParent.id, createdAuthUserId)
+          if (consume.error) {
+            console.warn("[signup-secure] parent_link consume", consume.error)
+          }
+        }
+      }
+
+      if (!linkedTeamId) {
+        const { data: byPlayerCode, error: pcErr } = await supabase
+          .from("players")
+          .select("id, team_id")
+          .eq("invite_code", programCode)
+          .maybeSingle()
+        if (!pcErr && byPlayerCode?.team_id) {
+          linkedPlayerId = byPlayerCode.id as string
+          linkedTeamId = byPlayerCode.team_id as string
+        }
+      }
+
+      if (!linkedTeamId || !linkedPlayerId) {
+        throw new SignupRouteError(
+          400,
+          "The player code you entered is not valid. Ask your coach for your child's personal player code."
+        )
+      }
+
+      const { data: existingParentLink } = await supabase
+        .from("parent_player_links")
         .select("id")
-        .single()
-
-      if (teamInsertError || !insertedTeam?.id) {
-        throw new SignupRouteError(500, "Database failure while creating team", teamInsertError?.message)
-      }
-
-      teamId = insertedTeam.id as string
-
-      const { error: inviteInsertError } = await supabase.from("invites").insert({
-        code: inviteCode,
-        team_id: teamId,
-        uses: 0,
-      })
-
-      if (inviteInsertError) {
-        throw new SignupRouteError(500, "Database failure while creating invite", inviteInsertError.message)
-      }
-    } else if (programCode) {
-      // Prefer linking to an existing coach-created player (by players.invite_code) to avoid duplicate roster rows.
-      const { data: existingPlayer, error: playerLookupErr } = await supabase
-        .from("players")
-        .select("id, team_id")
-        .eq("invite_code", programCode)
-        .is("user_id", null)
+        .eq("parent_user_id", createdAuthUserId)
+        .eq("player_id", linkedPlayerId)
         .maybeSingle()
 
-      if (!playerLookupErr && existingPlayer?.team_id) {
-        teamId = existingPlayer.team_id as string
-        const { error: linkErr } = await supabase
-          .from("players")
-          .update({
-            user_id: createdAuthUserId,
-            claimed_at: new Date().toISOString(),
-            invite_status: "joined",
-          })
-          .eq("id", existingPlayer.id)
-        if (linkErr) {
-          throw new SignupRouteError(500, "Failed to link your account to the roster.", linkErr.message)
+      if (existingParentLink) {
+        throw new SignupRouteError(
+          409,
+          "This account is already linked to that player. Sign in instead."
+        )
+      }
+
+      const { error: pplErr } = await supabase.from("parent_player_links").insert({
+        parent_user_id: createdAuthUserId,
+        player_id: linkedPlayerId,
+        verified: true,
+      })
+      if (pplErr && !String(pplErr.message || "").toLowerCase().includes("duplicate")) {
+        throw new SignupRouteError(500, "Failed to link parent account to player.", pplErr.message)
+      }
+
+      trackProductEventServer({
+        eventName: BRAIK_EVENTS.auth.parent_linked,
+        userId: createdAuthUserId,
+        teamId: linkedTeamId,
+        role: "PARENT",
+        metadata: { via: "signup" },
+      })
+
+      teamId = linkedTeamId
+    } else if (programCode && role === "player") {
+      try {
+        const typedCode = await findInviteCode(supabase, programCode, ["team_player_join", "player_claim_invite"])
+        if (typedCode) {
+          if (typedCode.invite_type === "team_player_join" && typedCode.team_id) {
+            const maxUses = typedCode.max_uses ?? Number.MAX_SAFE_INTEGER
+            if (typedCode.uses >= maxUses) {
+              throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
+            }
+            const consume = await consumeInviteCode(supabase, typedCode.id, createdAuthUserId)
+            if (consume.error) {
+              throw new SignupRouteError(400, consume.error)
+            }
+            teamId = typedCode.team_id
+          } else if (typedCode.invite_type === "player_claim_invite" && typedCode.target_player_id) {
+            const { data: pl } = await supabase
+              .from("players")
+              .select("id, team_id")
+              .eq("id", typedCode.target_player_id)
+              .is("user_id", null)
+              .maybeSingle()
+            if (pl?.team_id) {
+              const { error: linkErr } = await supabase
+                .from("players")
+                .update({
+                  user_id: createdAuthUserId,
+                  claimed_at: new Date().toISOString(),
+                  invite_status: "joined",
+                })
+                .eq("id", pl.id)
+              if (linkErr) {
+                throw new SignupRouteError(500, "Failed to link your account to the roster.", linkErr.message)
+              }
+              await consumeInviteCode(supabase, typedCode.id, createdAuthUserId)
+              teamId = pl.team_id as string
+            }
+          }
         }
-      } else {
-        // Fall back to team invite code (invites.code)
+      } catch (e) {
+        if (e instanceof SignupRouteError) throw e
+      }
+
+      if (!teamId) {
+        const { data: existingPlayer, error: playerLookupErr } = await supabase
+          .from("players")
+          .select("id, team_id")
+          .eq("invite_code", programCode)
+          .is("user_id", null)
+          .maybeSingle()
+
+        if (!playerLookupErr && existingPlayer?.team_id) {
+          teamId = existingPlayer.team_id as string
+          const { error: linkErr } = await supabase
+            .from("players")
+            .update({
+              user_id: createdAuthUserId,
+              claimed_at: new Date().toISOString(),
+              invite_status: "joined",
+            })
+            .eq("id", existingPlayer.id)
+          if (linkErr) {
+            throw new SignupRouteError(500, "Failed to link your account to the roster.", linkErr.message)
+          }
+        }
+      }
+
+      if (!teamId) {
+        const { data: invite, error: inviteLookupError } = await supabase
+          .from("invites")
+          .select("id, team_id, uses, max_uses, expires_at")
+          .eq("code", programCode)
+          .maybeSingle()
+
+        if (inviteLookupError) {
+          throw new SignupRouteError(500, "Database failure while validating invite")
+        }
+
+        if (!invite || !invite.team_id) {
+          throw new SignupRouteError(400, "The code you entered is not valid. Double-check it with your coach or try again later.")
+        }
+
+        const uses = typeof invite.uses === "number" ? invite.uses : 0
+        const maxUses = typeof invite.max_uses === "number" ? invite.max_uses : Number.MAX_SAFE_INTEGER
+        if (uses >= maxUses) {
+          throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
+        }
+
+        if (invite.expires_at) {
+          const expiresAt = new Date(invite.expires_at as string)
+          if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+            throw new SignupRouteError(400, "This invite code has expired. Ask your coach for a fresh one.")
+          }
+        }
+
+        teamId = invite.team_id as string
+
+        const { error: inviteUpdateError } = await supabase
+          .from("invites")
+          .update({ uses: uses + 1 })
+          .eq("id", invite.id)
+
+        if (inviteUpdateError) {
+          throw new SignupRouteError(500, "Database failure while updating invite usage")
+        }
+      }
+    } else if (programCode) {
+      try {
+        const typedStaff = await findInviteCode(supabase, programCode, ["assistant_coach_invite", "athletic_director_link_invite"])
+        if (typedStaff?.team_id) {
+          const maxUses = typedStaff.max_uses ?? Number.MAX_SAFE_INTEGER
+          if (typedStaff.uses >= maxUses) {
+            throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
+          }
+          const consume = await consumeInviteCode(supabase, typedStaff.id, createdAuthUserId)
+          if (consume.error) {
+            throw new SignupRouteError(400, consume.error)
+          }
+          teamId = typedStaff.team_id
+        }
+      } catch (e) {
+        if (e instanceof SignupRouteError) throw e
+      }
+
+      if (!teamId) {
+        const { data: teamByCode } = await supabase.from("teams").select("id").eq("team_id_code", programCode).maybeSingle()
+        if (teamByCode?.id) {
+          teamId = teamByCode.id as string
+        }
+      }
+
+      if (!teamId) {
         const { data: invite, error: inviteLookupError } = await supabase
           .from("invites")
           .select("id, team_id, uses, max_uses, expires_at")
@@ -400,6 +650,17 @@ export async function POST(request: Request) {
     if (profileInsertError) {
       throw new SignupRouteError(500, "Database failure while creating profile", profileInsertError.message)
     }
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.auth.signup_completed,
+      userId: createdAuthUserId,
+      teamId: teamId ?? null,
+      role: role ? role.replace(/-/g, "_").toUpperCase() : null,
+      metadata: {
+        profile_role: role,
+        used_program_code: Boolean(programCode),
+      },
+    })
 
     return NextResponse.json(
       {

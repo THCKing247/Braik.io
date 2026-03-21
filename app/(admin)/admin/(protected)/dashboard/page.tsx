@@ -1,6 +1,18 @@
-﻿import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
 import { OperatorDashboard } from "@/components/admin/operator-dashboard"
+import { loadProductHealthSnapshot } from "@/lib/admin/load-product-health"
+
+function summarizeMetadata(meta: Record<string, unknown> | null | undefined): string | null {
+  if (meta == null) return null
+  try {
+    const s = JSON.stringify(meta)
+    if (!s || s === "{}") return null
+    return s.length > 120 ? `${s.slice(0, 117)}…` : s
+  } catch {
+    return null
+  }
+}
 
 function getDaysFromFilter(value?: string): number {
   const parsed = Number(value)
@@ -20,7 +32,15 @@ export default async function AdminDashboardPage({
 
   const supabase = getSupabaseServer()
 
-  const [totalUsers, activeTeams, suspendedTeams, pastDueTeams, gracePeriodTeams, recentAuditEntries] = await Promise.all([
+  const [
+    totalUsers,
+    activeTeams,
+    suspendedTeams,
+    pastDueTeams,
+    gracePeriodTeams,
+    recentAuditEntries,
+    productHealth,
+  ] = await Promise.all([
     safeAdminDbQuery(async () => {
       const { count } = await supabase.from("users").select("*", { count: "exact", head: true })
       return count ?? 0
@@ -44,7 +64,7 @@ export default async function AdminDashboardPage({
     safeAdminDbQuery(async () => {
       const { data } = await supabase
         .from("audit_logs")
-        .select("id, action, created_at, actor_id")
+        .select("id, action, created_at, actor_id, target_type, target_id, metadata")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(25)
@@ -57,8 +77,20 @@ export default async function AdminDashboardPage({
         action: e.action,
         createdAt: e.created_at,
         actor: { email: userMap.get(e.actor_id) ?? "unknown" },
+        targetType: (e as { target_type?: string }).target_type ?? null,
+        targetId: (e as { target_id?: string }).target_id ?? null,
+        metadata: ((e as { metadata?: Record<string, unknown> | null }).metadata ?? null) as Record<string, unknown> | null,
       }))
-    }, [] as Array<{ id: string; action: string; createdAt: string; actor: { email: string } }>),
+    }, [] as Array<{
+      id: string
+      action: string
+      createdAt: string
+      actor: { email: string }
+      targetType: string | null
+      targetId: string | null
+      metadata: Record<string, unknown> | null
+    }>),
+    loadProductHealthSnapshot(supabase, since),
   ])
 
   return (
@@ -75,7 +107,11 @@ export default async function AdminDashboardPage({
           action: entry.action,
           createdAt: typeof entry.createdAt === "string" ? entry.createdAt : new Date(entry.createdAt).toISOString(),
           actorEmail: entry.actor?.email ?? "unknown",
+          targetType: entry.targetType,
+          targetId: entry.targetId,
+          metadataSummary: summarizeMetadata(entry.metadata),
         })),
+        productHealth,
       }}
     />
   )

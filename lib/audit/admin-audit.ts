@@ -1,4 +1,4 @@
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { writeAuditLog } from "@/lib/audit/write-audit-log"
 
 interface AdminAuditInput {
   actorId: string
@@ -8,15 +8,19 @@ interface AdminAuditInput {
   metadata?: Record<string, unknown>
   ipAddress?: string | null
   userAgent?: string | null
+  teamId?: string | null
 }
 
 export async function writeAdminAuditLog(input: AdminAuditInput): Promise<void> {
-  const supabase = getSupabaseServer()
-  await supabase.from("audit_logs").insert({
-    actor_id: input.actorId,
-    action: input.action,
-    target_type: input.targetType ?? null,
-    target_id: input.targetId ?? null,
-    metadata: input.metadata ?? null,
+  const meta = { ...(input.metadata ?? {}) }
+  if (input.ipAddress) meta.ipAddress = input.ipAddress
+  if (input.userAgent) meta.userAgent = input.userAgent
+  await writeAuditLog({
+    actorUserId: input.actorId,
+    teamId: input.teamId ?? null,
+    actionType: input.action,
+    targetType: input.targetType ?? null,
+    targetId: input.targetId ?? null,
+    metadata: Object.keys(meta).length ? meta : null,
   })
 }

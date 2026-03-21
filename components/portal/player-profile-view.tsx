@@ -14,6 +14,7 @@ import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
 import { PlayerDevelopmentTab } from "./player-development-tab"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 import { startOfDay } from "date-fns"
+import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity" | "development"
 
@@ -262,11 +263,11 @@ export function PlayerProfileView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error ?? "Failed to save")
+        const r = parseRosterLimitResponse(data)
+        throw new Error(r.message)
       }
-      const data = await res.json()
       setProfile(data.profile)
       setEditDraft({})
       setSaveMessage({ type: "success", text: "Profile saved." })

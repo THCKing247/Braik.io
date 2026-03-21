@@ -239,12 +239,14 @@ export async function POST(req: NextRequest) {
     stage = "notifying"
     console.log("[api/events] notifying")
     try {
-      await supabase.from("audit_logs").insert({
-        actor_id: session.user.id,
-        action: "event_created",
-        target_type: "event",
-        target_id: event.id,
-        metadata: { teamId, title },
+      const { writeAuditLog } = await import("@/lib/audit/write-audit-log")
+      await writeAuditLog({
+        actorUserId: session.user.id,
+        teamId,
+        actionType: "event_created",
+        targetType: "event",
+        targetId: event.id,
+        metadata: { title },
       })
       const membership = await getUserMembership(teamId)
       logEventAction("event_created", {

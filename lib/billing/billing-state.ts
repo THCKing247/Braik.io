@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Billing & Season Lifecycle State Machine
  *
  * Implements per-season billing model with:
@@ -18,6 +18,15 @@ import { logBillingStateTransition } from "@/lib/audit/structured-logger"
 
 /** Set to true when Stripe is integrated and billing enforcement is ready. */
 const BILLING_ENFORCED = false
+
+/** Exposed for coach settings / Phase 1 summary (read-only). */
+export function isBillingLifecycleEnforced(): boolean {
+  return BILLING_ENFORCED
+}
+
+/** Roster seat caps (active `players` rows) are enforced in API via `lib/billing/roster-entitlement.ts`
+ *  using `teams.roster_slot_limit` / `programs.roster_slot_limit`. Stripe webhook placeholder: `app/api/stripe/webhook/route.ts`.
+ */
 
 /** Full-access billing state returned whenever billing is not enforced. */
 const DEV_FULL_ACCESS: BillingState = {

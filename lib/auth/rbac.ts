@@ -27,7 +27,7 @@ export interface ProgramMembership {
 }
 
 /** Map profile.role (e.g. head_coach) to normalized Role (e.g. HEAD_COACH). */
-function profileRoleToNormalizedRole(profileRole: string | null | undefined): Role {
+export function profileRoleToNormalizedRole(profileRole: string | null | undefined): Role {
   const raw = (profileRole ?? "player").toString().trim().toLowerCase().replace(/-/g, "_")
   if (raw === "head_coach") return ROLES.HEAD_COACH
   if (raw === "assistant_coach") return ROLES.ASSISTANT_COACH

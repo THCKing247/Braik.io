@@ -96,24 +96,24 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         aria-label="App navigation"
       >
         <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-2.5 md:px-6">
-          <div className="shrink-0">
+          <div className="min-w-0 shrink-0">
             <Link
               href="/dashboard"
               className="flex items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
               aria-label="Braik - Return to dashboard"
             >
-              <div className="flex h-12 w-[200px] items-center overflow-hidden">
+              <div className="flex h-10 max-w-[min(200px,calc(100vw-22rem))] items-center overflow-hidden md:h-11 lg:h-12">
                 <Image
                   src="/braik-logo.png"
                   alt="Braik Logo"
                   width={720}
                   height={360}
-                  className="h-auto w-full object-contain object-left"
+                  className="h-auto w-full max-h-10 object-contain object-left md:max-h-11 lg:max-h-12"
                 />
               </div>
             </Link>
           </div>
-          <div className="flex min-w-0 flex-1 items-center justify-center">
+          <div className="flex min-w-0 flex-1 items-center justify-center px-2">
             {teams.length > 1 && (
               <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
             )}

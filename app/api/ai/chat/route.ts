@@ -4,6 +4,12 @@ import { runCoordinatorTool } from "@/lib/braik-ai/coordinator-tools"
 import { detectFollowUp, getLastUserMessage, resolveFollowUpContext } from "@/lib/braik-ai/follow-up"
 import { buildCoachBPrompt, createGenericContext } from "@/lib/braik-ai/prompt-builder"
 import { sendCoachBPrompt, isOpenAIConfigured } from "@/lib/braik-ai/openai-client"
+import { getServerSession } from "@/lib/auth/server-auth"
+import { requireTeamAccess, MembershipLookupError, profileRoleToNormalizedRole } from "@/lib/auth/rbac"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { canUseCoachB, type Role } from "@/lib/auth/roles"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 export async function POST(req: Request) {
   if (!isOpenAIConfigured()) {
@@ -22,12 +28,46 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
+  const session = await getServerSession()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const message = typeof body?.message === "string" ? body.message.trim() : ""
   if (!message) {
     return NextResponse.json({ error: "message must be a non-empty string" }, { status: 400 })
   }
 
   const teamId = typeof body?.teamId === "string" && body.teamId.trim() ? body.teamId.trim() : undefined
+
+  let viewerRoleLabel: string | undefined
+  if (teamId) {
+    try {
+      const { membership } = await requireTeamAccess(teamId)
+      if (!canUseCoachB(membership.role as Role)) {
+        return NextResponse.json({ error: "Coach B is only available to coaching and admin roles." }, { status: 403 })
+      }
+      viewerRoleLabel = membership.role
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (err instanceof MembershipLookupError) {
+        console.error("[POST /api/ai/chat] membership lookup failed", err)
+        return NextResponse.json({ error: "Failed to verify team access" }, { status: 500 })
+      }
+      if (msg.includes("Access denied") || msg.includes("Not a member")) {
+        return NextResponse.json({ error: "You do not have access to this team." }, { status: 403 })
+      }
+      throw err
+    }
+  } else {
+    const supabase = getSupabaseServer()
+    const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle()
+    const r = profileRoleToNormalizedRole((prof as { role?: string } | null)?.role)
+    if (!canUseCoachB(r as Role)) {
+      return NextResponse.json({ error: "Coach B is only available to coaching and admin roles." }, { status: 403 })
+    }
+    viewerRoleLabel = r
+  }
 
   const history = Array.isArray(body.conversationHistory) ? body.conversationHistory : []
   let context = createGenericContext()
@@ -71,17 +111,52 @@ export async function POST(req: Request) {
   }
 
   const coordinatorAnalysis = runCoordinatorTool(context, message)
-  const prompt = buildCoachBPrompt({ context, message, history, coordinatorAnalysis })
+  const prompt = buildCoachBPrompt({
+    context,
+    message,
+    history,
+    coordinatorAnalysis,
+    role: viewerRoleLabel,
+  })
   if (process.env.BRAIK_AI_DEBUG === "1") {
     console.log("[Coach B debug] route: using context domain=%s hasTeam=%s", context.domain, context.team != null)
   }
 
+  trackProductEventServer({
+    eventName: BRAIK_EVENTS.coach_b.prompt_submitted,
+    eventCategory: "coach_b",
+    userId: session.user.id,
+    teamId: teamId ?? null,
+    role: viewerRoleLabel ?? null,
+    metadata: {
+      domain: context.domain,
+      intent: context.intent,
+      coordinator_tool: coordinatorAnalysis?.tool ?? null,
+    },
+  })
+
   try {
     const text = await sendCoachBPrompt(prompt.instructions, prompt.input)
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.coach_b.response_completed,
+      eventCategory: "coach_b",
+      userId: session.user.id,
+      teamId: teamId ?? null,
+      role: viewerRoleLabel ?? null,
+      metadata: { domain: context.domain, intent: context.intent },
+    })
     return NextResponse.json({ response: text, type: "response" })
   } catch (err) {
     const details = err instanceof Error ? err.message : String(err)
     console.error("[POST /api/ai/chat] OpenAI failed", details)
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.coach_b.response_error,
+      eventCategory: "coach_b",
+      userId: session.user.id,
+      teamId: teamId ?? null,
+      role: viewerRoleLabel ?? null,
+      metadata: { domain: context.domain, intent: context.intent },
+    })
     return NextResponse.json({ error: "AI chat failed", details }, { status: 500 })
   }
 }

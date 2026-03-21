@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission } from "@/lib/auth/rbac"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /**
  * GET /api/health/injuries?teamId=xxx
@@ -34,6 +36,8 @@ export async function GET(request: Request) {
         actual_return_date,
         status,
         notes,
+        severity,
+        exempt_from_practice,
         created_at,
         updated_at,
         players (
@@ -73,28 +77,52 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { playerId, teamId, injuryReason, injuryDate, expectedReturnDate, notes } = body
+    const { playerId, teamId, injuryReason, injuryDate, expectedReturnDate, notes, severity, exemptFromPractice } = body
 
-    if (!playerId || !teamId || !injuryReason) {
-      return NextResponse.json({ error: "playerId, teamId, and injuryReason are required" }, { status: 400 })
+    const reasonTrimmed = typeof injuryReason === "string" ? injuryReason.trim() : ""
+    if (!playerId || !teamId || !reasonTrimmed) {
+      return NextResponse.json(
+        { error: "playerId, teamId, and a non-empty injuryReason are required" },
+        { status: 400 }
+      )
     }
 
     await requireTeamPermission(teamId, "edit_roster")
 
     const supabase = getSupabaseServer()
-    
+
+    const { data: playerRow, error: playerLookupErr } = await supabase
+      .from("players")
+      .select("id")
+      .eq("id", playerId)
+      .eq("team_id", teamId)
+      .maybeSingle()
+
+    if (playerLookupErr) {
+      console.error("[POST /api/health/injuries] player lookup", playerLookupErr)
+      return NextResponse.json({ error: "Failed to verify player" }, { status: 500 })
+    }
+    if (!playerRow) {
+      return NextResponse.json(
+        { error: "That player is not on this team. Refresh the roster and try again." },
+        { status: 400 }
+      )
+    }
+
     // Create injury record
     const { data: injury, error: injuryError } = await supabase
       .from("player_injuries")
       .insert({
         player_id: playerId,
         team_id: teamId,
-        injury_reason: injuryReason,
+        injury_reason: reasonTrimmed,
         injury_date: injuryDate ? new Date(injuryDate).toISOString() : new Date().toISOString(),
         expected_return_date: expectedReturnDate ? new Date(expectedReturnDate).toISOString() : null,
         notes: notes || null,
         status: "active",
         created_by: session.user.id,
+        severity: typeof severity === "string" && severity.trim() ? severity.trim() : null,
+        exempt_from_practice: exemptFromPractice === true,
       })
       .select()
       .single()
@@ -154,7 +182,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json()
-    const { injuryId, teamId, status, expectedReturnDate, actualReturnDate, notes } = body
+    const { injuryId, teamId, status, expectedReturnDate, actualReturnDate, notes, severity, exemptFromPractice } = body
 
     if (!injuryId || !teamId) {
       return NextResponse.json({ error: "injuryId and teamId are required" }, { status: 400 })
@@ -169,6 +197,10 @@ export async function PATCH(request: Request) {
     if (expectedReturnDate) updateData.expected_return_date = new Date(expectedReturnDate).toISOString()
     if (actualReturnDate) updateData.actual_return_date = new Date(actualReturnDate).toISOString()
     if (notes !== undefined) updateData.notes = notes
+    if (severity !== undefined) {
+      updateData.severity = typeof severity === "string" && severity.trim() ? severity.trim() : null
+    }
+    if (exemptFromPractice !== undefined) updateData.exempt_from_practice = exemptFromPractice === true
     updateData.updated_at = new Date().toISOString()
 
     const { data: injury, error } = await supabase
@@ -177,12 +209,27 @@ export async function PATCH(request: Request) {
       .eq("id", injuryId)
       .eq("team_id", teamId)
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.error("[PATCH /api/health/injuries]", error)
       return NextResponse.json({ error: "Failed to update injury" }, { status: 500 })
     }
+    if (!injury) {
+      return NextResponse.json(
+        { error: "Injury not found for this team, or it was already removed." },
+        { status: 404 }
+      )
+    }
+
+    const resolved = typeof status === "string" && status.toLowerCase() === "resolved"
+    trackProductEventServer({
+      eventName: resolved ? BRAIK_EVENTS.health.injury_resolved : BRAIK_EVENTS.health.injury_updated,
+      userId: session.user.id,
+      teamId,
+      role: session.user.role ?? null,
+      metadata: { injury_id: injuryId, new_status: status ?? null },
+    })
 
     // Update calendar event if return date changed
     if (expectedReturnDate && injury) {

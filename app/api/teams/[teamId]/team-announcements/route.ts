@@ -7,6 +7,8 @@ import {
   userCanViewTeamAnnouncement,
   type TeamAnnouncementAudience,
 } from "@/lib/team-announcements"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 const AUDIENCES: TeamAnnouncementAudience[] = ["all", "staff", "players", "parents"]
 
@@ -126,6 +128,19 @@ export async function POST(
       console.error("[POST team-announcements]", error)
       return NextResponse.json({ error: "Failed to post announcement" }, { status: 500 })
     }
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.announcements.posted,
+      userId: user.id,
+      teamId,
+      role: session.user.role ?? null,
+      metadata: {
+        announcement_id: inserted?.id ?? null,
+        audience,
+        pinned: is_pinned,
+        send_notification,
+      },
+    })
 
     return NextResponse.json(inserted)
   } catch (err) {

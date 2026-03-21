@@ -18,6 +18,7 @@
     "test:playbook": "tsx tests/playbook-canvas-coords.test.ts && tsx tests/playbook-draft.test.ts && tsx tests/freehand-route.test.ts",
     "test:braik-ai": "tsx tests/braik-ai-domain.test.ts",
     "test:braik-ai-report": "tsx tests/braik-ai-report-context.test.ts",
+    "test:release-guards": "tsx tests/messaging-thread-validation.test.ts",
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",

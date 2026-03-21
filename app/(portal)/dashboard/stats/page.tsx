@@ -13,6 +13,8 @@ import type { PlayerStatsRow } from "@/lib/stats-helpers"
 import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown } from "lucide-react"
 import { rowErrorsToCsv } from "@/lib/stats-import"
 import { STATS_IMPORT_HEADERS } from "@/lib/stats-import-fields"
+import { trackProductEvent } from "@/lib/utils/analytics-client"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /** Example data row for format preview only (no real player data). */
 const SAMPLE_ROW = ["<player_id>", "First", "Last", "12", "QB", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "5"]
@@ -80,6 +82,12 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     previewResult?.mode === "preview" &&
     getFileKey(selectedFile) === previewedFileKey
   )
+
+  useEffect(() => {
+    if (teamId) {
+      trackProductEvent(BRAIK_EVENTS.stats.viewed, { teamId })
+    }
+  }, [teamId])
 
   useEffect(() => {
     let cancelled = false

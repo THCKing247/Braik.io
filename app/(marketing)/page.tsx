@@ -11,6 +11,8 @@ import { HeroShatterCta } from "@/components/marketing/hero-shatter-cta"
 import { LeadCaptureForm } from "@/components/marketing/lead-capture-form"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
+import { MarketingFaqAccordion } from "@/components/marketing/marketing-faq-accordion"
+import { MARKETING_FAQ_ENTRIES } from "@/lib/marketing/faq-content"
 
 export default function Home() {
   const pricingSectionRef = useRef<HTMLElement | null>(null)
@@ -79,6 +81,10 @@ export default function Home() {
                     </span>
                   ))}
                 </div>
+                <p className="text-sm text-[#6c757d] max-w-xl mx-auto leading-relaxed">
+                  <span className="font-semibold text-[#495057]">Football-first today</span> — Braik is built around how football
+                  programs operate. Additional sports may follow as the platform matures.
+                </p>
               </div>
             </ScrollReveal>
             
@@ -96,7 +102,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     variant="outline"
-                    className="text-base px-10 py-6 w-full sm:w-auto border-[#3B82F6] text-[#1D4ED8] hover:bg-[#EFF6FF]"
+                    className="text-base px-10 py-6 w-full sm:w-auto border-slate-300 text-slate-800 hover:bg-slate-50"
                   >
                     View pricing
                   </Button>
@@ -108,7 +114,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     variant="ghost"
-                    className="text-base px-10 py-6 w-full sm:w-auto"
+                    className="text-base px-10 py-6 w-full sm:w-auto text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   >
                     Request demo
                   </Button>
@@ -223,6 +229,11 @@ export default function Home() {
                   <p>
                     Braik is billed per season, aligned with team dues and seasonal planning. It's budgetable, intentional, and built for programs that need structure without complexity.
                   </p>
+                  <p className="text-center pt-2">
+                    <Link href="/pricing" className="text-[#2563EB] font-semibold hover:underline">
+                      View full pricing and calculator →
+                    </Link>
+                  </p>
                 </div>
               </div>
             </ScrollReveal>
@@ -277,72 +288,72 @@ export default function Home() {
             
             <div className="grid md:grid-cols-2 gap-8">
               <ScrollReveal delay={0} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
                     Communication
                   </h3>
-                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                  <p className="text-lg text-[#495057] leading-relaxed">
                     Targeted messaging and announcements that keep everyone informed without overwhelming anyone. The right people see the right information, automatically.
                   </p>
                 </div>
               </ScrollReveal>
               
               <ScrollReveal delay={50} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
                     Scheduling
                   </h3>
-                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                  <p className="text-lg text-[#495057] leading-relaxed">
                     Calendar management with RSVPs and event coordination. Everyone sees what they need to see, when they need to see it.
                   </p>
                 </div>
               </ScrollReveal>
               
               <ScrollReveal delay={100} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
                     Payments
                   </h3>
-                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                  <p className="text-lg text-[#495057] leading-relaxed">
                     Season-based dues collection and coach-collected payments with clear tracking and accountability. Know who's paid, who hasn't, and what's outstanding.
                   </p>
                 </div>
               </ScrollReveal>
               
               <ScrollReveal delay={150} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
                     Documents
                   </h3>
-                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                  <p className="text-lg text-[#495057] leading-relaxed">
                     Centralized playbooks, installs, and program resources. Organized by unit and position, with acknowledgement tracking for important materials.
                   </p>
                 </div>
               </ScrollReveal>
               
               <ScrollReveal delay={200} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
                     Inventory
                   </h3>
-                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                  <p className="text-lg text-[#495057] leading-relaxed">
                     Equipment tracking and assignment for team-issued gear. Know what you have, where it is, and who's responsible for it.
                   </p>
                 </div>
               </ScrollReveal>
               
               <ScrollReveal delay={250} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-white uppercase tracking-wide">
+                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
                     Roster Management
                   </h3>
-                  <p className="text-lg text-[#E5E7EB] leading-relaxed">
+                  <p className="text-lg text-[#495057] leading-relaxed">
                     Player tracking, position management, and depth charts. Everything organized the way your program actually operates.
                   </p>
                 </div>
@@ -384,19 +395,12 @@ export default function Home() {
                 },
               ].map((item, index) => (
                 <ScrollReveal key={item.role} delay={index * 50} className="h-full">
-                  <div
-                    className="h-full p-8 rounded-[14px] relative overflow-hidden"
-                    style={{
-                      backgroundColor: "rgba(28, 28, 28, 0.9)",
-                      backdropFilter: "blur(6px)",
-                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-                    }}
-                  >
+                  <div className="h-full p-8 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                    <h3 className="text-2xl font-athletic font-semibold mb-3 text-white uppercase tracking-wide">
+                    <h3 className="text-2xl font-athletic font-semibold mb-3 text-[#212529] uppercase tracking-wide">
                       {item.role}
                     </h3>
-                    <p className="text-[#E5E7EB] leading-relaxed">{item.details}</p>
+                    <p className="text-[#495057] leading-relaxed">{item.details}</p>
                   </div>
                 </ScrollReveal>
               ))}
@@ -405,38 +409,61 @@ export default function Home() {
         </div>
       </section>
 
-      {/* AI Operations Coach (Foundational) */}
+      {/* AI & Coach B */}
       <section className="relative py-40 bg-[#F9FAFB]">
         <div className="container mx-auto px-4">
           <div className="max-w-6xl mx-auto">
             <ScrollReveal>
               <div className="grid md:grid-cols-2 gap-12 items-center">
-                {/* Content on the left */}
                 <div className="space-y-8">
                   <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-tight">
-                    AI Operations Coach is foundational
+                    AI that stays inside the huddle
                   </h2>
-                  <div className="space-y-6 text-lg text-[#495057] leading-relaxed pt-8">
-                    <p>
-                      Braik is built around an AI Operations Coach that helps run the day to day load of a program: drafting communication, surfacing issues, and executing structured operations.
-                    </p>
-                    <p>
-                      Head Coach access is included by default with metered usage each season. If usage exceeds the included allotment, additional usage is billed so programs can scale without interruption.
-                    </p>
-                    <p className="text-[#6c757d] italic">
-                      Assistant Coach AI access is tiered opt in under Head Coach control. The AI is not a side add on. It is a core operational layer designed to support coaching judgment, not replace it.
-                    </p>
-                  </div>
+                  <p className="text-lg text-[#495057] leading-relaxed">
+                    Coach B is Braik&apos;s AI layer for football programs: it reasons over the same roster, schedule, playbook, and
+                    health context your staff already maintains—so answers stay grounded in your team, not generic internet noise.
+                  </p>
+                  <ul className="space-y-4 text-[#495057] text-base leading-relaxed list-none pl-0">
+                    <li className="flex gap-3">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" aria-hidden />
+                      <span>
+                        <strong className="text-[#212529]">Program operations</strong> — drafting announcements, summarizing threads,
+                        and surfacing follow-ups so head coaches spend less time in the inbox.
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" aria-hidden />
+                      <span>
+                        <strong className="text-[#212529]">Football playbook context</strong> — lookups and suggestions respect your
+                        installs, formations, and tags. Route ideas can include coaching-depth hints; you always edit the final play on
+                        the canvas.
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" aria-hidden />
+                      <span>
+                        <strong className="text-[#212529]">Staff guardrails</strong> — head coaches keep primary AI access; assistants
+                        are tiered with program controls. Nothing ships to players without your review.
+                      </span>
+                    </li>
+                  </ul>
+                  <p className="text-sm text-[#6c757d]">
+                    See how we talk about AI safety and transparency in the{" "}
+                    <Link href="/ai-transparency" className="text-[#2563EB] font-medium hover:underline">
+                      AI transparency
+                    </Link>{" "}
+                    page.
+                  </p>
                 </div>
-                {/* Visual on the right (brand-safe placeholder) */}
                 <div className="flex justify-center md:justify-end md:ml-8 w-full">
-                  <div className="w-full max-w-md p-10 rounded-[14px] relative overflow-hidden" style={{ backgroundColor: 'rgba(28, 28, 28, 0.9)', backdropFilter: 'blur(6px)', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                    <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: '#3B82F6' }}></div>
-                    <p className="text-white text-2xl font-athletic font-semibold uppercase tracking-wide mb-3">
-                      Operations Coach Workflows
+                  <div className="w-full max-w-md p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+                    <p className="text-[#212529] text-2xl font-athletic font-semibold uppercase tracking-wide mb-3">
+                      Judgment first
                     </p>
-                    <p className="text-[#E5E7EB] text-base leading-relaxed">
-                      Head Coach default AI plus assistant tier controls, usage guardrails, and execution support built for real staff workflows.
+                    <p className="text-[#495057] text-base leading-relaxed">
+                      Coach B accelerates prep and communication; it does not replace coordinators or override game decisions. Metered
+                      usage keeps costs predictable as your program grows.
                     </p>
                   </div>
                 </div>
@@ -448,6 +475,39 @@ export default function Home() {
 
       {/* Section Divider */}
       <SectionDivider variant="thick" className="opacity-20" />
+
+      {/* FAQ */}
+      <section id="faq" className="relative py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <ScrollReveal>
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-4">
+                Frequently asked questions
+              </h2>
+              <p className="text-center text-[#495057] mb-10">
+                Quick answers with links when there&apos;s more detail on another page — including{" "}
+                <Link href="/pricing#how-much-braik-costs" className="text-[#2563EB] font-medium hover:underline">
+                  how Braik is priced
+                </Link>
+                .
+              </p>
+            </ScrollReveal>
+            <MarketingFaqAccordion entries={MARKETING_FAQ_ENTRIES} />
+            <p className="text-center mt-10 text-sm text-[#6c757d]">
+              <Link href="/faq" className="font-medium text-[#2563EB] hover:underline">
+                View all FAQs
+              </Link>{" "}
+              ·{" "}
+              <Link href="/pricing" className="font-medium text-[#2563EB] hover:underline">
+                Pricing
+              </Link>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Section Divider */}
+      <SectionDivider variant="asymmetric" className="opacity-15" />
 
       {/* Final CTA */}
       <section className="relative py-40 bg-[#1a1d21]">

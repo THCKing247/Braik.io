@@ -9,7 +9,10 @@ import { MessageSquare, X, Send, Upload, Sparkles, File, AlertTriangle } from "l
 import { AIActionConfirmation } from "@/components/ai/ai-action-confirmation"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { cn } from "@/lib/utils"
+import { trackProductEvent } from "@/lib/utils/analytics-client"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { MobileFab } from "@/components/mobile/mobile-fab"
+import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
 
 interface Message {
   id: string
@@ -48,14 +51,41 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canUseAdvancedActions = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
+  const coachCopy = useCoachBRotatingCopy()
   const coachB = useCoachB()
   const pathname = usePathname()
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
+  const [feedbackVoted, setFeedbackVoted] = useState<Set<string>>(() => new Set())
 
   // When dashboard sidebar is shown (desktop), register open so "Ask Coach B" in sidebar opens this widget; hide floating button.
   useEffect(() => {
     coachB?.registerOpen(() => setIsOpen(true))
   }, [coachB])
+
+  useEffect(() => {
+    if (!isOpen) return
+    trackProductEvent(BRAIK_EVENTS.coach_b.opened, {
+      teamId,
+      eventCategory: "coach_b",
+      metadata: { surface: isPlayEditorRoute ? "play_editor" : "dashboard_widget" },
+    })
+  }, [isOpen, teamId, isPlayEditorRoute])
+
+  const sendCoachBHelpfulness = async (messageId: string, helpful: boolean) => {
+    if (feedbackVoted.has(messageId)) return
+    try {
+      const res = await fetch("/api/ai/coach-b-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, helpful, featureArea: "chat_widget" }),
+      })
+      if (res.ok) {
+        setFeedbackVoted((prev) => new Set(prev).add(messageId))
+      }
+    } catch {
+      /* non-blocking */
+    }
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -224,15 +254,15 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       {isOpen && (
         <div
           className={cn(
-            "fixed z-50 flex h-[min(600px,85vh)] w-[min(24rem,calc(100vw-3rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border-2 border-[#0B2A5B] bg-white shadow-2xl min-h-0",
+            "fixed z-50 flex h-[min(600px,85vh)] flex-col overflow-hidden rounded-xl border-2 border-[#0B2A5B] bg-white shadow-2xl min-h-0",
             isMobileLayout
               ? cn(
-                  "left-3 right-3 w-auto max-w-none sm:left-6 sm:right-auto sm:w-[min(24rem,calc(100vw-3rem))]",
+                  "left-3 right-3 w-auto max-w-none sm:left-6 sm:right-auto sm:w-[min(24rem,calc(100vw-3rem))] sm:max-w-[calc(100vw-3rem)]",
                   isPlayEditorRoute
                     ? "bottom-[max(1rem,env(safe-area-inset-bottom,0px)+0.75rem)]"
                     : "bottom-[max(1rem,calc(var(--mobile-main-pad-bottom)+0.5rem))]"
                 )
-              : "bottom-6 right-6"
+              : "bottom-6 right-6 w-[min(24rem,calc(100vw-20rem))] max-w-[calc(100vw-2rem)]"
           )}
         >
           <Card className="flex flex-col flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-white">
@@ -308,6 +338,29 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                             Tokens: {message.usage.tokensUsed} (weighted) • {message.usage.rawTokens} raw
                           </p>
                         )}
+                        {message.role === "assistant" &&
+                          message.type !== "error" &&
+                          message.type !== "action_proposal" && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-2">
+                              <span className="text-[11px] text-gray-500">Was this helpful?</span>
+                              <button
+                                type="button"
+                                disabled={feedbackVoted.has(message.id)}
+                                onClick={() => void sendCoachBHelpfulness(message.id, true)}
+                                className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+                              >
+                                Yes
+                              </button>
+                              <button
+                                type="button"
+                                disabled={feedbackVoted.has(message.id)}
+                                onClick={() => void sendCoachBHelpfulness(message.id, false)}
+                                className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+                              >
+                                No
+                              </button>
+                            </div>
+                          )}
                         {message.usageStatus && (
                           <p className="text-xs mt-1 text-gray-500">
                             Usage: {message.usageStatus.usagePercentage.toFixed(1)}% • Mode: {message.usageStatus.mode}
@@ -410,8 +463,8 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                 </div>
                 <p className="text-xs text-gray-500">
                   {canUseAdvancedActions
-                    ? "Press Enter to send • Upload files to extract schedule/events • AI parsing available when OpenAI is configured"
-                    : "Press Enter to send • Role-limited to Coach B Q&A for schedule and team updates"}
+                    ? "Press Enter to send • Upload files to extract schedule/events when OpenAI is configured"
+                    : "Press Enter to send • Answers use Braik team context when available"}
                 </p>
               </div>
             </CardContent>

@@ -2,13 +2,17 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
+import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import type { CoachBSuggestPlayResponse } from "@/lib/types/coach-b"
 import { suggestPlays } from "@/lib/coach-b/suggest-play-service"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 const LOG_PREFIX = "[coach-b/suggest-play]"
 
 /** Validated request body for suggest-play. */
 interface ValidatedBody {
+  teamId: string
   prompt: string
   playbookId?: string
   formationId?: string
@@ -20,6 +24,10 @@ function validateBody(raw: unknown): { ok: true; data: ValidatedBody } | { ok: f
     return { ok: false, status: 400, error: "Invalid request body", detail: "Body must be a JSON object." }
   }
   const b = raw as Record<string, unknown>
+  const teamId = typeof b.teamId === "string" ? b.teamId.trim() : ""
+  if (!teamId) {
+    return { ok: false, status: 400, error: "Validation failed", detail: "teamId is required." }
+  }
   const prompt = typeof b.prompt === "string" ? b.prompt.trim() : ""
   if (!prompt) {
     return { ok: false, status: 400, error: "Validation failed", detail: "prompt is required and must be a non-empty string." }
@@ -29,7 +37,7 @@ function validateBody(raw: unknown): { ok: true; data: ValidatedBody } | { ok: f
   const subFormationId = typeof b.subFormationId === "string" ? b.subFormationId.trim() || undefined : undefined
   return {
     ok: true,
-    data: { prompt, playbookId, formationId, subFormationId },
+    data: { teamId, prompt, playbookId, formationId, subFormationId },
   }
 }
 
@@ -62,8 +70,14 @@ export async function POST(request: Request) {
         { status: validated.status }
       )
     }
-    const { prompt, playbookId, formationId, subFormationId } = validated.data
-    console.info(LOG_PREFIX, "validated payload", { hasPrompt: true, playbookId: playbookId ?? null, formationId: formationId ?? null, subFormationId: subFormationId ?? null })
+    const { teamId, prompt, playbookId, formationId, subFormationId } = validated.data
+    console.info(LOG_PREFIX, "validated payload", {
+      teamId,
+      hasPrompt: true,
+      playbookId: playbookId ?? null,
+      formationId: formationId ?? null,
+      subFormationId: subFormationId ?? null,
+    })
 
     // 3. Auth
     const session = await getServerSession()
@@ -72,6 +86,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized", detail: "You must be signed in to use Coach B." }, { status: 401 })
     }
     console.info(LOG_PREFIX, "authenticated user id", session.user.id)
+
+    let membership
+    try {
+      const access = await requireTeamAccess(teamId)
+      membership = access.membership
+    } catch (accessErr) {
+      const msg = accessErr instanceof Error ? accessErr.message : String(accessErr)
+      if (accessErr instanceof MembershipLookupError) {
+        return NextResponse.json(
+          { error: "Failed to verify access", detail: "A temporary error occurred. Please try again." },
+          { status: 500 }
+        )
+      }
+      if (msg.includes("Access denied") || msg.includes("Not a member")) {
+        return NextResponse.json({ error: "Forbidden", detail: "You do not have access to this team." }, { status: 403 })
+      }
+      throw accessErr
+    }
+    if (!canUseCoachB(membership.role as Role)) {
+      return NextResponse.json(
+        { error: "Forbidden", detail: "Play suggestions are only available to coaching and admin roles." },
+        { status: 403 }
+      )
+    }
 
     // 4. Optional: require OpenAI when AI is enabled (stub works without it)
     if (process.env.COACH_B_REQUIRE_OPENAI === "true" && !process.env.OPENAI_API_KEY) {
@@ -104,17 +142,9 @@ export async function POST(request: Request) {
           { status: 404 }
         )
       }
-      try {
-        await requireTeamAccess(playbook.team_id as string)
-      } catch (accessErr) {
-        const msg = accessErr instanceof Error ? accessErr.message : "Access denied"
-        if (msg.includes("Unauthorized")) {
-          console.warn(LOG_PREFIX, "unauthorized for playbook", { playbookId })
-          return NextResponse.json({ error: "Unauthorized", detail: "You must be signed in to use Coach B." }, { status: 401 })
-        }
-        console.warn(LOG_PREFIX, "forbidden: no access to playbook team", { playbookId, teamId: playbook.team_id })
+      if ((playbook.team_id as string) !== teamId) {
         return NextResponse.json(
-          { error: "Forbidden", detail: "You do not have access to this playbook." },
+          { error: "Forbidden", detail: "Playbook does not belong to the specified team." },
           { status: 403 }
         )
       }
@@ -129,6 +159,19 @@ export async function POST(request: Request) {
       playbookId,
     })
     console.info(LOG_PREFIX, "suggestions call success", { count: suggestions.length })
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.coach_b.suggest_play_requested,
+      eventCategory: "coach_b",
+      userId: session.user.id,
+      teamId,
+      role: membership.role,
+      metadata: {
+        suggestion_count: suggestions.length,
+        has_playbook_id: Boolean(playbookId),
+        has_formation_id: Boolean(formationId),
+      },
+    })
 
     const response: CoachBSuggestPlayResponse = { suggestions }
     return NextResponse.json(response)

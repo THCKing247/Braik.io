@@ -4,6 +4,8 @@ import { join } from "path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
+import { ROLES, type Role } from "@/lib/auth/roles"
+import { teamDocumentVisibleToMember } from "@/lib/documents/document-visibility"
 import { getUploadRoot } from "@/lib/upload-path"
 import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
 
@@ -42,7 +44,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
-    await requireTeamAccess(teamId)
+    const { membership } = await requireTeamAccess(teamId)
+    const viewerRole = membership.role as Role
+
+    let viewerPlayerRowIds: string[] = []
+    if (viewerRole === ROLES.PLAYER) {
+      const { data: playerRows } = await supabase
+        .from("players")
+        .select("id")
+        .eq("team_id", teamId)
+        .eq("user_id", session.user.id)
+      viewerPlayerRowIds = (playerRows ?? []).map((p) => p.id as string)
+    }
+
     const { data: rows, error } = await supabase
       .from("documents")
       .select(
@@ -99,7 +113,19 @@ export async function GET(request: Request) {
       })
     }
 
-    const documents = (rows ?? []).map((d) => {
+    const rawList = rows ?? []
+    const visibleRows = rawList.filter((d) => {
+      const shared = (sharesByDoc.get(d.id) ?? []).some((s) => s.id === session.user.id)
+      if (shared) return true
+      return teamDocumentVisibleToMember({
+        visibility: d.visibility as string,
+        assignedPlayerIds: d.assigned_player_ids,
+        viewerRole,
+        viewerPlayerRowIds,
+      })
+    })
+
+    const documents = visibleRows.map((d) => {
       const creator = creatorMap.get(d.created_by)
       return {
         id: d.id,

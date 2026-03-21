@@ -231,13 +231,30 @@ export async function getPlayerContext(input: ContextModuleInput): Promise<Playe
 
     const { data: injuryRows } = await supabase
       .from("player_injuries")
-      .select("player_id, injury_reason, expected_return_date, players(first_name, last_name)")
+      .select(
+        "player_id, injury_reason, expected_return_date, injury_date, severity, exempt_from_practice, players(first_name, last_name)"
+      )
       .eq("team_id", teamId)
       .eq("status", "active")
-    const injuryRowsTyped = (injuryRows ?? []) as unknown as InjuryRowRelation[]
-    const injuryMap = new Map<string, { reason: string; expectedReturn: string | null }>()
+    const injuryRowsTyped = (injuryRows ?? []) as unknown as Array<
+      InjuryRowRelation & {
+        injury_date?: string | null
+        severity?: string | null
+        exempt_from_practice?: boolean | null
+      }
+    >
+    const injuryMap = new Map<
+      string,
+      { reason: string; expectedReturn: string | null; severity: string | null; exempt: boolean; injuryDate: string | null }
+    >()
     for (const i of injuryRowsTyped) {
-      injuryMap.set(i.player_id, { reason: i.injury_reason, expectedReturn: i.expected_return_date })
+      injuryMap.set(i.player_id, {
+        reason: i.injury_reason,
+        expectedReturn: i.expected_return_date,
+        severity: i.severity ?? null,
+        exempt: i.exempt_from_practice === true,
+        injuryDate: i.injury_date ?? null,
+      })
     }
 
     const result: PlayerContext[] = relevant.map((p) => {
@@ -260,7 +277,16 @@ export async function getPlayerContext(input: ContextModuleInput): Promise<Playe
         starter: depth != null && depth.string === 1,
         depthChartOrder: depth ? `${depth.unit} ${depth.position} string ${depth.string}` : null,
         availability,
-        injuryStatus: inj ? `${inj.reason}${inj.expectedReturn ? ` (return ~${String(inj.expectedReturn).slice(0, 10)})` : ""}` : null,
+        injuryStatus: inj
+          ? [
+              inj.reason,
+              inj.severity ? `severity: ${inj.severity}` : null,
+              inj.exempt ? "practice exempt" : null,
+              inj.expectedReturn ? `return ~${String(inj.expectedReturn).slice(0, 10)}` : null,
+            ]
+              .filter(Boolean)
+              .join("; ")
+          : null,
         profileSummary,
         coachNotes: p.coach_notes,
         stats: buildStatsFromFlat(p.season_stats),

@@ -3,6 +3,8 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { createNotifications } from "@/lib/utils/notifications"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /**
  * POST /api/messages/send
@@ -167,6 +169,14 @@ export async function POST(request: Request) {
     }
 
     console.log("[POST /api/messages/send] Message created successfully:", message.id)
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.messaging.message_sent,
+      userId: session.user.id,
+      teamId: thread.team_id,
+      role: session.user.role ?? null,
+      metadata: { thread_id: threadId, content_length: messageBody.trim().length },
+    })
 
     const { data: senderRow } = await supabase
       .from("users")

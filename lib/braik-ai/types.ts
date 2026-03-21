@@ -134,6 +134,10 @@ export interface InjuryContext {
   notes: string | null
   expectedReturn: string | null
   reason: string
+  /** Injury onset (ISO date string). */
+  injuryDate?: string | null
+  severity?: string | null
+  exemptFromPractice?: boolean
   /** Latest practice participation when available (e.g. "limited", "DNP"). */
   practiceParticipation?: string | null
 }

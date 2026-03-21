@@ -1,12 +1,17 @@
 "use client"
 
 import { useSession } from "@/lib/auth/client-auth"
+import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { AIChatbotWidget } from "./ai-chatbot-widget"
 
 export function AIWidgetWrapper() {
   const { data: session } = useSession()
 
   if (!session?.user?.teamId || !session?.user?.role) {
+    return null
+  }
+
+  if (!canUseCoachB(session.user.role as Role)) {
     return null
   }
 

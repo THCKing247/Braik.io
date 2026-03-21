@@ -1,132 +1,99 @@
-﻿import { SiteHeader } from "@/components/marketing/site-header"
+import Link from "next/link"
+import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />
-      
+
       <section className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#F8FAFC] via-white to-white">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/10 blur-3xl" />
           <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#60A5FA]/10 blur-3xl" />
         </div>
-        
+
         <div className="container mx-auto px-4 py-20 relative z-10">
-          <h2 className="text-4xl md:text-5xl font-athletic font-bold text-center mb-12 text-[#212529] uppercase tracking-tight">
-            ABOUT BRAIK
-          </h2>
-          <div className="max-w-4xl mx-auto">
-            <div
-              className="p-10 rounded-[14px] relative overflow-hidden text-[#FFFFFF] space-y-8"
-              style={{
-                backgroundColor: "rgba(28, 28, 28, 0.9)",
-                backdropFilter: "blur(6px)",
-                boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-              }}
-            >
+          <h1 className="text-4xl md:text-5xl font-athletic font-bold text-center mb-4 text-[#212529] uppercase tracking-tight">
+            About Braik
+          </h1>
+          <p className="text-center text-lg text-[#495057] max-w-2xl mx-auto mb-12">
+            The team operating system for football programs that need structure without another pile of disconnected apps.
+          </p>
+
+          <div className="max-w-4xl mx-auto space-y-10">
+            <div className="p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-              <div>
-                <p className="text-xl font-semibold text-[#FFFFFF] mb-6 leading-relaxed text-center">
-                  Built for Coaches. Designed to Lighten the Load.
+              <h2 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
+                What Braik is
+              </h2>
+              <div className="space-y-4 text-lg text-[#495057] leading-relaxed">
+                <p>
+                  Braik is a single place for rosters, schedules, messaging, documents, collections, and football-specific tools like
+                  playbooks—so head coaches can run the program instead of chasing fifteen different logins.
                 </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Coaches today are expected to do far more than coach.
-                </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  They manage rosters, schedules, payments, communication, documents, parents, assistants, and increasingly complex software—often with limited staff and even less time. Braik exists to change that.
-                </p>
-                <p className="text-lg text-[#FFFFFF] leading-relaxed">
-                  Braik was built to support coaches who are stretched thin, giving them the tools—and the help—they need to run their programs without sacrificing focus, organization, or time with their team.
+                <p>
+                  <span className="font-semibold text-[#212529]">We ship for football first.</span> Workflows, language, and permissions
+                  mirror how varsity staffs, position coaches, players, and families actually interact. Other sports may come later; today
+                  we focus on doing football operations exceptionally well.
                 </p>
               </div>
+            </div>
 
-              <div>
-                <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase tracking-wide">
-                  Why Braik Exists
-                </h3>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Most coaches don't need more apps.
-                </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  They need fewer responsibilities pulling them away from what matters.
-                </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Braik was created to reduce the behind-the-scenes work that consumes hours each week—work that often falls on a single head coach or a small staff. From administrative tasks to constant communication and coordination, the burden adds up quickly.
-                </p>
-                <p className="text-lg text-[#FFFFFF] leading-relaxed">
-                  Braik steps in as a system and a support layer, helping programs operate smoothly while allowing coaches to focus on coaching.
-                </p>
-              </div>
+            <div className="p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+              <h2 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
+                How Braik helps
+              </h2>
+              <ul className="space-y-3 text-lg text-[#495057] leading-relaxed list-none pl-0">
+                <li className="flex gap-3">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" />
+                  <span>
+                    <strong className="text-[#212529]">Less admin noise</strong> — one roster, one schedule, one thread of truth for
+                    parents and players.
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" />
+                  <span>
+                    <strong className="text-[#212529]">Coach B</strong> — AI that reads your program context and helps with
+                    communication and prep, always subordinate to staff judgment (
+                    <Link href="/ai-transparency" className="text-[#2563EB] font-medium hover:underline">
+                      how we use AI
+                    </Link>
+                    ).
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" />
+                  <span>
+                    <strong className="text-[#212529]">Program-shaped</strong> — varsity, JV, and freshman can live under one program
+                    without duplicating subscriptions or splitting your staff across tools.
+                  </span>
+                </li>
+              </ul>
+            </div>
 
-              <div>
-                <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase tracking-wide">
-                  Who Braik Is For
-                </h3>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Braik is built primarily for high school athletic programs, where resources are limited and expectations are high. It is also well-suited for youth programs and smaller colleges that need structure without complexity.
-                </p>
-                <p className="text-lg text-[#FFFFFF] leading-relaxed">
-                  If you're running a program where organization, communication, and accountability matter—but time and staffing are limited—Braik is built for you.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase tracking-wide">
-                  What Makes Braik Different
-                </h3>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Braik combines team management tools with a refined AI assistant designed to act like additional staff.
-                </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Instead of juggling spreadsheets, group texts, payment platforms, and document folders, Braik brings everything into one system—designed around the head coach's workflow.
-                </p>
-                <p className="text-lg text-[#FFFFFF] leading-relaxed">
-                  The AI assistant helps handle routine tasks, summarize information, surface issues, and reduce the mental load that comes with running a program. It's not meant to replace people—it's meant to support them.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase tracking-wide">
-                  Our Philosophy
-                </h3>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed font-semibold">
-                  Coaches should coach.
-                </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed font-semibold">
-                  They shouldn't have to run an office.
-                </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Braik is built on the belief that structure creates freedom. When systems work quietly in the background, coaches gain time, clarity, and control. Tools should support the program—not slow it down.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase tracking-wide">
-                  Looking Ahead
-                </h3>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Braik is being built as a long-term platform.
-                </p>
-                <p className="text-lg text-[#FFFFFF] leading-relaxed">
-                  Future plans include deeper analytics, film tools, and expanded capabilities that bring together the power of AI with the program-level insight coaches rely on today from tools like Hudl—without forcing teams to manage multiple disconnected systems.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase tracking-wide">
-                  Where It Started
-                </h3>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed">
-                  Braik was inspired by a lifelong sports fan, former player, and coach—along with input from coaches across the industry—who understood firsthand how demanding it is to run a program.
-                </p>
-                <p className="text-lg text-[#FFFFFF] mb-4 leading-relaxed font-semibold italic">
-                  Braik isn't built from theory.
-                </p>
-                <p className="text-lg text-[#FFFFFF] leading-relaxed font-semibold italic">
-                  It's built from experience.
-                </p>
-              </div>
+            <div className="p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
+              <h2 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
+                Who it&apos;s for
+              </h2>
+              <p className="text-lg text-[#495057] leading-relaxed mb-4">
+                High school and serious youth programs where time is scarce, expectations are high, and the head coach is still the
+                default chief operating officer. If that sounds like your building, Braik is built for you.
+              </p>
+              <p className="text-sm text-[#6c757d]">
+                Questions about cost? Start with{" "}
+                <Link href="/pricing#how-much-braik-costs" className="text-[#2563EB] font-medium hover:underline">
+                  pricing
+                </Link>{" "}
+                or the{" "}
+                <Link href="/faq" className="text-[#2563EB] font-medium hover:underline">
+                  FAQ
+                </Link>
+                .
+              </p>
             </div>
           </div>
         </div>

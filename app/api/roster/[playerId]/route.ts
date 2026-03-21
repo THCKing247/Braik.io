@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
+import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 
 /**
  * PATCH /api/roster/[playerId] - Update a player (e.g. invite_code, invite_status).
@@ -28,7 +29,7 @@ export async function PATCH(
 
     const { data: player, error: fetchErr } = await supabase
       .from("players")
-      .select("id, team_id")
+      .select("id, team_id, status")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -37,6 +38,7 @@ export async function PATCH(
     }
 
     await requireTeamPermission(player.team_id, "edit_roster")
+    const prevStatus = (player as { status?: string }).status ?? "active"
 
     const body = (await request.json()) as {
       inviteCode?: string | null
@@ -92,6 +94,15 @@ export async function PATCH(
       updates.height = typeof body.height === "string" ? body.height.trim() || null : null
     }
     if (body.status === "active" || body.status === "inactive") {
+      if (body.status === "active" && prevStatus !== "active") {
+        const cap = await assertCanAddActivePlayers(supabase, player.team_id, 1)
+        if (!cap.ok) {
+          return NextResponse.json(
+            { error: cap.message, code: "ROSTER_LIMIT_REACHED", limit: cap.limit, current: cap.current },
+            { status: 402 }
+          )
+        }
+      }
       updates.status = body.status
     }
 

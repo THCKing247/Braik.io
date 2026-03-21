@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
-import { LegalPolicyModal, type PolicyKey } from "@/components/legal-policy-modal"
-import { CheckCircle, FileText } from "lucide-react"
 import Link from "next/link"
 
 export default function SignupPage() {
@@ -26,15 +24,8 @@ export default function SignupPage() {
   const [playerAge, setPlayerAge] = useState("")
   const [parentEmail, setParentEmail] = useState("")
 
-  // Legal acceptance — checked automatically after reading via modal
-  const [acceptTerms, setAcceptTerms] = useState(false)
-  const [acceptPrivacy, setAcceptPrivacy] = useState(false)
-  const [acceptAcceptableUse, setAcceptAcceptableUse] = useState(false)
-  const [acceptAiAcknowledgement, setAcceptAiAcknowledgement] = useState(false)
+  const [acceptLegalBundle, setAcceptLegalBundle] = useState(false)
   const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
-
-  // Modal state
-  const [openModal, setOpenModal] = useState<PolicyKey | null>(null)
 
   const withErrorCode = (code: string, message: string) => `[${code}] ${message}`
 
@@ -52,36 +43,18 @@ export default function SignupPage() {
       setEmail(data.email || "")
       setPlayerAge(data.playerAge || "")
       setParentEmail(data.parentEmail || "")
-      setAcceptTerms(Boolean(data?.compliance?.terms?.acceptedAt))
-      setAcceptPrivacy(Boolean(data?.compliance?.privacy?.acceptedAt))
-      setAcceptAcceptableUse(Boolean(data?.compliance?.acceptableUse?.acceptedAt))
-      setAcceptAiAcknowledgement(Boolean(data?.compliance?.aiAcknowledgement?.acceptedAt))
-      setConfirmMinorConsent(Boolean(data?.compliance?.minorParentalConsent?.acceptedAt))
+      const c = data?.compliance
+      setAcceptLegalBundle(
+        Boolean(c?.terms?.acceptedAt) &&
+          Boolean(c?.privacy?.acceptedAt) &&
+          Boolean(c?.acceptableUse?.acceptedAt) &&
+          Boolean(c?.aiAcknowledgement?.acceptedAt)
+      )
+      setConfirmMinorConsent(Boolean(c?.minorParentalConsent?.acceptedAt))
     } else {
       router.push("/signup/role")
     }
   }, [router])
-
-  // ── Modal close handler ────────────────────────────────────────────────────
-  const handleModalClose = (accepted: boolean) => {
-    if (accepted && openModal) {
-      switch (openModal) {
-        case "terms":
-          setAcceptTerms(true)
-          break
-        case "privacy":
-          setAcceptPrivacy(true)
-          break
-        case "acceptableUse":
-          setAcceptAcceptableUse(true)
-          break
-        case "ai":
-          setAcceptAiAcknowledgement(true)
-          break
-      }
-    }
-    setOpenModal(null)
-  }
 
   // ── Validation ─────────────────────────────────────────────────────────────
   const validatePassword = (pwd: string) => {
@@ -118,20 +91,13 @@ export default function SignupPage() {
 
     // Team/player code is now optional at sign-up — users can enter it from the dashboard after logging in.
 
-    if (!acceptTerms) {
-      setError(withErrorCode("SIGNUP-COMPLIANCE-001", "Please read and accept the Terms of Service before continuing."))
-      return
-    }
-    if (!acceptPrivacy) {
-      setError(withErrorCode("SIGNUP-COMPLIANCE-002", "Please read and accept the Privacy Policy before continuing."))
-      return
-    }
-    if (!acceptAcceptableUse) {
-      setError(withErrorCode("SIGNUP-COMPLIANCE-003", "Please read and accept the Acceptable Use Policy before continuing."))
-      return
-    }
-    if (!acceptAiAcknowledgement) {
-      setError(withErrorCode("SIGNUP-COMPLIANCE-004", "Please read and acknowledge the AI Transparency notice before continuing."))
+    if (!acceptLegalBundle) {
+      setError(
+        withErrorCode(
+          "SIGNUP-COMPLIANCE-001",
+          "Please confirm you agree to the Terms, Privacy Policy, Acceptable Use Policy, and AI transparency notice before continuing."
+        )
+      )
       return
     }
 
@@ -209,60 +175,8 @@ export default function SignupPage() {
   const passwordLabel = passwordPassed <= 2 ? "Weak" : passwordPassed <= 3 ? "Fair" : passwordPassed === 4 ? "Good" : "Strong"
   const passwordColor = passwordPassed <= 2 ? "#EF4444" : passwordPassed <= 3 ? "#F59E0B" : passwordPassed === 4 ? "#3B82F6" : "#22C55E"
 
-  // ── Legal item row helper ──────────────────────────────────────────────────
-  const LegalRow = ({
-    accepted,
-    policyKey,
-    label,
-    policyLabel,
-  }: {
-    accepted: boolean
-    policyKey: PolicyKey
-    label: string
-    policyLabel: string
-  }) => (
-    <div className="flex items-start gap-3 py-2.5 px-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB]">
-      {/* Checkbox — auto-fills after reading; also manually toggleable if already accepted */}
-      <div className="mt-0.5 shrink-0">
-        {accepted ? (
-          <CheckCircle className="w-5 h-5 text-[#22C55E]" />
-        ) : (
-          <div className="w-5 h-5 rounded border-2 border-[#D1D5DB] bg-white" />
-        )}
-      </div>
-
-      {/* Label text */}
-      <p className="flex-1 text-sm text-[#495057] leading-snug">
-        {label}
-      </p>
-
-      {/* Read button */}
-      <button
-        type="button"
-        onClick={() => setOpenModal(policyKey)}
-        className={`shrink-0 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-          accepted
-            ? "bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0]"
-            : "bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] hover:bg-[#DBEAFE]"
-        }`}
-      >
-        <FileText size={12} />
-        {accepted ? "Read ✓" : `Read ${policyLabel}`}
-      </button>
-    </div>
-  )
-
   return (
     <>
-      {/* Legal Policy Modal */}
-      {openModal && (
-        <LegalPolicyModal
-          policyKey={openModal}
-          isOpen={true}
-          onClose={handleModalClose}
-        />
-      )}
-
       <div className="min-h-screen bg-white">
         <SiteHeader />
         <section className="relative min-h-screen flex items-center justify-center px-4 py-24 md:py-32">
@@ -474,45 +388,40 @@ export default function SignupPage() {
                   </div>
                 </div>
 
-                {/* ── Legal Acknowledgments ──────────────────────────────────── */}
-                <div className="space-y-3 border-t border-[#E5E7EB] pt-5">
-                  <div className="flex items-start justify-between mb-1">
-                    <p className="text-sm font-semibold text-[#212529]">Required Legal Acknowledgments</p>
-                    <p className="text-xs text-[#9CA3AF]">
-                      {[acceptTerms, acceptPrivacy, acceptAcceptableUse, acceptAiAcknowledgement].filter(Boolean).length} of 4 accepted
-                    </p>
-                  </div>
-
-                  <p className="text-xs text-[#6c757d] pb-1">
-                    Click <strong>Read</strong> next to each item to open it in a modal. The checkbox fills automatically once you read to the bottom.
+                {/* ── Legal Acknowledgments (single checkbox + linked policies) ── */}
+                <div className="space-y-2 border-t border-[#E5E7EB] pt-5">
+                  <p className="text-sm font-semibold text-[#212529]">Legal</p>
+                  <label className="flex items-start gap-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] px-3 py-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-[#D1D5DB] text-[#2563EB] focus:ring-[#3B82F6]"
+                      checked={acceptLegalBundle}
+                      onChange={(e) => setAcceptLegalBundle(e.target.checked)}
+                    />
+                    <span className="text-sm text-[#495057] leading-relaxed">
+                      I have read and agree to the{" "}
+                      <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#2563EB] font-medium hover:underline">
+                        Terms of Service
+                      </Link>
+                      ,{" "}
+                      <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#2563EB] font-medium hover:underline">
+                        Privacy Policy
+                      </Link>
+                      , and{" "}
+                      <Link href="/acceptable-use" target="_blank" rel="noopener noreferrer" className="text-[#2563EB] font-medium hover:underline">
+                        Acceptable Use Policy
+                      </Link>
+                      . I understand that Braik includes AI-powered features and that I must review{" "}
+                      <Link href="/ai-transparency" target="_blank" rel="noopener noreferrer" className="text-[#2563EB] font-medium hover:underline">
+                        AI-generated outputs
+                      </Link>{" "}
+                      before relying on them with my team.
+                    </span>
+                  </label>
+                  <p className="text-xs text-[#6c757d]">
+                    Links open in a new tab so you can review policies without losing your place on this form.
                   </p>
 
-                  <LegalRow
-                    accepted={acceptTerms}
-                    policyKey="terms"
-                    label="I agree to the Terms of Service."
-                    policyLabel="Terms"
-                  />
-                  <LegalRow
-                    accepted={acceptPrivacy}
-                    policyKey="privacy"
-                    label="I agree to the Privacy Policy."
-                    policyLabel="Privacy"
-                  />
-                  <LegalRow
-                    accepted={acceptAcceptableUse}
-                    policyKey="acceptableUse"
-                    label="I agree to the Acceptable Use Policy."
-                    policyLabel="AUP"
-                  />
-                  <LegalRow
-                    accepted={acceptAiAcknowledgement}
-                    policyKey="ai"
-                    label="I understand that Braik includes AI-powered tools and that AI-generated outputs must be reviewed before implementation."
-                    policyLabel="AI Notice"
-                  />
-
-                  {/* Minor consent — manual checkbox only, no policy to read */}
                   {role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18 && (
                     <label className="flex items-start gap-3 py-2.5 px-3 rounded-lg bg-[#FFFBEB] border border-[#FDE68A] cursor-pointer">
                       <input

@@ -5,6 +5,8 @@ import { Sparkles, Loader2, FilePlus, Copy, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import type { PlaySuggestion } from "@/lib/types/coach-b"
+import { trackProductEvent } from "@/lib/utils/analytics-client"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 export interface CoachBAssistedPanelProps {
   teamId: string
@@ -33,6 +35,7 @@ export function CoachBAssistedPanel({
   const [suggestions, setSuggestions] = useState<PlaySuggestion[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [generatingId, setGeneratingId] = useState<string | null>(null)
+  const [emptyHint, setEmptyHint] = useState<string | null>(null)
 
   const handleAsk = useCallback(async () => {
     const text = prompt.trim()
@@ -40,11 +43,13 @@ export function CoachBAssistedPanel({
     setLoading(true)
     setSuggestions([])
     setDismissedIds(new Set())
+    setEmptyHint(null)
     try {
       const res = await fetch("/api/coach-b/suggest-play", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          teamId,
           prompt: text,
           playbookId,
           formationId: formationId ?? undefined,
@@ -53,9 +58,12 @@ export function CoachBAssistedPanel({
       })
       if (res.ok) {
         const data = await res.json()
-        setSuggestions(data.suggestions ?? [])
-        if (!data.suggestions?.length) {
-          showToast("No suggestions for that prompt. Try being more specific.", "success")
+        const list = data.suggestions ?? []
+        setSuggestions(list)
+        if (!list.length) {
+          setEmptyHint(
+            "No play ideas matched. Add formation, personnel, or down-and-distance and try again."
+          )
         }
       } else {
         showToast("Could not get suggestions", "error")
@@ -65,7 +73,7 @@ export function CoachBAssistedPanel({
     } finally {
       setLoading(false)
     }
-  }, [prompt, loading, playbookId, formationId, subFormationId, showToast])
+  }, [prompt, loading, teamId, playbookId, formationId, subFormationId, showToast])
 
   const handleGenerateDraft = useCallback(
     async (suggestion: PlaySuggestion) => {
@@ -74,6 +82,11 @@ export function CoachBAssistedPanel({
       setGeneratingId(id)
       try {
         await onCreateDraft(suggestion)
+        trackProductEvent(BRAIK_EVENTS.coach_b.suggest_play_draft_started, {
+          teamId,
+          eventCategory: "coach_b",
+          metadata: { playbook_id: playbookId },
+        })
         showToast("Draft play created", "success")
       } catch (e) {
         showToast(e instanceof Error ? e.message : "Could not create draft play", "error")
@@ -93,7 +106,10 @@ export function CoachBAssistedPanel({
       const parts = [
         suggestion.playName,
         conceptLine,
-        ...suggestion.routesByRole.map((r) => "  " + r.role + ": " + r.route),
+        ...suggestion.routesByRole.map((r) => {
+          const y = r.yards != null ? ` (${r.yards} yd)` : ""
+          return "  " + r.role + ": " + r.route + y
+        }),
         suggestion.rationale,
       ]
       if (suggestion.tags?.length) parts.push("Tags: " + suggestion.tags.join(", "))
@@ -140,6 +156,12 @@ export function CoachBAssistedPanel({
           </Button>
         </div>
 
+        {emptyHint && visibleSuggestions.length === 0 && !loading && (
+          <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground" role="status">
+            {emptyHint}
+          </p>
+        )}
+
         {visibleSuggestions.length > 0 && (
           <div className="space-y-2">
             {visibleSuggestions.map((suggestion, idx) => {
@@ -174,6 +196,9 @@ export function CoachBAssistedPanel({
                     {suggestion.routesByRole.map((r) => (
                       <li key={r.role}>
                         <span className="font-medium text-foreground">{r.role}:</span> {r.route}
+                        {r.yards != null ? (
+                          <span className="text-muted-foreground"> · {r.yards} yd</span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

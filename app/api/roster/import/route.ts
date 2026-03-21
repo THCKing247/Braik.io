@@ -10,6 +10,9 @@ import {
   rosterKeyByNameJersey,
   type ParsedRosterRow,
 } from "@/lib/roster-import"
+import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
+import { trackProductEventServer } from "@/lib/analytics/track-server"
+import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 const IMPORT_MODES = ["create_only", "create_or_update", "replace_roster"] as const
 export type ImportMode = (typeof IMPORT_MODES)[number]
@@ -259,6 +262,18 @@ export async function POST(request: Request) {
 
     let inserted: Array<Record<string, unknown>> = []
     if (toInsert.length > 0) {
+      const cap = await assertCanAddActivePlayers(supabase, teamId, toInsert.length)
+      if (!cap.ok) {
+        return NextResponse.json(
+          {
+            error: cap.message,
+            code: "ROSTER_LIMIT_REACHED",
+            limit: cap.limit,
+            current: cap.current,
+          },
+          { status: 402 }
+        )
+      }
       const { data: insertedRows, error: insertError } = await supabase
         .from("players")
         .insert(toInsert)
@@ -322,6 +337,20 @@ export async function POST(request: Request) {
         /* non-fatal */
       }
     }
+
+    trackProductEventServer({
+      eventName: BRAIK_EVENTS.roster.import_completed,
+      userId: session.user.id,
+      teamId,
+      role: session.user.role ?? null,
+      metadata: {
+        import_mode: importMode,
+        created: summary.created,
+        updated: summary.updated,
+        skipped: summary.skipped,
+        conflicts: summary.conflicts,
+      },
+    })
 
     return NextResponse.json({
       success: true,

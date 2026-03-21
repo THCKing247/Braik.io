@@ -8,6 +8,8 @@ export interface PlaySuggestionRoute {
   role: string
   /** Route concept (e.g. Go, Slant, Flat) */
   route: string
+  /** Optional stem / breakpoint depth in yards (coaching convention). */
+  yards?: number
 }
 
 export interface PlaySuggestion {
@@ -26,6 +28,8 @@ export interface PlaySuggestion {
 }
 
 export interface CoachBSuggestPlayRequest {
+  /** Team scope for RBAC and logging */
+  teamId: string
   prompt: string
   /** Optional: playbook/formation context for scoping */
   playbookId?: string

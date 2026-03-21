@@ -8,6 +8,7 @@ import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-bar"
 import { MobilePortalShell } from "@/components/mobile/mobile-portal-shell"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
+import { DashboardEngagementHints } from "@/components/portal/dashboard-engagement-hints"
 import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { cn } from "@/lib/utils"
@@ -104,6 +105,9 @@ export function DashboardLayoutClient({
                         isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
                       )}
                     >
+                      {resolvedCurrentTeamId ? (
+                        <DashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
+                      ) : null}
                       {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
                     </div>
                   </div>

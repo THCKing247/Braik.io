@@ -31,9 +31,10 @@ export function ComplianceLegalSettings({ teamId, userRole }: ComplianceLegalSet
     const load = async () => {
       try {
         setLoading(true)
-        const response = await fetch("/api/compliance/logs")
+        const response = await fetch(`/api/compliance/logs?teamId=${encodeURIComponent(teamId)}`)
         if (!response.ok) {
-          throw new Error("Failed to load compliance logs")
+          const errBody = await response.json().catch(() => ({}))
+          throw new Error((errBody as { error?: string }).error || "Failed to load compliance logs")
         }
         const data = await response.json()
         setLogs(data.logs || [])
@@ -87,7 +88,7 @@ export function ComplianceLegalSettings({ teamId, userRole }: ComplianceLegalSet
         </CardHeader>
         <CardContent className="space-y-4">
           {userRole === "HEAD_COACH" && (
-            <a href="/api/compliance/logs?format=csv">
+            <a href={`/api/compliance/logs?teamId=${encodeURIComponent(teamId)}&format=csv`}>
               <Button variant="outline" className="border-border text-foreground">Export Logs (CSV)</Button>
             </a>
           )}

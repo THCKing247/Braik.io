@@ -13,6 +13,7 @@ export function OnboardingWizard() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [alreadyOnboarded, setAlreadyOnboarded] = useState(false)
 
   const [orgName, setOrgName] = useState("")
   const [orgType, setOrgType] = useState("school")
@@ -83,6 +84,7 @@ export function OnboardingWizard() {
       const data = await response.json()
 
       if (!response.ok) {
+        setAlreadyOnboarded(response.status === 409 && data.code === "ALREADY_ONBOARDED")
         setError(data.error || "An error occurred")
         return
       }
@@ -325,6 +327,13 @@ export function OnboardingWizard() {
               placeholder="Select due date"
             />
             {error && <div className="text-sm text-danger">{error}</div>}
+            {alreadyOnboarded && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button type="button" variant="outline" onClick={() => router.push("/dashboard")} className="w-full sm:w-auto">
+                  Go to dashboard
+                </Button>
+              </div>
+            )}
             <div className="flex gap-4">
               <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
                 Back

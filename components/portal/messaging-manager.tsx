@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,8 +24,12 @@ import {
   Shield,
   Heart,
   UsersRound,
+  Trash2,
+  Megaphone,
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
+import { canPostAnnouncements } from "@/lib/auth/roles"
+import { formatAnnouncementDateTime, type TeamAnnouncementRow } from "@/lib/team-announcements"
 import { supabaseClient } from "@/src/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
@@ -34,6 +39,7 @@ interface Message {
   attachments: any
   createdAt: Date
   creator: { id: string; name: string | null; email: string }
+  isRemoved?: boolean
 }
 
 type ParticipantKind = "player" | "coach" | "parent" | "staff"
@@ -59,6 +65,7 @@ interface Thread {
   _count: { messages: number }
   isReadOnly?: boolean
   canReply?: boolean
+  canModerate?: boolean
 }
 
 function displayNameForParticipantUser(u: ThreadParticipant["user"]) {
@@ -139,6 +146,25 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
+  const [announcementPreview, setAnnouncementPreview] = useState<TeamAnnouncementRow[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/team-announcements`)
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as { announcements?: TeamAnnouncementRow[] }
+        const list = data.announcements ?? []
+        setAnnouncementPreview(list.slice(0, 5))
+      } catch {
+        if (!cancelled) setAnnouncementPreview([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [teamId])
 
   useEffect(() => {
     setInitialLoading(true)
@@ -383,6 +409,27 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
   }
 
+  const handleModerateMessage = async (messageId: string) => {
+    if (!selectedThread?.id) return
+    if (!window.confirm("Remove this message for all participants?")) return
+    try {
+      const res = await fetch("/api/messages/moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || "Moderation failed")
+      }
+      await loadMessages(selectedThread.id, false)
+      await loadThreads()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to remove message"
+      alert(msg)
+    }
+  }
+
   const loadMessages = async (threadId: string, showLoading = true) => {
     if (showLoading) {
       setMessagesLoading(true)
@@ -409,13 +456,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       // Update selectedThread metadata only if it's missing or different
       setSelectedThread(prev => {
         if (!prev || prev.id !== threadId) {
-          return data
+          return { ...data, canModerate: data.canModerate === true }
         }
-        // Merge new data but keep the same object reference if threadId matches
         return {
           ...prev,
           ...data,
-          messages: sortedMessages
+          canModerate: data.canModerate === true,
+          messages: sortedMessages,
         }
       })
       
@@ -1089,6 +1136,45 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         </div>
 
+        {announcementPreview.length > 0 && (
+          <div
+            className="max-h-48 flex-shrink-0 overflow-y-auto border-b px-4 py-3 md:px-5"
+            style={{ borderBottomColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+                <Megaphone className="h-4 w-4 shrink-0 text-[rgb(var(--accent))]" aria-hidden />
+                Announcements
+              </div>
+              <Link
+                href="/dashboard/announcements"
+                className="shrink-0 text-xs font-medium text-[rgb(var(--accent))] hover:underline"
+              >
+                {canPostAnnouncements(userRole as any) ? "Manage" : "View all"}
+              </Link>
+            </div>
+            <ul className="space-y-2">
+              {announcementPreview.map((a) => (
+                <li key={a.id} className="rounded-lg border border-[rgb(var(--border))] bg-white px-3 py-2 text-xs shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-semibold leading-snug text-[rgb(var(--text))]">{a.title}</span>
+                    {a.is_pinned ? (
+                      <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                        Pinned
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 line-clamp-2 leading-snug text-[rgb(var(--text2))]">{a.body}</p>
+                  <p className="mt-1 text-[10px] text-[rgb(var(--muted))]">
+                    {formatAnnouncementDateTime(a.created_at)}
+                    {a.author_name ? ` · ${a.author_name}` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {canCreateThread && (
           <div className="border-b px-3 py-3 md:px-4 md:py-4" style={{ borderBottomColor: "rgb(var(--border))" }}>
             <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-[rgb(var(--muted))] md:text-left">
@@ -1400,6 +1486,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               ) : (
                 messages.map((message) => {
                 const isOwnMessage = message.creator.id === userId
+                const removed = message.isRemoved === true
                 return (
                   <div
                     key={message.id}
@@ -1426,7 +1513,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                             }
                       }
                     >
-                      <p className="text-sm whitespace-pre-wrap">{message.body}</p>
+                      <p className={`text-sm whitespace-pre-wrap ${removed ? "italic opacity-90" : ""}`}>{message.body}</p>
                       {message.attachments && Array.isArray(message.attachments) && message.attachments.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {message.attachments.map((att: any, idx: number) => {
@@ -1448,9 +1535,24 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                           })}
                         </div>
                       )}
-                      <p className={`text-xs mt-2 ${isOwnMessage ? "opacity-80" : ""}`}>
-                        {message.creator.name || message.creator.email} • {format(new Date(message.createdAt), "h:mm a")}
-                      </p>
+                      <div className={`mt-2 flex items-center justify-between gap-2 ${isOwnMessage ? "opacity-80" : ""}`}>
+                        <p className="text-xs">
+                          {message.creator.name || message.creator.email} • {format(new Date(message.createdAt), "h:mm a")}
+                        </p>
+                        {selectedThread?.canModerate && !removed && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs shrink-0"
+                            onClick={() => handleModerateMessage(message.id)}
+                            title="Remove message"
+                            style={isOwnMessage ? { color: "rgba(255,255,255,0.9)" } : { color: "rgb(var(--accent))" }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )

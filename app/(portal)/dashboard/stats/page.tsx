@@ -9,8 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { StatsLeaderCards } from "@/components/portal/stats-leader-cards"
 import { AllStatsTable } from "@/components/portal/all-stats-table"
-import type { PlayerStatsRow } from "@/lib/stats-helpers"
-import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown } from "lucide-react"
+import { AddWeeklyStatsDialog } from "@/components/portal/add-weekly-stats-dialog"
+import { DeleteStatsConfirmDialog } from "@/components/portal/delete-stats-confirm-dialog"
+import type { PlayerStatsRow, StatsTableRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
+import { playerToStatsTableRow, weeklyEntryToStatsTableRow } from "@/lib/stats-helpers"
+import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2 } from "lucide-react"
 import { rowErrorsToCsv } from "@/lib/stats-import"
 import { STATS_IMPORT_HEADERS } from "@/lib/stats-import-fields"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
@@ -65,6 +68,26 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const [sideFilter, setSideFilter] = useState(searchParams.get("side") ?? "")
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") ?? "")
 
+  type StatsTab = "all" | "weekly"
+  const [statsTab, setStatsTab] = useState<StatsTab>("all")
+  const [weekFilter, setWeekFilter] = useState("")
+  const [gameFilter, setGameFilter] = useState("")
+  const [opponentFilter, setOpponentFilter] = useState("")
+  const [dateFilter, setDateFilter] = useState("")
+
+  const [weeklyEntries, setWeeklyEntries] = useState<WeeklyStatEntryApi[]>([])
+  const [weeklyLoading, setWeeklyLoading] = useState(false)
+  const [weeklyError, setWeeklyError] = useState<string | null>(null)
+  const [scheduleGames, setScheduleGames] = useState<
+    Array<{ id: string; opponent: string; gameDate: string; seasonYear: number | null }>
+  >([])
+
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set())
+  const [addWeeklyOpen, setAddWeeklyOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewedFileKey, setPreviewedFileKey] = useState<string>("")
   const [importing, setImporting] = useState(false)
@@ -113,6 +136,61 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   }, [teamId, refreshTrigger])
 
   useEffect(() => {
+    setSelectedRowKeys(new Set())
+  }, [statsTab])
+
+  useEffect(() => {
+    if (statsTab !== "weekly" || !teamId) return
+    let cancelled = false
+    setWeeklyLoading(true)
+    setWeeklyError(null)
+    const params = new URLSearchParams({ teamId })
+    if (season.trim()) params.set("seasonYear", season.trim())
+    if (weekFilter.trim()) params.set("week", weekFilter.trim())
+    if (gameFilter.trim()) params.set("gameId", gameFilter.trim())
+    if (opponentFilter.trim()) params.set("opponent", opponentFilter.trim())
+    if (dateFilter.trim()) {
+      params.set("dateFrom", dateFilter.trim())
+      params.set("dateTo", dateFilter.trim())
+    }
+    fetch(`/api/stats/weekly?${params.toString()}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
+        return res.json()
+      })
+      .then((data: { entries?: WeeklyStatEntryApi[] }) => {
+        if (!cancelled && Array.isArray(data?.entries)) setWeeklyEntries(data.entries)
+      })
+      .catch((err) => {
+        if (!cancelled) setWeeklyError(err instanceof Error ? err.message : "Failed to load weekly stats")
+      })
+      .finally(() => {
+        if (!cancelled) setWeeklyLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, statsTab, season, weekFilter, gameFilter, opponentFilter, dateFilter, refreshTrigger])
+
+  useEffect(() => {
+    if (statsTab !== "weekly" || !teamId) return
+    let cancelled = false
+    const q = new URLSearchParams({ teamId })
+    if (season.trim()) q.set("seasonYear", season.trim())
+    fetch(`/api/stats/games?${q.toString()}`)
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error("games")))
+      .then((data: { games?: typeof scheduleGames }) => {
+        if (!cancelled && Array.isArray(data?.games)) setScheduleGames(data.games)
+      })
+      .catch(() => {
+        if (!cancelled) setScheduleGames([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, statsTab, season])
+
+  useEffect(() => {
     if (showImportPanel && importPanelRef.current) {
       importPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
@@ -138,6 +216,28 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     return list
   }, [players, searchQuery, positionFilter, sideFilter])
 
+  const filteredWeeklyTableRows = useMemo((): StatsTableRow[] => {
+    let list = weeklyEntries.map(weeklyEntryToStatsTableRow)
+    const q = searchQuery.trim().toLowerCase()
+    if (q) {
+      list = list.filter(
+        (p) =>
+          (p.firstName?.toLowerCase() ?? "").includes(q) ||
+          (p.lastName?.toLowerCase() ?? "").includes(q) ||
+          String(p.jerseyNumber ?? "").includes(q)
+      )
+    }
+    if (positionFilter) {
+      list = list.filter((p) => (p.position ?? "").toUpperCase() === positionFilter.toUpperCase())
+    }
+    if (sideFilter) {
+      list = list.filter((p) => p.sideOfBall === sideFilter)
+    }
+    return list
+  }, [weeklyEntries, searchQuery, positionFilter, sideFilter])
+
+  const seasonTableRows = useMemo(() => filteredRows.map(playerToStatsTableRow), [filteredRows])
+
   const positions = useMemo(() => {
     const set = new Set<string>()
     players.forEach((p) => {
@@ -146,7 +246,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [players])
 
-  const getProfileHref = (row: PlayerStatsRow) =>
+  const getProfileHref = (row: StatsTableRow) =>
     `/dashboard/roster/${row.id}${teamId ? `?teamId=${encodeURIComponent(teamId)}` : ""}`
 
   const downloadTemplate = (withRoster: boolean) => {
@@ -216,6 +316,69 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const handleConfirmImport = () => runImport(false)
 
   const handleExportCsv = () => {
+    const format = (v: number | null | undefined) =>
+      v === null || v === undefined ? "" : String(v)
+    const formatStr = (v: string | null | undefined) => (v === null || v === undefined ? "" : String(v))
+
+    if (statsTab === "weekly") {
+      const headers = [
+        "Week",
+        "Game",
+        "Opponent",
+        "Date",
+        "First Name",
+        "Last Name",
+        "#",
+        "Position",
+        "GP",
+        "Pass Yds",
+        "Pass TD",
+        "INT Thrown",
+        "Rush Yds",
+        "Rush TD",
+        "Rec",
+        "Rec Yds",
+        "Rec TD",
+        "Tackles",
+        "Sacks",
+        "INT",
+      ]
+      const rows = filteredWeeklyTableRows.map((r) => [
+        format(r.weekNumber ?? null),
+        formatStr(r.gameLabel),
+        formatStr(r.gameOpponent),
+        r.gameDate ? String(r.gameDate).slice(0, 10) : "",
+        r.firstName,
+        r.lastName,
+        format(r.jerseyNumber),
+        r.position ?? "",
+        format(r.gamesPlayed),
+        format(r.passingYards),
+        format(r.passingTds),
+        format(r.intThrown),
+        format(r.rushingYards),
+        format(r.rushingTds),
+        format(r.receptions),
+        format(r.receivingYards),
+        format(r.receivingTds),
+        format(r.tackles),
+        format(r.sacks),
+        format(r.interceptions),
+      ])
+      const csv = [
+        headers.join(","),
+        ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n")
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `weekly-stats-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      return
+    }
+
     const headers = [
       "First Name",
       "Last Name",
@@ -235,8 +398,6 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       "Sacks",
       "INT",
     ]
-    const format = (v: number | null | undefined) =>
-      v === null || v === undefined ? "" : String(v)
     const rows = filteredRows.map((r) => [
       r.firstName,
       r.lastName,
@@ -267,6 +428,64 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     a.download = `all-stats-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const toggleRowSelect = (rowKey: string, selected: boolean) => {
+    setSelectedRowKeys((prev) => {
+      const next = new Set(prev)
+      if (selected) next.add(rowKey)
+      else next.delete(rowKey)
+      return next
+    })
+  }
+
+  const toggleAllVisible = (selected: boolean, visibleRowKeys: string[]) => {
+    setSelectedRowKeys((prev) => {
+      const next = new Set(prev)
+      for (const k of visibleRowKeys) {
+        if (selected) next.add(k)
+        else next.delete(k)
+      }
+      return next
+    })
+  }
+
+  const executeDeleteSelected = async () => {
+    const ids = [...selectedRowKeys]
+    if (ids.length === 0) return
+    setDeleteError(null)
+    setDeleteBusy(true)
+    try {
+      if (statsTab === "all") {
+        const res = await fetch("/api/stats/season", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ teamId, playerIds: ids }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(typeof data?.error === "string" ? data.error : "Delete failed")
+        }
+      } else {
+        const res = await fetch("/api/stats/weekly", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ teamId, ids }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(typeof data?.error === "string" ? data.error : "Delete failed")
+        }
+      }
+      setSelectedRowKeys(new Set())
+      setDeleteConfirmOpen(false)
+      setRefreshTrigger((t) => t + 1)
+    } catch (e) {
+      console.error(e)
+      setDeleteError(e instanceof Error ? e.message : "Delete failed.")
+    } finally {
+      setDeleteBusy(false)
+    }
   }
 
   if (loading) {
@@ -303,18 +522,43 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     )
   }
 
+  const exportDisabled =
+    statsTab === "all" ? filteredRows.length === 0 : filteredWeeklyTableRows.length === 0
+
   return (
     <div className="mobile-section">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>
-            All Stats
+            Stats
           </h1>
           <p style={{ color: "rgb(var(--muted))" }}>
-            Team statistics aggregated from player profiles. Click a row to open the player profile.
+            {statsTab === "all"
+              ? "Season totals from player profiles. Click a row to open the player profile."
+              : "Per-game and weekly stat lines. Season totals on the All Stats tab are unchanged."}
           </p>
+          <div className="flex flex-wrap gap-2 mt-4" role="tablist" aria-label="Stats view">
+            <Button
+              type="button"
+              size="sm"
+              variant={statsTab === "all" ? "default" : "outline"}
+              onClick={() => setStatsTab("all")}
+              aria-selected={statsTab === "all"}
+            >
+              All Stats
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={statsTab === "weekly" ? "default" : "outline"}
+              onClick={() => setStatsTab("weekly")}
+              aria-selected={statsTab === "weekly"}
+            >
+              Weekly / Game Stats
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {canEdit && (
             <Button
               variant="outline"
@@ -324,19 +568,60 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               {showImportPanel ? "Close Import" : "Import Stats"}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={filteredRows.length === 0}>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setAddWeeklyOpen(true)}>
+              <CalendarPlus className="h-4 w-4 mr-2" aria-hidden />
+              Add Weekly/Game Stats
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={exportDisabled}>
             <Download className="h-4 w-4 mr-2" aria-hidden />
             Export CSV
           </Button>
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={selectedRowKeys.size === 0}
+              onClick={() => {
+                setDeleteError(null)
+                setDeleteConfirmOpen(true)
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" aria-hidden />
+              Delete Selected
+            </Button>
+          )}
         </div>
       </div>
 
+      <AddWeeklyStatsDialog
+        open={addWeeklyOpen}
+        onOpenChange={setAddWeeklyOpen}
+        teamId={teamId}
+        roster={players}
+        seasonYear={season}
+        games={scheduleGames}
+        onSaved={() => setRefreshTrigger((t) => t + 1)}
+      />
+
+      <DeleteStatsConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={(o) => {
+          setDeleteConfirmOpen(o)
+          if (!o) setDeleteError(null)
+        }}
+        loading={deleteBusy}
+        errorMessage={deleteError}
+        onConfirm={executeDeleteSelected}
+      />
+
       {/* Filters */}
-      <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
         <CardHeader>
           <CardTitle style={{ color: "rgb(var(--text))" }}>Filters</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="stats-season" className="text-foreground">
@@ -404,6 +689,66 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               />
             </div>
           </div>
+
+          {statsTab === "weekly" && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-2 border-t" style={{ borderColor: "rgb(var(--border))" }}>
+              <div className="space-y-2">
+                <Label htmlFor="stats-week" className="text-foreground">
+                  Week
+                </Label>
+                <Input
+                  id="stats-week"
+                  type="number"
+                  min={1}
+                  max={30}
+                  placeholder="Any"
+                  value={weekFilter}
+                  onChange={(e) => setWeekFilter(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stats-game" className="text-foreground">
+                  Game
+                </Label>
+                <select
+                  id="stats-game"
+                  value={gameFilter}
+                  onChange={(e) => setGameFilter(e.target.value)}
+                  className="mobile-select"
+                >
+                  <option value="">All games</option>
+                  {scheduleGames.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.opponent ? `vs ${g.opponent}` : "Game"}{" "}
+                      {g.gameDate ? `· ${String(g.gameDate).slice(0, 10)}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stats-opponent" className="text-foreground">
+                  Opponent
+                </Label>
+                <Input
+                  id="stats-opponent"
+                  placeholder="Filter by opponent…"
+                  value={opponentFilter}
+                  onChange={(e) => setOpponentFilter(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stats-date" className="text-foreground">
+                  Date
+                </Label>
+                <Input
+                  id="stats-date"
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -652,25 +997,104 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         </div>
       )}
 
-      {filteredRows.length > 0 && (
+      {statsTab === "weekly" && weeklyError && (
+        <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+          <CardContent className="py-6" style={{ color: "rgb(var(--muted))" }}>
+            {weeklyError}
+          </CardContent>
+        </Card>
+      )}
+
+      {statsTab === "weekly" && weeklyLoading && (
+        <div className="flex min-h-[30vh] items-center justify-center mt-6">
+          <div
+            className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent"
+            aria-label="Loading weekly stats"
+          />
+        </div>
+      )}
+
+      {statsTab === "all" && filteredRows.length > 0 && (
         <>
-          <StatsLeaderCards players={filteredRows} />
-          <AllStatsTable rows={filteredRows} getProfileHref={getProfileHref} />
+          <div className="mt-6">
+            <StatsLeaderCards players={filteredRows} />
+          </div>
+          <div className="mt-6">
+            <AllStatsTable
+              mode="season"
+              rows={seasonTableRows}
+              getProfileHref={getProfileHref}
+              selectionEnabled={canEdit}
+              selectedRowKeys={selectedRowKeys}
+              onToggleRow={toggleRowSelect}
+              onToggleAllVisible={toggleAllVisible}
+            />
+          </div>
         </>
       )}
 
-      {!loading && !error && players.length === 0 && (
-        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      {statsTab === "weekly" && !weeklyLoading && !weeklyError && filteredWeeklyTableRows.length > 0 && (
+        <div className="mt-6">
+          <AllStatsTable
+            mode="weekly"
+            rows={filteredWeeklyTableRows}
+            getProfileHref={getProfileHref}
+            selectionEnabled={canEdit}
+            selectedRowKeys={selectedRowKeys}
+            onToggleRow={toggleRowSelect}
+            onToggleAllVisible={toggleAllVisible}
+          />
+        </div>
+      )}
+
+      {!loading && !error && statsTab === "all" && players.length === 0 && (
+        <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
           <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
             No players on the roster yet. Add players from the Roster page; their stats will appear here once entered on their profiles.
           </CardContent>
         </Card>
       )}
 
-      {!loading && !error && players.length > 0 && filteredRows.length === 0 && (
-        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+      {!loading && !error && statsTab === "all" && players.length > 0 && filteredRows.length === 0 && (
+        <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
           <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
             No players match the current filters. Try adjusting season, position, side, or search.
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading &&
+        !error &&
+        statsTab === "weekly" &&
+        !weeklyLoading &&
+        !weeklyError &&
+        players.length > 0 &&
+        weeklyEntries.length === 0 && (
+          <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+            <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
+              No weekly or game stat lines yet. Use Add Weekly/Game Stats to create entries.
+            </CardContent>
+          </Card>
+        )}
+
+      {!loading &&
+        !error &&
+        statsTab === "weekly" &&
+        !weeklyLoading &&
+        !weeklyError &&
+        weeklyEntries.length > 0 &&
+        filteredWeeklyTableRows.length === 0 && (
+          <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+            <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
+              No rows match the current filters. Try adjusting week, game, opponent, date, position, side, or search.
+            </CardContent>
+          </Card>
+        )}
+
+      {!loading && !error && statsTab === "weekly" && players.length === 0 && (
+        <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
+          <CardContent className="py-12 text-center" style={{ color: "rgb(var(--muted))" }}>
+            Add players on the Roster page before entering weekly or game stats.
           </CardContent>
         </Card>
       )}

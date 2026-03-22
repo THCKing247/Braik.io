@@ -117,3 +117,52 @@ export function toPlayerStatsRow(p: {
     interceptions: ints,
   }
 }
+
+/** Table row: season view uses rowKey === player id; weekly view uses entry id as rowKey. */
+export type StatsTableRow = PlayerStatsRow & {
+  rowKey: string
+  weekNumber?: number | null
+  gameLabel?: string | null
+  /** Row-level opponent label (weekly / game context). */
+  gameOpponent?: string | null
+  gameDate?: string | null
+}
+
+export function playerToStatsTableRow(p: PlayerStatsRow): StatsTableRow {
+  return { ...p, rowKey: p.id }
+}
+
+export type WeeklyStatEntryApi = {
+  id: string
+  playerId: string
+  seasonYear: number | null
+  weekNumber: number | null
+  gameId: string | null
+  opponent: string | null
+  gameDate: string | null
+  stats: Record<string, unknown>
+  firstName: string
+  lastName: string
+  jerseyNumber: number | null
+  positionGroup: string | null
+  gameLabel: string | null
+}
+
+export function weeklyEntryToStatsTableRow(entry: WeeklyStatEntryApi): StatsTableRow {
+  const base = toPlayerStatsRow({
+    id: entry.playerId,
+    firstName: entry.firstName,
+    lastName: entry.lastName,
+    jerseyNumber: entry.jerseyNumber,
+    positionGroup: entry.positionGroup,
+    seasonStats: entry.stats,
+  })
+  return {
+    ...base,
+    rowKey: entry.id,
+    weekNumber: entry.weekNumber,
+    gameOpponent: entry.opponent,
+    gameDate: entry.gameDate,
+    gameLabel: entry.gameLabel,
+  }
+}

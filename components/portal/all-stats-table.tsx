@@ -1,8 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import type { PlayerStatsRow } from "@/lib/stats-helpers"
+import type { PlayerStatsRow, StatsTableRow } from "@/lib/stats-helpers"
+import { Checkbox } from "@/components/ui/checkbox"
+
+const SCROLL_HIDE =
+  "overflow-x-auto overflow-y-auto max-h-[70vh] [scrollbar-gutter:stable] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
 const STAT_COLUMNS: { key: keyof PlayerStatsRow; label: string; numeric: boolean }[] = [
   { key: "lastName", label: "Player", numeric: false },
@@ -22,31 +26,87 @@ const STAT_COLUMNS: { key: keyof PlayerStatsRow; label: string; numeric: boolean
   { key: "interceptions", label: "INT", numeric: true },
 ]
 
-function formatCell(row: PlayerStatsRow, key: keyof PlayerStatsRow): string {
-  const v = row[key]
+const WEEKLY_BEFORE_STAT: { key: keyof StatsTableRow; label: string; numeric: boolean }[] = [
+  { key: "weekNumber", label: "Week", numeric: true },
+  { key: "gameLabel", label: "Game", numeric: false },
+  { key: "gameOpponent", label: "Opponent", numeric: false },
+  { key: "gameDate", label: "Date", numeric: false },
+]
+
+function formatCell(row: StatsTableRow, key: keyof StatsTableRow): string {
+  if (key === "weekNumber") {
+    const v = row.weekNumber
+    return v === null || v === undefined ? "—" : String(v)
+  }
+  if (key === "gameLabel") {
+    const v = row.gameLabel
+    return v === null || v === undefined || v === "" ? "—" : String(v)
+  }
+  if (key === "gameOpponent") {
+    const v = row.gameOpponent
+    return v === null || v === undefined || v === "" ? "—" : String(v)
+  }
+  if (key === "gameDate") {
+    const v = row.gameDate
+    if (v === null || v === undefined || v === "") return "—"
+    return String(v).slice(0, 10)
+  }
+  const v = row[key as keyof PlayerStatsRow]
   if (v === null || v === undefined || v === "") return "—"
   if (typeof v === "number" && Number.isFinite(v)) return String(v)
   return String(v)
 }
 
 export interface AllStatsTableProps {
-  rows: PlayerStatsRow[]
-  getProfileHref: (row: PlayerStatsRow) => string
+  mode: "season" | "weekly"
+  rows: StatsTableRow[]
+  getProfileHref: (row: StatsTableRow) => string
+  selectionEnabled?: boolean
+  selectedRowKeys?: ReadonlySet<string>
+  onToggleRow?: (rowKey: string, selected: boolean) => void
+  onToggleAllVisible?: (selected: boolean, visibleRowKeys: string[]) => void
 }
 
-type SortKey = keyof PlayerStatsRow
+type SortKey = keyof PlayerStatsRow | "weekNumber" | "gameLabel" | "gameOpponent" | "gameDate"
 type SortDir = "asc" | "desc"
 
-export function AllStatsTable({ rows, getProfileHref }: AllStatsTableProps) {
+function sortValue(row: StatsTableRow, key: SortKey): string | number | null {
+  if (key === "weekNumber") return row.weekNumber ?? null
+  if (key === "gameLabel") return row.gameLabel ?? ""
+  if (key === "gameOpponent") return row.gameOpponent ?? ""
+  if (key === "gameDate") return row.gameDate ?? ""
+  const v = row[key as keyof PlayerStatsRow]
+  if (typeof v === "number" && Number.isFinite(v)) return v
+  if (v === null || v === undefined) return ""
+  return String(v)
+}
+
+export function AllStatsTable({
+  mode,
+  rows,
+  getProfileHref,
+  selectionEnabled = false,
+  selectedRowKeys,
+  onToggleRow,
+  onToggleAllVisible,
+}: AllStatsTableProps) {
   const router = useRouter()
-  const [sortKey, setSortKey] = useState<SortKey>("lastName")
+  const [sortKey, setSortKey] = useState<SortKey>(mode === "weekly" ? "gameDate" : "lastName")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
+
+  const columns = useMemo(() => {
+    const base = STAT_COLUMNS.filter((c) => c.key !== "lastName")
+    if (mode === "weekly") {
+      return [{ key: "lastName" as const, label: "Player", numeric: false }, ...WEEKLY_BEFORE_STAT, ...base]
+    }
+    return STAT_COLUMNS
+  }, [mode])
 
   const sortedRows = useMemo(() => {
     const arr = [...rows]
     arr.sort((a, b) => {
-      const aVal = a[sortKey]
-      const bVal = b[sortKey]
+      const aVal = sortValue(a, sortKey)
+      const bVal = sortValue(b, sortKey)
       const aNum = typeof aVal === "number" && Number.isFinite(aVal) ? aVal : null
       const bNum = typeof bVal === "number" && Number.isFinite(bVal) ? bVal : null
       if (aNum !== null && bNum !== null) {
@@ -60,6 +120,21 @@ export function AllStatsTable({ rows, getProfileHref }: AllStatsTableProps) {
     return arr
   }, [rows, sortKey, sortDir])
 
+  const visibleKeys = useMemo(() => sortedRows.map((r) => r.rowKey), [sortedRows])
+
+  const allSelected =
+    selectionEnabled &&
+    visibleKeys.length > 0 &&
+    visibleKeys.every((k) => selectedRowKeys?.has(k))
+  const someSelected =
+    selectionEnabled && visibleKeys.some((k) => selectedRowKeys?.has(k)) && !allSelected
+
+  const headerSelectRef = useRef<HTMLInputElement | null>(null)
+  useLayoutEffect(() => {
+    const el = headerSelectRef.current
+    if (el) el.indeterminate = Boolean(someSelected && !allSelected)
+  }, [someSelected, allSelected])
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"))
@@ -71,18 +146,28 @@ export function AllStatsTable({ rows, getProfileHref }: AllStatsTableProps) {
 
   return (
     <div
-      className="overflow-x-auto rounded-lg border overflow-y-auto [scrollbar-gutter:stable]"
-      style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF", maxHeight: "70vh" }}
+      className={`rounded-lg border ${SCROLL_HIDE}`}
+      style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
     >
       <table className="w-full text-left text-sm">
         <thead className="sticky top-0 z-10" style={{ backgroundColor: "rgb(var(--snow))" }}>
           <tr className="border-b" style={{ borderColor: "rgb(var(--border))" }}>
-            {STAT_COLUMNS.map(({ key, label }) => (
+            {selectionEnabled && (
+              <th className="w-10 px-2 py-3" aria-label="Select rows">
+                <Checkbox
+                  ref={headerSelectRef}
+                  checked={allSelected}
+                  onCheckedChange={(checked) => onToggleAllVisible?.(Boolean(checked), visibleKeys)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </th>
+            )}
+            {columns.map(({ key, label }) => (
               <th
                 key={key}
                 className="px-3 py-3 font-semibold cursor-pointer select-none whitespace-nowrap hover:opacity-80"
                 style={{ color: "rgb(var(--text))" }}
-                onClick={() => handleSort(key)}
+                onClick={() => handleSort(key as SortKey)}
                 aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
               >
                 <span className="inline-flex items-center gap-1">
@@ -98,9 +183,10 @@ export function AllStatsTable({ rows, getProfileHref }: AllStatsTableProps) {
         <tbody>
           {sortedRows.map((row) => {
             const href = getProfileHref(row)
+            const checked = selectedRowKeys?.has(row.rowKey) ?? false
             return (
               <tr
-                key={row.id}
+                key={row.rowKey}
                 role={href ? "button" : undefined}
                 tabIndex={href ? 0 : undefined}
                 onClick={href ? () => router.push(href) : undefined}
@@ -120,7 +206,16 @@ export function AllStatsTable({ rows, getProfileHref }: AllStatsTableProps) {
                   cursor: href ? "pointer" : undefined,
                 }}
               >
-                {STAT_COLUMNS.map(({ key }) => (
+                {selectionEnabled && (
+                  <td className="px-2 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(c) => onToggleRow?.(row.rowKey, Boolean(c))}
+                      aria-label={`Select ${row.firstName} ${row.lastName}`}
+                    />
+                  </td>
+                )}
+                {columns.map(({ key }) => (
                   <td
                     key={key}
                     className="px-3 py-2 whitespace-nowrap"

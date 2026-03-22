@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
     const { data: rows, error } = await supabase
       .from("games")
-      .select("id, opponent, game_date, season_id, seasons(year)")
+      .select("id, opponent, game_date, location, game_type, result, notes, season_id, seasons(year)")
       .eq("team_id", teamId)
       .order("game_date", { ascending: true })
 
@@ -46,6 +46,10 @@ export async function GET(request: Request) {
         id: r.id as string,
         opponent: (r.opponent as string) ?? "",
         gameDate: r.game_date as string,
+        location: (r.location as string | null) ?? null,
+        gameType: (r.game_type as string | null) ?? null,
+        result: (r.result as string | null) ?? null,
+        notes: (r.notes as string | null) ?? null,
         seasonYear: seasons?.year ?? null,
       }
     })

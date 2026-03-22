@@ -211,14 +211,22 @@ export function CalendarWidgetEnhanced({
     [canEdit, onCreateEvent, getSlotFromPointer]
   )
   
-  // Calendar filters (like Google Calendar's "My calendars") — colors must match getEventTypeColor()
+  // Event-type filters only. Events that do not map to a type (team/default) are always shown.
   const [calendarFilters, setCalendarFilters] = useState<CalendarFilter[]>([
-    { id: "all", name: "Team Events", color: "#3B82F6", enabled: true },
     { id: "practice", name: "Practices", color: "#10B981", enabled: true },
     { id: "game", name: "Games", color: "#EF4444", enabled: true },
     { id: "meeting", name: "Meetings", color: "#F59E0B", enabled: true },
     { id: "other", name: "Other", color: "#8B5CF6", enabled: true },
   ])
+
+  const mapEventToTypeFilterId = useCallback((eventType: string): string | null => {
+    const t = (eventType || "").toLowerCase()
+    if (t === "practice") return "practice"
+    if (t === "game") return "game"
+    if (t === "meeting") return "meeting"
+    if (t === "custom" || t === "other") return "other"
+    return null
+  }, [])
 
   // Map event type to sidebar category color so schedule blocks match "My calendars" colors
   const getEventTypeColor = useCallback((eventType: string) => {
@@ -230,17 +238,14 @@ export function CalendarWidgetEnhanced({
     return "#3B82F6" // Team Events / default
   }, [])
 
-  // Filter events based on enabled calendars
   const filteredEvents = useMemo(() => {
-    if (calendarFilters.every(f => f.enabled)) {
-      return events
-    }
-    return events.filter(event => {
-      const eventType = event.eventType.toLowerCase()
-      const filter = calendarFilters.find(f => f.id === eventType || f.id === "all")
+    return events.filter((event) => {
+      const fid = mapEventToTypeFilterId(event.eventType)
+      if (fid === null) return true
+      const filter = calendarFilters.find((f) => f.id === fid)
       return filter?.enabled ?? true
     })
-  }, [events, calendarFilters])
+  }, [events, calendarFilters, mapEventToTypeFilterId])
 
   const filteredEventsInVisibleRange = useMemo(() => {
     return filteredEvents.filter((ev) => {
@@ -579,6 +584,11 @@ export function CalendarWidgetEnhanced({
                               if (dayEvents.length > 0) {
                                 setSelectedDay(day)
                                 setShowDayEvents(true)
+                              } else if (canEdit && onCreateEvent) {
+                                const s = new Date(day)
+                                s.setHours(9, 0, 0, 0)
+                                setCurrentDate(day)
+                                onCreateEvent({ start: s, end: addHours(s, 1) })
                               } else {
                                 handleMiniCalendarDateClick(day)
                               }
@@ -797,6 +807,27 @@ export function CalendarWidgetEnhanced({
                         </div>
                       )
                     })}
+                    {isCurrentWeek &&
+                      isTodayDate(day) &&
+                      currentTimePosition !== null && (
+                        <div
+                          className="pointer-events-none absolute left-1 right-1 z-30"
+                          style={{ top: `${currentTimePosition}px` }}
+                          aria-hidden
+                        >
+                          <div className="flex items-center">
+                            <div
+                              className="h-3 w-3 flex-shrink-0 rounded-full"
+                              style={{
+                                backgroundColor: "#EA4335",
+                                marginLeft: "-6px",
+                                boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
+                              }}
+                            />
+                            <div className="h-0.5 flex-1" style={{ backgroundColor: "#EA4335" }} />
+                          </div>
+                        </div>
+                      )}
                   </div>
                 )
               })}
@@ -815,21 +846,6 @@ export function CalendarWidgetEnhanced({
                     }}
                   />
                 ))}
-                {isCurrentWeek && currentTimePosition !== null && (
-                  <div className="absolute left-0 right-0 z-30" style={{ top: `${currentTimePosition}px` }}>
-                    <div className="flex items-center">
-                      <div
-                        className="h-3 w-3 flex-shrink-0 rounded-full"
-                        style={{
-                          backgroundColor: "#EA4335",
-                          marginLeft: "-6px",
-                          boxShadow: "0 0 0 2px rgba(255, 255, 255, 1), 0 0 0 3px #EA4335",
-                        }}
-                      />
-                      <div className="h-0.5 flex-1" style={{ backgroundColor: "#EA4335" }} />
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -1355,8 +1371,7 @@ export function CalendarWidgetEnhanced({
                   className="truncate text-lg font-semibold tracking-tight lg:text-xl"
                   style={{ color: "rgb(var(--text))" }}
                 >
-                  <span className="lg:hidden">Schedule</span>
-                  <span className="hidden lg:inline">Calendar</span>
+                  Calendar
                 </h1>
               </div>
               <Button

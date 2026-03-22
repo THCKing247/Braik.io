@@ -11,7 +11,7 @@ import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 
 /**
  * GET /api/teams/[teamId]/calendar/events
- * Returns calendar events for the team. Shape matches ScheduleManager Event.
+ * Returns calendar events for the team. Shape matches CalendarManager Event.
  */
 export async function GET(
   _request: Request,
@@ -371,7 +371,7 @@ export async function POST(
         teamId,
         title: `New event: ${title}`,
         body: `${eventType} - ${new Date(startStr).toLocaleDateString()} at ${new Date(startStr).toLocaleTimeString()}`,
-        linkUrl: `/dashboard/schedule`,
+        linkUrl: `/dashboard/calendar`,
         linkType: "event",
         linkId: event.id,
         metadata: {

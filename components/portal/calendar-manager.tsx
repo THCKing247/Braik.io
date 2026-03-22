@@ -30,14 +30,14 @@ interface Event {
   }>
 }
 
-interface ScheduleManagerProps {
+export interface CalendarManagerProps {
   teamId: string
   events: Event[]
   canEdit: boolean
   defaultView?: "day" | "week" | "month" | "year"
 }
 
-export function ScheduleManager({ teamId, events: initialEvents, canEdit, defaultView = "day" }: ScheduleManagerProps) {
+export function CalendarManager({ teamId, events: initialEvents, canEdit, defaultView = "day" }: CalendarManagerProps) {
   const [events, setEvents] = useState(initialEvents)
   const [createOpen, setCreateOpen] = useState(false)
   const [createKey, setCreateKey] = useState(0)

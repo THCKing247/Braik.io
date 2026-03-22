@@ -43,7 +43,7 @@ export function RemindersFeed({ reminders }: RemindersFeedProps) {
       case "announcement":
         return `/dashboard/announcements#${reminder.linkId}`
       case "event":
-        return `/dashboard/schedule#${reminder.linkId}`
+        return `/dashboard/calendar#${reminder.linkId}`
       case "inventory":
         return `/dashboard/inventory#${reminder.linkId}`
       default:

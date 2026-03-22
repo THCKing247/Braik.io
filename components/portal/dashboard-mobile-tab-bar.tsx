@@ -18,10 +18,10 @@ const tabs = [
     match: (p: string) => p.startsWith("/dashboard/roster"),
   },
   {
-    href: "/dashboard/schedule",
-    label: "Schedule",
+    href: "/dashboard/calendar",
+    label: "Calendar",
     icon: Calendar,
-    match: (p: string) => p.startsWith("/dashboard/schedule"),
+    match: (p: string) => p.startsWith("/dashboard/calendar"),
   },
   {
     href: "/dashboard/messages",

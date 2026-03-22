@@ -9,6 +9,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Legacy calendar deep links used /dashboard/schedule?eventId= — games now live at /dashboard/schedule
+  if (pathname === "/dashboard/schedule" && request.nextUrl.searchParams.has("eventId")) {
+    const u = request.nextUrl.clone()
+    u.pathname = "/dashboard/calendar"
+    return NextResponse.redirect(u)
+  }
+
   if (pathname.startsWith("/api/dev/")) {
     if (process.env.NODE_ENV === "production") {
       const expectedSeedKey = process.env.SEED_KEY

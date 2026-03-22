@@ -34,7 +34,8 @@ export function DashboardLayoutClient({
 }) {
   const isLgUp = useMinWidthLg()
   const pathname = usePathname()
-  const isSchedulePage = pathname?.includes("/dashboard/schedule") ?? false
+  const isSchedulePage =
+    (pathname?.includes("/dashboard/schedule") ?? false) || (pathname?.includes("/dashboard/calendar") ?? false)
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
   const useMobilePortalShell = !isPlayEditorRoute && !isSchedulePage
   const teamIds = teams.map((t) => t.id)

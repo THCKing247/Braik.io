@@ -97,7 +97,7 @@ export async function GET(
           kind: "schedule",
           title: row.title,
           subtitle: `${typeLabel} · ${when.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${row.location ? ` · ${row.location}` : ""}`,
-          href: `/dashboard/schedule?teamId=${encodeURIComponent(teamId)}&eventId=${encodeURIComponent(row.id)}`,
+          href: `/dashboard/calendar?teamId=${encodeURIComponent(teamId)}&eventId=${encodeURIComponent(row.id)}`,
           at: row.created_at,
         })
       }

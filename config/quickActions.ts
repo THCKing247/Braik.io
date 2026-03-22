@@ -1,5 +1,6 @@
 import {
   Calendar,
+  CalendarDays,
   Users,
   User,
   FileText,
@@ -41,10 +42,17 @@ export const QUICK_ACTIONS: QuickAction[] = [
     roles: ["PLAYER"],
   },
   {
+    id: "calendar",
+    href: "/dashboard/calendar",
+    label: "Calendar",
+    icon: Calendar,
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"],
+  },
+  {
     id: "schedule",
     href: "/dashboard/schedule",
     label: "Schedule",
-    icon: Calendar,
+    icon: CalendarDays,
     roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"],
   },
   {
@@ -129,7 +137,7 @@ export function isPrimaryMobileTabPath(href: string): boolean {
   return (
     href === "/dashboard" ||
     href.startsWith("/dashboard/roster") ||
-    href.startsWith("/dashboard/schedule") ||
+    href.startsWith("/dashboard/calendar") ||
     href.startsWith("/dashboard/messages")
   )
 }

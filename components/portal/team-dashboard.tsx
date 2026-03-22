@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,6 +21,7 @@ import {
 import { DashboardCalendar } from "@/components/portal/dashboard-calendar"
 import { DashboardAnnouncementsCard } from "@/components/portal/dashboard-announcements-card"
 import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
+import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team-schedule-games"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +39,7 @@ interface TeamDashboardProps {
   session: { user: SessionUser } | null
   /** Effective team id (matches DashboardPageShell / schedule page) */
   teamId: string
-  /** Same permission as ScheduleManager canEdit */
+  /** Same permission as calendar event create (coaches) */
   canAddCalendarEvents: boolean
 }
 
@@ -468,6 +470,122 @@ function NotificationsCard({ teamId }: { teamId: string }) {
   )
 }
 
+// ─── Next upcoming game (games table — same source as Schedule page) ──────────
+
+function UpcomingGameCard({ teamId }: { teamId: string }) {
+  const [loading, setLoading] = useState(true)
+  const [game, setGame] = useState<TeamGameRow | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/stats/games?teamId=${encodeURIComponent(teamId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { games?: TeamGameRow[] } | null) => {
+        if (cancelled) return
+        const rows = data?.games
+        if (!rows || !Array.isArray(rows)) {
+          setGame(null)
+          return
+        }
+        setGame(getNextUpcomingGame(rows))
+      })
+      .catch(() => {
+        if (!cancelled) setGame(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId])
+
+  const scheduleHref = `/dashboard/schedule?teamId=${encodeURIComponent(teamId)}`
+
+  if (loading) {
+    return (
+      <Card
+        className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      >
+        <CardContent className="flex min-h-[120px] items-center justify-center py-6">
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!game) {
+    return (
+      <Card
+        className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      >
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+          <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+            <Trophy className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
+            Next game
+          </CardTitle>
+          <Link href={scheduleHref} className="shrink-0">
+            <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
+              Schedule
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
+          <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+            No upcoming games on the schedule. Completed, postponed, and cancelled games are not shown here.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const kickoff = new Date(game.gameDate)
+  const ha = inferHomeAway(game.location)
+  const homeAwayLabel = ha === "home" ? "Home" : ha === "away" ? "Away" : "TBD"
+  const opp = game.opponent?.trim() || "Opponent TBD"
+
+  return (
+    <Card
+      className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+      style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+    >
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+        <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
+          <Trophy className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
+          Next game
+        </CardTitle>
+        <Link href={scheduleHref} className="shrink-0">
+          <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
+            Full schedule
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="space-y-2 px-4 pb-4 md:px-6 md:pb-6">
+        <p className="text-lg font-bold leading-snug" style={{ color: "rgb(var(--text))" }}>
+          {ha === "home" ? "vs " : ha === "away" ? "@ " : ""}
+          {opp}
+        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {Number.isFinite(kickoff.getTime()) ? format(kickoff, "EEE, MMM d · h:mm a") : "Date TBD"}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm" style={{ color: "rgb(var(--text2))" }}>
+          <span className="rounded-md bg-[rgb(var(--platinum))] px-2 py-0.5 text-xs font-semibold">{homeAwayLabel}</span>
+          <span className="inline-flex items-start gap-1.5 min-w-0">
+            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="break-words">{game.location?.trim() || "Location TBD"}</span>
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Connect to Team Card Component ───────────────────────────────────────────
 
 function ConnectToTeamCard({ user }: { user: SessionUser }) {
@@ -647,9 +765,12 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {/* ── Connect to Team Card (if no team and not head coach) ── */}
       {!hasTeam && !isHeadCoach && <ConnectToTeamCard user={user} />}
 
-      {/* ── Full-width Calendar (effective team matches schedule page) ── */}
+      {/* ── Next game (games table) + home calendar strip ── */}
       {hasTeam && (
-        <DashboardCalendar teamId={teamId} canAddEvents={canAddCalendarEvents} />
+        <div className="space-y-3 sm:space-y-4">
+          <UpcomingGameCard teamId={teamId} />
+          <DashboardCalendar teamId={teamId} canAddEvents={canAddCalendarEvents} />
+        </div>
       )}
 
       {/* ── Announcements + Notifications + Readiness ── */}

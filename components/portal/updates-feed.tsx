@@ -43,7 +43,7 @@ export function UpdatesFeed({ updates }: UpdatesFeedProps) {
       case "announcement":
         return `/dashboard/announcements#${update.linkId}`
       case "event":
-        return `/dashboard/schedule#${update.linkId}`
+        return `/dashboard/calendar#${update.linkId}`
       case "inventory":
         return `/dashboard/inventory#${update.linkId}`
       default:

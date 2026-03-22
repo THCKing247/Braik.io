@@ -15,7 +15,7 @@
  * 
  * Supported link types:
  * - message_thread: Routes to /dashboard/messages?threadId={linkId}
- * - event: Routes to /dashboard/schedule?eventId={linkId}
+ * - event: Routes to /dashboard/calendar?eventId={linkId}
  * - roster: Routes to /dashboard/roster
  * - player: Routes to /dashboard/roster/{linkId}
  * - schedule: Routes to /dashboard/schedule
@@ -140,7 +140,7 @@ export function buildNotificationRoute(
     
     case "event":
       return {
-        path: `${basePath}/schedule`,
+        path: `${basePath}/calendar`,
         queryParams: { ...queryParams, eventId: linkId }
       }
     

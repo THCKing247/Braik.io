@@ -66,7 +66,7 @@ export type DashboardCalendarProps = {
 
 /**
  * Home dashboard schedule strip + month grid.
- * Create event uses shared CreateEventOverlay (same as Schedule page).
+ * Create event uses shared CreateEventOverlay (same as Calendar page).
  */
 export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarProps) {
   const [events, setEvents] = useState<DashboardCalendarEvent[]>([])
@@ -169,9 +169,9 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
           <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
             <Calendar className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
-            Schedule
+            Calendar
           </CardTitle>
-          <Link href="/dashboard/schedule" className="shrink-0">
+          <Link href="/dashboard/calendar" className="shrink-0">
             <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
               Full view
             </Button>
@@ -206,7 +206,7 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
           <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
             <Calendar className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
-            Schedule
+            Calendar
           </CardTitle>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             {canAddEvents && (
@@ -222,7 +222,7 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                 Add event
               </Button>
             )}
-            <Link href="/dashboard/schedule">
+            <Link href="/dashboard/calendar">
               <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
                 Full view
               </Button>
@@ -325,7 +325,7 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
                 return (
                   <Link
                     key={day.toISOString()}
-                    href="/dashboard/schedule"
+                    href="/dashboard/calendar"
                     className={cellClass}
                     style={cellStyle}
                   >

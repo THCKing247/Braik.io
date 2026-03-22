@@ -8,6 +8,7 @@ import {
   logAdTeamVisibility,
   resolveAthleticDirectorScope,
 } from "@/lib/ad-team-scope"
+import { fetchAdPrimaryHeadCoachesForVisibleTeams } from "@/lib/ad-primary-head-coaches"
 
 export const dynamic = "force-dynamic"
 
@@ -19,6 +20,7 @@ export default async function AthleticDirectorOverviewPage() {
   let school: { name: string } | null = null
   let department: { estimated_team_count?: number; estimated_athlete_count?: number; status: string } | null = null
   let teamsCount = 0
+  let coachesCount = 0
 
   const scope = await resolveAthleticDirectorScope(supabase, session.user.id)
   const orFilter = buildAdTeamsOrFilter(scope)
@@ -46,19 +48,33 @@ export default async function AthleticDirectorOverviewPage() {
   }
 
   if (orFilter) {
-    const { count, error: countErr } = await supabase
+    const { data: teamsData, error: teamsErr } = await supabase
       .from("teams")
-      .select("*", { count: "exact", head: true })
+      .select("id, name, head_coach_user_id")
       .or(orFilter)
-    teamsCount = count ?? 0
+    teamsCount = teamsData?.length ?? 0
+    const teamIds = (teamsData ?? []).map((t) => t.id)
     logAdTeamVisibility("AthleticDirectorOverviewPage", {
       scope,
       sessionRole: session.user.role ?? null,
       teamCount: teamsCount,
-      teamIds: [],
+      teamIds,
       filter: orFilter,
-      queryError: countErr?.message ?? null,
+      queryError: teamsErr?.message ?? null,
     })
+
+    const coachData = await fetchAdPrimaryHeadCoachesForVisibleTeams(supabase, {
+      teamRows: (teamsData ?? []).map((t) => ({
+        id: t.id as string,
+        name: (t as { name?: string | null }).name ?? null,
+        head_coach_user_id: (t as { head_coach_user_id?: string | null }).head_coach_user_id ?? null,
+      })),
+      scope,
+      orFilter,
+      sessionUserId: session.user.id,
+      sessionRole: session.user.role ?? null,
+    })
+    coachesCount = coachData.distinctCoachUserCount
   } else {
     logAdTeamVisibility("AthleticDirectorOverviewPage", {
       scope,
@@ -82,7 +98,7 @@ export default async function AthleticDirectorOverviewPage() {
       <AdOverviewCards
         totalTeams={teamsCount}
         totalAthletes={department?.estimated_athlete_count ?? 0}
-        totalCoaches={0}
+        totalCoaches={coachesCount}
         totalParents={0}
         planStatus={department?.status ?? "active"}
         departmentPlan="Athletic Department License"

@@ -6,6 +6,7 @@ import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { headCoachSignupTeamLevels } from "@/lib/onboarding/head-coach-team-levels"
+import { logTeamMembersAudit, setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 
@@ -326,6 +327,8 @@ export async function POST(request: Request) {
         }
         programIdRollback = program.id as string
 
+        const insertedTeamIds: string[] = []
+
         for (const level of levels) {
           const name = level === "varsity" ? programName! : teamLevelNames[level] ?? programName!
           const isVarsity = level === "varsity"
@@ -353,6 +356,7 @@ export async function POST(request: Request) {
           if (teamInsertError || !insertedTeam?.id) {
             throw new SignupRouteError(500, "Database failure while creating team", teamInsertError?.message)
           }
+          insertedTeamIds.push(insertedTeam.id as string)
           if (isVarsity) {
             teamId = insertedTeam.id as string
           }
@@ -378,6 +382,15 @@ export async function POST(request: Request) {
         })
         if (inviteInsertError) {
           throw new SignupRouteError(500, "Database failure while creating invite", inviteInsertError.message)
+        }
+
+        for (const tid of insertedTeamIds) {
+          const { error: hcErr } = await setPrimaryHeadCoach(supabase, tid, createdAuthUserId, {
+            source: "signup_secure_head_coach",
+          })
+          if (hcErr) {
+            throw new SignupRouteError(500, "Failed to save team staff membership", hcErr.message)
+          }
         }
 
         programIdRollback = null
@@ -651,6 +664,36 @@ export async function POST(request: Request) {
 
     if (profileInsertError) {
       throw new SignupRouteError(500, "Database failure while creating profile", profileInsertError.message)
+    }
+
+    if (teamId && role !== "head_coach") {
+      const tmRole =
+        role === "assistant_coach"
+          ? "assistant_coach"
+          : role === "parent"
+            ? "parent"
+            : "player"
+      const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, createdAuthUserId, tmRole, {
+        source: "signup_secure",
+      })
+      if (tmErr) {
+        throw new SignupRouteError(500, "Database failure while saving team membership", tmErr.message)
+      }
+    } else if (teamId && role === "head_coach") {
+      const { data: tmCheck } = await supabase
+        .from("team_members")
+        .select("user_id")
+        .eq("team_id", teamId)
+        .eq("user_id", createdAuthUserId)
+        .eq("role", "head_coach")
+        .eq("active", true)
+        .maybeSingle()
+      if (!tmCheck) {
+        logTeamMembersAudit("signup-secure.profile_without_head_coach_row", {
+          teamId,
+          userId: createdAuthUserId,
+        })
+      }
     }
 
     trackProductEventServer({

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 export type SeedRole = "head_coach" | "assistant_coach" | "player" | "parent" | "admin"
 
@@ -156,6 +157,41 @@ export async function runDevSeedUsers(supabaseAdmin: SupabaseClient): Promise<Se
     }
 
     profilesUpserted += 1
+  }
+
+  const { error: hcErr } = await setPrimaryHeadCoach(supabaseAdmin, demoTeamId, coachUserId, {
+    source: "dev_seed",
+  })
+  if (hcErr) {
+    throw new Error(`Failed to set demo head coach membership: ${hcErr.message}`)
+  }
+
+  const assistantId = createdAuthUsersByEmail.get("assistant@example.com")
+  if (assistantId) {
+    const { error: acErr } = await upsertStaffTeamMember(supabaseAdmin, demoTeamId, assistantId, "assistant_coach")
+    if (acErr) {
+      throw new Error(`Failed to set demo assistant membership: ${acErr.message}`)
+    }
+  }
+
+  const playerId = createdAuthUsersByEmail.get("player1@example.com")
+  if (playerId) {
+    const { error: plErr } = await upsertStaffTeamMember(supabaseAdmin, demoTeamId, playerId, "player", {
+      source: "dev_seed",
+    })
+    if (plErr) {
+      throw new Error(`Failed to set demo player membership: ${plErr.message}`)
+    }
+  }
+
+  const parentId = createdAuthUsersByEmail.get("parent1@example.com")
+  if (parentId) {
+    const { error: parErr } = await upsertStaffTeamMember(supabaseAdmin, demoTeamId, parentId, "parent", {
+      source: "dev_seed",
+    })
+    if (parErr) {
+      throw new Error(`Failed to set demo parent membership: ${parErr.message}`)
+    }
   }
 
   const verifyAuthUsers = await listUsersByEmail(supabaseAdmin, seedEmailSet)

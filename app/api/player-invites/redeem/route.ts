@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { logInviteAction } from "@/lib/audit/structured-logger"
+import { upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 /**
  * POST /api/player-invites/redeem
@@ -116,6 +117,14 @@ export async function POST(request: Request) {
 
     if (updateInviteErr) {
       console.error("[POST /api/player-invites/redeem] player_invites update", updateInviteErr)
+    }
+
+    const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, userId, "player", {
+      source: "api_player_invites_redeem",
+    })
+    if (tmErr) {
+      console.error("[POST /api/player-invites/redeem] team_members", tmErr)
+      return NextResponse.json({ error: "Failed to save team membership" }, { status: 500 })
     }
 
     logInviteAction("invite_redeem_success", { playerId, inviteId: invite.id })

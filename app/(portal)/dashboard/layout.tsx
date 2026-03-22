@@ -85,18 +85,35 @@ export default async function DashboardLayout({
     impersonationSession = await getActiveImpersonationFromCookies()
     const effectiveUserId = impersonationSession?.target_user_id ?? session.user.id
 
-    // Load user's team(s) from profiles (production source of truth; no team_members table)
     const { data: profile } = await supabase
       .from("profiles")
       .select("team_id")
       .eq("id", effectiveUserId)
       .maybeSingle()
 
-    let teamIds: string[] = []
-    if (profile?.team_id) {
-      teamIds = [profile.team_id]
+    const { data: membershipRows } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("user_id", effectiveUserId)
+      .eq("active", true)
+
+    let teamIds: string[] = [...new Set((membershipRows ?? []).map((r) => r.team_id).filter(Boolean))]
+
+    if (profile?.team_id && !teamIds.includes(profile.team_id)) {
+      teamIds = [...teamIds, profile.team_id]
     }
-    // Include teams the user created (created_by) in case profile.team_id is not set yet
+
+    if (teamIds.length === 0) {
+      const { data: hcTeams } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("head_coach_user_id", effectiveUserId)
+      if (hcTeams?.length) {
+        teamIds = hcTeams.map((t) => t.id)
+      }
+    }
+
+    // Last resort: teams.created_by (audit / legacy) when no team_members or profile link
     if (teamIds.length === 0) {
       const { data: createdTeams } = await supabase
         .from("teams")

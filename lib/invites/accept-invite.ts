@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
+import { setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 import type { InviteRecord } from "./validate-invite"
 
 export type AcceptInviteResult =
@@ -10,7 +11,7 @@ const PROFILE_HEAD_COACH = "head_coach"
 
 /**
  * Accept an invite: update profile and users, set accepted_at/accepted_by.
- * Team staff rows are kept in team_members (head_coach, assistant_coach) alongside profile.team_id.
+ * Team staff rows are kept in team_members alongside profile.team_id.
  */
 export async function acceptInvite(
   supabase: SupabaseClient,
@@ -31,6 +32,7 @@ export async function acceptInvite(
 
   const role = invite.role?.toLowerCase().replace(/-/g, "_")
   const isHeadCoach = role === "head_coach"
+  const isAssistantCoach = role === "assistant_coach"
 
   if (isHeadCoach) {
     const { data: existingHeadCoach } = await supabase
@@ -49,21 +51,12 @@ export async function acceptInvite(
     }
     if (existingHeadCoach?.id === acceptingUserId) {
       if (invite.team_id) {
-        await supabase
-          .from("team_members")
-          .update({ is_primary: false })
-          .eq("team_id", invite.team_id)
-          .eq("role", "head_coach")
-        await supabase.from("team_members").upsert(
-          {
-            team_id: invite.team_id,
-            user_id: acceptingUserId,
-            role: "head_coach",
-            active: true,
-            is_primary: true,
-          },
-          { onConflict: "team_id,user_id" }
-        )
+        const { error: hcErr } = await setPrimaryHeadCoach(supabase, invite.team_id, acceptingUserId, {
+          source: "invite_accept_existing_hc",
+        })
+        if (hcErr) {
+          return { success: false, reason: "db_error", message: hcErr.message }
+        }
       }
       const { error: updateErr } = await supabase
         .from("invites")
@@ -79,7 +72,14 @@ export async function acceptInvite(
     }
   }
 
-  const profileRole = isHeadCoach ? PROFILE_HEAD_COACH : "player"
+  const profileRole = isHeadCoach
+    ? PROFILE_HEAD_COACH
+    : isAssistantCoach
+      ? "assistant_coach"
+      : role === "parent"
+        ? "parent"
+        : "player"
+
   const { error: profileErr } = await supabase.from("profiles").upsert(
     {
       id: acceptingUserId,
@@ -109,25 +109,37 @@ export async function acceptInvite(
       { onConflict: "id" }
     )
 
-  if (isHeadCoach && invite.team_id) {
-    await supabase
-      .from("team_members")
-      .update({ is_primary: false })
-      .eq("team_id", invite.team_id)
-      .eq("role", "head_coach")
-
-    const { error: tmErr } = await supabase.from("team_members").upsert(
-      {
-        team_id: invite.team_id,
-        user_id: acceptingUserId,
-        role: "head_coach",
-        active: true,
-        is_primary: true,
-      },
-      { onConflict: "team_id,user_id" }
-    )
-    if (tmErr) {
-      return { success: false, reason: "db_error", message: tmErr.message }
+  if (invite.team_id) {
+    if (isHeadCoach) {
+      const { error: hcErr } = await setPrimaryHeadCoach(supabase, invite.team_id, acceptingUserId, {
+        source: "invite_accept",
+      })
+      if (hcErr) {
+        return { success: false, reason: "db_error", message: hcErr.message }
+      }
+    } else if (isAssistantCoach) {
+      const { error: acErr } = await upsertStaffTeamMember(
+        supabase,
+        invite.team_id,
+        acceptingUserId,
+        "assistant_coach",
+        { source: "invite_accept" }
+      )
+      if (acErr) {
+        return { success: false, reason: "db_error", message: acErr.message }
+      }
+    } else {
+      const tmRole = role === "parent" ? "parent" : "player"
+      const { error: rosterErr } = await upsertStaffTeamMember(
+        supabase,
+        invite.team_id,
+        acceptingUserId,
+        tmRole,
+        { source: "invite_accept" }
+      )
+      if (rosterErr) {
+        return { success: false, reason: "db_error", message: rosterErr.message }
+      }
     }
   }
 

@@ -23,7 +23,7 @@ export async function ensureGeneralChatThread(teamId: string): Promise<string> {
   // Get team members to add as participants
   const { data: members } = await supabase
     .from("team_members")
-    .select("user_id")
+    .select("user_id, role, is_primary")
     .eq("team_id", teamId)
     .eq("active", true)
 
@@ -31,9 +31,9 @@ export async function ensureGeneralChatThread(teamId: string): Promise<string> {
     throw new Error("Team has no members")
   }
 
-  // Use first member as creator (or get head coach if available)
-  const headCoach = members.find((m) => m.user_id) // Simplified - should check role
-  const creatorId = headCoach?.user_id || members[0].user_id
+  const creatorId =
+    pickHeadCoachUserId(members as { user_id: string; role: string; is_primary?: boolean | null }[]) ??
+    members[0]!.user_id
 
   // Create general chat thread
   const { data: thread, error: threadError } = await supabase

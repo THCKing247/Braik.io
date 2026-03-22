@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireProgramHeadCoach } from "@/lib/auth/rbac"
 import { MembershipLookupError } from "@/lib/auth/rbac"
+import { upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 const TEAM_LEVELS = ["varsity", "jv", "freshman"] as const
 
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
 
     const { data: player, error: playerErr } = await supabase
       .from("players")
-      .select("id, team_id")
+      .select("id, team_id, user_id")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -127,6 +128,21 @@ export async function POST(request: Request) {
         { error: "Failed to move player to new team", details: updateErr.message },
         { status: 500 }
       )
+    }
+
+    const linkedUserId = (player as { user_id?: string | null }).user_id
+    if (linkedUserId) {
+      await supabase.from("team_members").delete().eq("team_id", fromTeamId).eq("user_id", linkedUserId)
+      const { error: tmErr } = await upsertStaffTeamMember(supabase, toTeamId, linkedUserId, "player", {
+        source: "api_players_promote",
+      })
+      if (tmErr) {
+        console.error("[POST /api/players/promote] team_members move error:", tmErr)
+        return NextResponse.json(
+          { error: "Failed to update team membership for linked account", details: tmErr.message },
+          { status: 500 }
+        )
+      }
     }
 
     return NextResponse.json({

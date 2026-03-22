@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
+import { logTeamMembersAudit, profileRoleToTeamMemberRole, upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 export const runtime = "nodejs"
 
@@ -218,7 +219,7 @@ export async function POST(request: Request) {
       // best-effort; profile update is the source of truth for membership
     }
 
-    // Update the user's profile to link them to the team (production source of truth; no team_members table)
+    // Update the user's profile to link them to the team
     const { error: profileUpdateError } = await supabase
       .from("profiles")
       .update({ team_id: teamId })
@@ -229,6 +230,25 @@ export async function POST(request: Request) {
         { success: false, error: "Failed to update your profile.", details: profileUpdateError.message },
         { status: 500 }
       )
+    }
+
+    const tmRole = profileRoleToTeamMemberRole(session.user.role ?? "player")
+    if (tmRole === "head_coach") {
+      logTeamMembersAudit("team.join.skipped_tm_after_profile", {
+        reason: "unexpected_head_coach_session",
+        teamId,
+        userId,
+      })
+    } else {
+      const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, userId, tmRole, {
+        source: "api_team_join",
+      })
+      if (tmErr) {
+        return NextResponse.json(
+          { success: false, error: "Failed to save team membership.", details: tmErr.message },
+          { status: 500 }
+        )
+      }
     }
 
     // Fetch team name for the success message

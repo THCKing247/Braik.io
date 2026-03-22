@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
+import { upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 export const runtime = "nodejs"
 
@@ -70,7 +71,16 @@ export async function POST(request: Request) {
           console.error("[POST /api/invite/redeem] consume invite", consume.error)
         }
 
-        return NextResponse.json({ success: true, player_id: player.id, team_id: player.team_id })
+        const tid = player.team_id as string
+        const { error: tmErr } = await upsertStaffTeamMember(supabase, tid, userId, "player", {
+          source: "api_invite_redeem",
+        })
+        if (tmErr) {
+          console.error("[POST /api/invite/redeem] team_members", tmErr)
+          return NextResponse.json({ error: "Failed to save team membership" }, { status: 500 })
+        }
+
+        return NextResponse.json({ success: true, player_id: player.id, team_id: tid })
       }
     }
 
@@ -97,7 +107,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Failed to link profile" }, { status: 500 })
       }
 
-      return NextResponse.json({ success: true, player_id: existingPlayer.id, team_id: existingPlayer.team_id })
+      const tid = existingPlayer.team_id as string
+      const { error: tmErr } = await upsertStaffTeamMember(supabase, tid, userId, "player", {
+        source: "api_invite_redeem",
+      })
+      if (tmErr) {
+        console.error("[POST /api/invite/redeem] team_members", tmErr)
+        return NextResponse.json({ error: "Failed to save team membership" }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true, player_id: existingPlayer.id, team_id: tid })
     }
 
     return NextResponse.json(

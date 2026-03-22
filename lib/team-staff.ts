@@ -1,5 +1,6 @@
 /**
- * Team staff helpers: team_members.role uses snake_case (head_coach, assistant_coach).
+ * Team staff helpers: `team_members.role` uses snake_case.
+ * Staff roles include head_coach, assistant_coach, team_admin, trainer, manager; roster uses player/parent.
  */
 
 export type TeamMemberStaffRow = {

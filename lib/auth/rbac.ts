@@ -37,11 +37,24 @@ export function profileRoleToNormalizedRole(profileRole: string | null | undefin
   return ROLES.PLAYER
 }
 
+/** Map `team_members.role` (snake_case) to app Role for permissions. */
+function teamMemberDbRoleToNormalizedRole(dbRole: string): Role {
+  const r = dbRole.trim().toLowerCase().replace(/-/g, "_")
+  if (r === "head_coach") return ROLES.HEAD_COACH
+  if (r === "assistant_coach") return ROLES.ASSISTANT_COACH
+  if (r === "team_admin" || r === "trainer" || r === "manager") return ROLES.ASSISTANT_COACH
+  if (r === "player") return ROLES.PLAYER
+  if (r === "parent") return ROLES.PARENT
+  if (r === "school_admin") return ROLES.SCHOOL_ADMIN
+  return profileRoleToNormalizedRole(dbRole)
+}
+
 /**
- * Get the current user's membership for a team using production schema only:
- * - profiles.team_id + profiles.role (source of truth)
- * - teams.created_by (team creator counts as HEAD_COACH)
- * Does NOT use team_members (not present in production).
+ * Get the current user's membership for a team:
+ * - team_members (active) when present — source of truth for staff/roster linkage
+ * - profiles.team_id + profiles.role
+ * - teams.created_by (ownership / legacy creator access, not staff display)
+ * - program_members for program-scoped coaches/AD
  */
 export async function getUserMembership(teamId: string): Promise<UserMembership | null> {
   const session = await getServerSession()
@@ -50,6 +63,29 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
   }
 
   const supabase = getSupabaseServer()
+
+  const { data: tmRow, error: tmError } = await supabase
+    .from("team_members")
+    .select("role")
+    .eq("team_id", teamId)
+    .eq("user_id", session.user.id)
+    .eq("active", true)
+    .maybeSingle()
+
+  if (tmError) {
+    console.error("[getUserMembership] team_members lookup failed", { userId: session.user.id, teamId, error: tmError })
+    throw new MembershipLookupError("Database error during membership lookup", tmError)
+  }
+
+  if (tmRow?.role) {
+    return {
+      userId: session.user.id,
+      teamId,
+      role: teamMemberDbRoleToNormalizedRole(String(tmRow.role)),
+      permissions: undefined,
+      positionGroups: undefined,
+    }
+  }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")

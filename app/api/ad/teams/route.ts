@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import crypto from "crypto"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { logTeamMembersAudit } from "@/lib/team-members-sync"
 
 export async function POST(request: Request) {
   try {
@@ -92,6 +93,12 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
+
+    logTeamMembersAudit("ad.teams.created_without_staff_row", {
+      teamId: team.id,
+      createdByAd: session.user.id,
+      note: "Expected until a head coach accepts an invite or staff is assigned.",
+    })
 
     let inviteId: string | null = null
     if (headCoachEmail) {

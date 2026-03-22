@@ -2,6 +2,7 @@ import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
+import { setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 type SignupPayload = {
   fullName?: string
@@ -155,6 +156,30 @@ export async function POST(request: Request) {
     }
 
     if (teamId) {
+      if (role === "head_coach") {
+        const { error: tmErr } = await setPrimaryHeadCoach(supabaseServerClient, teamId, authUser.user.id, {
+          source: "signup_legacy_head_coach",
+        })
+        if (tmErr) {
+          await supabaseServerClient.auth.admin.deleteUser(authUser.user.id)
+          return NextResponse.json({ success: false, error: "Failed to save team staff membership" }, { status: 500 })
+        }
+      } else {
+        const tmRole =
+          role === "assistant_coach"
+            ? "assistant_coach"
+            : role === "parent"
+              ? "parent"
+              : "player"
+        const { error: tmErr } = await upsertStaffTeamMember(supabaseServerClient, teamId, authUser.user.id, tmRole, {
+          source: "signup_legacy",
+        })
+        if (tmErr) {
+          await supabaseServerClient.auth.admin.deleteUser(authUser.user.id)
+          return NextResponse.json({ success: false, error: "Failed to save team membership" }, { status: 500 })
+        }
+      }
+
       try {
         await supabaseServerClient
           .from("users")

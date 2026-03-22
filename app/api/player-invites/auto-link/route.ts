@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { normalizePhone, samePhone } from "@/lib/player-invite-auto-link"
+import { upsertStaffTeamMember } from "@/lib/team-members-sync"
 
 /**
  * POST /api/player-invites/auto-link
@@ -59,7 +60,7 @@ export async function POST() {
 
     if (matchingByEmail.length === 1) {
       const invite = matchingByEmail[0]
-      const claimErr = await claimInvite(supabase, invite.id, invite.player_id, userId)
+      const claimErr = await claimInvite(supabase, invite.id, invite.player_id, invite.team_id, userId)
       if (claimErr) {
         return NextResponse.json({ error: claimErr }, { status: 500 })
       }
@@ -98,7 +99,7 @@ export async function POST() {
 
     if (matchingByPhone.length === 1) {
       const invite = matchingByPhone[0]
-      const claimErr = await claimInvite(supabase, invite.id, invite.player_id, userId)
+      const claimErr = await claimInvite(supabase, invite.id, invite.player_id, invite.team_id, userId)
       if (claimErr) {
         return NextResponse.json({ error: claimErr }, { status: 500 })
       }
@@ -121,6 +122,7 @@ async function claimInvite(
   supabase: ReturnType<typeof getSupabaseServer>,
   inviteId: string,
   playerId: string,
+  teamId: string,
   userId: string
 ): Promise<string | null> {
   const { data: player, error: playerErr } = await supabase
@@ -154,6 +156,14 @@ async function claimInvite(
       claimed_at: new Date().toISOString(),
     })
     .eq("id", inviteId)
+
+  const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, userId, "player", {
+    source: "api_player_invites_auto_link",
+  })
+  if (tmErr) {
+    console.error("[auto-link] team_members", tmErr)
+    return "Failed to save team membership"
+  }
 
   return null
 }

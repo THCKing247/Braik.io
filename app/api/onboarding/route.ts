@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { setPrimaryHeadCoach } from "@/lib/team-members-sync"
 
 function normalizeProfileRole(role: string | null | undefined): string {
   return (role ?? "").trim().toLowerCase().replace(/-/g, "_")
@@ -259,17 +260,9 @@ export async function POST(request: Request) {
     }
 
     for (const tid of createdTeamIds) {
-      await supabase.from("team_members").update({ is_primary: false }).eq("team_id", tid).eq("role", "head_coach")
-      const { error: tmErr } = await supabase.from("team_members").upsert(
-        {
-          team_id: tid,
-          user_id: session.user.id,
-          role: "head_coach",
-          active: true,
-          is_primary: true,
-        },
-        { onConflict: "team_id,user_id" }
-      )
+      const { error: tmErr } = await setPrimaryHeadCoach(supabase, tid, session.user.id, {
+        source: "onboarding",
+      })
       if (tmErr) {
         await rollbackProgram()
         return NextResponse.json(

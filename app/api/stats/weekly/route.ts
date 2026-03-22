@@ -54,6 +54,7 @@ export async function GET(request: Request) {
 
     const seasonYear = searchParams.get("seasonYear")?.trim()
     const weekNumber = searchParams.get("week")?.trim()
+    const playerIdFilter = searchParams.get("playerId")?.trim()
     const gameId = searchParams.get("gameId")?.trim()
     const opponent = searchParams.get("opponent")?.trim()
     const dateFrom = searchParams.get("dateFrom")?.trim()
@@ -94,6 +95,9 @@ export async function GET(request: Request) {
     if (weekNumber) {
       const w = parseInt(weekNumber, 10)
       if (Number.isFinite(w)) query = query.eq("week_number", w)
+    }
+    if (playerIdFilter && UUID_REGEX.test(playerIdFilter)) {
+      query = query.eq("player_id", playerIdFilter)
     }
     if (gameId && UUID_REGEX.test(gameId)) {
       query = query.eq("game_id", gameId)

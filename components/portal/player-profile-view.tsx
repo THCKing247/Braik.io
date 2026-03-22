@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList } from "lucide-react"
 import type { PlayerProfile } from "@/types/player-profile"
-import { PlayerProfileStatsForm } from "./player-profile-stats-form"
+import { PlayerProfilePracticeMetricsForm } from "./player-profile-stats-form"
+import { PlayerProfileWeeklyStatsPanel } from "./player-profile-weekly-stats-panel"
+import { SEASON_STAT_KEYS, getStatNumber } from "@/lib/stats-helpers"
+import { labelForSeasonStatDbKey } from "@/lib/stats-season-labels"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
 import { PlayerDevelopmentTab } from "./player-development-tab"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
@@ -501,7 +504,16 @@ export function PlayerProfileView({
             <InfoTab profile={profile} playerId={playerId} teamId={teamId} canEdit={canEditProfile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
           )}
           {activeTab === "stats" && (
-            <StatsTab profile={profile} canEdit={canEditProfile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
+            <StatsTab
+              playerId={playerId}
+              teamId={teamId}
+              profile={profile}
+              canManageWeeklyStats={canEdit}
+              editDraft={editDraft}
+              setEditDraft={setEditDraft}
+              value={value}
+              onProfileRefetch={refetchProfile}
+            />
           )}
           {activeTab === "equipment" && (
             <EquipmentTab
@@ -1078,34 +1090,127 @@ function InfoTab({
   )
 }
 
+const SYNCED_SEASON_STAT_KEYS = new Set<string>(SEASON_STAT_KEYS as unknown as string[])
+
+const SEASON_SUMMARY_GROUPS: { label: string; keys: readonly string[] }[] = [
+  {
+    label: "Offense",
+    keys: [
+      "passing_yards",
+      "passing_tds",
+      "int_thrown",
+      "rushing_yards",
+      "rushing_tds",
+      "receptions",
+      "receiving_yards",
+      "receiving_tds",
+      "touchdowns",
+    ],
+  },
+  { label: "Defense", keys: ["tackles", "sacks", "interceptions"] },
+  { label: "Games", keys: ["games_played"] },
+]
+
 function StatsTab({
+  playerId,
+  teamId,
   profile,
-  canEdit,
+  canManageWeeklyStats,
   editDraft,
   setEditDraft,
   value,
+  onProfileRefetch,
 }: {
+  playerId: string
+  teamId: string
   profile: PlayerProfile
-  canEdit: boolean
+  canManageWeeklyStats: boolean
   editDraft: Partial<PlayerProfile>
   setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
   value: (k: keyof PlayerProfile) => unknown
+  onProfileRefetch: () => void
 }) {
-  const seasonStats = profile.seasonStats && typeof profile.seasonStats === "object" ? (profile.seasonStats as Record<string, unknown>) : {}
-  const seasonEntries = Object.entries(seasonStats).filter(([, v]) => v != null && v !== "")
-  const gameStats = Array.isArray(profile.gameStats) ? profile.gameStats : []
-  const hasStats = seasonEntries.length > 0 || gameStats.length > 0
+  const seasonStats =
+    profile.seasonStats && typeof profile.seasonStats === "object" ? (profile.seasonStats as Record<string, unknown>) : {}
+
+  const customSeasonEntries = Object.entries(seasonStats).filter(
+    ([k, v]) => !SYNCED_SEASON_STAT_KEYS.has(k) && v != null && v !== ""
+  )
+
+  const hasAnySyncedValue = (SEASON_STAT_KEYS as readonly string[]).some((k) => getStatNumber(seasonStats, k) != null)
+  const hasSeasonDisplay = hasAnySyncedValue || customSeasonEntries.length > 0
 
   return (
-    <div className="space-y-6">
-      {canEdit && (
+    <div className="space-y-8">
+      <div>
+        <Label className="text-[#0F172A] font-medium">Season totals</Label>
+        <p className="mt-1 text-xs text-[#64748B]">
+          Aggregated from weekly / game stat lines (and shown on All Stats). Standard fields are not edited here.
+        </p>
+        {hasSeasonDisplay ? (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {SEASON_SUMMARY_GROUPS.map(({ label, keys }) => {
+              const rows = keys
+                .map((k) => {
+                  const n = getStatNumber(seasonStats, k)
+                  if (n === null) return null
+                  return (
+                    <div key={k} className="flex justify-between gap-2">
+                      <dt className="text-sm text-[#64748B]">{labelForSeasonStatDbKey(k)}</dt>
+                      <dd className="text-sm font-medium text-[#0F172A]">{String(n)}</dd>
+                    </div>
+                  )
+                })
+                .filter(Boolean)
+              if (rows.length === 0) return null
+              return (
+                <div key={label} className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">{label}</p>
+                  <dl className="space-y-1.5">{rows}</dl>
+                </div>
+              )
+            })}
+            {customSeasonEntries.length > 0 && (
+              <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4 sm:col-span-2 lg:col-span-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Custom season fields</p>
+                <dl className="flex flex-wrap gap-x-4 gap-y-1">
+                  {customSeasonEntries.map(([k, v]) => (
+                    <div key={k} className="flex gap-2">
+                      <dt className="text-sm text-[#64748B]">{labelForSeasonStatDbKey(k)}:</dt>
+                      <dd className="text-sm text-[#0F172A]">{String(v)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-3 rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 text-center">
+            <p className="text-sm text-[#64748B]">No season totals yet.</p>
+            <p className="mt-1 text-xs text-[#94A3B8]">
+              {canManageWeeklyStats
+                ? "Add a weekly or game stat line below to populate totals."
+                : "Totals appear after coaches add weekly / game stat entries."}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-[#E5E7EB] pt-8">
+        <PlayerProfileWeeklyStatsPanel
+          teamId={teamId}
+          playerId={playerId}
+          profile={profile}
+          canManage={canManageWeeklyStats}
+          onAfterMutation={onProfileRefetch}
+        />
+      </div>
+
+      {canManageWeeklyStats && (
         <>
-          <PlayerProfileStatsForm
-            profile={profile}
-            editDraft={editDraft}
-            setEditDraft={setEditDraft}
-            value={value}
-          />
+          <div className="border-t border-[#E5E7EB] pt-8">
+            <PlayerProfilePracticeMetricsForm profile={profile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
+          </div>
           <div className="border-t border-[#E5E7EB] pt-6">
             <Label className="text-[#64748B]">Coach notes on performance</Label>
             <textarea
@@ -1117,99 +1222,12 @@ function StatsTab({
           </div>
         </>
       )}
-      {!canEdit && profile.coachNotes && (
-        <div className="space-y-2">
+      {!canManageWeeklyStats && profile.coachNotes && (
+        <div className="space-y-2 border-t border-[#E5E7EB] pt-8">
           <Label className="text-[#64748B]">Coach notes</Label>
           <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
             <p className="whitespace-pre-wrap break-words text-sm text-[#0F172A]">{profile.coachNotes}</p>
           </div>
-        </div>
-      )}
-      {hasStats ? (
-        <div className="space-y-8">
-          {seasonEntries.length > 0 && (
-            <div>
-              <Label className="text-[#0F172A] font-medium">Season summary</Label>
-              <p className="mt-1 text-xs text-[#64748B]">Season totals. Custom stats shown in All stats.</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {[
-                  { group: "Offense", keys: ["passing_yards", "rushing_yards", "receptions", "receiving_yards", "touchdowns"], label: "Offense" },
-                  { group: "Defense", keys: ["tackles", "interceptions"], label: "Defense" },
-                  { group: "General", keys: ["games_played"], label: "Games" },
-                ].map(({ keys, label }) => {
-                  const groupEntries = seasonEntries.filter(([k]) => keys.includes(k.replace(/-/g, "_")))
-                  if (groupEntries.length === 0) return null
-                  const displayLabel = (key: string) => key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-                  return (
-                    <div key={label} className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-2">{label}</p>
-                      <dl className="space-y-1.5">
-                        {groupEntries.map(([k, v]) => (
-                          <div key={k} className="flex justify-between gap-2">
-                            <dt className="text-sm text-[#64748B]">{displayLabel(k)}</dt>
-                            <dd className="text-sm font-medium text-[#0F172A]">{String(v)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  )
-                })}
-              </div>
-              {seasonEntries.some(([k]) => !["games_played", "passing_yards", "rushing_yards", "receptions", "receiving_yards", "touchdowns", "tackles", "interceptions"].includes(k)) && (
-                <div className="mt-3 rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-2">All stats</p>
-                  <dl className="flex flex-wrap gap-x-4 gap-y-1">
-                    {seasonEntries.map(([k, v]) => (
-                      <div key={k} className="flex gap-2">
-                        <dt className="text-sm text-[#64748B]">{k.replace(/_/g, " ")}:</dt>
-                        <dd className="text-sm text-[#0F172A]">{String(v)}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </div>
-              )}
-            </div>
-          )}
-          {gameStats.length > 0 && (
-            <div>
-              <Label className="text-[#0F172A] font-medium">Game log</Label>
-              <p className="mt-1 text-xs text-[#64748B]">Recent games. Most recent first.</p>
-              <div className="mt-3 space-y-2">
-                {gameStats.slice(0, 20).map((g, i) => {
-                  const row = g && typeof g === "object" ? (g as Record<string, unknown>) : {}
-                  const date = row.date ?? row.Date
-                  const opponent = row.opponent ?? row.Opponent
-                  const notes = row.notes ?? row.Notes
-                  const rest = Object.entries(row).filter(([k]) => !["date", "opponent", "notes", "Date", "Opponent", "Notes"].includes(k))
-                  return (
-                    <div key={i} className="rounded-lg border border-[#E5E7EB] bg-white p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium text-[#0F172A]">{date ? String(date) : "—"}</span>
-                        <span className="text-sm text-[#64748B]">{opponent ? String(opponent) : "—"}</span>
-                      </div>
-                      {notes != null && notes !== "" ? <p className="mt-1 text-sm text-[#475569]">{String(notes)}</p> : null}
-                      {rest.length > 0 && (
-                        <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
-                          {rest.map(([k, v]) => {
-                            const display = String(v ?? "—")
-                            return (
-                              <span key={k} className="text-[#64748B]">{k.replace(/_/g, " ")}: <span className="text-[#0F172A]">{display}</span></span>
-                            )
-                          })}
-                        </dl>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              {gameStats.length > 20 && <p className="mt-2 text-xs text-[#94A3B8]">Showing last 20 games.</p>}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] p-8 text-center">
-          <p className="text-sm text-[#64748B]">No stats recorded yet.</p>
-          <p className="mt-1 text-xs text-[#94A3B8]">Season and game stats will appear here when added.</p>
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { PlayerStatsRow, StatsTableRow } from "@/lib/stats-helpers"
+import { STATS_PLAYER_TABLE_COLUMNS, STATS_WEEKLY_LEADING_COLUMNS } from "@/lib/stats-display-columns"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Pencil } from "lucide-react"
@@ -10,30 +11,8 @@ import { Pencil } from "lucide-react"
 const SCROLL_HIDE =
   "overflow-x-auto overflow-y-auto max-h-[70vh] [scrollbar-gutter:stable] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
-const STAT_COLUMNS: { key: keyof PlayerStatsRow; label: string; numeric: boolean }[] = [
-  { key: "lastName", label: "Player", numeric: false },
-  { key: "jerseyNumber", label: "#", numeric: true },
-  { key: "position", label: "Position", numeric: false },
-  { key: "gamesPlayed", label: "GP", numeric: true },
-  { key: "passingYards", label: "Pass Yds", numeric: true },
-  { key: "passingTds", label: "Pass TD", numeric: true },
-  { key: "intThrown", label: "INT Thrown", numeric: true },
-  { key: "rushingYards", label: "Rush Yds", numeric: true },
-  { key: "rushingTds", label: "Rush TD", numeric: true },
-  { key: "receptions", label: "Rec", numeric: true },
-  { key: "receivingYards", label: "Rec Yds", numeric: true },
-  { key: "receivingTds", label: "Rec TD", numeric: true },
-  { key: "tackles", label: "Tackles", numeric: true },
-  { key: "sacks", label: "Sacks", numeric: true },
-  { key: "interceptions", label: "INT", numeric: true },
-]
-
-const WEEKLY_BEFORE_STAT: { key: keyof StatsTableRow; label: string; numeric: boolean }[] = [
-  { key: "weekNumber", label: "Week", numeric: true },
-  { key: "gameLabel", label: "Game", numeric: false },
-  { key: "gameOpponent", label: "Opponent", numeric: false },
-  { key: "gameDate", label: "Date", numeric: false },
-]
+const STAT_COLUMNS = STATS_PLAYER_TABLE_COLUMNS
+const WEEKLY_BEFORE_STAT = STATS_WEEKLY_LEADING_COLUMNS
 
 function formatCell(row: StatsTableRow, key: keyof StatsTableRow): string {
   if (key === "weekNumber") {

@@ -38,6 +38,8 @@ export interface AddWeeklyStatsDialogProps {
   games: GameOption[]
   /** When set, dialog edits this entry (single row). */
   editEntry?: WeeklyStatEntryApi | null
+  /** Roster profile: new entry is for this player only (player field locked). */
+  prefillPlayerId?: string | null
   onSaved: () => void
 }
 
@@ -49,6 +51,7 @@ export function AddWeeklyStatsDialog({
   seasonYear,
   games,
   editEntry = null,
+  prefillPlayerId = null,
   onSaved,
 }: AddWeeklyStatsDialogProps) {
   const isEdit = Boolean(editEntry)
@@ -84,9 +87,11 @@ export function AddWeeklyStatsDialog({
       setGameId("")
       setOpponent("")
       setGameDate("")
-      setLines([newLine()])
+      const line = newLine()
+      if (prefillPlayerId) line.playerId = prefillPlayerId
+      setLines([line])
     }
-  }, [open, editEntry, seasonYear])
+  }, [open, editEntry, seasonYear, prefillPlayerId])
 
   useEffect(() => {
     if (!gameId) return
@@ -309,7 +314,7 @@ export function AddWeeklyStatsDialog({
             <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
               {isEdit ? "Player stats" : "Player lines"}
             </p>
-            {!isEdit && (
+            {!isEdit && !prefillPlayerId && (
               <Button type="button" size="sm" variant="outline" onClick={addLine}>
                 <Plus className="h-4 w-4 mr-1" aria-hidden />
                 Add line
@@ -330,7 +335,7 @@ export function AddWeeklyStatsDialog({
                     className="mobile-select w-full"
                     value={line.playerId}
                     onChange={(e) => setLinePlayer(line.id, e.target.value)}
-                    disabled={isEdit}
+                    disabled={isEdit || Boolean(prefillPlayerId)}
                   >
                     <option value="">Select player</option>
                     {roster.map((p) => (
@@ -340,7 +345,7 @@ export function AddWeeklyStatsDialog({
                     ))}
                   </select>
                 </div>
-                {!isEdit && lines.length > 1 && (
+                {!isEdit && !prefillPlayerId && lines.length > 1 && (
                   <Button
                     type="button"
                     size="icon"

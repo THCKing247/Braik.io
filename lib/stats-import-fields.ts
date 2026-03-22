@@ -7,7 +7,11 @@
  * `STATS_IMPORT_HEADERS` (identity + stat columns, no week/game context) remains for unit tests
  * and legacy parsers in `lib/stats-import.ts` — not used by POST /api/stats/import.
  * Keep DB keys in sync with `players.season_stats` JSONB (e.g. int_thrown not interceptions_thrown).
+ *
+ * Display labels align with `lib/stats-season-labels.ts` and table/CSV in `lib/stats-display-columns.ts`.
  */
+
+import { SEASON_STAT_DB_KEY_LABEL } from "@/lib/stats-season-labels"
 
 export const IDENTITY_COLUMNS = [
   "player_id",
@@ -19,17 +23,17 @@ export const IDENTITY_COLUMNS = [
 
 /** Stat fields: csvHeader (template/CSV), dbKey (season_stats JSONB), label (UI). */
 export const STAT_IMPORT_FIELDS = [
-  { csvHeader: "passing_yards", dbKey: "passing_yards", label: "Passing yards" },
-  { csvHeader: "passing_tds", dbKey: "passing_tds", label: "Passing TDs" },
-  { csvHeader: "interceptions_thrown", dbKey: "int_thrown", label: "Interceptions thrown" },
-  { csvHeader: "rushing_yards", dbKey: "rushing_yards", label: "Rushing yards" },
-  { csvHeader: "rushing_tds", dbKey: "rushing_tds", label: "Rushing TDs" },
-  { csvHeader: "receiving_yards", dbKey: "receiving_yards", label: "Receiving yards" },
-  { csvHeader: "receiving_tds", dbKey: "receiving_tds", label: "Receiving TDs" },
-  { csvHeader: "tackles", dbKey: "tackles", label: "Tackles" },
-  { csvHeader: "sacks", dbKey: "sacks", label: "Sacks" },
-  { csvHeader: "interceptions", dbKey: "interceptions", label: "Interceptions" },
-  { csvHeader: "games_played", dbKey: "games_played", label: "Games played" },
+  { csvHeader: "passing_yards", dbKey: "passing_yards", label: SEASON_STAT_DB_KEY_LABEL.passing_yards },
+  { csvHeader: "passing_tds", dbKey: "passing_tds", label: SEASON_STAT_DB_KEY_LABEL.passing_tds },
+  { csvHeader: "interceptions_thrown", dbKey: "int_thrown", label: SEASON_STAT_DB_KEY_LABEL.int_thrown },
+  { csvHeader: "rushing_yards", dbKey: "rushing_yards", label: SEASON_STAT_DB_KEY_LABEL.rushing_yards },
+  { csvHeader: "rushing_tds", dbKey: "rushing_tds", label: SEASON_STAT_DB_KEY_LABEL.rushing_tds },
+  { csvHeader: "receiving_yards", dbKey: "receiving_yards", label: SEASON_STAT_DB_KEY_LABEL.receiving_yards },
+  { csvHeader: "receiving_tds", dbKey: "receiving_tds", label: SEASON_STAT_DB_KEY_LABEL.receiving_tds },
+  { csvHeader: "tackles", dbKey: "tackles", label: SEASON_STAT_DB_KEY_LABEL.tackles },
+  { csvHeader: "sacks", dbKey: "sacks", label: SEASON_STAT_DB_KEY_LABEL.sacks },
+  { csvHeader: "interceptions", dbKey: "interceptions", label: SEASON_STAT_DB_KEY_LABEL.interceptions },
+  { csvHeader: "games_played", dbKey: "games_played", label: SEASON_STAT_DB_KEY_LABEL.games_played },
 ] as const
 
 /** All CSV headers in order: identity columns then stat columns. */
@@ -64,11 +68,11 @@ export function getStatDbKeyByCsvHeader(csvHeader: string): string | null {
   return null
 }
 
-/** Map of dbKey -> label for UI. */
-export const STAT_LABELS_BY_DB_KEY: Record<string, string> = Object.fromEntries([
-  ...STAT_IMPORT_FIELDS.map((f) => [f.dbKey, f.label] as const),
-  ["receptions", "Receptions"],
-])
+/** Map of dbKey -> label for UI (includes keys not in CSV template). */
+export const STAT_LABELS_BY_DB_KEY: Record<string, string> = {
+  ...SEASON_STAT_DB_KEY_LABEL,
+  ...Object.fromEntries(STAT_IMPORT_FIELDS.map((f) => [f.dbKey, f.label] as const)),
+}
 
 /** CSV header -> db key for validation/merge. Includes int_thrown as alias. */
 export const CSV_HEADER_TO_DB_KEY: Record<string, string> = Object.fromEntries([

@@ -16,6 +16,7 @@ import { playerToStatsTableRow, weeklyEntryToStatsTableRow } from "@/lib/stats-h
 import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2, RefreshCw } from "lucide-react"
 import { rowErrorsToCsv } from "@/lib/stats-import"
 import { STATS_WEEKLY_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
+import { STATS_SEASON_CSV_HEADERS, STATS_WEEKLY_CSV_HEADERS } from "@/lib/stats-display-columns"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
@@ -336,28 +337,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     const formatStr = (v: string | null | undefined) => (v === null || v === undefined ? "" : String(v))
 
     if (statsTab === "weekly") {
-      const headers = [
-        "Week",
-        "Game",
-        "Opponent",
-        "Date",
-        "First Name",
-        "Last Name",
-        "#",
-        "Position",
-        "GP",
-        "Pass Yds",
-        "Pass TD",
-        "INT Thrown",
-        "Rush Yds",
-        "Rush TD",
-        "Rec",
-        "Rec Yds",
-        "Rec TD",
-        "Tackles",
-        "Sacks",
-        "INT",
-      ]
+      const headers = [...STATS_WEEKLY_CSV_HEADERS]
       const rows = filteredWeeklyTableRows.map((r) => [
         format(r.weekNumber ?? null),
         formatStr(r.gameLabel),
@@ -394,25 +374,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       return
     }
 
-    const headers = [
-      "First Name",
-      "Last Name",
-      "#",
-      "Position",
-      "Side",
-      "GP",
-      "Pass Yds",
-      "Pass TD",
-      "INT Thrown",
-      "Rush Yds",
-      "Rush TD",
-      "Rec",
-      "Rec Yds",
-      "Rec TD",
-      "Tackles",
-      "Sacks",
-      "INT",
-    ]
+    const headers = [...STATS_SEASON_CSV_HEADERS]
     const rows = filteredRows.map((r) => [
       r.firstName,
       r.lastName,

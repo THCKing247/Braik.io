@@ -1,6 +1,13 @@
 /**
- * Recompute players.season_stats aggregate keys from all non-deleted weekly rows per player.
- * Sums only SEASON_STAT_KEYS; other keys on season_stats are preserved.
+ * Source of truth for standard stat totals: player_weekly_stat_entries (non-deleted rows).
+ *
+ * players.season_stats is a derived read model / cache for the All Stats UI and APIs that read
+ * season_stats. Only this module (recalculateSeasonStatsFromWeeklyForPlayers) should write
+ * SEASON_STAT_KEYS into players.season_stats after weekly row changes.
+ *
+ * Transition: Existing season_stats values for those keys are left unchanged until the next
+ * weekly create/update/delete/import or profile season_stats merge triggers a recalc for that player.
+ * Custom keys on season_stats (outside SEASON_STAT_KEYS) are never removed by this function.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { SEASON_STAT_KEYS } from "@/lib/stats-helpers"

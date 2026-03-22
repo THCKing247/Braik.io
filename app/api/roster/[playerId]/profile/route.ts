@@ -15,6 +15,10 @@ import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/pla
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 import { isLinkedParentOfPlayer } from "@/lib/player-documents/access"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
+import { SEASON_STAT_KEYS } from "@/lib/stats-helpers"
+import { recalculateSeasonStatsFromWeeklyForPlayers } from "@/lib/stats-weekly-season-sync"
+
+const SYNCED_STAT_KEYS = new Set<string>(SEASON_STAT_KEYS as unknown as string[])
 
 /**
  * GET /api/roster/[playerId]/profile?teamId=xxx
@@ -139,7 +143,7 @@ export async function PATCH(
     const supabase = getSupabaseServer()
     const { data: player, error: fetchErr } = await supabase
       .from("players")
-      .select("id, team_id, user_id, health_status, status")
+      .select("id, team_id, user_id, health_status, status, season_stats")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -211,7 +215,24 @@ export async function PATCH(
       }
       if (bodyToUse.eligibilityStatus !== undefined) updates.eligibility_status = (bodyToUse.eligibilityStatus as string)?.trim() ?? null
       if (bodyToUse.roleDepthNotes !== undefined) updates.role_depth_notes = (bodyToUse.roleDepthNotes as string)?.trim() ?? null
-      if (bodyToUse.seasonStats !== undefined) updates.season_stats = bodyToUse.seasonStats ?? {}
+      // season_stats: coaches may set custom keys only. SEASON_STAT_KEYS are derived from weekly entries.
+      if (bodyToUse.seasonStats !== undefined) {
+        const existingRaw = (player as { season_stats?: unknown }).season_stats
+        const existing =
+          existingRaw && typeof existingRaw === "object" && !Array.isArray(existingRaw)
+            ? { ...(existingRaw as Record<string, unknown>) }
+            : {}
+        const incoming =
+          bodyToUse.seasonStats && typeof bodyToUse.seasonStats === "object" && !Array.isArray(bodyToUse.seasonStats)
+            ? (bodyToUse.seasonStats as Record<string, unknown>)
+            : {}
+        const merged: Record<string, unknown> = { ...existing }
+        for (const [k, v] of Object.entries(incoming)) {
+          if (SYNCED_STAT_KEYS.has(k)) continue
+          merged[k] = v
+        }
+        updates.season_stats = merged
+      }
       if (bodyToUse.gameStats !== undefined) updates.game_stats = bodyToUse.gameStats ?? []
       if (bodyToUse.practiceMetrics !== undefined) updates.practice_metrics = bodyToUse.practiceMetrics ?? {}
       if (bodyToUse.coachNotes !== undefined) updates.coach_notes = (bodyToUse.coachNotes as string)?.trim() ?? null
@@ -273,6 +294,14 @@ export async function PATCH(
     if (updateErr) {
       console.error("[PATCH /api/roster/.../profile]", updateErr.message)
       return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    }
+
+    if (isCoach && bodyToUse.seasonStats !== undefined) {
+      try {
+        await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, [playerId])
+      } catch (e) {
+        console.error("[PATCH /api/roster/.../profile] weekly→season sync failed", e)
+      }
     }
 
     const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()

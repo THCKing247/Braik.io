@@ -1,14 +1,16 @@
 /**
- * Bulk player stats import: CSV parsing, validation, and season_stats merge.
- * Used by POST /api/stats/import. Multi-tenant safe; team-scoped only.
- * Stat field names and DB keys come from lib/stats-import-fields.ts.
+ * CSV utilities for stats: row error export, **legacy** season-totals CSV parse/merge helpers.
  *
- * Why blank stats do not overwrite: We only add to the merged object the keys that were
- * present (non-blank) in the CSV row. So a blank cell is never sent to mergeStatsIntoSeasonStats,
- * and the existing season_stats value for that key is left unchanged.
+ * **Production bulk import** (`POST /api/stats/import`) only accepts weekly/game rows and uses
+ * `lib/stats-weekly-import.ts` + `recalculateSeasonStatsFromWeeklyForPlayers` — it does **not**
+ * call `parseAndValidateStatsCsv` or `mergeStatsIntoSeasonStats`.
  *
- * Template column order: Must stay in sync with STATS_IMPORT_HEADERS in stats-import-fields.ts
- * so that template downloads and CSV validation use the same column order and names.
+ * `parseAndValidateStatsCsv`, `mergeStatsIntoSeasonStats`, and related helpers remain for
+ * `tests/stats-import.test.ts` and any future tooling; they must not be wired back into the
+ * import route as a path that writes `SEASON_STAT_KEYS` into `players.season_stats`.
+ *
+ * Blank cells in legacy parse: only non-blank cells become keys on the row `stats` object, so
+ * blanks do not overwrite when merging into a season_stats object.
  */
 import { STATS_IMPORT_HEADERS, CSV_HEADER_TO_DB_KEY } from "./stats-import-fields"
 

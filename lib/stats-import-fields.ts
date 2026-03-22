@@ -1,11 +1,12 @@
 /**
- * Single source of truth for bulk stats import: CSV column names, DB keys, and labels.
- * Used by template generation, CSV validation, merge logic, and UI help text.
- * Keep in sync with players.season_stats JSONB keys (e.g. int_thrown not interceptions_thrown).
+ * Stat field definitions for CSV import and UI labels.
  *
- * Template column order must stay synced: STATS_IMPORT_HEADERS defines the exact order for
- * both the downloadable template and the import parser. Changing order here changes template
- * and validation; add new stat fields via STAT_IMPORT_FIELDS and CSV_HEADER_TO_DB_KEY.
+ * **Production import** uses `STATS_WEEKLY_IMPORT_HEADERS` and weekly row APIs; synced keys
+ * (`SEASON_STAT_KEYS`) are written only via `player_weekly_stat_entries` + recalculation.
+ *
+ * `STATS_IMPORT_HEADERS` (identity + stat columns, no week/game context) remains for unit tests
+ * and legacy parsers in `lib/stats-import.ts` — not used by POST /api/stats/import.
+ * Keep DB keys in sync with `players.season_stats` JSONB (e.g. int_thrown not interceptions_thrown).
  */
 
 export const IDENTITY_COLUMNS = [
@@ -76,7 +77,7 @@ export const CSV_HEADER_TO_DB_KEY: Record<string, string> = Object.fromEntries([
   ["receptions", "receptions"],
 ])
 
-/** Unique season_stats keys we write on import (for same-value comparison). */
+/** Keys covered by stat columns in CSV helpers / legacy merge (tests); production import uses weekly path. */
 export const STAT_DB_KEYS = [...new Set([...STAT_IMPORT_FIELDS.map((f) => f.dbKey), "receptions"])] as readonly string[]
 
 /** Max CSV file size in bytes (2MB). Used by import route. */

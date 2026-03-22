@@ -1,14 +1,15 @@
 /**
  * GET /api/stats/template?teamId=xxx
- * Optional: &withRoster=1 to include current roster rows (player_id, first_name, last_name, jersey_number, position)
- * with empty stat columns. Column order must stay in sync with STATS_IMPORT_HEADERS in lib/stats-import.ts.
- * Returns CSV file for download. Enforces team access.
+ * Optional: &withRoster=1 for roster-prefilled rows.
+ *
+ * CSV columns match STATS_WEEKLY_IMPORT_HEADERS (weekly/game import is the only supported stats import).
+ * players.season_stats on the All Stats page is a derived aggregate; coaches edit data via weekly rows + Add dialog.
  */
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
-import { STATS_IMPORT_HEADERS, STATS_WEEKLY_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
+import { STATS_WEEKLY_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
 
 function escapeCsvCell(val: string | number): string {
   const s = String(val)
@@ -18,22 +19,6 @@ function escapeCsvCell(val: string | number): string {
   return s
 }
 
-/** Build one data row in same order as STATS_IMPORT_HEADERS. Stat columns are empty for template. */
-function buildRosterRow(
-  p: { id: string; first_name?: string | null; last_name?: string | null; jersey_number?: number | null; position_group?: string | null }
-): string[] {
-  const values: (string | number)[] = [
-    p.id ?? "",
-    p.first_name ?? "",
-    p.last_name ?? "",
-    p.jersey_number ?? "",
-    p.position_group ?? "",
-  ]
-  for (let i = 0; i < STAT_IMPORT_FIELDS.length; i++) values.push("")
-  return values.map((v) => String(v))
-}
-
-/** Weekly import template: identity + context columns + empty stat cells. */
 function buildWeeklyRosterRow(
   p: { id: string; first_name?: string | null; last_name?: string | null; jersey_number?: number | null; position_group?: string | null }
 ): string[] {
@@ -75,10 +60,8 @@ export async function GET(request: Request) {
     await requireTeamAccess(teamId)
 
     const withRoster = searchParams.get("withRoster") === "1" || searchParams.get("withRoster") === "true"
-    const weekly = searchParams.get("weekly") === "1" || searchParams.get("weekly") === "true"
 
-    const headers = weekly ? STATS_WEEKLY_IMPORT_HEADERS : STATS_IMPORT_HEADERS
-    const headerLine = headers.map(escapeCsvCell).join(",")
+    const headerLine = STATS_WEEKLY_IMPORT_HEADERS.map(escapeCsvCell).join(",")
     const lines: string[] = [headerLine]
 
     if (withRoster) {
@@ -92,20 +75,14 @@ export async function GET(request: Request) {
       if (!error && players?.length) {
         for (const p of players) {
           const prow = p as { id: string; first_name?: string | null; last_name?: string | null; jersey_number?: number | null; position_group?: string | null }
-          const row = weekly ? buildWeeklyRosterRow(prow) : buildRosterRow(prow)
+          const row = buildWeeklyRosterRow(prow)
           lines.push(row.map(escapeCsvCell).join(","))
         }
       }
     }
 
     const csv = lines.join("\n")
-    const filename = weekly
-      ? withRoster
-        ? "weekly-stats-import-with-roster.csv"
-        : "weekly-stats-import-template.csv"
-      : withRoster
-        ? "player-stats-import-with-roster.csv"
-        : "player-stats-template.csv"
+    const filename = withRoster ? "weekly-stats-import-with-roster.csv" : "weekly-stats-import-template.csv"
 
     return new NextResponse(csv, {
       status: 200,

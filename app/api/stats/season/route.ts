@@ -1,12 +1,14 @@
 /**
  * DELETE /api/stats/season
  * Body: { teamId, playerIds: string[] }
- * Clears players.season_stats for the given roster players (coach/edit_roster only).
+ * Re-runs weekly→season sync for selected players (coach/edit_roster only).
+ * Does not wipe season_stats; SEASON_STAT_KEYS are replaced with sums from weekly rows (custom keys preserved).
  */
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
+import { recalculateSeasonStatsFromWeeklyForPlayers } from "@/lib/stats-weekly-season-sync"
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -37,19 +39,9 @@ export async function DELETE(request: Request) {
 
     await requireTeamPermission(teamId, "edit_roster")
 
-    const { data: updated, error } = await supabase
-      .from("players")
-      .update({ season_stats: {} })
-      .eq("team_id", teamId)
-      .in("id", playerIds)
-      .select("id")
+    await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, playerIds)
 
-    if (error) {
-      console.error("[DELETE /api/stats/season]", error)
-      return NextResponse.json({ error: "Failed to clear season stats" }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, cleared: (updated ?? []).length })
+    return NextResponse.json({ success: true, recalculated: playerIds.length })
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })

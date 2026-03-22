@@ -15,8 +15,8 @@ type PlayerRow = {
 
 /**
  * GET /api/stats?teamId=xxx
- * Returns all players for the team with profile fields and season_stats for the All Stats page.
- * Scoped to authenticated user's team access.
+ * All Stats table reads players.season_stats — a derived cache whose SEASON_STAT_KEYS are
+ * maintained by recalculateSeasonStatsFromWeeklyForPlayers from player_weekly_stat_entries.
  */
 export async function GET(request: Request) {
   try {

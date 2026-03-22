@@ -14,13 +14,30 @@ import { STAT_DB_KEYS } from "../lib/stats-import-fields"
 
 const HEADER = STATS_IMPORT_HEADERS.join(",")
 
+/** Build one data row; omitted headers become blank cells (correct column alignment). */
+function makeDataRow(cells: Record<string, string>): string {
+  return STATS_IMPORT_HEADERS.map((h) => cells[h] ?? "").join(",")
+}
+
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg)
 }
 
-// BOM at start of file
 function testBom() {
-  const withBom = "\uFEFF" + HEADER + "\nabc,John,Doe,12,QB,100,2,0,0,0,0,0,0,0,0,5"
+  const withBom =
+    "\uFEFF" +
+    HEADER +
+    "\n" +
+    makeDataRow({
+      player_id: "abc",
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      position: "QB",
+      games_played: "5",
+      passing_yards: "100",
+      passing_touchdowns: "2",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(withBom)
   assert(errors.length === 0, "BOM: expected no errors")
   assert(rows.length === 1, "BOM: expected one row")
@@ -28,9 +45,15 @@ function testBom() {
   console.log("  BOM: ok")
 }
 
-// Quoted values with commas and escaped quotes
 function testQuotedValues() {
-  const csv = HEADER + '\n"a1b2c3d4-e5f6-7890-abcd-ef1234567890","John, Jr.",Doe,12,QB,100,2,0,0,0,0,0,0,0,0,5'
+  const id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  const statsTail = STATS_IMPORT_HEADERS.slice(5).map((h) => {
+    if (h === "games_played") return "5"
+    if (h === "passing_yards") return "100"
+    if (h === "passing_touchdowns") return "2"
+    return ""
+  })
+  const csv = `${HEADER}\n"${id}","John, Jr.",Doe,12,QB,${statsTail.join(",")}`
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length === 0, "Quoted: expected no errors")
   assert(rows.length === 1, "Quoted: expected one row")
@@ -38,9 +61,23 @@ function testQuotedValues() {
   console.log("  Quoted values: ok")
 }
 
-// Blank rows in the middle (valid rows so both pass validation)
 function testBlankRows() {
-  const csv = HEADER + "\n,Jane,Doe,12,,0,0,0,0,0,0,0,0,0,0,1\n\n,Bob,Smith,5,,0,0,0,0,0,0,0,0,0,0,2"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "Jane",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "1",
+    }) +
+    "\n\n" +
+    makeDataRow({
+      first_name: "Bob",
+      last_name: "Smith",
+      jersey_number: "5",
+      games_played: "2",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(rows.length === 2, "Blank rows: expected two data rows")
   assert(rows[0].last_name === "Doe", "Blank rows: first row last_name")
@@ -48,9 +85,16 @@ function testBlankRows() {
   console.log("  Blank rows: ok")
 }
 
-// Windows line endings
 function testWindowsLineEndings() {
-  const csv = HEADER + "\r\n,John,Doe,7,,0,0,0,0,0,0,0,0,0,0,3"
+  const csv =
+    HEADER +
+    "\r\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "7",
+      games_played: "3",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length === 0, "CRLF: expected no errors")
   assert(rows.length === 1, "CRLF: expected one row")
@@ -58,10 +102,23 @@ function testWindowsLineEndings() {
   console.log("  Windows line endings: ok")
 }
 
-// Valid row with player_id
 function testValidPlayerId() {
   const id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  const csv = HEADER + `\n${id},John,Doe,12,QB,100,2,1,10,0,0,0,0,0,0,5`
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      player_id: id,
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      position: "QB",
+      games_played: "5",
+      passing_yards: "100",
+      passing_touchdowns: "2",
+      int_thrown: "1",
+      rushing_yards: "10",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length === 0, "Valid player_id: no errors")
   assert(rows[0].player_id === id, "Valid player_id: id preserved")
@@ -70,47 +127,94 @@ function testValidPlayerId() {
   console.log("  Valid player_id: ok")
 }
 
-// Valid row with first_name + last_name + jersey (fallback match fields)
 function testValidNameJersey() {
-  const csv = HEADER + "\n,Alice,Smith,99,WR,0,0,0,0,0,500,5,0,0,0,10"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "Alice",
+      last_name: "Smith",
+      jersey_number: "99",
+      position: "WR",
+      games_played: "10",
+      receiving_yards: "500",
+      receiving_touchdowns: "5",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length === 0, "Valid name+jersey: no errors")
-  assert(rows[0].first_name === "Alice" && rows[0].last_name === "Smith" && rows[0].jersey_number === "99", "Valid name+jersey: fields")
+  assert(
+    rows[0].first_name === "Alice" && rows[0].last_name === "Smith" && rows[0].jersey_number === "99",
+    "Valid name+jersey: fields"
+  )
   assert(rows[0].stats.receiving_yards === 500, "Valid name+jersey: receiving_yards")
   console.log("  Valid name+jersey: ok")
 }
 
-// Missing jersey when no player_id
 function testMissingJerseyWhenNoPlayerId() {
-  const csv = HEADER + "\n,Alice,Smith,,WR,0,0,0,0,0,0,0,0,0,0,1"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "Alice",
+      last_name: "Smith",
+      position: "WR",
+      games_played: "1",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length >= 1, "Missing jersey: expected row error")
-  assert(rows.length === 0 || errors.some((e) => e.message.includes("jersey") || e.message.includes("Missing")), "Missing jersey: message")
+  assert(
+    rows.length === 0 || errors.some((e) => e.message.includes("jersey") || e.message.includes("Missing")),
+    "Missing jersey: message"
+  )
   console.log("  Missing jersey when no player_id: ok")
 }
 
-// Invalid integer in stat
 function testInvalidInteger() {
-  const csv = HEADER + "\n,John,Doe,12,,abc,0,0,0,0,0,0,0,0,0,1"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "1",
+      passing_yards: "abc",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length >= 1, "Invalid integer: expected error")
   assert(errors.some((e) => e.message.includes("non-negative integer")), "Invalid integer: message")
   console.log("  Invalid integer: ok")
 }
 
-// Blank stat cell omitted from stats
 function testBlankStatOmitted() {
-  const csv = HEADER + "\n,John,Doe,12,,,2,,0,0,0,0,0,0,1"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "1",
+      passing_touchdowns: "2",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length === 0, "Blank stat: no errors")
-  assert(rows[0].stats.passing_tds === 2, "Blank stat: passing_tds set")
+  assert(rows[0].stats.passing_touchdowns === 2, "Blank stat: passing_touchdowns set")
   assert(!("passing_yards" in rows[0].stats), "Blank stat: passing_yards omitted")
   console.log("  Blank stat omitted: ok")
 }
 
-// Zero stat value stored
 function testZeroStatValue() {
-  const csv = HEADER + "\n,John,Doe,12,,0,0,0,0,0,0,0,0,0,0,5"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "5",
+      passing_yards: "0",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length === 0, "Zero stat: no errors")
   assert(rows[0].stats.passing_yards === 0, "Zero stat: passing_yards 0")
@@ -118,54 +222,69 @@ function testZeroStatValue() {
   console.log("  Zero stat value: ok")
 }
 
-// Scientific notation rejected
 function testScientificNotationRejected() {
-  const csv = HEADER + "\n,John,Doe,12,,1e2,0,0,0,0,0,0,0,0,0,1"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "1",
+      passing_yards: "1e2",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length >= 1, "Scientific: expected error")
   assert(errors.some((e) => e.message.includes("non-negative integer")), "Scientific: message")
   console.log("  Scientific notation rejected: ok")
 }
 
-// Negative rejected
 function testNegativeRejected() {
-  const csv = HEADER + "\n,John,Doe,12,,-5,0,0,0,0,0,0,0,0,0,1"
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "1",
+      passing_yards: "-5",
+    })
   const { rows, errors } = parseAndValidateStatsCsv(csv)
   assert(errors.length >= 1, "Negative: expected error")
   assert(errors.some((e) => e.message.includes("non-negative")), "Negative: message")
   console.log("  Negative rejected: ok")
 }
 
-// mergeStatsIntoSeasonStats preserves other keys
 function testMergePreservesOtherKeys() {
   const existing = { passing_yards: 100, receptions: 5, custom_key: "keep" } as Record<string, unknown>
-  const fromRow = { passing_yards: 200, passing_tds: 3 }
+  const fromRow = { passing_yards: 200, passing_touchdowns: 3 }
   const merged = mergeStatsIntoSeasonStats(existing, fromRow)
   assert(merged.passing_yards === 200, "Merge: passing_yards updated")
-  assert(merged.passing_tds === 3, "Merge: passing_tds set")
+  assert(merged.passing_touchdowns === 3, "Merge: passing_touchdowns set")
   assert(merged.receptions === 5, "Merge: receptions preserved")
   assert(merged.custom_key === "keep", "Merge: custom_key preserved")
   console.log("  Merge preserves other keys: ok")
 }
 
-// parseCsvToRows trailing newline
 function testTrailingNewline() {
-  const csv = HEADER + "\na,b,c,1,,0,0,0,0,0,0,0,0,0,1\n"
+  const csv = HEADER + "\na,b,c,1,,1\n"
   const rows = parseCsvToRows(csv)
   assert(rows.length === 2, "Trailing newline: two rows (header + data)")
   console.log("  Trailing newline: ok")
 }
 
-// Missing required column
 function testMissingRequiredColumn() {
   const badHeader = "player_id,first_name\nx,John"
   const { rows, errors } = parseAndValidateStatsCsv(badHeader)
   assert(errors.length >= 1, "Missing column: expected error")
-  assert(errors.some((e) => e.message.includes("last_name") || e.message.includes("Missing")), "Missing column: message")
+  assert(
+    errors.some((e) => e.message.includes("last_name") || e.message.includes("Missing")),
+    "Missing column: message"
+  )
   console.log("  Missing required column: ok")
 }
 
-// Empty file (no header)
 function testEmptyFile() {
   const { rows, errors, dataRowCount } = parseAndValidateStatsCsv("")
   assert(rows.length === 0, "Empty: no rows")
@@ -175,7 +294,6 @@ function testEmptyFile() {
   console.log("  Empty file: ok")
 }
 
-// rowErrorsToCsv
 function testRowErrorsToCsv() {
   const errors = [
     { row: 2, message: "No matching player" },
@@ -188,13 +306,18 @@ function testRowErrorsToCsv() {
   console.log("  rowErrorsToCsv: ok")
 }
 
-// seasonStatsEqualForImportKeys
 function testSeasonStatsEqualForImportKeys() {
-  const a = { passing_yards: 100, passing_tds: 2 }
-  const b = { passing_yards: 100, passing_tds: 2 }
-  assert(seasonStatsEqualForImportKeys(a, b, ["passing_yards", "passing_tds"]) === true, "Equal: same")
-  const c = { passing_yards: 99, passing_tds: 2 }
-  assert(seasonStatsEqualForImportKeys(a, c, ["passing_yards", "passing_tds"]) === false, "Equal: diff")
+  const a = { passing_yards: 100, passing_touchdowns: 2 }
+  const b = { passing_yards: 100, passing_touchdowns: 2 }
+  assert(
+    seasonStatsEqualForImportKeys(a, b, ["passing_yards", "passing_touchdowns"]) === true,
+    "Equal: same"
+  )
+  const c = { passing_yards: 99, passing_touchdowns: 2 }
+  assert(
+    seasonStatsEqualForImportKeys(a, c, ["passing_yards", "passing_touchdowns"]) === false,
+    "Equal: diff"
+  )
   assert(seasonStatsEqualForImportKeys(null, {}, STAT_DB_KEYS as string[]) === true, "Equal: empty")
   console.log("  seasonStatsEqualForImportKeys: ok")
 }

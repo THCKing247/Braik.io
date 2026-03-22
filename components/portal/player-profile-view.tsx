@@ -11,7 +11,13 @@ import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, T
 import type { PlayerProfile } from "@/types/player-profile"
 import { PlayerProfilePracticeMetricsForm } from "./player-profile-stats-form"
 import { PlayerProfileWeeklyStatsPanel } from "./player-profile-weekly-stats-panel"
-import { SEASON_STAT_KEYS, getStatNumber } from "@/lib/stats-helpers"
+import {
+  SEASON_STAT_KEYS,
+  SEASON_STAT_KEY_TO_PLAYER_ROW_FIELD,
+  toPlayerStatsRow,
+  type SeasonStatKey,
+} from "@/lib/stats-helpers"
+import { LEGACY_WEEKLY_STAT_KEYS, PROFILE_SEASON_GROUPS } from "@/lib/stats-schema"
 import { labelForSeasonStatDbKey } from "@/lib/stats-season-labels"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
 import { PlayerDevelopmentTab } from "./player-development-tab"
@@ -1091,25 +1097,7 @@ function InfoTab({
 }
 
 const SYNCED_SEASON_STAT_KEYS = new Set<string>(SEASON_STAT_KEYS as unknown as string[])
-
-const SEASON_SUMMARY_GROUPS: { label: string; keys: readonly string[] }[] = [
-  {
-    label: "Offense",
-    keys: [
-      "passing_yards",
-      "passing_tds",
-      "int_thrown",
-      "rushing_yards",
-      "rushing_tds",
-      "receptions",
-      "receiving_yards",
-      "receiving_tds",
-      "touchdowns",
-    ],
-  },
-  { label: "Defense", keys: ["tackles", "sacks", "interceptions"] },
-  { label: "Games", keys: ["games_played"] },
-]
+const LEGACY_SEASON_JSON_KEYS = new Set<string>(LEGACY_WEEKLY_STAT_KEYS as unknown as string[])
 
 function StatsTab({
   playerId,
@@ -1134,10 +1122,24 @@ function StatsTab({
     profile.seasonStats && typeof profile.seasonStats === "object" ? (profile.seasonStats as Record<string, unknown>) : {}
 
   const customSeasonEntries = Object.entries(seasonStats).filter(
-    ([k, v]) => !SYNCED_SEASON_STAT_KEYS.has(k) && v != null && v !== ""
+    ([k, v]) =>
+      !SYNCED_SEASON_STAT_KEYS.has(k) && !LEGACY_SEASON_JSON_KEYS.has(k) && v != null && v !== ""
   )
 
-  const hasAnySyncedValue = (SEASON_STAT_KEYS as readonly string[]).some((k) => getStatNumber(seasonStats, k) != null)
+  const summaryRow = toPlayerStatsRow({
+    id: profile.id,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    jerseyNumber: profile.jerseyNumber ?? null,
+    positionGroup: profile.position ?? null,
+    seasonStats,
+  })
+
+  const hasAnySyncedValue = (SEASON_STAT_KEYS as readonly SeasonStatKey[]).some((k) => {
+    const field = SEASON_STAT_KEY_TO_PLAYER_ROW_FIELD[k]
+    const v = summaryRow[field] as number | null
+    return v !== null && v !== undefined
+  })
   const hasSeasonDisplay = hasAnySyncedValue || customSeasonEntries.length > 0
 
   return (
@@ -1149,11 +1151,12 @@ function StatsTab({
         </p>
         {hasSeasonDisplay ? (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {SEASON_SUMMARY_GROUPS.map(({ label, keys }) => {
+            {PROFILE_SEASON_GROUPS.map(({ label, keys }) => {
               const rows = keys
                 .map((k) => {
-                  const n = getStatNumber(seasonStats, k)
-                  if (n === null) return null
+                  const field = SEASON_STAT_KEY_TO_PLAYER_ROW_FIELD[k]
+                  const n = summaryRow[field] as number | null
+                  if (n === null || n === undefined) return null
                   return (
                     <div key={k} className="flex justify-between gap-2">
                       <dt className="text-sm text-[#64748B]">{labelForSeasonStatDbKey(k)}</dt>

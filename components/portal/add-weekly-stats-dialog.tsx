@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { PlayerStatsRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
-import { STAT_IMPORT_FIELDS, STAT_LABELS_BY_DB_KEY } from "@/lib/stats-import-fields"
+import { SEASON_STAT_KEYS } from "@/lib/stats-helpers"
+import { WEEKLY_FORM_SECTIONS } from "@/lib/stats-schema"
+import { STAT_LABELS_BY_DB_KEY } from "@/lib/stats-import-fields"
 import { Plus, Trash2 } from "lucide-react"
 
-const EXTRA_KEYS = ["receptions"] as const
-
-const FORM_DB_KEYS = [...new Set([...STAT_IMPORT_FIELDS.map((f) => f.dbKey), ...EXTRA_KEYS])]
+const FORM_DB_KEYS = SEASON_STAT_KEYS as readonly string[]
 
 type QueueLine = {
   id: string
@@ -21,6 +21,33 @@ type QueueLine = {
 
 function emptyValues(): Record<string, string> {
   return Object.fromEntries(FORM_DB_KEYS.map((k) => [k, ""]))
+}
+
+/** Prefill edit form from weekly row JSON (canonical + legacy keys). */
+function statsToFormValues(stats: Record<string, unknown>): Record<string, string> {
+  const values = emptyValues()
+  const s = stats && typeof stats === "object" ? stats : {}
+  const get = (k: string) => {
+    const v = s[k]
+    if (v === undefined || v === null || v === "") return ""
+    return String(v)
+  }
+  for (const k of FORM_DB_KEYS) {
+    let raw = get(k)
+    if (!raw && k === "passing_touchdowns") raw = get("passing_tds")
+    if (!raw && k === "rushing_touchdowns") raw = get("rushing_tds")
+    if (!raw && k === "receiving_touchdowns") raw = get("receiving_tds")
+    if (!raw && k === "defensive_interceptions") raw = get("interceptions")
+    if (!raw && k === "solo_tackles") {
+      const st = get("solo_tackles")
+      const ast = get("assisted_tackles")
+      if (!st && !ast) raw = get("tackles")
+      else if (st) raw = st
+    }
+    if (!raw && k === "assisted_tackles") raw = get("assisted_tackles")
+    if (raw) values[k] = raw
+  }
+  return values
 }
 
 function newLine(): QueueLine {
@@ -36,9 +63,7 @@ export interface AddWeeklyStatsDialogProps {
   roster: PlayerStatsRow[]
   seasonYear: string
   games: GameOption[]
-  /** When set, dialog edits this entry (single row). */
   editEntry?: WeeklyStatEntryApi | null
-  /** Roster profile: new entry is for this player only (player field locked). */
   prefillPlayerId?: string | null
   onSaved: () => void
 }
@@ -75,11 +100,7 @@ export function AddWeeklyStatsDialog({
       setGameId(editEntry.gameId ?? "")
       setOpponent(editEntry.opponent ?? "")
       setGameDate(editEntry.gameDate ? String(editEntry.gameDate).slice(0, 10) : "")
-      const values = emptyValues()
-      for (const k of FORM_DB_KEYS) {
-        const v = editEntry.stats[k]
-        if (v !== undefined && v !== null && v !== "") values[k] = String(v)
-      }
+      const values = statsToFormValues(editEntry.stats)
       setLines([{ id: "edit", playerId: editEntry.playerId, values }])
     } else {
       setSeasonYearInput(seasonYear.trim() ? seasonYear : "")
@@ -227,7 +248,9 @@ export function AddWeeklyStatsDialog({
         setError(typeof data?.error === "string" ? data.error : "Save failed.")
         return
       }
-      setLines([newLine()])
+      const nl = newLine()
+      if (prefillPlayerId) nl.playerId = prefillPlayerId
+      setLines([nl])
       setWeekNumber("")
       setGameId("")
       setOpponent("")
@@ -244,7 +267,7 @@ export function AddWeeklyStatsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit weekly / game stats" : "Add weekly / game stats"}</DialogTitle>
           <DialogDescription>
@@ -358,20 +381,34 @@ export function AddWeeklyStatsDialog({
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {FORM_DB_KEYS.map((key) => (
-                  <div key={key} className="space-y-1">
-                    <Label className="text-xs font-normal" htmlFor={`${line.id}-${key}`}>
-                      {key === "receptions" ? "Receptions" : (STAT_LABELS_BY_DB_KEY[key] ?? key)}
-                    </Label>
-                    <Input
-                      id={`${line.id}-${key}`}
-                      inputMode="numeric"
-                      placeholder="—"
-                      value={line.values[key] ?? ""}
-                      onChange={(e) => setLineStat(line.id, key, e.target.value)}
-                    />
-                  </div>
+
+              <div className="space-y-3">
+                {WEEKLY_FORM_SECTIONS.map((section) => (
+                  <details
+                    key={section.id}
+                    open
+                    className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--snow))]/40 px-3 py-2"
+                  >
+                    <summary className="cursor-pointer select-none text-sm font-semibold text-[rgb(var(--text))] py-1">
+                      {section.label}
+                    </summary>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-3 pb-1">
+                      {section.keys.map((key) => (
+                        <div key={key} className="space-y-1">
+                          <Label className="text-xs font-normal" htmlFor={`${line.id}-${key}`}>
+                            {STAT_LABELS_BY_DB_KEY[key] ?? key}
+                          </Label>
+                          <Input
+                            id={`${line.id}-${key}`}
+                            inputMode="numeric"
+                            placeholder="—"
+                            value={line.values[key] ?? ""}
+                            onChange={(e) => setLineStat(line.id, key, e.target.value)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 ))}
               </div>
             </div>

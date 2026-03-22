@@ -16,7 +16,12 @@ import { playerToStatsTableRow, weeklyEntryToStatsTableRow } from "@/lib/stats-h
 import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2, RefreshCw } from "lucide-react"
 import { rowErrorsToCsv } from "@/lib/stats-import"
 import { STATS_WEEKLY_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
-import { STATS_SEASON_CSV_HEADERS, STATS_WEEKLY_CSV_HEADERS } from "@/lib/stats-display-columns"
+import {
+  STATS_SEASON_CSV_HEADERS,
+  STATS_WEEKLY_CSV_HEADERS,
+  buildSeasonStatsCsvRow,
+  buildWeeklyStatsCsvRow,
+} from "@/lib/stats-display-columns"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
@@ -332,34 +337,9 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const handleConfirmImport = () => runImport(false)
 
   const handleExportCsv = () => {
-    const format = (v: number | null | undefined) =>
-      v === null || v === undefined ? "" : String(v)
-    const formatStr = (v: string | null | undefined) => (v === null || v === undefined ? "" : String(v))
-
     if (statsTab === "weekly") {
       const headers = [...STATS_WEEKLY_CSV_HEADERS]
-      const rows = filteredWeeklyTableRows.map((r) => [
-        format(r.weekNumber ?? null),
-        formatStr(r.gameLabel),
-        formatStr(r.gameOpponent),
-        r.gameDate ? String(r.gameDate).slice(0, 10) : "",
-        r.firstName,
-        r.lastName,
-        format(r.jerseyNumber),
-        r.position ?? "",
-        format(r.gamesPlayed),
-        format(r.passingYards),
-        format(r.passingTds),
-        format(r.intThrown),
-        format(r.rushingYards),
-        format(r.rushingTds),
-        format(r.receptions),
-        format(r.receivingYards),
-        format(r.receivingTds),
-        format(r.tackles),
-        format(r.sacks),
-        format(r.interceptions),
-      ])
+      const rows = filteredWeeklyTableRows.map((r) => buildWeeklyStatsCsvRow(r))
       const csv = [
         headers.join(","),
         ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")),
@@ -375,25 +355,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     }
 
     const headers = [...STATS_SEASON_CSV_HEADERS]
-    const rows = filteredRows.map((r) => [
-      r.firstName,
-      r.lastName,
-      format(r.jerseyNumber),
-      r.position ?? "",
-      r.sideOfBall ?? "",
-      format(r.gamesPlayed),
-      format(r.passingYards),
-      format(r.passingTds),
-      format(r.intThrown),
-      format(r.rushingYards),
-      format(r.rushingTds),
-      format(r.receptions),
-      format(r.receivingYards),
-      format(r.receivingTds),
-      format(r.tackles),
-      format(r.sacks),
-      format(r.interceptions),
-    ])
+    const rows = filteredRows.map((r) => buildSeasonStatsCsvRow(r))
     const csv = [
       headers.join(","),
       ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")),

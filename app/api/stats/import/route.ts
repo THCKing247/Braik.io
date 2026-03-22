@@ -17,7 +17,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { parseAndValidateWeeklyStatsCsv, type RowError } from "@/lib/stats-import"
 import { STATS_IMPORT_MAX_FILE_BYTES, STATS_IMPORT_MAX_DATA_ROWS } from "@/lib/stats-import-fields"
-import { sanitizeWeeklyStatsInput } from "@/lib/stats-weekly-api"
+import { normalizeWeeklyStatsForStorage, sanitizeWeeklyStatsInput } from "@/lib/stats-weekly-api"
 import { recalculateSeasonStatsFromWeeklyForPlayers } from "@/lib/stats-weekly-season-sync"
 import {
   insertWeeklyStatEntryAudit,
@@ -223,7 +223,7 @@ async function runWeeklyStatsImport(
       if (!gameDate && gr.game_date) gameDate = String(gr.game_date).slice(0, 10)
     }
 
-    const stats = sanitizeWeeklyStatsInput(row.stats)
+    const stats = normalizeWeeklyStatsForStorage(sanitizeWeeklyStatsInput(row.stats))
     if (Object.keys(stats).length === 0) {
       skipped++
       rowErrors.push({ row: row.rowIndex, message: "No valid stat values after sanitization" })

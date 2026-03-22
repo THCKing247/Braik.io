@@ -5,18 +5,47 @@
  * season_stats. Only this module (recalculateSeasonStatsFromWeeklyForPlayers) should write
  * SEASON_STAT_KEYS into players.season_stats after weekly row changes.
  *
- * Transition: Existing season_stats values for those keys are left unchanged until the next
- * weekly create/update/delete/import or profile season_stats merge triggers a recalc for that player.
- * Custom keys on season_stats (outside SEASON_STAT_KEYS) are never removed by this function.
+ * SUM: counting / yardage stats. MAX: single-game “long” fields (pass_long, rush_long, etc.).
+ * Legacy keys on weekly rows (passing_tds, interceptions, tackles, …) are folded into canonical keys.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { SEASON_STAT_KEYS } from "@/lib/stats-helpers"
+import { MAX_AGGREGATION_STAT_KEYS } from "@/lib/stats-schema"
+import type { SeasonStatKey } from "@/lib/stats-schema"
 
 function statContribution(raw: unknown): number {
   if (raw === undefined || raw === null || raw === "") return 0
   const n = Number(raw)
   if (!Number.isFinite(n)) return 0
   return Math.trunc(n)
+}
+
+/** Per-week numeric contribution toward a canonical season stat (handles legacy JSON keys). */
+export function weeklyContributionToCanonical(
+  o: Record<string, unknown>,
+  canonicalKey: SeasonStatKey
+): number {
+  switch (canonicalKey) {
+    case "passing_touchdowns":
+      return statContribution(o.passing_touchdowns) + statContribution(o.passing_tds)
+    case "rushing_touchdowns":
+      return statContribution(o.rushing_touchdowns) + statContribution(o.rushing_tds)
+    case "receiving_touchdowns":
+      return statContribution(o.receiving_touchdowns) + statContribution(o.receiving_tds)
+    case "defensive_interceptions":
+      return statContribution(o.defensive_interceptions) + statContribution(o.interceptions)
+    case "solo_tackles": {
+      const s = statContribution(o.solo_tackles)
+      const a = statContribution(o.assisted_tackles)
+      const legacy = statContribution(o.tackles)
+      if (s > 0 || a > 0) return s
+      return legacy
+    }
+    case "assisted_tackles":
+      return statContribution(o.assisted_tackles)
+    default:
+      return statContribution(o[canonicalKey])
+  }
 }
 
 export async function recalculateSeasonStatsFromWeeklyForPlayers(
@@ -55,7 +84,13 @@ export async function recalculateSeasonStatsFromWeeklyForPlayers(
     if (st == null || typeof st !== "object" || Array.isArray(st)) continue
     const o = st as Record<string, unknown>
     for (const k of SEASON_STAT_KEYS) {
-      acc[k] += statContribution(o[k])
+      const key = k as SeasonStatKey
+      const v = weeklyContributionToCanonical(o, key)
+      if (MAX_AGGREGATION_STAT_KEYS.has(k)) {
+        acc[k] = Math.max(acc[k], v)
+      } else {
+        acc[k] += v
+      }
     }
   }
 

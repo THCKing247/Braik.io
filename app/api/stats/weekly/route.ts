@@ -7,7 +7,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
-import { sanitizeWeeklyStatsInput } from "@/lib/stats-weekly-api"
+import { normalizeWeeklyStatsForStorage, sanitizeWeeklyStatsInput } from "@/lib/stats-weekly-api"
 import { recalculateSeasonStatsFromWeeklyForPlayers } from "@/lib/stats-weekly-season-sync"
 import {
   insertWeeklyStatEntryAudit,
@@ -228,7 +228,7 @@ export async function POST(request: Request) {
       let gid: string | null = e.gameId?.trim() || null
       if (gid && !UUID_REGEX.test(gid)) gid = null
 
-      const stats = sanitizeWeeklyStatsInput(e.stats)
+      const stats = normalizeWeeklyStatsForStorage(sanitizeWeeklyStatsInput(e.stats))
       if (Object.keys(stats).length === 0) {
         return NextResponse.json({ error: "Each entry needs at least one stat value" }, { status: 400 })
       }
@@ -428,7 +428,7 @@ export async function PATCH(request: Request) {
     }
 
     if (body.stats !== undefined) {
-      const stats = sanitizeWeeklyStatsInput(body.stats)
+      const stats = normalizeWeeklyStatsForStorage(sanitizeWeeklyStatsInput(body.stats))
       if (Object.keys(stats).length === 0) {
         return NextResponse.json({ error: "stats must include at least one allowed numeric field" }, { status: 400 })
       }

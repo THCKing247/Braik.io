@@ -92,38 +92,62 @@ function buildStatsFromFlat(seasonStats: unknown): PlayerContext["stats"] {
     : {}
   const get = (k: string): unknown => raw[k]
   const passing = extractStat(seasonStats, "passing") ?? (() => {
-    const y = get("passing_yards"); const t = get("passing_tds"); const i = get("int_thrown")
-    if (y === undefined && t === undefined && i === undefined) return null
+    const y = get("passing_yards")
+    const t = get("passing_touchdowns")
+    const tLegacy = get("passing_tds")
+    const i = get("int_thrown")
+    const td = t !== undefined && t !== null && t !== "" ? t : tLegacy
+    if (y === undefined && td === undefined && i === undefined) return null
     const o: Record<string, unknown> = {}
     if (y !== undefined && y !== null && y !== "") o.yards = y
-    if (t !== undefined && t !== null && t !== "") o.tds = t
+    if (td !== undefined && td !== null && td !== "") o.tds = td
     if (i !== undefined && i !== null && i !== "") o.int_thrown = i
     return Object.keys(o).length ? o : null
   })()
   const rushing = extractStat(seasonStats, "rushing") ?? (() => {
-    const y = get("rushing_yards"); const t = get("rushing_tds")
-    if (y === undefined && t === undefined) return null
+    const y = get("rushing_yards")
+    const t = get("rushing_touchdowns")
+    const tLegacy = get("rushing_tds")
+    const td = t !== undefined && t !== null && t !== "" ? t : tLegacy
+    if (y === undefined && td === undefined) return null
     const o: Record<string, unknown> = {}
     if (y !== undefined && y !== null && y !== "") o.yards = y
-    if (t !== undefined && t !== null && t !== "") o.tds = t
+    if (td !== undefined && td !== null && td !== "") o.tds = td
     return Object.keys(o).length ? o : null
   })()
   const receiving = extractStat(seasonStats, "receiving") ?? (() => {
-    const r = get("receptions"); const y = get("receiving_yards"); const t = get("receiving_tds")
-    if (r === undefined && y === undefined && t === undefined) return null
+    const r = get("receptions")
+    const y = get("receiving_yards")
+    const t = get("receiving_touchdowns")
+    const tLegacy = get("receiving_tds")
+    const td = t !== undefined && t !== null && t !== "" ? t : tLegacy
+    if (r === undefined && y === undefined && td === undefined) return null
     const o: Record<string, unknown> = {}
     if (r !== undefined && r !== null && r !== "") o.receptions = r
     if (y !== undefined && y !== null && y !== "") o.yards = y
-    if (t !== undefined && t !== null && t !== "") o.tds = t
+    if (td !== undefined && td !== null && td !== "") o.tds = td
     return Object.keys(o).length ? o : null
   })()
   const defense = extractStat(seasonStats, "defense") ?? (() => {
-    const t = get("tackles"); const s = get("sacks"); const i = get("interceptions")
-    if (t === undefined && s === undefined && i === undefined) return null
+    const solo = get("solo_tackles")
+    const ast = get("assisted_tackles")
+    const leg = get("tackles")
+    const s = get("sacks")
+    const di = get("defensive_interceptions")
+    const legI = get("interceptions")
+    let tacklesOut: unknown
+    if (
+      (solo !== undefined && solo !== null && solo !== "") ||
+      (ast !== undefined && ast !== null && ast !== "")
+    ) {
+      tacklesOut = (Number(solo) || 0) + (Number(ast) || 0)
+    } else if (leg !== undefined && leg !== null && leg !== "") tacklesOut = leg
+    const ints = di !== undefined && di !== null && di !== "" ? di : legI
+    if (tacklesOut === undefined && s === undefined && ints === undefined) return null
     const o: Record<string, unknown> = {}
-    if (t !== undefined && t !== null && t !== "") o.tackles = t
+    if (tacklesOut !== undefined) o.tackles = tacklesOut
     if (s !== undefined && s !== null && s !== "") o.sacks = s
-    if (i !== undefined && i !== null && i !== "") o.interceptions = i
+    if (ints !== undefined && ints !== null && ints !== "") o.interceptions = ints
     return Object.keys(o).length ? o : null
   })()
   return {

@@ -256,6 +256,43 @@ function testNegativeRejected() {
   console.log("  Negative rejected: ok")
 }
 
+function testHalfSacksAndTflAccepted() {
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "1",
+      sacks: "0.5",
+      tackles_for_loss: "1.5",
+    })
+  const { rows, errors } = parseAndValidateStatsCsv(csv)
+  assert(errors.length === 0, "Half sacks/TFL: expected no errors")
+  assert(rows.length === 1, "Half sacks/TFL: one row")
+  assert(rows[0].stats.sacks === 0.5, "Half sacks: value")
+  assert(rows[0].stats.tackles_for_loss === 1.5, "TFL: decimal value")
+  console.log("  Half sacks / TFL accepted: ok")
+}
+
+function testDecimalRejectedForIntegerStat() {
+  const csv =
+    HEADER +
+    "\n" +
+    makeDataRow({
+      first_name: "John",
+      last_name: "Doe",
+      jersey_number: "12",
+      games_played: "1",
+      passing_yards: "100.5",
+    })
+  const { rows, errors } = parseAndValidateStatsCsv(csv)
+  assert(errors.length >= 1, "Decimal on int stat: expected error")
+  assert(errors.some((e) => e.message.includes("non-negative integer")), "Decimal on int stat: message")
+  console.log("  Decimal rejected for integer stat: ok")
+}
+
 function testMergePreservesOtherKeys() {
   const existing = { passing_yards: 100, receptions: 5, custom_key: "keep" } as Record<string, unknown>
   const fromRow = { passing_yards: 200, passing_touchdowns: 3 }
@@ -341,6 +378,8 @@ function run() {
   testZeroStatValue()
   testScientificNotationRejected()
   testNegativeRejected()
+  testHalfSacksAndTflAccepted()
+  testDecimalRejectedForIntegerStat()
   testMergePreservesOtherKeys()
   console.log("\nAll stats-import tests passed.")
 }

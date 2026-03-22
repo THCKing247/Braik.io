@@ -755,7 +755,10 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
                 <li>Each row creates one <strong>weekly stat entry</strong>. The same player can appear on multiple rows.</li>
                 <li><strong>game_id</strong> must reference a game on this team, or leave blank and use opponent/date.</li>
                 <li>After a successful import, <strong>season totals</strong> on All Stats are recalculated from all non-deleted weekly rows.</li>
-                <li>Stat values must be <strong>non-negative integers</strong> (no decimals).</li>
+                <li>
+                  Stat values must be <strong>non-negative integers</strong>, except <strong>sacks</strong> and{" "}
+                  <strong>tackles_for_loss</strong>, which may use half values (e.g. 0.5, 1.5).
+                </li>
               </ul>
             </div>
           </CardHeader>

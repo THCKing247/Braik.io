@@ -13,6 +13,7 @@
  * blanks do not overwrite when merging into a season_stats object.
  */
 import { STATS_IMPORT_HEADERS, CSV_HEADER_TO_DB_KEY } from "./stats-import-fields"
+import { DECIMAL_ALLOWED_STAT_KEYS, parseNonNegativeStatNumberFromString } from "./stats-weekly-api"
 
 export { STATS_IMPORT_HEADERS }
 
@@ -23,7 +24,7 @@ export type ParsedStatsRow = {
   last_name: string
   jersey_number: string
   position: string
-  /** Keys are DB field names (e.g. int_thrown); values are integers. Only present if cell was non-blank. */
+  /** Keys are DB field names (e.g. int_thrown). Values are numbers (integers except sacks / tackles_for_loss may be decimal). */
   stats: Record<string, number>
 }
 
@@ -101,33 +102,15 @@ function normalizeHeader(h: string): string {
   return h.trim().toLowerCase().replace(/\s+/g, "_")
 }
 
-/**
- * Parse a stat cell to a non-negative integer. Rejects decimals, scientific notation, negatives.
- * Returns null if invalid; error message for row errors.
- */
-function parseStatInteger(value: string, rowIndex: number, fieldName: string): { value: number } | { error: RowError } {
-  const trimmed = value.trim()
-  if (trimmed === "") return { value: 0 }
-  if (/[eE]/.test(trimmed)) {
-    return { error: { row: rowIndex, field: fieldName, message: `${fieldName} must be a non-negative integer` } }
-  }
-  const num = Number(trimmed)
-  if (!Number.isFinite(num)) {
-    return { error: { row: rowIndex, field: fieldName, message: `${fieldName} must be a non-negative integer` } }
-  }
-  if (num < 0) {
-    return { error: { row: rowIndex, field: fieldName, message: `${fieldName} must be a non-negative integer` } }
-  }
-  if (!Number.isInteger(num)) {
-    return { error: { row: rowIndex, field: fieldName, message: `${fieldName} must be a non-negative integer` } }
-  }
-  return { value: num }
+function statCellErrorMessage(csvFieldName: string, dbKey: string): string {
+  const kind = DECIMAL_ALLOWED_STAT_KEYS.has(dbKey) ? "number" : "integer"
+  return `${csvFieldName} must be a non-negative ${kind}`
 }
 
 /**
  * Parse and validate CSV into typed rows.
  * - Each row must have either: valid player_id OR (first_name + last_name + jersey_number).
- * - Stat fields must be non-negative integers.
+ * - Stat fields must be non-negative integers, except `sacks` and `tackles_for_loss` (non-negative numbers, e.g. 0.5).
  * - Blank stat cells are omitted (leave existing); 0 is stored as 0.
  */
 export function parseAndValidateStatsCsv(csvText: string): {
@@ -203,12 +186,12 @@ export function parseAndValidateStatsCsv(csvText: string): {
       if (idx === undefined) continue
       const cell = (raw[idx] ?? "").trim()
       if (cell === "") continue
-      const parsed = parseStatInteger(cell, rowIndex, csvCol)
-      if ("error" in parsed) {
-        errors.push(parsed.error)
+      const n = parseNonNegativeStatNumberFromString(cell, dbKey)
+      if (n === null) {
+        errors.push({ row: rowIndex, field: csvCol, message: statCellErrorMessage(csvCol, dbKey) })
         continue
       }
-      stats[dbKey] = parsed.value
+      stats[dbKey] = n
     }
 
     rows.push({
@@ -367,12 +350,12 @@ export function parseAndValidateWeeklyStatsCsv(csvText: string): {
       if (idx === undefined) continue
       const cell = (raw[idx] ?? "").trim()
       if (cell === "") continue
-      const parsed = parseStatInteger(cell, rowIndex, csvCol)
-      if ("error" in parsed) {
-        errors.push(parsed.error)
+      const n = parseNonNegativeStatNumberFromString(cell, dbKey)
+      if (n === null) {
+        errors.push({ row: rowIndex, field: csvCol, message: statCellErrorMessage(csvCol, dbKey) })
         continue
       }
-      stats[dbKey] = parsed.value
+      stats[dbKey] = n
     }
 
     if (Object.keys(stats).length === 0) {

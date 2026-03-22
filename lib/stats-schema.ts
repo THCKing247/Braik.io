@@ -24,7 +24,9 @@ export const SYNCED_SEASON_STAT_KEYS = [
   "rec_long",
   "solo_tackles",
   "assisted_tackles",
+  /** Shared-credit TFL; may be fractional (e.g. 0.5). */
   "tackles_for_loss",
+  /** Half sacks allowed (e.g. 0.5). */
   "sacks",
   "qb_hits",
   "pass_breakups",

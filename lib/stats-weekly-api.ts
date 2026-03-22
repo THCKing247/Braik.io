@@ -4,7 +4,24 @@ import type { SeasonStatKey } from "@/lib/stats-schema"
 
 const ALLOWED_STAT_KEYS = new Set<string>([...SEASON_STAT_KEYS, ...LEGACY_WEEKLY_STAT_KEYS])
 
-/** Keep only known numeric stat keys; values must be non-negative integers. */
+/** DB keys that may store fractional stats (e.g. shared credit). All other stats stay integers. */
+export const DECIMAL_ALLOWED_STAT_KEYS = new Set<string>(["sacks", "tackles_for_loss"])
+
+/**
+ * Parse a non-empty stat string (CSV or form). Rejects scientific notation.
+ * Uses `dbKey` to decide integer vs decimal allowance.
+ */
+export function parseNonNegativeStatNumberFromString(trimmed: string, dbKey: string): number | null {
+  if (trimmed === "") return null
+  if (/[eE]/.test(trimmed)) return null
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return null
+  if (DECIMAL_ALLOWED_STAT_KEYS.has(dbKey)) return n
+  if (!Number.isInteger(n)) return null
+  return n
+}
+
+/** Keep only known numeric stat keys; integers except `sacks` and `tackles_for_loss` (non-negative numbers). */
 export function sanitizeWeeklyStatsInput(raw: unknown): Record<string, number> {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return {}
   const out: Record<string, number> = {}
@@ -12,8 +29,12 @@ export function sanitizeWeeklyStatsInput(raw: unknown): Record<string, number> {
     if (!ALLOWED_STAT_KEYS.has(k)) continue
     if (v === "" || v === undefined || v === null) continue
     const n = Number(v)
-    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) continue
-    out[k] = n
+    if (!Number.isFinite(n) || n < 0) continue
+    if (DECIMAL_ALLOWED_STAT_KEYS.has(k)) {
+      out[k] = n
+    } else if (Number.isInteger(n)) {
+      out[k] = n
+    }
   }
   return out
 }

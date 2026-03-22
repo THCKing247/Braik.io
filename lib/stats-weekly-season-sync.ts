@@ -10,13 +10,15 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { SEASON_STAT_KEYS } from "@/lib/stats-helpers"
+import { DECIMAL_ALLOWED_STAT_KEYS } from "@/lib/stats-weekly-api"
 import { MAX_AGGREGATION_STAT_KEYS } from "@/lib/stats-schema"
 import type { SeasonStatKey } from "@/lib/stats-schema"
 
-function statContribution(raw: unknown): number {
+function statContribution(raw: unknown, canonicalKey?: SeasonStatKey): number {
   if (raw === undefined || raw === null || raw === "") return 0
   const n = Number(raw)
-  if (!Number.isFinite(n)) return 0
+  if (!Number.isFinite(n) || n < 0) return 0
+  if (canonicalKey && DECIMAL_ALLOWED_STAT_KEYS.has(canonicalKey)) return n
   return Math.trunc(n)
 }
 
@@ -44,7 +46,7 @@ export function weeklyContributionToCanonical(
     case "assisted_tackles":
       return statContribution(o.assisted_tackles)
     default:
-      return statContribution(o[canonicalKey])
+      return statContribution(o[canonicalKey], canonicalKey)
   }
 }
 

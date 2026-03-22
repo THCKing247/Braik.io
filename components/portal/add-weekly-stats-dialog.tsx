@@ -9,6 +9,7 @@ import type { PlayerStatsRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
 import { SEASON_STAT_KEYS } from "@/lib/stats-helpers"
 import { WEEKLY_FORM_SECTIONS } from "@/lib/stats-schema"
 import { STAT_LABELS_BY_DB_KEY } from "@/lib/stats-import-fields"
+import { DECIMAL_ALLOWED_STAT_KEYS, parseNonNegativeStatNumberFromString } from "@/lib/stats-weekly-api"
 import { Plus, Trash2 } from "lucide-react"
 
 const FORM_DB_KEYS = SEASON_STAT_KEYS as readonly string[]
@@ -154,9 +155,10 @@ export function AddWeeklyStatsDialog({
     for (const k of FORM_DB_KEYS) {
       const raw = values[k]?.trim() ?? ""
       if (raw === "") continue
-      const n = parseInt(raw, 10)
-      if (!Number.isFinite(n) || n < 0) {
-        throw new Error(`Invalid value for ${STAT_LABELS_BY_DB_KEY[k] ?? k}`)
+      const n = parseNonNegativeStatNumberFromString(raw, k)
+      if (n === null) {
+        const kind = DECIMAL_ALLOWED_STAT_KEYS.has(k) ? "number" : "integer"
+        throw new Error(`${STAT_LABELS_BY_DB_KEY[k] ?? k} must be a non-negative ${kind}`)
       }
       stats[k] = n
     }

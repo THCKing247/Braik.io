@@ -84,7 +84,9 @@ export interface PlayerStatsRow {
   recLong: number | null
   soloTackles: number | null
   assistedTackles: number | null
+  /** May include half values (e.g. 0.5) when crediting shared TFL. */
   tacklesForLoss: number | null
+  /** May include half sacks (e.g. 0.5) when crediting shared sacks. */
   sacks: number | null
   qbHits: number | null
   passBreakups: number | null

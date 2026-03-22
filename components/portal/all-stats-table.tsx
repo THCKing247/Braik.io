@@ -1,9 +1,13 @@
 "use client"
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { PlayerStatsRow, StatsTableRow } from "@/lib/stats-helpers"
-import { STATS_PLAYER_TABLE_COLUMNS, STATS_WEEKLY_LEADING_COLUMNS } from "@/lib/stats-display-columns"
+import {
+  STATS_PLAYER_TABLE_COLUMNS,
+  STATS_WEEKLY_LEADING_COLUMNS,
+  buildPlayerTableColumnsForKeys,
+} from "@/lib/stats-display-columns"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Pencil } from "lucide-react"
@@ -48,6 +52,8 @@ export interface AllStatsTableProps {
   onToggleAllVisible?: (selected: boolean, visibleRowKeys: string[]) => void
   /** Weekly tab: row action to edit this entry (rowKey is entry id). */
   onEditWeeklyRow?: (row: StatsTableRow) => void
+  /** When set, show only these stat columns (identity + stats). Full schema when omitted. */
+  statColumnKeys?: readonly (keyof PlayerStatsRow)[] | null
 }
 
 type SortKey = keyof PlayerStatsRow | "weekNumber" | "gameLabel" | "gameOpponent" | "gameDate"
@@ -73,19 +79,32 @@ export function AllStatsTable({
   onToggleRow,
   onToggleAllVisible,
   onEditWeeklyRow,
+  statColumnKeys,
 }: AllStatsTableProps) {
   const router = useRouter()
   const showWeeklyEdit = mode === "weekly" && Boolean(onEditWeeklyRow)
   const [sortKey, setSortKey] = useState<SortKey>(mode === "weekly" ? "gameDate" : "lastName")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
 
+  const statColumnKeysSig = statColumnKeys?.join("\0") ?? ""
+
   const columns = useMemo(() => {
-    const base = STAT_COLUMNS.filter((c) => c.key !== "lastName")
+    const fullStats = STAT_COLUMNS
+    const subset =
+      statColumnKeys && statColumnKeys.length > 0
+        ? buildPlayerTableColumnsForKeys(statColumnKeys)
+        : fullStats
+    const statColsNoPlayer = subset.filter((c) => c.key !== "lastName")
     if (mode === "weekly") {
-      return [{ key: "lastName" as const, label: "Player", numeric: false }, ...WEEKLY_BEFORE_STAT, ...base]
+      return [{ key: "lastName" as const, label: "Player", numeric: false }, ...WEEKLY_BEFORE_STAT, ...statColsNoPlayer]
     }
-    return STAT_COLUMNS
-  }, [mode])
+    return subset.length > 0 ? subset : fullStats
+  }, [mode, statColumnKeysSig, statColumnKeys])
+
+  useEffect(() => {
+    setSortKey(mode === "weekly" ? "gameDate" : "lastName")
+    setSortDir("asc")
+  }, [mode, statColumnKeysSig])
 
   const sortedRows = useMemo(() => {
     const arr = [...rows]

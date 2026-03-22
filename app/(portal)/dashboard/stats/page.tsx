@@ -24,6 +24,7 @@ import {
 } from "@/lib/stats-display-columns"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { getPrimaryPlayerRowStatKeysForGroup, getStatsViewForPosition } from "@/lib/stats-position-views"
 
 const SAMPLE_WEEKLY_ROW = [
   "<player_id>",
@@ -116,6 +117,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const [showImportPanel, setShowImportPanel] = useState(false)
   const importPanelRef = useRef<HTMLDivElement | null>(null)
   const [editWeeklyEntry, setEditWeeklyEntry] = useState<WeeklyStatEntryApi | null>(null)
+  const [tableViewMode, setTableViewMode] = useState<"full" | "position">("full")
 
   const canConfirmImport = Boolean(
     selectedFile &&
@@ -213,6 +215,12 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       importPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
   }, [showImportPanel])
+
+  const positionViewTableStatKeys = useMemo((): readonly (keyof PlayerStatsRow)[] | null => {
+    if (tableViewMode !== "position") return null
+    const group = positionFilter.trim() ? getStatsViewForPosition(positionFilter).group : "GENERAL"
+    return getPrimaryPlayerRowStatKeysForGroup(group)
+  }, [tableViewMode, positionFilter])
 
   const filteredRows = useMemo(() => {
     let list = players
@@ -982,7 +990,42 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
           <div className="mt-6">
             <StatsLeaderCards players={filteredRows} />
           </div>
-          <div className="mt-6">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium" style={{ color: "rgb(var(--muted))" }}>
+              Table columns
+            </span>
+            <div
+              className="inline-flex flex-wrap rounded-lg border p-0.5"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={tableViewMode === "full" ? "default" : "ghost"}
+                className="h-8"
+                onClick={() => setTableViewMode("full")}
+              >
+                Full stats
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={tableViewMode === "position" ? "default" : "ghost"}
+                className="h-8"
+                onClick={() => setTableViewMode("position")}
+              >
+                Position view
+              </Button>
+            </div>
+            {tableViewMode === "position" && (
+              <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                {positionFilter.trim()
+                  ? `Columns for position filter: ${positionFilter.trim()}`
+                  : "Balanced general columns. Pick one position in Filters to use that preset."}
+              </span>
+            )}
+          </div>
+          <div className="mt-4">
             <AllStatsTable
               mode="season"
               rows={seasonTableRows}
@@ -991,34 +1034,73 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               selectedRowKeys={selectedRowKeys}
               onToggleRow={toggleRowSelect}
               onToggleAllVisible={toggleAllVisible}
+              statColumnKeys={positionViewTableStatKeys}
             />
           </div>
         </>
       )}
 
       {statsTab === "weekly" && !weeklyLoading && !weeklyError && filteredWeeklyTableRows.length > 0 && (
-        <div className="mt-6">
-          <AllStatsTable
-            mode="weekly"
-            rows={filteredWeeklyTableRows}
-            getProfileHref={getProfileHref}
-            selectionEnabled={canEdit}
-            selectedRowKeys={selectedRowKeys}
-            onToggleRow={toggleRowSelect}
-            onToggleAllVisible={toggleAllVisible}
-            onEditWeeklyRow={
-              canEdit
-                ? (row) => {
-                    const entry = weeklyEntries.find((e) => e.id === row.rowKey)
-                    if (entry) {
-                      setEditWeeklyEntry(entry)
-                      setAddWeeklyOpen(true)
+        <>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium" style={{ color: "rgb(var(--muted))" }}>
+              Table columns
+            </span>
+            <div
+              className="inline-flex flex-wrap rounded-lg border p-0.5"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={tableViewMode === "full" ? "default" : "ghost"}
+                className="h-8"
+                onClick={() => setTableViewMode("full")}
+              >
+                Full stats
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={tableViewMode === "position" ? "default" : "ghost"}
+                className="h-8"
+                onClick={() => setTableViewMode("position")}
+              >
+                Position view
+              </Button>
+            </div>
+            {tableViewMode === "position" && (
+              <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                {positionFilter.trim()
+                  ? `Columns for position filter: ${positionFilter.trim()}`
+                  : "Balanced general columns. Pick one position in Filters to use that preset."}
+              </span>
+            )}
+          </div>
+          <div className="mt-4">
+            <AllStatsTable
+              mode="weekly"
+              rows={filteredWeeklyTableRows}
+              getProfileHref={getProfileHref}
+              selectionEnabled={canEdit}
+              selectedRowKeys={selectedRowKeys}
+              onToggleRow={toggleRowSelect}
+              onToggleAllVisible={toggleAllVisible}
+              statColumnKeys={positionViewTableStatKeys}
+              onEditWeeklyRow={
+                canEdit
+                  ? (row) => {
+                      const entry = weeklyEntries.find((e) => e.id === row.rowKey)
+                      if (entry) {
+                        setEditWeeklyEntry(entry)
+                        setAddWeeklyOpen(true)
+                      }
                     }
-                  }
-                : undefined
-            }
-          />
-        </div>
+                  : undefined
+              }
+            />
+          </div>
+        </>
       )}
 
       {!loading && !error && statsTab === "all" && players.length === 0 && (

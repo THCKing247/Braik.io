@@ -8,15 +8,26 @@ import { DeleteStatsConfirmDialog } from "@/components/portal/delete-stats-confi
 import type { PlayerProfile } from "@/types/player-profile"
 import type { PlayerStatsRow, StatsTableRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
 import { toPlayerStatsRow, weeklyEntryToStatsTableRow } from "@/lib/stats-helpers"
-import { STATS_PLAYER_TABLE_COLUMNS, STATS_WEEKLY_LEADING_COLUMNS } from "@/lib/stats-display-columns"
+import {
+  STATS_PLAYER_TABLE_COLUMNS,
+  STATS_WEEKLY_LEADING_COLUMNS,
+  buildPlayerTableColumnsForKeys,
+} from "@/lib/stats-display-columns"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 
 type GameOption = { id: string; opponent: string; gameDate: string; seasonYear: number | null }
 
-const PROFILE_WEEKLY_COLUMNS = [
+const PROFILE_WEEKLY_COLUMNS_FULL = [
   ...STATS_WEEKLY_LEADING_COLUMNS,
   ...STATS_PLAYER_TABLE_COLUMNS.filter((c) => c.key !== "lastName"),
 ]
+
+function buildProfileWeeklyColumns(visibleStatKeys: readonly (keyof PlayerStatsRow)[] | null | undefined) {
+  if (visibleStatKeys && visibleStatKeys.length > 0) {
+    return [...STATS_WEEKLY_LEADING_COLUMNS, ...buildPlayerTableColumnsForKeys(visibleStatKeys)]
+  }
+  return PROFILE_WEEKLY_COLUMNS_FULL
+}
 
 const SCROLL =
   "overflow-x-auto max-w-full rounded-lg border border-[#E5E7EB] bg-white [-ms-overflow-style:none] [scrollbar-width:thin]"
@@ -51,12 +62,15 @@ export function PlayerProfileWeeklyStatsPanel({
   profile,
   canManage,
   onAfterMutation,
+  visibleStatColumnKeys,
 }: {
   teamId: string
   playerId: string
   profile: PlayerProfile
   canManage: boolean
   onAfterMutation: () => void
+  /** Narrow table to these `PlayerStatsRow` keys (excl. week/game columns); full schema when omitted. */
+  visibleStatColumnKeys?: readonly (keyof PlayerStatsRow)[] | null
 }) {
   const [entries, setEntries] = useState<WeeklyStatEntryApi[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,6 +84,11 @@ export function PlayerProfileWeeklyStatsPanel({
   const [pendingDeleteEntry, setPendingDeleteEntry] = useState<WeeklyStatEntryApi | null>(null)
 
   const seasonYearDefault = useMemo(() => String(new Date().getFullYear()), [])
+
+  const profileWeeklyColumns = useMemo(
+    () => buildProfileWeeklyColumns(visibleStatColumnKeys),
+    [visibleStatColumnKeys]
+  )
 
   const loadWeekly = useCallback(() => {
     if (!teamId || !playerId) return
@@ -219,7 +238,7 @@ export function PlayerProfileWeeklyStatsPanel({
                 {canManage && (
                   <th className="w-24 px-2 py-2 text-center text-xs font-semibold text-[#64748B]">Actions</th>
                 )}
-                {PROFILE_WEEKLY_COLUMNS.map(({ key, label }) => (
+                {profileWeeklyColumns.map(({ key, label }) => (
                   <th key={key} className="whitespace-nowrap px-3 py-2 text-xs font-semibold text-[#64748B]">
                     {label}
                   </th>
@@ -262,7 +281,7 @@ export function PlayerProfileWeeklyStatsPanel({
                         </Button>
                       </td>
                     )}
-                    {PROFILE_WEEKLY_COLUMNS.map(({ key }) => (
+                    {profileWeeklyColumns.map(({ key }) => (
                       <td key={key} className="whitespace-nowrap px-3 py-2 text-[#0F172A]">
                         {formatProfileWeeklyCell(row, key)}
                       </td>

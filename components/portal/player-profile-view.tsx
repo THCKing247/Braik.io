@@ -19,6 +19,12 @@ import {
 } from "@/lib/stats-helpers"
 import { LEGACY_WEEKLY_STAT_KEYS, PROFILE_SEASON_GROUPS } from "@/lib/stats-schema"
 import { labelForSeasonStatDbKey } from "@/lib/stats-season-labels"
+import {
+  buildVisibleDerivedCards,
+  getPrimarySeasonStatKeysForGroup,
+  getPrimaryPlayerRowStatKeysForGroup,
+  getStatsViewForPosition,
+} from "@/lib/stats-position-views"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
 import { PlayerDevelopmentTab } from "./player-development-tab"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
@@ -1118,6 +1124,8 @@ function StatsTab({
   value: (k: keyof PlayerProfile) => unknown
   onProfileRefetch: () => void
 }) {
+  const [seasonTotalsMode, setSeasonTotalsMode] = useState<"overview" | "all">("overview")
+
   const seasonStats =
     profile.seasonStats && typeof profile.seasonStats === "object" ? (profile.seasonStats as Record<string, unknown>) : {}
 
@@ -1135,6 +1143,20 @@ function StatsTab({
     seasonStats,
   })
 
+  const positionViewGroup = getStatsViewForPosition(profile.position ?? null).group
+  const overviewSeasonKeySet = useMemo(
+    () => new Set(getPrimarySeasonStatKeysForGroup(positionViewGroup)),
+    [positionViewGroup]
+  )
+  const derivedSummaryCards = useMemo(
+    () => buildVisibleDerivedCards(summaryRow, positionViewGroup),
+    [summaryRow, positionViewGroup]
+  )
+  const weeklyVisibleStatKeys = useMemo(
+    () => getPrimaryPlayerRowStatKeysForGroup(positionViewGroup).filter((k) => k !== "lastName"),
+    [positionViewGroup]
+  )
+
   const hasAnySyncedValue = (SEASON_STAT_KEYS as readonly SeasonStatKey[]).some((k) => {
     const field = SEASON_STAT_KEY_TO_PLAYER_ROW_FIELD[k]
     const v = summaryRow[field] as number | null
@@ -1142,37 +1164,88 @@ function StatsTab({
   })
   const hasSeasonDisplay = hasAnySyncedValue || customSeasonEntries.length > 0
 
+  const renderSeasonGroups = (mode: "overview" | "all") =>
+    PROFILE_SEASON_GROUPS.map(({ label, keys }) => {
+      const keysFiltered =
+        mode === "overview" ? keys.filter((k) => overviewSeasonKeySet.has(k)) : [...keys]
+      const rows = keysFiltered
+        .map((k) => {
+          const field = SEASON_STAT_KEY_TO_PLAYER_ROW_FIELD[k]
+          const n = summaryRow[field] as number | null
+          if (n === null || n === undefined) return null
+          return (
+            <div key={k} className="flex justify-between gap-2">
+              <dt className="text-sm text-[#64748B]">{labelForSeasonStatDbKey(k)}</dt>
+              <dd className="text-sm font-medium text-[#0F172A]">{String(n)}</dd>
+            </div>
+          )
+        })
+        .filter(Boolean)
+      if (rows.length === 0) return null
+      return (
+        <div key={label} className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">{label}</p>
+          <dl className="space-y-1.5">{rows}</dl>
+        </div>
+      )
+    })
+
   return (
     <div className="space-y-8">
+      {derivedSummaryCards.length > 0 && (
+        <div>
+          <Label className="text-[#0F172A] font-medium">Key rates</Label>
+          <p className="mt-1 text-xs text-[#64748B]">Derived from season totals (read-only).</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {derivedSummaryCards.map((c, i) => (
+              <div
+                key={`${c.label}-${i}`}
+                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-sm"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">{c.label}</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-[#0F172A]">{c.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <Label className="text-[#0F172A] font-medium">Season totals</Label>
         <p className="mt-1 text-xs text-[#64748B]">
           Aggregated from weekly / game stat lines (and shown on All Stats). Standard fields are not edited here.
         </p>
+        {positionViewGroup === "OL" && seasonTotalsMode === "overview" && (
+          <p className="mt-2 text-xs text-[#64748B]">
+            Linemen: overview shows games played. Use <span className="font-medium text-[#0F172A]">All stats</span> for
+            any other tracked fields.
+          </p>
+        )}
+        {hasSeasonDisplay && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={seasonTotalsMode === "overview" ? "default" : "outline"}
+              className={seasonTotalsMode === "overview" ? "" : "border-[#E5E7EB] bg-white"}
+              onClick={() => setSeasonTotalsMode("overview")}
+            >
+              Overview
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={seasonTotalsMode === "all" ? "default" : "outline"}
+              className={seasonTotalsMode === "all" ? "" : "border-[#E5E7EB] bg-white"}
+              onClick={() => setSeasonTotalsMode("all")}
+            >
+              All stats
+            </Button>
+          </div>
+        )}
         {hasSeasonDisplay ? (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {PROFILE_SEASON_GROUPS.map(({ label, keys }) => {
-              const rows = keys
-                .map((k) => {
-                  const field = SEASON_STAT_KEY_TO_PLAYER_ROW_FIELD[k]
-                  const n = summaryRow[field] as number | null
-                  if (n === null || n === undefined) return null
-                  return (
-                    <div key={k} className="flex justify-between gap-2">
-                      <dt className="text-sm text-[#64748B]">{labelForSeasonStatDbKey(k)}</dt>
-                      <dd className="text-sm font-medium text-[#0F172A]">{String(n)}</dd>
-                    </div>
-                  )
-                })
-                .filter(Boolean)
-              if (rows.length === 0) return null
-              return (
-                <div key={label} className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">{label}</p>
-                  <dl className="space-y-1.5">{rows}</dl>
-                </div>
-              )
-            })}
+            {renderSeasonGroups(seasonTotalsMode)}
             {customSeasonEntries.length > 0 && (
               <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4 sm:col-span-2 lg:col-span-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Custom season fields</p>
@@ -1206,6 +1279,7 @@ function StatsTab({
           profile={profile}
           canManage={canManageWeeklyStats}
           onAfterMutation={onProfileRefetch}
+          visibleStatColumnKeys={weeklyVisibleStatKeys}
         />
       </div>
 

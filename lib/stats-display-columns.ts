@@ -4,6 +4,19 @@
  */
 import type { PlayerStatsRow, StatsTableRow } from "@/lib/stats-helpers"
 
+/** Order-preserving subset of `STATS_PLAYER_TABLE_COLUMNS` for position-aware table views. */
+export function buildPlayerTableColumnsForKeys(
+  keys: readonly (keyof PlayerStatsRow)[]
+): { key: keyof PlayerStatsRow; label: string; numeric: boolean }[] {
+  const byKey = new Map(STATS_PLAYER_TABLE_COLUMNS.map((c) => [c.key, c]))
+  const out: { key: keyof PlayerStatsRow; label: string; numeric: boolean }[] = []
+  for (const k of keys) {
+    const c = byKey.get(k)
+    if (c) out.push(c)
+  }
+  return out
+}
+
 export const STATS_PLAYER_TABLE_COLUMNS: { key: keyof PlayerStatsRow; label: string; numeric: boolean }[] = [
   { key: "lastName", label: "Player", numeric: false },
   { key: "jerseyNumber", label: "#", numeric: true },

@@ -79,13 +79,18 @@ export async function POST(request: Request) {
     let teamId: string | null = null
     if (role === "head_coach") {
       const inviteCode = randomInviteCode(8)
+      const sportNormalized = sport.trim().toLowerCase() || "football"
+      const insertPayload = {
+        name: programName,
+        invite_code: inviteCode,
+        created_by: authUser.user.id,
+        sport: sportNormalized,
+      }
+      console.info("[signup] teams.insert (legacy head coach)", JSON.stringify({ ...insertPayload, invite_code: "[redacted]" }))
+
       const { data: createdTeam, error: teamError } = await supabaseServerClient
         .from("teams")
-        .insert({
-          name: programName,
-          invite_code: inviteCode,
-          created_by: authUser.user.id,
-        })
+        .insert(insertPayload)
         .select("id")
         .single()
 

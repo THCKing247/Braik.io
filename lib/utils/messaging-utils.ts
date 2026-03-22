@@ -1,4 +1,5 @@
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { pickHeadCoachUserId } from "@/lib/team-staff"
 
 /**
  * Ensure a general chat thread exists for the team.
@@ -94,20 +95,18 @@ export async function ensureParentPlayerCoachChat(
 
   const playerUserId = player.user_id
 
-  // Get head coach for the team
-  const { data: headCoach } = await supabase
+  // Get head coach for the team (primary first, then any head_coach)
+  const { data: hcRows } = await supabase
     .from("team_members")
-    .select("user_id")
+    .select("user_id, role, is_primary")
     .eq("team_id", teamId)
-    .eq("role", "HEAD_COACH")
+    .eq("role", "head_coach")
     .eq("active", true)
-    .maybeSingle()
 
-  if (!headCoach) {
+  const coachUserId = pickHeadCoachUserId(hcRows ?? [])
+  if (!coachUserId) {
     throw new Error("Team has no head coach")
   }
-
-  const coachUserId = headCoach.user_id
 
   // Check if thread already exists
   const { data: existing } = await supabase

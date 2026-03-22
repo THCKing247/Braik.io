@@ -10,7 +10,7 @@ const PROFILE_HEAD_COACH = "head_coach"
 
 /**
  * Accept an invite: update profile and users, set accepted_at/accepted_by.
- * Membership is stored in profiles (team_id, role); no team_members table in production.
+ * Team staff rows are kept in team_members (head_coach, assistant_coach) alongside profile.team_id.
  */
 export async function acceptInvite(
   supabase: SupabaseClient,
@@ -48,6 +48,23 @@ export async function acceptInvite(
       }
     }
     if (existingHeadCoach?.id === acceptingUserId) {
+      if (invite.team_id) {
+        await supabase
+          .from("team_members")
+          .update({ is_primary: false })
+          .eq("team_id", invite.team_id)
+          .eq("role", "head_coach")
+        await supabase.from("team_members").upsert(
+          {
+            team_id: invite.team_id,
+            user_id: acceptingUserId,
+            role: "head_coach",
+            active: true,
+            is_primary: true,
+          },
+          { onConflict: "team_id,user_id" }
+        )
+      }
       const { error: updateErr } = await supabase
         .from("invites")
         .update({
@@ -91,6 +108,28 @@ export async function acceptInvite(
       },
       { onConflict: "id" }
     )
+
+  if (isHeadCoach && invite.team_id) {
+    await supabase
+      .from("team_members")
+      .update({ is_primary: false })
+      .eq("team_id", invite.team_id)
+      .eq("role", "head_coach")
+
+    const { error: tmErr } = await supabase.from("team_members").upsert(
+      {
+        team_id: invite.team_id,
+        user_id: acceptingUserId,
+        role: "head_coach",
+        active: true,
+        is_primary: true,
+      },
+      { onConflict: "team_id,user_id" }
+    )
+    if (tmErr) {
+      return { success: false, reason: "db_error", message: tmErr.message }
+    }
+  }
 
   const { error: inviteUpdateErr } = await supabase
     .from("invites")

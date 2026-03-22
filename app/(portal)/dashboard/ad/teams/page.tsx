@@ -7,6 +7,7 @@ import {
   logAdTeamVisibility,
   resolveAthleticDirectorScope,
 } from "@/lib/ad-team-scope"
+import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
 export const dynamic = "force-dynamic"
 
@@ -32,7 +33,7 @@ export default async function AdTeamsPage() {
   } else {
     const { data: teamsData, error: teamsErr } = await supabase
       .from("teams")
-      .select("id, name, sport, roster_size, created_at, created_by, school_id, program_id, athletic_department_id")
+      .select("id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id")
       .or(orFilter)
       .order("created_at", { ascending: false })
 
@@ -47,31 +48,46 @@ export default async function AdTeamsPage() {
 
     if (teamsData?.length) {
       const teamIds = teamsData.map((t) => t.id)
-      const { data: coachProfiles } = await supabase
-        .from("profiles")
-        .select("id, team_id")
+      const { data: staffRows } = await supabase
+        .from("team_members")
+        .select("team_id, user_id, role, is_primary")
         .in("team_id", teamIds)
-        .ilike("role", "head_coach")
+        .eq("active", true)
 
-      const coachUserIdByTeam = new Map<string, string>()
-      coachProfiles?.forEach((p) => {
-        coachUserIdByTeam.set(p.team_id, p.id)
-      })
-      teamsData.forEach((t) => {
-        const createdBy = t.created_by
-        if (createdBy && !coachUserIdByTeam.has(t.id)) {
-          coachUserIdByTeam.set(t.id, createdBy)
+      const staffByTeam = new Map<string, TeamMemberStaffRow[]>()
+      for (const row of staffRows ?? []) {
+        const tid = (row as { team_id: string }).team_id
+        const list = staffByTeam.get(tid) ?? []
+        list.push({
+          user_id: (row as { user_id: string }).user_id,
+          role: (row as { role: string }).role,
+          is_primary: (row as { is_primary?: boolean | null }).is_primary,
+        })
+        staffByTeam.set(tid, list)
+      }
+
+      const coachUserIds = new Set<string>()
+      const headCoachUserIdByTeam = new Map<string, string | null>()
+      for (const tid of teamIds) {
+        const uid = pickHeadCoachUserId(staffByTeam.get(tid) ?? [])
+        headCoachUserIdByTeam.set(tid, uid)
+        if (uid) coachUserIds.add(uid)
+      }
+
+      const { data: users } =
+        coachUserIds.size > 0
+          ? await supabase.from("users").select("id, name").in("id", [...coachUserIds])
+          : { data: [] as { id: string; name: string | null }[] }
+
+      const headCoachByTeam = new Map<string, string | null>()
+      headCoachUserIdByTeam.forEach((userId, teamId) => {
+        if (!userId) {
+          headCoachByTeam.set(teamId, null)
+          return
         }
-      })
-      const coachUserIds = [...new Set(coachUserIdByTeam.values())]
-      const { data: users } = await supabase
-        .from("users")
-        .select("id, name")
-        .in("id", coachUserIds)
-      const headCoachByTeam = new Map<string, string>()
-      coachUserIdByTeam.forEach((userId, teamId) => {
-        const u = users?.find((u) => u.id === userId)
-        headCoachByTeam.set(teamId, u?.name?.trim() ?? "")
+        const u = users?.find((x) => x.id === userId)
+        const name = u?.name?.trim() ?? null
+        headCoachByTeam.set(teamId, name && name.length > 0 ? name : null)
       })
 
       const now = new Date().toISOString()
@@ -84,13 +100,28 @@ export default async function AdTeamsPage() {
 
       const pendingTeamIds = new Set((pendingInvites ?? []).map((i) => i.team_id))
 
+      const programIds = [
+        ...new Set(
+          teamsData.map((t) => t.program_id).filter((id): id is string => typeof id === "string" && id.length > 0)
+        ),
+      ]
+      const sportByProgramId = new Map<string, string>()
+      if (programIds.length > 0) {
+        const { data: programs } = await supabase.from("programs").select("id, sport").in("id", programIds)
+        for (const p of programs ?? []) {
+          if (p?.id) sportByProgramId.set(p.id, (p.sport as string) || "football")
+        }
+      }
+
       teamsData.forEach((t) => {
         const headCoachName = headCoachByTeam.get(t.id) ?? null
         const invitePending = pendingTeamIds.has(t.id)
+        const programId = t.program_id as string | null | undefined
+        const sportFromProgram = programId ? sportByProgramId.get(programId) : undefined
         teams.push({
           id: t.id,
           name: t.name ?? "",
-          sport: t.sport ?? null,
+          sport: t.sport ?? sportFromProgram ?? null,
           rosterSize: (t as { roster_size?: number }).roster_size ?? null,
           createdAt: t.created_at ?? new Date().toISOString(),
           headCoachName,

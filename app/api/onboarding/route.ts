@@ -63,6 +63,8 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServer()
     const sport = String(body.sport ?? "football").trim() || "football"
+    const seasonLabel =
+      typeof body.seasonName === "string" && body.seasonName.trim() ? body.seasonName.trim() : null
     const rosterCreationMode = body.rosterCreationMode ?? "coach_precreated"
     const teamLevels = Array.isArray(body.teamLevels) ? body.teamLevels : ["varsity"]
 
@@ -171,17 +173,18 @@ export async function POST(request: Request) {
 
       if (level === "varsity" && adoptTeamId) {
         adoptedTeamIdForRollback = adoptTeamId
-        const { error: adoptErr } = await supabase
-          .from("teams")
-          .update({
-            program_id: program.id,
-            name,
-            team_level: "varsity",
-            plan_type: "head_coach",
-            roster_creation_mode: rosterCreationMode,
-            sport,
-          })
-          .eq("id", adoptTeamId)
+        const adoptPayload = {
+          program_id: program.id,
+          name,
+          team_level: "varsity",
+          plan_type: "head_coach",
+          roster_creation_mode: rosterCreationMode,
+          sport,
+          ...(seasonLabel ? { season: seasonLabel } : {}),
+        }
+        console.info("[onboarding] teams.update (adopt existing)", JSON.stringify({ teamId: adoptTeamId, ...adoptPayload }))
+
+        const { error: adoptErr } = await supabase.from("teams").update(adoptPayload).eq("id", adoptTeamId)
 
         if (adoptErr) {
           await rollbackProgram()
@@ -195,19 +198,19 @@ export async function POST(request: Request) {
         continue
       }
 
-      const { data: team, error: teamError } = await supabase
-        .from("teams")
-        .insert({
-          program_id: program.id,
-          name,
-          created_by: session.user.id,
-          team_level: level,
-          plan_type: "head_coach",
-          roster_creation_mode: rosterCreationMode,
-          sport,
-        })
-        .select("id")
-        .single()
+      const newTeamPayload = {
+        program_id: program.id,
+        name,
+        created_by: session.user.id,
+        team_level: level,
+        plan_type: "head_coach",
+        roster_creation_mode: rosterCreationMode,
+        sport,
+        ...(seasonLabel ? { season: seasonLabel } : {}),
+      }
+      console.info("[onboarding] teams.insert", JSON.stringify(newTeamPayload))
+
+      const { data: team, error: teamError } = await supabase.from("teams").insert(newTeamPayload).select("id").single()
 
       if (teamError || !team?.id) {
         await rollbackProgram()
@@ -253,6 +256,27 @@ export async function POST(request: Request) {
         { error: profileError.message ?? "Failed to update your profile" },
         { status: 500 }
       )
+    }
+
+    for (const tid of createdTeamIds) {
+      await supabase.from("team_members").update({ is_primary: false }).eq("team_id", tid).eq("role", "head_coach")
+      const { error: tmErr } = await supabase.from("team_members").upsert(
+        {
+          team_id: tid,
+          user_id: session.user.id,
+          role: "head_coach",
+          active: true,
+          is_primary: true,
+        },
+        { onConflict: "team_id,user_id" }
+      )
+      if (tmErr) {
+        await rollbackProgram()
+        return NextResponse.json(
+          { error: tmErr.message ?? "Failed to save team staff membership" },
+          { status: 500 }
+        )
+      }
     }
 
     programIdForRollback = null

@@ -72,20 +72,19 @@ export async function POST(request: Request) {
       )
     }
 
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .insert({
-        name: teamName,
-        sport,
-        roster_size: rosterSize,
-        season,
-        notes,
-        school_id: profile.school_id,
-        athletic_department_id: department.id,
-        created_by: session.user.id,
-      })
-      .select("id")
-      .single()
+    const teamInsertPayload = {
+      name: teamName,
+      sport,
+      roster_size: rosterSize,
+      season,
+      notes,
+      school_id: profile.school_id,
+      athletic_department_id: department.id,
+      created_by: session.user.id,
+    }
+    console.info("[ad/teams] teams.insert", JSON.stringify(teamInsertPayload))
+
+    const { data: team, error: teamError } = await supabase.from("teams").insert(teamInsertPayload).select("id").single()
 
     if (teamError || !team?.id) {
       return NextResponse.json(

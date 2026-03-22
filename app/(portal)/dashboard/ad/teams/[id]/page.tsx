@@ -8,6 +8,7 @@ import {
   resolveAthleticDirectorScope,
   teamRowVisibleToAdScope,
 } from "@/lib/ad-team-scope"
+import { assistantCoachUserIds, pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
 export const dynamic = "force-dynamic"
 
@@ -41,6 +42,13 @@ export default async function AdTeamEditPage({
     .eq("id", params.id)
     .maybeSingle()
 
+  let programSport: string | null = null
+  const pid = team ? (team as { program_id?: string | null }).program_id : null
+  if (pid) {
+    const { data: prog } = await supabase.from("programs").select("sport").eq("id", pid).maybeSingle()
+    programSport = (prog?.sport as string) || null
+  }
+
   if (!team || !teamRowVisibleToAdScope(team, scope)) {
     logAdTeamVisibility("AdTeamEditPage", {
       scope,
@@ -62,6 +70,34 @@ export default async function AdTeamEditPage({
     queryError: null,
   })
 
+  const { data: staffRows } = await supabase
+    .from("team_members")
+    .select("user_id, role, is_primary")
+    .eq("team_id", team.id)
+    .eq("active", true)
+
+  const staff: TeamMemberStaffRow[] = (staffRows ?? []).map((r) => ({
+    user_id: (r as { user_id: string }).user_id,
+    role: (r as { role: string }).role,
+    is_primary: (r as { is_primary?: boolean | null }).is_primary,
+  }))
+
+  const headCoachUserId = pickHeadCoachUserId(staff)
+  const assistantIds = assistantCoachUserIds(staff)
+  const nameIds = [...new Set([headCoachUserId, ...assistantIds].filter((id): id is string => Boolean(id)))]
+  const { data: staffUsers } =
+    nameIds.length > 0
+      ? await supabase.from("users").select("id, name").in("id", nameIds)
+      : { data: [] as { id: string; name: string | null }[] }
+  const nameById = new Map((staffUsers ?? []).map((u) => [u.id, u.name?.trim() || null]))
+
+  const rawHcName = headCoachUserId ? nameById.get(headCoachUserId) : null
+  const headCoachDisplay = rawHcName && rawHcName.length > 0 ? rawHcName : null
+
+  const assistantNames = assistantIds
+    .map((id) => nameById.get(id))
+    .filter((n): n is string => Boolean(n && n.length > 0))
+
   return (
     <div className="space-y-8">
       <div>
@@ -80,16 +116,36 @@ export default async function AdTeamEditPage({
         </p>
         <dl className="mt-4 grid gap-2 text-sm">
           <div>
+            <dt className="font-medium text-[#6B7280]">Head coach</dt>
+            <dd className="text-[#212529]">{headCoachDisplay ?? "No head coach assigned"}</dd>
+          </div>
+          <div>
+            <dt className="font-medium text-[#6B7280]">Assistant coaches</dt>
+            <dd className="text-[#212529]">
+              {assistantNames.length > 0 ? assistantNames.join(", ") : "None listed"}
+            </dd>
+          </div>
+          <div>
             <dt className="font-medium text-[#6B7280]">Sport</dt>
-            <dd className="text-[#212529]">{(team as { sport?: string }).sport ?? "—"}</dd>
+            <dd className="text-[#212529]">
+              {(team as { sport?: string | null }).sport?.trim() ||
+                programSport?.trim() ||
+                "Not set"}
+            </dd>
           </div>
           <div>
             <dt className="font-medium text-[#6B7280]">Roster size</dt>
-            <dd className="text-[#212529]">{(team as { roster_size?: number }).roster_size ?? "—"}</dd>
+            <dd className="text-[#212529]">
+              {(team as { roster_size?: number | null }).roster_size != null
+                ? String((team as { roster_size?: number | null }).roster_size)
+                : "Not set"}
+            </dd>
           </div>
           <div>
             <dt className="font-medium text-[#6B7280]">Season</dt>
-            <dd className="text-[#212529]">{(team as { season?: string }).season ?? "—"}</dd>
+            <dd className="text-[#212529]">
+              {(team as { season?: string | null }).season?.trim() || "Not set"}
+            </dd>
           </div>
         </dl>
       </div>

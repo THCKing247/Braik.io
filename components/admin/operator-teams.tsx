@@ -13,7 +13,8 @@ interface TeamRow {
   teamStatus: string
   organization: { name: string }
   players: Array<{ id: string }>
-  memberships: Array<{ userId: string }>
+  headCoachName: string | null
+  coachStaffCount: number
 }
 
 function statusChip(value: string): string {
@@ -105,7 +106,8 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
                   <span className={`rounded border px-2 py-0.5 text-xs ${statusChip(team.teamStatus)}`}>team: {team.teamStatus}</span>
                 </div>
                 <p className="mt-2 text-xs text-white/70">
-                  Plan: {team.planTier || "starter"} | Roster: {team.players.length} | Coaches: {team.memberships.length}
+                  Plan: {team.planTier || "starter"} | Roster: {team.players.length} | Head coach:{" "}
+                  {team.headCoachName ?? "No head coach assigned"} | Staff (HC/AC): {team.coachStaffCount}
                 </p>
                 <Link href={`/admin/teams/${team.id}`} className="text-xs text-cyan-300 hover:text-cyan-200">
                   View details

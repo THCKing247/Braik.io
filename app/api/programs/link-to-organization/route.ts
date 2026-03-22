@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
+import { syncProgramTeamsMetadataFromOrganization } from "@/lib/sync-program-teams-metadata"
 
 export const runtime = "nodejs"
 
@@ -139,6 +140,13 @@ export async function POST(request: Request) {
         { error: updateErr.message ?? "Failed to link program to organization." },
         { status: 500 }
       )
+    }
+
+    const sync = await syncProgramTeamsMetadataFromOrganization(supabase, programId, orgId)
+    if (sync.error) {
+      console.warn("[programs/link-to-organization] team metadata sync:", sync.error, sync.preview)
+    } else {
+      console.info("[programs/link-to-organization] team metadata sync ok", JSON.stringify(sync.preview))
     }
 
     // Consume the invite code (one use)

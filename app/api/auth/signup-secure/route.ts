@@ -342,6 +342,8 @@ export async function POST(request: Request) {
             row.invite_code = inviteCode
           }
 
+          console.info("[signup-secure] teams.insert", JSON.stringify({ ...row, invite_code: row.invite_code ? "[set]" : undefined }))
+
           const { data: insertedTeam, error: teamInsertError } = await supabase
             .from("teams")
             .insert(row)

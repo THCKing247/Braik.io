@@ -54,6 +54,7 @@ export async function getOrCreateAdOrganization(
     .insert({
       name: schoolName,
       slug,
+      school_id: dept.school_id ?? null,
       athletic_department_id: dept.id,
       created_by_user_id: userId,
     })

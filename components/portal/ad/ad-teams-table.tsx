@@ -22,7 +22,7 @@ function formatDate(iso: string) {
     const d = new Date(iso)
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
   } catch {
-    return "—"
+    return "Not set"
   }
 }
 
@@ -69,9 +69,11 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                   <td className="px-4 py-3">
                     <span className="font-medium text-[#212529]">{team.name}</span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-[#6B7280]">{team.sport ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-[#6B7280]">
-                    {team.rosterSize != null ? team.rosterSize : "—"}
+                    {team.sport?.trim() ? team.sport : "Not set"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[#6B7280]">
+                    {team.rosterSize != null ? team.rosterSize : "Not set"}
                   </td>
                   <td className="px-4 py-3">
                     <AdTeamStatusBadge

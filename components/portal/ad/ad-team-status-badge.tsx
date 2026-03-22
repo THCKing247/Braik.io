@@ -24,7 +24,7 @@ export function AdTeamStatusBadge({ status, coachName }: AdTeamStatusBadgeProps)
   }
   return (
     <span className="inline-flex items-center rounded-md bg-[#F3F4F6] px-2 py-1 text-xs font-medium text-[#6B7280]">
-      No coach assigned
+      No head coach assigned
     </span>
   )
 }

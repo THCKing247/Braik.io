@@ -3,6 +3,11 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 import Link from "next/link"
+import {
+  buildAdTeamsOrFilter,
+  logAdTeamVisibility,
+  resolveAthleticDirectorScope,
+} from "@/lib/ad-team-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -14,6 +19,9 @@ export default async function AthleticDirectorOverviewPage() {
   let school: { name: string } | null = null
   let department: { estimated_team_count?: number; estimated_athlete_count?: number; status: string } | null = null
   let teamsCount = 0
+
+  const scope = await resolveAthleticDirectorScope(supabase, session.user.id)
+  const orFilter = buildAdTeamsOrFilter(scope)
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -35,12 +43,31 @@ export default async function AthleticDirectorOverviewPage() {
       .eq("athletic_director_user_id", session.user.id)
       .maybeSingle()
     department = deptRow
+  }
 
-    const { count } = await supabase
+  if (orFilter) {
+    const { count, error: countErr } = await supabase
       .from("teams")
       .select("*", { count: "exact", head: true })
-      .eq("school_id", profile.school_id)
+      .or(orFilter)
     teamsCount = count ?? 0
+    logAdTeamVisibility("AthleticDirectorOverviewPage", {
+      scope,
+      sessionRole: session.user.role ?? null,
+      teamCount: teamsCount,
+      teamIds: [],
+      filter: orFilter,
+      queryError: countErr?.message ?? null,
+    })
+  } else {
+    logAdTeamVisibility("AthleticDirectorOverviewPage", {
+      scope,
+      sessionRole: session.user.role ?? null,
+      teamCount: 0,
+      teamIds: [],
+      filter: null,
+      queryError: "no_or_filter: missing school, department, and linked programs",
+    })
   }
 
   return (

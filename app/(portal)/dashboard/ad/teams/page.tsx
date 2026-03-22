@@ -2,6 +2,11 @@ import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
+import {
+  buildAdTeamsOrFilter,
+  logAdTeamVisibility,
+  resolveAthleticDirectorScope,
+} from "@/lib/ad-team-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -10,22 +15,35 @@ export default async function AdTeamsPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  let schoolId: string | null = null
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("school_id")
-    .eq("id", session.user.id)
-    .maybeSingle()
-  schoolId = profile?.school_id ?? null
+  const scope = await resolveAthleticDirectorScope(supabase, session.user.id)
+  const orFilter = buildAdTeamsOrFilter(scope)
 
   const teams: TeamRow[] = []
 
-  if (schoolId) {
-    const { data: teamsData } = await supabase
+  if (!orFilter) {
+    logAdTeamVisibility("AdTeamsPage", {
+      scope,
+      sessionRole: session.user.role ?? null,
+      teamCount: 0,
+      teamIds: [],
+      filter: null,
+      queryError: "no_or_filter: missing school, department, and linked programs",
+    })
+  } else {
+    const { data: teamsData, error: teamsErr } = await supabase
       .from("teams")
-      .select("id, name, sport, roster_size, created_at")
-      .eq("school_id", schoolId)
+      .select("id, name, sport, roster_size, created_at, created_by, school_id, program_id, athletic_department_id")
+      .or(orFilter)
       .order("created_at", { ascending: false })
+
+    logAdTeamVisibility("AdTeamsPage", {
+      scope,
+      sessionRole: session.user.role ?? null,
+      teamCount: teamsData?.length ?? 0,
+      teamIds: (teamsData ?? []).map((t) => t.id),
+      filter: orFilter,
+      queryError: teamsErr?.message ?? null,
+    })
 
     if (teamsData?.length) {
       const teamIds = teamsData.map((t) => t.id)
@@ -40,7 +58,7 @@ export default async function AdTeamsPage() {
         coachUserIdByTeam.set(p.team_id, p.id)
       })
       teamsData.forEach((t) => {
-        const createdBy = (t as { created_by?: string }).created_by
+        const createdBy = t.created_by
         if (createdBy && !coachUserIdByTeam.has(t.id)) {
           coachUserIdByTeam.set(t.id, createdBy)
         }

@@ -2,6 +2,12 @@ import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import {
+  buildAdTeamsOrFilter,
+  logAdTeamVisibility,
+  resolveAthleticDirectorScope,
+  teamRowVisibleToAdScope,
+} from "@/lib/ad-team-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -14,26 +20,47 @@ export default async function AdTeamEditPage({
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("school_id")
-    .eq("id", session.user.id)
-    .maybeSingle()
+  const scope = await resolveAthleticDirectorScope(supabase, session.user.id)
+  const teamsOrFilter = buildAdTeamsOrFilter(scope)
 
-  if (!profile?.school_id) {
+  if (!teamsOrFilter) {
+    logAdTeamVisibility("AdTeamEditPage", {
+      scope,
+      sessionRole: session.user.role ?? null,
+      teamCount: 0,
+      teamIds: [],
+      filter: null,
+      queryError: "no_scope",
+    })
     redirect("/dashboard/ad/teams")
   }
 
   const { data: team } = await supabase
     .from("teams")
-    .select("id, name, sport, roster_size, season, notes")
+    .select("id, name, sport, roster_size, season, notes, school_id, athletic_department_id, program_id")
     .eq("id", params.id)
-    .eq("school_id", profile.school_id)
     .maybeSingle()
 
-  if (!team) {
+  if (!team || !teamRowVisibleToAdScope(team, scope)) {
+    logAdTeamVisibility("AdTeamEditPage", {
+      scope,
+      sessionRole: session.user.role ?? null,
+      teamCount: 0,
+      teamIds: [],
+      filter: `team_id.eq.${params.id}`,
+      queryError: team ? "team_not_in_ad_scope" : "team_not_found",
+    })
     redirect("/dashboard/ad/teams")
   }
+
+  logAdTeamVisibility("AdTeamEditPage", {
+    scope,
+    sessionRole: session.user.role ?? null,
+    teamCount: 1,
+    teamIds: [team.id],
+    filter: `team_id.eq.${params.id}`,
+    queryError: null,
+  })
 
   return (
     <div className="space-y-8">

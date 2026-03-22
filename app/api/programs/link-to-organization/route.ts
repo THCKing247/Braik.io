@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
@@ -146,6 +147,9 @@ export async function POST(request: Request) {
       // Program is already linked; log and return success (idempotent-friendly)
       console.warn("[programs/link-to-organization] consume failed after link:", consume.error)
     }
+
+    revalidatePath("/dashboard/ad")
+    revalidatePath("/dashboard/ad/teams")
 
     return NextResponse.json({
       success: true,

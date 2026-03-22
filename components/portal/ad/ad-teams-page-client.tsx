@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdTeamFilters } from "./ad-team-filters"
 import { AdTeamsTable, type TeamRow } from "./ad-teams-table"
@@ -11,8 +12,23 @@ interface AdTeamsPageClientProps {
 }
 
 export function AdTeamsPageClient({ teams: initialTeams }: AdTeamsPageClientProps) {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [sportFilter, setSportFilter] = useState("")
+
+  useEffect(() => {
+    let debounce: ReturnType<typeof setTimeout> | undefined
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return
+      clearTimeout(debounce)
+      debounce = setTimeout(() => router.refresh(), 400)
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      clearTimeout(debounce)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [router])
 
   const filteredTeams = useMemo(() => {
     let list = initialTeams

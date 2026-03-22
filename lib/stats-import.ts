@@ -41,7 +41,7 @@ export function rowErrorsToCsv(errors: RowError[]): string {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /** Strip UTF-8 BOM if present so spreadsheet exports parse correctly. */
-function stripBom(text: string): string {
+export function stripBom(text: string): string {
   if (text.charCodeAt(0) === 0xfeff) return text.slice(1)
   return text
 }
@@ -216,6 +216,180 @@ export function parseAndValidateStatsCsv(csvText: string): {
       last_name,
       jersey_number,
       position,
+      stats,
+    })
+  }
+
+  return { rows, errors, headerRow, dataRowCount }
+}
+
+export type ParsedWeeklyImportRow = {
+  rowIndex: number
+  player_id: string
+  first_name: string
+  last_name: string
+  jersey_number: string
+  position: string
+  season_year: number | null
+  week_number: number | null
+  game_id: string | null
+  opponent: string | null
+  game_date: string | null
+  stats: Record<string, number>
+}
+
+/**
+ * Weekly/game CSV: same player matching as season import, plus season_year, week_number, game_id, opponent, game_date.
+ */
+export function parseAndValidateWeeklyStatsCsv(csvText: string): {
+  rows: ParsedWeeklyImportRow[]
+  errors: RowError[]
+  headerRow?: string[]
+  dataRowCount: number
+} {
+  const errors: RowError[] = []
+  const normalized = stripBom(csvText)
+  const allRows = parseCsvToRows(normalized)
+  const dataRowCount = Math.max(0, allRows.length - 1)
+  if (allRows.length === 0) {
+    return { rows: [], errors: [{ row: 1, message: "CSV is empty or has no header" }], headerRow: undefined, dataRowCount: 0 }
+  }
+
+  const headerRow = allRows[0]
+  const headerMap = new Map<string, number>()
+  headerRow.forEach((h, i) => {
+    const n = normalizeHeader(h)
+    if (!headerMap.has(n)) headerMap.set(n, i)
+  })
+
+  const requiredHeaders = ["first_name", "last_name"]
+  for (const r of requiredHeaders) {
+    if (!headerMap.has(r)) {
+      return {
+        rows: [],
+        errors: [{ row: 1, message: `Missing required column: ${r}` }],
+        headerRow,
+        dataRowCount,
+      }
+    }
+  }
+
+  const get = (row: string[], col: string): string => {
+    const i = headerMap.get(normalizeHeader(col))
+    return i !== undefined ? (row[i] ?? "").trim() : ""
+  }
+
+  const parseOptionalYear = (raw: string, rowIndex: number, field: string): number | null | RowError => {
+    const t = raw.trim()
+    if (t === "") return null
+    const n = parseInt(t, 10)
+    if (!Number.isFinite(n)) return { row: rowIndex, field, message: `${field} must be an integer year` }
+    return n
+  }
+
+  const parseOptionalWeek = (raw: string, rowIndex: number, field: string): number | null | RowError => {
+    const t = raw.trim()
+    if (t === "") return null
+    const n = parseInt(t, 10)
+    if (!Number.isFinite(n) || n < 0) return { row: rowIndex, field, message: `${field} must be a non-negative integer` }
+    return n
+  }
+
+  const rows: ParsedWeeklyImportRow[] = []
+  for (let r = 1; r < allRows.length; r++) {
+    const raw = allRows[r]
+    const rowIndex = r + 1
+    const player_id = get(raw, "player_id").trim()
+    const first_name = get(raw, "first_name")
+    const last_name = get(raw, "last_name")
+    const jersey_number = get(raw, "jersey_number")
+    const position = get(raw, "position")
+
+    const hasValidPlayerId = player_id.length > 0 && UUID_REGEX.test(player_id)
+    const hasNameJersey = first_name.length > 0 && last_name.length > 0 && jersey_number.length > 0
+
+    if (!hasValidPlayerId && !hasNameJersey) {
+      const missing: string[] = []
+      if (!hasValidPlayerId) {
+        if (first_name.length === 0) missing.push("first_name")
+        if (last_name.length === 0) missing.push("last_name")
+        if (jersey_number.length === 0) missing.push("jersey_number")
+      }
+      errors.push({
+        row: rowIndex,
+        message: missing.length
+          ? `Row must have either a valid player_id or first_name, last_name, and jersey_number. Missing: ${missing.join(", ")}`
+          : "Row must have either a valid player_id or first_name, last_name, and jersey_number.",
+      })
+      continue
+    }
+
+    const seasonRaw = get(raw, "season_year")
+    const weekRaw = get(raw, "week_number")
+    const gameIdRaw = get(raw, "game_id").trim()
+    const opponent = get(raw, "opponent").trim() || null
+    const gameDateRaw = get(raw, "game_date").trim()
+
+    const sy = parseOptionalYear(seasonRaw, rowIndex, "season_year")
+    if (typeof sy === "object" && sy !== null && "row" in sy) {
+      errors.push(sy)
+      continue
+    }
+    const wn = parseOptionalWeek(weekRaw, rowIndex, "week_number")
+    if (typeof wn === "object" && wn !== null && "row" in wn) {
+      errors.push(wn)
+      continue
+    }
+
+    let game_id: string | null = null
+    if (gameIdRaw !== "") {
+      if (!UUID_REGEX.test(gameIdRaw)) {
+        errors.push({ row: rowIndex, field: "game_id", message: "game_id must be a valid UUID or blank" })
+        continue
+      }
+      game_id = gameIdRaw
+    }
+
+    let game_date: string | null = null
+    if (gameDateRaw !== "") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(gameDateRaw)) {
+        errors.push({ row: rowIndex, field: "game_date", message: "game_date must be YYYY-MM-DD or blank" })
+        continue
+      }
+      game_date = gameDateRaw
+    }
+
+    const stats: Record<string, number> = {}
+    for (const [csvCol, dbKey] of Object.entries(CSV_HEADER_TO_DB_KEY)) {
+      const idx = headerMap.get(normalizeHeader(csvCol))
+      if (idx === undefined) continue
+      const cell = (raw[idx] ?? "").trim()
+      if (cell === "") continue
+      const parsed = parseStatInteger(cell, rowIndex, csvCol)
+      if ("error" in parsed) {
+        errors.push(parsed.error)
+        continue
+      }
+      stats[dbKey] = parsed.value
+    }
+
+    if (Object.keys(stats).length === 0) {
+      errors.push({ row: rowIndex, message: "At least one stat column must be non-blank" })
+      continue
+    }
+
+    rows.push({
+      rowIndex,
+      player_id,
+      first_name,
+      last_name,
+      jersey_number,
+      position,
+      season_year: sy as number | null,
+      week_number: wn as number | null,
+      game_id,
+      opponent,
+      game_date,
       stats,
     })
   }

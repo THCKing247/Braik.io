@@ -15,12 +15,26 @@ import type { PlayerStatsRow, StatsTableRow, WeeklyStatEntryApi } from "@/lib/st
 import { playerToStatsTableRow, weeklyEntryToStatsTableRow } from "@/lib/stats-helpers"
 import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2 } from "lucide-react"
 import { rowErrorsToCsv } from "@/lib/stats-import"
-import { STATS_IMPORT_HEADERS } from "@/lib/stats-import-fields"
+import { STATS_IMPORT_HEADERS, STATS_WEEKLY_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
 /** Example data row for format preview only (no real player data). */
 const SAMPLE_ROW = ["<player_id>", "First", "Last", "12", "QB", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "5"]
+
+const SAMPLE_WEEKLY_ROW = [
+  "<player_id>",
+  "First",
+  "Last",
+  "12",
+  "QB",
+  "2025",
+  "3",
+  "",
+  "Central",
+  "2025-09-01",
+  ...Array(STAT_IMPORT_FIELDS.length).fill("0"),
+]
 
 type ImportResult = {
   success: boolean
@@ -98,6 +112,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [showImportPanel, setShowImportPanel] = useState(false)
   const importPanelRef = useRef<HTMLDivElement | null>(null)
+  const [importStatsMode, setImportStatsMode] = useState<"season_totals" | "weekly_entries">("season_totals")
+  const [editWeeklyEntry, setEditWeeklyEntry] = useState<WeeklyStatEntryApi | null>(null)
 
   const canConfirmImport = Boolean(
     selectedFile &&
@@ -250,7 +266,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     `/dashboard/roster/${row.id}${teamId ? `?teamId=${encodeURIComponent(teamId)}` : ""}`
 
   const downloadTemplate = (withRoster: boolean) => {
-    const url = `/api/stats/template?teamId=${encodeURIComponent(teamId)}${withRoster ? "&withRoster=1" : ""}`
+    const weekly = importStatsMode === "weekly_entries" ? "&weekly=1" : ""
+    const url = `/api/stats/template?teamId=${encodeURIComponent(teamId)}${withRoster ? "&withRoster=1" : ""}${weekly}`
     window.open(url, "_blank", "noopener,noreferrer")
     setImportResult(null)
     setPreviewResult(null)
@@ -270,6 +287,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       const formData = new FormData()
       formData.set("file", selectedFile)
       formData.set("teamId", teamId)
+      formData.set("importMode", importStatsMode)
       if (preview) formData.set("preview", "1")
       const res = await fetch("/api/stats/import", { method: "POST", body: formData })
       const data = await res.json().catch(() => ({}))
@@ -297,7 +315,11 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         if (data.summary?.updated > 0) setRefreshTrigger((t) => t + 1)
         const updated = data.summary?.updated ?? 0
         const errCount = data.summary?.errors ?? data.rowErrors?.length ?? 0
-        setLastImportNote(`Last import completed just now: ${updated} updated, ${errCount} error(s).`)
+        setLastImportNote(
+          importStatsMode === "weekly_entries"
+            ? `Last import: ${updated} weekly row(s) created. Season totals were recalculated for affected players. ${errCount} error(s).`
+            : `Last import completed just now: ${updated} updated, ${errCount} error(s).`
+        )
         setSelectedFile(null)
         setPreviewedFileKey("")
         setPreviewResult(null)
@@ -535,7 +557,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
           <p style={{ color: "rgb(var(--muted))" }}>
             {statsTab === "all"
               ? "Season totals from player profiles. Click a row to open the player profile."
-              : "Per-game and weekly stat lines. Season totals on the All Stats tab are unchanged."}
+              : "Per-game and weekly stat lines. All Stats season totals are the sum of these rows (plus any keys not in weekly sums)."}
           </p>
           <div className="flex flex-wrap gap-2 mt-4" role="tablist" aria-label="Stats view">
             <Button
@@ -569,7 +591,14 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
             </Button>
           )}
           {canEdit && (
-            <Button variant="outline" size="sm" onClick={() => setAddWeeklyOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditWeeklyEntry(null)
+                setAddWeeklyOpen(true)
+              }}
+            >
               <CalendarPlus className="h-4 w-4 mr-2" aria-hidden />
               Add Weekly/Game Stats
             </Button>
@@ -597,11 +626,15 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
 
       <AddWeeklyStatsDialog
         open={addWeeklyOpen}
-        onOpenChange={setAddWeeklyOpen}
+        onOpenChange={(o) => {
+          setAddWeeklyOpen(o)
+          if (!o) setEditWeeklyEntry(null)
+        }}
         teamId={teamId}
         roster={players}
         seasonYear={season}
         games={scheduleGames}
+        editEntry={editWeeklyEntry}
         onSaved={() => setRefreshTrigger((t) => t + 1)}
       />
 
@@ -756,40 +789,91 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         <div ref={importPanelRef} className="mt-6 space-y-6">
           <div className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(248,250,252)] p-3 text-sm" style={{ color: "rgb(var(--muted))" }}>
             <p className="font-medium mb-2" style={{ color: "rgb(var(--text))" }}>Import tips</p>
-            <ul className="grid gap-1 sm:grid-cols-2 list-none space-y-0.5 pl-0">
-              <li>✓ Best option: download template with roster</li>
-              <li>✓ Keep player_id unchanged</li>
-              <li>✓ Leave stat cells blank to keep current values</li>
-              <li>✓ Enter 0 to set a stat to zero</li>
-              <li>✓ One row per player only</li>
-              <li>✓ Save as CSV before uploading</li>
-            </ul>
-            <p className="mt-2 text-xs">CSV only. Max file size 2MB. Max 2,000 player rows per upload.</p>
+            {importStatsMode === "season_totals" ? (
+              <ul className="grid gap-1 sm:grid-cols-2 list-none space-y-0.5 pl-0">
+                <li>✓ Best option: download template with roster</li>
+                <li>✓ Keep player_id unchanged</li>
+                <li>✓ Leave stat cells blank to keep current values</li>
+                <li>✓ Enter 0 to set a stat to zero</li>
+                <li>✓ One row per player only</li>
+                <li>✓ Save as CSV before uploading</li>
+              </ul>
+            ) : (
+              <ul className="grid gap-1 sm:grid-cols-2 list-none space-y-0.5 pl-0">
+                <li>✓ Include season_year, week_number, opponent, game_date as needed</li>
+                <li>✓ Optional game_id must be a scheduled game for this team</li>
+                <li>✓ Multiple rows per player are allowed (one per game/week)</li>
+                <li>✓ At least one stat column must be non-blank per row</li>
+                <li>✓ After import, season totals are recalculated from weekly rows</li>
+                <li>✓ Save as CSV before uploading</li>
+              </ul>
+            )}
+            <p className="mt-2 text-xs">CSV only. Max file size 2MB. Max 2,000 data rows per upload.</p>
           </div>
 
           <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
           <CardHeader>
             <CardTitle style={{ color: "rgb(var(--text))" }}>Bulk import stats</CardTitle>
             <p style={{ color: "rgb(var(--muted))", fontSize: "0.875rem" }}>
-              Download a template, fill in stats offline, then preview and import to update existing players.
+              {importStatsMode === "season_totals"
+                ? "Download a template, fill in stats offline, then preview and import to merge into each player’s season totals."
+                : "Import creates weekly/game stat rows. Season totals on All Stats are recomputed as the sum of weekly rows for each player."}
             </p>
+            <div className="space-y-2 mt-3 max-w-md">
+              <Label htmlFor="stats-import-mode" style={{ color: "rgb(var(--text))" }}>Import mode</Label>
+              <select
+                id="stats-import-mode"
+                className="mobile-select w-full"
+                value={importStatsMode}
+                onChange={(e) => {
+                  setImportStatsMode(e.target.value as "season_totals" | "weekly_entries")
+                  setPreviewedFileKey("")
+                  setPreviewResult(null)
+                  setImportResult(null)
+                  setLastImportNote(null)
+                }}
+              >
+                <option value="season_totals">Season totals</option>
+                <option value="weekly_entries">Weekly / game entries</option>
+              </select>
+            </div>
             <div className="rounded border border-[rgb(var(--border))] bg-[rgb(241,245,249)] p-3 mt-2">
               <p className="text-xs font-medium mb-1" style={{ color: "rgb(var(--muted))" }}>Example format (one row)</p>
               <pre className="text-xs font-mono overflow-x-auto whitespace-pre" style={{ color: "rgb(var(--text))" }}>
-                {STATS_IMPORT_HEADERS.join(",")}
-                {"\n"}
-                {SAMPLE_ROW.join(",")}
+                {importStatsMode === "weekly_entries" ? (
+                  <>
+                    {STATS_WEEKLY_IMPORT_HEADERS.join(",")}
+                    {"\n"}
+                    {SAMPLE_WEEKLY_ROW.join(",")}
+                  </>
+                ) : (
+                  <>
+                    {STATS_IMPORT_HEADERS.join(",")}
+                    {"\n"}
+                    {SAMPLE_ROW.join(",")}
+                  </>
+                )}
               </pre>
             </div>
             <div className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(248,250,252)] p-4 mt-2">
               <p className="font-medium text-sm mb-2" style={{ color: "rgb(var(--text))" }}>How it works</p>
-              <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: "rgb(var(--muted))" }}>
-                <li><strong>Best option:</strong> Use &quot;Download template with roster&quot; — player_id and names are pre-filled so matching is reliable.</li>
-                <li><strong>Matching:</strong> Braik matches by player_id first. If player_id is blank, we match by first name + last name + jersey number (exact).</li>
-                <li><strong>Blank stat cells</strong> leave current values unchanged. Enter <strong>0</strong> if you want to set a stat to zero.</li>
-                <li><strong>Duplicate rows</strong> for the same player in the CSV are rejected; only the first occurrence is applied.</li>
-                <li>Stat values must be <strong>non-negative integers</strong> (no decimals).</li>
-              </ul>
+              {importStatsMode === "season_totals" ? (
+                <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: "rgb(var(--muted))" }}>
+                  <li><strong>Best option:</strong> Use &quot;Download template with roster&quot; — player_id and names are pre-filled so matching is reliable.</li>
+                  <li><strong>Matching:</strong> Braik matches by player_id first. If player_id is blank, we match by first name + last name + jersey number (exact).</li>
+                  <li><strong>Blank stat cells</strong> leave current values unchanged. Enter <strong>0</strong> if you want to set a stat to zero.</li>
+                  <li><strong>Duplicate rows</strong> for the same player in the CSV are rejected; only the first occurrence is applied.</li>
+                  <li>Stat values must be <strong>non-negative integers</strong> (no decimals).</li>
+                </ul>
+              ) : (
+                <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: "rgb(var(--muted))" }}>
+                  <li>Columns include <strong>season_year</strong>, <strong>week_number</strong>, optional <strong>game_id</strong>, <strong>opponent</strong>, <strong>game_date</strong>, then stat columns.</li>
+                  <li>Each row creates one <strong>weekly stat entry</strong>. The same player can appear on multiple rows.</li>
+                  <li><strong>game_id</strong> must reference a game on this team, or leave blank and use opponent/date.</li>
+                  <li>After a successful import, <strong>season totals</strong> are recalculated from all non-deleted weekly rows.</li>
+                  <li>Stat values must be <strong>non-negative integers</strong> (no decimals).</li>
+                </ul>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -891,7 +975,9 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
                       <span className="font-medium">{previewResult.summary.matched}</span>
                     </div>
                     <div className="rounded border px-3 py-2 bg-white">
-                      <span className="text-xs block" style={{ color: "rgb(var(--muted))" }}>Would update</span>
+                      <span className="text-xs block" style={{ color: "rgb(var(--muted))" }}>
+                        {importStatsMode === "weekly_entries" ? "Would create" : "Would update"}
+                      </span>
                       <span className="font-medium">{previewResult.summary.updated}</span>
                     </div>
                     <div className="rounded border px-3 py-2 bg-white">
@@ -961,7 +1047,9 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
                       <span className="font-medium">{importResult.summary.matched}</span>
                     </div>
                     <div className="rounded border px-3 py-2 bg-white/80">
-                      <span className="text-xs block" style={{ color: "rgb(var(--muted))" }}>Updated</span>
+                      <span className="text-xs block" style={{ color: "rgb(var(--muted))" }}>
+                        {importStatsMode === "weekly_entries" ? "Created" : "Updated"}
+                      </span>
                       <span className="font-medium">{importResult.summary.updated}</span>
                     </div>
                     <div className="rounded border px-3 py-2 bg-white/80">
@@ -1043,6 +1131,17 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
             selectedRowKeys={selectedRowKeys}
             onToggleRow={toggleRowSelect}
             onToggleAllVisible={toggleAllVisible}
+            onEditWeeklyRow={
+              canEdit
+                ? (row) => {
+                    const entry = weeklyEntries.find((e) => e.id === row.rowKey)
+                    if (entry) {
+                      setEditWeeklyEntry(entry)
+                      setAddWeeklyOpen(true)
+                    }
+                  }
+                : undefined
+            }
           />
         </div>
       )}

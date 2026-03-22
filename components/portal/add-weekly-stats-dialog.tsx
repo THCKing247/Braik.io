@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { PlayerStatsRow } from "@/lib/stats-helpers"
+import type { PlayerStatsRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
 import { STAT_IMPORT_FIELDS, STAT_LABELS_BY_DB_KEY } from "@/lib/stats-import-fields"
 import { Plus, Trash2 } from "lucide-react"
 
@@ -36,6 +36,8 @@ export interface AddWeeklyStatsDialogProps {
   roster: PlayerStatsRow[]
   seasonYear: string
   games: GameOption[]
+  /** When set, dialog edits this entry (single row). */
+  editEntry?: WeeklyStatEntryApi | null
   onSaved: () => void
 }
 
@@ -46,8 +48,12 @@ export function AddWeeklyStatsDialog({
   roster,
   seasonYear,
   games,
+  editEntry = null,
   onSaved,
 }: AddWeeklyStatsDialogProps) {
+  const isEdit = Boolean(editEntry)
+
+  const [seasonYearInput, setSeasonYearInput] = useState("")
   const [weekNumber, setWeekNumber] = useState("")
   const [gameId, setGameId] = useState("")
   const [opponent, setOpponent] = useState("")
@@ -60,21 +66,44 @@ export function AddWeeklyStatsDialog({
     if (!open) return
     setError(null)
     setSaving(false)
-  }, [open])
+    if (editEntry) {
+      setSeasonYearInput(editEntry.seasonYear != null ? String(editEntry.seasonYear) : "")
+      setWeekNumber(editEntry.weekNumber != null ? String(editEntry.weekNumber) : "")
+      setGameId(editEntry.gameId ?? "")
+      setOpponent(editEntry.opponent ?? "")
+      setGameDate(editEntry.gameDate ? String(editEntry.gameDate).slice(0, 10) : "")
+      const values = emptyValues()
+      for (const k of FORM_DB_KEYS) {
+        const v = editEntry.stats[k]
+        if (v !== undefined && v !== null && v !== "") values[k] = String(v)
+      }
+      setLines([{ id: "edit", playerId: editEntry.playerId, values }])
+    } else {
+      setSeasonYearInput(seasonYear.trim() ? seasonYear : "")
+      setWeekNumber("")
+      setGameId("")
+      setOpponent("")
+      setGameDate("")
+      setLines([newLine()])
+    }
+  }, [open, editEntry, seasonYear])
 
   useEffect(() => {
     if (!gameId) return
+    if (editEntry && editEntry.gameId === gameId) return
     const g = games.find((x) => x.id === gameId)
     if (g) {
       setOpponent(g.opponent ?? "")
       if (g.gameDate) setGameDate(String(g.gameDate).slice(0, 10))
     }
-  }, [gameId, games])
+  }, [gameId, games, editEntry])
 
   const seasonYearNum = useMemo(() => {
-    const y = parseInt(seasonYear, 10)
+    const t = seasonYearInput.trim()
+    if (!t) return null
+    const y = parseInt(t, 10)
     return Number.isFinite(y) ? y : null
-  }, [seasonYear])
+  }, [seasonYearInput])
 
   const weekNum = useMemo(() => {
     const w = parseInt(weekNumber, 10)
@@ -110,6 +139,43 @@ export function AddWeeklyStatsDialog({
 
   const handleSave = async () => {
     setError(null)
+
+    if (isEdit && editEntry) {
+      try {
+        const stats = parseStats(lines[0]?.values ?? {})
+        if (Object.keys(stats).length === 0) {
+          throw new Error("Enter at least one stat value.")
+        }
+        setSaving(true)
+        const res = await fetch("/api/stats/weekly", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teamId,
+            id: editEntry.id,
+            season_year: seasonYearNum,
+            week_number: weekNum,
+            game_id: gameId.trim() ? gameId.trim() : null,
+            opponent: opponent.trim() || null,
+            game_date: gameDate.trim() || null,
+            stats,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setError(typeof data?.error === "string" ? data.error : "Update failed.")
+          return
+        }
+        onSaved()
+        onOpenChange(false)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Update failed.")
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     const entries: Array<{
       playerId: string
       seasonYear: number | null
@@ -161,6 +227,7 @@ export function AddWeeklyStatsDialog({
       setGameId("")
       setOpponent("")
       setGameDate("")
+      setSeasonYearInput(seasonYear.trim() ? seasonYear : "")
       onSaved()
       onOpenChange(false)
     } catch {
@@ -174,13 +241,25 @@ export function AddWeeklyStatsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add weekly / game stats</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit weekly / game stats" : "Add weekly / game stats"}</DialogTitle>
           <DialogDescription>
-            Set the game or week context once, then add one or more players and their numbers for this game. Season totals on the All Stats tab are unchanged.
+            {isEdit
+              ? "Update this stat line. Season totals on the All Stats tab are recalculated from all weekly rows for this player."
+              : "Set the game or week context once, then add one or more players and their numbers. Season totals sync from the sum of weekly rows."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="weekly-season-year">Season year (optional)</Label>
+            <Input
+              id="weekly-season-year"
+              type="number"
+              placeholder="e.g. 2025"
+              value={seasonYearInput}
+              onChange={(e) => setSeasonYearInput(e.target.value)}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="weekly-week">Week (optional)</Label>
             <Input
@@ -219,7 +298,7 @@ export function AddWeeklyStatsDialog({
               onChange={(e) => setOpponent(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="weekly-date">Game date</Label>
             <Input id="weekly-date" type="date" value={gameDate} onChange={(e) => setGameDate(e.target.value)} />
           </div>
@@ -228,12 +307,14 @@ export function AddWeeklyStatsDialog({
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
-              Player lines
+              {isEdit ? "Player stats" : "Player lines"}
             </p>
-            <Button type="button" size="sm" variant="outline" onClick={addLine}>
-              <Plus className="h-4 w-4 mr-1" aria-hidden />
-              Add line
-            </Button>
+            {!isEdit && (
+              <Button type="button" size="sm" variant="outline" onClick={addLine}>
+                <Plus className="h-4 w-4 mr-1" aria-hidden />
+                Add line
+              </Button>
+            )}
           </div>
 
           {lines.map((line) => (
@@ -249,6 +330,7 @@ export function AddWeeklyStatsDialog({
                     className="mobile-select w-full"
                     value={line.playerId}
                     onChange={(e) => setLinePlayer(line.id, e.target.value)}
+                    disabled={isEdit}
                   >
                     <option value="">Select player</option>
                     {roster.map((p) => (
@@ -258,7 +340,7 @@ export function AddWeeklyStatsDialog({
                     ))}
                   </select>
                 </div>
-                {lines.length > 1 && (
+                {!isEdit && lines.length > 1 && (
                   <Button
                     type="button"
                     size="icon"
@@ -298,7 +380,7 @@ export function AddWeeklyStatsDialog({
             Cancel
           </Button>
           <Button type="button" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? "Saving…" : "Save entries"}
+            {saving ? "Saving…" : isEdit ? "Save changes" : "Save entries"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -37,6 +37,21 @@ export const STATS_IMPORT_HEADERS = [
   ...STAT_IMPORT_FIELDS.map((f) => f.csvHeader),
 ] as const
 
+/** Weekly/game entry import: identity + context + stat columns (order for templates/docs). */
+export const WEEKLY_CONTEXT_CSV_HEADERS = [
+  "season_year",
+  "week_number",
+  "game_id",
+  "opponent",
+  "game_date",
+] as const
+
+export const STATS_WEEKLY_IMPORT_HEADERS = [
+  ...IDENTITY_COLUMNS,
+  ...WEEKLY_CONTEXT_CSV_HEADERS,
+  ...STAT_IMPORT_FIELDS.map((f) => f.csvHeader),
+] as const
+
 /** Map CSV header (and common alias) -> season_stats db key. */
 export function getStatDbKeyByCsvHeader(csvHeader: string): string | null {
   const normalized = csvHeader.trim().toLowerCase().replace(/\s+/g, "_")
@@ -49,18 +64,20 @@ export function getStatDbKeyByCsvHeader(csvHeader: string): string | null {
 }
 
 /** Map of dbKey -> label for UI. */
-export const STAT_LABELS_BY_DB_KEY: Record<string, string> = Object.fromEntries(
-  STAT_IMPORT_FIELDS.map((f) => [f.dbKey, f.label])
-)
+export const STAT_LABELS_BY_DB_KEY: Record<string, string> = Object.fromEntries([
+  ...STAT_IMPORT_FIELDS.map((f) => [f.dbKey, f.label] as const),
+  ["receptions", "Receptions"],
+])
 
 /** CSV header -> db key for validation/merge. Includes int_thrown as alias. */
 export const CSV_HEADER_TO_DB_KEY: Record<string, string> = Object.fromEntries([
   ...STAT_IMPORT_FIELDS.map((f) => [f.csvHeader, f.dbKey]),
   ["int_thrown", "int_thrown"],
+  ["receptions", "receptions"],
 ])
 
 /** Unique season_stats keys we write on import (for same-value comparison). */
-export const STAT_DB_KEYS = [...new Set(STAT_IMPORT_FIELDS.map((f) => f.dbKey))] as readonly string[]
+export const STAT_DB_KEYS = [...new Set([...STAT_IMPORT_FIELDS.map((f) => f.dbKey), "receptions"])] as readonly string[]
 
 /** Max CSV file size in bytes (2MB). Used by import route. */
 export const STATS_IMPORT_MAX_FILE_BYTES = 2 * 1024 * 1024

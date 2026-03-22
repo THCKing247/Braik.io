@@ -4,6 +4,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { PlayerStatsRow, StatsTableRow } from "@/lib/stats-helpers"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
+import { Pencil } from "lucide-react"
 
 const SCROLL_HIDE =
   "overflow-x-auto overflow-y-auto max-h-[70vh] [scrollbar-gutter:stable] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -65,6 +67,8 @@ export interface AllStatsTableProps {
   selectedRowKeys?: ReadonlySet<string>
   onToggleRow?: (rowKey: string, selected: boolean) => void
   onToggleAllVisible?: (selected: boolean, visibleRowKeys: string[]) => void
+  /** Weekly tab: row action to edit this entry (rowKey is entry id). */
+  onEditWeeklyRow?: (row: StatsTableRow) => void
 }
 
 type SortKey = keyof PlayerStatsRow | "weekNumber" | "gameLabel" | "gameOpponent" | "gameDate"
@@ -89,8 +93,10 @@ export function AllStatsTable({
   selectedRowKeys,
   onToggleRow,
   onToggleAllVisible,
+  onEditWeeklyRow,
 }: AllStatsTableProps) {
   const router = useRouter()
+  const showWeeklyEdit = mode === "weekly" && Boolean(onEditWeeklyRow)
   const [sortKey, setSortKey] = useState<SortKey>(mode === "weekly" ? "gameDate" : "lastName")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
 
@@ -162,6 +168,14 @@ export function AllStatsTable({
                 />
               </th>
             )}
+            {showWeeklyEdit && (
+              <th
+                className="w-12 px-1 py-3 text-center font-semibold whitespace-nowrap"
+                style={{ color: "rgb(var(--text))" }}
+              >
+                Edit
+              </th>
+            )}
             {columns.map(({ key, label }) => (
               <th
                 key={key}
@@ -213,6 +227,20 @@ export function AllStatsTable({
                       onCheckedChange={(c) => onToggleRow?.(row.rowKey, Boolean(c))}
                       aria-label={`Select ${row.firstName} ${row.lastName}`}
                     />
+                  </td>
+                )}
+                {showWeeklyEdit && (
+                  <td className="px-1 py-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label={`Edit weekly stats for ${row.firstName} ${row.lastName}`}
+                      onClick={() => onEditWeeklyRow?.(row)}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden />
+                    </Button>
                   </td>
                 )}
                 {columns.map(({ key }) => (

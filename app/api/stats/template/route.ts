@@ -8,7 +8,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
-import { STATS_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
+import { STATS_IMPORT_HEADERS, STATS_WEEKLY_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
 
 function escapeCsvCell(val: string | number): string {
   const s = String(val)
@@ -28,6 +28,26 @@ function buildRosterRow(
     p.last_name ?? "",
     p.jersey_number ?? "",
     p.position_group ?? "",
+  ]
+  for (let i = 0; i < STAT_IMPORT_FIELDS.length; i++) values.push("")
+  return values.map((v) => String(v))
+}
+
+/** Weekly import template: identity + context columns + empty stat cells. */
+function buildWeeklyRosterRow(
+  p: { id: string; first_name?: string | null; last_name?: string | null; jersey_number?: number | null; position_group?: string | null }
+): string[] {
+  const values: (string | number)[] = [
+    p.id ?? "",
+    p.first_name ?? "",
+    p.last_name ?? "",
+    p.jersey_number ?? "",
+    p.position_group ?? "",
+    "",
+    "",
+    "",
+    "",
+    "",
   ]
   for (let i = 0; i < STAT_IMPORT_FIELDS.length; i++) values.push("")
   return values.map((v) => String(v))
@@ -55,8 +75,10 @@ export async function GET(request: Request) {
     await requireTeamAccess(teamId)
 
     const withRoster = searchParams.get("withRoster") === "1" || searchParams.get("withRoster") === "true"
+    const weekly = searchParams.get("weekly") === "1" || searchParams.get("weekly") === "true"
 
-    const headerLine = STATS_IMPORT_HEADERS.map(escapeCsvCell).join(",")
+    const headers = weekly ? STATS_WEEKLY_IMPORT_HEADERS : STATS_IMPORT_HEADERS
+    const headerLine = headers.map(escapeCsvCell).join(",")
     const lines: string[] = [headerLine]
 
     if (withRoster) {
@@ -69,14 +91,21 @@ export async function GET(request: Request) {
 
       if (!error && players?.length) {
         for (const p of players) {
-          const row = buildRosterRow(p as { id: string; first_name?: string | null; last_name?: string | null; jersey_number?: number | null; position_group?: string | null })
+          const prow = p as { id: string; first_name?: string | null; last_name?: string | null; jersey_number?: number | null; position_group?: string | null }
+          const row = weekly ? buildWeeklyRosterRow(prow) : buildRosterRow(prow)
           lines.push(row.map(escapeCsvCell).join(","))
         }
       }
     }
 
     const csv = lines.join("\n")
-    const filename = withRoster ? "player-stats-import-with-roster.csv" : "player-stats-template.csv"
+    const filename = weekly
+      ? withRoster
+        ? "weekly-stats-import-with-roster.csv"
+        : "weekly-stats-import-template.csv"
+      : withRoster
+        ? "player-stats-import-with-roster.csv"
+        : "player-stats-template.csv"
 
     return new NextResponse(csv, {
       status: 200,

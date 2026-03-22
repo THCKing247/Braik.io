@@ -2,11 +2,7 @@ import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
-import {
-  buildAdTeamsOrFilter,
-  logAdTeamVisibility,
-  resolveAthleticDirectorScope,
-} from "@/lib/ad-team-scope"
+import { fetchAdVisibleTeams, logAdTeamVisibility } from "@/lib/ad-team-scope"
 import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
 export const dynamic = "force-dynamic"
@@ -16,8 +12,10 @@ export default async function AdTeamsPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  const scope = await resolveAthleticDirectorScope(supabase, session.user.id)
-  const orFilter = buildAdTeamsOrFilter(scope)
+  const { scope, orFilter, teams: teamsData, error: teamsErr } = await fetchAdVisibleTeams(
+    supabase,
+    session.user.id
+  )
 
   const teams: TeamRow[] = []
 
@@ -31,19 +29,13 @@ export default async function AdTeamsPage() {
       queryError: "no_or_filter: missing school, department, and linked programs",
     })
   } else {
-    const { data: teamsData, error: teamsErr } = await supabase
-      .from("teams")
-      .select("id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id")
-      .or(orFilter)
-      .order("created_at", { ascending: false })
-
     logAdTeamVisibility("AdTeamsPage", {
       scope,
       sessionRole: session.user.role ?? null,
       teamCount: teamsData?.length ?? 0,
       teamIds: (teamsData ?? []).map((t) => t.id),
       filter: orFilter,
-      queryError: teamsErr?.message ?? null,
+      queryError: teamsErr ?? null,
     })
 
     if (teamsData?.length) {

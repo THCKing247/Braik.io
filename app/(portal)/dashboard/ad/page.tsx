@@ -4,9 +4,9 @@ import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 import Link from "next/link"
 import {
-  buildAdTeamsOrFilter,
+  fetchAdVisibleTeams,
+  logAdDashboardMetrics,
   logAdTeamVisibility,
-  resolveAthleticDirectorScope,
 } from "@/lib/ad-team-scope"
 import { fetchAdPrimaryHeadCoachesForVisibleTeams } from "@/lib/ad-primary-head-coaches"
 
@@ -18,12 +18,7 @@ export default async function AthleticDirectorOverviewPage() {
 
   const supabase = getSupabaseServer()
   let school: { name: string } | null = null
-  let department: { estimated_team_count?: number; estimated_athlete_count?: number; status: string } | null = null
-  let teamsCount = 0
-  let coachesCount = 0
-
-  const scope = await resolveAthleticDirectorScope(supabase, session.user.id)
-  const orFilter = buildAdTeamsOrFilter(scope)
+  let department: { status: string } | null = null
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -32,59 +27,75 @@ export default async function AthleticDirectorOverviewPage() {
     .maybeSingle()
 
   if (profile?.school_id) {
-    const { data: schoolRow } = await supabase
-      .from("schools")
-      .select("name")
-      .eq("id", profile.school_id)
-      .single()
+    const { data: schoolRow } = await supabase.from("schools").select("name").eq("id", profile.school_id).single()
     school = schoolRow
-
-    const { data: deptRow } = await supabase
-      .from("athletic_departments")
-      .select("estimated_team_count, estimated_athlete_count, status")
-      .eq("athletic_director_user_id", session.user.id)
-      .maybeSingle()
-    department = deptRow
   }
 
-  if (orFilter) {
-    const { data: teamsData, error: teamsErr } = await supabase
-      .from("teams")
-      .select("id, name, head_coach_user_id")
-      .or(orFilter)
-    teamsCount = teamsData?.length ?? 0
-    const teamIds = (teamsData ?? []).map((t) => t.id)
-    logAdTeamVisibility("AthleticDirectorOverviewPage", {
-      scope,
-      sessionRole: session.user.role ?? null,
-      teamCount: teamsCount,
-      teamIds,
-      filter: orFilter,
-      queryError: teamsErr?.message ?? null,
-    })
+  const { data: deptRow } = await supabase
+    .from("athletic_departments")
+    .select("status")
+    .eq("athletic_director_user_id", session.user.id)
+    .maybeSingle()
+  department = deptRow
 
+  const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdVisibleTeams(
+    supabase,
+    session.user.id
+  )
+
+  const teamIds = visibleTeams.map((t) => t.id)
+  const teamsCount = visibleTeams.length
+
+  logAdTeamVisibility("AthleticDirectorOverviewPage", {
+    scope,
+    sessionRole: session.user.role ?? null,
+    teamCount: teamsCount,
+    teamIds,
+    filter: orFilter,
+    queryError: teamsQueryError ?? (!orFilter ? "no_or_filter: missing school, department, and linked programs" : null),
+  })
+
+  let athletesCount = 0
+  let playersCountError: string | null = null
+  if (teamIds.length > 0) {
+    const { count, error: playersErr } = await supabase
+      .from("players")
+      .select("id", { count: "exact", head: true })
+      .in("team_id", teamIds)
+      .eq("status", "active")
+    athletesCount = count ?? 0
+    playersCountError = playersErr?.message ?? null
+  }
+
+  let coachesCount = 0
+  let primaryHeadCoachRowsFound = 0
+  if (orFilter && !teamsQueryError && visibleTeams.length > 0) {
     const coachData = await fetchAdPrimaryHeadCoachesForVisibleTeams(supabase, {
-      teamRows: (teamsData ?? []).map((t) => ({
-        id: t.id as string,
-        name: (t as { name?: string | null }).name ?? null,
-        head_coach_user_id: (t as { head_coach_user_id?: string | null }).head_coach_user_id ?? null,
-      })),
+      teamRows: visibleTeams.map((t) => ({ id: t.id as string, name: t.name ?? null })),
       scope,
       orFilter,
       sessionUserId: session.user.id,
       sessionRole: session.user.role ?? null,
     })
     coachesCount = coachData.distinctCoachUserCount
-  } else {
-    logAdTeamVisibility("AthleticDirectorOverviewPage", {
-      scope,
-      sessionRole: session.user.role ?? null,
-      teamCount: 0,
-      teamIds: [],
-      filter: null,
-      queryError: "no_or_filter: missing school, department, and linked programs",
-    })
+    primaryHeadCoachRowsFound = coachData.teamMembersHeadCoachRowCount
   }
+
+  const emptyStateTriggered = teamsCount === 0
+
+  logAdDashboardMetrics("AthleticDirectorOverviewPage", {
+    scope,
+    sessionRole: session.user.role ?? null,
+    visibleTeamIds: teamIds,
+    teamCount: teamsCount,
+    primaryHeadCoachRowsFound,
+    coachCountDistinct: coachesCount,
+    athleteCount: athletesCount,
+    emptyStateTriggered,
+    orFilter,
+    teamsQueryError: teamsQueryError ?? null,
+    playersCountError,
+  })
 
   return (
     <div className="space-y-8">
@@ -97,14 +108,14 @@ export default async function AthleticDirectorOverviewPage() {
 
       <AdOverviewCards
         totalTeams={teamsCount}
-        totalAthletes={department?.estimated_athlete_count ?? 0}
+        totalAthletes={athletesCount}
         totalCoaches={coachesCount}
         totalParents={0}
         planStatus={department?.status ?? "active"}
         departmentPlan="Athletic Department License"
       />
 
-      {teamsCount === 0 && (
+      {emptyStateTriggered && (
         <div className="rounded-xl border-2 border-[#3B82F6] bg-[#EFF6FF] p-6">
           <h2 className="text-lg font-semibold text-[#1E40AF]">Get started with your department</h2>
           <p className="mt-2 text-sm text-[#1E3A8A]">

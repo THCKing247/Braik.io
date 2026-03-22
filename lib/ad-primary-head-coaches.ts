@@ -1,12 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import {
-  buildAdTeamsOrFilter,
-  resolveAthleticDirectorScope,
+  fetchAdVisibleTeams,
   type AthleticDirectorScope,
 } from "@/lib/ad-team-scope"
-import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
-/** Primary head coach rows for AD-visible teams — resolved from team_members and/or teams.head_coach_user_id. */
+/** Primary head coach rows for AD-visible teams — from `team_members` only (active, primary, head_coach). */
 export type AdPrimaryHeadCoachListItem = {
   teamId: string
   teamName: string
@@ -17,27 +15,30 @@ export type AdPrimaryHeadCoachListItem = {
 
 export type AdPrimaryHeadCoachesResult = {
   coaches: AdPrimaryHeadCoachListItem[]
+  visibleTeamIds: string[]
   visibleTeamCount: number
-  /** Rows returned from team_members (active head_coach). */
+  /** Rows in `team_members` matching active + primary + head_coach. */
   teamMembersHeadCoachRowCount: number
   distinctCoachUserCount: number
-  /** Same as coaches.length — teams with a resolved head coach. */
+  /** Same as coaches.length — resolved primary head coach rows. */
   finalCoachesCount: number
   scope: AthleticDirectorScope
   orFilter: string | null
+  /** Set when `fetchAdVisibleTeams` fails (same query as Teams tab). */
+  teamsQueryError: string | null
 }
 
-/** AD-visible team row — include denormalized head coach (see teams.head_coach_user_id). */
-export type VisibleAdTeamRow = { id: string; name: string | null; head_coach_user_id: string | null }
+export type AdVisibleTeamMinimal = { id: string; name: string | null }
 
 /**
- * Resolves head coach per team: prefer `teams.head_coach_user_id`, else `pickHeadCoachUserId` on active
- * `team_members` head_coach rows (same idea as AD Teams page — does not require is_primary).
+ * Primary head coaches for AD-visible teams: `team_members` where
+ * role = head_coach, active = true, is_primary = true. Profiles supply full_name and email.
+ * Does not use teams.head_coach_user_id, created_by, or profile.role.
  */
 export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
   supabase: SupabaseClient,
   args: {
-    teamRows: VisibleAdTeamRow[]
+    teamRows: AdVisibleTeamMinimal[]
     scope: AthleticDirectorScope
     orFilter: string
     sessionUserId: string
@@ -58,7 +59,7 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
         sessionRole,
         visibleTeamIds: [],
         visibleTeamCount: 0,
-        teamMembersHeadCoachRowCount: 0,
+        primaryHeadCoachRowsFound: 0,
         finalCoachesCount: 0,
         distinctCoachUserCount: 0,
         orFilter,
@@ -66,12 +67,14 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
     )
     return {
       coaches: [],
+      visibleTeamIds: [],
       visibleTeamCount: 0,
       teamMembersHeadCoachRowCount: 0,
       distinctCoachUserCount: 0,
       finalCoachesCount: 0,
       scope,
       orFilter,
+      teamsQueryError: null,
     }
   }
 
@@ -80,41 +83,19 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
     .select("team_id, user_id, role, is_primary")
     .in("team_id", visibleTeamIds)
     .eq("active", true)
-    .ilike("role", "head_coach")
+    .eq("is_primary", true)
+    .eq("role", "head_coach")
 
   const teamMembersHeadCoachRowCount = memberRows?.length ?? 0
 
-  const byTeam = new Map<string, TeamMemberStaffRow[]>()
-  for (const r of memberRows ?? []) {
-    const row = r as {
-      team_id: string
-      user_id: string
-      role: string
-      is_primary?: boolean | null
-    }
-    const list = byTeam.get(row.team_id) ?? []
-    list.push({
-      user_id: row.user_id,
-      role: row.role,
-      is_primary: row.is_primary,
-    })
-    byTeam.set(row.team_id, list)
-  }
+  const resolved = (memberRows ?? []) as {
+    team_id: string
+    user_id: string
+    role: string
+    is_primary?: boolean | null
+  }[]
 
-  const resolved: { teamId: string; userId: string; source: "teams.head_coach_user_id" | "team_members" }[] = []
-  for (const t of teamRows) {
-    const fromTeam = t.head_coach_user_id?.trim() ? t.head_coach_user_id : null
-    const fromMembers = pickHeadCoachUserId(byTeam.get(t.id) ?? [])
-    const userId = fromTeam ?? fromMembers
-    if (!userId) continue
-    resolved.push({
-      teamId: t.id,
-      userId,
-      source: fromTeam ? "teams.head_coach_user_id" : "team_members",
-    })
-  }
-
-  const userIds = [...new Set(resolved.map((r) => r.userId))]
+  const userIds = [...new Set(resolved.map((r) => r.user_id))]
   const profileByUserId = new Map<string, { full_name: string | null; email: string | null }>()
   if (userIds.length > 0) {
     const { data: profiles } = await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
@@ -125,11 +106,11 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
   }
 
   const coaches: AdPrimaryHeadCoachListItem[] = resolved.map((r) => {
-    const prof = profileByUserId.get(r.userId)
+    const prof = profileByUserId.get(r.user_id)
     return {
-      teamId: r.teamId,
-      teamName: teamNameById.get(r.teamId) ?? "—",
-      userId: r.userId,
+      teamId: r.team_id,
+      teamName: teamNameById.get(r.team_id) ?? "—",
+      userId: r.user_id,
       fullName: prof?.full_name ?? null,
       email: prof?.email ?? null,
     }
@@ -145,7 +126,7 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
       userId: sessionUserId,
       sessionRole,
       visibleTeamIds,
-      teamMembersHeadCoachRowCount,
+      primaryHeadCoachRowsFound: teamMembersHeadCoachRowCount,
       resolvedHeadCoachAssignments: finalCoachesCount,
       distinctCoachUserCount,
       finalCoachesCount,
@@ -156,17 +137,19 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
 
   return {
     coaches,
+    visibleTeamIds,
     visibleTeamCount,
     teamMembersHeadCoachRowCount,
     distinctCoachUserCount,
     finalCoachesCount,
     scope,
     orFilter,
+    teamsQueryError: null,
   }
 }
 
 /**
- * Loads primary head coaches for AD scope (same team query as Teams page).
+ * Loads primary head coaches for AD scope (same visible teams as Teams tab via `fetchAdVisibleTeams`).
  * Profiles supply display fields only (full_name, email).
  */
 export async function fetchAdPrimaryHeadCoaches(
@@ -174,8 +157,10 @@ export async function fetchAdPrimaryHeadCoaches(
   sessionUserId: string,
   sessionRole: string | null
 ): Promise<AdPrimaryHeadCoachesResult> {
-  const scope = await resolveAthleticDirectorScope(supabase, sessionUserId)
-  const orFilter = buildAdTeamsOrFilter(scope)
+  const { scope, orFilter, teams: teamRows, error: teamsErr } = await fetchAdVisibleTeams(
+    supabase,
+    sessionUserId
+  )
 
   if (!orFilter) {
     console.info(
@@ -186,7 +171,7 @@ export async function fetchAdPrimaryHeadCoaches(
         sessionRole,
         visibleTeamIds: [],
         visibleTeamCount: 0,
-        teamMembersHeadCoachRowCount: 0,
+        primaryHeadCoachRowsFound: 0,
         finalCoachesCount: 0,
         distinctCoachUserCount: 0,
         orFilter: null,
@@ -195,19 +180,16 @@ export async function fetchAdPrimaryHeadCoaches(
     )
     return {
       coaches: [],
+      visibleTeamIds: [],
       visibleTeamCount: 0,
       teamMembersHeadCoachRowCount: 0,
       distinctCoachUserCount: 0,
       finalCoachesCount: 0,
       scope,
       orFilter: null,
+      teamsQueryError: null,
     }
   }
-
-  const { data: teamRows, error: teamsErr } = await supabase
-    .from("teams")
-    .select("id, name, head_coach_user_id")
-    .or(orFilter)
 
   if (teamsErr) {
     console.info(
@@ -216,33 +198,35 @@ export async function fetchAdPrimaryHeadCoaches(
         label: "fetchAdPrimaryHeadCoaches",
         userId: sessionUserId,
         sessionRole,
-        teamsQueryError: teamsErr.message,
+        teamsQueryError: teamsErr,
         visibleTeamIds: [],
         orFilter,
       })
     )
     return {
       coaches: [],
+      visibleTeamIds: [],
       visibleTeamCount: 0,
       teamMembersHeadCoachRowCount: 0,
       distinctCoachUserCount: 0,
       finalCoachesCount: 0,
       scope,
       orFilter,
+      teamsQueryError: teamsErr,
     }
   }
 
-  const normalized: VisibleAdTeamRow[] = (teamRows ?? []).map((t) => ({
+  const normalized: AdVisibleTeamMinimal[] = (teamRows ?? []).map((t) => ({
     id: t.id as string,
-    name: (t as { name?: string | null }).name ?? null,
-    head_coach_user_id: (t as { head_coach_user_id?: string | null }).head_coach_user_id ?? null,
+    name: t.name ?? null,
   }))
 
-  return fetchAdPrimaryHeadCoachesForVisibleTeams(supabase, {
+  const inner = await fetchAdPrimaryHeadCoachesForVisibleTeams(supabase, {
     teamRows: normalized,
     scope,
     orFilter,
     sessionUserId,
     sessionRole,
   })
+  return { ...inner, teamsQueryError: null }
 }

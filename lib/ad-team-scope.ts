@@ -126,3 +126,82 @@ export function logAdTeamVisibility(
     })
   )
 }
+
+/** Same row shape and ordering as `/dashboard/ad/teams` — single source for AD-visible teams. */
+export type AdVisibleTeamRow = {
+  id: string
+  name: string | null
+  sport: string | null
+  roster_size: number | null
+  created_at: string
+  school_id: string | null
+  program_id: string | null
+  athletic_department_id: string | null
+}
+
+export async function fetchAdVisibleTeams(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{
+  scope: AthleticDirectorScope
+  orFilter: string | null
+  teams: AdVisibleTeamRow[]
+  error: string | null
+}> {
+  const scope = await resolveAthleticDirectorScope(supabase, userId)
+  const orFilter = buildAdTeamsOrFilter(scope)
+  if (!orFilter) {
+    return { scope, orFilter: null, teams: [], error: null }
+  }
+  const { data, error } = await supabase
+    .from("teams")
+    .select("id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id")
+    .or(orFilter)
+    .order("created_at", { ascending: false })
+  return {
+    scope,
+    orFilter,
+    teams: (data ?? []) as AdVisibleTeamRow[],
+    error: error?.message ?? null,
+  }
+}
+
+export function logAdDashboardMetrics(
+  label: string,
+  payload: {
+    scope: AthleticDirectorScope
+    sessionRole: string | null
+    visibleTeamIds: string[]
+    teamCount: number
+    primaryHeadCoachRowsFound: number
+    coachCountDistinct: number
+    athleteCount: number
+    emptyStateTriggered: boolean
+    orFilter: string | null
+    teamsQueryError?: string | null
+    playersCountError?: string | null
+  }
+): void {
+  console.info(
+    `[ad-dashboard-metrics] ${label}`,
+    JSON.stringify({
+      userId: payload.scope.userId,
+      sessionRole: payload.sessionRole,
+      resolvedAdScope: {
+        profileSchoolId: payload.scope.profileSchoolId,
+        athleticDepartmentId: payload.scope.athleticDepartmentId,
+        organizationIds: payload.scope.organizationIds,
+        linkedProgramIds: payload.scope.linkedProgramIds,
+      },
+      visibleTeamIds: payload.visibleTeamIds,
+      teamCount: payload.teamCount,
+      primaryHeadCoachRowsFound: payload.primaryHeadCoachRowsFound,
+      coachCountDistinct: payload.coachCountDistinct,
+      athleteCount: payload.athleteCount,
+      emptyStateTriggered: payload.emptyStateTriggered,
+      teamsOrFilter: payload.orFilter,
+      teamsQueryError: payload.teamsQueryError ?? null,
+      playersCountError: payload.playersCountError ?? null,
+    })
+  )
+}

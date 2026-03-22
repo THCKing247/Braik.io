@@ -3,6 +3,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdEmptyState } from "@/components/portal/ad/ad-empty-state"
 import { AdCoachesTable } from "@/components/portal/ad/ad-coaches-table"
 import { fetchAdPrimaryHeadCoaches } from "@/lib/ad-primary-head-coaches"
+import { logAdDashboardMetrics, logAdTeamVisibility } from "@/lib/ad-team-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -11,7 +12,40 @@ export default async function AdCoachesPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  const { coaches } = await fetchAdPrimaryHeadCoaches(supabase, session.user.id, session.user.role ?? null)
+  const result = await fetchAdPrimaryHeadCoaches(supabase, session.user.id, session.user.role ?? null)
+  const {
+    coaches,
+    scope,
+    orFilter,
+    visibleTeamIds,
+    visibleTeamCount,
+    teamMembersHeadCoachRowCount,
+    distinctCoachUserCount,
+    teamsQueryError,
+  } = result
+
+  logAdTeamVisibility("AdCoachesPage", {
+    scope,
+    sessionRole: session.user.role ?? null,
+    teamCount: visibleTeamCount,
+    teamIds: visibleTeamIds,
+    filter: orFilter,
+    queryError: teamsQueryError,
+  })
+
+  logAdDashboardMetrics("AdCoachesPage", {
+    scope,
+    sessionRole: session.user.role ?? null,
+    visibleTeamIds,
+    teamCount: visibleTeamCount,
+    primaryHeadCoachRowsFound: teamMembersHeadCoachRowCount,
+    coachCountDistinct: distinctCoachUserCount,
+    athleteCount: 0,
+    emptyStateTriggered: coaches.length === 0,
+    orFilter,
+    teamsQueryError,
+    playersCountError: null,
+  })
 
   return (
     <div className="space-y-8">

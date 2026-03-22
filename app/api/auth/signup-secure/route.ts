@@ -7,6 +7,7 @@ import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { headCoachSignupTeamLevels } from "@/lib/onboarding/head-coach-team-levels"
 import { logTeamMembersAudit, setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
+import { getRequestClientIp } from "@/lib/http/request-client-ip"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 
@@ -36,6 +37,7 @@ type RawSignupBody = {
   teamName?: string
   teamId?: string
   sportType?: string
+  smsOptIn?: boolean
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -70,6 +72,10 @@ function generateSecureInviteCode(length = 8): string {
   return code
 }
 
+function parseOptIn(value: unknown): boolean {
+  return value === true || value === "true"
+}
+
 function parseSignupPayload(body: RawSignupBody) {
   const fullName = asNonEmptyString(body.fullName) ?? asNonEmptyString(body.name)
   const programName = asNonEmptyString(body.programName) ?? asNonEmptyString(body.teamName)
@@ -81,6 +87,7 @@ function parseSignupPayload(body: RawSignupBody) {
   const programCode =
     (asNonEmptyString(body.programCode) ?? asNonEmptyString(body.teamId))?.toUpperCase() ?? null
   const role = normalizeRole(asNonEmptyString(body.role))
+  const smsOptIn = parseOptIn(body.smsOptIn)
 
   return {
     fullName,
@@ -92,6 +99,7 @@ function parseSignupPayload(body: RawSignupBody) {
     sport,
     programType,
     programCode,
+    smsOptIn,
   }
 }
 
@@ -123,7 +131,8 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as RawSignupBody
-    const { fullName, programName, email, password, role, phone, sport, programType, programCode } = parseSignupPayload(body)
+    const { fullName, programName, email, password, role, phone, sport, programType, programCode, smsOptIn } =
+      parseSignupPayload(body)
 
     // programName and sport are only required when the user is creating a new team (head_coach)
     const isHeadCoach = role === "head_coach"
@@ -142,6 +151,13 @@ export async function POST(request: Request) {
 
     if (password.length < 8) {
       throw new SignupRouteError(400, "Password must be at least 8 characters")
+    }
+
+    if (phone && !smsOptIn) {
+      throw new SignupRouteError(
+        400,
+        "When you add a mobile number, please agree to transactional SMS messages from Braik (see checkbox) or remove the phone number to continue."
+      )
     }
 
     // Prevent privileged role assignment through public signup.
@@ -651,6 +667,9 @@ export async function POST(request: Request) {
     }
     // else: no code provided — user signs up without a team and will connect later.
 
+    const smsConsent = Boolean(phone) && smsOptIn
+    const consentIp = getRequestClientIp(request)
+
     const { error: profileInsertError } = await supabase.from("profiles").upsert({
       id: createdAuthUserId,
       email,
@@ -660,6 +679,11 @@ export async function POST(request: Request) {
       phone: phone ?? null,
       sport: sport ?? null,
       program_name: programName ?? null,
+      sms_opt_in: smsConsent,
+      sms_opt_in_at: smsConsent ? new Date().toISOString() : null,
+      sms_opt_in_method: smsConsent ? "web_form" : null,
+      sms_opt_in_ip: smsConsent ? consentIp : null,
+      sms_opt_in_source: smsConsent ? "signup" : null,
     })
 
     if (profileInsertError) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +16,7 @@ import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-
 import { startOfDay } from "date-fns"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { PLAYER_DOCUMENT_UPLOAD_HELPER, PLAYER_DOCUMENT_CONSENT_TEXT } from "@/lib/player-documents/constants"
+import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity" | "development"
 
@@ -62,6 +63,7 @@ export function PlayerProfileView({
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null)
   const [cropFileName, setCropFileName] = useState<string>("photo.jpg")
   const photoInputRef = useRef<HTMLInputElement | null>(null)
+  const [smsConsentOptIn, setSmsConsentOptIn] = useState(false)
 
   const hasEdits = Object.keys(editDraft).length > 0
 
@@ -228,12 +230,28 @@ export function PlayerProfileView({
 
   const handleSave = async () => {
     if (!profile || !canEditProfile) return
+
+    if (editDraft.playerPhone !== undefined) {
+      const next = String(editDraft.playerPhone ?? "").trim()
+      if (next && !smsConsentOptIn) {
+        setSaveMessage({
+          type: "error",
+          text: "To save a mobile number for SMS notifications, confirm the SMS consent box below (see Privacy Policy and Terms of Service).",
+        })
+        return
+      }
+    }
+
     setSaving(true)
     try {
       const body: Record<string, unknown> = { teamId }
       if (editDraft.preferredName !== undefined) body.preferredName = editDraft.preferredName
       if (editDraft.playerEmail !== undefined) body.playerEmail = editDraft.playerEmail
-      if (editDraft.playerPhone !== undefined) body.playerPhone = editDraft.playerPhone
+      if (editDraft.playerPhone !== undefined) {
+        body.playerPhone = editDraft.playerPhone
+        const next = String(editDraft.playerPhone ?? "").trim()
+        if (next) body.smsTransactionalOptIn = smsConsentOptIn
+      }
       if (editDraft.address !== undefined) body.address = editDraft.address
       if (editDraft.emergencyContact !== undefined) body.emergencyContact = editDraft.emergencyContact
       if (canEdit) {
@@ -291,6 +309,21 @@ export function PlayerProfileView({
     if (s === "unavailable" || s === "inactive") return "bg-orange-100 text-orange-700 border-orange-200"
     return "bg-green-100 text-green-700 border-green-200"
   }
+
+  const mergedPhoneForSms = useMemo(() => {
+    if (!profile) return ""
+    const d = editDraft.playerPhone
+    if (d !== undefined) return String(d ?? "").trim()
+    return profile.playerPhone?.trim() ?? ""
+  }, [editDraft.playerPhone, profile])
+
+  useEffect(() => {
+    if (profile) setSmsConsentOptIn(profile.smsTransactionalOptIn ?? false)
+  }, [profile?.id, profile?.smsTransactionalOptIn])
+
+  useEffect(() => {
+    if (!mergedPhoneForSms) setSmsConsentOptIn(false)
+  }, [mergedPhoneForSms])
 
   if (loading) {
     return (
@@ -491,6 +524,18 @@ export function PlayerProfileView({
           )}
           {activeTab === "development" && (
             <PlayerDevelopmentTab playerId={playerId} canEdit={canEditProfile} />
+          )}
+
+          {canEditProfile && (activeTab === "overview" || activeTab === "info") && mergedPhoneForSms.length > 0 && (
+            <div className="mt-6 border-t border-[#E5E7EB] pt-6">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Transactional SMS</p>
+              <SmsConsentCheckbox
+                id={`player-profile-sms-${playerId}`}
+                checked={smsConsentOptIn}
+                onChange={setSmsConsentOptIn}
+                disabled={saving}
+              />
+            </div>
           )}
         </CardContent>
       </Card>

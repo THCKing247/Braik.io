@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 import Link from "next/link"
+import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 
 export default function SignupPage() {
   const router = useRouter()
@@ -23,6 +24,8 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [playerAge, setPlayerAge] = useState("")
   const [parentEmail, setParentEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [smsOptIn, setSmsOptIn] = useState(false)
 
   const [acceptLegalBundle, setAcceptLegalBundle] = useState(false)
   const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
@@ -43,6 +46,8 @@ export default function SignupPage() {
       setEmail(data.email || "")
       setPlayerAge(data.playerAge || "")
       setParentEmail(data.parentEmail || "")
+      setPhone(data.phone || "")
+      setSmsOptIn(Boolean(data.smsOptIn))
       const c = data?.compliance
       setAcceptLegalBundle(
         Boolean(c?.terms?.acceptedAt) &&
@@ -115,6 +120,17 @@ export default function SignupPage() {
       return
     }
 
+    const phoneTrim = phone.trim()
+    if (phoneTrim && !smsOptIn) {
+      setError(
+        withErrorCode(
+          "SIGNUP-SMS-001",
+          "You added a mobile number — please agree to transactional SMS messages from Braik (see below) or clear the phone field to continue."
+        )
+      )
+      return
+    }
+
     // Save to localStorage
     const saved = localStorage.getItem("signupData")
     const signupData = saved ? JSON.parse(saved) : {}
@@ -125,6 +141,8 @@ export default function SignupPage() {
     signupData.role = role
     signupData.playerAge = playerAge
     signupData.parentEmail = parentEmail
+    signupData.phone = phoneTrim || undefined
+    signupData.smsOptIn = phoneTrim ? smsOptIn : false
     signupData.compliance = {
       terms: {
         version: LEGAL_POLICY_VERSIONS.terms,
@@ -303,6 +321,32 @@ export default function SignupPage() {
                       required
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone" className="text-sm font-medium text-foreground">
+                      Mobile phone <span className="font-normal text-[#9CA3AF]">(optional)</span>
+                    </Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={(e) => {
+                        setPhone(e.target.value)
+                        if (!e.target.value.trim()) setSmsOptIn(false)
+                      }}
+                      className="bg-background text-foreground placeholder:text-muted-foreground"
+                      placeholder="+1 (555) 123-4567"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Used only for transactional texts about your team (invites, schedule, roster, account alerts). Message frequency varies. Reply STOP to opt out.
+                    </p>
+                  </div>
+
+                  {phone.trim() ? (
+                    <SmsConsentCheckbox id="signup-sms-consent" checked={smsOptIn} onChange={setSmsOptIn} />
+                  ) : null}
 
                   {role === "player" && (
                     <div className="space-y-2">

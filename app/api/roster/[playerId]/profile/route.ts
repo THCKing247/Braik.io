@@ -14,6 +14,7 @@ import type { PlayerProfileUpdateBody } from "@/types/player-profile"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 import { isLinkedParentOfPlayer } from "@/lib/player-documents/access"
+import { getRequestClientIp } from "@/lib/http/request-client-ip"
 
 /**
  * GET /api/roster/[playerId]/profile?teamId=xxx
@@ -49,7 +50,7 @@ export async function GET(
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select(
-        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, address, emergency_contact, medical_notes, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs"
+        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, medical_notes, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs"
       )
       .eq("id", playerId)
       .eq("team_id", teamId)
@@ -163,6 +164,8 @@ export async function PATCH(
       ? (body as Record<string, unknown>)
       : filterBodyForPlayerSelfEdit(body as Record<string, unknown>)
 
+    const consentIp = getRequestClientIp(request)
+
     const updates: Record<string, unknown> = {}
 
     const prevRosterStatus = ((player as { status?: string }).status ?? "active") as string
@@ -222,7 +225,35 @@ export async function PATCH(
     // Self-edit fields (both coach and player when editing own)
     if (bodyToUse.preferredName !== undefined) updates.preferred_name = (bodyToUse.preferredName as string)?.trim() ?? null
     if (bodyToUse.playerEmail !== undefined) updates.email = (bodyToUse.playerEmail as string)?.trim()?.toLowerCase() ?? null
-    if (bodyToUse.playerPhone !== undefined) updates.player_phone = (bodyToUse.playerPhone as string)?.trim() ?? null
+    if (bodyToUse.playerPhone !== undefined) {
+      const nextPhone = (bodyToUse.playerPhone as string)?.trim() ?? ""
+      if (nextPhone) {
+        const consent = bodyToUse.smsTransactionalOptIn === true
+        if (!consent) {
+          return NextResponse.json(
+            {
+              error:
+                "To save a mobile number for SMS notifications, please confirm SMS consent below. You can review the Privacy Policy and Terms of Service for details.",
+              code: "SMS_CONSENT_REQUIRED",
+            },
+            { status: 400 }
+          )
+        }
+        updates.player_phone = nextPhone
+        updates.sms_opt_in = true
+        updates.sms_opt_in_at = new Date().toISOString()
+        updates.sms_opt_in_method = "web_form"
+        updates.sms_opt_in_ip = consentIp
+        updates.sms_opt_in_source = "profile_update"
+      } else {
+        updates.player_phone = null
+        updates.sms_opt_in = false
+        updates.sms_opt_in_at = null
+        updates.sms_opt_in_method = null
+        updates.sms_opt_in_ip = null
+        updates.sms_opt_in_source = null
+      }
+    }
     if (bodyToUse.address !== undefined) updates.address = (bodyToUse.address as string)?.trim() ?? null
     if (bodyToUse.emergencyContact !== undefined) updates.emergency_contact = (bodyToUse.emergencyContact as string)?.trim() ?? null
 

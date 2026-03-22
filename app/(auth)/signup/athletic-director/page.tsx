@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SiteHeader } from "@/components/marketing/site-header"
 import Link from "next/link"
+import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 
 export default function AthleticDirectorSignupPage() {
   const router = useRouter()
@@ -26,6 +27,7 @@ export default function AthleticDirectorSignupPage() {
   const [estimatedTeamCount, setEstimatedTeamCount] = useState<string>("")
   const [estimatedAthleteCount, setEstimatedAthleteCount] = useState<string>("")
   const [phone, setPhone] = useState("")
+  const [smsOptIn, setSmsOptIn] = useState(false)
   const [website, setWebsite] = useState("")
   const [conferenceDistrict, setConferenceDistrict] = useState("")
   const [interestedInDemo, setInterestedInDemo] = useState(false)
@@ -58,6 +60,13 @@ export default function AthleticDirectorSignupPage() {
       return
     }
 
+    if (phone.trim() && !smsOptIn) {
+      setError(
+        "You entered a mobile number — please agree to transactional SMS messages from Braik or clear the phone field."
+      )
+      return
+    }
+
     setSubmitting(true)
     try {
       const res = await fetch("/api/auth/signup-athletic-director", {
@@ -76,6 +85,7 @@ export default function AthleticDirectorSignupPage() {
           estimatedTeamCount: estimatedTeamCount ? parseInt(estimatedTeamCount, 10) : undefined,
           estimatedAthleteCount: estimatedAthleteCount ? parseInt(estimatedAthleteCount, 10) : undefined,
           phone: phone.trim() || undefined,
+          smsOptIn: phone.trim() ? smsOptIn : false,
           website: website.trim() || undefined,
           conferenceDistrict: conferenceDistrict.trim() || undefined,
           interestedInDemo: interestedInDemo || undefined,
@@ -181,11 +191,33 @@ export default function AthleticDirectorSignupPage() {
               <Input
                 id="phone"
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 123-4567"
+                onChange={(e) => {
+                  setPhone(e.target.value)
+                  if (!e.target.value.trim()) setSmsOptIn(false)
+                }}
+                placeholder="+1 (555) 123-4567"
               />
+              <p className="text-xs text-[#6B7280]">
+                Transactional SMS only (team and account notices). Message frequency varies. Reply STOP to opt out.
+              </p>
             </div>
+            {phone.trim() ? (
+              <SmsConsentCheckbox id="ad-signup-sms-consent" checked={smsOptIn} onChange={setSmsOptIn} />
+            ) : null}
+            <p className="text-sm text-[#495057]">
+              By creating an account you agree to the{" "}
+              <Link href="/terms" className="font-medium text-[#2563EB] hover:underline" target="_blank" rel="noopener noreferrer">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="font-medium text-[#2563EB] hover:underline" target="_blank" rel="noopener noreferrer">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </div>
 
           <div className="space-y-4 border-t border-[#E5E7EB] pt-8">

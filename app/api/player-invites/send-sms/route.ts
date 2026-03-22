@@ -42,6 +42,9 @@ function isValidE164(phone: string): boolean {
   return phone.startsWith("+") && digits.length >= 10
 }
 
+const allowDirectSms =
+  process.env.BRAIK_ALLOW_DIRECT_SMS === "true" || process.env.NODE_ENV !== "production"
+
 /**
  * POST /api/player-invites/send-sms
  * Body (coach flow): { playerId: string }
@@ -73,6 +76,16 @@ export async function POST(request: Request) {
 
     // --- Direct send: phone + inviteLink provided (e.g. testing or server-to-server) ---
     if (phoneRaw && inviteLink && !playerId) {
+      if (!allowDirectSms) {
+        return NextResponse.json(
+          {
+            error:
+              "Direct SMS to an arbitrary number is disabled. Use the roster invite flow so consent is tied to the player record.",
+            code: "DIRECT_SMS_DISABLED",
+          },
+          { status: 403 }
+        )
+      }
       const toPhone = normalizePhone(phoneRaw)
       if (!toPhone || !isValidE164(toPhone)) {
         return NextResponse.json(
@@ -114,7 +127,7 @@ export async function POST(request: Request) {
 
     const { data: player, error: playerErr } = await supabase
       .from("players")
-      .select("id, team_id, first_name, last_name, player_phone, user_id")
+      .select("id, team_id, first_name, last_name, player_phone, user_id, sms_opt_in")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -133,6 +146,19 @@ export async function POST(request: Request) {
     if (!phoneStr) {
       logInviteAction("send_sms_skipped", { playerId, reason: "missing_phone" })
       return NextResponse.json({ error: "Missing phone", code: "MISSING_PHONE" }, { status: 400 })
+    }
+
+    const optedIn = Boolean((player as { sms_opt_in?: boolean | null }).sms_opt_in)
+    if (!optedIn) {
+      logInviteAction("send_sms_skipped", { playerId, reason: "sms_not_opted_in" })
+      return NextResponse.json(
+        {
+          error:
+            "Transactional SMS requires consent on file for this mobile number. Update the player profile: enter the phone number and confirm SMS consent, then try again.",
+          code: "SMS_CONSENT_REQUIRED",
+        },
+        { status: 400 }
+      )
     }
 
     const toPhone = normalizePhone(phoneStr)

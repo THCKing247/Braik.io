@@ -30,6 +30,7 @@ export type DbPlayerRow = {
   school?: string | null
   parent_guardian_contact?: string | null
   player_phone?: string | null
+  sms_opt_in?: boolean | null
   address?: string | null
   emergency_contact?: string | null
   medical_notes?: string | null
@@ -83,6 +84,7 @@ export function mapRowToProfile(
     parentGuardianContact: row.parent_guardian_contact ?? null,
     playerEmail: row.email ?? null,
     playerPhone: row.player_phone ?? null,
+    smsTransactionalOptIn: Boolean(row.sms_opt_in),
     address: row.address ?? null,
     emergencyContact: row.emergency_contact ?? null,
     medicalNotes: row.medical_notes ?? null,
@@ -147,10 +149,15 @@ export function validateDateOfBirth(value: unknown): string | null {
 /** Allowed body keys for player self-edit. Coach can send any; player only these. */
 export const ALLOWED_SELF_EDIT_KEYS = new Set<string>(PLAYER_SELF_EDIT_FIELDS as unknown as string[])
 
+const SELF_EDIT_EXTRA_KEYS = new Set(["smsTransactionalOptIn"])
+
 /** Filter PATCH body to only allowed keys when requester is not a coach. */
 export function filterBodyForPlayerSelfEdit(body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const key of ALLOWED_SELF_EDIT_KEYS) {
+    if (key in body) out[key] = body[key]
+  }
+  for (const key of SELF_EDIT_EXTRA_KEYS) {
     if (key in body) out[key] = body[key]
   }
   return out

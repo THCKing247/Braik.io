@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
+import { getRequestClientIp } from "@/lib/http/request-client-ip"
 
 type SignupPayload = {
   fullName?: string
@@ -17,6 +18,7 @@ type SignupPayload = {
   teamName?: string
   teamId?: string
   sportType?: string
+  smsOptIn?: boolean
 }
 
 const ROLE_MAP: Record<string, string> = {
@@ -62,10 +64,22 @@ export async function POST(request: Request) {
     const programName = toStringOrNull(body.programName) || toStringOrNull(body.teamName) || "Program"
     const sport = toStringOrNull(body.sport) || toStringOrNull(body.sportType) || "Football"
     const phone = toStringOrNull(body.phone) || ""
+    const smsOptIn = body.smsOptIn === true
     const programCode = (toStringOrNull(body.programCode) || toStringOrNull(body.teamId) || "").toUpperCase()
 
     if (!email || !password || !role) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 })
+    }
+
+    if (phone && !smsOptIn) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "When you add a mobile number, please agree to transactional SMS messages from Braik or leave the phone field blank.",
+        },
+        { status: 400 }
+      )
     }
 
     const { data: authUser, error: authError } = await supabaseServerClient.auth.admin.createUser({
@@ -139,6 +153,9 @@ export async function POST(request: Request) {
       teamId = invite.team_id as string
     }
 
+    const smsConsent = Boolean(phone?.trim()) && smsOptIn
+    const consentIp = getRequestClientIp(request)
+
     const { error: profileError } = await supabaseServerClient.from("profiles").upsert({
       id: authUser.user.id,
       email,
@@ -148,6 +165,11 @@ export async function POST(request: Request) {
       phone,
       sport,
       program_name: programName,
+      sms_opt_in: smsConsent,
+      sms_opt_in_at: smsConsent ? new Date().toISOString() : null,
+      sms_opt_in_method: smsConsent ? "web_form" : null,
+      sms_opt_in_ip: smsConsent ? consentIp : null,
+      sms_opt_in_source: smsConsent ? "signup" : null,
     })
 
     if (profileError) {

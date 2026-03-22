@@ -6,6 +6,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import Link from "next/link"
 
 export type InviteDetails = {
   id: string
@@ -199,6 +200,18 @@ export function InviteAcceptCard({ invite, onAcceptSuccess }: InviteAcceptCardPr
         </dl>
       </div>
       <div className="p-6 space-y-4">
+        <p className="text-xs text-[#6B7280] leading-relaxed">
+          By joining Braik you agree to the{" "}
+          <Link href="/terms" className="font-medium text-[#3B82F6] hover:underline" target="_blank" rel="noopener noreferrer">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="font-medium text-[#3B82F6] hover:underline" target="_blank" rel="noopener noreferrer">
+            Privacy Policy
+          </Link>
+          . If you add a mobile number later in your profile, transactional SMS requires a separate opt-in with carrier-compliant
+          consent language.
+        </p>
         {error && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-800">
             {error}

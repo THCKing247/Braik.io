@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -81,6 +81,8 @@ export default function PaymentPage() {
           primaryColor: signupData.primaryColor,
           secondaryColor: signupData.secondaryColor,
           compliance: signupData.compliance,
+          phone: signupData.phone,
+          smsOptIn: Boolean(signupData.smsOptIn),
         }),
       })
 

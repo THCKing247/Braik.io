@@ -86,7 +86,16 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              <div className="border-t border-[#E5E7EB] pt-5 text-center">
+              <div className="border-t border-[#E5E7EB] pt-5 text-center space-y-3">
+                <p className="text-xs text-[#9CA3AF]">
+                  <Link href="/privacy" className="text-[#6c757d] hover:text-[#3B82F6] hover:underline">
+                    Privacy Policy
+                  </Link>
+                  <span className="mx-2">·</span>
+                  <Link href="/terms" className="text-[#6c757d] hover:text-[#3B82F6] hover:underline">
+                    Terms of Service
+                  </Link>
+                </p>
                 <p className="text-sm text-[#6c757d]">
                   Don&apos;t have an account?{" "}
                   <Link href="/signup/role" className="font-medium text-[#3B82F6] hover:underline">

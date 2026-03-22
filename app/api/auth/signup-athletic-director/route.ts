@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
+import { getRequestClientIp } from "@/lib/http/request-client-ip"
 
 type ADSignupBody = {
   firstName?: string
@@ -18,6 +19,7 @@ type ADSignupBody = {
   website?: string
   conferenceDistrict?: string
   interestedInDemo?: boolean
+  smsOptIn?: boolean
 }
 
 function asNonEmptyString(v: unknown): string | null {
@@ -63,6 +65,7 @@ export async function POST(request: Request) {
       typeof body.estimatedTeamCount === "number" ? body.estimatedTeamCount : null
     const estimatedAthleteCount =
       typeof body.estimatedAthleteCount === "number" ? body.estimatedAthleteCount : null
+    const smsOptIn = body.smsOptIn === true
 
     if (!firstName || !lastName || !email || !password || !schoolName || !schoolType) {
       return NextResponse.json(
@@ -74,6 +77,16 @@ export async function POST(request: Request) {
     if (password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters." },
+        { status: 400 }
+      )
+    }
+
+    if (phone && !smsOptIn) {
+      return NextResponse.json(
+        {
+          error:
+            "When you add a mobile number, please agree to transactional SMS messages from Braik or leave the phone field blank.",
+        },
         { status: 400 }
       )
     }
@@ -171,6 +184,9 @@ export async function POST(request: Request) {
       )
     }
 
+    const smsConsent = Boolean(phone) && smsOptIn
+    const consentIp = getRequestClientIp(request)
+
     const profilePayload: Record<string, unknown> = {
       id: createdAuthUserId,
       email,
@@ -180,6 +196,11 @@ export async function POST(request: Request) {
       phone: phone ?? null,
       sport: null,
       program_name: schoolName,
+      sms_opt_in: smsConsent,
+      sms_opt_in_at: smsConsent ? new Date().toISOString() : null,
+      sms_opt_in_method: smsConsent ? "web_form" : null,
+      sms_opt_in_ip: smsConsent ? consentIp : null,
+      sms_opt_in_source: smsConsent ? "signup" : null,
     }
     const { error: profileError } = await supabase
       .from("profiles")

@@ -131,10 +131,22 @@ export function MobileAppLoginScreen() {
       </main>
 
       <footer className="relative z-10 shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
-        <div className="mx-auto max-w-md text-center">
+        <div className="mx-auto flex max-w-md flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-slate-500">
+          <Link href="/privacy" className="font-medium text-slate-400 transition-colors hover:text-slate-300">
+            Privacy
+          </Link>
+          <span aria-hidden className="text-slate-600">
+            ·
+          </span>
+          <Link href="/terms" className="font-medium text-slate-400 transition-colors hover:text-slate-300">
+            Terms
+          </Link>
+          <span aria-hidden className="text-slate-600">
+            ·
+          </span>
           <Link
             href="/faq"
-            className="inline-flex min-h-[44px] items-center justify-center text-xs font-medium text-slate-400 transition-colors hover:text-slate-300"
+            className="inline-flex min-h-[44px] items-center justify-center font-medium text-slate-400 transition-colors hover:text-slate-300"
           >
             Help &amp; FAQ
           </Link>

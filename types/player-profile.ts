@@ -19,6 +19,8 @@ export interface PlayerProfileBasic {
   parentGuardianContact?: string | null
   playerEmail?: string | null
   playerPhone?: string | null
+  /** Transactional SMS opt-in for player_phone (compliance). */
+  smsTransactionalOptIn?: boolean
   address?: string | null
   emergencyContact?: string | null
   medicalNotes?: string | null
@@ -91,6 +93,8 @@ export interface PlayerProfileUpdateBody {
   preferredName?: string | null
   playerEmail?: string | null
   playerPhone?: string | null
+  /** Required when saving a non-empty playerPhone (transactional SMS consent). */
+  smsTransactionalOptIn?: boolean
   address?: string | null
   emergencyContact?: string | null
   // Coach-only (ignored when from player)

@@ -1,4 +1,5 @@
-﻿import { SiteHeader } from "@/components/marketing/site-header"
+import Link from "next/link"
+import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { LegalReadTracker } from "@/components/marketing/legal-read-tracker"
 import { LEGAL_POLICY_REVIEW_KEYS, LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
@@ -44,6 +45,13 @@ export default function TermsPage() {
               <p>
                 Braik is a sports team management and AI-assisted coordination platform designed for coaches,
                 assistants, players, and parents.
+              </p>
+              <p>
+                You agree to follow the{" "}
+                <Link href="/acceptable-use" className="text-[#60A5FA] underline hover:text-white">
+                  Acceptable Use Policy
+                </Link>
+                , which describes prohibited and restricted uses of the Platform.
               </p>
             </div>
 
@@ -151,7 +159,28 @@ export default function TermsPage() {
 
             <div className="space-y-3">
               <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">
-                8. Payments & Financial Processing
+                8. SMS Terms and Communications Consent
+              </h2>
+              <p>
+                If you provide a mobile phone number and opt in, you agree to receive transactional SMS messages from Braik
+                about your account and team participation. These messages may include invitations, scheduling alerts, roster
+                updates, and account-related notifications. Message frequency varies by team activity. You can opt out at any
+                time by replying STOP to a message. After you opt out, you may miss important team updates unless you rely on
+                email or in-app notices.
+              </p>
+              <p>
+                Braik may change, suspend, or discontinue SMS or other messaging features at any time. Carriers are not liable
+                for delayed or undelivered messages. Standard message and data rates may apply depending on your mobile plan.
+              </p>
+              <p>
+                You are responsible for providing an accurate mobile number and keeping it up to date. If your number changes,
+                update it in your profile so your team can reach you.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">
+                9. Payments & Financial Processing
               </h2>
               <p>Braik may allow coaches to:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -167,7 +196,7 @@ export default function TermsPage() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">9. Data Security</h2>
+              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">10. Data Security</h2>
               <p>We implement reasonable administrative and technical safeguards to protect data.</p>
               <p>However:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -177,7 +206,7 @@ export default function TermsPage() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">10. Service Availability</h2>
+              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">11. Service Availability</h2>
               <p>We strive for uptime and reliability but do not guarantee uninterrupted access.</p>
               <p>We are not liable for downtime due to:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -189,7 +218,7 @@ export default function TermsPage() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">11. Termination</h2>
+              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">12. Termination</h2>
               <p>We may suspend or terminate accounts for:</p>
               <ul className="list-disc list-inside space-y-1">
                 <li>Violating these Terms</li>
@@ -201,7 +230,7 @@ export default function TermsPage() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">12. Limitation of Liability</h2>
+              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">13. Limitation of Liability</h2>
               <p>To the fullest extent permitted by law:</p>
               <p>Braik and Apex Technical Solutions Group LLC are not liable for:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -215,8 +244,19 @@ export default function TermsPage() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">13. Governing Law</h2>
+              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">14. Governing Law</h2>
               <p>These Terms are governed by the laws of the State of Florida.</p>
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">15. Contact</h2>
+              <p>
+                Questions about these Terms or the Braik service:{" "}
+                <a href="mailto:support@braik.io" className="text-[#60A5FA] underline hover:text-white">
+                  support@braik.io
+                </a>
+              </p>
+              <p className="text-sm text-white/80">Company: Apex Technical Solutions Group LLC</p>
             </div>
 
             <LegalReadTracker

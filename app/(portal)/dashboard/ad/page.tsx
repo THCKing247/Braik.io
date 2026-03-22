@@ -3,12 +3,12 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 import Link from "next/link"
+import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
 import {
   fetchAdVisibleTeams,
   logAdDashboardMetrics,
   logAdTeamVisibility,
 } from "@/lib/ad-team-scope"
-import { fetchAdPrimaryHeadCoachesForVisibleTeams } from "@/lib/ad-primary-head-coaches"
 
 export const dynamic = "force-dynamic"
 
@@ -67,19 +67,14 @@ export default async function AthleticDirectorOverviewPage() {
     playersCountError = playersErr?.message ?? null
   }
 
-  let coachesCount = 0
-  let primaryHeadCoachRowsFound = 0
-  if (orFilter && !teamsQueryError && visibleTeams.length > 0) {
-    const coachData = await fetchAdPrimaryHeadCoachesForVisibleTeams(supabase, {
-      teamRows: visibleTeams.map((t) => ({ id: t.id as string, name: t.name ?? null })),
-      scope,
-      orFilter,
-      sessionUserId: session.user.id,
-      sessionRole: session.user.role ?? null,
-    })
-    coachesCount = coachData.distinctCoachUserCount
-    primaryHeadCoachRowsFound = coachData.teamMembersHeadCoachRowCount
+  let headCoachCount = 0
+  let assistantCoachCount = 0
+  if (teamIds.length > 0 && !teamsQueryError) {
+    const roleCounts = await fetchAdCoachRoleCountsByLevel(supabase, teamIds)
+    headCoachCount = roleCounts.headCoachCount
+    assistantCoachCount = roleCounts.assistantCoachCount
   }
+  const totalCoachMemberships = headCoachCount + assistantCoachCount
 
   const emptyStateTriggered = teamsCount === 0
 
@@ -88,8 +83,9 @@ export default async function AthleticDirectorOverviewPage() {
     sessionRole: session.user.role ?? null,
     visibleTeamIds: teamIds,
     teamCount: teamsCount,
-    primaryHeadCoachRowsFound,
-    coachCountDistinct: coachesCount,
+    headCoachMembershipCount: headCoachCount,
+    assistantCoachMembershipCount: assistantCoachCount,
+    totalCoachMemberships,
     athleteCount: athletesCount,
     emptyStateTriggered,
     orFilter,
@@ -109,7 +105,8 @@ export default async function AthleticDirectorOverviewPage() {
       <AdOverviewCards
         totalTeams={teamsCount}
         totalAthletes={athletesCount}
-        totalCoaches={coachesCount}
+        headCoachCount={headCoachCount}
+        assistantCoachCount={assistantCoachCount}
         totalParents={0}
         planStatus={department?.status ?? "active"}
         departmentPlan="Athletic Department License"

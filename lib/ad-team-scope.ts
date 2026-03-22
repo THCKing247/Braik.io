@@ -173,8 +173,9 @@ export function logAdDashboardMetrics(
     sessionRole: string | null
     visibleTeamIds: string[]
     teamCount: number
-    primaryHeadCoachRowsFound: number
-    coachCountDistinct: number
+    headCoachMembershipCount: number
+    assistantCoachMembershipCount: number
+    totalCoachMemberships: number
     athleteCount: number
     emptyStateTriggered: boolean
     orFilter: string | null
@@ -195,8 +196,9 @@ export function logAdDashboardMetrics(
       },
       visibleTeamIds: payload.visibleTeamIds,
       teamCount: payload.teamCount,
-      primaryHeadCoachRowsFound: payload.primaryHeadCoachRowsFound,
-      coachCountDistinct: payload.coachCountDistinct,
+      headCoachMembershipCount: payload.headCoachMembershipCount,
+      assistantCoachMembershipCount: payload.assistantCoachMembershipCount,
+      totalCoachMemberships: payload.totalCoachMemberships,
       athleteCount: payload.athleteCount,
       emptyStateTriggered: payload.emptyStateTriggered,
       teamsOrFilter: payload.orFilter,

@@ -2,6 +2,7 @@ import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdEmptyState } from "@/components/portal/ad/ad-empty-state"
 import { AdCoachesTable } from "@/components/portal/ad/ad-coaches-table"
+import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
 import { fetchAdPrimaryHeadCoaches } from "@/lib/ad-primary-head-coaches"
 import { logAdDashboardMetrics, logAdTeamVisibility } from "@/lib/ad-team-scope"
 
@@ -13,16 +14,7 @@ export default async function AdCoachesPage() {
 
   const supabase = getSupabaseServer()
   const result = await fetchAdPrimaryHeadCoaches(supabase, session.user.id, session.user.role ?? null)
-  const {
-    coaches,
-    scope,
-    orFilter,
-    visibleTeamIds,
-    visibleTeamCount,
-    teamMembersHeadCoachRowCount,
-    distinctCoachUserCount,
-    teamsQueryError,
-  } = result
+  const { coaches, scope, orFilter, visibleTeamIds, visibleTeamCount, teamsQueryError } = result
 
   logAdTeamVisibility("AdCoachesPage", {
     scope,
@@ -33,13 +25,22 @@ export default async function AdCoachesPage() {
     queryError: teamsQueryError,
   })
 
+  let headCoachMembershipCount = 0
+  let assistantCoachMembershipCount = 0
+  if (visibleTeamIds.length > 0 && !teamsQueryError) {
+    const roleCounts = await fetchAdCoachRoleCountsByLevel(supabase, visibleTeamIds)
+    headCoachMembershipCount = roleCounts.headCoachCount
+    assistantCoachMembershipCount = roleCounts.assistantCoachCount
+  }
+
   logAdDashboardMetrics("AdCoachesPage", {
     scope,
     sessionRole: session.user.role ?? null,
     visibleTeamIds,
     teamCount: visibleTeamCount,
-    primaryHeadCoachRowsFound: teamMembersHeadCoachRowCount,
-    coachCountDistinct: distinctCoachUserCount,
+    headCoachMembershipCount,
+    assistantCoachMembershipCount,
+    totalCoachMemberships: headCoachMembershipCount + assistantCoachMembershipCount,
     athleteCount: 0,
     emptyStateTriggered: coaches.length === 0,
     orFilter,

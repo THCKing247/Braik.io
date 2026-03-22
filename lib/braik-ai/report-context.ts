@@ -196,21 +196,30 @@ export async function getReportContext(input: ContextModuleInput): Promise<Repor
   try {
     const { data: playerDocs, error: pdErr } = await supabase
       .from("player_documents")
-      .select("id, title, category, file_name, extracted_text")
+      .select("id, title, category, document_type, file_name, extracted_text")
       .eq("team_id", teamId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(30)
 
     if (!pdErr && playerDocs?.length) {
-      for (const d of playerDocs as Array<{ id: string; title: string; category: string; file_name: string; extracted_text?: string | null }>) {
+      for (const d of playerDocs as Array<{
+        id: string
+        title: string
+        category: string
+        document_type?: string | null
+        file_name: string
+        extracted_text?: string | null
+      }>) {
         const hasText = !!d.extracted_text?.trim()
         const fullText = hasText ? d.extracted_text!.trim() : ""
-        const excerpt = hasText ? fullText.slice(0, EXCERPT_CAP) : `${d.title} (${d.category ?? "other"})${d.file_name ? ` — ${d.file_name}` : ""}`
+        const cat = d.document_type || d.category || "other"
+        const excerpt = hasText ? fullText.slice(0, EXCERPT_CAP) : `${d.title} (${cat})${d.file_name ? ` — ${d.file_name}` : ""}`
         reports.push({
           id: d.id,
           source: "Player document",
           excerpt,
-          type: d.category ?? "other",
+          type: cat,
           hasExtractedText: hasText,
         })
       }

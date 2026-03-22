@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto"
 import { NextResponse } from "next/server"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
@@ -6,6 +7,12 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUploadRoot } from "@/lib/upload-path"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
+import { PLAYER_DOCUMENT_CONSENT_TEXT } from "@/lib/player-documents/constants"
+import {
+  buildPlayerDocumentStoragePath,
+  sanitizeFileName,
+  uploadPlayerDocumentToStorage,
+} from "@/lib/player-documents/storage"
 
 const ALLOWED_MIME = [
   "application/pdf",
@@ -70,24 +77,59 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Player not found" }, { status: 404 })
       }
 
-      const uploadsDir = join(getUploadRoot(), "uploads", "player-documents")
-      await mkdir(uploadsDir, { recursive: true })
-      const filePath = join(uploadsDir, secureName)
-      await writeFile(filePath, buffer)
-      const fileUrl = `/api/uploads/player-documents/${secureName}`
+      const { data: team } = await supabase.from("teams").select("program_id").eq("id", teamId).maybeSingle()
+      let programId: string | null = (team as { program_id?: string } | null)?.program_id ?? null
+      let orgId: string | null = null
+      if (programId) {
+        const { data: pr } = await supabase.from("programs").select("organization_id").eq("id", programId).maybeSingle()
+        orgId = (pr as { organization_id?: string } | null)?.organization_id ?? null
+      }
+
+      const docId = randomUUID()
+      const safeName = sanitizeFileName(file.name)
+      const storagePath = buildPlayerDocumentStoragePath({
+        orgId,
+        teamId,
+        playerId,
+        documentType: "other",
+        documentId: docId,
+        safeFileName: safeName,
+      })
+      const up = await uploadPlayerDocumentToStorage(supabase, storagePath, buffer, mime || "application/octet-stream")
+      if (up.error) {
+        return NextResponse.json({ error: up.error }, { status: 500 })
+      }
+
+      const uploadedAt = new Date().toISOString()
+      const retentionDays = 365
+      const expiresAt = new Date(new Date(uploadedAt).getTime() + retentionDays * 86400000).toISOString()
+      const consentNote = `${PLAYER_DOCUMENT_CONSENT_TEXT} (File processed via Braik AI assistant by authorized staff.)`
 
       const { data: doc, error: insertErr } = await supabase
         .from("player_documents")
         .insert({
+          id: docId,
           player_id: playerId,
           team_id: teamId,
+          org_id: orgId,
+          program_id: programId,
           title: file.name,
           file_name: file.name,
-          file_url: fileUrl,
+          file_path: storagePath,
+          file_url: null,
           file_size: file.size,
+          file_size_bytes: file.size,
           mime_type: mime || null,
           category: "other",
+          document_type: "other",
           created_by: session.user.id,
+          uploaded_by_profile_id: session.user.id,
+          consent_acknowledged: true,
+          consent_text: consentNote,
+          retention_days: retentionDays,
+          expires_at: expiresAt,
+          uploaded_at: uploadedAt,
+          status: "active",
           visible_to_player: false,
         })
         .select("id")
@@ -95,6 +137,7 @@ export async function POST(request: Request) {
 
       if (insertErr) {
         console.error("[POST /api/ai/upload] player_documents insert", insertErr.message)
+        await supabase.storage.from("player-documents").remove([storagePath]).catch(() => undefined)
         return NextResponse.json({ error: "Failed to save document" }, { status: 500 })
       }
 

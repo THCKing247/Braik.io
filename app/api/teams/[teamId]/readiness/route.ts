@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { computeReadiness } from "@/lib/readiness"
+import { activeDocumentCategoriesForReadiness } from "@/lib/readiness-documents"
 
 /**
  * GET /api/teams/[teamId]/readiness
@@ -62,7 +63,7 @@ export async function GET(
     const [docsRes, equipmentCounts, guardianCounts] = await Promise.all([
       supabase
         .from("player_documents")
-        .select("player_id, category")
+        .select("player_id, category, document_type, deleted_at, expires_at")
         .eq("team_id", teamId)
         .in("player_id", playerIds),
       supabase
@@ -77,12 +78,15 @@ export async function GET(
     ])
 
     const docsByPlayer = new Map<string, string[]>()
+    const byPlayerRaw = new Map<string, Array<{ category?: string | null; document_type?: string | null; deleted_at?: string | null; expires_at?: string | null }>>()
     ;(docsRes.data ?? []).forEach((d) => {
       const pid = (d as { player_id: string }).player_id
-      const cat = (d as { category: string }).category
-      const list = docsByPlayer.get(pid) ?? []
-      if (!list.includes(cat)) list.push(cat)
-      docsByPlayer.set(pid, list)
+      const list = byPlayerRaw.get(pid) ?? []
+      list.push(d as { category?: string | null; document_type?: string | null; deleted_at?: string | null; expires_at?: string | null })
+      byPlayerRaw.set(pid, list)
+    })
+    byPlayerRaw.forEach((rows, pid) => {
+      docsByPlayer.set(pid, activeDocumentCategoriesForReadiness(rows))
     })
 
     const equipmentByPlayer = new Map<string, number>()

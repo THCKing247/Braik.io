@@ -56,6 +56,9 @@ export default async function AdminProtectedLayout({
             <Link href="/admin/audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               Audit
             </Link>
+            <Link href="/admin/document-audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
+              Document audit
+            </Link>
             <Link href="/admin/settings/system" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               System Settings
             </Link>

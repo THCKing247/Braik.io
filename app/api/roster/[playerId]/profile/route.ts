@@ -13,6 +13,7 @@ import {
 import type { PlayerProfileUpdateBody } from "@/types/player-profile"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
+import { isLinkedParentOfPlayer } from "@/lib/player-documents/access"
 
 /**
  * GET /api/roster/[playerId]/profile?teamId=xxx
@@ -60,7 +61,8 @@ export async function GET(
 
     const row = player as DbPlayerRow
     const isOwnProfile = row.user_id === session.user.id
-    if (!isCoach && !isOwnProfile) {
+    const isParentViewer = await isLinkedParentOfPlayer(supabase, session.user.id, playerId)
+    if (!isCoach && !isOwnProfile && !isParentViewer) {
       return NextResponse.json(
         { error: "You can only view your own profile." },
         { status: 403 }
@@ -98,6 +100,7 @@ export async function GET(
       profile,
       canEdit: isCoach || isOwnProfile,
       isOwnProfile,
+      isParentViewer,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"

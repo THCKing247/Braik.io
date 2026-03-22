@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { computeReadiness } from "@/lib/readiness"
+import { activeDocumentCategoriesForReadiness } from "@/lib/readiness-documents"
 
 /**
  * GET /api/roster/[playerId]/readiness?teamId=xxx
@@ -67,10 +68,10 @@ export async function GET(
 
     const { data: docs } = await supabase
       .from("player_documents")
-      .select("category")
+      .select("category, document_type, deleted_at, expires_at")
       .eq("player_id", playerId)
       .eq("team_id", teamId)
-    const categories = (docs ?? []).map((d) => (d as { category: string }).category)
+    const categories = activeDocumentCategoriesForReadiness(docs ?? [])
 
     const { count } = await supabase
       .from("inventory_items")

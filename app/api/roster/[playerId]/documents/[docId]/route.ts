@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server"
-import { unlink } from "fs/promises"
-import { join } from "path"
-import { getUploadRoot } from "@/lib/upload-path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
+import { resolvePlayerDocumentAccess, canSoftDeleteDocument } from "@/lib/player-documents/access"
+import { removeStorageObject } from "@/lib/player-documents/storage"
+import { writeDocumentAuditLog } from "@/lib/player-documents/audit"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
+
+function clientIp(request: Request): string | null {
+  const xff = request.headers.get("x-forwarded-for")
+  if (xff) return xff.split(",")[0]?.trim() ?? null
+  return request.headers.get("x-real-ip")
+}
 
 /**
  * PATCH /api/roster/[playerId]/documents/[docId]
@@ -81,11 +87,10 @@ export async function PATCH(
 }
 
 /**
- * DELETE /api/roster/[playerId]/documents/[docId]
- * Delete a player document. Coach only.
+ * DELETE — soft-delete via same rules as /api/player-documents/[id]
  */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ playerId: string; docId: string }> }
 ) {
   try {
@@ -102,7 +107,7 @@ export async function DELETE(
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
-      .select("id, team_id")
+      .select("id, team_id, user_id")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -111,15 +116,14 @@ export async function DELETE(
     }
 
     const teamId = (player as { team_id: string }).team_id
-    await requireTeamAccess(teamId)
-    const membership = await getUserMembership(teamId)
-    if (!membership || !canEditRoster(membership.role)) {
-      return NextResponse.json({ error: "Only coaches can delete documents." }, { status: 403 })
+    const access = await resolvePlayerDocumentAccess(supabase, session.user.id, playerId, teamId)
+    if (!access?.canDelete) {
+      return NextResponse.json({ error: "You cannot delete this document." }, { status: 403 })
     }
 
     const { data: doc, error: docErr } = await supabase
       .from("player_documents")
-      .select("id, file_url, title")
+      .select("id, title, file_path, file_url, deleted_at, uploaded_by_profile_id, created_by")
       .eq("id", docId)
       .eq("player_id", playerId)
       .eq("team_id", teamId)
@@ -129,6 +133,57 @@ export async function DELETE(
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
+    const row = doc as Record<string, unknown>
+    if (row.deleted_at) {
+      return NextResponse.json({ error: "Already deleted" }, { status: 410 })
+    }
+
+    const playerOwnerUserId = (player as { user_id: string | null }).user_id
+    if (
+      !canSoftDeleteDocument(
+        access,
+        {
+          uploaded_by_profile_id: (row.uploaded_by_profile_id as string | null) ?? (row.created_by as string | null),
+          player_id: playerId,
+        },
+        playerOwnerUserId
+      )
+    ) {
+      return NextResponse.json({ error: "You cannot delete this document." }, { status: 403 })
+    }
+
+    const now = new Date().toISOString()
+    const { error: upErr } = await supabase
+      .from("player_documents")
+      .update({
+        deleted_at: now,
+        deleted_by_profile_id: session.user.id,
+        status: "deleted",
+        updated_at: now,
+      })
+      .eq("id", docId)
+
+    if (upErr) {
+      return NextResponse.json({ error: "Failed to delete document" }, { status: 500 })
+    }
+
+    const path = row.file_path as string | null
+    if (path) {
+      await removeStorageObject(supabase, path).catch(() => undefined)
+    }
+
+    const { data: prof } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle()
+    await writeDocumentAuditLog(supabase, {
+      documentId: docId,
+      actorProfileId: session.user.id,
+      actorRole: (prof as { role?: string } | null)?.role ?? null,
+      action: "delete",
+      accessMethod: "api",
+      ipAddress: clientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      metadata: { team_id: teamId, player_id: playerId, route: "roster_documents" },
+    })
+
     await logPlayerProfileActivity({
       playerId,
       teamId,
@@ -136,29 +191,8 @@ export async function DELETE(
       actionType: PLAYER_PROFILE_ACTION_TYPES.DOCUMENT_DELETED,
       targetType: "document",
       targetId: docId,
-      metadata: { title: (doc as { title?: string }).title ?? "" },
+      metadata: { title: (row.title as string) ?? "" },
     })
-
-    const fileUrl = (doc as { file_url?: string }).file_url
-    if (fileUrl?.startsWith("/api/uploads/player-documents/")) {
-      const fileName = fileUrl.replace("/api/uploads/player-documents/", "")
-      const filePath = join(getUploadRoot(), "uploads", "player-documents", fileName)
-      try {
-        await unlink(filePath)
-      } catch {
-        // ignore if already missing
-      }
-    }
-
-    const { error: deleteErr } = await supabase
-      .from("player_documents")
-      .delete()
-      .eq("id", docId)
-
-    if (deleteErr) {
-      console.error("[DELETE /api/roster/.../documents/...]", deleteErr.message)
-      return NextResponse.json({ error: "Failed to delete document" }, { status: 500 })
-    }
 
     return new NextResponse(null, { status: 204 })
   } catch (err) {

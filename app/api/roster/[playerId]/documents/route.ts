@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir, unlink } from "fs/promises"
-import { join } from "path"
-import { getUploadRoot } from "@/lib/upload-path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
-import { canEditRoster } from "@/lib/auth/roles"
-import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
-import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
+import { resolvePlayerDocumentAccess } from "@/lib/player-documents/access"
+import { effectiveDocumentStatus } from "@/lib/player-documents/status"
 
 /**
  * GET /api/roster/[playerId]/documents?teamId=xxx
- * List documents for this player. Coach: any player on team. Player: own profile only.
+ * Legacy list shape for roster integrations; prefer GET /api/player-documents for new UI.
  */
 export async function GET(
   request: Request,
@@ -31,64 +26,69 @@ export async function GET(
     }
 
     const supabase = getSupabaseServer()
-    const { data: player, error: playerErr } = await supabase
-      .from("players")
-      .select("id, team_id, user_id")
-      .eq("id", playerId)
-      .eq("team_id", teamId)
-      .maybeSingle()
-
-    if (playerErr || !player) {
-      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    const access = await resolvePlayerDocumentAccess(supabase, session.user.id, playerId, teamId)
+    if (!access?.canView) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
-    await requireTeamAccess(teamId)
-    const membership = await getUserMembership(teamId)
-    const isCoach = membership ? canEditRoster(membership.role) : false
-    const isOwn = (player as { user_id: string | null }).user_id === session.user.id
-    if (!isCoach && !isOwn) {
-      return NextResponse.json({ error: "You can only view your own documents." }, { status: 403 })
-    }
-
-    let q = supabase
+    const { data: rows, error } = await supabase
       .from("player_documents")
-      .select("id, player_id, team_id, title, file_name, file_url, file_size, mime_type, category, created_at, created_by, visible_to_player")
+      .select(
+        "id, player_id, team_id, title, file_name, file_url, file_path, file_size, mime_type, category, document_type, created_at, uploaded_at, created_by, uploaded_by_profile_id, visible_to_player, deleted_at, expires_at, status"
+      )
       .eq("player_id", playerId)
       .eq("team_id", teamId)
-    if (!isCoach) {
-      q = q.eq("visible_to_player", true)
-    }
-    const { data: rows, error } = await q.order("created_at", { ascending: false })
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
 
     if (error) {
       console.error("[GET /api/roster/.../documents]", error.message)
       return NextResponse.json({ error: "Failed to load documents" }, { status: 500 })
     }
 
-    const creatorIds = [...new Set((rows ?? []).map((r) => (r as { created_by?: string }).created_by).filter(Boolean))]
+    const creatorIds = [
+      ...new Set(
+        (rows ?? [])
+          .map((r) => (r as { uploaded_by_profile_id?: string; created_by?: string }).uploaded_by_profile_id)
+          .filter(Boolean)
+      ),
+    ] as string[]
     let creatorMap = new Map<string, { name: string | null }>()
     if (creatorIds.length > 0) {
-      const { data: users } = await supabase.from("users").select("id, name").in("id", creatorIds)
-      creatorMap = new Map((users ?? []).map((u) => [u.id, { name: u.name ?? null }]))
+      const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", creatorIds)
+      creatorMap = new Map((profs ?? []).map((u) => [(u as { id: string }).id, { name: (u as { full_name: string | null }).full_name }]))
     }
 
-    const documents = (rows ?? []).map((d) => {
-      const createdBy = (d as { created_by?: string }).created_by
-      return {
-        id: (d as { id: string }).id,
-        playerId: (d as { player_id: string }).player_id,
-        teamId: (d as { team_id: string }).team_id,
-        title: (d as { title: string }).title ?? "",
-        fileName: (d as { file_name: string }).file_name ?? "",
-        fileUrl: (d as { file_url?: string }).file_url ?? null,
-        fileSize: (d as { file_size?: number }).file_size ?? null,
-        mimeType: (d as { mime_type?: string }).mime_type ?? null,
-        category: (d as { category: string }).category ?? "other",
-        createdAt: (d as { created_at: string }).created_at,
-        visibleToPlayer: (d as { visible_to_player?: boolean }).visible_to_player !== false,
-        createdBy: createdBy ? creatorMap.get(createdBy)?.name ?? null : null,
-      }
-    })
+    const isCoachStaff = access.canManageVisibility
+    const documents = (rows ?? [])
+      .map((d) => {
+        const row = d as Record<string, unknown>
+        const eff = effectiveDocumentStatus({
+          deleted_at: row.deleted_at as string | null,
+          expires_at: row.expires_at as string | null,
+          status: row.status as string | null,
+        })
+        if (!isCoachStaff && eff === "expired") return null
+        if (!isCoachStaff && row.visible_to_player === false) return null
+        const cat = (row.document_type as string) || (row.category as string) || "other"
+        const uploadedBy = (row.uploaded_by_profile_id as string | undefined) ?? (row.created_by as string | undefined)
+        return {
+          id: row.id as string,
+          playerId: row.player_id as string,
+          teamId: row.team_id as string,
+          title: (row.title as string) ?? "",
+          fileName: (row.file_name as string) ?? "",
+          fileUrl: null,
+          fileSize: (row.file_size as number | null) ?? null,
+          mimeType: (row.mime_type as string | null) ?? null,
+          category: cat,
+          createdAt: (row.uploaded_at as string) ?? (row.created_at as string),
+          visibleToPlayer: row.visible_to_player !== false,
+          createdBy: uploadedBy ? creatorMap.get(uploadedBy)?.name ?? null : null,
+          effectiveStatus: eff,
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
 
     return NextResponse.json(documents)
   } catch (err) {
@@ -101,155 +101,16 @@ export async function GET(
   }
 }
 
-const ALLOWED_MIME = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "text/plain",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]
-const MAX_SIZE = 15 * 1024 * 1024 // 15MB
-
 /**
  * POST /api/roster/[playerId]/documents
- * Upload a document for this player. Coach only.
+ * Coach uploads disabled — use POST /api/player-documents/upload (player/parent).
  */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
-) {
-  try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { playerId } = await params
-    if (!playerId) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
-    }
-
-    const supabase = getSupabaseServer()
-    const { data: player, error: playerErr } = await supabase
-      .from("players")
-      .select("id, team_id")
-      .eq("id", playerId)
-      .maybeSingle()
-
-    if (playerErr || !player) {
-      return NextResponse.json({ error: "Player not found" }, { status: 404 })
-    }
-
-    const teamId = (player as { team_id: string }).team_id
-    await requireTeamAccess(teamId)
-    const membership = await getUserMembership(teamId)
-    if (!membership || !canEditRoster(membership.role)) {
-      return NextResponse.json({ error: "Only coaches can upload documents." }, { status: 403 })
-    }
-
-    const formData = await request.formData()
-    const file = formData.get("file") as File | null
-    const title = (formData.get("title") as string)?.trim() || "Document"
-    const category = (formData.get("category") as string)?.trim() || "other"
-    const visibleToPlayer = formData.get("visibleToPlayer") !== "false"
-
-    if (!file) {
-      return NextResponse.json({ error: "File is required" }, { status: 400 })
-    }
-
-    if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: "File size exceeds 15MB limit" }, { status: 400 })
-    }
-
-    const mime = file.type
-    if (mime && !ALLOWED_MIME.includes(mime)) {
-      return NextResponse.json(
-        { error: "File type not allowed. Use PDF, images, or Word docs." },
-        { status: 400 }
-      )
-    }
-
-    const timestamp = Date.now()
-    const random = Math.random().toString(36).substring(2, 15)
-    const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
-    const secureName = `${timestamp}-${random}-${sanitized}`
-
-    const uploadsDir = join(getUploadRoot(), "uploads", "player-documents")
-    await mkdir(uploadsDir, { recursive: true })
-    const filePath = join(uploadsDir, secureName)
-    const buffer = Buffer.from(await file.arrayBuffer())
-    await writeFile(filePath, buffer)
-
-    const fileUrl = `/api/uploads/player-documents/${secureName}`
-
-    const { data: doc, error: insertErr } = await supabase
-      .from("player_documents")
-      .insert({
-        player_id: playerId,
-        team_id: teamId,
-        title,
-        file_name: file.name,
-        file_url: fileUrl,
-        file_size: file.size,
-        mime_type: file.type || null,
-        category,
-        created_by: session.user.id,
-        visible_to_player: visibleToPlayer,
-      })
-      .select()
-      .single()
-
-    if (insertErr) {
-      console.error("[POST /api/roster/.../documents]", insertErr.message)
-      try { await unlink(filePath) } catch { /* ignore */ }
-      return NextResponse.json({ error: "Failed to save document" }, { status: 500 })
-    }
-
-    const docId = (doc as { id: string }).id
-    if (isExtractableMime(file.type || null)) {
-      try {
-        const result = await extractDocumentText(buffer, file.type || null, file.name)
-        if ("text" in result && result.text) {
-          await supabase.from("player_documents").update({ extracted_text: result.text }).eq("id", docId)
-        }
-      } catch (_) {
-        // non-fatal: document is saved, extraction can be retried later
-      }
-    }
-
-    await logPlayerProfileActivity({
-      playerId,
-      teamId,
-      actorId: session.user.id,
-      actionType: PLAYER_PROFILE_ACTION_TYPES.DOCUMENT_UPLOADED,
-      targetType: "document",
-      targetId: (doc as { id: string }).id,
-      metadata: { title: (doc as { title: string }).title },
-    })
-
-    return NextResponse.json({
-      id: doc.id,
-      playerId: doc.player_id,
-      teamId: doc.team_id,
-      title: doc.title,
-      fileName: doc.file_name,
-      fileUrl: doc.file_url,
-      fileSize: doc.file_size,
-      mimeType: doc.mime_type,
-      category: doc.category,
-      createdAt: doc.created_at,
-      visibleToPlayer: (doc as { visible_to_player?: boolean }).visible_to_player !== false,
-      createdBy: null,
-    })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Access denied"
-    if (message.includes("Access denied") || message.includes("Not a member")) {
-      return NextResponse.json({ error: message }, { status: 403 })
-    }
-    console.error("[POST /api/roster/.../documents]", err)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
+export async function POST() {
+  return NextResponse.json(
+    {
+      error:
+        "Coach upload to this endpoint is disabled. Players and parents upload participation documents via the document upload flow.",
+    },
+    { status: 403 }
+  )
 }

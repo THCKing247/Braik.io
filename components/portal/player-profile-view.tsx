@@ -15,6 +15,7 @@ import { PlayerDevelopmentTab } from "./player-development-tab"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 import { startOfDay } from "date-fns"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
+import { PLAYER_DOCUMENT_UPLOAD_HELPER, PLAYER_DOCUMENT_CONSENT_TEXT } from "@/lib/player-documents/constants"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity" | "development"
 
@@ -480,7 +481,7 @@ export function PlayerProfileView({
             />
           )}
           {activeTab === "documents" && (
-            <DocumentsTab playerId={playerId} teamId={teamId} canEdit={canEditProfile} />
+            <DocumentsTab playerId={playerId} teamId={teamId} />
           )}
           {activeTab === "notes" && (
             <NotesTab profile={profile} canEdit={canEditProfile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
@@ -1464,21 +1465,21 @@ function EquipmentTab({
   )
 }
 
-const DOC_CATEGORIES = ["all", "waiver", "physical", "eligibility", "form", "other"] as const
+const DOC_CATEGORIES = ["all", "waiver", "physical", "permission_slip", "other"] as const
 /** Categories that satisfy required compliance for readiness. */
 const REQUIRED_DOC_CATEGORIES = ["physical", "waiver"]
 
-type PlayerDocument = {
+type PlayerDocumentRow = {
   id: string
   title: string
   fileName: string
-  fileUrl: string | null
-  fileSize: number | null
   mimeType?: string | null
-  category: string
+  documentType: string
   createdAt: string
+  expiresAt: string | null
+  effectiveStatus: "active" | "expired" | "deleted"
   visibleToPlayer?: boolean
-  createdBy?: string | null
+  uploadedBy: string | null
 }
 
 function getFileTypeBadge(fileName: string, mimeType?: string | null): string {
@@ -1493,49 +1494,112 @@ function formatDocDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
 }
 
-function DocumentsTab({
-  playerId,
-  teamId,
-  canEdit,
-}: {
-  playerId: string
-  teamId: string
-  canEdit: boolean
-}) {
-  const [docs, setDocs] = useState<PlayerDocument[]>([])
+function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }) {
+  const [docs, setDocs] = useState<PlayerDocumentRow[]>([])
+  const [access, setAccess] = useState<{
+    canUpload: boolean
+    canExport: boolean
+    canDelete: boolean
+    canManageVisibility: boolean
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [visibilityTogglingId, setVisibilityTogglingId] = useState<string | null>(null)
+  const [consentChecked, setConsentChecked] = useState(false)
+  const [includeExpired, setIncludeExpired] = useState(false)
+  const [openingId, setOpeningId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadDocs = useCallback(() => {
     setLoading(true)
-    fetch(`/api/roster/${playerId}/documents?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: PlayerDocument[]) => setDocs(Array.isArray(data) ? data : []))
-      .catch(() => setDocs([]))
+    const q = includeExpired ? "includeExpired=1" : ""
+    fetch(`/api/player-documents?teamId=${encodeURIComponent(teamId)}&playerId=${encodeURIComponent(playerId)}&${q}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (data: {
+          documents?: PlayerDocumentRow[]
+          access?: { canUpload: boolean; canExport: boolean; canDelete: boolean; canManageVisibility: boolean }
+        } | null) => {
+          setDocs(Array.isArray(data?.documents) ? data!.documents : [])
+          setAccess(data?.access ?? null)
+        }
+      )
+      .catch(() => {
+        setDocs([])
+        setAccess(null)
+      })
       .finally(() => setLoading(false))
-  }, [playerId, teamId])
+  }, [playerId, teamId, includeExpired])
 
   useEffect(() => {
     loadDocs()
   }, [loadDocs])
 
-  const filteredDocs = categoryFilter === "all"
-    ? docs
-    : docs.filter((d) => d.category === categoryFilter)
+  const filteredDocs =
+    categoryFilter === "all" ? docs : docs.filter((d) => d.documentType === categoryFilter)
+
+  const openSigned = async (docId: string, intent: "view" | "download") => {
+    setOpeningId(docId)
+    setUploadError(null)
+    try {
+      const res = await fetch(
+        `/api/player-documents/${docId}/signed-url?teamId=${encodeURIComponent(teamId)}&playerId=${encodeURIComponent(playerId)}&intent=${intent}`,
+        { method: "POST" }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error ?? "Could not open document")
+      }
+      const url = (data as { url?: string }).url
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer")
+      }
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Could not open document")
+    } finally {
+      setOpeningId(null)
+    }
+  }
+
+  const handleExport = async () => {
+    if (!access?.canExport || docs.length === 0) return
+    try {
+      const res = await fetch("/api/player-documents/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId,
+          playerId,
+          documentIds: docs.map((d) => d.id),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error ?? "Export failed")
+      }
+      const items = (data as { items?: { url: string | null }[] }).items ?? []
+      for (const it of items) {
+        if (it.url) window.open(it.url, "_blank", "noopener,noreferrer")
+      }
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Export failed")
+    }
+  }
 
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = e.currentTarget
     const file = (form.elements.namedItem("docFile") as HTMLInputElement)?.files?.[0]
     const title = (form.elements.namedItem("docTitle") as HTMLInputElement)?.value?.trim() || "Document"
-    const visibleToPlayer = (form.elements.namedItem("docVisibleToPlayer") as HTMLInputElement)?.checked !== false
     if (!file) {
       setUploadError("Select a file")
+      return
+    }
+    if (!consentChecked) {
+      setUploadError("You must confirm consent before uploading.")
       return
     }
     setUploadError(null)
@@ -1544,16 +1608,26 @@ function DocumentsTab({
       const formData = new FormData()
       formData.append("file", file)
       formData.append("title", title)
-      formData.append("category", (form.elements.namedItem("docCategory") as HTMLSelectElement)?.value || "other")
-      formData.append("visibleToPlayer", String(visibleToPlayer))
-      const res = await fetch(`/api/roster/${playerId}/documents`, { method: "POST", body: formData })
+      formData.append("teamId", teamId)
+      formData.append("playerId", playerId)
+      formData.append("documentType", (form.elements.namedItem("docCategory") as HTMLSelectElement)?.value || "other")
+      formData.append("seasonLabel", (form.elements.namedItem("seasonLabel") as HTMLInputElement)?.value ?? "")
+      formData.append("retentionDays", "365")
+      formData.append("consent", "true")
+      const res = await fetch("/api/player-documents/upload", { method: "POST", body: formData })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error ?? "Upload failed")
       }
+      const body = await res.json().catch(() => ({}))
+      const exp = (body as { expiresAt?: string }).expiresAt
       loadDocs()
       form.reset()
+      setConsentChecked(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
+      if (exp) {
+        setUploadError(null)
+      }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed")
     } finally {
@@ -1565,7 +1639,10 @@ function DocumentsTab({
     if (!confirm("Delete this document?")) return
     setDeleteId(docId)
     try {
-      const res = await fetch(`/api/roster/${playerId}/documents/${docId}`, { method: "DELETE" })
+      const res = await fetch(
+        `/api/player-documents/${docId}?teamId=${encodeURIComponent(teamId)}&playerId=${encodeURIComponent(playerId)}`,
+        { method: "DELETE" }
+      )
       if (!res.ok) throw new Error("Delete failed")
       loadDocs()
     } catch {
@@ -1592,6 +1669,11 @@ function DocumentsTab({
     }
   }
 
+  const canUploadUi = access?.canUpload === true
+  const canDeleteUi = access?.canDelete === true
+  const canExportUi = access?.canExport === true
+  const canVis = access?.canManageVisibility === true
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -1603,27 +1685,38 @@ function DocumentsTab({
 
   return (
     <div className="space-y-6">
-      {canEdit && (
+      <p className="text-xs text-[#64748B] leading-relaxed max-w-2xl">
+        Participation paperwork (physicals, waivers, permission slips) is stored separately from the health dashboard.{" "}
+        {PLAYER_DOCUMENT_UPLOAD_HELPER}
+      </p>
+
+      {canUploadUi && (
         <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
           <Label className="text-[#0F172A] font-medium">Upload document</Label>
           <p className="mt-1 text-xs text-[#64748B]">PDF, images, or Word. Max 15MB.</p>
           <form onSubmit={handleUpload} className="mt-3 space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:flex-wrap">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:flex-wrap">
               <input ref={fileInputRef} type="file" name="docFile" accept=".pdf,image/*,.doc,.docx,.txt" className="max-w-xs text-sm" required />
               <Input name="docTitle" placeholder="Title" className="max-w-[200px]" />
-              <select name="docCategory" className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm min-w-[140px]" aria-label="Document category">
+              <select name="docCategory" className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm min-w-[160px]" aria-label="Document type">
                 {DOC_CATEGORIES.filter((c) => c !== "all").map((c) => (
                   <option key={c} value={c}>
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
-                    {REQUIRED_DOC_CATEGORIES.includes(c) ? " (required)" : ""}
+                    {c.replace("_", " ").replace(/^\w/, (x) => x.toUpperCase())}
+                    {REQUIRED_DOC_CATEGORIES.includes(c) ? " (common)" : ""}
                   </option>
                 ))}
               </select>
-              <label className="flex items-center gap-2 text-sm text-[#64748B]">
-                <input type="checkbox" name="docVisibleToPlayer" defaultChecked className="rounded border-[#E5E7EB]" />
-                Visible to player
+              <Input name="seasonLabel" placeholder="Season (optional)" className="max-w-[160px]" />
+              <label className="flex items-start gap-2 text-sm text-[#0F172A] max-w-md">
+                <input
+                  type="checkbox"
+                  checked={consentChecked}
+                  onChange={(e) => setConsentChecked(e.target.checked)}
+                  className="mt-1 rounded border-[#E5E7EB]"
+                />
+                <span>{PLAYER_DOCUMENT_CONSENT_TEXT}</span>
               </label>
-              <Button type="submit" disabled={uploading}>
+              <Button type="submit" disabled={uploading || !consentChecked}>
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
                 <span className="ml-2">{uploading ? "Uploading..." : "Upload"}</span>
               </Button>
@@ -1633,20 +1726,38 @@ function DocumentsTab({
         </div>
       )}
 
-      {docs.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Label className="text-[#64748B] text-sm">Category</Label>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
-          >
-            {DOC_CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c === "all" ? "All" : c.charAt(0).toUpperCase() + c.slice(1)}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-3">
+        {docs.length > 0 && (
+          <>
+            <Label className="text-[#64748B] text-sm">Type</Label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+            >
+              {DOC_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c === "all" ? "All" : c.replace("_", " ").replace(/^\w/, (x) => x.toUpperCase())}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+        <label className="flex items-center gap-2 text-sm text-[#64748B]">
+          <input
+            type="checkbox"
+            checked={includeExpired}
+            onChange={(e) => setIncludeExpired(e.target.checked)}
+            className="rounded border-[#E5E7EB]"
+          />
+          Show expired
+        </label>
+        {canExportUi && docs.length > 0 && (
+          <Button type="button" variant="outline" size="sm" onClick={() => void handleExport()}>
+            Export / download (staff)
+          </Button>
+        )}
+      </div>
 
       {filteredDocs.length > 0 ? (
         <ul className="divide-y divide-[#E5E7EB] rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
@@ -1657,31 +1768,58 @@ function DocumentsTab({
                   <span className="rounded bg-[#E2E8F0] px-2 py-0.5 text-xs font-medium text-[#475569]">
                     {getFileTypeBadge(d.fileName, d.mimeType)}
                   </span>
-                  <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#64748B] capitalize">{d.category}</span>
-                  {REQUIRED_DOC_CATEGORIES.includes(d.category) && (
-                    <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Required for compliance</span>
+                  <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#64748B] capitalize">
+                    {d.documentType.replace("_", " ")}
+                  </span>
+                  {REQUIRED_DOC_CATEGORIES.includes(d.documentType) && (
+                    <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Common for compliance</span>
                   )}
-                  {canEdit && d.visibleToPlayer === false && (
+                  <span
+                    className={
+                      d.effectiveStatus === "active"
+                        ? "rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-900"
+                        : d.effectiveStatus === "expired"
+                          ? "rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900"
+                          : "rounded bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-800"
+                    }
+                  >
+                    {d.effectiveStatus === "active" ? "Active" : d.effectiveStatus === "expired" ? "Expired" : "Deleted"}
+                  </span>
+                  {canVis && d.visibleToPlayer === false && (
                     <span className="text-xs text-amber-600">Hidden from player</span>
                   )}
                 </div>
-                <a
-                  href={d.fileUrl ?? "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 font-medium text-[#0F172A] hover:text-[#3B82F6] flex items-center gap-1 inline-flex"
+                {d.effectiveStatus === "expired" && (
+                  <p className="mt-1 text-xs text-amber-800">This file is past its retention date. Staff can still review; players may be blocked from opening.</p>
+                )}
+                <button
+                  type="button"
+                  className="mt-1 font-medium text-[#0F172A] hover:text-[#3B82F6] flex items-center gap-1 text-left"
+                  onClick={() => void openSigned(d.id, "view")}
+                  disabled={openingId === d.id}
                 >
                   {d.title}
                   <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                </a>
+                </button>
                 <p className="mt-0.5 text-xs text-[#64748B]">
                   {d.fileName}
-                  {d.createdBy && ` · Uploaded by ${d.createdBy}`}
+                  {d.uploadedBy && ` · Uploaded by ${d.uploadedBy}`}
                   {d.createdAt && ` · ${formatDocDate(d.createdAt)}`}
+                  {d.expiresAt && ` · Expires ${formatDocDate(d.expiresAt)}`}
                 </p>
               </div>
-              {canEdit && (
-                <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#3B82F6]"
+                  onClick={() => void openSigned(d.id, "download")}
+                  disabled={openingId === d.id}
+                >
+                  Open
+                </Button>
+                {canVis && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -1691,8 +1829,16 @@ function DocumentsTab({
                     onClick={() => handleVisibilityToggle(d.id, d.visibleToPlayer !== false)}
                     disabled={visibilityTogglingId === d.id}
                   >
-                    {visibilityTogglingId === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (d.visibleToPlayer !== false ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />)}
+                    {visibilityTogglingId === d.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : d.visibleToPlayer !== false ? (
+                      <Eye className="h-4 w-4" />
+                    ) : (
+                      <EyeOff className="h-4 w-4" />
+                    )}
                   </Button>
+                )}
+                {canDeleteUi && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -1703,17 +1849,19 @@ function DocumentsTab({
                   >
                     {deleteId === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </li>
           ))}
         </ul>
       ) : (
         <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] p-8 text-center">
           <p className="text-sm text-[#64748B]">
-            {docs.length === 0 ? "No documents yet." : `No documents in ${categoryFilter === "all" ? "any" : categoryFilter} category.`}
+            {docs.length === 0 ? "No documents yet." : `No documents in ${categoryFilter === "all" ? "any" : categoryFilter} type.`}
           </p>
-          <p className="mt-1 text-xs text-[#94A3B8]">{canEdit ? "Upload forms, waivers, or eligibility docs above." : "Documents will appear here when added."}</p>
+          <p className="mt-1 text-xs text-[#94A3B8]">
+            {canUploadUi ? "Upload forms, waivers, or permission slips above." : "Documents will appear here when added."}
+          </p>
         </div>
       )}
     </div>

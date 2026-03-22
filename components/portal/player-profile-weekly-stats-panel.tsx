@@ -14,6 +14,7 @@ import {
   buildPlayerTableColumnsForKeys,
 } from "@/lib/stats-display-columns"
 import { Pencil, Plus, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 type GameOption = { id: string; opponent: string; gameDate: string; seasonYear: number | null }
 
@@ -29,8 +30,12 @@ function buildProfileWeeklyColumns(visibleStatKeys: readonly (keyof PlayerStatsR
   return PROFILE_WEEKLY_COLUMNS_FULL
 }
 
-const SCROLL =
-  "overflow-x-auto max-w-full rounded-lg border border-[#E5E7EB] bg-white [-ms-overflow-style:none] [scrollbar-width:thin]"
+/** Match All Stats: horizontal + vertical scroll, thin visible scrollbars. */
+const PROFILE_TABLE_SCROLL =
+  "max-h-[min(65vh,560px)] max-w-full overflow-x-auto overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white [scrollbar-color:rgb(203_213_225)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/90 [&::-webkit-scrollbar-track]:bg-transparent"
+
+const STICKY_HEAD = "#F8FAFC"
+const STICKY_ACTION_W_REM = 6
 
 function formatProfileWeeklyCell(row: StatsTableRow, key: keyof StatsTableRow): string {
   if (key === "weekNumber") {
@@ -231,27 +236,53 @@ export function PlayerProfileWeeklyStatsPanel({
           )}
         </div>
       ) : (
-        <div className={SCROLL}>
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="bg-[#F8FAFC]">
+        <div className={PROFILE_TABLE_SCROLL}>
+          <table className="min-w-max w-max border-collapse text-left text-sm">
+            <thead className="sticky top-0 z-30">
               <tr className="border-b border-[#E5E7EB]">
                 {canManage && (
-                  <th className="w-24 px-2 py-2 text-center text-xs font-semibold text-[#64748B]">Actions</th>
-                )}
-                {profileWeeklyColumns.map(({ key, label }) => (
-                  <th key={key} className="whitespace-nowrap px-3 py-2 text-xs font-semibold text-[#64748B]">
-                    {label}
+                  <th
+                    className="sticky left-0 z-[45] w-24 min-w-[6rem] px-2 py-2 text-center text-xs font-semibold text-[#64748B] shadow-[4px_0_8px_-2px_rgba(15,23,42,0.08)]"
+                    style={{ backgroundColor: STICKY_HEAD }}
+                  >
+                    Actions
                   </th>
-                ))}
+                )}
+                {profileWeeklyColumns.map(({ key, label }) => {
+                  const isWeek = key === "weekNumber"
+                  const weekLeft = canManage ? STICKY_ACTION_W_REM : 0
+                  return (
+                    <th
+                      key={key}
+                      className={cn(
+                        "whitespace-nowrap px-3 py-2 text-xs font-semibold text-[#64748B]",
+                        isWeek &&
+                          "sticky z-[45] min-w-[3.5rem] shadow-[4px_0_8px_-2px_rgba(15,23,42,0.08)]",
+                        key === "gameLabel" && "min-w-[8rem]",
+                        key === "gameOpponent" && "min-w-[7rem]",
+                        key === "gameDate" && "min-w-[6.5rem]"
+                      )}
+                      style={
+                        isWeek
+                          ? { left: `${weekLeft}rem`, backgroundColor: STICKY_HEAD }
+                          : { backgroundColor: STICKY_HEAD }
+                      }
+                    >
+                      {label}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
               {tableRows.map((row) => {
                 const entry = entries.find((e) => e.id === row.rowKey)
                 return (
-                  <tr key={row.rowKey} className="border-b border-[#E5E7EB] last:border-0">
+                  <tr key={row.rowKey} className="group border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB]">
                     {canManage && (
-                      <td className="px-2 py-2 text-center whitespace-nowrap">
+                      <td
+                        className="sticky left-0 z-20 bg-white px-2 py-2 text-center whitespace-nowrap shadow-[4px_0_6px_-3px_rgba(15,23,42,0.06)] group-hover:bg-[#F9FAFB]"
+                      >
                         <Button
                           type="button"
                           variant="ghost"
@@ -281,11 +312,23 @@ export function PlayerProfileWeeklyStatsPanel({
                         </Button>
                       </td>
                     )}
-                    {profileWeeklyColumns.map(({ key }) => (
-                      <td key={key} className="whitespace-nowrap px-3 py-2 text-[#0F172A]">
-                        {formatProfileWeeklyCell(row, key)}
-                      </td>
-                    ))}
+                    {profileWeeklyColumns.map(({ key }) => {
+                      const isWeek = key === "weekNumber"
+                      const weekLeft = canManage ? STICKY_ACTION_W_REM : 0
+                      return (
+                        <td
+                          key={key}
+                          className={cn(
+                            "whitespace-nowrap px-3 py-2 text-[#0F172A]",
+                            isWeek &&
+                              "sticky z-20 min-w-[3.5rem] bg-white font-medium shadow-[4px_0_6px_-3px_rgba(15,23,42,0.06)] group-hover:bg-[#F9FAFB]"
+                          )}
+                          style={isWeek ? { left: `${weekLeft}rem` } : undefined}
+                        >
+                          {formatProfileWeeklyCell(row, key)}
+                        </td>
+                      )
+                    })}
                   </tr>
                 )
               })}

@@ -11,6 +11,7 @@ import { WEEKLY_FORM_SECTIONS } from "@/lib/stats-schema"
 import { STAT_LABELS_BY_DB_KEY } from "@/lib/stats-import-fields"
 import { DECIMAL_ALLOWED_STAT_KEYS, parseNonNegativeStatNumberFromString } from "@/lib/stats-weekly-api"
 import { Plus, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const FORM_DB_KEYS = SEASON_STAT_KEYS as readonly string[]
 
@@ -269,8 +270,14 @@ export function AddWeeklyStatsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent
+        className={cn(
+          "flex max-h-[90dvh] w-full flex-col gap-0 overflow-hidden p-4 sm:p-6",
+          "w-[min(100%,95vw)] max-w-[min(1100px,95vw)] md:max-w-[min(1100px,95vw)]",
+          "pb-[max(1rem,env(safe-area-inset-bottom,0px))]"
+        )}
+      >
+        <DialogHeader className="shrink-0 pr-2">
           <DialogTitle>{isEdit ? "Edit weekly / game stats" : "Add weekly / game stats"}</DialogTitle>
           <DialogDescription>
             {isEdit
@@ -279,62 +286,63 @@ export function AddWeeklyStatsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="weekly-season-year">Season year (optional)</Label>
-            <Input
-              id="weekly-season-year"
-              type="number"
-              placeholder="e.g. 2025"
-              value={seasonYearInput}
-              onChange={(e) => setSeasonYearInput(e.target.value)}
-            />
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-0.5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="weekly-season-year">Season year (optional)</Label>
+              <Input
+                id="weekly-season-year"
+                type="number"
+                placeholder="e.g. 2025"
+                value={seasonYearInput}
+                onChange={(e) => setSeasonYearInput(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="weekly-week">Week (optional)</Label>
+              <Input
+                id="weekly-week"
+                type="number"
+                min={1}
+                max={30}
+                placeholder="e.g. 5"
+                value={weekNumber}
+                onChange={(e) => setWeekNumber(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2 lg:col-span-1">
+              <Label htmlFor="weekly-game-pick">Scheduled game (optional)</Label>
+              <select
+                id="weekly-game-pick"
+                className="mobile-select w-full"
+                value={gameId}
+                onChange={(e) => setGameId(e.target.value)}
+              >
+                <option value="">None — enter opponent/date manually</option>
+                {games.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.opponent ? `vs ${g.opponent}` : "Game"}{" "}
+                    {g.gameDate ? `· ${String(g.gameDate).slice(0, 10)}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2 sm:col-span-2 lg:col-span-2">
+              <Label htmlFor="weekly-opponent">Opponent</Label>
+              <Input
+                id="weekly-opponent"
+                placeholder="Opponent name"
+                value={opponent}
+                onChange={(e) => setOpponent(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2 lg:col-span-3">
+              <Label htmlFor="weekly-date">Game date</Label>
+              <Input id="weekly-date" type="date" value={gameDate} onChange={(e) => setGameDate(e.target.value)} />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="weekly-week">Week (optional)</Label>
-            <Input
-              id="weekly-week"
-              type="number"
-              min={1}
-              max={30}
-              placeholder="e.g. 5"
-              value={weekNumber}
-              onChange={(e) => setWeekNumber(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="weekly-game-pick">Scheduled game (optional)</Label>
-            <select
-              id="weekly-game-pick"
-              className="mobile-select w-full"
-              value={gameId}
-              onChange={(e) => setGameId(e.target.value)}
-            >
-              <option value="">None — enter opponent/date manually</option>
-              {games.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.opponent ? `vs ${g.opponent}` : "Game"}{" "}
-                  {g.gameDate ? `· ${String(g.gameDate).slice(0, 10)}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="weekly-opponent">Opponent</Label>
-            <Input
-              id="weekly-opponent"
-              placeholder="Opponent name"
-              value={opponent}
-              onChange={(e) => setOpponent(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="weekly-date">Game date</Label>
-            <Input id="weekly-date" type="date" value={gameDate} onChange={(e) => setGameDate(e.target.value)} />
-          </div>
-        </div>
 
-        <div className="space-y-3 pt-2">
+          <div className="space-y-3 pt-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
               {isEdit ? "Player stats" : "Player lines"}
@@ -394,7 +402,7 @@ export function AddWeeklyStatsDialog({
                     <summary className="cursor-pointer select-none text-sm font-semibold text-[rgb(var(--text))] py-1">
                       {section.label}
                     </summary>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-3 pb-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 pt-3 pb-1">
                       {section.keys.map((key) => (
                         <div key={key} className="space-y-1">
                           <Label className="text-xs font-normal" htmlFor={`${line.id}-${key}`}>
@@ -415,11 +423,12 @@ export function AddWeeklyStatsDialog({
               </div>
             </div>
           ))}
+          </div>
+
+          {error && <p className="text-sm text-red-700 pt-3">{error}</p>}
         </div>
 
-        {error && <p className="text-sm text-red-700">{error}</p>}
-
-        <DialogFooter>
+        <DialogFooter className="mt-4 shrink-0 border-t border-[rgb(var(--border))] bg-[rgb(var(--snow))]/50 pt-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>

@@ -11,12 +11,48 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Pencil } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-const SCROLL_HIDE =
-  "overflow-x-auto overflow-y-auto max-h-[70vh] [scrollbar-gutter:stable] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+/** Horizontal + vertical scroll; thin visible scrollbars so drag/scroll remains discoverable. */
+const TABLE_SCROLL_WRAP =
+  "max-h-[70vh] overflow-x-auto overflow-y-auto rounded-lg border [scrollbar-color:rgb(203_213_225)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/90 [&::-webkit-scrollbar-track]:bg-transparent"
 
-const STAT_COLUMNS = STATS_PLAYER_TABLE_COLUMNS
-const WEEKLY_BEFORE_STAT = STATS_WEEKLY_LEADING_COLUMNS
+const STICKY_HEADER_BG = "rgb(var(--snow))"
+const STICKY_BODY_BG = "#FFFFFF"
+
+/** Minimum widths so wide schemas stay readable (Tailwind classes). */
+function statColumnMinClass(key: string): string {
+  switch (key) {
+    case "lastName":
+      return "min-w-[11rem] max-w-[18rem]"
+    case "jerseyNumber":
+      return "min-w-[2.75rem]"
+    case "position":
+      return "min-w-[4.5rem]"
+    case "passCompletions":
+    case "passAttempts":
+      return "min-w-[4.25rem]"
+    case "passingYards":
+    case "receivingYards":
+    case "rushingYards":
+      return "min-w-[4.75rem]"
+    case "soloTackles":
+    case "assistedTackles":
+    case "tacklesForLoss":
+    case "sacks":
+      return "min-w-[3.75rem]"
+    case "weekNumber":
+      return "min-w-[3.25rem]"
+    case "gameLabel":
+      return "min-w-[8rem]"
+    case "gameOpponent":
+      return "min-w-[7rem]"
+    case "gameDate":
+      return "min-w-[6.5rem]"
+    default:
+      return "min-w-[3.25rem]"
+  }
+}
 
 function formatCell(row: StatsTableRow, key: keyof StatsTableRow): string {
   if (key === "weekNumber") {
@@ -89,17 +125,29 @@ export function AllStatsTable({
   const statColumnKeysSig = statColumnKeys?.join("\0") ?? ""
 
   const columns = useMemo(() => {
-    const fullStats = STAT_COLUMNS
+    const fullStats = STATS_PLAYER_TABLE_COLUMNS
     const subset =
       statColumnKeys && statColumnKeys.length > 0
         ? buildPlayerTableColumnsForKeys(statColumnKeys)
         : fullStats
     const statColsNoPlayer = subset.filter((c) => c.key !== "lastName")
     if (mode === "weekly") {
-      return [{ key: "lastName" as const, label: "Player", numeric: false }, ...WEEKLY_BEFORE_STAT, ...statColsNoPlayer]
+      return [{ key: "lastName" as const, label: "Player", numeric: false }, ...STATS_WEEKLY_LEADING_COLUMNS, ...statColsNoPlayer]
     }
     return subset.length > 0 ? subset : fullStats
   }, [mode, statColumnKeysSig, statColumnKeys])
+
+  /** Sticky horizontal offsets (rem): checkbox 2.5, edit 3. */
+  const stickyOffsets = useMemo(() => {
+    const cbW = selectionEnabled ? 2.5 : 0
+    const edW = showWeeklyEdit ? 3 : 0
+    const playerLeft = cbW + edW
+    return {
+      editLeft: selectionEnabled ? cbW : 0,
+      playerLeft,
+      hasPrefix: selectionEnabled || showWeeklyEdit,
+    }
+  }, [selectionEnabled, showWeeklyEdit])
 
   useEffect(() => {
     setSortKey(mode === "weekly" ? "gameDate" : "lastName")
@@ -148,16 +196,26 @@ export function AllStatsTable({
     }
   }
 
+  const stickyHeadShadow = "shadow-[4px_0_8px_-2px_rgba(15,23,42,0.08)]"
+  const stickyBodyShadow = "shadow-[4px_0_6px_-3px_rgba(15,23,42,0.06)]"
+
   return (
     <div
-      className={`rounded-lg border ${SCROLL_HIDE}`}
-      style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+      className={cn(TABLE_SCROLL_WRAP)}
+      style={{ borderColor: "rgb(var(--border))", backgroundColor: STICKY_BODY_BG }}
     >
-      <table className="w-full text-left text-sm">
-        <thead className="sticky top-0 z-10" style={{ backgroundColor: "rgb(var(--snow))" }}>
+      <table className="min-w-max w-max text-left text-sm border-collapse">
+        <thead className="sticky top-0 z-[35]">
           <tr className="border-b" style={{ borderColor: "rgb(var(--border))" }}>
             {selectionEnabled && (
-              <th className="w-10 px-2 py-3" aria-label="Select rows">
+              <th
+                className={cn(
+                  "sticky left-0 z-[45] w-10 min-w-[2.5rem] px-2 py-3",
+                  stickyHeadShadow
+                )}
+                style={{ backgroundColor: STICKY_HEADER_BG }}
+                aria-label="Select rows"
+              >
                 <Checkbox
                   ref={headerSelectRef}
                   checked={allSelected}
@@ -168,28 +226,52 @@ export function AllStatsTable({
             )}
             {showWeeklyEdit && (
               <th
-                className="w-12 px-1 py-3 text-center font-semibold whitespace-nowrap"
-                style={{ color: "rgb(var(--text))" }}
+                className={cn(
+                  "sticky z-[45] w-12 min-w-[3rem] px-1 py-3 text-center text-sm font-semibold whitespace-nowrap",
+                  stickyHeadShadow
+                )}
+                style={{
+                  left: `${stickyOffsets.editLeft}rem`,
+                  backgroundColor: STICKY_HEADER_BG,
+                  color: "rgb(var(--text))",
+                }}
               >
                 Edit
               </th>
             )}
-            {columns.map(({ key, label }) => (
-              <th
-                key={key}
-                className="px-3 py-3 font-semibold cursor-pointer select-none whitespace-nowrap hover:opacity-80"
-                style={{ color: "rgb(var(--text))" }}
-                onClick={() => handleSort(key as SortKey)}
-                aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
-              >
-                <span className="inline-flex items-center gap-1">
-                  {label}
-                  {sortKey === key && (
-                    <span style={{ color: "rgb(var(--accent))" }}>{sortDir === "asc" ? " ↑" : " ↓"}</span>
+            {columns.map(({ key, label }) => {
+              const isPlayer = key === "lastName"
+              const minC = statColumnMinClass(String(key))
+              return (
+                <th
+                  key={key}
+                  className={cn(
+                    "px-3 py-3 text-sm font-semibold whitespace-nowrap cursor-pointer select-none hover:opacity-80",
+                    isPlayer && "sticky z-[45]",
+                    isPlayer && stickyHeadShadow,
+                    minC
                   )}
-                </span>
-              </th>
-            ))}
+                  style={
+                    isPlayer
+                      ? {
+                          left: `${stickyOffsets.playerLeft}rem`,
+                          backgroundColor: STICKY_HEADER_BG,
+                          color: "rgb(var(--text))",
+                        }
+                      : { backgroundColor: STICKY_HEADER_BG, color: "rgb(var(--text))" }
+                  }
+                  onClick={() => handleSort(key as SortKey)}
+                  aria-sort={sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {sortKey === key && (
+                      <span style={{ color: "rgb(var(--accent))" }}>{sortDir === "asc" ? " ↑" : " ↓"}</span>
+                    )}
+                  </span>
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
@@ -212,14 +294,21 @@ export function AllStatsTable({
                       }
                     : undefined
                 }
-                className="border-b transition-colors hover:bg-[#F8FAFC]/80"
+                className="group border-b transition-colors hover:bg-[#F8FAFC]/80"
                 style={{
                   borderColor: "rgb(var(--border))",
                   cursor: href ? "pointer" : undefined,
                 }}
               >
                 {selectionEnabled && (
-                  <td className="px-2 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                  <td
+                    className={cn(
+                      "sticky left-0 z-[25] px-2 py-2 align-middle",
+                      stickyBodyShadow,
+                      "bg-white group-hover:bg-[#F8FAFC]"
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Checkbox
                       checked={checked}
                       onCheckedChange={(c) => onToggleRow?.(row.rowKey, Boolean(c))}
@@ -228,7 +317,16 @@ export function AllStatsTable({
                   </td>
                 )}
                 {showWeeklyEdit && (
-                  <td className="px-1 py-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                  <td
+                    className={cn(
+                      "sticky z-[25] px-1 py-2 text-center align-middle bg-white group-hover:bg-[#F8FAFC]",
+                      stickyBodyShadow
+                    )}
+                    style={{
+                      left: `${stickyOffsets.editLeft}rem`,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Button
                       type="button"
                       variant="ghost"
@@ -241,21 +339,38 @@ export function AllStatsTable({
                     </Button>
                   </td>
                 )}
-                {columns.map(({ key }) => (
-                  <td
-                    key={key}
-                    className="px-3 py-2 whitespace-nowrap"
-                    style={{ color: "rgb(var(--text))" }}
-                  >
-                    {key === "lastName" ? (
-                      <span>
-                        {row.firstName} {row.lastName}
-                      </span>
-                    ) : (
-                      formatCell(row, key)
-                    )}
-                  </td>
-                ))}
+                {columns.map(({ key }) => {
+                  const isPlayer = key === "lastName"
+                  const minC = statColumnMinClass(String(key))
+                  return (
+                    <td
+                      key={key}
+                      className={cn(
+                        "px-3 py-2 whitespace-nowrap",
+                        minC,
+                        isPlayer &&
+                          "sticky z-[25] font-medium bg-white group-hover:bg-[#F8FAFC]",
+                        isPlayer && stickyBodyShadow
+                      )}
+                      style={
+                        isPlayer
+                          ? {
+                              left: `${stickyOffsets.playerLeft}rem`,
+                              color: "rgb(var(--text))",
+                            }
+                          : { color: "rgb(var(--text))" }
+                      }
+                    >
+                      {isPlayer ? (
+                        <span>
+                          {row.firstName} {row.lastName}
+                        </span>
+                      ) : (
+                        formatCell(row, key)
+                      )}
+                    </td>
+                  )
+                })}
               </tr>
             )
           })}

@@ -49,6 +49,7 @@ export function DialogContent({ className, children }: DialogContentProps) {
       className={cn(
         "w-screen max-w-none rounded-t-3xl border border-border bg-card p-4 shadow-2xl max-h-[90dvh] overflow-y-auto",
         "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:mx-4 md:w-full md:max-w-lg md:rounded-2xl md:p-6",
+        /** Consumers (e.g. wide stat forms) may override `md:max-w-*` and flex layout via `className`. */
         className
       )}
     >

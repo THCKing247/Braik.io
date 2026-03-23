@@ -175,7 +175,7 @@ export default function DirectorControlCenterPage() {
                 </Link>
               </Button>
               <p className="text-xs text-muted-foreground sm:max-w-md">
-                Use header <span className="font-medium text-foreground">Program control</span> anytime to return here
+                Use header <span className="font-medium text-foreground">Director View</span> anytime to return here
                 from a team portal.
               </p>
             </div>

@@ -389,7 +389,13 @@ export async function requireProgramHeadCoach(programId: string): Promise<{ user
   return { user, membership }
 }
 
-/** Program head or school AD — assign JV/Freshman heads and similar. */
+/**
+ * Program placement admin: move assistants between program teams + JV/Freshman head designations.
+ *
+ * Primary truth: `director_of_football` or `athletic_director`.
+ * Non-football: `head_coach` retains placement powers (unchanged).
+ * Football + `head_coach`: only while `programs.created_by_user_id` is null (LEGACY_TRANSITION) or equals this user.
+ */
 export async function requireProgramStaffAdmin(programId: string): Promise<{ user: { id: string }; membership: ProgramMembership }> {
   const user = await requireAuth()
   let membership: ProgramMembership | null
@@ -410,5 +416,39 @@ export async function requireProgramStaffAdmin(programId: string): Promise<{ use
     throw new Error("Access denied: Program staff admin required")
   }
 
-  return { user, membership }
+  if (membership.role === "athletic_director" || membership.role === "director_of_football") {
+    return { user, membership }
+  }
+
+  const supabase = getSupabaseServer()
+  const { data: prog, error: progErr } = await supabase
+    .from("programs")
+    .select("sport, created_by_user_id")
+    .eq("id", programId)
+    .maybeSingle()
+
+  if (progErr) {
+    console.error("[requireProgramStaffAdmin] program lookup", progErr)
+    throw new MembershipLookupError("Database error during program lookup", progErr)
+  }
+
+  const sportRaw = String((prog as { sport?: string | null } | null)?.sport ?? "")
+    .trim()
+    .toLowerCase()
+  const isFootball = sportRaw === "" || sportRaw === "football"
+  if (!isFootball) {
+    return { user, membership }
+  }
+
+  const creatorId = (prog as { created_by_user_id?: string | null } | null)?.created_by_user_id ?? null
+  if (creatorId === null || creatorId === user.id) {
+    return { user, membership }
+  }
+
+  logPermissionDenial({
+    userId: user.id,
+    teamId: programId,
+    reason: "Football program placement requires director or program owner",
+  })
+  throw new Error("Access denied: Program staff admin required")
 }

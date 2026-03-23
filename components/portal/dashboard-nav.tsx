@@ -67,7 +67,13 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   }, [userRole])
 
   const onDirectorPage = pathname === "/dashboard/director"
-  const showDirectorNavLink = directorHubEligible && userRole === "HEAD_COACH" && !onDirectorPage
+  /** True when user is in a team-scoped dashboard area (not bare /dashboard without team context). */
+  const path = pathname ?? ""
+  const inTeamPortal =
+    Boolean(searchParams.get("teamId")) ||
+    (path.startsWith("/dashboard/") && !path.startsWith("/dashboard/director"))
+  const showDirectorNavLink =
+    directorHubEligible && userRole === "HEAD_COACH" && !onDirectorPage && inTeamPortal
 
   const dashboardHomeHref =
     session?.user?.role?.toUpperCase() === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
@@ -126,7 +132,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 className={cn(directorNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
                 style={{ color: "rgb(var(--text))" }}
               >
-                Program control
+                Director View
               </Link>
             )}
             <ThemeToggle />
@@ -169,7 +175,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 className={directorNavLinkClass}
                 style={{ color: "rgb(var(--text))" }}
               >
-                Program control
+                Director View
               </Link>
             )}
             {showAdminLink && (

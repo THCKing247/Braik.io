@@ -20,8 +20,8 @@ function normalizeTeamMemberRole(role: string | null | undefined): string {
 }
 
 /**
- * Legacy Director fallback: primary active head coach on the program's varsity team
- * (or legacy team with no team_level). JV/Freshman heads are not primary on varsity → excluded.
+ * LEGACY_TRANSITION: only for programs with no `created_by_user_id` yet.
+ * Primary varsity HC on football program — not used when a program owner row exists (explicit model).
  */
 async function userIsPrimaryVarsityHeadCoach(
   supabase: ReturnType<typeof getSupabaseServer>,
@@ -135,11 +135,12 @@ export async function GET() {
         break
       }
 
-      // Legacy: head_coach program role — program owner OR primary varsity HC only
+      // LEGACY_TRANSITION: head_coach — owner always; primary varsity only if program has no creator row yet
       const ownerId = prog.created_by_user_id ?? null
       const isProgramOwner = ownerId === userId
-      const isPrimaryVarsityHc = await userIsPrimaryVarsityHeadCoach(supabase, userId, m.program_id)
-      if (isProgramOwner || isPrimaryVarsityHc) {
+      const legacyUnownedPrimaryVarsity =
+        ownerId === null && (await userIsPrimaryVarsityHeadCoach(supabase, userId, m.program_id))
+      if (isProgramOwner || legacyUnownedPrimaryVarsity) {
         programId = m.program_id
         programRole = r
         break

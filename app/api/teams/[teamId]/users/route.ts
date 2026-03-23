@@ -44,7 +44,26 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
         .eq("active", true)
         .maybeSingle()
       const pr = String((pm as { role?: string } | null)?.role || "")
-      canEditProgramAssignments = ["head_coach", "director_of_football", "athletic_director"].includes(pr)
+      if (pr === "athletic_director" || pr === "director_of_football") {
+        canEditProgramAssignments = true
+      } else if (pr === "head_coach") {
+        const { data: prog } = await supabase
+          .from("programs")
+          .select("sport, created_by_user_id")
+          .eq("id", programId)
+          .maybeSingle()
+        const sportRaw = String((prog as { sport?: string | null } | null)?.sport ?? "")
+          .trim()
+          .toLowerCase()
+        const isFootball = sportRaw === "" || sportRaw === "football"
+        if (!isFootball) {
+          canEditProgramAssignments = true
+        } else {
+          const creatorId =
+            (prog as { created_by_user_id?: string | null } | null)?.created_by_user_id ?? null
+          canEditProgramAssignments = creatorId === null || creatorId === session.user.id
+        }
+      }
     }
 
     // Get all profiles for this team

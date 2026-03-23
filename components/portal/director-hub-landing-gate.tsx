@@ -5,10 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 
 /**
- * Football Directors (program_members.director_of_football, or legacy eligible HC) land on
- * /dashboard/director first. Eligibility comes from GET /api/me/director-hub (server truth), not session alone.
- * Visiting /dashboard with ?teamId= skips redirect (operational team context).
- * Sidebar / logo should prefer /dashboard?teamId=… so "home" does not loop back to the hub.
+ * Football Directors land on /dashboard/director (gateway) before the team dashboard.
+ * Eligibility: GET /api/me/director-hub. Visiting /dashboard without ?teamId= triggers redirect for eligible users.
+ * With ?teamId=, skip redirect so team portal works; use header "Director View" to return to the gateway.
  */
 export function DirectorHubLandingGate({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()

@@ -185,10 +185,10 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
 
       {programId && (
         <div className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">Program control: </span>
+          <span className="font-semibold text-foreground">Director landing: </span>
           Which team an assistant belongs to (Varsity / JV / Freshman) and JV/Freshman head coach designations are managed in{" "}
           <Link href="/dashboard/director" className="font-medium text-primary underline hover:no-underline">
-            Program control
+            Open Director landing
           </Link>
           . This screen is for coaching job titles (coordinator, position coach) for staff on{" "}
           <span className="font-medium text-foreground">this</span> team.

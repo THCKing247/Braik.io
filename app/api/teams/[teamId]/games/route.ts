@@ -7,6 +7,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveSeasonIdForTeam } from "@/lib/team-season-resolve"
+import { scoringFieldsForInsert } from "@/lib/games-api-scoring"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -22,6 +23,14 @@ type Body = {
   opponentScore?: number | null
   notes?: string | null
   confirmedByCoach?: boolean
+  q1_home?: number | null
+  q2_home?: number | null
+  q3_home?: number | null
+  q4_home?: number | null
+  q1_away?: number | null
+  q2_away?: number | null
+  q3_away?: number | null
+  q4_away?: number | null
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ teamId: string }> }) {
@@ -64,21 +73,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
     if (!game_type) game_type = "regular"
 
     const resultRaw = body?.result?.trim().toLowerCase() ?? ""
-    const result = resultRaw && RESULTS.has(resultRaw) ? resultRaw : null
+    const resultFallback = resultRaw && RESULTS.has(resultRaw) ? resultRaw : null
 
     const season_id = await resolveSeasonIdForTeam(supabase, teamId)
+
+    const location = body?.location?.trim() || null
+    const scoreBlock = scoringFieldsForInsert(body as Record<string, unknown>, location)
+    const result =
+      (scoreBlock.result as string | undefined) ??
+      resultFallback
 
     const insertRow = {
       season_id,
       team_id: teamId,
       opponent,
       game_date,
-      location: body?.location?.trim() || null,
+      location,
       game_type,
       conference_game: Boolean(body?.conferenceGame),
       result,
-      team_score: typeof body?.teamScore === "number" ? body.teamScore : null,
-      opponent_score: typeof body?.opponentScore === "number" ? body.opponentScore : null,
+      team_score: (scoreBlock.team_score as number | null | undefined) ?? null,
+      opponent_score: (scoreBlock.opponent_score as number | null | undefined) ?? null,
+      q1_home: scoreBlock.q1_home ?? null,
+      q2_home: scoreBlock.q2_home ?? null,
+      q3_home: scoreBlock.q3_home ?? null,
+      q4_home: scoreBlock.q4_home ?? null,
+      q1_away: scoreBlock.q1_away ?? null,
+      q2_away: scoreBlock.q2_away ?? null,
+      q3_away: scoreBlock.q3_away ?? null,
+      q4_away: scoreBlock.q4_away ?? null,
       notes: body?.notes?.trim() || null,
       confirmed_by_coach: Boolean(body?.confirmedByCoach),
       confirmed_at: body?.confirmedByCoach ? new Date().toISOString() : null,

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
+import { mergeGameScoringPatch, type GamesDbRow } from "@/lib/games-api-scoring"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -21,6 +22,14 @@ type PatchBody = {
   opponentScore?: number | null
   notes?: string | null
   confirmedByCoach?: boolean
+  q1_home?: number | null
+  q2_home?: number | null
+  q3_home?: number | null
+  q4_home?: number | null
+  q1_away?: number | null
+  q2_away?: number | null
+  q3_away?: number | null
+  q4_away?: number | null
 }
 
 export async function PATCH(
@@ -41,7 +50,9 @@ export async function PATCH(
     const supabase = getSupabaseServer()
     const { data: existing } = await supabase
       .from("games")
-      .select("id, team_id")
+      .select(
+        "id, team_id, location, team_score, opponent_score, result, q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
+      )
       .eq("id", gameId)
       .eq("team_id", teamId)
       .maybeSingle()
@@ -88,21 +99,31 @@ export async function PATCH(
       const r = body.result?.trim().toLowerCase() ?? ""
       patch.result = r && RESULTS.has(r) ? r : null
     }
-    if (body.teamScore !== undefined) {
-      if (body.teamScore === null) patch.team_score = null
-      else if (typeof body.teamScore === "number" && !Number.isNaN(body.teamScore)) patch.team_score = body.teamScore
-      else {
-        const n = Number(body.teamScore)
-        patch.team_score = Number.isFinite(n) ? Math.trunc(n) : null
-      }
+
+    const mergedLocation =
+      body.location !== undefined
+        ? body.location === null || String(body.location).trim() === ""
+          ? null
+          : String(body.location).trim()
+        : ((existing as { location?: string | null }).location ?? null)
+
+    const existingRow: GamesDbRow = {
+      location: mergedLocation,
+      team_score: (existing as { team_score?: number | null }).team_score ?? null,
+      opponent_score: (existing as { opponent_score?: number | null }).opponent_score ?? null,
+      q1_home: (existing as { q1_home?: number | null }).q1_home ?? null,
+      q2_home: (existing as { q2_home?: number | null }).q2_home ?? null,
+      q3_home: (existing as { q3_home?: number | null }).q3_home ?? null,
+      q4_home: (existing as { q4_home?: number | null }).q4_home ?? null,
+      q1_away: (existing as { q1_away?: number | null }).q1_away ?? null,
+      q2_away: (existing as { q2_away?: number | null }).q2_away ?? null,
+      q3_away: (existing as { q3_away?: number | null }).q3_away ?? null,
+      q4_away: (existing as { q4_away?: number | null }).q4_away ?? null,
     }
-    if (body.opponentScore !== undefined) {
-      if (body.opponentScore === null) patch.opponent_score = null
-      else if (typeof body.opponentScore === "number" && !Number.isNaN(body.opponentScore)) patch.opponent_score = body.opponentScore
-      else {
-        const n = Number(body.opponentScore)
-        patch.opponent_score = Number.isFinite(n) ? Math.trunc(n) : null
-      }
+
+    const scoringPatch = mergeGameScoringPatch(body as Record<string, unknown>, existingRow)
+    if (Object.keys(scoringPatch).length > 0) {
+      Object.assign(patch, scoringPatch)
     }
     if (body.notes !== undefined) {
       patch.notes = body.notes?.trim() || null

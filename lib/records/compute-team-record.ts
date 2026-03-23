@@ -1,19 +1,8 @@
-import { inferScheduleStatus, type TeamGameRow } from "@/lib/team-schedule-games"
-
-/**
- * Normalize schedule result strings (DB + imports) for record counting.
- */
-export function normalizeGameResult(result?: string | null): "win" | "loss" | "tie" | null {
-  const r = (result || "").toLowerCase().trim()
-  if (r === "win" || r === "w") return "win"
-  if (r === "loss" || r === "l") return "loss"
-  if (r === "tie" || r === "t") return "tie"
-  return null
-}
+import { deriveGameOutcome, inferScheduleStatus, type TeamGameRow } from "@/lib/team-schedule-games"
 
 /**
  * Overall + district (conference) W-L(-T) from scheduled games with final results.
- * Uses the same completion rules as the schedule UI (`inferScheduleStatus`).
+ * Outcomes prefer final scores, then stored `result` (`inferScheduleStatus` + `deriveGameOutcome`).
  */
 export function computeTeamRecord(games: TeamGameRow[]) {
   let overallWins = 0
@@ -27,7 +16,7 @@ export function computeTeamRecord(games: TeamGameRow[]) {
   for (const game of games) {
     if (inferScheduleStatus(game) !== "completed") continue
 
-    const outcome = normalizeGameResult(game.result)
+    const outcome = deriveGameOutcome(game)
     if (!outcome) continue
 
     const isDistrict = Boolean(game.conferenceGame)

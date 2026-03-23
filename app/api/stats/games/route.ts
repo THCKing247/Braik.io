@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     const { data: rows, error } = await supabase
       .from("games")
       .select(
-        "id, opponent, game_date, location, game_type, result, notes, conference_game, team_score, opponent_score, confirmed_by_coach, season_id, seasons(year)"
+        "id, opponent, game_date, location, game_type, result, notes, conference_game, team_score, opponent_score, confirmed_by_coach, season_id, seasons(year), q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
       )
       .eq("team_id", teamId)
       .order("game_date", { ascending: true })
@@ -57,6 +57,14 @@ export async function GET(request: Request) {
         teamScore: (r.team_score as number | null) ?? null,
         opponentScore: (r.opponent_score as number | null) ?? null,
         confirmedByCoach: Boolean(r.confirmed_by_coach),
+        q1_home: (r.q1_home as number | null) ?? null,
+        q2_home: (r.q2_home as number | null) ?? null,
+        q3_home: (r.q3_home as number | null) ?? null,
+        q4_home: (r.q4_home as number | null) ?? null,
+        q1_away: (r.q1_away as number | null) ?? null,
+        q2_away: (r.q2_away as number | null) ?? null,
+        q3_away: (r.q3_away as number | null) ?? null,
+        q4_away: (r.q4_away as number | null) ?? null,
       }
     })
 

@@ -36,12 +36,15 @@ export function TeamGameFormDialog({
   onOpenChange,
   game,
   onSaved,
+  suggestedOpponent,
 }: {
   teamId: string
   open: boolean
   onOpenChange: (o: boolean) => void
   game: TeamGameRow | null
   onSaved: () => void
+  /** Hint when adding a game (e.g. last scheduled opponent). */
+  suggestedOpponent?: string
 }) {
   const { showToast } = usePlaybookToast()
   const [saving, setSaving] = useState(false)
@@ -59,6 +62,14 @@ export function TeamGameFormDialog({
   const [opponentScore, setOpponentScore] = useState("")
   const [notes, setNotes] = useState("")
   const [confirmedByCoach, setConfirmedByCoach] = useState(false)
+  const [q1_home, setQ1_home] = useState("")
+  const [q2_home, setQ2_home] = useState("")
+  const [q3_home, setQ3_home] = useState("")
+  const [q4_home, setQ4_home] = useState("")
+  const [q1_away, setQ1_away] = useState("")
+  const [q2_away, setQ2_away] = useState("")
+  const [q3_away, setQ3_away] = useState("")
+  const [q4_away, setQ4_away] = useState("")
 
   useEffect(() => {
     if (!open) return
@@ -74,6 +85,14 @@ export function TeamGameFormDialog({
       setOpponentScore("")
       setNotes("")
       setConfirmedByCoach(false)
+      setQ1_home("")
+      setQ2_home("")
+      setQ3_home("")
+      setQ4_home("")
+      setQ1_away("")
+      setQ2_away("")
+      setQ3_away("")
+      setQ4_away("")
       return
     }
     setOpponent(game.opponent || "")
@@ -88,6 +107,15 @@ export function TeamGameFormDialog({
     setOpponentScore(game.opponentScore != null ? String(game.opponentScore) : "")
     setNotes(game.notes || "")
     setConfirmedByCoach(Boolean(game.confirmedByCoach))
+    const qv = (n: number | null | undefined) => (n != null && Number.isFinite(Number(n)) ? String(n) : "")
+    setQ1_home(qv(game.q1_home))
+    setQ2_home(qv(game.q2_home))
+    setQ3_home(qv(game.q3_home))
+    setQ4_home(qv(game.q4_home))
+    setQ1_away(qv(game.q1_away))
+    setQ2_away(qv(game.q2_away))
+    setQ3_away(qv(game.q3_away))
+    setQ4_away(qv(game.q4_away))
   }, [open, game])
 
   const handleSubmit = async () => {
@@ -98,6 +126,7 @@ export function TeamGameFormDialog({
     }
     const location = buildLocationFromHomeAway(homeAway, locationDetail, opp)
 
+    const qPayload = (s: string) => (s.trim() === "" ? null : Number(s))
     const payload = {
       opponent: opp,
       gameDate: kickoff.toISOString(),
@@ -109,6 +138,14 @@ export function TeamGameFormDialog({
       opponentScore: opponentScore.trim() === "" ? null : Number(opponentScore),
       notes: notes.trim() || null,
       confirmedByCoach,
+      q1_home: qPayload(q1_home),
+      q2_home: qPayload(q2_home),
+      q3_home: qPayload(q3_home),
+      q4_home: qPayload(q4_home),
+      q1_away: qPayload(q1_away),
+      q2_away: qPayload(q2_away),
+      q3_away: qPayload(q3_away),
+      q4_away: qPayload(q4_away),
     }
 
     if (payload.teamScore !== null && Number.isNaN(payload.teamScore)) {
@@ -189,7 +226,11 @@ export function TeamGameFormDialog({
                 id="tg-opponent"
                 value={opponent}
                 onChange={(e) => setOpponent(e.target.value)}
-                placeholder="e.g. Central High"
+                placeholder={
+                  !game && suggestedOpponent?.trim()
+                    ? `e.g. ${suggestedOpponent.trim()}`
+                    : "e.g. Central High"
+                }
               />
             </div>
 
@@ -290,6 +331,47 @@ export function TeamGameFormDialog({
                   placeholder="—"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Quarter breakdown (optional, venue home/away)</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">H Q1</Label>
+                  <Input inputMode="numeric" value={q1_home} onChange={(e) => setQ1_home(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">H Q2</Label>
+                  <Input inputMode="numeric" value={q2_home} onChange={(e) => setQ2_home(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">H Q3</Label>
+                  <Input inputMode="numeric" value={q3_home} onChange={(e) => setQ3_home(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">H Q4</Label>
+                  <Input inputMode="numeric" value={q4_home} onChange={(e) => setQ4_home(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">A Q1</Label>
+                  <Input inputMode="numeric" value={q1_away} onChange={(e) => setQ1_away(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">A Q2</Label>
+                  <Input inputMode="numeric" value={q2_away} onChange={(e) => setQ2_away(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">A Q3</Label>
+                  <Input inputMode="numeric" value={q3_away} onChange={(e) => setQ3_away(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">A Q4</Label>
+                  <Input inputMode="numeric" value={q4_away} onChange={(e) => setQ4_away(e.target.value)} className="h-9" />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                If set, final scores follow the sum of quarters (mapped by home/away). Otherwise use team/opponent totals above.
+              </p>
             </div>
 
             <div className="space-y-2">

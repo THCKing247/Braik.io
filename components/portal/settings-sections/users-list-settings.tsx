@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Users, UserCheck, UserX, ChevronDown, ChevronUp } from "lucide-react"
@@ -50,17 +51,12 @@ const POSITION_COACH_ROLES = {
   specialTeams: ["Snap", "Kick", "Punt"],
 }
 
-type CoachAssignmentRow = { assignmentType: string; userId: string; displayName: string | null }
-
 export function UsersListSettings({ teamId }: UsersListSettingsProps) {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
   const [programId, setProgramId] = useState<string | null>(null)
-  const [canEditProgramAssignments, setCanEditProgramAssignments] = useState(false)
-  const [coachAssignments, setCoachAssignments] = useState<CoachAssignmentRow[]>([])
-  const [assignmentsLoading, setAssignmentsLoading] = useState(false)
 
   useEffect(() => {
     loadUsers()
@@ -73,7 +69,6 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
         const data = await res.json()
         setUsers(data.users || [])
         setProgramId(data.programId ?? null)
-        setCanEditProgramAssignments(Boolean(data.canEditProgramAssignments))
       }
     } catch (error) {
       console.error("Failed to load users:", error)
@@ -158,28 +153,6 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
     }
   }
 
-  const handleProgramAssignmentChange = async (assignmentType: "jv_head" | "freshman_head", userId: string | null) => {
-    if (!programId) return
-    setSaving(`assign-${assignmentType}`)
-    try {
-      const res = await fetch(`/api/programs/${programId}/coach-assignments`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignmentType, userId }),
-      })
-      if (res.ok) {
-        await loadCoachAssignments(programId)
-      } else {
-        const err = await res.json().catch(() => ({}))
-        alert(err.error || "Failed to update assignment")
-      }
-    } catch {
-      alert("Failed to update assignment")
-    } finally {
-      setSaving(null)
-    }
-  }
-
   const handlePositionCoachToggle = async (userId: string, positionRole: string, isAdding: boolean) => {
     setSaving(userId)
     try {
@@ -214,10 +187,6 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
   const players = users.filter((u) => u.role === "player" || u.role === "PLAYER")
   const parents = users.filter((u) => u.role === "parent" || u.role === "PARENT")
 
-  const assignmentOptions = assistants.filter((u) => u.staffStatus !== "pending_assignment")
-  const jvHeadId = coachAssignments.find((a) => a.assignmentType === "jv_head")?.userId ?? ""
-  const frHeadId = coachAssignments.find((a) => a.assignmentType === "freshman_head")?.userId ?? ""
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -237,59 +206,16 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
         </p>
       </div>
 
-      {programId && canEditProgramAssignments && (
-        <Card className="border border-border bg-card">
-          <CardHeader>
-            <CardTitle className="text-foreground">Football program leadership</CardTitle>
-            <p className="text-sm text-muted-foreground font-normal">
-              Assign JV and Freshman head coaches. Your account remains the Director of Football / Varsity head coach.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {assignmentsLoading ? (
-              <p className="text-sm text-muted-foreground">Loading assignments…</p>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">JV head coach</label>
-                  <select
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
-                    value={jvHeadId || ""}
-                    disabled={Boolean(saving)}
-                    onChange={(e) =>
-                      handleProgramAssignmentChange("jv_head", e.target.value || null)
-                    }
-                  >
-                    <option value="">Unassigned</option>
-                    {assignmentOptions.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name || u.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">Freshman head coach</label>
-                  <select
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
-                    value={frHeadId || ""}
-                    disabled={Boolean(saving)}
-                    onChange={(e) =>
-                      handleProgramAssignmentChange("freshman_head", e.target.value || null)
-                    }
-                  >
-                    <option value="">Unassigned</option>
-                    {assignmentOptions.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name || u.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+      {programId && (
+        <div className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">Program control: </span>
+          Which team an assistant belongs to (Varsity / JV / Freshman) and JV/Freshman head coach designations are managed in{" "}
+          <Link href="/dashboard/director" className="font-medium text-primary underline hover:no-underline">
+            Program control
+          </Link>
+          . This screen is for coaching job titles (coordinator, position coach) for staff on{" "}
+          <span className="font-medium text-foreground">this</span> team.
+        </div>
       )}
 
       {/* Assistants Section */}

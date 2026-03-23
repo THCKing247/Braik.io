@@ -3,6 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { useSession, signOut } from "@/lib/auth/client-auth"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
@@ -29,6 +30,29 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const userRole = session?.user?.role
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
+  const dashboardHomeHref =
+    userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+      ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+      : "/dashboard"
+  const [directorHubEligible, setDirectorHubEligible] = useState(false)
+  useEffect(() => {
+    if (userRole !== "HEAD_COACH") {
+      setDirectorHubEligible(false)
+      return
+    }
+    let cancelled = false
+    fetch("/api/me/director-hub")
+      .then((r) => r.json())
+      .then((d: { eligible?: boolean }) => {
+        if (!cancelled) setDirectorHubEligible(Boolean(d.eligible))
+      })
+      .catch(() => {
+        if (!cancelled) setDirectorHubEligible(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [userRole])
   const quickActions = getQuickActionsForRole(userRole)
   const showCoachB = userRole && canUseCoachB(userRole as Role)
   const coachCopy = useCoachBRotatingCopy()
@@ -71,11 +95,19 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
 
         <nav className="space-y-1.5 p-3" aria-label="Main navigation">
           <SidebarNavItem
-            href="/dashboard"
+            href={dashboardHomeHref}
             label="Dashboard"
             icon={LayoutDashboard}
             isActive={pathname === "/dashboard"}
           />
+          {directorHubEligible && (
+            <SidebarNavItem
+              href="/dashboard/director"
+              label="Program control"
+              icon={Gauge}
+              isActive={pathname === "/dashboard/director"}
+            />
+          )}
           {quickActions.map((action) => (
             <SidebarNavItem
               key={action.id}

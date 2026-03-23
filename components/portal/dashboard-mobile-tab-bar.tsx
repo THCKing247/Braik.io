@@ -1,16 +1,22 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { LayoutDashboard, Users, Calendar, MessageSquare, Menu } from "lucide-react"
 import { useMobileDashboardNav } from "@/components/portal/mobile-dashboard-nav-provider"
 import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickActions"
 import { useSession } from "@/lib/auth/client-auth"
+import { usePortalTeam } from "@/components/portal/portal-team-context"
 
 const tabs = [
-  { href: "/dashboard", label: "Home", icon: LayoutDashboard, match: (p: string) => p === "/dashboard" },
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: LayoutDashboard,
+    match: (p: string) => p === "/dashboard" || p === "/dashboard/director",
+  },
   {
     href: "/dashboard/roster",
     label: "Roster",
@@ -41,8 +47,16 @@ function pathMatchesMoreArea(pathname: string, role: string | undefined): boolea
 /** Bottom nav + More sheet for all viewports below lg. */
 export function DashboardMobileTabBar() {
   const pathname = usePathname() ?? ""
+  const searchParams = useSearchParams()
+  const portal = usePortalTeam()
   const { data: session } = useSession()
   const { openMoreSheet, moreSheetOpen } = useMobileDashboardNav()
+  const contextTeamId =
+    searchParams.get("teamId") || portal?.currentTeamId || portal?.teamIds?.[0] || ""
+  const homeDashboardHref =
+    session?.user?.role?.toUpperCase() === "HEAD_COACH" && contextTeamId
+      ? `/dashboard?teamId=${encodeURIComponent(contextTeamId)}`
+      : "/dashboard"
   const moreRouteActive = useMemo(
     () => pathMatchesMoreArea(pathname, session?.user?.role),
     [pathname, session?.user?.role]
@@ -64,10 +78,11 @@ export function DashboardMobileTabBar() {
       <div className="mx-auto grid h-[68px] min-h-[68px] max-w-[min(100%,var(--mobile-shell-max-width))] grid-cols-5 items-stretch px-1 pt-1 sm:px-3 md:px-4">
         {tabs.map(({ href, label, icon: Icon, match }) => {
           const active = match(pathname)
+          const resolvedHref = href === "/dashboard" ? homeDashboardHref : href
           return (
             <Link
               key={href}
-              href={href}
+              href={resolvedHref}
               className={cn(
                 "flex min-h-[44px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1",
                 "transition-colors active:bg-muted/80",

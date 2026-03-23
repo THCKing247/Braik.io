@@ -38,6 +38,10 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const isPlatformOwner = session?.user?.isPlatformOwner || false
   const showAdminLink = isPlatformOwner
+  const dashboardHomeHref =
+    session?.user?.role?.toUpperCase() === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+      ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+      : "/dashboard"
 
   return (
     <>
@@ -98,7 +102,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-2.5 md:px-6">
           <div className="min-w-0 shrink-0">
             <Link
-              href="/dashboard"
+              href={dashboardHomeHref}
               className="flex items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
               aria-label="Braik - Return to dashboard"
             >

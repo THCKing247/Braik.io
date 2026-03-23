@@ -1,10 +1,11 @@
 "use client"
 
+import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { TeamDashboard } from "@/components/portal/team-dashboard"
+import { DirectorHubLandingGate } from "@/components/portal/director-hub-landing-gate"
 
 export const dynamic = "force-dynamic"
 
@@ -41,14 +42,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <DashboardPageShell>
-      {({ teamId, canEdit }) => (
-        <TeamDashboard
-          session={session}
-          teamId={teamId}
-          canAddCalendarEvents={canEdit}
-        />
-      )}
-    </DashboardPageShell>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+        </div>
+      }
+    >
+      <DirectorHubLandingGate>
+        <DashboardPageShell>
+          {({ teamId, canEdit }) => (
+            <TeamDashboard
+              session={session}
+              teamId={teamId}
+              canAddCalendarEvents={canEdit}
+            />
+          )}
+        </DashboardPageShell>
+      </DirectorHubLandingGate>
+    </Suspense>
   )
 }

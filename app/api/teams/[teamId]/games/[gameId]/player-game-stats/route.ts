@@ -1,11 +1,13 @@
 /**
- * PUT — replace per-game player stat rows (coaches). Body: { rows: [{ playerId, stats }] }
+ * PUT — save per-game player stats: writes canonical `player_weekly_stat_entries` + mirrors `player_game_stats`.
+ * Body: { rows: [{ playerId, stats }] }
  */
 import { NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
+import { syncSchedulePlayerStatsToWeeklyAndMirror } from "@/lib/sync-schedule-player-stats-to-weekly"
 
 type RowIn = { playerId?: string; stats?: Record<string, unknown> }
 
@@ -18,6 +20,7 @@ export async function PUT(
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const userId = session.user.id
 
     const { teamId, gameId } = await params
     if (!teamId?.trim() || !gameId?.trim()) {
@@ -57,29 +60,17 @@ export async function PUT(
       }
     }
 
-    const { error: delErr } = await supabase.from("player_game_stats").delete().eq("game_id", gameId).eq("team_id", teamId)
-    if (delErr) {
-      console.error("[PUT player-game-stats] delete", delErr)
-      return NextResponse.json({ error: "Failed to update stats" }, { status: 500 })
-    }
-
-    if (normalized.length > 0) {
-      const insertRows = normalized.map((r) => ({
-        team_id: teamId,
-        game_id: gameId,
-        player_id: r.playerId,
-        stats: r.stats,
-        updated_at: new Date().toISOString(),
-      }))
-      const { error: insErr } = await supabase.from("player_game_stats").insert(insertRows)
-      if (insErr) {
-        console.error("[PUT player-game-stats] insert", insErr)
-        return NextResponse.json({ error: "Failed to save stats" }, { status: 500 })
-      }
+    try {
+      await syncSchedulePlayerStatsToWeeklyAndMirror(supabase, teamId, gameId, userId, normalized)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Save failed"
+      console.error("[PUT player-game-stats] sync", e)
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
 
     revalidatePath("/dashboard/schedule")
     revalidatePath("/dashboard")
+    revalidatePath("/dashboard/stats")
 
     return NextResponse.json({ success: true })
   } catch (err) {

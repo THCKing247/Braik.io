@@ -1,4 +1,4 @@
--- Schedule intelligence: cached AI recap + optional coach override for Player of the Game.
+/* Schedule intelligence: cached AI recap + optional coach override for Player of the Game. */
 alter table public.games add column if not exists ai_recap text;
 alter table public.games add column if not exists ai_recap_at timestamptz;
 alter table public.games add column if not exists potg_override_player_id uuid references public.players(id) on delete set null;

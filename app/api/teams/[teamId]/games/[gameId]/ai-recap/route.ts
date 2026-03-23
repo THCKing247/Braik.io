@@ -14,6 +14,7 @@ import { buildGameRecapFacts } from "@/lib/game-recap-build"
 import { generateGameRecapWithOpenAI } from "@/lib/game-recap-openai"
 import { isOpenAIConfigured } from "@/lib/braik-ai/openai-client"
 import type { GameStatsRowInput } from "@/lib/schedule-player-of-game"
+import { loadMergedPlayerStatsForScheduleGame } from "@/lib/schedule-panel-player-stats"
 
 export async function POST(
   request: Request,
@@ -80,34 +81,21 @@ export async function POST(
     const rb = recBefore.get(game.id)
     const recordBeforeGame = rb != null ? formatRecordLine(rb) : undefined
 
-    const { data: statRows } = await supabase
-      .from("player_game_stats")
-      .select("player_id, stats")
-      .eq("game_id", gameId)
-      .eq("team_id", teamId)
-
-    const pids = [...new Set((statRows ?? []).map((x) => x.player_id as string))]
-    const { data: players } =
-      pids.length > 0
-        ? await supabase
-            .from("players")
-            .select("id, first_name, last_name, jersey_number, position_group")
-            .eq("team_id", teamId)
-            .in("id", pids)
-        : { data: [] as { id: string; first_name: string; last_name: string; jersey_number: number | null; position_group: string | null }[] }
-
-    const pmap = new Map((players ?? []).map((p) => [p.id as string, p]))
-    const playerRows: GameStatsRowInput[] = (statRows ?? []).map((r) => {
-      const p = pmap.get(r.player_id as string)
-      return {
-        playerId: r.player_id as string,
-        firstName: (p?.first_name as string) ?? "",
-        lastName: (p?.last_name as string) ?? "",
-        jerseyNumber: (p?.jersey_number as number | null) ?? null,
-        positionGroup: (p?.position_group as string | null) ?? null,
-        stats: (r.stats as Record<string, unknown>) ?? {},
-      }
-    })
+    let playerRows: GameStatsRowInput[] = []
+    try {
+      const merged = await loadMergedPlayerStatsForScheduleGame(supabase, teamId, gameId)
+      playerRows = merged.map((m) => ({
+        playerId: m.playerId,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        jerseyNumber: m.jerseyNumber,
+        positionGroup: m.positionGroup,
+        stats: m.stats,
+      }))
+    } catch (e) {
+      console.error("[POST ai-recap] merged player stats", e)
+      return NextResponse.json({ error: "Failed to load player stats for recap" }, { status: 500 })
+    }
 
     const oid = (gameRow as { potg_override_player_id?: string | null }).potg_override_player_id
     let potgOverride: { firstName: string; lastName: string; reason?: string } | null = null

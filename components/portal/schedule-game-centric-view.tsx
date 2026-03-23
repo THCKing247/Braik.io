@@ -5,6 +5,16 @@ import { format } from "date-fns"
 import { ChevronDown, ChevronRight, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { formatRecordLine } from "@/lib/records/compute-team-record"
 import { emitTeamGamesChanged } from "@/lib/team-games-events"
@@ -104,8 +114,14 @@ export function ScheduleGameCentricView({
   const [scoreDraft, setScoreDraft] = useState<{ team: string; opp: string } | null>(null)
   const [scoreEditId, setScoreEditId] = useState<string | null>(null)
   const [qDraft, setQDraft] = useState<Record<string, string>>({})
+  const [selectedGameIds, setSelectedGameIds] = useState<Set<string>>(() => new Set())
+  const [bulkScoresOpen, setBulkScoresOpen] = useState(false)
+  const [bulkTeamInput, setBulkTeamInput] = useState("")
+  const [bulkOppInput, setBulkOppInput] = useState("")
+  const [bulkSaving, setBulkSaving] = useState(false)
 
   const recordBefore = useMemo(() => buildCumulativeRecordBeforeMap(games), [games])
+  const allGameIds = useMemo(() => games.map((g) => g.id), [games])
   const weekGroups = useMemo(() => groupGamesByScheduleWeek(games), [games])
   const teamTrends = useMemo(() => computeTeamTrends(games), [games])
 
@@ -191,6 +207,70 @@ export function ScheduleGameCentricView({
     [onRefresh, qDraft, showToast, teamId]
   )
 
+  const toggleGameSelected = useCallback((gameId: string) => {
+    setSelectedGameIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(gameId)) next.delete(gameId)
+      else next.add(gameId)
+      return next
+    })
+  }, [])
+
+  const applyBulkScores = useCallback(async () => {
+    const ids = [...selectedGameIds]
+    if (ids.length === 0) {
+      showToast("Select at least one game.", "error")
+      return
+    }
+    const ts =
+      bulkTeamInput.trim() === "" ? null : Number(bulkTeamInput)
+    const os =
+      bulkOppInput.trim() === "" ? null : Number(bulkOppInput)
+    if (ts != null && Number.isNaN(ts)) {
+      showToast("Enter a valid team score.", "error")
+      return
+    }
+    if (os != null && Number.isNaN(os)) {
+      showToast("Enter a valid opponent score.", "error")
+      return
+    }
+    setBulkSaving(true)
+    try {
+      const res = await fetch(`/api/teams/${teamId}/games/bulk`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameIds: ids,
+          teamScore: ts,
+          opponentScore: os,
+        }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error((j as { error?: string }).error || "Bulk update failed")
+      }
+      const j = (await res.json().catch(() => ({}))) as { updated?: number }
+      showToast(`Updated ${j.updated ?? ids.length} game(s).`, "success")
+      emitTeamGamesChanged(teamId)
+      onRefresh()
+      setBulkScoresOpen(false)
+      setSelectedGameIds(new Set())
+      setBulkTeamInput("")
+      setBulkOppInput("")
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Bulk update failed", "error")
+    } finally {
+      setBulkSaving(false)
+    }
+  }, [
+    bulkOppInput,
+    bulkTeamInput,
+    onRefresh,
+    selectedGameIds,
+    showToast,
+    teamId,
+  ])
+
   useEffect(() => {
     if (!expandedId) return
     const g = games.find((x) => x.id === expandedId)
@@ -207,6 +287,94 @@ export function ScheduleGameCentricView({
   return (
     <div className="space-y-8">
       {games.length > 0 ? <ScheduleTeamTrendsStrip trends={teamTrends} /> : null}
+
+      {canEdit && games.length > 0 ? (
+        <div
+          className="hidden lg:flex lg:flex-wrap lg:items-center lg:justify-between lg:gap-3 lg:rounded-xl lg:border lg:px-4 lg:py-3"
+          style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+              <span className="font-semibold tabular-nums" style={{ color: "rgb(var(--text))" }}>
+                {selectedGameIds.size}
+              </span>{" "}
+              selected
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={allGameIds.length === 0}
+              onClick={() => {
+                if (selectedGameIds.size === allGameIds.length) setSelectedGameIds(new Set())
+                else setSelectedGameIds(new Set(allGameIds))
+              }}
+            >
+              {selectedGameIds.size === allGameIds.length ? "Deselect all" : "Select all"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={selectedGameIds.size === 0}
+              onClick={() => setSelectedGameIds(new Set())}
+            >
+              Clear selection
+            </Button>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            disabled={selectedGameIds.size === 0}
+            onClick={() => setBulkScoresOpen(true)}
+          >
+            Bulk set scores
+          </Button>
+        </div>
+      ) : null}
+
+      <Dialog open={bulkScoresOpen} onOpenChange={setBulkScoresOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk set scores</DialogTitle>
+            <DialogDescription>
+              Applies the same final score to every selected game. Quarter breakdowns are cleared (same as editing
+              scores on each card). Leave a field empty to clear that side&apos;s score.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="bulk-our-score">{teamName} (us)</Label>
+              <Input
+                id="bulk-our-score"
+                inputMode="numeric"
+                placeholder="e.g. 28"
+                value={bulkTeamInput}
+                onChange={(e) => setBulkTeamInput(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bulk-opp-score">Opponent</Label>
+              <Input
+                id="bulk-opp-score"
+                inputMode="numeric"
+                placeholder="e.g. 14"
+                value={bulkOppInput}
+                onChange={(e) => setBulkOppInput(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="ghost" onClick={() => setBulkScoresOpen(false)} disabled={bulkSaving}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void applyBulkScores()} disabled={bulkSaving}>
+              {bulkSaving ? "Saving…" : "Apply to selected"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {weekGroups.map((wg) => (
         <section key={wg.label} className="space-y-3">
           <h2 className="text-sm font-semibold tracking-wide md:text-base" style={{ color: "rgb(var(--text))" }}>
@@ -239,6 +407,20 @@ export function ScheduleGameCentricView({
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                     <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+                      {canEdit ? (
+                        <div
+                          className="hidden shrink-0 items-center gap-2 lg:flex"
+                          onClick={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <Checkbox
+                            id={`schedule-select-${g.id}`}
+                            checked={selectedGameIds.has(g.id)}
+                            onCheckedChange={() => toggleGameSelected(g.id)}
+                            aria-label={`Select game vs ${opp}`}
+                          />
+                        </div>
+                      ) : null}
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         <WlBadge kind={badges.ours} />
                         <div className="min-w-0 flex-1">

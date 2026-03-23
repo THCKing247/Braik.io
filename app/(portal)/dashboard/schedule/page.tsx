@@ -16,6 +16,7 @@ import {
 import { ListOrdered, MapPin, Plus, Upload, Download, Pencil } from "lucide-react"
 import { TeamGameFormDialog } from "@/components/portal/team-game-form-dialog"
 import { TeamGamesImportDialog } from "@/components/portal/team-games-import-dialog"
+import { emitTeamGamesChanged } from "@/lib/team-games-events"
 
 export default function TeamSchedulePage() {
   return (
@@ -89,7 +90,8 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const onSaved = useCallback(() => {
     loadGames()
     router.refresh()
-  }, [loadGames, router])
+    emitTeamGamesChanged(teamId)
+  }, [loadGames, router, teamId])
 
   const sorted = sortGamesScheduleView(games)
 

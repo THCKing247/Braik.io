@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +22,8 @@ import { DashboardCalendar } from "@/components/portal/dashboard-calendar"
 import { DashboardAnnouncementsCard } from "@/components/portal/dashboard-announcements-card"
 import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
 import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team-schedule-games"
+import { computeTeamRecord, formatRecordLine } from "@/lib/records/compute-team-record"
+import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,9 +72,23 @@ function formatRelativeTime(iso: string) {
 
 // ─── Team Banner ──────────────────────────────────────────────────────────────
 
-function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
+function TeamBanner({
+  user,
+  teamId,
+  scheduleGames,
+  scheduleGamesLoading,
+}: {
+  user: SessionUser
+  teamId: string
+  scheduleGames: TeamGameRow[]
+  scheduleGamesLoading: boolean
+}) {
   const [teamSummary, setTeamSummary] = useState<{ name: string; slogan: string | null; logoUrl: string | null } | null>(null)
   const hasTeam = Boolean(user.teamId)
+
+  const record = useMemo(() => computeTeamRecord(scheduleGames), [scheduleGames])
+  const overallLine = formatRecordLine(record.overall)
+  const districtLine = formatRecordLine(record.district)
 
   useEffect(() => {
     if (!teamId) {
@@ -101,12 +117,6 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
   const lastName = user?.name?.split(" ").slice(-1)[0] || ""
   const roleLabel = getRoleLabel(user.role)
   const logoUrl = teamSummary?.logoUrl ?? null
-
-  // Placeholder record — will be populated from real season data
-  const wins = 0
-  const losses = 0
-  const districtWins = 0
-  const districtLosses = 0
 
   return (
     <div
@@ -160,12 +170,14 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
             <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45 sm:text-[10px] sm:tracking-[0.15em]">
               Overall
             </p>
-            <div className="mt-0.5 flex items-baseline justify-center gap-1">
-              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{wins}</span>
-              <span className="text-base font-semibold text-white/40 sm:text-lg">-</span>
-              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{losses}</span>
+            <div className="mt-0.5 flex items-baseline justify-center">
+              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">
+                {scheduleGamesLoading ? "—" : overallLine}
+              </span>
             </div>
-            <p className="text-[9px] text-white/35 sm:text-[10px]">W – L</p>
+            <p className="text-[9px] text-white/35 sm:text-[10px]">
+              {record.overall.ties > 0 ? "W – L – T" : "W – L"}
+            </p>
           </div>
 
           <div className="hidden h-10 w-px bg-white/15 sm:block" aria-hidden />
@@ -178,12 +190,14 @@ function TeamBanner({ user, teamId }: { user: SessionUser; teamId: string }) {
                 District
               </p>
             </div>
-            <div className="mt-0.5 flex items-baseline justify-center gap-1">
-              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{districtWins}</span>
-              <span className="text-base font-semibold text-white/40 sm:text-lg">-</span>
-              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">{districtLosses}</span>
+            <div className="mt-0.5 flex items-baseline justify-center">
+              <span className="text-2xl font-bold tabular-nums text-white sm:text-3xl">
+                {scheduleGamesLoading ? "—" : districtLine}
+              </span>
             </div>
-            <p className="text-[9px] text-white/35 sm:text-[10px]">W – L</p>
+            <p className="text-[9px] text-white/35 sm:text-[10px]">
+              {record.district.ties > 0 ? "W – L – T" : "W – L"}
+            </p>
           </div>
         </div>
         )}
@@ -472,34 +486,16 @@ function NotificationsCard({ teamId }: { teamId: string }) {
 
 // ─── Next upcoming game (games table — same source as Schedule page) ──────────
 
-function UpcomingGameCard({ teamId }: { teamId: string }) {
-  const [loading, setLoading] = useState(true)
-  const [game, setGame] = useState<TeamGameRow | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    fetch(`/api/stats/games?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { games?: TeamGameRow[] } | null) => {
-        if (cancelled) return
-        const rows = data?.games
-        if (!rows || !Array.isArray(rows)) {
-          setGame(null)
-          return
-        }
-        setGame(getNextUpcomingGame(rows))
-      })
-      .catch(() => {
-        if (!cancelled) setGame(null)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId])
+function UpcomingGameCard({
+  teamId,
+  scheduleGames,
+  loading,
+}: {
+  teamId: string
+  scheduleGames: TeamGameRow[]
+  loading: boolean
+}) {
+  const game = useMemo(() => getNextUpcomingGame(scheduleGames), [scheduleGames])
 
   const scheduleHref = `/dashboard/schedule?teamId=${encodeURIComponent(teamId)}`
 
@@ -740,6 +736,43 @@ function ConnectToTeamCard({ user }: { user: SessionUser }) {
 
 export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDashboardProps) {
   const user = session?.user
+
+  const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
+  const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
+
+  const loadScheduleGames = useCallback(() => {
+    if (!teamId?.trim()) {
+      setScheduleGames([])
+      setScheduleGamesLoading(false)
+      return
+    }
+    setScheduleGamesLoading(true)
+    fetch(`/api/stats/games?teamId=${encodeURIComponent(teamId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { games?: TeamGameRow[] } | null) => {
+        if (data?.games && Array.isArray(data.games)) {
+          setScheduleGames(data.games)
+        } else {
+          setScheduleGames([])
+        }
+      })
+      .catch(() => setScheduleGames([]))
+      .finally(() => setScheduleGamesLoading(false))
+  }, [teamId])
+
+  useEffect(() => {
+    loadScheduleGames()
+  }, [loadScheduleGames])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ teamId?: string }>
+      if (ce.detail?.teamId === teamId) loadScheduleGames()
+    }
+    window.addEventListener(TEAM_GAMES_CHANGED_EVENT, handler)
+    return () => window.removeEventListener(TEAM_GAMES_CHANGED_EVENT, handler)
+  }, [teamId, loadScheduleGames])
+
   if (!user) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-6" style={{ backgroundColor: "rgb(var(--snow))" }}>
@@ -760,7 +793,12 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
     <div className="min-w-0 space-y-3 pb-2 sm:space-y-4 md:space-y-6 md:pb-6">
 
       {/* ── Team Banner ── */}
-      <TeamBanner user={user} teamId={teamId} />
+      <TeamBanner
+        user={user}
+        teamId={teamId}
+        scheduleGames={scheduleGames}
+        scheduleGamesLoading={scheduleGamesLoading}
+      />
 
       {/* ── Connect to Team Card (if no team and not head coach) ── */}
       {!hasTeam && !isHeadCoach && <ConnectToTeamCard user={user} />}
@@ -768,7 +806,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {/* ── Next game (games table) + home calendar strip ── */}
       {hasTeam && (
         <div className="space-y-3 sm:space-y-4">
-          <UpcomingGameCard teamId={teamId} />
+          <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
           <DashboardCalendar teamId={teamId} canAddEvents={canAddCalendarEvents} />
         </div>
       )}

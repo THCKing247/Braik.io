@@ -10,10 +10,11 @@ import { Label } from "@/components/ui/label"
 import { StatsLeaderCards } from "@/components/portal/stats-leader-cards"
 import { AllStatsTable } from "@/components/portal/all-stats-table"
 import { AddWeeklyStatsDialog } from "@/components/portal/add-weekly-stats-dialog"
+import { BulkEditWeeklyStatsDialog } from "@/components/portal/bulk-edit-weekly-stats-dialog"
 import { DeleteStatsConfirmDialog } from "@/components/portal/delete-stats-confirm-dialog"
 import type { PlayerStatsRow, StatsTableRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
 import { playerToStatsTableRow, weeklyEntryToStatsTableRow } from "@/lib/stats-helpers"
-import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2, RefreshCw } from "lucide-react"
+import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2, RefreshCw, PencilLine } from "lucide-react"
 import { rowErrorsToCsv } from "@/lib/stats-import"
 import { STATS_WEEKLY_IMPORT_HEADERS, STAT_IMPORT_FIELDS } from "@/lib/stats-import-fields"
 import {
@@ -118,6 +119,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const importPanelRef = useRef<HTMLDivElement | null>(null)
   const [editWeeklyEntry, setEditWeeklyEntry] = useState<WeeklyStatEntryApi | null>(null)
   const [tableViewMode, setTableViewMode] = useState<"full" | "position">("full")
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
 
   const canConfirmImport = Boolean(
     selectedFile &&
@@ -532,6 +534,17 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
             <Download className="h-4 w-4 mr-2" aria-hidden />
             Export CSV
           </Button>
+          {canEdit && statsTab === "weekly" && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={selectedRowKeys.size === 0}
+              onClick={() => setBulkEditOpen(true)}
+            >
+              <PencilLine className="h-4 w-4 mr-2" aria-hidden />
+              Bulk Edit
+            </Button>
+          )}
           {canEdit && (
             <Button
               variant="outline"
@@ -565,6 +578,18 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         games={scheduleGames}
         editEntry={editWeeklyEntry}
         onSaved={() => setRefreshTrigger((t) => t + 1)}
+      />
+
+      <BulkEditWeeklyStatsDialog
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        teamId={teamId}
+        selectedEntryIds={[...selectedRowKeys]}
+        filteredEntryIds={filteredWeeklyTableRows.map((r) => r.rowKey)}
+        onSuccess={() => {
+          setRefreshTrigger((t) => t + 1)
+          setSelectedRowKeys(new Set())
+        }}
       />
 
       <DeleteStatsConfirmDialog

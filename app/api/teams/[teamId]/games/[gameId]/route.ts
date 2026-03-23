@@ -2,6 +2,7 @@
  * PATCH / DELETE single game for a team (edit_roster).
  */
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
@@ -117,6 +118,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Failed to update game" }, { status: 500 })
     }
 
+    revalidatePath("/dashboard")
+    revalidatePath("/dashboard/schedule")
+
     return NextResponse.json({ success: true })
   } catch (err) {
     if (err instanceof MembershipLookupError) {
@@ -165,6 +169,9 @@ export async function DELETE(
       console.error("[DELETE game]", error)
       return NextResponse.json({ error: "Failed to delete game" }, { status: 500 })
     }
+
+    revalidatePath("/dashboard")
+    revalidatePath("/dashboard/schedule")
 
     return NextResponse.json({ success: true })
   } catch (err) {

@@ -196,6 +196,13 @@ export type WeeklyStatEntryApi = {
   gameId: string | null
   opponent: string | null
   gameDate: string | null
+  gameType?: string | null
+  location?: string | null
+  venue?: string | null
+  result?: string | null
+  teamScore?: number | null
+  opponentScore?: number | null
+  notes?: string | null
   stats: Record<string, unknown>
   firstName: string
   lastName: string

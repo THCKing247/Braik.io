@@ -2,6 +2,7 @@
  * POST /api/teams/[teamId]/games — create a scheduled game (coaches with edit_roster).
  */
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
@@ -89,6 +90,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       console.error("[POST /api/teams/.../games]", error)
       return NextResponse.json({ error: "Failed to create game" }, { status: 500 })
     }
+
+    revalidatePath("/dashboard")
+    revalidatePath("/dashboard/schedule")
 
     return NextResponse.json({ id: inserted.id as string }, { status: 201 })
   } catch (err) {

@@ -13,6 +13,38 @@ export type TeamGameRow = {
   result: string | null
   notes: string | null
   seasonYear: number | null
+  conferenceGame?: boolean
+  teamScore?: number | null
+  opponentScore?: number | null
+  confirmedByCoach?: boolean
+}
+
+/** Map home/away + optional venue line into `games.location` (no DB column for home/away). */
+export function buildLocationFromHomeAway(
+  homeAway: "home" | "away" | "tbd",
+  locationDetail: string,
+  opponent: string
+): string | null {
+  const detail = locationDetail.trim()
+  const opp = opponent.trim()
+  if (homeAway === "home") {
+    if (detail) return detail
+    return "Home"
+  }
+  if (homeAway === "away") {
+    if (detail) return detail.startsWith("@") ? detail : `@ ${detail}`
+    return opp ? `@ ${opp}` : "@ TBD"
+  }
+  return detail || null
+}
+
+/** Strip synthetic prefixes for editing the "venue" field. */
+export function locationDetailForEdit(location: string | null, ha: "home" | "away" | "tbd"): string {
+  const loc = (location || "").trim()
+  if (!loc) return ""
+  if (ha === "away" && loc.startsWith("@")) return loc.replace(/^@\s*/, "").trim()
+  if (ha === "home" && /^home$/i.test(loc)) return ""
+  return loc
 }
 
 export type GameScheduleStatus = "scheduled" | "completed" | "postponed" | "cancelled"

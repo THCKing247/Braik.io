@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
+import { CalendarDays } from "lucide-react"
 
 interface Team {
   id: string
@@ -138,6 +140,23 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
 
   return (
     <div className="space-y-6">
+      <Card className="border border-border bg-card">
+        <CardHeader>
+          <CardTitle className="text-foreground">Game schedule</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Manage your team&apos;s games (add, edit, or import CSV) on the Schedule tab — not in Settings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="border-border text-foreground">
+            <Link href={`/dashboard/schedule?teamId=${encodeURIComponent(team.id)}`}>
+              <CalendarDays className="mr-2 h-4 w-4" aria-hidden />
+              Open Schedule
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Division & Standing */}
       <Card className="border border-border bg-card">
         <CardHeader>

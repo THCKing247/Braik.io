@@ -242,6 +242,7 @@ export async function POST(request: Request) {
     } else {
       const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, userId, tmRole, {
         source: "api_team_join",
+        staffStatus: tmRole === "assistant_coach" ? "pending_assignment" : "active",
       })
       if (tmErr) {
         return NextResponse.json(

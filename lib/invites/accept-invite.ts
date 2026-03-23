@@ -123,7 +123,7 @@ export async function acceptInvite(
         invite.team_id,
         acceptingUserId,
         "assistant_coach",
-        { source: "invite_accept" }
+        { source: "invite_accept", staffStatus: "pending_assignment" }
       )
       if (acErr) {
         return { success: false, reason: "db_error", message: acErr.message }

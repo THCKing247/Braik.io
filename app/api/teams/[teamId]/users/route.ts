@@ -21,10 +21,31 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    // Only head coaches can view the users list
+    // Head coaches, program directors, and delegated JV/Freshman heads (manage on this team)
     await requireTeamPermission(teamId, "manage")
 
     const supabase = getSupabaseServer()
+
+    const { data: teamRow } = await supabase
+      .from("teams")
+      .select("program_id")
+      .eq("id", teamId)
+      .maybeSingle()
+
+    const programId = (teamRow as { program_id?: string | null } | null)?.program_id ?? null
+
+    let canEditProgramAssignments = false
+    if (programId) {
+      const { data: pm } = await supabase
+        .from("program_members")
+        .select("role")
+        .eq("program_id", programId)
+        .eq("user_id", session.user.id)
+        .eq("active", true)
+        .maybeSingle()
+      const pr = String((pm as { role?: string } | null)?.role || "")
+      canEditProgramAssignments = ["head_coach", "director_of_football", "athletic_director"].includes(pr)
+    }
 
     // Get all profiles for this team
     const { data: profiles, error: profilesError } = await supabase
@@ -45,6 +66,20 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
       .in("id", userIds)
 
     const usersMap = new Map((usersData || []).map((u) => [u.id, u]))
+
+    let staffStatusByUser = new Map<string, string>()
+    if (userIds.length > 0) {
+      const { data: tmRows } = await supabase
+        .from("team_members")
+        .select("user_id, staff_status")
+        .eq("team_id", teamId)
+        .in("user_id", userIds)
+        .eq("active", true)
+      for (const row of tmRows || []) {
+        const r = row as { user_id: string; staff_status?: string }
+        staffStatusByUser.set(r.user_id, r.staff_status || "active")
+      }
+    }
 
     // Get player relations for parents
     const { data: players } = await supabase
@@ -117,10 +152,11 @@ export async function GET(request: Request, { params }: { params: { teamId: stri
         coordinatorRole: profile.coordinator_role,
         positionCoachRoles: (profile.position_coach_roles || []) as string[],
         playerRelation,
+        staffStatus: (staffStatusByUser.get(profile.id) as "active" | "pending_assignment") || "active",
       }
     })
 
-    return NextResponse.json({ users })
+    return NextResponse.json({ users, programId, canEditProgramAssignments })
   } catch (error: any) {
     console.error("[GET /api/teams/[teamId]/users]", error)
     return NextResponse.json(

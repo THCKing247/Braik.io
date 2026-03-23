@@ -195,6 +195,7 @@ export async function POST(request: Request) {
               : "player"
         const { error: tmErr } = await upsertStaffTeamMember(supabaseServerClient, teamId, authUser.user.id, tmRole, {
           source: "signup_legacy",
+          staffStatus: role === "assistant_coach" ? "pending_assignment" : "active",
         })
         if (tmErr) {
           await supabaseServerClient.auth.admin.deleteUser(authUser.user.id)

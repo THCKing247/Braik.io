@@ -102,7 +102,7 @@ export async function getProgramOverview(supabase: SupabaseClient, programId: st
     .from("program_members")
     .select("id", { count: "exact", head: true })
     .eq("program_id", programId)
-    .in("role", ["head_coach", "assistant_coach", "athletic_director"])
+    .in("role", ["head_coach", "director_of_football", "assistant_coach", "athletic_director"])
   const totalCoaches = coachCount ?? 0
 
   const { data: assignments } = await supabase.from("play_assignments").select("id").eq("program_id", programId)

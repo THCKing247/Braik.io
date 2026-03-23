@@ -6,9 +6,63 @@ export const runtime = "nodejs"
 
 const LEVEL_ORDER: Record<string, number> = { varsity: 0, jv: 1, freshman: 2 }
 
+function isFootballSport(sport: string | null | undefined): boolean {
+  return String(sport ?? "")
+    .trim()
+    .toLowerCase() === "football"
+}
+
+function normalizeTeamMemberRole(role: string | null | undefined): string {
+  return String(role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_")
+}
+
+/**
+ * Legacy Director fallback: primary active head coach on the program's varsity team
+ * (or legacy team with no team_level). JV/Freshman heads are not primary on varsity → excluded.
+ */
+async function userIsPrimaryVarsityHeadCoach(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  userId: string,
+  programId: string
+): Promise<boolean> {
+  const { data: varsityTeams, error: teamsErr } = await supabase
+    .from("teams")
+    .select("id")
+    .eq("program_id", programId)
+    .or("team_level.eq.varsity,team_level.is.null")
+
+  if (teamsErr || !varsityTeams?.length) return false
+
+  const varsityIds = varsityTeams.map((t) => (t as { id: string }).id)
+  const { data: tmRows, error: tmErr } = await supabase
+    .from("team_members")
+    .select("role")
+    .eq("user_id", userId)
+    .in("team_id", varsityIds)
+    .eq("active", true)
+    .eq("is_primary", true)
+
+  if (tmErr || !tmRows?.length) return false
+
+  return tmRows.some((r) => normalizeTeamMemberRole((r as { role?: string }).role) === "head_coach")
+}
+
+type ProgramRow = {
+  program_name?: string
+  sport?: string
+  created_by_user_id?: string | null
+}
+
 /**
  * GET /api/me/director-hub
- * Football program control center: eligibility, program teams, staff for team placement, JV/Freshman head slots.
+ * Football program control center.
+ *
+ * Director eligibility (football only):
+ * 1) PRIMARY: program_members.role === director_of_football
+ * 2) LEGACY: program_members.role === head_coach AND (program owner OR primary varsity HC in team_members)
  */
 export async function GET() {
   try {
@@ -26,28 +80,67 @@ export async function GET() {
       .eq("user_id", userId)
       .eq("active", true)
 
+    const rows = (memberships || []) as { program_id: string; role: string }[]
+    const programIds = [...new Set(rows.map((r) => r.program_id))]
+    if (programIds.length === 0) {
+      return NextResponse.json({
+        eligible: false,
+        programId: null,
+        programName: null,
+        teams: [],
+        coachAssignments: [],
+        staff: [],
+      })
+    }
+
+    const { data: programsData } = await supabase
+      .from("programs")
+      .select("id, program_name, sport, created_by_user_id")
+      .in("id", programIds)
+
+    const programById = new Map(
+      (programsData || []).map((p) => {
+        const row = p as { id: string } & ProgramRow
+        return [row.id, row] as const
+      })
+    )
+
+    const sortedMemberships = [...rows].sort((a, b) => {
+      const pri = (r: string) => (r === "director_of_football" ? 0 : r === "head_coach" ? 1 : 2)
+      const d = pri(a.role) - pri(b.role)
+      return d !== 0 ? d : a.program_id.localeCompare(b.program_id)
+    })
+
     let programId: string | null = null
     let programRole: string | null = null
 
-    for (const m of memberships || []) {
-      const row = m as { program_id: string; role: string }
-      const r = String(row.role || "")
+    for (const m of sortedMemberships) {
+      const r = String(m.role || "")
       if (r !== "director_of_football" && r !== "head_coach") continue
+
+      const prog = programById.get(m.program_id)
+      if (!prog || !isFootballSport(prog.sport)) continue
 
       const { count, error: cErr } = await supabase
         .from("teams")
         .select("id", { count: "exact", head: true })
-        .eq("program_id", row.program_id)
+        .eq("program_id", m.program_id)
 
       if (cErr) continue
-      const n = count ?? 0
-      if (r === "director_of_football" && n >= 1) {
-        programId = row.program_id
+      if ((count ?? 0) < 1) continue
+
+      if (r === "director_of_football") {
+        programId = m.program_id
         programRole = r
         break
       }
-      if (r === "head_coach" && n >= 2) {
-        programId = row.program_id
+
+      // Legacy: head_coach program role — program owner OR primary varsity HC only
+      const ownerId = prog.created_by_user_id ?? null
+      const isProgramOwner = ownerId === userId
+      const isPrimaryVarsityHc = await userIsPrimaryVarsityHeadCoach(supabase, userId, m.program_id)
+      if (isProgramOwner || isPrimaryVarsityHc) {
+        programId = m.program_id
         programRole = r
         break
       }
@@ -64,11 +157,7 @@ export async function GET() {
       })
     }
 
-    const { data: program } = await supabase
-      .from("programs")
-      .select("program_name, sport")
-      .eq("id", programId)
-      .maybeSingle()
+    const program = programById.get(programId)
 
     const { data: teamsData } = await supabase
       .from("teams")
@@ -175,8 +264,8 @@ export async function GET() {
       eligible: true,
       programId,
       programRole,
-      programName: (program as { program_name?: string } | null)?.program_name ?? null,
-      sport: (program as { sport?: string } | null)?.sport ?? null,
+      programName: program?.program_name ?? null,
+      sport: program?.sport ?? null,
       teams,
       coachAssignments,
       staff,

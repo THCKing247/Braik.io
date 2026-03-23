@@ -4,6 +4,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
@@ -31,6 +32,11 @@ const navBarStyle = {
  * &lt; lg: simple bar — centered logo, theme. Overflow nav is bottom "More" sheet.
  * lg+: desktop header with team switcher and Admin.
  */
+const directorNavLinkClass = cn(
+  "inline-flex min-h-[44px] items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+  "hover:bg-[rgb(var(--platinum))]"
+)
+
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const { data: session } = useSession()
   const pathname = usePathname()
@@ -38,6 +44,31 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const isPlatformOwner = session?.user?.isPlatformOwner || false
   const showAdminLink = isPlatformOwner
+  const userRole = session?.user?.role?.toUpperCase() || ""
+  const [directorHubEligible, setDirectorHubEligible] = useState(false)
+
+  useEffect(() => {
+    if (userRole !== "HEAD_COACH") {
+      setDirectorHubEligible(false)
+      return
+    }
+    let cancelled = false
+    fetch("/api/me/director-hub")
+      .then((r) => r.json())
+      .then((d: { eligible?: boolean }) => {
+        if (!cancelled) setDirectorHubEligible(Boolean(d.eligible))
+      })
+      .catch(() => {
+        if (!cancelled) setDirectorHubEligible(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [userRole])
+
+  const onDirectorPage = pathname === "/dashboard/director"
+  const showDirectorNavLink = directorHubEligible && userRole === "HEAD_COACH" && !onDirectorPage
+
   const dashboardHomeHref =
     session?.user?.role?.toUpperCase() === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
       ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
@@ -88,7 +119,16 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               </div>
             </Link>
           </div>
-          <div className="flex justify-end [&_button]:h-10 [&_button]:w-10">
+          <div className="flex items-center justify-end gap-1 [&_button]:h-10 [&_button]:w-10">
+            {showDirectorNavLink && (
+              <Link
+                href="/dashboard/director"
+                className={cn(directorNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
+                style={{ color: "rgb(var(--text))" }}
+              >
+                Program control
+              </Link>
+            )}
             <ThemeToggle />
           </div>
         </div>
@@ -123,6 +163,15 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            {showDirectorNavLink && (
+              <Link
+                href="/dashboard/director"
+                className={directorNavLinkClass}
+                style={{ color: "rgb(var(--text))" }}
+              >
+                Program control
+              </Link>
+            )}
             {showAdminLink && (
               <Link
                 href="/admin/dashboard"

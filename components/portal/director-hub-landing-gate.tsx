@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 
 /**
- * Head coaches who run a football program hub land on /dashboard/director first.
- * Visiting /dashboard with ?teamId= avoids redirect (operational team context).
+ * Football Directors (program_members.director_of_football, or legacy eligible HC) land on
+ * /dashboard/director first. Eligibility comes from GET /api/me/director-hub (server truth), not session alone.
+ * Visiting /dashboard with ?teamId= skips redirect (operational team context).
  * Sidebar / logo should prefer /dashboard?teamId=… so "home" does not loop back to the hub.
  */
 export function DirectorHubLandingGate({ children }: { children: ReactNode }) {
@@ -21,6 +22,7 @@ export function DirectorHubLandingGate({ children }: { children: ReactNode }) {
       if (status === "unauthenticated") setReady(true)
       return
     }
+    // Portal role remains HEAD_COACH for varsity HC / Director; hub API decides Director eligibility.
     if (session?.user?.role?.toUpperCase() !== "HEAD_COACH") {
       setReady(true)
       return

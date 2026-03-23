@@ -77,29 +77,6 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
     }
   }
 
-  const loadCoachAssignments = async (pid: string) => {
-    setAssignmentsLoading(true)
-    try {
-      const res = await fetch(`/api/programs/${pid}/coach-assignments`)
-      if (res.ok) {
-        const data = await res.json()
-        setCoachAssignments(data.assignments || [])
-      }
-    } catch (e) {
-      console.error("Failed to load coach assignments", e)
-    } finally {
-      setAssignmentsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (programId && canEditProgramAssignments) {
-      loadCoachAssignments(programId)
-    } else {
-      setCoachAssignments([])
-    }
-  }, [programId, canEditProgramAssignments, teamId])
-
   const toggleExpand = (userId: string) => {
     const newExpanded = new Set(expandedUsers)
     if (newExpanded.has(userId)) {

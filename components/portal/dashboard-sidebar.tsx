@@ -10,7 +10,7 @@ import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
 import { cn } from "@/lib/utils"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
-import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
+import { Gauge, LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 256
 

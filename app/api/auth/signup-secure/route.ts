@@ -378,7 +378,16 @@ export async function POST(request: Request) {
           }
         }
 
-        const programMemberRole = levels.length > 1 ? "director_of_football" : "head_coach"
+        // Football program owner is always Director (explicit program_members role), not inferred from team count.
+        const sportNorm = String(sport ?? "football")
+          .trim()
+          .toLowerCase()
+        const programMemberRole =
+          sportNorm === "football"
+            ? "director_of_football"
+            : levels.length > 1
+              ? "director_of_football"
+              : "head_coach"
 
         const { error: pmErr } = await supabase.from("program_members").upsert(
           {

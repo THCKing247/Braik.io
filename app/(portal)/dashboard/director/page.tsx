@@ -34,11 +34,18 @@ const LEVEL_LABEL: Record<string, string> = {
   freshman: "Freshman",
 }
 
+function defaultVarsityTeamId(teams: HubTeam[]): string | null {
+  const varsity = teams.find((t) => t.teamLevel === "varsity")
+  return (varsity ?? teams[0])?.id ?? null
+}
+
 export default function DirectorControlCenterPage() {
   const router = useRouter()
   const [data, setData] = useState<HubPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  /** Which program team portal (Varsity / JV / Freshman) is selected for “open portal” and emphasis. */
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch("/api/me/director-hub")
@@ -54,6 +61,14 @@ export default function DirectorControlCenterPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!data?.teams?.length) return
+    setSelectedTeamId((prev) => {
+      if (prev && data.teams.some((t) => t.id === prev)) return prev
+      return defaultVarsityTeamId(data.teams)
+    })
+  }, [data?.teams])
 
   const assignStaffTeam = async (userId: string, teamId: string) => {
     if (!data?.programId) return
@@ -104,6 +119,8 @@ export default function DirectorControlCenterPage() {
   const assignmentOptions = data.staff.filter((s) => s.staffStatus !== "pending_assignment")
   const jvHeadId = data.coachAssignments.find((a) => a.assignmentType === "jv_head")?.userId ?? ""
   const frHeadId = data.coachAssignments.find((a) => a.assignmentType === "freshman_head")?.userId ?? ""
+  const selectedTeam = data.teams.find((t) => t.id === selectedTeamId) ?? null
+  const selectedLevelLabel = selectedTeam ? LEVEL_LABEL[selectedTeam.teamLevel] || selectedTeam.teamLevel : ""
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
@@ -123,19 +140,46 @@ export default function DirectorControlCenterPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Team portals</CardTitle>
+          <CardTitle className="text-lg">Team context</CardTitle>
           <p className="text-sm font-normal text-muted-foreground">
-            Open the head-coach experience for that level. You keep full program authority.
+            Select Varsity, JV, or Freshman, then open that team&apos;s portal. You keep full program authority in each
+            context. Coaching titles (OC / DC / position) are still set per team in Settings → Users after staff are on
+            the right team.
           </p>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          {data.teams.map((t) => (
-            <Button key={t.id} variant="outline" className="justify-center border-border" asChild>
-              <Link href={`/dashboard?teamId=${encodeURIComponent(t.id)}`}>
-                Open {LEVEL_LABEL[t.teamLevel] || t.teamLevel} — {t.name}
-              </Link>
-            </Button>
-          ))}
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Program team level">
+            {data.teams.map((t) => {
+              const label = LEVEL_LABEL[t.teamLevel] || t.teamLevel
+              const selected = t.id === selectedTeamId
+              return (
+                <Button
+                  key={t.id}
+                  type="button"
+                  variant={selected ? "default" : "outline"}
+                  className="min-w-[6.5rem] border-border"
+                  aria-selected={selected}
+                  role="tab"
+                  onClick={() => setSelectedTeamId(t.id)}
+                >
+                  {label}
+                </Button>
+              )
+            })}
+          </div>
+          {selectedTeamId && selectedTeam && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <Button className="w-full sm:w-auto" asChild>
+                <Link href={`/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`}>
+                  Open {selectedLevelLabel} portal ({selectedTeam.name})
+                </Link>
+              </Button>
+              <p className="text-xs text-muted-foreground sm:max-w-md">
+                Use header <span className="font-medium text-foreground">Program control</span> anytime to return here
+                from a team portal.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -149,6 +193,10 @@ export default function DirectorControlCenterPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">JV head coach</label>
+            <p className="text-xs text-muted-foreground">
+              Program designation only. Place the coach on the JV team above first; then set job titles in that
+              team&apos;s Settings → Users.
+            </p>
             <select
               className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm"
               value={jvHeadId}
@@ -165,6 +213,10 @@ export default function DirectorControlCenterPage() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Freshman head coach</label>
+            <p className="text-xs text-muted-foreground">
+              Program designation only. Place the coach on the Freshman team first; job titles stay in that team&apos;s
+              Settings.
+            </p>
             <select
               className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm"
               value={frHeadId}
@@ -208,8 +260,13 @@ export default function DirectorControlCenterPage() {
                     className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm sm:w-56"
                     value={s.teamId || ""}
                     disabled={Boolean(saving) || s.staffStatus === "pending_assignment"}
-                    onChange={(e) => assignStaffTeam(s.id, e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      if (!next) return
+                      void assignStaffTeam(s.id, next)
+                    }}
                   >
+                    <option value="">Choose team (Varsity / JV / Freshman)…</option>
                     {data.teams.map((t) => (
                       <option key={t.id} value={t.id}>
                         {LEVEL_LABEL[t.teamLevel] || t.teamLevel}

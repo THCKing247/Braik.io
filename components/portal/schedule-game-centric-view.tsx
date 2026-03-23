@@ -21,6 +21,9 @@ import {
 } from "@/lib/team-schedule-games"
 import { hasAnyQuarterSet } from "@/lib/games-quarter-scoring"
 import { cn } from "@/lib/utils"
+import { computeTeamTrends } from "@/lib/schedule-team-trends"
+import { ScheduleTeamTrendsStrip } from "@/components/portal/schedule-team-trends-strip"
+import { ScheduleGameDetailTabs } from "@/components/portal/schedule-game-detail-tabs"
 
 function WlBadge({ kind }: { kind: "W" | "L" | "T" | "—" }) {
   if (kind === "—") {
@@ -104,6 +107,7 @@ export function ScheduleGameCentricView({
 
   const recordBefore = useMemo(() => buildCumulativeRecordBeforeMap(games), [games])
   const weekGroups = useMemo(() => groupGamesByScheduleWeek(games), [games])
+  const teamTrends = useMemo(() => computeTeamTrends(games), [games])
 
   const formatRec = (r: WinLossRecord) => formatRecordLine(r)
 
@@ -202,6 +206,7 @@ export function ScheduleGameCentricView({
 
   return (
     <div className="space-y-8">
+      {games.length > 0 ? <ScheduleTeamTrendsStrip trends={teamTrends} /> : null}
       {weekGroups.map((wg) => (
         <section key={wg.label} className="space-y-3">
           <h2 className="text-sm font-semibold tracking-wide md:text-base" style={{ color: "rgb(var(--text))" }}>
@@ -226,8 +231,6 @@ export function ScheduleGameCentricView({
                 (s: number, n) => s + (n != null && Number.isFinite(Number(n)) ? Math.trunc(Number(n)) : 0),
                 0
               )
-              const showSummary = expanded
-
               return (
                 <div
                   key={g.id}
@@ -363,106 +366,123 @@ export function ScheduleGameCentricView({
                   </div>
 
                   {expanded && (
-                    <div className="mt-4 space-y-4 border-t pt-4" style={{ borderColor: "rgb(var(--border))" }}>
-                      {canEdit && (
-                        <>
-                          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-                            Quarter scoring (venue)
-                          </p>
-                          <div className="grid max-w-xl grid-cols-2 gap-4 sm:grid-cols-4">
-                            {(["q1_home", "q2_home", "q3_home", "q4_home", "q1_away", "q2_away", "q3_away", "q4_away"] as const).map(
-                              (k) => (
-                                <div key={k} className="space-y-1">
-                                  <label className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                                    {k.includes("home") ? "Home venue" : "Away venue"} · Q{k[1]}
-                                  </label>
-                                  <Input
-                                    inputMode="numeric"
-                                    value={qDraft[k] ?? ""}
-                                    onChange={(e) => setQDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                                    className="h-9"
-                                  />
-                                </div>
-                              )
+                    <ScheduleGameDetailTabs
+                      teamId={teamId}
+                      teamName={teamName}
+                      game={g}
+                      weekLabel={wg.label}
+                      canEdit={canEdit}
+                      onRefresh={onRefresh}
+                      gameTab={
+                        <div className="space-y-4">
+                          {canEdit && (
+                            <>
+                              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                                Quarter scoring (venue)
+                              </p>
+                              <div className="grid max-w-xl grid-cols-2 gap-4 sm:grid-cols-4">
+                                {(
+                                  [
+                                    "q1_home",
+                                    "q2_home",
+                                    "q3_home",
+                                    "q4_home",
+                                    "q1_away",
+                                    "q2_away",
+                                    "q3_away",
+                                    "q4_away",
+                                  ] as const
+                                ).map((k) => (
+                                  <div key={k} className="space-y-1">
+                                    <label className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                                      {k.includes("home") ? "Home venue" : "Away venue"} · Q{k[1]}
+                                    </label>
+                                    <Input
+                                      inputMode="numeric"
+                                      value={qDraft[k] ?? ""}
+                                      onChange={(e) => setQDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                                      className="h-9"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <Button type="button" size="sm" disabled={savingId === g.id} onClick={() => void patchQuarters(g)}>
+                                Save breakdown
+                              </Button>
+                            </>
+                          )}
+
+                          <div
+                            className={cn("rounded-lg border p-3", canEdit && "mt-2")}
+                            style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
+                          >
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                              Scoring summary
+                            </p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[360px] border-collapse text-center text-sm">
+                                <thead>
+                                  <tr>
+                                    <th className="py-2 text-left font-medium" style={{ color: "rgb(var(--muted))" }}>
+                                      Team
+                                    </th>
+                                    <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
+                                      Q1
+                                    </th>
+                                    <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
+                                      Q2
+                                    </th>
+                                    <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
+                                      Q3
+                                    </th>
+                                    <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
+                                      Q4
+                                    </th>
+                                    <th className="px-1 py-2 font-semibold" style={{ color: "rgb(var(--muted))" }}>
+                                      Total
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    <td className="py-2 text-left font-medium" style={{ color: "rgb(var(--text))" }}>
+                                      {ourName}
+                                    </td>
+                                    {ourLine.map((n, i) => (
+                                      <td key={i} className="px-1 py-2 tabular-nums">
+                                        {n ?? "—"}
+                                      </td>
+                                    ))}
+                                    <td className="px-1 py-2 text-base font-bold tabular-nums">{eff.team ?? "—"}</td>
+                                  </tr>
+                                  <tr>
+                                    <td className="py-2 text-left font-medium" style={{ color: "rgb(var(--text))" }}>
+                                      {oppName}
+                                    </td>
+                                    {oppLine.map((n, i) => (
+                                      <td key={i} className="px-1 py-2 tabular-nums">
+                                        {n ?? "—"}
+                                      </td>
+                                    ))}
+                                    <td className="px-1 py-2 text-base font-bold tabular-nums">{eff.opponent ?? "—"}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                            {!hasAnyQuarterSet(qRow) && eff.team != null && eff.opponent != null && (
+                              <p className="mt-2 text-xs" style={{ color: "rgb(var(--muted))" }}>
+                                Totals from final score. Add a quarter breakdown above to see Q1–Q4 lines.
+                              </p>
+                            )}
+                            {hasAnyQuarterSet(qRow) && (
+                              <p className="mt-2 text-[11px] leading-snug" style={{ color: "rgb(var(--muted))" }}>
+                                Venue check: home side {homeVenueSum} pts · away side {awayVenueSum} pts (stadium rows in DB).
+                              </p>
                             )}
                           </div>
-                          <Button type="button" size="sm" disabled={savingId === g.id} onClick={() => void patchQuarters(g)}>
-                            Save breakdown
-                          </Button>
-                        </>
-                      )}
-
-                      {showSummary && (
-                        <div
-                          className={cn("rounded-lg border p-3", canEdit && "mt-2")}
-                          style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
-                        >
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-                            Scoring summary
-                          </p>
-                          <div className="overflow-x-auto">
-                            <table className="w-full min-w-[360px] border-collapse text-center text-sm">
-                              <thead>
-                                <tr>
-                                  <th className="py-2 text-left font-medium" style={{ color: "rgb(var(--muted))" }}>
-                                    Team
-                                  </th>
-                                  <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
-                                    Q1
-                                  </th>
-                                  <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
-                                    Q2
-                                  </th>
-                                  <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
-                                    Q3
-                                  </th>
-                                  <th className="px-1 py-2 font-medium" style={{ color: "rgb(var(--muted))" }}>
-                                    Q4
-                                  </th>
-                                  <th className="px-1 py-2 font-semibold" style={{ color: "rgb(var(--muted))" }}>
-                                    Total
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr>
-                                  <td className="py-2 text-left font-medium" style={{ color: "rgb(var(--text))" }}>
-                                    {ourName}
-                                  </td>
-                                  {ourLine.map((n, i) => (
-                                    <td key={i} className="px-1 py-2 tabular-nums">
-                                      {n ?? "—"}
-                                    </td>
-                                  ))}
-                                  <td className="px-1 py-2 text-base font-bold tabular-nums">{eff.team ?? "—"}</td>
-                                </tr>
-                                <tr>
-                                  <td className="py-2 text-left font-medium" style={{ color: "rgb(var(--text))" }}>
-                                    {oppName}
-                                  </td>
-                                  {oppLine.map((n, i) => (
-                                    <td key={i} className="px-1 py-2 tabular-nums">
-                                      {n ?? "—"}
-                                    </td>
-                                  ))}
-                                  <td className="px-1 py-2 text-base font-bold tabular-nums">{eff.opponent ?? "—"}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                          {!hasAnyQuarterSet(qRow) && eff.team != null && eff.opponent != null && (
-                            <p className="mt-2 text-xs" style={{ color: "rgb(var(--muted))" }}>
-                              Totals from final score. Add a quarter breakdown above to see Q1–Q4 lines.
-                            </p>
-                          )}
-                          {hasAnyQuarterSet(qRow) && (
-                            <p className="mt-2 text-[11px] leading-snug" style={{ color: "rgb(var(--muted))" }}>
-                              Venue check: home side {homeVenueSum} pts · away side {awayVenueSum} pts (stadium rows in DB).
-                            </p>
-                          )}
                         </div>
-                      )}
-                    </div>
+                      }
+                    />
                   )}
                 </div>
               )

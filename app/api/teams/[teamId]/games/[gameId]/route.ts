@@ -30,6 +30,8 @@ type PatchBody = {
   q2_away?: number | null
   q3_away?: number | null
   q4_away?: number | null
+  /** Clear with null to use automatic Player of the Game from stats. */
+  potgOverridePlayerId?: string | null
 }
 
 export async function PATCH(
@@ -131,6 +133,25 @@ export async function PATCH(
     if (body.confirmedByCoach !== undefined) {
       patch.confirmed_by_coach = Boolean(body.confirmedByCoach)
       patch.confirmed_at = body.confirmedByCoach ? new Date().toISOString() : null
+    }
+
+    if (body.potgOverridePlayerId !== undefined) {
+      const v = body.potgOverridePlayerId
+      if (v === null || v === "") {
+        patch.potg_override_player_id = null
+      } else {
+        const pid = String(v).trim()
+        const { data: pl } = await supabase
+          .from("players")
+          .select("id")
+          .eq("id", pid)
+          .eq("team_id", teamId)
+          .maybeSingle()
+        if (!pl) {
+          return NextResponse.json({ error: "Player not on this team" }, { status: 400 })
+        }
+        patch.potg_override_player_id = pid
+      }
     }
 
     const { error } = await supabase.from("games").update(patch).eq("id", gameId).eq("team_id", teamId)

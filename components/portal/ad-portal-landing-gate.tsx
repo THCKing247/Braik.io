@@ -5,11 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 
 /**
- * Football Directors land on /dashboard/director (gateway) before the team dashboard.
- * Eligibility: GET /api/me/director-hub. Visiting /dashboard without ?teamId= triggers redirect for eligible users.
- * With ?teamId=, skip redirect so team portal works; use header "Director View" to return to the gateway.
+ * Varsity head coaches with football AD portal scope enter the athletic department shell first
+ * (`/dashboard/ad` or `/dashboard/ad/teams`), not the team dashboard.
  */
-export function DirectorHubLandingGate({ children }: { children: ReactNode }) {
+export function AdPortalLandingGate({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -21,7 +20,6 @@ export function DirectorHubLandingGate({ children }: { children: ReactNode }) {
       if (status === "unauthenticated") setReady(true)
       return
     }
-    // Portal role remains HEAD_COACH for varsity HC / Director; hub API decides Director eligibility.
     if (session?.user?.role?.toUpperCase() !== "HEAD_COACH") {
       setReady(true)
       return
@@ -34,14 +32,14 @@ export function DirectorHubLandingGate({ children }: { children: ReactNode }) {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch("/api/me/director-hub")
+        const res = await fetch("/api/me/ad-portal")
         if (!res.ok) {
           if (!cancelled) setReady(true)
           return
         }
-        const data = (await res.json()) as { eligible?: boolean }
-        if (!cancelled && data.eligible) {
-          router.replace("/dashboard/director")
+        const data = (await res.json()) as { canEnterAdPortal?: boolean; defaultPath?: string }
+        if (!cancelled && data.canEnterAdPortal && data.defaultPath) {
+          router.replace(data.defaultPath)
           return
         }
       } catch {

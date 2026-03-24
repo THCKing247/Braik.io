@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
@@ -5,10 +6,11 @@ import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generat
 import Link from "next/link"
 import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
 import {
-  fetchAdVisibleTeams,
+  fetchAdVisibleTeamsForAccess,
   logAdDashboardMetrics,
   logAdTeamVisibility,
 } from "@/lib/ad-team-scope"
+import { getAdPortalAccessForUser, adPortalShowsOverviewAndSettings } from "@/lib/ad-portal-access"
 
 export const dynamic = "force-dynamic"
 
@@ -17,6 +19,15 @@ export default async function AthleticDirectorOverviewPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
+  const access = await getAdPortalAccessForUser(
+    supabase,
+    session.user.id,
+    session.user.role?.toUpperCase()
+  )
+  if (!adPortalShowsOverviewAndSettings(access)) {
+    redirect("/dashboard/ad/teams")
+  }
+
   let school: { name: string } | null = null
   let department: { status: string } | null = null
 
@@ -38,9 +49,10 @@ export default async function AthleticDirectorOverviewPage() {
     .maybeSingle()
   department = deptRow
 
-  const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdVisibleTeams(
+  const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdVisibleTeamsForAccess(
     supabase,
-    session.user.id
+    session.user.id,
+    access
   )
 
   const teamIds = visibleTeams.map((t) => t.id)

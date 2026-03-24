@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { AdPortalAccess } from "@/lib/ad-portal-access"
 import {
   fetchAdVisibleTeams,
+  fetchAdVisibleTeamsForAccess,
   type AthleticDirectorScope,
 } from "@/lib/ad-team-scope"
 
@@ -155,12 +157,13 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
 export async function fetchAdPrimaryHeadCoaches(
   supabase: SupabaseClient,
   sessionUserId: string,
-  sessionRole: string | null
+  sessionRole: string | null,
+  portalAccess?: AdPortalAccess | null
 ): Promise<AdPrimaryHeadCoachesResult> {
-  const { scope, orFilter, teams: teamRows, error: teamsErr } = await fetchAdVisibleTeams(
-    supabase,
-    sessionUserId
-  )
+  const { scope, orFilter, teams: teamRows, error: teamsErr } =
+    portalAccess != null
+      ? await fetchAdVisibleTeamsForAccess(supabase, sessionUserId, portalAccess)
+      : await fetchAdVisibleTeams(supabase, sessionUserId)
 
   if (!orFilter) {
     console.info(

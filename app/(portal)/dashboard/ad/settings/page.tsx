@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { getAdPortalAccessForUser, adPortalShowsOverviewAndSettings } from "@/lib/ad-portal-access"
 
 export const dynamic = "force-dynamic"
 
@@ -8,6 +10,15 @@ export default async function AdSettingsPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
+  const access = await getAdPortalAccessForUser(
+    supabase,
+    session.user.id,
+    session.user.role?.toUpperCase()
+  )
+  if (!adPortalShowsOverviewAndSettings(access)) {
+    redirect("/dashboard/ad/teams")
+  }
+
   let school: { name: string; city: string | null; state: string | null; school_type: string | null; mascot: string | null; website: string | null } | null = null
   const { data: profile } = await supabase
     .from("profiles")

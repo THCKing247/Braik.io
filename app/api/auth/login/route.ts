@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
+import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import { BRAIK_PERSIST_SESSION_COOKIE } from "@/lib/auth/persist-session-cookie"
 
 function getRoleRedirect(role: string) {
@@ -126,11 +127,18 @@ export async function POST(request: Request) {
     const allowJoinCallback =
       typeof requestedCallbackUrl === "string" &&
       requestedCallbackUrl.startsWith("/join")
-    const redirectTo = allowAdminCallback
+    let redirectTo = allowAdminCallback
       ? requestedCallbackUrl
       : allowJoinCallback
         ? requestedCallbackUrl
         : getRoleRedirect(role)
+
+    if (!allowAdminCallback && !allowJoinCallback && role === "head_coach") {
+      const adAccess = await getAdPortalAccessForUser(supabaseServerClient, data.user.id, "HEAD_COACH")
+      if (adAccess.mode !== "none") {
+        redirectTo = adAccess.mode === "restricted_football" ? "/dashboard/ad/teams" : "/dashboard/ad"
+      }
+    }
 
     // Ensure public.users has a row for this auth user (for admin checks and profile sync).
     // Must complete before returning so /admin/dashboard layout sees the correct role.

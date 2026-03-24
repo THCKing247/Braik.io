@@ -5,6 +5,7 @@ import { AdCoachesTable } from "@/components/portal/ad/ad-coaches-table"
 import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
 import { fetchAdPrimaryHeadCoaches } from "@/lib/ad-primary-head-coaches"
 import { logAdDashboardMetrics, logAdTeamVisibility } from "@/lib/ad-team-scope"
+import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 
 export const dynamic = "force-dynamic"
 
@@ -13,7 +14,17 @@ export default async function AdCoachesPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  const result = await fetchAdPrimaryHeadCoaches(supabase, session.user.id, session.user.role ?? null)
+  const access = await getAdPortalAccessForUser(
+    supabase,
+    session.user.id,
+    session.user.role?.toUpperCase()
+  )
+  const result = await fetchAdPrimaryHeadCoaches(
+    supabase,
+    session.user.id,
+    session.user.role ?? null,
+    access
+  )
   const { coaches, scope, orFilter, visibleTeamIds, visibleTeamCount, teamsQueryError } = result
 
   logAdTeamVisibility("AdCoachesPage", {

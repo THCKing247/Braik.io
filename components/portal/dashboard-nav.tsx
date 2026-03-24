@@ -32,7 +32,7 @@ const navBarStyle = {
  * &lt; lg: simple bar — centered logo, theme. Overflow nav is bottom "More" sheet.
  * lg+: desktop header with team switcher and Admin.
  */
-const directorNavLinkClass = cn(
+const departmentNavLinkClass = cn(
   "inline-flex min-h-[44px] items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
   "hover:bg-[rgb(var(--platinum))]"
 )
@@ -45,35 +45,39 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const isPlatformOwner = session?.user?.isPlatformOwner || false
   const showAdminLink = isPlatformOwner
   const userRole = session?.user?.role?.toUpperCase() || ""
-  const [directorHubEligible, setDirectorHubEligible] = useState(false)
+  const [adDepartmentHref, setAdDepartmentHref] = useState<string | null>(null)
 
   useEffect(() => {
     if (userRole !== "HEAD_COACH") {
-      setDirectorHubEligible(false)
+      setAdDepartmentHref(null)
       return
     }
     let cancelled = false
-    fetch("/api/me/director-hub")
+    fetch("/api/me/ad-portal")
       .then((r) => r.json())
-      .then((d: { eligible?: boolean }) => {
-        if (!cancelled) setDirectorHubEligible(Boolean(d.eligible))
+      .then((d: { canEnterAdPortal?: boolean; defaultPath?: string }) => {
+        if (!cancelled) {
+          if (d.canEnterAdPortal && d.defaultPath) setAdDepartmentHref(d.defaultPath)
+          else setAdDepartmentHref(null)
+        }
       })
       .catch(() => {
-        if (!cancelled) setDirectorHubEligible(false)
+        if (!cancelled) setAdDepartmentHref(null)
       })
     return () => {
       cancelled = true
     }
   }, [userRole])
 
-  const onDirectorPage = pathname === "/dashboard/director"
-  /** True when user is in a team-scoped dashboard area (not bare /dashboard without team context). */
   const path = pathname ?? ""
+  const onAdPortalShell = path.startsWith("/dashboard/ad")
   const inTeamPortal =
     Boolean(searchParams.get("teamId")) ||
-    (path.startsWith("/dashboard/") && !path.startsWith("/dashboard/director"))
-  const showDirectorNavLink =
-    directorHubEligible && userRole === "HEAD_COACH" && !onDirectorPage && inTeamPortal
+    (path.startsWith("/dashboard/") &&
+      !path.startsWith("/dashboard/ad") &&
+      !path.startsWith("/dashboard/director"))
+  const showDepartmentNavLink =
+    Boolean(adDepartmentHref) && userRole === "HEAD_COACH" && !onAdPortalShell && inTeamPortal
 
   const dashboardHomeHref =
     session?.user?.role?.toUpperCase() === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
@@ -126,13 +130,13 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             </Link>
           </div>
           <div className="flex items-center justify-end gap-1 [&_button]:h-10 [&_button]:w-10">
-            {showDirectorNavLink && (
+            {showDepartmentNavLink && adDepartmentHref && (
               <Link
-                href="/dashboard/director"
-                className={cn(directorNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
+                href={adDepartmentHref}
+                className={cn(departmentNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
                 style={{ color: "rgb(var(--text))" }}
               >
-                Director View
+                Department
               </Link>
             )}
             <ThemeToggle />
@@ -169,13 +173,13 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            {showDirectorNavLink && (
+            {showDepartmentNavLink && adDepartmentHref && (
               <Link
-                href="/dashboard/director"
-                className={directorNavLinkClass}
+                href={adDepartmentHref}
+                className={departmentNavLinkClass}
                 style={{ color: "rgb(var(--text))" }}
               >
-                Director View
+                Department
               </Link>
             )}
             {showAdminLink && (

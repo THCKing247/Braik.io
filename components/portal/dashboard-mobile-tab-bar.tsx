@@ -15,7 +15,7 @@ const tabs = [
     href: "/dashboard",
     label: "Home",
     icon: LayoutDashboard,
-    match: (p: string) => p === "/dashboard" || p === "/dashboard/director",
+    match: (p: string) => p === "/dashboard",
   },
   {
     href: "/dashboard/roster",

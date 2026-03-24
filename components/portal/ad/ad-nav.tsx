@@ -4,15 +4,36 @@ import Link from "next/link"
 import Image from "next/image"
 import { signOut } from "@/lib/auth/client-auth"
 import { Button } from "@/components/ui/button"
+import { useMemo } from "react"
 
-const adNavItems = [
-  { href: "/dashboard/ad", label: "Overview" },
-  { href: "/dashboard/ad/teams", label: "Teams" },
-  { href: "/dashboard/ad/coaches", label: "Coaches" },
-  { href: "/dashboard/ad/settings", label: "Settings" },
-]
+type AdNavItem = { href: string; label: string }
 
-export function AdNav({ userEmail }: { userEmail?: string | null }) {
+export function AdNav({
+  userEmail,
+  showOverviewAndSettings = true,
+  showProgramTab = false,
+}: {
+  userEmail?: string | null
+  /** Full athletic department owner / real AD — Overview + Settings */
+  showOverviewAndSettings?: boolean
+  /** Varsity HC football program controls (JV/Freshman heads, assistant placement) */
+  showProgramTab?: boolean
+}) {
+  const adNavItems = useMemo(() => {
+    const items: AdNavItem[] = []
+    if (showOverviewAndSettings) {
+      items.push({ href: "/dashboard/ad", label: "Overview" })
+    }
+    items.push({ href: "/dashboard/ad/teams", label: "Teams" }, { href: "/dashboard/ad/coaches", label: "Coaches" })
+    if (showProgramTab) {
+      items.push({ href: "/dashboard/ad/program", label: "Program" })
+    }
+    if (showOverviewAndSettings) {
+      items.push({ href: "/dashboard/ad/settings", label: "Settings" })
+    }
+    return items
+  }, [showOverviewAndSettings, showProgramTab])
+
   return (
     <nav
       className="sticky top-0 z-50 border-b bg-white"

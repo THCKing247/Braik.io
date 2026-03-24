@@ -2,8 +2,9 @@ import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
-import { fetchAdVisibleTeams, logAdTeamVisibility } from "@/lib/ad-team-scope"
+import { fetchAdVisibleTeamsForAccess, logAdTeamVisibility } from "@/lib/ad-team-scope"
 import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
+import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 
 export const dynamic = "force-dynamic"
 
@@ -12,9 +13,15 @@ export default async function AdTeamsPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  const { scope, orFilter, teams: teamsData, error: teamsErr } = await fetchAdVisibleTeams(
+  const access = await getAdPortalAccessForUser(
     supabase,
-    session.user.id
+    session.user.id,
+    session.user.role?.toUpperCase()
+  )
+  const { scope, orFilter, teams: teamsData, error: teamsErr } = await fetchAdVisibleTeamsForAccess(
+    supabase,
+    session.user.id,
+    access
   )
 
   const teams: TeamRow[] = []

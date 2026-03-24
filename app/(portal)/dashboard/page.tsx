@@ -5,7 +5,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { TeamDashboard } from "@/components/portal/team-dashboard"
-import { DirectorHubLandingGate } from "@/components/portal/director-hub-landing-gate"
+import { AdPortalLandingGate } from "@/components/portal/ad-portal-landing-gate"
 
 export const dynamic = "force-dynamic"
 
@@ -49,7 +49,7 @@ export default function DashboardPage() {
         </div>
       }
     >
-      <DirectorHubLandingGate>
+      <AdPortalLandingGate>
         <DashboardPageShell>
           {({ teamId, canEdit }) => (
             <TeamDashboard
@@ -59,7 +59,7 @@ export default function DashboardPage() {
             />
           )}
         </DashboardPageShell>
-      </DirectorHubLandingGate>
+      </AdPortalLandingGate>
     </Suspense>
   )
 }

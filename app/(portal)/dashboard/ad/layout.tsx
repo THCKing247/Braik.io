@@ -31,16 +31,11 @@ export default async function AthleticDirectorLayout({
   const showOverviewAndSettings =
     role === "ATHLETIC_DIRECTOR" ? true : adPortalShowsOverviewAndSettings(access)
 
-  const showProgramTab =
-    role === "HEAD_COACH" &&
-    (access.mode === "restricted_football" || access.footballProgramIds.length > 0)
-
   return (
     <div className="min-h-screen" style={{ backgroundColor: "rgb(var(--snow))" }}>
       <AdNav
         userEmail={session.user.email}
         showOverviewAndSettings={showOverviewAndSettings}
-        showProgramTab={showProgramTab}
       />
       <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
     </div>

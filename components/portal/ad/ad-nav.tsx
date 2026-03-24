@@ -11,13 +11,10 @@ type AdNavItem = { href: string; label: string }
 export function AdNav({
   userEmail,
   showOverviewAndSettings = true,
-  showProgramTab = false,
 }: {
   userEmail?: string | null
   /** Full athletic department owner / real AD — Overview + Settings */
   showOverviewAndSettings?: boolean
-  /** Varsity HC football program controls (JV/Freshman heads, assistant placement) */
-  showProgramTab?: boolean
 }) {
   const adNavItems = useMemo(() => {
     const items: AdNavItem[] = []
@@ -25,14 +22,11 @@ export function AdNav({
       items.push({ href: "/dashboard/ad", label: "Overview" })
     }
     items.push({ href: "/dashboard/ad/teams", label: "Teams" }, { href: "/dashboard/ad/coaches", label: "Coaches" })
-    if (showProgramTab) {
-      items.push({ href: "/dashboard/ad/program", label: "Program" })
-    }
     if (showOverviewAndSettings) {
       items.push({ href: "/dashboard/ad/settings", label: "Settings" })
     }
     return items
-  }, [showOverviewAndSettings, showProgramTab])
+  }, [showOverviewAndSettings])
 
   return (
     <nav

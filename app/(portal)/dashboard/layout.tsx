@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { isRedirectError } from "next/dist/client/components/redirect"
@@ -76,6 +77,11 @@ export default async function DashboardLayout({
 
     const userRole = session.user.role?.toUpperCase()
     if (userRole === "ATHLETIC_DIRECTOR") {
+      return <>{children}</>
+    }
+
+    const dashboardPath = headers().get("x-dashboard-pathname") ?? ""
+    if (dashboardPath.startsWith("/dashboard/ad")) {
       return <>{children}</>
     }
 

@@ -121,6 +121,7 @@ export default async function AdTeamsPage() {
           id: t.id,
           name: t.name ?? "",
           sport: t.sport ?? sportFromProgram ?? null,
+          teamLevel: (t as { team_level?: string | null }).team_level ?? null,
           rosterSize: (t as { roster_size?: number }).roster_size ?? null,
           createdAt: t.created_at ?? new Date().toISOString(),
           headCoachName,

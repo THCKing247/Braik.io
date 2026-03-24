@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { AdTeamFilters } from "./ad-team-filters"
 import { AdTeamsTable, type TeamRow } from "./ad-teams-table"
 import { AdEmptyState } from "./ad-empty-state"
@@ -49,35 +48,25 @@ export function AdTeamsPageClient({ teams: initialTeams }: AdTeamsPageClientProp
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#212529]">Teams</h1>
-          <p className="mt-1 text-[#6B7280]">Manage all teams in your athletic department.</p>
+          <p className="mt-1 text-[#6B7280]">
+            Teams come from your program setup at signup. Open a team’s Head Coach portal from here or edit
+            department details.
+          </p>
         </div>
-        <Link
-          href="/dashboard/ad/teams/new"
-          className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white hover:bg-[#2563EB]"
-        >
-          Create team
-        </Link>
       </div>
 
       {isEmpty ? (
         <>
           <div className="rounded-xl border border-[#E5E7EB] bg-[#EFF6FF] p-6">
-            <h2 className="text-lg font-semibold text-[#1E40AF]">Get started</h2>
+            <h2 className="text-lg font-semibold text-[#1E40AF]">No teams visible yet</h2>
             <p className="mt-1 text-sm text-[#1E3A8A]">
-              Create your first team and invite a head coach to start using Braik for your department.
+              Teams are created when your athletic program is provisioned during account setup. If you expect to see
+              teams here, confirm your school and department linkage with support.
             </p>
-            <Link
-              href="/dashboard/ad/teams/new"
-              className="mt-4 inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white hover:bg-[#2563EB]"
-            >
-              Create your first team
-            </Link>
           </div>
           <AdEmptyState
             title="No teams yet"
-            description="Create your first team to get started. You can assign head coaches and add rosters later."
-            actionLabel="Create team"
-            actionHref="/dashboard/ad/teams/new"
+            description="Teams appear here from signup and program provisioning. Use the Coaches tab for football staffing and invite flows once teams exist."
           />
         </>
       ) : (

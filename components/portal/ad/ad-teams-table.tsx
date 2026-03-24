@@ -7,10 +7,17 @@ export type TeamRow = {
   id: string
   name: string
   sport: string | null
+  teamLevel: string | null
   rosterSize: number | null
   createdAt: string
   headCoachName: string | null
   invitePending: boolean
+}
+
+const LEVEL_LABEL: Record<string, string> = {
+  varsity: "Varsity",
+  jv: "JV",
+  freshman: "Freshman",
 }
 
 interface AdTeamsTableProps {
@@ -70,6 +77,11 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                     <span className="font-medium text-[#212529]">{team.name}</span>
                   </td>
                   <td className="px-4 py-3 text-sm text-[#6B7280]">
+                    {team.teamLevel
+                      ? LEVEL_LABEL[team.teamLevel] ?? team.teamLevel
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[#6B7280]">
                     {team.sport?.trim() ? team.sport : "Not set"}
                   </td>
                   <td className="px-4 py-3 text-sm text-[#6B7280]">
@@ -85,12 +97,20 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                     {formatDate(team.createdAt)}
                   </td>
                   <td className="px-4 py-3 text-right text-sm">
-                    <Link
-                      href={`/dashboard/ad/teams/${team.id}`}
-                      className="text-[#3B82F6] hover:underline font-medium"
-                    >
-                      Edit
-                    </Link>
+                    <div className="flex flex-wrap justify-end gap-3">
+                      <Link
+                        href={`/dashboard?teamId=${encodeURIComponent(team.id)}`}
+                        className="text-[#3B82F6] hover:underline font-medium"
+                      >
+                        Open portal
+                      </Link>
+                      <Link
+                        href={`/dashboard/ad/teams/${team.id}`}
+                        className="text-[#3B82F6] hover:underline font-medium"
+                      >
+                        Edit
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               )

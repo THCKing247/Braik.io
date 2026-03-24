@@ -138,6 +138,7 @@ export type AdVisibleTeamRow = {
   school_id: string | null
   program_id: string | null
   athletic_department_id: string | null
+  team_level: string | null
 }
 
 export async function fetchAdVisibleTeams(
@@ -156,7 +157,9 @@ export async function fetchAdVisibleTeams(
   }
   const { data, error } = await supabase
     .from("teams")
-    .select("id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id")
+    .select(
+      "id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id, team_level"
+    )
     .or(orFilter)
     .order("created_at", { ascending: false })
   return {
@@ -191,7 +194,9 @@ export async function fetchAdVisibleTeamsForAccess(
     const orFilter = `program_id.in.(${access.footballProgramIds.join(",")})`
     const { data, error } = await supabase
       .from("teams")
-      .select("id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id")
+      .select(
+        "id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id, team_level"
+      )
       .or(orFilter)
       .order("created_at", { ascending: false })
     const scope = await resolveAthleticDirectorScope(supabase, userId)

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 
-/** Legacy URL: football program controls live under the athletic department portal. */
+/** Legacy URL: football program staffing lives under AD portal → Coaches. */
 export default function LegacyDirectorRouteRedirect() {
-  redirect("/dashboard/ad/program")
+  redirect("/dashboard/ad/coaches")
 }

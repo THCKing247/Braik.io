@@ -1,7 +1,8 @@
-import { AdFootballProgramHub } from "@/components/portal/ad/ad-football-program-hub"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
-export default function AdFootballProgramPage() {
-  return <AdFootballProgramHub />
+/** Legacy route: football program staffing lives on the Coaches tab. */
+export default function AdProgramRedirectPage() {
+  redirect("/dashboard/ad/coaches")
 }

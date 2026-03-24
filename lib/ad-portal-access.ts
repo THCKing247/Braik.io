@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
 /**
  * Athletic Director portal governance (replaces separate “football program director” as the top shell).
@@ -42,6 +43,71 @@ async function athleticDirectorUserIdForOrganization(
   return (dept as { athletic_director_user_id?: string | null } | null)?.athletic_director_user_id ?? null
 }
 
+/**
+ * Head coaches only get football AD portal entry (and the HC-shell “Department” link) when they are
+ * program director_of_football or primary head on Varsity (or legacy team_level unset) for that program.
+ * JV/Freshman-only heads stay team-scoped and do not see AD portal affordances.
+ */
+async function filterProgramIdsForVarsityAdPortalEligibility(
+  supabase: SupabaseClient,
+  userId: string,
+  programIds: string[]
+): Promise<string[]> {
+  if (programIds.length === 0) return []
+
+  const { data: rows } = await supabase
+    .from("program_members")
+    .select("program_id, role")
+    .eq("user_id", userId)
+    .eq("active", true)
+    .in("program_id", programIds)
+
+  const eligible: string[] = []
+  for (const pid of programIds) {
+    const memberRoles = (rows ?? []).filter((r) => (r as { program_id: string }).program_id === pid)
+    const roleSet = new Set(memberRoles.map((r) => String((r as { role: string }).role)))
+    if (roleSet.has("director_of_football")) {
+      eligible.push(pid)
+      continue
+    }
+    if (!roleSet.has("head_coach")) continue
+
+    const { data: teams } = await supabase
+      .from("teams")
+      .select("id, team_level")
+      .eq("program_id", pid)
+
+    const candidateTeamIds = (teams ?? [])
+      .filter((t) => {
+        const tl = String((t as { team_level?: string | null }).team_level ?? "")
+          .trim()
+          .toLowerCase()
+        return tl === "varsity" || tl === ""
+      })
+      .map((t) => (t as { id: string }).id)
+
+    if (candidateTeamIds.length === 0) continue
+
+    const { data: staff } = await supabase
+      .from("team_members")
+      .select("team_id, user_id, role, is_primary")
+      .eq("user_id", userId)
+      .eq("active", true)
+      .in("team_id", candidateTeamIds)
+
+    const staffRows: TeamMemberStaffRow[] = (staff ?? []).map((s) => ({
+      user_id: (s as { user_id: string }).user_id,
+      role: (s as { role: string }).role,
+      is_primary: (s as { is_primary?: boolean | null }).is_primary,
+    }))
+    if (pickHeadCoachUserId(staffRows) === userId) {
+      eligible.push(pid)
+    }
+  }
+
+  return eligible
+}
+
 export async function getAdPortalAccessForUser(
   supabase: SupabaseClient,
   userId: string,
@@ -74,7 +140,12 @@ export async function getAdPortalAccessForUser(
     .eq("active", true)
     .in("role", ["head_coach", "director_of_football"])
 
-  const programIds = [...new Set((pmRows ?? []).map((r) => (r as { program_id: string }).program_id).filter(Boolean))]
+  let programIds = [...new Set((pmRows ?? []).map((r) => (r as { program_id: string }).program_id).filter(Boolean))]
+  if (programIds.length === 0) {
+    return { mode: "none", footballProgramIds: [], teamQuery: "department" }
+  }
+
+  programIds = await filterProgramIdsForVarsityAdPortalEligibility(supabase, userId, programIds)
   if (programIds.length === 0) {
     return { mode: "none", footballProgramIds: [], teamQuery: "department" }
   }

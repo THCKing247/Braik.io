@@ -135,6 +135,8 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 href={adDepartmentHref}
                 className={cn(departmentNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
                 style={{ color: "rgb(var(--text))" }}
+                title="Return to Athletic Department portal"
+                aria-label="Return to Athletic Department portal"
               >
                 Department
               </Link>
@@ -178,6 +180,8 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 href={adDepartmentHref}
                 className={departmentNavLinkClass}
                 style={{ color: "rgb(var(--text))" }}
+                title="Return to Athletic Department portal"
+                aria-label="Return to Athletic Department portal"
               >
                 Department
               </Link>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef, useCallback } from "react"
+import { useState, useMemo, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,14 +41,21 @@ export function DocumentsManager({
   documents: initialDocuments,
   canUpload,
   userRole,
+  /** Parent is fetching first page — show grid skeleton but keep chrome interactive */
+  listLoading = false,
 }: {
   teamId: string
   documents: Document[]
   canUpload: boolean
   userRole?: string
+  listLoading?: boolean
 }) {
   const [documents, setDocuments] = useState(initialDocuments)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setDocuments(initialDocuments)
+  }, [initialDocuments])
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -528,7 +535,17 @@ export function DocumentsManager({
       <div
         className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-6 lg:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]"
       >
-        {visibleDocuments.length === 0 ? (
+        {listLoading ? (
+          <>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-52 animate-pulse rounded-xl border border-border bg-card shadow-sm"
+                aria-hidden
+              />
+            ))}
+          </>
+        ) : visibleDocuments.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="pt-6">

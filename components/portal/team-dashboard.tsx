@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -92,6 +92,47 @@ function formatRelativeTime(iso: string) {
   return d.toLocaleDateString()
 }
 
+/**
+ * Below-the-fold home row: defer mounting (and thus /api/notifications, readiness, announcements fetches)
+ * until the user scrolls near this row — banner + calendar paint first without competing requests.
+ */
+function DeferredHomeDashboardRow({ children }: { children: ReactNode }) {
+  const [show, setShow] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (show) return
+    const el = ref.current
+    if (!el) return
+    if (typeof IntersectionObserver === "undefined") {
+      setShow(true)
+      return
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setShow(true)
+      },
+      { root: null, rootMargin: "240px 0px", threshold: 0 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [show])
+  return (
+    <div
+      ref={ref}
+      className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3"
+    >
+      {show ? (
+        children
+      ) : (
+        <>
+          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+        </>
+      )}
+    </div>
+  )
+}
 
 // ─── Team Banner ──────────────────────────────────────────────────────────────
 
@@ -876,18 +917,18 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         </div>
       )}
 
-      {/* ── Announcements + Notifications + Readiness ── */}
+      {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
       {hasTeam && (
-      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-        <DashboardAnnouncementsCard
-          teamId={teamId}
-          canCreate={canAddCalendarEvents}
-          viewerUserId={user.id}
-          viewerRole={user.role}
-        />
-        <NotificationsCard teamId={teamId} />
-        <ReadinessSummaryCard teamId={teamId} />
-      </div>
+        <DeferredHomeDashboardRow>
+          <DashboardAnnouncementsCard
+            teamId={teamId}
+            canCreate={canAddCalendarEvents}
+            viewerUserId={user.id}
+            viewerRole={user.role}
+          />
+          <NotificationsCard teamId={teamId} />
+          <ReadinessSummaryCard teamId={teamId} />
+        </DeferredHomeDashboardRow>
       )}
 
     </div>

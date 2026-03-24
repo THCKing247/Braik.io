@@ -4,6 +4,7 @@ import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { RosterDesktopSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { RosterMobileSkeleton } from "@/components/portal/roster-mobile-view"
 
 const RosterManagerEnhanced = dynamic(
@@ -62,23 +63,22 @@ function RosterPageContent({
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    Promise.all([
-      fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`).then((res) => (res.ok ? res.json() : [])),
-      fetch(`/api/teams/${teamId}`).then((res) => (res.ok ? res.json() : null)),
-    ])
-      .then(([rosterData, teamData]: [unknown, { programId?: string } | null]) => {
-        if (!cancelled && Array.isArray(rosterData)) {
+    setProgramId(null)
+
+    // Critical path: roster list only — show UI as soon as this returns (do not wait for team meta).
+    fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rosterData: unknown) => {
+        if (cancelled) return
+        if (Array.isArray(rosterData)) {
           setPlayers(
             (rosterData as Record<string, unknown>[]).map((p) => ({
               ...p,
               guardianLinks: Array.isArray(p.guardianLinks) ? p.guardianLinks : [],
             })) as PlayerItem[]
           )
-        }
-        if (!cancelled && teamData?.programId) {
-          setProgramId(teamData.programId)
-        } else if (!cancelled) {
-          setProgramId(null)
+        } else {
+          setPlayers([])
         }
       })
       .catch(() => {
@@ -87,7 +87,18 @@ function RosterPageContent({
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-    return () => { cancelled = true }
+
+    // Secondary: minimal team row for programId (depth chart / promote) — parallel, non-blocking for first paint.
+    fetch(`/api/teams/${encodeURIComponent(teamId)}?scope=meta`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((teamData: { programId?: string | null } | null) => {
+        if (!cancelled && teamData?.programId) setProgramId(teamData.programId)
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
   }, [teamId])
 
   if (loading) {
@@ -104,9 +115,7 @@ function RosterPageContent({
           </div>
           <RosterMobileSkeleton count={6} />
         </div>
-        <div className="hidden min-h-[40vh] items-center justify-center lg:flex">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        </div>
+        <RosterDesktopSkeleton />
       </div>
     )
   }

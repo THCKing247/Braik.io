@@ -6,9 +6,10 @@ import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 /**
  * GET /api/teams/[teamId]
  * Returns public team summary (name, slogan, logoUrl) for display. Requires team access.
+ * Query `scope=meta` returns only id + program_id (smaller payload for roster/program gating after roster loads).
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
@@ -25,6 +26,19 @@ export async function GET(
     await requireTeamAccess(teamId)
 
     const supabase = getSupabaseServer()
+    const scope = new URL(request.url).searchParams.get("scope")
+
+    if (scope === "meta") {
+      const { data, error } = await supabase.from("teams").select("id, program_id").eq("id", teamId).single()
+      if (error || !data) {
+        return NextResponse.json({ error: "Team not found" }, { status: 404 })
+      }
+      return NextResponse.json({
+        id: data.id,
+        programId: (data as { program_id?: string | null }).program_id ?? null,
+      })
+    }
+
     const { data, error } = await supabase
       .from("teams")
       .select("id, name, slogan, sport, season_name, logo_url, program_id, team_level")

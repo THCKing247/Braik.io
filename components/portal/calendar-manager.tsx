@@ -35,9 +35,17 @@ export interface CalendarManagerProps {
   events: Event[]
   canEdit: boolean
   defaultView?: "day" | "week" | "month" | "year"
+  /** When true, show overlay so shell mounts immediately while events fetch completes */
+  eventsLoading?: boolean
 }
 
-export function CalendarManager({ teamId, events: initialEvents, canEdit, defaultView = "day" }: CalendarManagerProps) {
+export function CalendarManager({
+  teamId,
+  events: initialEvents,
+  canEdit,
+  defaultView = "day",
+  eventsLoading = false,
+}: CalendarManagerProps) {
   const [events, setEvents] = useState(initialEvents)
   const [createOpen, setCreateOpen] = useState(false)
   const [createKey, setCreateKey] = useState(0)
@@ -101,7 +109,7 @@ export function CalendarManager({ teamId, events: initialEvents, canEdit, defaul
         />
       )}
 
-      <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden">
         <CalendarWidgetEnhanced
           teamId={teamId}
           events={calendarEvents}
@@ -109,6 +117,19 @@ export function CalendarManager({ teamId, events: initialEvents, canEdit, defaul
           defaultView={defaultView}
           onCreateEvent={canEdit ? openCreateModal : undefined}
         />
+        {eventsLoading ? (
+          <div
+            className="absolute inset-0 z-10 flex items-start justify-center bg-background/85 px-4 pt-6 backdrop-blur-[1px]"
+            aria-busy="true"
+            aria-label="Loading events"
+          >
+            <div className="grid w-full max-w-5xl grid-cols-7 gap-2 rounded-xl border border-border bg-card p-4 shadow-sm">
+              {Array.from({ length: 28 }).map((_, i) => (
+                <div key={i} className="aspect-square animate-pulse rounded-md bg-muted" />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )

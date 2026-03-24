@@ -182,6 +182,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     setSelectedRowKeys(new Set())
   }, [statsTab])
 
+  // Single round-trip for weekly tab: games + weekly entries in parallel (removes waterfall).
   useEffect(() => {
     if (statsTab !== "weekly" || !teamId) return
     let cancelled = false
@@ -196,16 +197,29 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       params.set("dateFrom", dateFilter.trim())
       params.set("dateTo", dateFilter.trim())
     }
-    fetch(`/api/stats/weekly?${params.toString()}`)
-      .then((res) => {
+    const gamesQ = new URLSearchParams({ teamId })
+    if (season.trim()) gamesQ.set("seasonYear", season.trim())
+
+    Promise.all([
+      fetch(`/api/stats/weekly?${params.toString()}`).then((res) => {
         if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
-        return res.json()
-      })
-      .then((data: { entries?: WeeklyStatEntryApi[] }) => {
-        if (!cancelled && Array.isArray(data?.entries)) setWeeklyEntries(data.entries)
+        return res.json() as Promise<{ entries?: WeeklyStatEntryApi[] }>
+      }),
+      fetch(`/api/stats/games?${gamesQ.toString()}`).then(async (res) => {
+        if (!res.ok) return { games: [] as Array<{ id: string; opponent: string; gameDate: string; seasonYear: number | null }> }
+        return res.json() as Promise<{ games?: typeof scheduleGames }>
+      }),
+    ])
+      .then(([weeklyData, gamesData]) => {
+        if (cancelled) return
+        if (Array.isArray(weeklyData?.entries)) setWeeklyEntries(weeklyData.entries)
+        if (Array.isArray(gamesData?.games)) setScheduleGames(gamesData.games)
       })
       .catch((err) => {
-        if (!cancelled) setWeeklyError(err instanceof Error ? err.message : "Failed to load weekly stats")
+        if (!cancelled) {
+          setWeeklyError(err instanceof Error ? err.message : "Failed to load weekly stats")
+          setScheduleGames([])
+        }
       })
       .finally(() => {
         if (!cancelled) setWeeklyLoading(false)
@@ -214,24 +228,6 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       cancelled = true
     }
   }, [teamId, statsTab, season, weekFilter, gameFilter, opponentFilter, dateFilter, refreshTrigger])
-
-  useEffect(() => {
-    if (statsTab !== "weekly" || !teamId) return
-    let cancelled = false
-    const q = new URLSearchParams({ teamId })
-    if (season.trim()) q.set("seasonYear", season.trim())
-    fetch(`/api/stats/games?${q.toString()}`)
-      .then((res) => res.ok ? res.json() : Promise.reject(new Error("games")))
-      .then((data: { games?: typeof scheduleGames }) => {
-        if (!cancelled && Array.isArray(data?.games)) setScheduleGames(data.games)
-      })
-      .catch(() => {
-        if (!cancelled) setScheduleGames([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, statsTab, season])
 
   useEffect(() => {
     if (showImportPanel && importPanelRef.current) {

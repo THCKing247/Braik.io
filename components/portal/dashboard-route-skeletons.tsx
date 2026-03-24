@@ -118,6 +118,24 @@ export function DashboardStatsSkeleton() {
   )
 }
 
+/** Desktop roster: toolbar + grid placeholders while roster API resolves */
+export function RosterDesktopSkeleton() {
+  return (
+    <div className="hidden w-full min-w-0 max-w-full space-y-4 lg:block" aria-busy="true" aria-label="Loading roster">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="h-10 w-64 max-w-full animate-pulse rounded-lg bg-muted" />
+        <div className="h-10 w-24 animate-pulse rounded-lg bg-muted" />
+        <div className="h-10 w-24 animate-pulse rounded-lg bg-muted" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <div key={i} className="h-36 animate-pulse rounded-xl border border-border bg-card shadow-sm" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function SettingsPageSkeleton() {
   return (
     <div

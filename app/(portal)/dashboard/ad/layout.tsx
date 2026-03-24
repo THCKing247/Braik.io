@@ -1,17 +1,15 @@
 import { redirect } from "next/navigation"
-import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
+import { getCachedServerSession } from "@/lib/auth/cached-server-session"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getAdPortalAccessForUser, adPortalShowsOverviewAndSettings } from "@/lib/ad-portal-access"
 import { AdNav } from "@/components/portal/ad/ad-nav"
-
-export const dynamic = "force-dynamic"
 
 export default async function AthleticDirectorLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const session = await getServerSessionOrSupabase()
+  const session = await getCachedServerSession()
   if (!session?.user?.id) {
     redirect("/login")
   }

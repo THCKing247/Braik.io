@@ -1,13 +1,22 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { TeamDashboard } from "@/components/portal/team-dashboard"
 import { AdPortalLandingGate } from "@/components/portal/ad-portal-landing-gate"
 
-export const dynamic = "force-dynamic"
+const TeamDashboard = dynamic(
+  () => import("@/components/portal/team-dashboard").then((m) => m.TeamDashboard),
+  {
+    loading: () => (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      </div>
+    ),
+  }
+)
 
 export default function DashboardPage() {
   const router = useRouter()

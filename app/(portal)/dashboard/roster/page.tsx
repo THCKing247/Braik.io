@@ -1,10 +1,21 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { RosterManagerEnhanced } from "@/components/portal/roster-manager-enhanced"
 import { RosterMobileSkeleton } from "@/components/portal/roster-mobile-view"
+
+const RosterManagerEnhanced = dynamic(
+  () => import("@/components/portal/roster-manager-enhanced").then((m) => m.RosterManagerEnhanced),
+  {
+    loading: () => (
+      <div className="hidden min-h-[40vh] items-center justify-center lg:flex">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    ),
+  }
+)
 
 export default function RosterPage() {
   return (

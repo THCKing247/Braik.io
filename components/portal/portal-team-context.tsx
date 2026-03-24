@@ -2,6 +2,10 @@
 
 import { createContext, useContext, useMemo } from "react"
 
+/**
+ * Minimal team scope from the dashboard shell (server-resolved). Use for URL/session team alignment only.
+ * Do not treat as roster or program payload — fetch those on the page that needs them.
+ */
 export type PortalTeamContextValue = {
   teamIds: string[]
   currentTeamId: string

@@ -1,8 +1,13 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { DocumentsManager } from "@/components/portal/documents-manager"
+
+const DocumentsManager = dynamic(
+  () => import("@/components/portal/documents-manager").then((m) => m.DocumentsManager),
+  { loading: () => <div className="min-h-[45vh] w-full animate-pulse rounded-xl bg-muted" aria-hidden /> }
+)
 
 export default function DocumentsPage() {
   return (

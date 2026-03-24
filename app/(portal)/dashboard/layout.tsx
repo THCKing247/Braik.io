@@ -1,10 +1,16 @@
+/**
+ * Dashboard layout — keep server work minimal for fast soft navigations:
+ * - Session once per request (cached via getCachedServerSession).
+ * - Team list for nav/switcher only: id + name via loadDashboardShellTeams (no roster, stats, events, etc.).
+ * Heavy data belongs on each page or client hooks, not here.
+ */
 import Link from "next/link"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { isRedirectError } from "next/dist/client/components/redirect"
-import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { getCachedServerSession } from "@/lib/auth/cached-server-session"
+import { loadDashboardShellTeams } from "@/lib/dashboard/load-dashboard-teams"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
 import { SubscriptionGuard } from "@/components/portal/subscription-guard"
 import { DashboardLayoutClient } from "@/components/portal/dashboard-layout-client"
@@ -13,8 +19,6 @@ import { getActiveImpersonationFromCookies } from "@/lib/admin/impersonation"
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { CoachPageDebug } from "@/components/portal/coach-page-debug"
-
-export const dynamic = "force-dynamic"
 
 /** Shown when the dashboard layout fails to load (avoids 500 and ERR_HTTP2 by returning 200). */
 function DashboardLayoutFallback() {
@@ -49,7 +53,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  let session: Awaited<ReturnType<typeof getServerSessionOrSupabase>>
+  let session: Awaited<ReturnType<typeof getCachedServerSession>>
   let teams: Array<{
     id: string
     name: string
@@ -69,7 +73,13 @@ export default async function DashboardLayout({
   let impersonationSession: Awaited<ReturnType<typeof getActiveImpersonationFromCookies>>
 
   try {
-    session = await getServerSessionOrSupabase()
+    // Session and impersonation cookie are independent — resolve in parallel to shave latency on Netlify.
+    const [resolvedSession, resolvedImpersonation] = await Promise.all([
+      getCachedServerSession(),
+      getActiveImpersonationFromCookies(),
+    ])
+    session = resolvedSession
+    impersonationSession = resolvedImpersonation
 
     if (!session?.user?.id) {
       redirect("/login")
@@ -85,76 +95,16 @@ export default async function DashboardLayout({
       return <>{children}</>
     }
 
-    const supabase = getSupabaseServer()
-
     // When impersonating, load the target user's teams; otherwise use session user
-    impersonationSession = await getActiveImpersonationFromCookies()
     const effectiveUserId = impersonationSession?.target_user_id ?? session.user.id
+    const isImpersonating = Boolean(impersonationSession)
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("team_id")
-      .eq("id", effectiveUserId)
-      .maybeSingle()
-
-    const { data: membershipRows } = await supabase
-      .from("team_members")
-      .select("team_id")
-      .eq("user_id", effectiveUserId)
-      .eq("active", true)
-
-    let teamIds: string[] = [...new Set((membershipRows ?? []).map((r) => r.team_id).filter(Boolean))]
-
-    if (profile?.team_id && !teamIds.includes(profile.team_id)) {
-      teamIds = [...teamIds, profile.team_id]
-    }
-
-    if (teamIds.length === 0) {
-      const { data: hcTeams } = await supabase
-        .from("teams")
-        .select("id")
-        .eq("head_coach_user_id", effectiveUserId)
-      if (hcTeams?.length) {
-        teamIds = hcTeams.map((t) => t.id)
-      }
-    }
-
-    // Last resort: teams.created_by (audit / legacy) when no team_members or profile link
-    if (teamIds.length === 0) {
-      const { data: createdTeams } = await supabase
-        .from("teams")
-        .select("id")
-        .eq("created_by", effectiveUserId)
-      if (createdTeams?.length) {
-        teamIds = createdTeams.map((t) => t.id)
-      }
-    }
-    if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
-      teamIds = [session.user.teamId]
-    }
-
-    teams = []
-
-    if (teamIds.length > 0) {
-      const { data: teamsData } = await supabase
-        .from("teams")
-        .select("id, name")
-        .in("id", teamIds)
-
-      teams = (teamsData ?? []).map((t) => ({
-        id: t.id,
-        name: t.name,
-        organization: { name: t.name ?? "" },
-        sport: "football",
-        seasonName: "",
-        primaryColor: "#1e3a5f",
-        secondaryColor: "#FFFFFF",
-        teamStatus: "active",
-        subscriptionPaid: false,
-        amountPaid: 0,
-        players: [],
-      }))
-    }
+    teams = await loadDashboardShellTeams(
+      effectiveUserId,
+      session.user.id,
+      session.user.teamId,
+      isImpersonating
+    )
 
     // Head Coaches must always have a team — redirect to onboarding only for them.
     const layoutUserRole = session.user.role?.toUpperCase()
@@ -202,11 +152,13 @@ export default async function DashboardLayout({
             </Suspense>
           </header>
           <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex w-full min-w-0 flex-col">
-            <CoachPageDebug
-              session={session}
-              teamIds={teams.map((t) => t.id)}
-              accessAllowed={true}
-            />
+            {process.env.NODE_ENV === "development" ? (
+              <CoachPageDebug
+                session={session}
+                teamIds={teams.map((t) => t.id)}
+                accessAllowed={true}
+              />
+            ) : null}
             {impersonationSession && <ImpersonationBanner />}
             <SuspensionBanner teamStatus={currentTeam?.teamStatus} role={session?.user?.role} />
             <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>

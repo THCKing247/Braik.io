@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+/**
+ * Braik middleware — intentionally lightweight for Netlify Edge:
+ * - No Supabase getUser() or DB (token validation runs in Node in dashboard layout — avoids Edge failures).
+ * - Only checks presence of sb-access-token for /dashboard and /admin (except /admin/login).
+ * Internal client navigations reuse the same cookie; no extra “handshake” per route.
+ */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 

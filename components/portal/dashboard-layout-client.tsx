@@ -1,6 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { useRef } from "react"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
 import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
 import { PortalTeamProvider } from "@/components/portal/portal-team-context"
@@ -38,11 +39,26 @@ export function DashboardLayoutClient({
     (pathname?.includes("/dashboard/schedule") ?? false) || (pathname?.includes("/dashboard/calendar") ?? false)
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
   const useMobilePortalShell = !isPlayEditorRoute && !isSchedulePage
-  const teamIds = teams.map((t) => t.id)
-  const resolvedCurrentTeamId = currentTeamId ?? teams[0]?.id ?? ""
+
+  // RSC passes a new `teams` array every navigation; keep referential stability when id+name are unchanged
+  // so PortalTeamProvider and the sidebar subtree skip useless context updates during soft route changes.
+  const shellTeamsRef = useRef<{ sig: string; teams: Team[]; teamIds: string[] } | null>(null)
+  const teamsSig = teams.map((t) => `${t.id}\0${t.name}`).join("\n")
+  if (!shellTeamsRef.current || shellTeamsRef.current.sig !== teamsSig) {
+    shellTeamsRef.current = {
+      sig: teamsSig,
+      teams,
+      teamIds: teams.map((t) => t.id),
+    }
+  }
+  const shellTeams = shellTeamsRef.current.teams
+  const shellTeamIds = shellTeamsRef.current.teamIds
+
+  const resolvedCurrentTeamId = currentTeamId ?? shellTeams[0]?.id ?? ""
+  const isDashboardHome = pathname === "/dashboard"
 
   return (
-    <PortalTeamProvider teamIds={teamIds} currentTeamId={resolvedCurrentTeamId}>
+    <PortalTeamProvider teamIds={shellTeamIds} currentTeamId={resolvedCurrentTeamId}>
       <CoachBProvider isDesktop={isLgUp}>
         <PlaybookToastProvider>
           <BiometricEnablePrompt />
@@ -59,7 +75,7 @@ export function DashboardLayoutClient({
                 }}
                 aria-label="Dashboard navigation"
               >
-                <DashboardSidebar teams={teams} />
+                <DashboardSidebar teams={shellTeams} />
               </aside>
 
               <main
@@ -105,7 +121,8 @@ export function DashboardLayoutClient({
                         isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
                       )}
                     >
-                      {resolvedCurrentTeamId ? (
+                      {/* Hints only on home dashboard — avoids mounting /api fetch wiring on every route */}
+                      {isDashboardHome && resolvedCurrentTeamId ? (
                         <DashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
                       ) : null}
                       {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}

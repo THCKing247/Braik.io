@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useState, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
@@ -7,11 +8,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { StatsLeaderCards } from "@/components/portal/stats-leader-cards"
-import { AllStatsTable } from "@/components/portal/all-stats-table"
-import { AddWeeklyStatsDialog } from "@/components/portal/add-weekly-stats-dialog"
-import { BulkEditWeeklyStatsDialog } from "@/components/portal/bulk-edit-weekly-stats-dialog"
-import { DeleteStatsConfirmDialog } from "@/components/portal/delete-stats-confirm-dialog"
+
+const StatsLeaderCards = dynamic(
+  () => import("@/components/portal/stats-leader-cards").then((m) => m.StatsLeaderCards),
+  { loading: () => <div className="h-28 w-full animate-pulse rounded-xl bg-muted" aria-hidden /> }
+)
+
+const AllStatsTable = dynamic(
+  () => import("@/components/portal/all-stats-table").then((m) => m.AllStatsTable),
+  { loading: () => <div className="min-h-[200px] w-full animate-pulse rounded-xl bg-muted" aria-hidden /> }
+)
+
+const AddWeeklyStatsDialog = dynamic(
+  () => import("@/components/portal/add-weekly-stats-dialog").then((m) => m.AddWeeklyStatsDialog),
+  { loading: () => null }
+)
+
+const BulkEditWeeklyStatsDialog = dynamic(
+  () => import("@/components/portal/bulk-edit-weekly-stats-dialog").then((m) => m.BulkEditWeeklyStatsDialog),
+  { loading: () => null }
+)
+
+const DeleteStatsConfirmDialog = dynamic(
+  () => import("@/components/portal/delete-stats-confirm-dialog").then((m) => m.DeleteStatsConfirmDialog),
+  { loading: () => null }
+)
 import type { PlayerStatsRow, StatsTableRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
 import { playerToStatsTableRow, weeklyEntryToStatsTableRow } from "@/lib/stats-helpers"
 import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2, RefreshCw, PencilLine } from "lucide-react"

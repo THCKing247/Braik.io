@@ -1,18 +1,33 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format } from "date-fns"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { DashboardScheduleSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { type TeamGameRow, parseGameDateMs } from "@/lib/team-schedule-games"
 import { ListOrdered, Plus, Upload, Download } from "lucide-react"
-import { TeamGameFormDialog } from "@/components/portal/team-game-form-dialog"
-import { TeamGamesImportDialog } from "@/components/portal/team-games-import-dialog"
 import { emitTeamGamesChanged } from "@/lib/team-games-events"
-import { ScheduleGameCentricView } from "@/components/portal/schedule-game-centric-view"
+
+const ScheduleGameCentricView = dynamic(
+  () =>
+    import("@/components/portal/schedule-game-centric-view").then((m) => m.ScheduleGameCentricView),
+  { loading: () => <div className="min-h-[200px] animate-pulse rounded-lg bg-muted" aria-hidden /> }
+)
+
+const TeamGameFormDialog = dynamic(
+  () => import("@/components/portal/team-game-form-dialog").then((m) => m.TeamGameFormDialog),
+  { loading: () => null }
+)
+
+const TeamGamesImportDialog = dynamic(
+  () => import("@/components/portal/team-games-import-dialog").then((m) => m.TeamGamesImportDialog),
+  { loading: () => null }
+)
 
 export default function TeamSchedulePage() {
   return (
@@ -69,14 +84,18 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/teams/${encodeURIComponent(teamId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { name?: string } | null) => {
-        if (!cancelled && data?.name) setTeamName(data.name)
-      })
-      .catch(() => {})
+    // Defer team display name — games list is the critical path for first paint
+    const t = window.setTimeout(() => {
+      fetch(`/api/teams/${encodeURIComponent(teamId)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { name?: string } | null) => {
+          if (!cancelled && data?.name) setTeamName(data.name)
+        })
+        .catch(() => {})
+    }, 0)
     return () => {
       cancelled = true
+      window.clearTimeout(t)
     }
   }, [teamId])
 
@@ -106,11 +125,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
+    return <DashboardScheduleSkeleton />
   }
 
   return (

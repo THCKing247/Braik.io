@@ -1,8 +1,16 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { CalendarManager } from "@/components/portal/calendar-manager"
+import { DashboardCalendarSkeleton } from "@/components/portal/dashboard-route-skeletons"
+
+const CalendarManager = dynamic(
+  () => import("@/components/portal/calendar-manager").then((m) => m.CalendarManager),
+  {
+    loading: () => <DashboardCalendarSkeleton />,
+  }
+)
 
 export default function CalendarPage() {
   return (
@@ -63,11 +71,7 @@ function CalendarPageContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   }, [teamId])
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
+    return <DashboardCalendarSkeleton />
   }
 
   const eventsWithDates = events.map((e) => ({

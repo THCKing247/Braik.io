@@ -4,7 +4,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useAdPortalDepartmentLink } from "@/components/portal/ad-portal-link-context"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
@@ -39,35 +39,13 @@ const departmentNavLinkClass = cn(
 
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const { data: session } = useSession()
+  const { departmentHref: adDepartmentHref } = useAdPortalDepartmentLink()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const isPlatformOwner = session?.user?.isPlatformOwner || false
   const showAdminLink = isPlatformOwner
   const userRole = session?.user?.role?.toUpperCase() || ""
-  const [adDepartmentHref, setAdDepartmentHref] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (userRole !== "HEAD_COACH") {
-      setAdDepartmentHref(null)
-      return
-    }
-    let cancelled = false
-    fetch("/api/me/ad-portal")
-      .then((r) => r.json())
-      .then((d: { canEnterAdPortal?: boolean; defaultPath?: string }) => {
-        if (!cancelled) {
-          if (d.canEnterAdPortal && d.defaultPath) setAdDepartmentHref(d.defaultPath)
-          else setAdDepartmentHref(null)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setAdDepartmentHref(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [userRole])
 
   const path = pathname ?? ""
   const onAdPortalShell = path.startsWith("/dashboard/ad")

@@ -49,16 +49,37 @@ export function AdTeamsPageClient({ teams: initialTeams }: AdTeamsPageClientProp
         <div>
           <h1 className="text-2xl font-bold text-[#212529]">Teams</h1>
           <p className="mt-1 text-[#6B7280]">
+<<<<<<< HEAD
             Teams from your program and department. New teams are added through signup and provisioning.
+=======
+            Teams come from your program setup at signup. Open a team’s Head Coach portal from here or edit
+            department details.
+>>>>>>> origin/main
           </p>
         </div>
       </div>
 
       {isEmpty ? (
+<<<<<<< HEAD
         <AdEmptyState
           title="No teams in view yet"
           description="When programs and teams are created through signup or provisioning, they will appear here. Use Portal access to open a team in the head coach workspace when listed."
         />
+=======
+        <>
+          <div className="rounded-xl border border-[#E5E7EB] bg-[#EFF6FF] p-6">
+            <h2 className="text-lg font-semibold text-[#1E40AF]">No teams visible yet</h2>
+            <p className="mt-1 text-sm text-[#1E3A8A]">
+              Teams are created when your athletic program is provisioned during account setup. If you expect to see
+              teams here, confirm your school and department linkage with support.
+            </p>
+          </div>
+          <AdEmptyState
+            title="No teams yet"
+            description="Teams appear here from signup and program provisioning. Use the Coaches tab for football staffing and invite flows once teams exist."
+          />
+        </>
+>>>>>>> origin/main
       ) : (
         <>
           <AdTeamFilters

@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+<<<<<<< HEAD
 import { resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
+=======
+import { getAdPortalAccessForUser, adPortalShowsOverviewAndSettings } from "@/lib/ad-portal-access"
+>>>>>>> origin/main
 
 export const dynamic = "force-dynamic"
 
@@ -10,8 +14,17 @@ export default async function AdSettingsPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
+<<<<<<< HEAD
   const access = await resolveFootballAdAccessState(supabase, session.user.id)
   if (access.state === "restricted_football_ad") {
+=======
+  const access = await getAdPortalAccessForUser(
+    supabase,
+    session.user.id,
+    session.user.role?.toUpperCase()
+  )
+  if (!adPortalShowsOverviewAndSettings(access)) {
+>>>>>>> origin/main
     redirect("/dashboard/ad/teams")
   }
 

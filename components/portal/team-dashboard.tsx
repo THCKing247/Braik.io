@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import dynamic from "next/dynamic"
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,15 +12,37 @@ import Link from "next/link"
 import {
   Trophy,
   Bell,
-  Megaphone,
   Users,
   ImageIcon,
   MapPin,
   Clock,
   ClipboardCheck,
 } from "lucide-react"
-import { DashboardCalendar } from "@/components/portal/dashboard-calendar"
-import { DashboardAnnouncementsCard } from "@/components/portal/dashboard-announcements-card"
+
+const DashboardCalendar = dynamic(
+  () => import("@/components/portal/dashboard-calendar").then((m) => m.DashboardCalendar),
+  {
+    loading: () => (
+      <div
+        className="h-44 w-full min-w-0 animate-pulse rounded-xl bg-[rgb(var(--platinum))] md:h-52"
+        aria-hidden
+      />
+    ),
+  }
+)
+
+const DashboardAnnouncementsCard = dynamic(
+  () =>
+    import("@/components/portal/dashboard-announcements-card").then((m) => m.DashboardAnnouncementsCard),
+  {
+    loading: () => (
+      <div
+        className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg"
+        aria-hidden
+      />
+    ),
+  }
+)
 import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
 import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team-schedule-games"
 import { computeTeamRecord, formatRecordLine } from "@/lib/records/compute-team-record"
@@ -69,6 +92,47 @@ function formatRelativeTime(iso: string) {
   return d.toLocaleDateString()
 }
 
+/**
+ * Below-the-fold home row: defer mounting (and thus /api/notifications, readiness, announcements fetches)
+ * until the user scrolls near this row — banner + calendar paint first without competing requests.
+ */
+function DeferredHomeDashboardRow({ children }: { children: ReactNode }) {
+  const [show, setShow] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (show) return
+    const el = ref.current
+    if (!el) return
+    if (typeof IntersectionObserver === "undefined") {
+      setShow(true)
+      return
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setShow(true)
+      },
+      { root: null, rootMargin: "240px 0px", threshold: 0 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [show])
+  return (
+    <div
+      ref={ref}
+      className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3"
+    >
+      {show ? (
+        children
+      ) : (
+        <>
+          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+        </>
+      )}
+    </div>
+  )
+}
 
 // ─── Team Banner ──────────────────────────────────────────────────────────────
 
@@ -217,7 +281,7 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
     if (!teamId) return
     setLoading(true)
     setForbidden(false)
-    fetch(`/api/teams/${teamId}/readiness`)
+    fetch(`/api/teams/${teamId}/readiness?summaryOnly=1`)
       .then((res) => {
         if (res.status === 403) {
           setForbidden(true)
@@ -240,7 +304,31 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
       .finally(() => setLoading(false))
   }, [teamId])
 
-  if (forbidden || loading || !summary) return null
+  if (forbidden) return null
+
+  if (loading) {
+    return (
+      <Card
+        className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      >
+        <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+          <CardTitle
+            className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
+            style={{ color: "rgb(var(--text))" }}
+          >
+            <ClipboardCheck className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
+            Roster Readiness
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex min-h-[100px] items-center justify-center px-4 pb-4 md:px-6 md:pb-6">
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!summary) return null
 
   return (
     <Card
@@ -760,8 +848,26 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       .finally(() => setScheduleGamesLoading(false))
   }, [teamId])
 
+  // Initial games fetch is non-blocking for paint: defer to idle so Link navigations to /dashboard settle first.
   useEffect(() => {
-    loadScheduleGames()
+    let cancelled = false
+    const run = () => {
+      if (!cancelled) loadScheduleGames()
+    }
+    let idleHandle: number | undefined
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleHandle = window.requestIdleCallback(run, { timeout: 2000 })
+    } else {
+      timeoutHandle = setTimeout(run, 0)
+    }
+    return () => {
+      cancelled = true
+      if (idleHandle !== undefined && typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleHandle)
+      }
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
+    }
   }, [loadScheduleGames])
 
   useEffect(() => {
@@ -811,18 +917,18 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         </div>
       )}
 
-      {/* ── Announcements + Notifications + Readiness ── */}
+      {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
       {hasTeam && (
-      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-        <DashboardAnnouncementsCard
-          teamId={teamId}
-          canCreate={canAddCalendarEvents}
-          viewerUserId={user.id}
-          viewerRole={user.role}
-        />
-        <NotificationsCard teamId={teamId} />
-        <ReadinessSummaryCard teamId={teamId} />
-      </div>
+        <DeferredHomeDashboardRow>
+          <DashboardAnnouncementsCard
+            teamId={teamId}
+            canCreate={canAddCalendarEvents}
+            viewerUserId={user.id}
+            viewerRole={user.role}
+          />
+          <NotificationsCard teamId={teamId} />
+          <ReadinessSummaryCard teamId={teamId} />
+        </DeferredHomeDashboardRow>
       )}
 
     </div>

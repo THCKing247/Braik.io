@@ -5,6 +5,12 @@ import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-tea
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+/**
+ * Braik middleware — intentionally lightweight for Netlify Edge:
+ * - No Supabase getUser() or DB (token validation runs in Node in dashboard layout — avoids Edge failures).
+ * - Only checks presence of sb-access-token for /dashboard and /admin (except /admin/login).
+ * Internal client navigations reuse the same cookie; no extra “handshake” per route.
+ */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -60,6 +66,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+<<<<<<< HEAD
   const isDashboardRoot = pathname === "/dashboard" || pathname === "/dashboard/"
   if (isDashboardRoot) {
     const teamId = request.nextUrl.searchParams.get("teamId")
@@ -83,6 +90,13 @@ export async function middleware(request: NextRequest) {
       })
     }
     return res
+=======
+  // Let Server Components distinguish AD portal routes from the Head Coach dashboard shell.
+  if (pathname.startsWith("/dashboard")) {
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set("x-dashboard-pathname", pathname)
+    return NextResponse.next({ request: { headers: requestHeaders } })
+>>>>>>> origin/main
   }
 
   return NextResponse.next()

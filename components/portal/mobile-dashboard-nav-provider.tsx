@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
+import { AdPortalLinkProvider } from "@/components/portal/ad-portal-link-context"
 import { DashboardMoreBottomSheet } from "@/components/portal/dashboard-more-bottom-sheet"
 
 interface Team {
@@ -50,7 +51,8 @@ export function MobileDashboardNavProvider({
 
   return (
     <MobileNavContext.Provider value={value}>
-      {children}
+      {/* Dedupes AD portal eligibility fetch for header + any future consumers */}
+      <AdPortalLinkProvider>{children}</AdPortalLinkProvider>
       <DashboardMoreBottomSheet
         open={moreOpen}
         onOpenChange={setMoreOpen}

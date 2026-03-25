@@ -1,0 +1,187 @@
+[33m6f4bcac[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Director integration / Dual role for Varsity Head coach
+[33m55d70c6[m Director logic overhaul
+[33m043e074[m Directory Page
+[33mee0157f[m Director Page for Varsity HC
+[33mc5a703a[m Director Implementation
+[33m4f44ced[m Director Implementation
+[33mb3cabd8[m Hierarchy format Varsity Head coach -> Director
+[33m7a10fc4[m Schedule + Calendar
+[33m4c215bd[m Schedule + Calendar
+[33m0e6e149[m Schedule + Calendar
+[33mc60d867[m Schedule + Calendar
+[33m9589d29[m Schedule + Calendar
+[33m6f8baad[m Schedule + Calendar
+[33m8218c0b[m Stat/Analytics
+[33mc190d3b[m Stat/Analytics
+[33mee6f06f[m Stat/Analytics
+[33ma862e3d[m Stat/Analytics
+[33m3a506b6[m Stat/Analytics
+[33m238f6b0[m Stat/Analytics
+[33mfa67688[m Stat/Analytics
+[33m37fceeb[m Stat/Analytics
+[33m9cb868a[m SMS Constent + Privacy Policy & Termms of Services Updated
+[33m273a499[m player doc
+[33m9a27873[m AD profile
+[33m082d228[m AD profile
+[33mbd623ec[m AD profile
+[33m69ec04e[m AD profile
+[33m040406d[m AD + Team Link
+[33mc34f55e[m AD + Team Link
+[33m61bf303[m android
+[33mbdcfa55[m Fix mobile wrapper + capacitor config
+[33m475d918[m app icon
+[33me70b8a6[m app icon
+[33m34c9ff0[m app icon
+[33m2624c27[m supa
+[33m3718c11[m multi phase update
+[33m16aeaae[m Inventory Fixes
+[33m387ff4e[m Inventory - Fixes / Expenses / UI
+[33m96a946d[m Inventory - Fixes / Expenses / UI
+[33m8006d8c[m Inventory Fixes / Expenses / UI
+[33m4618e42[m Merge branches 'main' and 'main' of https://github.com/THCKing247/Braik.io
+[33mc7929f1[m UI
+[33m05b20db[m Supabase for Documents saving
+[33mcd427b5[m UI
+[33m8e66ced[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m58bb561[m UI
+[33macaacb0[m Documents setup / Safe build with ChatGPT constraints
+[33m71857de[m mobile login improvement
+[33me0b3e21[m mobile login improvement
+[33m2f88a58[m message UX + UI
+[33mcd4b504[m schedule ux
+[33m1205df0[m Schedule UI - Block colors and function
+[33m4452234[m Create Event fix
+[33m271fe2a[m playbook UI + UX
+[33m449982d[m playbook UI + UX
+[33m5847eb9[m playbook UI + UX
+[33md6e7c01[m playbook UI + UX
+[33m170110d[m calendar UI
+[33m688e6c9[m calendar UI
+[33m1f7b73b[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m4108327[m Schedule UI fix
+[33mb18df9a[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m29a20c7[m Mobile UI + UX
+[33mb5a6c7d[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m4daff3f[m Add event supabase migration
+[33m613e31a[m Mobile UI + UX
+[33mdca968d[m Fix favicon and calendar event sync
+[33m8dddab9[m Add Event fix (2)
+[33mc7277cc[m Add Event fix
+[33m88685e3[m Merge origin/main: sync with partner
+[33m57a11ed[m Schedule UI
+[33mc9153fd[m Mobile UI + UX
+[33m51fb900[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m25198f4[m Mobile UI + UX
+[33m55a80a0[m Announcements UI
+[33mfda0c29[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m5ff7343[m feat: team announcements (dashboard card, API, Supabase migration)
+[33m154d251[m Mobile UI + UX
+[33mb1a5751[m Mobile UI + UX
+[33m6093100[m dashboard ux
+[33mdc0436c[m dashboard ux
+[33m294125f[m fix: define TeamUpdateItem type for team-updates API (Netlify tsc)
+[33m5c86aaf[m Merge origin/main: mobile nav + team dashboard updates/notifications
+[33mafc0a04[m Dashboard: team updates feed + scoped notifications; roster print/email + Postmark; healthStatus on profile
+[33m4ad16cc[m phone ui
+[33m54036d7[m phone ui
+[33mb8d48c1[m Roster & depth chart: readiness account link, list sort, depth sync, slot sizing, player card profile
+[33mb051a55[m Phone UI
+[33m3dd7823[m push
+[33m89931f9[m Dashboard UI
+[33m0048559[m commit
+[33m85dac25[m push
+[33ma8edda7[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m50edda8[m *
+[33mafdf682[m capacitor
+[33mc170c9b[m Notification Phase 1.3 and MObile layout
+[33mb932a90[m Dashboard UI / Phase 1.3
+[33m6115ffb[m Messaging Refresh and UI Update / Phase 1.1 and 1.2
+[33m9ef4f28[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33mdb7349b[m UI Fixes
+[33md03a43c[m add event
+[33m3101eee[m Add quantity adjustment to bulk edit modal and fix messaging refetch loop
+[33med4ff0f[m add event
+[33m8b68647[m add event
+[33mda9b123[m add event
+[33m7734bed[m Inventory Item amount
+[33m845c486[m UI mesaging
+[33ma2d91df[m Create account fix
+[33ma47d729[m Messaging Function
+[33mc0ef460[m Messaging UI
+[33m2c84fa1[m UI Inventory / Messaging logic
+[33m77649c1[m UI Inventory / Messaging Logic
+[33m779e74a[m UI Inventory
+[33med84198[m UI Inventory Icons
+[33mbcbfeee[m UI Inventory
+[33m475249c[m UI Inventory
+[33m7ac5788[m UI Inventory
+[33mf59ef0d[m Fix TypeScript syntax error in messaging-manager.tsx
+[33m4f58f5c[m Merge branch 'main' of https://github.com/THCKing247/Braik.io # Please enter a commit message to explain why this merge is necessary, # especially if it merges an updated upstream into a topic branch. # # Lines starting with '#' will be ignored, and an empty message aborts # the commit.
+[33ma2610ff[m UI Inventory
+[33mc07a9e3[m add event
+[33m6b70383[m add event
+[33m6f66a57[m add event
+[33m129c20e[m UI Inventory
+[33m885a95a[m Inventory UI
+[33m7498b23[m twilio
+[33m2b303a3[m twilio
+[33mab10a63[m Sign Up + Account Link
+[33mb301f69[m Sign Up + Account Link
+[33me33d637[m Sign Up + Account Link
+[33m545101f[m Sign Up + Account Link
+[33m8ba9364[m Sign Up + Account Link
+[33m2ee2ef0[m Sign Up + Account Link
+[33m94e6740[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33m2da6d7d[m Sign Up + Account Link
+[33mcbe50ca[m UI Inventory
+[33mcb304b1[m UI Inventory
+[33mbf849d0[m coach b play suggestion
+[33mf6218a2[m coach b play suggestion
+[33m71803c2[m Logo Uploader Improvements + Setting UI & UX Improvements
+[33m0b2f631[m Logo Uploader Improvements + Setting UI & UX Improvements
+[33m9d60921[m Logo Uploader Improvements + Setting UI & UX Improvements
+[33m2545346[m Logo Uploader Improvements + Setting UI & UX Improvements
+[33m1a2e58e[m depth chart UX
+[33m23370cd[m depth chart UX
+[33m0a944d8[m depth chart UX
+[33mfdae624[m depth chart UX
+[33m4e1e6ec[m depth chart UX
+[33m5ae7bde[m depth chart UX
+[33me678a30[m depth chart UX
+[33m6879127[m Roster Import UX
+[33m2a5d72b[m Roster Import UX
+[33ma63cc75[m stats page + Coach B improvements
+[33m934d39e[m Coach B + Open AI
+[33me5fe9fa[m Coach B + Open AI
+[33m2818fb0[m Coach B + Open AI
+[33med35c61[m Coach B + Open AI
+[33m74f3202[m Coach B + Open AI
+[33m71c5140[m photo upload
+[33m68df778[m play presenter+Formation Intelligence
+[33mcaf09fe[m play presenter+Formation Intelligence
+[33m520e2cd[m play presenter+Formation Intelligence
+[33m43200c6[m play presenter+Formation Intelligence
+[33m7a5cc74[m play presenter
+[33m9631702[m play presenter+Formation Intelligence
+[33m12f8fba[m play presenter
+[33m74c6163[m play presenter
+[33m42e9d01[m playbook UX
+[33mb335623[m playbook UX
+[33m3271316[m playbook UX
+[33m6cc301c[m playbook UX
+[33m289c56d[m Merge branch 'main' of https://github.com/THCKing247/Braik.io
+[33mf8ec52a[m playbook UX
+[33m6fd1bae[m Merge branch 'main' of https://github.com/THCKing247/Braik.io # Please enter a commit message to explain why this merge is necessary, # especially if it merges an updated upstream into a topic branch. # # Lines starting with '#' will be ignored, and an empty message aborts # the commit.
+[33m6cbeab7[m UI Inventory
+[33m76e7b52[m playbook UX
+[33m78b1107[m playbook UX
+[33m535ba17[m playbook UX
+[33m0dc9124[m playbook UX
+[33m1e32929[m playbook UX
+[33md5ef0ae[m Playbook UX
+[33m8834be0[m  Playbook UI
+[33m9e8670c[m UI Inventory
+[33m8d24a1a[m UI fix cards in inventory / Modal update for player card in roster
+[33m0dfe3db[m UI fix in inventory / UI Fix for Screen adjustment / Modal and UI  for Roster card
+[33med9a4b7[m  Playbook UI
+[3

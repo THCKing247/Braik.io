@@ -1,8 +1,13 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { InventoryManager } from "@/components/portal/inventory-manager"
+
+const InventoryManager = dynamic(
+  () => import("@/components/portal/inventory-manager").then((m) => m.InventoryManager),
+  { loading: () => <div className="min-h-[45vh] w-full animate-pulse rounded-xl bg-muted" aria-hidden /> }
+)
 
 const defaultCoachPermissions = {
   canView: true,

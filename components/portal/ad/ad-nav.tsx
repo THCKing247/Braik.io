@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { signOut } from "@/lib/auth/client-auth"
 import { Button } from "@/components/ui/button"
+<<<<<<< HEAD
 import type { AdPortalTabVisibility } from "@/lib/enforcement/football-ad-access"
 
 const fullOwnerNav: {
@@ -35,6 +36,32 @@ export function AdNav({
   const navItems = fullOwnerNav.filter((item) => Boolean(tabVisibility[item.key]))
   const homeHref = tabVisibility.homeHref
 
+=======
+import { useMemo } from "react"
+
+type AdNavItem = { href: string; label: string }
+
+export function AdNav({
+  userEmail,
+  showOverviewAndSettings = true,
+}: {
+  userEmail?: string | null
+  /** Full athletic department owner / real AD — Overview + Settings */
+  showOverviewAndSettings?: boolean
+}) {
+  const adNavItems = useMemo(() => {
+    const items: AdNavItem[] = []
+    if (showOverviewAndSettings) {
+      items.push({ href: "/dashboard/ad", label: "Overview" })
+    }
+    items.push({ href: "/dashboard/ad/teams", label: "Teams" }, { href: "/dashboard/ad/coaches", label: "Coaches" })
+    if (showOverviewAndSettings) {
+      items.push({ href: "/dashboard/ad/settings", label: "Settings" })
+    }
+    return items
+  }, [showOverviewAndSettings])
+
+>>>>>>> origin/main
   return (
     <nav
       className="sticky top-0 z-50 border-b bg-white"

@@ -1,5 +1,6 @@
 "use client"
 
+import { memo, useMemo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
@@ -29,7 +30,11 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const userRole = session?.user?.role
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
-  const quickActions = getQuickActionsForRole(userRole)
+  const dashboardHomeHref =
+    userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+      ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+      : "/dashboard"
+  const quickActions = useMemo(() => getQuickActionsForRole(userRole), [userRole])
   const showCoachB = userRole && canUseCoachB(userRole as Role)
   const coachCopy = useCoachBRotatingCopy()
 
@@ -71,7 +76,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
 
         <nav className="space-y-1.5 p-3" aria-label="Main navigation">
           <SidebarNavItem
-            href="/dashboard"
+            href={dashboardHomeHref}
             label="Dashboard"
             icon={LayoutDashboard}
             isActive={pathname === "/dashboard"}
@@ -154,7 +159,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   )
 }
 
-function SidebarNavItem({
+const SidebarNavItem = memo(function SidebarNavItem({
   href,
   label,
   icon: Icon,
@@ -181,6 +186,6 @@ function SidebarNavItem({
       <span>{label}</span>
     </Link>
   )
-}
+})
 
 export const DASHBOARD_SIDEBAR_WIDTH = SIDEBAR_WIDTH

@@ -107,12 +107,9 @@ export async function signOut(options: { callbackUrl?: string } = {}) {
 const SESSION_RETRY_DELAY_MS = 800
 const SESSION_MAX_RETRIES = 1
 
-/**
- * Fetches session from /api/auth/session. Retries once on 5xx or network failure
- * so temporary server errors don't make the app think the user is logged out.
- * Only 401 or explicit 200 with user: null are treated as "no session".
- */
-export async function getSession(): Promise<SessionResponse | null> {
+let sessionFetchInFlight: Promise<SessionResponse | null> | null = null
+
+async function fetchSessionOnce(): Promise<SessionResponse | null> {
   let lastError: unknown
   for (let attempt = 0; attempt <= SESSION_MAX_RETRIES; attempt++) {
     try {
@@ -158,6 +155,20 @@ export async function getSession(): Promise<SessionResponse | null> {
     }
   }
   return null
+}
+
+/**
+ * Fetches session from /api/auth/session. Retries once on 5xx or network failure
+ * so temporary server errors don't make the app think the user is logged out.
+ * Only 401 or explicit 200 with user: null are treated as "no session".
+ * Concurrent callers share one in-flight request (singleflight).
+ */
+export async function getSession(): Promise<SessionResponse | null> {
+  if (sessionFetchInFlight) return sessionFetchInFlight
+  sessionFetchInFlight = fetchSessionOnce().finally(() => {
+    sessionFetchInFlight = null
+  })
+  return sessionFetchInFlight
 }
 
 export function useSession(): SessionContextValue {

@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useState, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
@@ -7,11 +8,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { StatsLeaderCards } from "@/components/portal/stats-leader-cards"
-import { AllStatsTable } from "@/components/portal/all-stats-table"
-import { AddWeeklyStatsDialog } from "@/components/portal/add-weekly-stats-dialog"
-import { BulkEditWeeklyStatsDialog } from "@/components/portal/bulk-edit-weekly-stats-dialog"
-import { DeleteStatsConfirmDialog } from "@/components/portal/delete-stats-confirm-dialog"
+
+const StatsLeaderCards = dynamic(
+  () => import("@/components/portal/stats-leader-cards").then((m) => m.StatsLeaderCards),
+  { loading: () => <div className="h-28 w-full animate-pulse rounded-xl bg-muted" aria-hidden /> }
+)
+
+const AllStatsTable = dynamic(
+  () => import("@/components/portal/all-stats-table").then((m) => m.AllStatsTable),
+  { loading: () => <div className="min-h-[200px] w-full animate-pulse rounded-xl bg-muted" aria-hidden /> }
+)
+
+const AddWeeklyStatsDialog = dynamic(
+  () => import("@/components/portal/add-weekly-stats-dialog").then((m) => m.AddWeeklyStatsDialog),
+  { loading: () => null }
+)
+
+const BulkEditWeeklyStatsDialog = dynamic(
+  () => import("@/components/portal/bulk-edit-weekly-stats-dialog").then((m) => m.BulkEditWeeklyStatsDialog),
+  { loading: () => null }
+)
+
+const DeleteStatsConfirmDialog = dynamic(
+  () => import("@/components/portal/delete-stats-confirm-dialog").then((m) => m.DeleteStatsConfirmDialog),
+  { loading: () => null }
+)
 import type { PlayerStatsRow, StatsTableRow, WeeklyStatEntryApi } from "@/lib/stats-helpers"
 import { playerToStatsTableRow, weeklyEntryToStatsTableRow } from "@/lib/stats-helpers"
 import { Download, FileSpreadsheet, Eye, CheckCircle, FileDown, CalendarPlus, Trash2, RefreshCw, PencilLine } from "lucide-react"
@@ -161,6 +182,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     setSelectedRowKeys(new Set())
   }, [statsTab])
 
+  // Single round-trip for weekly tab: games + weekly entries in parallel (removes waterfall).
   useEffect(() => {
     if (statsTab !== "weekly" || !teamId) return
     let cancelled = false
@@ -175,16 +197,29 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       params.set("dateFrom", dateFilter.trim())
       params.set("dateTo", dateFilter.trim())
     }
-    fetch(`/api/stats/weekly?${params.toString()}`)
-      .then((res) => {
+    const gamesQ = new URLSearchParams({ teamId })
+    if (season.trim()) gamesQ.set("seasonYear", season.trim())
+
+    Promise.all([
+      fetch(`/api/stats/weekly?${params.toString()}`).then((res) => {
         if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
-        return res.json()
-      })
-      .then((data: { entries?: WeeklyStatEntryApi[] }) => {
-        if (!cancelled && Array.isArray(data?.entries)) setWeeklyEntries(data.entries)
+        return res.json() as Promise<{ entries?: WeeklyStatEntryApi[] }>
+      }),
+      fetch(`/api/stats/games?${gamesQ.toString()}`).then(async (res) => {
+        if (!res.ok) return { games: [] as Array<{ id: string; opponent: string; gameDate: string; seasonYear: number | null }> }
+        return res.json() as Promise<{ games?: typeof scheduleGames }>
+      }),
+    ])
+      .then(([weeklyData, gamesData]) => {
+        if (cancelled) return
+        if (Array.isArray(weeklyData?.entries)) setWeeklyEntries(weeklyData.entries)
+        if (Array.isArray(gamesData?.games)) setScheduleGames(gamesData.games)
       })
       .catch((err) => {
-        if (!cancelled) setWeeklyError(err instanceof Error ? err.message : "Failed to load weekly stats")
+        if (!cancelled) {
+          setWeeklyError(err instanceof Error ? err.message : "Failed to load weekly stats")
+          setScheduleGames([])
+        }
       })
       .finally(() => {
         if (!cancelled) setWeeklyLoading(false)
@@ -193,24 +228,6 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       cancelled = true
     }
   }, [teamId, statsTab, season, weekFilter, gameFilter, opponentFilter, dateFilter, refreshTrigger])
-
-  useEffect(() => {
-    if (statsTab !== "weekly" || !teamId) return
-    let cancelled = false
-    const q = new URLSearchParams({ teamId })
-    if (season.trim()) q.set("seasonYear", season.trim())
-    fetch(`/api/stats/games?${q.toString()}`)
-      .then((res) => res.ok ? res.json() : Promise.reject(new Error("games")))
-      .then((data: { games?: typeof scheduleGames }) => {
-        if (!cancelled && Array.isArray(data?.games)) setScheduleGames(data.games)
-      })
-      .catch(() => {
-        if (!cancelled) setScheduleGames([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, statsTab, season])
 
   useEffect(() => {
     if (showImportPanel && importPanelRef.current) {

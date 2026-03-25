@@ -138,6 +138,7 @@ export async function setPrimaryHeadCoach(
       role: "head_coach",
       active: true,
       is_primary: true,
+      staff_status: "active",
     },
     { onConflict: "team_id,user_id" }
   )
@@ -177,12 +178,20 @@ export async function upsertStaffTeamMember(
   teamId: string,
   userId: string,
   role: TeamMemberStaffRole | "player" | "parent",
-  opts?: { active?: boolean; source?: string; skipStructuredLog?: boolean }
+  opts?: {
+    active?: boolean
+    source?: string
+    skipStructuredLog?: boolean
+    /** Default active. Assistant coaches joining via code start pending until a head assigns them. */
+    staffStatus?: "active" | "pending_assignment"
+  }
 ): Promise<{ error: { message: string } | null }> {
   const active = opts?.active ?? true
   if (role === "head_coach") {
     return { error: { message: "Use setPrimaryHeadCoach for head_coach" } }
   }
+
+  const staffStatus = opts?.staffStatus ?? "active"
 
   const payload: Record<string, unknown> = {
     team_id: teamId,
@@ -190,6 +199,7 @@ export async function upsertStaffTeamMember(
     role,
     active,
     is_primary: false,
+    staff_status: staffStatus,
   }
 
   const { error } = await supabase.from("team_members").upsert(payload, {

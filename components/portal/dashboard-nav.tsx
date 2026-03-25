@@ -4,6 +4,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
+import { useAdPortalDepartmentLink } from "@/components/portal/ad-portal-link-context"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
@@ -31,13 +32,35 @@ const navBarStyle = {
  * &lt; lg: simple bar — centered logo, theme. Overflow nav is bottom "More" sheet.
  * lg+: desktop header with team switcher and Admin.
  */
+const departmentNavLinkClass = cn(
+  "inline-flex min-h-[44px] items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+  "hover:bg-[rgb(var(--platinum))]"
+)
+
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const { data: session } = useSession()
+  const { departmentHref: adDepartmentHref } = useAdPortalDepartmentLink()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const isPlatformOwner = session?.user?.isPlatformOwner || false
   const showAdminLink = isPlatformOwner
+  const userRole = session?.user?.role?.toUpperCase() || ""
+
+  const path = pathname ?? ""
+  const onAdPortalShell = path.startsWith("/dashboard/ad")
+  const inTeamPortal =
+    Boolean(searchParams.get("teamId")) ||
+    (path.startsWith("/dashboard/") &&
+      !path.startsWith("/dashboard/ad") &&
+      !path.startsWith("/dashboard/director"))
+  const showDepartmentNavLink =
+    Boolean(adDepartmentHref) && userRole === "HEAD_COACH" && !onAdPortalShell && inTeamPortal
+
+  const dashboardHomeHref =
+    session?.user?.role?.toUpperCase() === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+      ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+      : "/dashboard"
 
   return (
     <>
@@ -84,7 +107,18 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               </div>
             </Link>
           </div>
-          <div className="flex justify-end [&_button]:h-10 [&_button]:w-10">
+          <div className="flex items-center justify-end gap-1 [&_button]:h-10 [&_button]:w-10">
+            {showDepartmentNavLink && adDepartmentHref && (
+              <Link
+                href={adDepartmentHref}
+                className={cn(departmentNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
+                style={{ color: "rgb(var(--text))" }}
+                title="Return to Athletic Department portal"
+                aria-label="Return to Athletic Department portal"
+              >
+                Department
+              </Link>
+            )}
             <ThemeToggle />
           </div>
         </div>
@@ -98,7 +132,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-2.5 md:px-6">
           <div className="min-w-0 shrink-0">
             <Link
-              href="/dashboard"
+              href={dashboardHomeHref}
               className="flex items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
               aria-label="Braik - Return to dashboard"
             >
@@ -119,6 +153,17 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            {showDepartmentNavLink && adDepartmentHref && (
+              <Link
+                href={adDepartmentHref}
+                className={departmentNavLinkClass}
+                style={{ color: "rgb(var(--text))" }}
+                title="Return to Athletic Department portal"
+                aria-label="Return to Athletic Department portal"
+              >
+                Department
+              </Link>
+            )}
             {showAdminLink && (
               <Link
                 href="/admin/dashboard"

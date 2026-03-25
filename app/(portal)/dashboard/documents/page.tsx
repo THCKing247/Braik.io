@@ -1,8 +1,13 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { DocumentsManager } from "@/components/portal/documents-manager"
+
+const DocumentsManager = dynamic(
+  () => import("@/components/portal/documents-manager").then((m) => m.DocumentsManager),
+  { loading: () => <div className="min-h-[45vh] w-full animate-pulse rounded-xl bg-muted" aria-hidden /> }
+)
 
 export default function DocumentsPage() {
   return (
@@ -38,11 +43,11 @@ function DocumentsPageContent({
     acknowledgements: Array<{ id: string }>
   }
   const [documents, setDocuments] = useState<DocItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [listLoading, setListLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    setListLoading(true)
     fetch(`/api/documents?teamId=${encodeURIComponent(teamId)}`)
       .then((res) => {
         if (!res.ok) return []
@@ -57,18 +62,12 @@ function DocumentsPageContent({
         if (!cancelled) setDocuments([])
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setListLoading(false)
       })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [teamId])
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
-  }
 
   const docsWithDate = documents.map((d) => ({
     ...d,
@@ -81,6 +80,7 @@ function DocumentsPageContent({
       documents={docsWithDate}
       canUpload={canEdit}
       userRole={userRole}
+      listLoading={listLoading}
     />
   )
 }

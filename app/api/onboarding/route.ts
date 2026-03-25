@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       .from("program_members")
       .select("program_id")
       .eq("user_id", session.user.id)
-      .eq("role", "head_coach")
+      .in("role", ["head_coach", "director_of_football"])
       .eq("active", true)
       .maybeSingle()
 
@@ -226,12 +226,14 @@ export async function POST(request: Request) {
 
     if (!primaryTeamId) primaryTeamId = createdTeamIds[0]
 
-    // Program membership: head coach
+    const programMemberRole = sport.toLowerCase() === "football" ? "director_of_football" : "head_coach"
+
+    // Program membership: football program director (varsity HC) or legacy head_coach for other sports
     const { error: pmError } = await supabase.from("program_members").upsert(
       {
         program_id: program.id,
         user_id: session.user.id,
-        role: "head_coach",
+        role: programMemberRole,
         active: true,
       },
       { onConflict: "program_id,user_id" }

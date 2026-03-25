@@ -394,11 +394,22 @@ export async function POST(request: Request) {
           }
         }
 
+        // Football program owner is always Director (explicit program_members role), not inferred from team count.
+        const sportNorm = String(sport ?? "football")
+          .trim()
+          .toLowerCase()
+        const programMemberRole =
+          sportNorm === "football"
+            ? "director_of_football"
+            : levels.length > 1
+              ? "director_of_football"
+              : "head_coach"
+
         const { error: pmErr } = await supabase.from("program_members").upsert(
           {
             program_id: program.id,
             user_id: createdAuthUserId,
-            role: "head_coach",
+            role: programMemberRole,
             active: true,
           },
           { onConflict: "program_id,user_id" }
@@ -734,6 +745,7 @@ export async function POST(request: Request) {
             : "player"
       const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, createdAuthUserId, tmRole, {
         source: "signup_secure",
+        staffStatus: role === "assistant_coach" ? "pending_assignment" : "active",
       })
       if (tmErr) {
         throw new SignupRouteError(500, "Database failure while saving team membership", tmErr.message)

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { AdPortalAccess } from "@/lib/ad-portal-access"
 import {
   canAccessAdPortalRoutes,
   resolveFootballAdAccessState,
@@ -240,6 +241,49 @@ export async function resolveAdPortalTeamScope(
   const scope = mergeAdPortalScope(base, footballAccess)
   const orFilter = buildAdTeamsOrFilter(scope)
   return { scope, orFilter, footballAccess }
+}
+
+/**
+ * Use with `getAdPortalAccessForUser` so restricted varsity HCs (program_ids query) only see their football teams.
+ * Full department mode delegates to `fetchAdPortalVisibleTeams` (merged department + football program scope).
+ */
+export async function fetchAdVisibleTeamsForAccess(
+  supabase: SupabaseClient,
+  userId: string,
+  access: AdPortalAccess
+): Promise<{
+  scope: AthleticDirectorScope
+  orFilter: string | null
+  teams: AdVisibleTeamRow[]
+  error: string | null
+}> {
+  if (access.mode === "none") {
+    const scope = await resolveAthleticDirectorScope(supabase, userId)
+    return { scope, orFilter: null, teams: [], error: null }
+  }
+
+  const merged = await fetchAdPortalVisibleTeams(supabase, userId)
+
+  if (access.teamQuery === "program_ids" && access.footballProgramIds.length > 0) {
+    const idSet = new Set(access.footballProgramIds)
+    const teams = merged.teams.filter((t) => t.program_id && idSet.has(t.program_id))
+    const orFilter = `program_id.in.(${access.footballProgramIds.join(",")})`
+    const linked = new Set(merged.scope.linkedProgramIds)
+    for (const id of access.footballProgramIds) linked.add(id)
+    return {
+      scope: { ...merged.scope, linkedProgramIds: Array.from(linked) },
+      orFilter,
+      teams,
+      error: merged.error,
+    }
+  }
+
+  return {
+    scope: merged.scope,
+    orFilter: merged.orFilter,
+    teams: merged.teams,
+    error: merged.error,
+  }
 }
 
 export function logAdDashboardMetrics(

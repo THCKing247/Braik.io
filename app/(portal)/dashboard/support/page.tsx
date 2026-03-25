@@ -5,7 +5,7 @@ import Link from "next/link"
 import { LifeBuoy, Mail, BookOpen, MessageSquarePlus } from "lucide-react"
 import { SupportFeedbackForm } from "@/components/portal/support-feedback-form"
 
-export const dynamic = "force-dynamic"
+/* No force-dynamic: parent dashboard layout is already dynamic (cookies). This page is mostly static UI. */
 
 export default function SupportPage() {
   return (

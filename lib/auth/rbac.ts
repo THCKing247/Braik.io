@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { isFootballProgramSport } from "@/lib/enforcement/football-ad-access"
@@ -12,19 +13,51 @@ export class MembershipLookupError extends Error {
   }
 }
 
+export type StaffStatus = "active" | "pending_assignment"
+
 export interface UserMembership {
   userId: string
   teamId: string
   role: Role
+  /** From team_members; omitted/undefined treated as active for legacy rows. */
+  staffStatus?: StaffStatus
+  /** JV/Freshman head (coach_assignments) may manage staff for their team level only. */
+  delegatedTeamManage?: boolean
   permissions?: unknown
   positionGroups?: unknown
 }
 
-/** Program-level membership from program_members (head_coach, assistant_coach, athletic_director). */
+/** Program-level membership from program_members. */
 export interface ProgramMembership {
   userId: string
   programId: string
-  role: "head_coach" | "assistant_coach" | "athletic_director"
+  role: "head_coach" | "director_of_football" | "assistant_coach" | "athletic_director"
+}
+
+const PROGRAM_HEAD_ROLES: ProgramMembership["role"][] = ["head_coach", "director_of_football"]
+
+async function computeDelegatedTeamManage(
+  supabase: SupabaseClient,
+  userId: string,
+  programId: string,
+  teamLevel: string | null | undefined,
+  normalizedRole: Role
+): Promise<boolean> {
+  if (normalizedRole !== ROLES.ASSISTANT_COACH) return false
+  if (!teamLevel || (teamLevel !== "jv" && teamLevel !== "freshman")) return false
+
+  const { data: rows, error } = await supabase
+    .from("coach_assignments")
+    .select("assignment_type")
+    .eq("program_id", programId)
+    .eq("user_id", userId)
+
+  if (error || !rows?.length) return false
+
+  const types = new Set(rows.map((r) => String((r as { assignment_type?: string }).assignment_type)))
+  if (teamLevel === "jv" && types.has("jv_head")) return true
+  if (teamLevel === "freshman" && types.has("freshman_head")) return true
+  return false
 }
 
 /** Map profile.role (e.g. head_coach) to normalized Role (e.g. HEAD_COACH). */
@@ -64,107 +97,114 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
   }
 
   const supabase = getSupabaseServer()
+  const userId = session.user.id
+
+  const { data: teamMeta, error: teamError } = await supabase
+    .from("teams")
+    .select("created_by, program_id, team_level")
+    .eq("id", teamId)
+    .maybeSingle()
+
+  if (teamError) {
+    console.error("[getUserMembership] teams lookup failed", { userId, teamId, error: teamError })
+    throw new MembershipLookupError("Database error during membership lookup", teamError)
+  }
+
+  const createdBy = (teamMeta as { created_by?: string } | null)?.created_by
+  const programIdFromTeam = (teamMeta as { program_id?: string | null } | null)?.program_id ?? null
+  const teamLevel = (teamMeta as { team_level?: string | null } | null)?.team_level ?? null
 
   const { data: tmRow, error: tmError } = await supabase
     .from("team_members")
-    .select("role")
+    .select("role, staff_status")
     .eq("team_id", teamId)
-    .eq("user_id", session.user.id)
+    .eq("user_id", userId)
     .eq("active", true)
     .maybeSingle()
 
   if (tmError) {
-    console.error("[getUserMembership] team_members lookup failed", { userId: session.user.id, teamId, error: tmError })
+    console.error("[getUserMembership] team_members lookup failed", { userId, teamId, error: tmError })
     throw new MembershipLookupError("Database error during membership lookup", tmError)
   }
 
-  if (tmRow?.role) {
+  const staffStatusFromRow: StaffStatus | undefined =
+    tmRow && String((tmRow as { staff_status?: string }).staff_status || "") === "pending_assignment"
+      ? "pending_assignment"
+      : tmRow
+        ? "active"
+        : undefined
+
+  async function withDelegation(
+    role: Role,
+    staffStatus: StaffStatus = "active"
+  ): Promise<UserMembership> {
+    let delegatedTeamManage = false
+    if (programIdFromTeam && role === ROLES.ASSISTANT_COACH) {
+      delegatedTeamManage = await computeDelegatedTeamManage(supabase, userId, programIdFromTeam, teamLevel, role)
+    }
     return {
-      userId: session.user.id,
+      userId,
       teamId,
-      role: teamMemberDbRoleToNormalizedRole(String(tmRow.role)),
+      role,
+      staffStatus,
+      delegatedTeamManage: delegatedTeamManage || undefined,
       permissions: undefined,
       positionGroups: undefined,
     }
+  }
+
+  if (tmRow?.role) {
+    const role = teamMemberDbRoleToNormalizedRole(String(tmRow.role))
+    return withDelegation(role, staffStatusFromRow ?? "active")
   }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("team_id, role")
-    .eq("id", session.user.id)
+    .eq("id", userId)
     .maybeSingle()
 
   if (profileError) {
-    console.error("[getUserMembership] profiles lookup failed", { userId: session.user.id, teamId, error: profileError })
+    console.error("[getUserMembership] profiles lookup failed", { userId, teamId, error: profileError })
     throw new MembershipLookupError("Database error during membership lookup", profileError)
   }
 
   if (profile?.team_id === teamId) {
     const role = profileRoleToNormalizedRole(profile.role)
-    return {
-      userId: session.user.id,
-      teamId,
-      role,
-      permissions: undefined,
-      positionGroups: undefined,
-    }
+    return withDelegation(role, "active")
   }
 
-  const { data: team, error: teamError } = await supabase
-    .from("teams")
-    .select("created_by")
-    .eq("id", teamId)
-    .maybeSingle()
-
-  if (teamError) {
-    console.error("[getUserMembership] teams lookup failed", { userId: session.user.id, teamId, error: teamError })
-    throw new MembershipLookupError("Database error during membership lookup", teamError)
+  if (createdBy === userId) {
+    return withDelegation(ROLES.HEAD_COACH, "active")
   }
 
-  const createdBy = (team as { created_by?: string } | null)?.created_by
-  if (createdBy === session.user.id) {
-    return {
-      userId: session.user.id,
-      teamId,
-      role: ROLES.HEAD_COACH,
-      permissions: undefined,
-      positionGroups: undefined,
-    }
-  }
-
-  // Program-level access: if team belongs to a program and user is a coach/AD in that program, grant membership
-  const teamRow = team as { program_id?: string } | null
-  const programId = teamRow?.program_id
-  if (programId) {
+  if (programIdFromTeam) {
     try {
-      const programMembership = await getProgramMembership(programId)
-      if (programMembership && ["head_coach", "assistant_coach", "athletic_director"].includes(programMembership.role)) {
+      const programMembership = await getProgramMembership(programIdFromTeam)
+      if (
+        programMembership &&
+        ["head_coach", "director_of_football", "assistant_coach", "athletic_director"].includes(programMembership.role)
+      ) {
         const role =
-          programMembership.role === "head_coach"
+          programMembership.role === "head_coach" || programMembership.role === "director_of_football"
             ? ROLES.HEAD_COACH
             : programMembership.role === "assistant_coach"
               ? ROLES.ASSISTANT_COACH
               : ROLES.ATHLETIC_DIRECTOR
-        return {
-          userId: session.user.id,
-          teamId,
-          role,
-          permissions: undefined,
-          positionGroups: undefined,
-        }
+        return withDelegation(role, "active")
       }
     } catch (err) {
       if (err instanceof MembershipLookupError) throw err
-      console.warn("[getUserMembership] program membership check failed", { userId: session.user.id, teamId, programId, err })
+      console.warn("[getUserMembership] program membership check failed", { userId, teamId, programId: programIdFromTeam, err })
     }
   }
 
   console.warn("[getUserMembership] no membership", {
-    userId: session.user.id,
+    userId,
     teamId,
     profileTeamId: profile?.team_id ?? null,
     teamCreatedBy: createdBy ?? null,
-    programId: programId ?? null,
+    programId: programIdFromTeam ?? null,
   })
   return null
 }
@@ -216,18 +256,40 @@ export async function requireTeamPermission(
 ) {
   const { membership } = await requireTeamAccess(teamId)
 
-  const checks = {
-    manage: canManageTeam,
-    edit_roster: canEditRoster,
-    manage_billing: canManageBilling,
-    post_announcements: canPostAnnouncements,
-    view_payments: canViewPayments,
-    edit_offense_plays: canEditRoster, // Coaches can edit offense plays
-    edit_defense_plays: canEditRoster, // Coaches can edit defense plays
-    edit_special_teams_plays: canEditRoster, // Coaches can edit special teams plays
+  if (membership.staffStatus === "pending_assignment") {
+    logPermissionDenial({
+      userId: membership.userId,
+      teamId,
+      role: membership.role,
+      requiredPermission: permission,
+      reason: "Staff assignment pending approval",
+    })
+    throw new Error("Access denied: Staff assignment pending approval")
   }
 
-  if (!checks[permission](membership.role)) {
+  const delegated = Boolean(membership.delegatedTeamManage)
+
+  const allowed = (() => {
+    switch (permission) {
+      case "manage":
+        return canManageTeam(membership.role) || delegated
+      case "edit_roster":
+      case "edit_offense_plays":
+      case "edit_defense_plays":
+      case "edit_special_teams_plays":
+        return canEditRoster(membership.role)
+      case "manage_billing":
+        return canManageBilling(membership.role)
+      case "post_announcements":
+        return canPostAnnouncements(membership.role) && !delegated
+      case "view_payments":
+        return canViewPayments(membership.role)
+      default:
+        return false
+    }
+  })()
+
+  if (!allowed) {
     logPermissionDenial({
       userId: membership.userId,
       teamId,
@@ -267,7 +329,10 @@ export async function getProgramMembership(programId: string): Promise<ProgramMe
     throw new MembershipLookupError("Database error during program membership lookup", error)
   }
 
-  if (!member || !["head_coach", "assistant_coach", "athletic_director"].includes(String(member.role))) {
+  if (
+    !member ||
+    !["head_coach", "director_of_football", "assistant_coach", "athletic_director"].includes(String(member.role))
+  ) {
     return null
   }
 
@@ -289,7 +354,7 @@ export async function requireProgramCoach(programId: string): Promise<{ user: { 
     throw err
   }
 
-  const coachRoles: ProgramMembership["role"][] = ["head_coach", "assistant_coach"]
+  const coachRoles: ProgramMembership["role"][] = ["head_coach", "director_of_football", "assistant_coach"]
   if (!membership || !coachRoles.includes(membership.role)) {
     logPermissionDenial({
       userId: user.id,
@@ -313,7 +378,7 @@ export async function requireProgramHeadCoach(programId: string): Promise<{ user
     throw err
   }
 
-  if (!membership || membership.role !== "head_coach") {
+  if (!membership || !PROGRAM_HEAD_ROLES.includes(membership.role)) {
     logPermissionDenial({
       userId: user.id,
       teamId: programId,
@@ -326,6 +391,7 @@ export async function requireProgramHeadCoach(programId: string): Promise<{ user
 }
 
 /**
+<<<<<<< HEAD
  * List program teams for roster UI (e.g. promotion dropdown). Allows program coaches (not `athletic_director`
  * program role) and team-level head/assistant coaches without a `program_members` row (legacy / team-scoped).
  */
@@ -402,10 +468,47 @@ export async function requireProgramFootballPlayerReassignmentAuthority(
   const { data: program, error: progErr } = await supabase
     .from("programs")
     .select("id, sport")
+=======
+ * Program placement admin: move assistants between program teams + JV/Freshman head designations.
+ *
+ * Primary truth: `director_of_football` or `athletic_director`.
+ * Non-football: `head_coach` retains placement powers (unchanged).
+ * Football + `head_coach`: only while `programs.created_by_user_id` is null (LEGACY_TRANSITION) or equals this user.
+ */
+export async function requireProgramStaffAdmin(programId: string): Promise<{ user: { id: string }; membership: ProgramMembership }> {
+  const user = await requireAuth()
+  let membership: ProgramMembership | null
+  try {
+    membership = await getProgramMembership(programId)
+  } catch (err) {
+    if (err instanceof MembershipLookupError) throw err
+    throw err
+  }
+
+  const allowed: ProgramMembership["role"][] = ["head_coach", "director_of_football", "athletic_director"]
+  if (!membership || !allowed.includes(membership.role)) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId: programId,
+      reason: "Program staff admin required",
+    })
+    throw new Error("Access denied: Program staff admin required")
+  }
+
+  if (membership.role === "athletic_director" || membership.role === "director_of_football") {
+    return { user, membership }
+  }
+
+  const supabase = getSupabaseServer()
+  const { data: prog, error: progErr } = await supabase
+    .from("programs")
+    .select("sport, created_by_user_id")
+>>>>>>> origin/main
     .eq("id", programId)
     .maybeSingle()
 
   if (progErr) {
+<<<<<<< HEAD
     console.error("[requireProgramFootballPlayerReassignmentAuthority] programs", progErr)
     throw new MembershipLookupError("Database error loading program", progErr)
   }
@@ -470,12 +573,35 @@ export async function requireProgramFootballPlayerReassignmentAuthority(
   })
   if (hasHeadSeat) {
     return { user }
+=======
+    console.error("[requireProgramStaffAdmin] program lookup", progErr)
+    throw new MembershipLookupError("Database error during program lookup", progErr)
+  }
+
+  const sportRaw = String((prog as { sport?: string | null } | null)?.sport ?? "")
+    .trim()
+    .toLowerCase()
+  const isFootball = sportRaw === "" || sportRaw === "football"
+  if (!isFootball) {
+    return { user, membership }
+  }
+
+  const creatorId = (prog as { created_by_user_id?: string | null } | null)?.created_by_user_id ?? null
+  if (creatorId === null || creatorId === user.id) {
+    return { user, membership }
+>>>>>>> origin/main
   }
 
   logPermissionDenial({
     userId: user.id,
     teamId: programId,
+<<<<<<< HEAD
     reason: "Head coach authority required for roster moves between levels",
   })
   throw new Error("Access denied: Head coach required for this action")
+=======
+    reason: "Football program placement requires director or program owner",
+  })
+  throw new Error("Access denied: Program staff admin required")
+>>>>>>> origin/main
 }

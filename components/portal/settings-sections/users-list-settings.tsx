@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Users, UserCheck, UserX, ChevronDown, ChevronUp } from "lucide-react"
@@ -26,6 +27,7 @@ interface User {
   role: string
   coordinatorRole: string | null
   positionCoachRoles: string[]
+  staffStatus?: "active" | "pending_assignment"
   playerRelation?: {
     playerId: string
     playerName: string
@@ -54,6 +56,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
   const [loading, setLoading] = useState(true)
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
+  const [programId, setProgramId] = useState<string | null>(null)
 
   useEffect(() => {
     loadUsers()
@@ -65,6 +68,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
       if (res.ok) {
         const data = await res.json()
         setUsers(data.users || [])
+        setProgramId(data.programId ?? null)
       }
     } catch (error) {
       console.error("Failed to load users:", error)
@@ -100,6 +104,27 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
       }
     } catch (error) {
       alert("Failed to update coordinator role")
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const handleActivateStaff = async (userId: string) => {
+    setSaving(userId)
+    try {
+      const res = await fetch(`/api/teams/${teamId}/users/${userId}/staff-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffStatus: "active" }),
+      })
+      if (res.ok) {
+        await loadUsers()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || "Failed to activate coach")
+      }
+    } catch {
+      alert("Failed to activate coach")
     } finally {
       setSaving(null)
     }
@@ -158,6 +183,18 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
         </p>
       </div>
 
+      {programId && (
+        <div className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">Athletic department: </span>
+          Which team an assistant belongs to (Varsity / JV / Freshman) and JV/Freshman head coach designations are managed in{" "}
+          <Link href="/dashboard/ad/coaches" className="font-medium text-primary underline hover:no-underline">
+            Athletic Director portal → Coaches (football program staffing)
+          </Link>
+          . This screen is for coaching job titles (coordinator, position coach) for staff on{" "}
+          <span className="font-medium text-foreground">this</span> team.
+        </div>
+      )}
+
       {/* Assistants Section */}
       <Card className="border border-border bg-card">
         <CardHeader>
@@ -180,10 +217,11 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
                 onToggleExpand={() => toggleExpand(user.id)}
                 onCoordinatorChange={(role) => handleCoordinatorChange(user.id, role)}
                 onPositionCoachToggle={(role, isAdding) => handlePositionCoachToggle(user.id, role, isAdding)}
+                onActivateStaff={() => handleActivateStaff(user.id)}
                 saving={saving === user.id}
                 existingCoordinators={assistants
                   .filter((u) => u.id !== user.id && u.coordinatorRole)
-                  .map((u) => u.coordinatorRole)}
+                  .map((u) => u.coordinatorRole as string)}
               />
             ))
           )}
@@ -268,6 +306,7 @@ interface UserCardProps {
   onToggleExpand: () => void
   onCoordinatorChange: (role: string | null) => void
   onPositionCoachToggle: (role: string, isAdding: boolean) => void
+  onActivateStaff: () => void
   saving: boolean
   existingCoordinators: (string | null)[]
 }
@@ -278,11 +317,14 @@ function UserCard({
   onToggleExpand,
   onCoordinatorChange,
   onPositionCoachToggle,
+  onActivateStaff,
   saving,
   existingCoordinators,
 }: UserCardProps) {
   const currentCoordinatorRole = user.coordinatorRole || null
   const currentPositionRoles = user.positionCoachRoles || []
+  const isPending = user.staffStatus === "pending_assignment"
+  const controlsDisabled = saving || isPending
 
   return (
     <div className="border border-border rounded-lg bg-card">
@@ -299,6 +341,9 @@ function UserCard({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isPending && (
+            <Badge variant="outline">Pending assignment</Badge>
+          )}
           {currentCoordinatorRole && (
             <Badge>
               {COORDINATOR_ROLES.find((r) => r.value === currentCoordinatorRole)?.label}
@@ -319,6 +364,16 @@ function UserCard({
 
       {isExpanded && (
         <div className="p-4 border-t border-border space-y-4 bg-card">
+          {isPending && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 space-y-2">
+              <p className="text-sm text-foreground">
+                This coach linked with a team code but is not activated yet. Activate them to grant normal assistant permissions.
+              </p>
+              <Button type="button" size="sm" onClick={(e) => { e.stopPropagation(); onActivateStaff() }} disabled={saving}>
+                Activate coach
+              </Button>
+            </div>
+          )}
           {/* Coordinator Role */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-foreground">
@@ -327,7 +382,7 @@ function UserCard({
             <select
               value={currentCoordinatorRole || "none"}
               onChange={(e) => onCoordinatorChange(e.target.value === "none" ? null : e.target.value)}
-              disabled={saving}
+              disabled={controlsDisabled}
               className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
             >
               {COORDINATOR_ROLES.map((role) => {
@@ -373,7 +428,7 @@ function UserCard({
                       variant={isSelected ? "default" : "outline"}
                       size="sm"
                       onClick={() => onPositionCoachToggle(role, !isSelected)}
-                      disabled={saving}
+                      disabled={controlsDisabled}
                       className={isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border text-foreground"}
                     >
                       {role}
@@ -397,7 +452,7 @@ function UserCard({
                       variant={isSelected ? "default" : "outline"}
                       size="sm"
                       onClick={() => onPositionCoachToggle(role, !isSelected)}
-                      disabled={saving}
+                      disabled={controlsDisabled}
                       className={isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border text-foreground"}
                     >
                       {role}
@@ -421,7 +476,7 @@ function UserCard({
                       variant={isSelected ? "default" : "outline"}
                       size="sm"
                       onClick={() => onPositionCoachToggle(role, !isSelected)}
-                      disabled={saving}
+                      disabled={controlsDisabled}
                       className={isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border-border text-foreground"}
                     >
                       {role}

@@ -80,7 +80,10 @@ export async function markAllNotificationsAsRead(userId: string, teamId?: string
   const supabase = getSupabaseServer()
   let q = supabase.from("notifications").update({ read: true, read_at: new Date().toISOString() }).eq("user_id", userId)
   if (teamId) q = q.eq("team_id", teamId)
-  await q
+  const { error } = await q
+  if (error) {
+    throw new Error(error.message || "Failed to mark notifications as read")
+  }
 }
 
 export async function getUnreadNotificationCount(userId: string, teamId?: string): Promise<number> {

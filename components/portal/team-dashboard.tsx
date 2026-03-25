@@ -460,12 +460,14 @@ function NotificationsCard({ teamId }: { teamId: string }) {
 
   const markAllRead = async () => {
     try {
-      await fetch("/api/notifications/mark-all-read", {
+      const res = await fetch("/api/notifications/mark-all-read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamId }),
       })
+      if (!res.ok) return
       setNotifications((prev) => prev.map((x) => ({ ...x, read: true })))
+      await load()
     } catch {
       /* ignore */
     }
@@ -509,7 +511,7 @@ function NotificationsCard({ teamId }: { teamId: string }) {
           <span className="h-9 w-16 shrink-0 md:h-7" aria-hidden />
         )}
       </CardHeader>
-      <CardContent className="max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
+      <CardContent className="scrollbar-hidden max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
         {loading ? (
           <div className="flex justify-center py-10">
             <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />

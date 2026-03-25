@@ -550,6 +550,7 @@ export function DashboardAnnouncementsCard({
                 value={createTitle}
                 onChange={(e) => setCreateTitle(e.target.value)}
                 className="mt-1.5"
+                style={{ backgroundColor: "#FFFFFF", color: "rgb(var(--text))", borderColor: "rgb(var(--border))" }}
                 placeholder="Short headline"
                 maxLength={500}
               />
@@ -561,7 +562,7 @@ export function DashboardAnnouncementsCard({
                 value={createBody}
                 onChange={(e) => setCreateBody(e.target.value)}
                 className="mt-1.5 min-h-[140px] w-full rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                 placeholder="What should the team know?"
               />
             </div>
@@ -572,7 +573,7 @@ export function DashboardAnnouncementsCard({
                 value={createAudience}
                 onChange={(e) => setCreateAudience(e.target.value)}
                 className="mt-1.5 flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                style={{ borderColor: "rgb(var(--border))" }}
+                style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
               >
                 <option value="all">Everyone on the team</option>
                 <option value="staff">Staff only</option>

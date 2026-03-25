@@ -1,39 +1,29 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
-import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
+import { getCachedServerSession } from "@/lib/auth/cached-server-session"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
+import {
+  getAdPortalTabVisibility,
+  resolveFootballAdAccessState,
+} from "@/lib/enforcement/football-ad-access"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
 import {
-<<<<<<< HEAD
   fetchAdPortalVisibleTeams,
-=======
-  fetchAdVisibleTeamsForAccess,
->>>>>>> origin/main
   logAdDashboardMetrics,
   logAdTeamVisibility,
 } from "@/lib/ad-team-scope"
-import { getAdPortalAccessForUser, adPortalShowsOverviewAndSettings } from "@/lib/ad-portal-access"
 
 export const dynamic = "force-dynamic"
 
 export default async function AthleticDirectorOverviewPage() {
-  const session = await getServerSessionOrSupabase()
+  const session = await getCachedServerSession()
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-<<<<<<< HEAD
-  const access = await resolveFootballAdAccessState(supabase, session.user.id)
-  if (access.state === "restricted_football_ad") {
-=======
-  const access = await getAdPortalAccessForUser(
-    supabase,
-    session.user.id,
-    session.user.role?.toUpperCase()
-  )
-  if (!adPortalShowsOverviewAndSettings(access)) {
->>>>>>> origin/main
+  const footballAccess = await resolveFootballAdAccessState(supabase, session.user.id)
+  if (!getAdPortalTabVisibility(footballAccess).showOverview) {
     redirect("/dashboard/ad/teams")
   }
 
@@ -58,14 +48,9 @@ export default async function AthleticDirectorOverviewPage() {
     .maybeSingle()
   department = deptRow
 
-<<<<<<< HEAD
   const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdPortalVisibleTeams(
-=======
-  const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdVisibleTeamsForAccess(
->>>>>>> origin/main
     supabase,
-    session.user.id,
-    access
+    session.user.id
   )
 
   const teamIds = visibleTeams.map((t) => t.id)
@@ -141,9 +126,8 @@ export default async function AthleticDirectorOverviewPage() {
         <div className="rounded-xl border-2 border-[#3B82F6] bg-[#EFF6FF] p-6">
           <h2 className="text-lg font-semibold text-[#1E40AF]">No teams in view yet</h2>
           <p className="mt-2 text-sm text-[#1E3A8A]">
-<<<<<<< HEAD
             Teams appear here from signup and provisioning. Open the Teams tab when programs are linked to your
-            department.
+            department. Use Coaches for staffing once teams appear; contact support if nothing shows up.
           </p>
           <Link
             href="/dashboard/ad/teams"
@@ -151,11 +135,6 @@ export default async function AthleticDirectorOverviewPage() {
           >
             View teams
           </Link>
-=======
-            Teams are added when your program is set up at signup. Open the Teams tab when they appear, then use
-            Coaches for staffing. If nothing shows up, confirm provisioning with support.
-          </p>
->>>>>>> origin/main
         </div>
       )}
 

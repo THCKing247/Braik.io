@@ -10,15 +10,9 @@ import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { cookies } from "next/headers"
 import { isRedirectError } from "next/dist/client/components/redirect"
-<<<<<<< HEAD
-import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { fetchAdPortalVisibleTeams } from "@/lib/ad-team-scope"
-import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
-=======
 import { getCachedServerSession } from "@/lib/auth/cached-server-session"
 import { loadDashboardShellTeams } from "@/lib/dashboard/load-dashboard-teams"
->>>>>>> origin/main
+import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
 import { SubscriptionGuard } from "@/components/portal/subscription-guard"
 import { DashboardLayoutClient } from "@/components/portal/dashboard-layout-client"
@@ -94,9 +88,6 @@ export default async function DashboardLayout({
     }
 
     const userRole = session.user.role?.toUpperCase()
-<<<<<<< HEAD
-    const supabase = getSupabaseServer()
-=======
     if (userRole === "ATHLETIC_DIRECTOR") {
       return <>{children}</>
     }
@@ -105,96 +96,19 @@ export default async function DashboardLayout({
     if (dashboardPath.startsWith("/dashboard/ad")) {
       return <>{children}</>
     }
->>>>>>> origin/main
 
     // When impersonating, load the target user's teams; otherwise use session user
     const effectiveUserId = impersonationSession?.target_user_id ?? session.user.id
     const isImpersonating = Boolean(impersonationSession)
 
-<<<<<<< HEAD
-    let teamIds: string[] = []
-
-    if (userRole === "ATHLETIC_DIRECTOR") {
-      const { teams: adTeams } = await fetchAdPortalVisibleTeams(supabase, session.user.id)
-      teamIds = [...new Set((adTeams ?? []).map((t) => t.id).filter(Boolean))]
-      if (teamIds.length === 0) {
-        redirect("/dashboard/ad/teams")
-      }
-    } else {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("team_id")
-        .eq("id", effectiveUserId)
-        .maybeSingle()
-
-      const { data: membershipRows } = await supabase
-        .from("team_members")
-        .select("team_id")
-        .eq("user_id", effectiveUserId)
-        .eq("active", true)
-
-      teamIds = [...new Set((membershipRows ?? []).map((r) => r.team_id).filter(Boolean))]
-
-      if (profile?.team_id && !teamIds.includes(profile.team_id)) {
-        teamIds = [...teamIds, profile.team_id]
-      }
-
-      if (teamIds.length === 0) {
-        const { data: hcTeams } = await supabase
-          .from("teams")
-          .select("id")
-          .eq("head_coach_user_id", effectiveUserId)
-        if (hcTeams?.length) {
-          teamIds = hcTeams.map((t) => t.id)
-        }
-      }
-
-      if (teamIds.length === 0) {
-        const { data: createdTeams } = await supabase
-          .from("teams")
-          .select("id")
-          .eq("created_by", effectiveUserId)
-        if (createdTeams?.length) {
-          teamIds = createdTeams.map((t) => t.id)
-        }
-      }
-      if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
-        teamIds = [session.user.teamId]
-      }
-    }
-
-    const dashboardTeamHint = cookies().get(BRAIK_DASHBOARD_TEAM_HINT_COOKIE)?.value ?? null
-
-    teams = []
-
-    if (teamIds.length > 0) {
-      const { data: teamsData } = await supabase
-        .from("teams")
-        .select("id, name")
-        .in("id", teamIds)
-
-      teams = (teamsData ?? []).map((t) => ({
-        id: t.id,
-        name: t.name,
-        organization: { name: t.name ?? "" },
-        sport: "football",
-        seasonName: "",
-        primaryColor: "#1e3a5f",
-        secondaryColor: "#FFFFFF",
-        teamStatus: "active",
-        subscriptionPaid: false,
-        amountPaid: 0,
-        players: [],
-      }))
-    }
-=======
     teams = await loadDashboardShellTeams(
       effectiveUserId,
       session.user.id,
       session.user.teamId,
       isImpersonating
     )
->>>>>>> origin/main
+
+    const dashboardTeamHint = cookies().get(BRAIK_DASHBOARD_TEAM_HINT_COOKIE)?.value ?? null
 
     // Head Coaches must always have a team — redirect to onboarding only for them.
     const layoutUserRole = session.user.role?.toUpperCase()

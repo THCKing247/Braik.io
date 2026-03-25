@@ -8,23 +8,13 @@ export type TeamRow = {
   name: string
   /** For filters only — not shown as its own column. */
   sport: string | null
-<<<<<<< HEAD
   genderLabel: string
   levelLabel: string
-=======
-  teamLevel: string | null
->>>>>>> origin/main
   rosterSize: number | null
   headCoachName: string | null
   creatorName: string | null
   createdAt: string
   invitePending: boolean
-}
-
-const LEVEL_LABEL: Record<string, string> = {
-  varsity: "Varsity",
-  jv: "JV",
-  freshman: "Freshman",
 }
 
 interface AdTeamsTableProps {
@@ -90,21 +80,7 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                   <td className="px-4 py-3">
                     <span className="font-medium text-[#212529]">{team.name}</span>
                   </td>
-<<<<<<< HEAD
                   <td className="px-4 py-3 text-sm text-[#6B7280]">{team.levelLabel}</td>
-=======
-                  <td className="px-4 py-3 text-sm text-[#6B7280]">
-                    {team.teamLevel
-                      ? LEVEL_LABEL[team.teamLevel] ?? team.teamLevel
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-[#6B7280]">
-                    {team.sport?.trim() ? team.sport : "Not set"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-[#6B7280]">
-                    {team.rosterSize != null ? team.rosterSize : "Not set"}
-                  </td>
->>>>>>> origin/main
                   <td className="px-4 py-3">
                     <AdTeamStatusBadge
                       status={status}
@@ -114,32 +90,17 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                   <td className="px-4 py-3 text-sm text-[#6B7280]">
                     {team.rosterSize != null ? team.rosterSize : "—"}
                   </td>
-<<<<<<< HEAD
                   <td className="px-4 py-3 text-sm text-[#6B7280]">
                     {team.creatorName?.trim() ? team.creatorName : "—"}
                   </td>
                   <td className="px-4 py-3 text-sm text-[#6B7280]">{formatDate(team.createdAt)}</td>
-                  <td className="px-4 py-3 text-right text-sm space-x-3 whitespace-nowrap">
-                    <Link
-                      href={`/dashboard?teamId=${team.id}`}
-                      className="text-[#3B82F6] hover:underline font-medium"
-                    >
-                      Portal access
-                    </Link>
-                    <Link
-                      href={`/dashboard/ad/teams/${team.id}`}
-                      className="text-[#3B82F6] hover:underline font-medium"
-                    >
-                      Edit
-                    </Link>
-=======
                   <td className="px-4 py-3 text-right text-sm">
                     <div className="flex flex-wrap justify-end gap-3">
                       <Link
                         href={`/dashboard?teamId=${encodeURIComponent(team.id)}`}
                         className="text-[#3B82F6] hover:underline font-medium"
                       >
-                        Open portal
+                        Portal access
                       </Link>
                       <Link
                         href={`/dashboard/ad/teams/${team.id}`}
@@ -148,7 +109,6 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                         Edit
                       </Link>
                     </div>
->>>>>>> origin/main
                   </td>
                 </tr>
               )

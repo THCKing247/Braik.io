@@ -111,7 +111,6 @@ export async function POST(request: Request) {
     const allowJoinCallback =
       typeof requestedCallbackUrl === "string" &&
       requestedCallbackUrl.startsWith("/join")
-<<<<<<< HEAD
     let defaultEntryPath = "/dashboard"
     try {
       defaultEntryPath = await resolvePortalEntryPath(supabaseServerClient, data.user.id)
@@ -119,10 +118,7 @@ export async function POST(request: Request) {
       defaultEntryPath = "/dashboard"
     }
 
-    const redirectTo = allowAdminCallback
-=======
     let redirectTo = allowAdminCallback
->>>>>>> origin/main
       ? requestedCallbackUrl
       : allowJoinCallback
         ? requestedCallbackUrl

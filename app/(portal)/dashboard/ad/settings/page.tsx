@@ -1,30 +1,17 @@
 import { redirect } from "next/navigation"
-import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
+import { getCachedServerSession } from "@/lib/auth/cached-server-session"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-<<<<<<< HEAD
-import { resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
-=======
-import { getAdPortalAccessForUser, adPortalShowsOverviewAndSettings } from "@/lib/ad-portal-access"
->>>>>>> origin/main
+import { getAdPortalTabVisibility, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 
 export const dynamic = "force-dynamic"
 
 export default async function AdSettingsPage() {
-  const session = await getServerSessionOrSupabase()
+  const session = await getCachedServerSession()
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-<<<<<<< HEAD
-  const access = await resolveFootballAdAccessState(supabase, session.user.id)
-  if (access.state === "restricted_football_ad") {
-=======
-  const access = await getAdPortalAccessForUser(
-    supabase,
-    session.user.id,
-    session.user.role?.toUpperCase()
-  )
-  if (!adPortalShowsOverviewAndSettings(access)) {
->>>>>>> origin/main
+  const footballAccess = await resolveFootballAdAccessState(supabase, session.user.id)
+  if (!getAdPortalTabVisibility(footballAccess).showSettings) {
     redirect("/dashboard/ad/teams")
   }
 

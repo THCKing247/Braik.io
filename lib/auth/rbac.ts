@@ -391,7 +391,6 @@ export async function requireProgramHeadCoach(programId: string): Promise<{ user
 }
 
 /**
-<<<<<<< HEAD
  * List program teams for roster UI (e.g. promotion dropdown). Allows program coaches (not `athletic_director`
  * program role) and team-level head/assistant coaches without a `program_members` row (legacy / team-scoped).
  */
@@ -468,47 +467,10 @@ export async function requireProgramFootballPlayerReassignmentAuthority(
   const { data: program, error: progErr } = await supabase
     .from("programs")
     .select("id, sport")
-=======
- * Program placement admin: move assistants between program teams + JV/Freshman head designations.
- *
- * Primary truth: `director_of_football` or `athletic_director`.
- * Non-football: `head_coach` retains placement powers (unchanged).
- * Football + `head_coach`: only while `programs.created_by_user_id` is null (LEGACY_TRANSITION) or equals this user.
- */
-export async function requireProgramStaffAdmin(programId: string): Promise<{ user: { id: string }; membership: ProgramMembership }> {
-  const user = await requireAuth()
-  let membership: ProgramMembership | null
-  try {
-    membership = await getProgramMembership(programId)
-  } catch (err) {
-    if (err instanceof MembershipLookupError) throw err
-    throw err
-  }
-
-  const allowed: ProgramMembership["role"][] = ["head_coach", "director_of_football", "athletic_director"]
-  if (!membership || !allowed.includes(membership.role)) {
-    logPermissionDenial({
-      userId: user.id,
-      teamId: programId,
-      reason: "Program staff admin required",
-    })
-    throw new Error("Access denied: Program staff admin required")
-  }
-
-  if (membership.role === "athletic_director" || membership.role === "director_of_football") {
-    return { user, membership }
-  }
-
-  const supabase = getSupabaseServer()
-  const { data: prog, error: progErr } = await supabase
-    .from("programs")
-    .select("sport, created_by_user_id")
->>>>>>> origin/main
     .eq("id", programId)
     .maybeSingle()
 
   if (progErr) {
-<<<<<<< HEAD
     console.error("[requireProgramFootballPlayerReassignmentAuthority] programs", progErr)
     throw new MembershipLookupError("Database error loading program", progErr)
   }
@@ -573,7 +535,55 @@ export async function requireProgramStaffAdmin(programId: string): Promise<{ use
   })
   if (hasHeadSeat) {
     return { user }
-=======
+  }
+
+  logPermissionDenial({
+    userId: user.id,
+    teamId: programId,
+    reason: "Head coach authority required for roster moves between levels",
+  })
+  throw new Error("Access denied: Head coach required for this action")
+}
+
+/**
+ * Program placement admin: move assistants between program teams + JV/Freshman head designations.
+ *
+ * Primary truth: `director_of_football` or `athletic_director`.
+ * Non-football: `head_coach` retains placement powers (unchanged).
+ * Football + `head_coach`: only while `programs.created_by_user_id` is null (LEGACY_TRANSITION) or equals this user.
+ */
+export async function requireProgramStaffAdmin(programId: string): Promise<{ user: { id: string }; membership: ProgramMembership }> {
+  const user = await requireAuth()
+  let membership: ProgramMembership | null
+  try {
+    membership = await getProgramMembership(programId)
+  } catch (err) {
+    if (err instanceof MembershipLookupError) throw err
+    throw err
+  }
+
+  const allowed: ProgramMembership["role"][] = ["head_coach", "director_of_football", "athletic_director"]
+  if (!membership || !allowed.includes(membership.role)) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId: programId,
+      reason: "Program staff admin required",
+    })
+    throw new Error("Access denied: Program staff admin required")
+  }
+
+  if (membership.role === "athletic_director" || membership.role === "director_of_football") {
+    return { user, membership }
+  }
+
+  const supabase = getSupabaseServer()
+  const { data: prog, error: progErr } = await supabase
+    .from("programs")
+    .select("sport, created_by_user_id")
+    .eq("id", programId)
+    .maybeSingle()
+
+  if (progErr) {
     console.error("[requireProgramStaffAdmin] program lookup", progErr)
     throw new MembershipLookupError("Database error during program lookup", progErr)
   }
@@ -589,19 +599,12 @@ export async function requireProgramStaffAdmin(programId: string): Promise<{ use
   const creatorId = (prog as { created_by_user_id?: string | null } | null)?.created_by_user_id ?? null
   if (creatorId === null || creatorId === user.id) {
     return { user, membership }
->>>>>>> origin/main
   }
 
   logPermissionDenial({
     userId: user.id,
     teamId: programId,
-<<<<<<< HEAD
-    reason: "Head coach authority required for roster moves between levels",
-  })
-  throw new Error("Access denied: Head coach required for this action")
-=======
     reason: "Football program placement requires director or program owner",
   })
   throw new Error("Access denied: Program staff admin required")
->>>>>>> origin/main
 }

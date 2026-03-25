@@ -119,7 +119,7 @@ function DeferredHomeDashboardRow({ children }: { children: ReactNode }) {
   return (
     <div
       ref={ref}
-      className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3"
+      className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-12"
     >
       {show ? (
         children
@@ -273,6 +273,7 @@ function TeamBanner({
 // ─── Readiness Summary Card (coach only; fetches team readiness) ───────────────
 
 function ReadinessSummaryCard({ teamId }: { teamId: string }) {
+  const readinessHref = `/dashboard/roster?teamId=${encodeURIComponent(teamId)}&tab=readiness`
   const [summary, setSummary] = useState<{ total: number; incompleteCount: number; readyCount: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
@@ -340,7 +341,7 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
           <ClipboardCheck className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
           Roster Readiness
         </CardTitle>
-        <Link href={`/dashboard/roster?teamId=${teamId}`} className="shrink-0">
+        <Link href={readinessHref} className="shrink-0">
           <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
             View
           </Button>
@@ -358,7 +359,7 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
           )}
         </p>
         {summary.incompleteCount > 0 && (
-          <Link href={`/dashboard/roster?teamId=${teamId}`}>
+          <Link href={readinessHref}>
             <Button size="sm" variant="outline" className="mt-2 text-xs">
               Open Readiness tab
             </Button>
@@ -593,7 +594,7 @@ function UpcomingGameCard({
   if (loading) {
     return (
       <Card
-        className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        className="h-full min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
         style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
       >
         <CardContent className="flex min-h-[120px] items-center justify-center py-6">
@@ -606,7 +607,7 @@ function UpcomingGameCard({
   if (!game) {
     return (
       <Card
-        className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        className="h-full min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
         style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
       >
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
@@ -636,7 +637,7 @@ function UpcomingGameCard({
 
   return (
     <Card
-      className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+      className="h-full min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
       style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
     >
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
@@ -915,7 +916,9 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {/* ── Next game (games table) + home calendar strip ── */}
       {hasTeam && (
         <div className="space-y-3 sm:space-y-4">
-          <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
+          <div className="lg:hidden">
+            <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
+          </div>
           <DashboardCalendar teamId={teamId} canAddEvents={canAddCalendarEvents} />
         </div>
       )}
@@ -923,14 +926,28 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
       {hasTeam && (
         <DeferredHomeDashboardRow>
-          <DashboardAnnouncementsCard
-            teamId={teamId}
-            canCreate={canAddCalendarEvents}
-            viewerUserId={user.id}
-            viewerRole={user.role}
-          />
-          <NotificationsCard teamId={teamId} />
-          <ReadinessSummaryCard teamId={teamId} />
+          <div className="lg:col-span-4">
+            <DashboardAnnouncementsCard
+              teamId={teamId}
+              canCreate={canAddCalendarEvents}
+              viewerUserId={user.id}
+              viewerRole={user.role}
+            />
+          </div>
+          <div className="lg:col-span-5">
+            <NotificationsCard teamId={teamId} />
+          </div>
+          <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">
+            <div className="hidden lg:block lg:flex-1">
+              <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
+            </div>
+            <div className="lg:hidden">
+              <ReadinessSummaryCard teamId={teamId} />
+            </div>
+            <div className="hidden lg:block lg:flex-1">
+              <ReadinessSummaryCard teamId={teamId} />
+            </div>
+          </div>
         </DeferredHomeDashboardRow>
       )}
 

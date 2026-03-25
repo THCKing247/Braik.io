@@ -41,6 +41,11 @@ function RosterPageContent({
   const initialView = (searchParams.get("view") === "list" ? "list" : "card") as "card" | "list"
   const initialSearch = searchParams.get("q") ?? ""
   const initialPosition = searchParams.get("position") ?? ""
+  const tabParam = searchParams.get("tab")
+  const initialTab =
+    tabParam === "readiness" || tabParam === "depth-chart" || tabParam === "program-depth"
+      ? tabParam
+      : "roster"
   type PlayerItem = {
     id: string
     firstName: string
@@ -131,6 +136,7 @@ function RosterPageContent({
       initialView={initialView}
       initialSearch={initialSearch}
       initialPosition={initialPosition}
+      initialTab={initialTab}
     />
   )
 }

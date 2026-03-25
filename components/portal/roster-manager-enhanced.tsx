@@ -95,6 +95,7 @@ interface RosterManagerEnhancedProps {
   initialView?: "card" | "list"
   initialSearch?: string
   initialPosition?: string
+  initialTab?: "roster" | "depth-chart" | "readiness" | "program-depth"
 }
 
 type TeamReadinessSummary = {
@@ -596,12 +597,13 @@ export function RosterManagerEnhanced({
   initialView = "card",
   initialSearch = "",
   initialPosition = "",
+  initialTab = "roster",
 }: RosterManagerEnhancedProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { showToast } = usePlaybookToast()
   const [players, setPlayers] = useState(initialPlayers)
-  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart" | "readiness" | "program-depth">("roster")
+  const [activeTab, setActiveTab] = useState<"roster" | "depth-chart" | "readiness" | "program-depth">(initialTab)
   const [teamReadiness, setTeamReadiness] = useState<{
     summary: TeamReadinessSummary
     players: PlayerReadinessItem[]

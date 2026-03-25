@@ -334,7 +334,8 @@ export function DashboardAnnouncementsCard({
               return (
                 <div
                   key={a.id}
-                  className="flex w-full items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-[rgb(var(--platinum))]"
+                  className="flex w-full items-start gap-2 rounded-lg border p-2.5 transition-colors hover:opacity-95"
+                  style={{ backgroundColor: "rgba(37,99,235,0.06)", borderColor: "rgba(37,99,235,0.2)" }}
                 >
                   <AnnouncementPinControl
                     row={a}

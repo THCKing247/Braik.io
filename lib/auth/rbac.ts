@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { getServerSession } from "@/lib/auth/server-auth"
+import { getServerSession, type SessionUser } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { isFootballProgramSport } from "@/lib/enforcement/football-ad-access"
 import { ROLES, type Role, canManageTeam, canEditRoster, canManageBilling, canPostAnnouncements, canViewPayments } from "./roles"
@@ -84,20 +84,55 @@ function teamMemberDbRoleToNormalizedRole(dbRole: string): Role {
 }
 
 /**
- * Get the current user's membership for a team:
- * - team_members (active) when present — source of truth for staff/roster linkage
- * - profiles.team_id + profiles.role
- * - teams.created_by (ownership / legacy creator access, not staff display)
- * - program_members for program-scoped coaches/AD
+ * Program membership for a known user id (no session read). Used by team membership resolution
+ * and after requireAuth to avoid a second getServerSession.
  */
-export async function getUserMembership(teamId: string): Promise<UserMembership | null> {
-  const session = await getServerSession()
-  if (!session?.user?.id) {
+export async function getProgramMembershipForUser(
+  programId: string,
+  userId: string
+): Promise<ProgramMembership | null> {
+  if (!userId) return null
+
+  const supabase = getSupabaseServer()
+  const { data: member, error } = await supabase
+    .from("program_members")
+    .select("program_id, user_id, role")
+    .eq("program_id", programId)
+    .eq("user_id", userId)
+    .eq("active", true)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[getProgramMembershipForUser] program_members lookup failed", {
+      userId,
+      programId,
+      error,
+    })
+    throw new MembershipLookupError("Database error during program membership lookup", error)
+  }
+
+  if (
+    !member ||
+    !["head_coach", "director_of_football", "assistant_coach", "athletic_director"].includes(String(member.role))
+  ) {
     return null
   }
 
+  return {
+    userId,
+    programId: member.program_id,
+    role: member.role as ProgramMembership["role"],
+  }
+}
+
+/**
+ * Resolve team membership for a known user id (no session read).
+ * Same rules as getUserMembership but avoids a second getServerSession when the caller already authenticated.
+ */
+export async function getUserMembershipForUserId(teamId: string, userId: string): Promise<UserMembership | null> {
+  if (!userId) return null
+
   const supabase = getSupabaseServer()
-  const userId = session.user.id
 
   const { data: teamMeta, error: teamError } = await supabase
     .from("teams")
@@ -180,7 +215,7 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
 
   if (programIdFromTeam) {
     try {
-      const programMembership = await getProgramMembership(programIdFromTeam)
+      const programMembership = await getProgramMembershipForUser(programIdFromTeam, userId)
       if (
         programMembership &&
         ["head_coach", "director_of_football", "assistant_coach", "athletic_director"].includes(programMembership.role)
@@ -209,6 +244,21 @@ export async function getUserMembership(teamId: string): Promise<UserMembership 
   return null
 }
 
+/**
+ * Get the current user's membership for a team:
+ * - team_members (active) when present — source of truth for staff/roster linkage
+ * - profiles.team_id + profiles.role
+ * - teams.created_by (ownership / legacy creator access, not staff display)
+ * - program_members for program-scoped coaches/AD
+ */
+export async function getUserMembership(teamId: string): Promise<UserMembership | null> {
+  const session = await getServerSession()
+  if (!session?.user?.id) {
+    return null
+  }
+  return getUserMembershipForUserId(teamId, session.user.id)
+}
+
 export async function requireAuth() {
   const session = await getServerSession()
   if (!session?.user?.id) {
@@ -221,7 +271,50 @@ export async function requireTeamAccess(teamId: string, requiredRole?: Role) {
   const user = await requireAuth()
   let membership: UserMembership | null
   try {
-    membership = await getUserMembership(teamId)
+    membership = await getUserMembershipForUserId(teamId, user.id)
+  } catch (err) {
+    if (err instanceof MembershipLookupError) throw err
+    throw err
+  }
+
+  if (!membership) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId,
+      reason: "Not a member of this team",
+    })
+    throw new Error("Access denied: Not a member of this team")
+  }
+
+  if (requiredRole && membership.role !== requiredRole) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId,
+      role: membership.role,
+      requiredRole,
+      reason: `Requires ${requiredRole} role, but user has ${membership.role}`,
+    })
+    throw new Error(`Access denied: Requires ${requiredRole} role`)
+  }
+
+  return { user, membership }
+}
+
+/**
+ * Like requireTeamAccess but uses an already-loaded session user (avoids a second getServerSession).
+ * Use when the route must call getServerSession first (e.g. applyRefreshedSessionCookies on token refresh).
+ */
+export async function requireTeamAccessWithUser(
+  teamId: string,
+  user: SessionUser,
+  requiredRole?: Role
+): Promise<{ user: SessionUser; membership: UserMembership }> {
+  if (!user?.id) {
+    throw new Error("Unauthorized")
+  }
+  let membership: UserMembership | null
+  try {
+    membership = await getUserMembershipForUserId(teamId, user.id)
   } catch (err) {
     if (err instanceof MembershipLookupError) throw err
     throw err
@@ -252,9 +345,13 @@ export async function requireTeamAccess(teamId: string, requiredRole?: Role) {
 
 export async function requireTeamPermission(
   teamId: string,
-  permission: "manage" | "edit_roster" | "manage_billing" | "post_announcements" | "view_payments" | "edit_offense_plays" | "edit_defense_plays" | "edit_special_teams_plays"
+  permission: "manage" | "edit_roster" | "manage_billing" | "post_announcements" | "view_payments" | "edit_offense_plays" | "edit_defense_plays" | "edit_special_teams_plays",
+  /** When set, skips a second getServerSession (caller already loaded session.user). */
+  preAuthUser?: SessionUser
 ) {
-  const { membership } = await requireTeamAccess(teamId)
+  const { membership } = preAuthUser
+    ? await requireTeamAccessWithUser(teamId, preAuthUser)
+    : await requireTeamAccess(teamId)
 
   if (membership.staffStatus === "pending_assignment") {
     logPermissionDenial({
@@ -310,37 +407,7 @@ export async function requireTeamPermission(
 export async function getProgramMembership(programId: string): Promise<ProgramMembership | null> {
   const session = await getServerSession()
   if (!session?.user?.id) return null
-
-  const supabase = getSupabaseServer()
-  const { data: member, error } = await supabase
-    .from("program_members")
-    .select("program_id, user_id, role")
-    .eq("program_id", programId)
-    .eq("user_id", session.user.id)
-    .eq("active", true)
-    .maybeSingle()
-
-  if (error) {
-    console.error("[getProgramMembership] program_members lookup failed", {
-      userId: session.user.id,
-      programId,
-      error,
-    })
-    throw new MembershipLookupError("Database error during program membership lookup", error)
-  }
-
-  if (
-    !member ||
-    !["head_coach", "director_of_football", "assistant_coach", "athletic_director"].includes(String(member.role))
-  ) {
-    return null
-  }
-
-  return {
-    userId: session.user.id,
-    programId: member.program_id,
-    role: member.role as ProgramMembership["role"],
-  }
+  return getProgramMembershipForUser(programId, session.user.id)
 }
 
 /** Require the user to be a coach (head_coach or assistant_coach) in the program. */
@@ -348,7 +415,7 @@ export async function requireProgramCoach(programId: string): Promise<{ user: { 
   const user = await requireAuth()
   let membership: ProgramMembership | null
   try {
-    membership = await getProgramMembership(programId)
+    membership = await getProgramMembershipForUser(programId, user.id)
   } catch (err) {
     if (err instanceof MembershipLookupError) throw err
     throw err

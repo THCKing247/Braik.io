@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser, requireTeamPermission } from "@/lib/auth/rbac"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 
 const ROUTE = "api/plays"
@@ -263,7 +263,7 @@ export async function GET(request: Request) {
     }
 
     try {
-      await requireTeamAccess(teamId)
+      await requireTeamAccessWithUser(teamId, session.user)
     } catch (accessErr) {
       if (accessErr instanceof MembershipLookupError) {
         logPhase({
@@ -272,7 +272,7 @@ export async function GET(request: Request) {
           method: "GET",
           teamId,
           userId: session.user.id,
-          helper: "requireTeamAccess",
+          helper: "requireTeamAccessWithUser",
           message: accessErr.message,
         })
         return errorResponse(
@@ -290,7 +290,7 @@ export async function GET(request: Request) {
         method: "GET",
         teamId,
         userId: session.user.id,
-        helper: "requireTeamAccess",
+        helper: "requireTeamAccessWithUser",
         message: msg,
       })
       return errorResponse(debugId, "team_permission", msg, 403)
@@ -572,11 +572,11 @@ export async function POST(request: Request) {
 
     try {
       if (side === "offense") {
-        await requireTeamPermission(teamId, "edit_offense_plays")
+        await requireTeamPermission(teamId, "edit_offense_plays", session.user)
       } else if (side === "defense") {
-        await requireTeamPermission(teamId, "edit_defense_plays")
+        await requireTeamPermission(teamId, "edit_defense_plays", session.user)
       } else {
-        await requireTeamPermission(teamId, "edit_special_teams_plays")
+        await requireTeamPermission(teamId, "edit_special_teams_plays", session.user)
       }
     } catch (permErr) {
       if (permErr instanceof MembershipLookupError) {

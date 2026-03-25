@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccess, requireTeamAccessWithUser } from "@/lib/auth/rbac"
 
 const PARENT_TYPES = ["playbook", "formation", "sub_formation", "play"] as const
 type ParentType = (typeof PARENT_TYPES)[number]
@@ -47,11 +47,6 @@ export async function GET(request: Request) {
   let parentTypeRaw: string | null = null
   let parentId: string | null = null
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     parentTypeRaw = searchParams.get("parentType")
     parentId = searchParams.get("parentId")
@@ -131,9 +126,13 @@ export async function GET(request: Request) {
       message: err.message,
       stack: err.stack,
     })
-    const status = err.message.includes("Access denied") ? 403 : 500
+    const msg = err.message
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    const status = msg.includes("Access denied") || msg.includes("Not a member") ? 403 : 500
     return NextResponse.json(
-      { error: err.message || "Failed to load comments" },
+      { error: msg || "Failed to load comments" },
       { status }
     )
   }
@@ -182,7 +181,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Parent not found" }, { status: 404 })
     }
 
-    await requireTeamAccess(teamId)
+    await requireTeamAccessWithUser(teamId, session.user)
 
     const now = new Date().toISOString()
     const { data: row, error } = await supabase

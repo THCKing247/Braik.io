@@ -10,11 +10,6 @@ import { normalizePlayerImageUrl } from "@/lib/player-image-url"
  */
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!teamId) {
@@ -103,10 +98,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ entries: formatted })
   } catch (error: any) {
+    const msg = error instanceof Error ? error.message : "Failed to load depth chart"
     console.error("[GET /api/roster/depth-chart]", error)
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     return NextResponse.json(
-      { error: error.message || "Failed to load depth chart" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
+      { error: msg },
+      { status: msg.includes("Access denied") || msg.includes("Not a member") ? 403 : 500 }
     )
   }
 }
@@ -136,7 +135,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    await requireTeamPermission(teamId, "edit_roster")
+    await requireTeamPermission(teamId, "edit_roster", session.user)
 
     const body = (await request.json()) as {
       entries?: Array<{

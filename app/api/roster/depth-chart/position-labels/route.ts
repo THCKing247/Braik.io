@@ -9,11 +9,6 @@ import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
  */
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     const unit = searchParams.get("unit")
@@ -53,11 +48,15 @@ export async function GET(request: Request) {
     }))
 
     return NextResponse.json(formatted)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Failed to load position labels"
     console.error("[GET /api/roster/depth-chart/position-labels]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to load position labels" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    return NextResponse.json(
+      { error: msg },
+      { status: msg.includes("Access denied") || msg.includes("Not a member") ? 403 : 500 }
     )
   }
 }
@@ -79,7 +78,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
 }
 
-    await requireTeamPermission(teamId, "edit_roster")
+    await requireTeamPermission(teamId, "edit_roster", session.user)
 
     const body = (await request.json()) as {
       labels?: Array<{ unit: string; position: string; label: string }>

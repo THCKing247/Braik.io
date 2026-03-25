@@ -9,11 +9,6 @@ import { requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
  */
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     const formationId = searchParams.get("formationId")
@@ -65,10 +60,14 @@ export async function GET(request: Request) {
     return NextResponse.json(formatted)
   } catch (error: unknown) {
     const err = error as { message?: string }
+    const msg = err?.message ?? "Failed to load sub-formations"
     console.error("[GET /api/sub-formations]", error)
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     return NextResponse.json(
-      { error: err?.message ?? "Failed to load sub-formations" },
-      { status: err?.message?.includes("Access denied") ? 403 : 500 }
+      { error: msg },
+      { status: msg.includes("Access denied") || msg.includes("Not a member") ? 403 : 500 }
     )
   }
 }
@@ -108,11 +107,11 @@ export async function POST(request: Request) {
     }
 
     if (side === "offense") {
-      await requireTeamPermission(teamId, "edit_offense_plays")
+      await requireTeamPermission(teamId, "edit_offense_plays", session.user)
     } else if (side === "defense") {
-      await requireTeamPermission(teamId, "edit_defense_plays")
+      await requireTeamPermission(teamId, "edit_defense_plays", session.user)
     } else {
-      await requireTeamPermission(teamId, "edit_special_teams_plays")
+      await requireTeamPermission(teamId, "edit_special_teams_plays", session.user)
     }
 
     const supabase = getSupabaseServer()

@@ -66,11 +66,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Let Server Components distinguish AD portal routes from the Head Coach dashboard shell.
   if (pathname.startsWith("/dashboard")) {
-    const requestHeaders = new Headers(request.headers)
-    requestHeaders.set("x-dashboard-pathname", pathname)
-    const res = NextResponse.next({ request: { headers: requestHeaders } })
+    const res = NextResponse.next()
 
     const isDashboardRoot = pathname === "/dashboard" || pathname === "/dashboard/"
     if (isDashboardRoot) {

@@ -700,11 +700,13 @@ export function RosterManagerEnhanced({
     let cancelled = false
     fetch(`/api/teams/${teamId}/readiness`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { summary: TeamReadinessSummary; players: PlayerReadinessItem[] } | null) => {
+      .then((data: { summary?: TeamReadinessSummary; players?: PlayerReadinessItem[] } | null) => {
         if (cancelled) return
-        data
-          ? setTeamReadiness({ summary: data.summary, players: data.players ?? [] })
-          : setTeamReadiness(null)
+        if (data && data.summary && typeof data.summary.total === "number") {
+          setTeamReadiness({ summary: data.summary, players: data.players ?? [] })
+        } else {
+          setTeamReadiness(null)
+        }
       })
       .catch(() => {
         if (!cancelled) setTeamReadiness(null)
@@ -718,12 +720,12 @@ export function RosterManagerEnhanced({
     if (!canEdit || !teamId || activeTab !== "readiness") return
     setTeamActivityLoading(true)
     let cancelled = false
-    fetch(`/api/teams/${teamId}/readiness-panel`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((payload: { activity?: unknown; followUps?: unknown } | null) => {
+    Promise.all([
+      fetch(`/api/teams/${teamId}/activity?limit=15`).then((res) => (res.ok ? res.json() : [])),
+      fetch(`/api/teams/${teamId}/follow-ups?status=open`).then((res) => (res.ok ? res.json() : [])),
+    ])
+      .then(([activityData, followData]) => {
         if (cancelled) return
-        const activityData = payload?.activity
-        const followData = payload?.followUps
         setTeamActivity(
           Array.isArray(activityData)
             ? (activityData as Array<{
@@ -736,9 +738,7 @@ export function RosterManagerEnhanced({
               }>)
             : []
         )
-        setTeamOpenFollowUps(
-          Array.isArray(followData) ? (followData as Array<{ id: string; playerId: string; category: string }>) : []
-        )
+        setTeamOpenFollowUps(Array.isArray(followData) ? (followData as Array<{ id: string; playerId: string; category: string }>) : [])
       })
       .catch(() => {
         if (!cancelled) {

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { unstable_cache } from "next/cache"
-import { getServerSession } from "@/lib/auth/server-auth"
-import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
+import { requireTeamAccess } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
 
@@ -16,19 +15,13 @@ export async function GET(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { teamId } = await params
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    await requireTeamAccess(teamId)
-    const membership = await getUserMembership(teamId)
-    if (!membership || !canEditRoster(membership.role)) {
+    const { membership } = await requireTeamAccess(teamId)
+    if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Only coaches can view team readiness." }, { status: 403 })
     }
 
@@ -45,6 +38,9 @@ export async function GET(
     return NextResponse.json(body)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"
+    if (message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }

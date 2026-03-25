@@ -718,12 +718,12 @@ export function RosterManagerEnhanced({
     if (!canEdit || !teamId || activeTab !== "readiness") return
     setTeamActivityLoading(true)
     let cancelled = false
-    Promise.all([
-      fetch(`/api/teams/${teamId}/activity?limit=15`).then((res) => (res.ok ? res.json() : [])),
-      fetch(`/api/teams/${teamId}/follow-ups?status=open`).then((res) => (res.ok ? res.json() : [])),
-    ])
-      .then(([activityData, followData]) => {
+    fetch(`/api/teams/${teamId}/readiness-panel`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload: { activity?: unknown; followUps?: unknown } | null) => {
         if (cancelled) return
+        const activityData = payload?.activity
+        const followData = payload?.followUps
         setTeamActivity(
           Array.isArray(activityData)
             ? (activityData as Array<{
@@ -736,7 +736,9 @@ export function RosterManagerEnhanced({
               }>)
             : []
         )
-        setTeamOpenFollowUps(Array.isArray(followData) ? (followData as Array<{ id: string; playerId: string; category: string }>) : [])
+        setTeamOpenFollowUps(
+          Array.isArray(followData) ? (followData as Array<{ id: string; playerId: string; category: string }>) : []
+        )
       })
       .catch(() => {
         if (!cancelled) {

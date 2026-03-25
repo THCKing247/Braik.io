@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     }
 
     const payload = await buildRosterPrintPayload(supabase, teamId)
-    if (!("success" in payload && payload.success)) {
+    if (payload && typeof payload === "object" && "error" in payload && "stage" in payload) {
       const err = payload as { error: string; stage: string }
       const status = err.stage === "team" ? 404 : 500
       return NextResponse.json({ error: err.error, stage: err.stage }, { status })

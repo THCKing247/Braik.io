@@ -36,6 +36,7 @@ import { PlayerPromoteModal } from "./player-promote-modal"
 import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
+import { AddFollowUpModal } from "./add-follow-up-modal"
 import { usePlaybookToast } from "./playbook-toast"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
@@ -619,6 +620,14 @@ export function RosterManagerEnhanced({
   }>>([])
   const [teamActivityLoading, setTeamActivityLoading] = useState(false)
   const [teamOpenFollowUps, setTeamOpenFollowUps] = useState<Array<{ id: string; playerId: string; category: string }>>([])
+  const [followUpModalTarget, setFollowUpModalTarget] = useState<{
+    playerId: string
+    firstName: string
+    lastName: string
+  } | null>(null)
+  const [followUpsRefetchNonce, setFollowUpsRefetchNonce] = useState(0)
+  /** Sub-tabs inside Readiness (layout only). */
+  const [readinessSubTab, setReadinessSubTab] = useState<"attention" | "checklist" | "activity">("attention")
   /** Bumps after roster mutations so readiness refetches without depending on players.length (avoids N slow refetches). */
   const [readinessRefetchNonce, setReadinessRefetchNonce] = useState(0)
   const [depthChart, setDepthChart] = useState<DepthChartEntry[]>([])
@@ -741,7 +750,7 @@ export function RosterManagerEnhanced({
     return () => {
       cancelled = true
     }
-  }, [canEdit, teamId, activeTab])
+  }, [canEdit, teamId, activeTab, followUpsRefetchNonce])
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
@@ -1334,6 +1343,11 @@ export function RosterManagerEnhanced({
         : "rounded-t-lg border-b-[3px] border-transparent text-foreground/70 hover:bg-muted/50 hover:text-foreground lg:border-transparent lg:hover:bg-muted/30"
     }`
 
+  const readinessSectionTabClass = (active: boolean) =>
+    `border-b-2 px-3 py-2.5 text-left text-sm font-semibold transition-colors -mb-px sm:px-4 ${
+      active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+    }`
+
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-hidden px-4 pb-6 lg:px-0 lg:pb-0">
       {/* Tab Navigation — scrollable on small screens, 44px tap targets */}
@@ -1731,276 +1745,347 @@ export function RosterManagerEnhanced({
                 </Card>
               </div>
 
-              <Card className="border border-border bg-card">
-                <CardHeader>
-                  <CardTitle className="text-foreground">Roster checklist</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Physical, waiver, required forms, and whether the player has linked their app account.
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto max-h-[min(420px,50vh)] overflow-y-auto rounded-md border border-border">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm z-[1]">
-                        <tr className="border-b border-border text-left text-muted-foreground">
-                          <th className="p-2 pl-3 font-medium">Player</th>
-                          <th className="p-2 font-medium text-center w-[88px]">Physical</th>
-                          <th className="p-2 font-medium text-center w-[88px]">Waiver</th>
-                          <th className="p-2 font-medium text-center w-[88px]">Forms</th>
-                          <th className="p-2 pr-3 font-medium text-center w-[100px]">Acct linked</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {teamReadiness.players.map((p) => {
-                          const params = new URLSearchParams()
-                          params.set("teamId", teamId)
-                          const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
-                          const cell = (ok: boolean) => (
-                            <span
-                              className={
-                                ok
-                                  ? "text-emerald-700 font-medium"
-                                  : "text-amber-700 font-medium"
-                              }
-                            >
-                              {ok ? "Yes" : "No"}
-                            </span>
-                          )
-                          return (
-                            <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
-                              <td className="p-2 pl-3">
-                                <Link href={profileHref} className="font-medium text-primary hover:underline">
-                                  {p.firstName} {p.lastName}
-                                </Link>
-                              </td>
-                              <td className="p-2 text-center">{cell(p.physicalOnFile)}</td>
-                              <td className="p-2 text-center">{cell(p.waiverOnFile)}</td>
-                              <td className="p-2 text-center">{cell(p.requiredDocsComplete)}</td>
-                              <td className="p-2 pr-3 text-center">{cell(Boolean(p.accountLinked))}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="border-b border-border" role="tablist" aria-label="Readiness sections">
+                <div className="flex flex-wrap gap-x-1">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={readinessSubTab === "attention"}
+                    onClick={() => setReadinessSubTab("attention")}
+                    className={readinessSectionTabClass(readinessSubTab === "attention")}
+                  >
+                    Needs Attention
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={readinessSubTab === "checklist"}
+                    onClick={() => setReadinessSubTab("checklist")}
+                    className={readinessSectionTabClass(readinessSubTab === "checklist")}
+                  >
+                    Roster Checklist
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={readinessSubTab === "activity"}
+                    onClick={() => setReadinessSubTab("activity")}
+                    className={readinessSectionTabClass(readinessSubTab === "activity")}
+                  >
+                    Recent Team Activity
+                  </button>
+                </div>
+              </div>
 
-              <Card className="border border-border bg-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground">
-                    <AlertCircle className="h-5 w-5 text-amber-500" />
-                    Needs attention
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">Players with missing items. Click a row to open profile.</p>
-                </CardHeader>
-                <CardContent>
-                  {teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length === 0 ? (
-                    <p className="py-6 text-center text-sm text-muted-foreground">All players are ready.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-border text-left text-muted-foreground">
-                            <th className="pb-2 pr-4 font-medium">Player</th>
-                            <th className="pb-2 pr-4 font-medium">Status</th>
-                            <th className="pb-2 pr-4 font-medium">Missing</th>
-                            {canEdit && <th className="pb-2 font-medium">Follow-ups</th>}
+              {readinessSubTab === "attention" && (
+                <Card className="border border-border bg-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-foreground">
+                      <AlertCircle className="h-5 w-5 text-amber-500" />
+                      Needs attention
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">Players with missing items. Click a row to open profile.</p>
+                  </CardHeader>
+                  <CardContent>
+                    {teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length === 0 ? (
+                      <p className="py-6 text-center text-sm text-muted-foreground">All players are ready.</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-md border border-border">
+                        <table className="w-full min-w-[640px] border-collapse text-sm">
+                          <thead className="bg-muted/50">
+                            <tr className="border-b border-border text-left text-muted-foreground">
+                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[11rem]">Player</th>
+                              <th className="px-4 py-3 text-sm font-semibold align-middle w-28 whitespace-nowrap">Status</th>
+                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[12rem]">Missing</th>
+                              {canEdit && (
+                                <th className="px-4 py-3 text-sm font-semibold align-middle w-36 whitespace-nowrap">Follow-ups</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {teamReadiness.players
+                              .filter((p) => !p.ready || p.missingItems.length > 0)
+                              .map((p) => {
+                                const params = new URLSearchParams()
+                                params.set("teamId", teamId)
+                                const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                                const openCount = teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length
+                                return (
+                                  <tr key={p.playerId} className="border-b border-border/70 hover:bg-muted/40">
+                                    <td className="px-4 py-3.5 align-top">
+                                      <Link
+                                        href={profileHref}
+                                        className="font-medium text-primary hover:underline"
+                                      >
+                                        {p.firstName} {p.lastName}
+                                      </Link>
+                                      {!p.hasGuardians && (
+                                        <span
+                                          className="ml-2 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+                                          title="No guardians linked"
+                                        >
+                                          No guardians
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+                                      {p.ready ? (
+                                        <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                                          Ready
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                                          Incomplete
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3.5 align-top text-muted-foreground leading-relaxed">
+                                      {p.missingItems.join(", ") || "—"}
+                                    </td>
+                                    {canEdit && (
+                                      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+                                        {openCount > 0 ? (
+                                          <span className="text-amber-700 text-xs font-medium">{openCount} open</span>
+                                        ) : null}
+                                        <button
+                                          type="button"
+                                          className="ml-2 text-xs text-primary hover:underline"
+                                          onClick={() =>
+                                            setFollowUpModalTarget({
+                                              playerId: p.playerId,
+                                              firstName: p.firstName,
+                                              lastName: p.lastName,
+                                            })
+                                          }
+                                        >
+                                          Add follow-up
+                                        </button>
+                                      </td>
+                                    )}
+                                  </tr>
+                                )
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {readinessSubTab === "checklist" && (
+                <Card className="border border-border bg-card">
+                  <CardHeader>
+                    <CardTitle className="text-foreground">Roster checklist</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Physical, waiver, required forms, and whether the player has linked their app account.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!teamReadiness) return
+                          const headers = [
+                            "First Name",
+                            "Last Name",
+                            "Ready",
+                            "Profile Complete",
+                            "Physical",
+                            "Waiver",
+                            "Forms complete",
+                            "Account linked",
+                            "Equipment",
+                            "Guardians",
+                            "Eligibility",
+                            "Open Follow-ups",
+                            "Missing Items",
+                          ]
+                          const rows = teamReadiness.players.map((p) => [
+                            p.firstName,
+                            p.lastName,
+                            p.ready ? "Yes" : "No",
+                            p.profileComplete ? "Yes" : "No",
+                            p.physicalOnFile ? "Yes" : "No",
+                            p.waiverOnFile ? "Yes" : "No",
+                            p.requiredDocsComplete ? "Yes" : "No",
+                            p.accountLinked ? "Yes" : "No",
+                            p.equipmentAssigned ? "Yes" : "No",
+                            p.hasGuardians ? "Yes" : "No",
+                            p.eligibilityStatus ?? "",
+                            String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                            p.missingItems.join("; ") || "",
+                          ])
+                          const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                          const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement("a")
+                          a.href = url
+                          a.download = `roster-readiness-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
+                      >
+                        Export readiness (CSV)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!teamReadiness) return
+                          const incomplete = teamReadiness.players.filter((p) => !p.ready)
+                          const headers = [
+                            "First Name",
+                            "Last Name",
+                            "Profile Complete",
+                            "Physical",
+                            "Waiver",
+                            "Forms complete",
+                            "Account linked",
+                            "Equipment",
+                            "Guardians",
+                            "Eligibility",
+                            "Open Follow-ups",
+                            "Missing Items",
+                          ]
+                          const rows = incomplete.map((p) => [
+                            p.firstName,
+                            p.lastName,
+                            p.profileComplete ? "Yes" : "No",
+                            p.physicalOnFile ? "Yes" : "No",
+                            p.waiverOnFile ? "Yes" : "No",
+                            p.requiredDocsComplete ? "Yes" : "No",
+                            p.accountLinked ? "Yes" : "No",
+                            p.equipmentAssigned ? "Yes" : "No",
+                            p.hasGuardians ? "Yes" : "No",
+                            p.eligibilityStatus ?? "",
+                            String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                            p.missingItems.join("; ") || "",
+                          ])
+                          const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                          const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement("a")
+                          a.href = url
+                          a.download = `roster-incomplete-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
+                      >
+                        Export incomplete only (CSV)
+                      </Button>
+                    </div>
+                    <div className="overflow-x-auto max-h-[min(480px,55vh)] overflow-y-auto rounded-md border border-border">
+                      <table className="w-full min-w-[36rem] border-collapse text-sm table-fixed">
+                        <colgroup>
+                          <col />
+                          <col className="w-[5.5rem]" />
+                          <col className="w-[5.5rem]" />
+                          <col className="w-[5.5rem]" />
+                          <col className="w-[7.25rem]" />
+                        </colgroup>
+                        <thead className="sticky top-0 z-[1] bg-muted/90 backdrop-blur-sm">
+                          <tr className="border-b border-border text-muted-foreground">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Player</th>
+                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide">Physical</th>
+                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide">Waiver</th>
+                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide">Forms</th>
+                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide leading-tight">
+                              Acct linked
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
-                          {teamReadiness.players
-                            .filter((p) => !p.ready || p.missingItems.length > 0)
-                            .map((p) => {
-                              const params = new URLSearchParams()
-                              params.set("teamId", teamId)
-                              const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
-                              const openCount = teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length
-                              return (
-                                <tr
-                                  key={p.playerId}
-                                  className="border-b border-border hover:bg-muted/50"
-                                >
-                                  <td className="py-3 pr-4">
-                                    <Link
-                                      href={profileHref}
-                                      className="font-medium text-primary hover:underline"
-                                    >
-                                      {p.firstName} {p.lastName}
-                                    </Link>
-                                    {!p.hasGuardians && (
-                                      <span className="ml-1.5 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800" title="No guardians linked">No guardians</span>
-                                    )}
-                                  </td>
-                                  <td className="py-3 pr-4">
-                                    {p.ready ? (
-                                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Ready</span>
-                                    ) : (
-                                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Incomplete</span>
-                                    )}
-                                  </td>
-                                  <td className="py-3 pr-4 text-muted-foreground">{p.missingItems.join(", ") || "—"}</td>
-                                  {canEdit && (
-                                    <td className="py-3">
-                                      {openCount > 0 ? (
-                                        <span className="text-amber-700 text-xs font-medium">{openCount} open</span>
-                                      ) : null}
-                                      <Link
-                                        href={profileHref}
-                                        className="ml-2 text-xs text-primary hover:underline"
-                                      >
-                                        Add follow-up
-                                      </Link>
-                                    </td>
-                                  )}
-                                </tr>
-                              )
-                            })}
+                          {teamReadiness.players.map((p) => {
+                            const params = new URLSearchParams()
+                            params.set("teamId", teamId)
+                            const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                            const cell = (ok: boolean) => (
+                              <span
+                                className={ok ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}
+                              >
+                                {ok ? "Yes" : "No"}
+                              </span>
+                            )
+                            return (
+                              <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
+                                <td className="px-4 py-3.5 align-middle">
+                                  <Link href={profileHref} className="font-medium text-primary hover:underline break-words">
+                                    {p.firstName} {p.lastName}
+                                  </Link>
+                                </td>
+                                <td className="px-2 py-3.5 text-center align-middle">{cell(p.physicalOnFile)}</td>
+                                <td className="px-2 py-3.5 text-center align-middle">{cell(p.waiverOnFile)}</td>
+                                <td className="px-2 py-3.5 text-center align-middle">{cell(p.requiredDocsComplete)}</td>
+                                <td className="px-2 py-3.5 text-center align-middle">{cell(Boolean(p.accountLinked))}</td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
 
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!teamReadiness) return
-                    const headers = ["First Name", "Last Name", "Ready", "Profile Complete", "Physical", "Waiver", "Forms complete", "Account linked", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
-                    const rows = teamReadiness.players.map((p) => [
-                      p.firstName,
-                      p.lastName,
-                      p.ready ? "Yes" : "No",
-                      p.profileComplete ? "Yes" : "No",
-                      p.physicalOnFile ? "Yes" : "No",
-                      p.waiverOnFile ? "Yes" : "No",
-                      p.requiredDocsComplete ? "Yes" : "No",
-                      p.accountLinked ? "Yes" : "No",
-                      p.equipmentAssigned ? "Yes" : "No",
-                      p.hasGuardians ? "Yes" : "No",
-                      p.eligibilityStatus ?? "",
-                      String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
-                      p.missingItems.join("; ") || "",
-                    ])
-                    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
-                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement("a")
-                    a.href = url
-                    a.download = `roster-readiness-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }}
-                >
-                  Export readiness (CSV)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!teamReadiness) return
-                    const incomplete = teamReadiness.players.filter((p) => !p.ready)
-                    const headers = ["First Name", "Last Name", "Profile Complete", "Physical", "Waiver", "Forms complete", "Account linked", "Equipment", "Guardians", "Eligibility", "Open Follow-ups", "Missing Items"]
-                    const rows = incomplete.map((p) => [
-                      p.firstName,
-                      p.lastName,
-                      p.profileComplete ? "Yes" : "No",
-                      p.physicalOnFile ? "Yes" : "No",
-                      p.waiverOnFile ? "Yes" : "No",
-                      p.requiredDocsComplete ? "Yes" : "No",
-                      p.accountLinked ? "Yes" : "No",
-                      p.equipmentAssigned ? "Yes" : "No",
-                      p.hasGuardians ? "Yes" : "No",
-                      p.eligibilityStatus ?? "",
-                      String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
-                      p.missingItems.join("; ") || "",
-                    ])
-                    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
-                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement("a")
-                    a.href = url
-                    a.download = `roster-incomplete-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }}
-                >
-                  Export incomplete only (CSV)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setReadinessFilter("incomplete")
-                    setActiveTab("roster")
-                  }}
-                >
-                  Show incomplete in roster
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setReadinessFilter("all")
-                    setActiveTab("roster")
-                  }}
-                >
-                  Back to full roster
-                </Button>
-              </div>
-
-              <Card className="border border-border bg-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-foreground">
-                    <History className="h-5 w-5 text-muted-foreground" />
-                    Recent team activity
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">Latest profile changes across the roster.</p>
-                </CardHeader>
-                <CardContent>
-                  {teamActivityLoading ? (
-                    <div className="flex justify-center py-6">
-                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    </div>
-                  ) : teamActivity.length === 0 ? (
-                    <p className="py-4 text-center text-sm text-muted-foreground">No recent activity.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {teamActivity.map((a) => {
-                        const profileHref = `/dashboard/roster/${a.playerId}?teamId=${encodeURIComponent(teamId)}`
-                        const label = TEAM_ACTIVITY_LABELS[a.actionType] ?? a.actionType
-                        const timeAgo = (() => {
-                          const d = new Date(a.createdAt)
-                          const now = new Date()
-                          const diffMins = Math.floor((now.getTime() - d.getTime()) / 60000)
-                          const diffHours = Math.floor(diffMins / 60)
-                          const diffDays = Math.floor(diffHours / 24)
-                          if (diffMins < 1) return "Just now"
-                          if (diffMins < 60) return `${diffMins}m ago`
-                          if (diffHours < 24) return `${diffHours}h ago`
-                          if (diffDays < 7) return `${diffDays}d ago`
-                          return d.toLocaleDateString()
-                        })()
-                        return (
-                          <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                            <div className="min-w-0">
-                              <Link href={profileHref} className="font-medium text-primary hover:underline">
-                                {a.playerName}
-                              </Link>
-                              <span className="ml-2 text-muted-foreground">— {label}</span>
-                              {a.actor?.name && <span className="ml-1 text-xs text-muted-foreground">by {a.actor.name}</span>}
-                            </div>
-                            <span className="text-xs text-muted-foreground shrink-0">{timeAgo}</span>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
+              {readinessSubTab === "activity" && (
+                <Card className="border border-border bg-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-foreground">
+                      <History className="h-5 w-5 text-muted-foreground" />
+                      Recent team activity
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">Latest profile changes across the roster.</p>
+                  </CardHeader>
+                  <CardContent>
+                    {teamActivityLoading ? (
+                      <div className="flex justify-center py-6">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      </div>
+                    ) : teamActivity.length === 0 ? (
+                      <p className="py-4 text-center text-sm text-muted-foreground">No recent activity.</p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {teamActivity.map((a) => {
+                          const profileHref = `/dashboard/roster/${a.playerId}?teamId=${encodeURIComponent(teamId)}`
+                          const label = TEAM_ACTIVITY_LABELS[a.actionType] ?? a.actionType
+                          const timeAgo = (() => {
+                            const d = new Date(a.createdAt)
+                            const now = new Date()
+                            const diffMins = Math.floor((now.getTime() - d.getTime()) / 60000)
+                            const diffHours = Math.floor(diffMins / 60)
+                            const diffDays = Math.floor(diffHours / 24)
+                            if (diffMins < 1) return "Just now"
+                            if (diffMins < 60) return `${diffMins}m ago`
+                            if (diffHours < 24) return `${diffHours}h ago`
+                            if (diffDays < 7) return `${diffDays}d ago`
+                            return d.toLocaleDateString()
+                          })()
+                          return (
+                            <li
+                              key={a.id}
+                              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-4 py-3 text-sm"
+                            >
+                              <div className="min-w-0">
+                                <Link href={profileHref} className="font-medium text-primary hover:underline">
+                                  {a.playerName}
+                                </Link>
+                                <span className="ml-2 text-muted-foreground">— {label}</span>
+                                {a.actor?.name && (
+                                  <span className="ml-1 text-xs text-muted-foreground">by {a.actor.name}</span>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground shrink-0 tabular-nums">{timeAgo}</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
         </div>
@@ -2299,6 +2384,21 @@ export function RosterManagerEnhanced({
           )}
         </div>
       )}
+
+      <AddFollowUpModal
+        open={followUpModalTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setFollowUpModalTarget(null)
+        }}
+        playerId={followUpModalTarget?.playerId ?? ""}
+        teamId={teamId}
+        playerDisplayName={
+          followUpModalTarget
+            ? `${followUpModalTarget.firstName} ${followUpModalTarget.lastName}`.trim() || "Player"
+            : ""
+        }
+        onSuccess={() => setFollowUpsRefetchNonce((n) => n + 1)}
+      />
 
       {/* Print Modal */}
       {showPrintModal && (

@@ -20,11 +20,13 @@ create table if not exists public.events (
 
 -- Add optional column from 20260314000000 (safe if table already exists)
 alter table public.events add column if not exists linked_injury_id uuid references public.player_injuries(id) on delete set null;
+alter table public.events add column if not exists linked_follow_up_id uuid references public.player_follow_ups(id) on delete set null;
 
 -- Indexes for calendar queries
 create index if not exists idx_events_team_id on public.events(team_id);
 create index if not exists idx_events_start on public.events(start);
 create index if not exists idx_events_linked_injury_id on public.events(linked_injury_id) where linked_injury_id is not null;
+create index if not exists idx_events_linked_follow_up_id on public.events(linked_follow_up_id) where linked_follow_up_id is not null;
 
 -- RLS: ensure enabled (API uses service role and bypasses RLS; policy documents intent)
 alter table public.events enable row level security;

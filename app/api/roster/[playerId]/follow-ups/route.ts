@@ -3,7 +3,9 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
+import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { logPlayerProfileActivity } from "@/lib/player-profile-activity"
+import { FOLLOW_UP_CATEGORY_LABELS, FOLLOW_UP_DEFAULT_DURATION_MS } from "@/lib/roster/follow-up-ui"
 
 const FOLLOW_UP_CATEGORIES = [
   "physical_follow_up",
@@ -106,8 +108,32 @@ export async function GET(
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         resolvedAt: row.resolved_at,
+        scheduledStart: null as string | null,
+        scheduledEnd: null as string | null,
       }
     })
+
+    const fuIds = list.map((x) => x.id)
+    if (fuIds.length > 0) {
+      const { data: evRows } = await supabase
+        .from("events")
+        .select("linked_follow_up_id, start, end")
+        .eq("team_id", teamId)
+        .in("linked_follow_up_id", fuIds)
+      const evMap = new Map(
+        (evRows ?? []).map((e) => [
+          (e as { linked_follow_up_id: string }).linked_follow_up_id,
+          e as { start: string; end: string },
+        ])
+      )
+      for (const item of list) {
+        const ev = evMap.get(item.id)
+        if (ev) {
+          item.scheduledStart = ev.start
+          item.scheduledEnd = ev.end
+        }
+      }
+    }
 
     return NextResponse.json(list)
   } catch (err) {
@@ -122,7 +148,8 @@ export async function GET(
 
 /**
  * POST /api/roster/[playerId]/follow-ups
- * Create a follow-up. Coach only. Body: { category, note? }
+ * Create a follow-up and a linked team calendar event. Coach only.
+ * Body: { category, note?, start | startAt (ISO), end? | endAt? (ISO, optional; defaults to start + 30m) }
  */
 export async function POST(
   request: Request,
@@ -144,7 +171,7 @@ export async function POST(
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
-      .select("id, team_id")
+      .select("id, team_id, first_name, last_name")
       .eq("id", playerId)
       .eq("team_id", teamId)
       .maybeSingle()
@@ -159,10 +186,39 @@ export async function POST(
       return NextResponse.json({ error: "Only coaches can create follow-ups." }, { status: 403 })
     }
 
-    const body = await request.json().catch(() => ({})) as { category?: string; note?: string }
+    const body = await request.json().catch(() => ({})) as {
+      category?: string
+      note?: string
+      start?: string
+      startAt?: string
+      end?: string
+      endAt?: string
+    }
     const category = typeof body.category === "string" ? body.category.trim() : ""
     if (!category || !FOLLOW_UP_CATEGORIES.includes(category as (typeof FOLLOW_UP_CATEGORIES)[number])) {
       return NextResponse.json({ error: "Valid category is required" }, { status: 400 })
+    }
+
+    const startRaw = body.start ?? body.startAt
+    const endRaw = body.end ?? body.endAt
+    if (!startRaw || typeof startRaw !== "string") {
+      return NextResponse.json({ error: "start time is required (ISO string)" }, { status: 400 })
+    }
+    const startMs = new Date(startRaw).getTime()
+    if (Number.isNaN(startMs)) {
+      return NextResponse.json({ error: "Invalid start time" }, { status: 400 })
+    }
+    let endMs: number
+    if (endRaw && typeof endRaw === "string") {
+      endMs = new Date(endRaw).getTime()
+      if (Number.isNaN(endMs)) {
+        return NextResponse.json({ error: "Invalid end time" }, { status: 400 })
+      }
+    } else {
+      endMs = startMs + FOLLOW_UP_DEFAULT_DURATION_MS
+    }
+    if (endMs <= startMs) {
+      return NextResponse.json({ error: "End time must be after start time" }, { status: 400 })
     }
 
     const { data: inserted, error } = await supabase
@@ -183,13 +239,57 @@ export async function POST(
       return NextResponse.json({ error: "Failed to create follow-up" }, { status: 500 })
     }
 
+    const insertedRow = inserted as { id: string }
+    const pRow = player as { first_name: string | null; last_name: string | null }
+    const playerName = [pRow.first_name, pRow.last_name].filter(Boolean).join(" ").trim() || "Player"
+    const catLabel = FOLLOW_UP_CATEGORY_LABELS[category] ?? category
+    const eventTitle = `Follow-up: ${playerName} · ${catLabel}`
+    const noteVal = typeof body.note === "string" ? body.note.trim() || null : null
+
+    const userTableRole = profileRoleToUserRole((session.user.role ?? "user").toLowerCase())
+    try {
+      await supabase
+        .from("users")
+        .upsert(
+          {
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.name ?? null,
+            role: userTableRole,
+            status: "active",
+          },
+          { onConflict: "id" }
+        )
+    } catch {
+      // best-effort; insert may still succeed
+    }
+
+    const { error: eventError } = await supabase.from("events").insert({
+      team_id: teamId,
+      event_type: "FOLLOW_UP",
+      title: eventTitle,
+      description: noteVal,
+      start: new Date(startMs).toISOString(),
+      end: new Date(endMs).toISOString(),
+      location: null,
+      visibility: "COACHES_ONLY",
+      created_by: session.user.id,
+      linked_follow_up_id: insertedRow.id,
+    })
+
+    if (eventError) {
+      console.error("[POST /api/roster/.../follow-ups] calendar insert failed", eventError.message)
+      await supabase.from("player_follow_ups").delete().eq("id", insertedRow.id)
+      return NextResponse.json({ error: "Follow-up saved but calendar event failed. Try again." }, { status: 500 })
+    }
+
     await logPlayerProfileActivity({
       playerId,
       teamId,
       actorId: session.user.id,
       actionType: "follow_up_created",
       targetType: "follow_up",
-      targetId: (inserted as { id: string }).id,
+      targetId: insertedRow.id,
       metadata: { category },
     })
 

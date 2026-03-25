@@ -32,6 +32,8 @@ import { startOfDay } from "date-fns"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { PLAYER_DOCUMENT_UPLOAD_HELPER, PLAYER_DOCUMENT_CONSENT_TEXT } from "@/lib/player-documents/constants"
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
+import { AddFollowUpModal } from "@/components/portal/add-follow-up-modal"
+import { FOLLOW_UP_CATEGORY_LABELS } from "@/lib/roster/follow-up-ui"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity" | "development"
 
@@ -580,15 +582,6 @@ type ReadinessResponse = {
   ready: boolean
 }
 
-const FOLLOW_UP_CATEGORY_LABELS: Record<string, string> = {
-  physical_follow_up: "Physical follow-up",
-  waiver_reminder: "Waiver reminder",
-  eligibility_review: "Eligibility review",
-  guardian_contact_follow_up: "Guardian/contact follow-up",
-  equipment_follow_up: "Equipment follow-up",
-  other: "Other",
-}
-
 type FollowUpItem = {
   id: string
   playerId: string
@@ -600,15 +593,24 @@ type FollowUpItem = {
   createdAt: string
   updatedAt: string
   resolvedAt: string | null
+  scheduledStart?: string | null
+  scheduledEnd?: string | null
 }
 
-function FollowUpsSection({ playerId, teamId, canEdit }: { playerId: string; teamId: string; canEdit: boolean }) {
+function FollowUpsSection({
+  playerId,
+  teamId,
+  canEdit,
+  playerDisplayName,
+}: {
+  playerId: string
+  teamId: string
+  canEdit: boolean
+  playerDisplayName: string
+}) {
   const [list, setList] = useState<FollowUpItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
-  const [addCategory, setAddCategory] = useState("physical_follow_up")
-  const [addNote, setAddNote] = useState("")
-  const [submitting, setSubmitting] = useState(false)
+  const [followUpModalOpen, setFollowUpModalOpen] = useState(false)
   const [resolvingId, setResolvingId] = useState<string | null>(null)
 
   const load = useCallback(() => {
@@ -623,25 +625,6 @@ function FollowUpsSection({ playerId, teamId, canEdit }: { playerId: string; tea
   useEffect(() => {
     load()
   }, [load])
-
-  const handleCreate = async () => {
-    setSubmitting(true)
-    try {
-      const res = await fetch(`/api/roster/${playerId}/follow-ups?teamId=${encodeURIComponent(teamId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: addCategory, note: addNote.trim() || undefined }),
-      })
-      if (!res.ok) throw new Error("Failed to add")
-      setShowAdd(false)
-      setAddNote("")
-      load()
-    } catch {
-      setSubmitting(false)
-      return
-    }
-    setSubmitting(false)
-  }
 
   const handleResolve = async (id: string) => {
     setResolvingId(id)
@@ -680,6 +663,12 @@ function FollowUpsSection({ playerId, teamId, canEdit }: { playerId: string; tea
                   <div>
                     <span className="font-medium text-amber-800">{FOLLOW_UP_CATEGORY_LABELS[f.category] ?? f.category}</span>
                     {f.note && <p className="mt-0.5 text-sm text-[#64748B]">{f.note}</p>}
+                    {f.scheduledStart && (
+                      <p className="mt-0.5 text-xs font-medium text-[#64748B]">
+                        Scheduled:{" "}
+                        {new Date(f.scheduledStart).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                      </p>
+                    )}
                     <p className="text-xs text-[#94A3B8] mt-1">
                       {f.createdBy && `Added by ${f.createdBy} · `}
                       {new Date(f.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
@@ -710,39 +699,17 @@ function FollowUpsSection({ playerId, teamId, canEdit }: { playerId: string; tea
           )}
           {canEdit && (
             <div className="mt-3">
-              {!showAdd ? (
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowAdd(true)}>
-                  Add follow-up
-                </Button>
-              ) : (
-                <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3 space-y-2">
-                  <Label className="text-xs">Type</Label>
-                  <select
-                    value={addCategory}
-                    onChange={(e) => setAddCategory(e.target.value)}
-                    className="w-full h-9 rounded-md border border-[#E5E7EB] bg-white px-3 text-sm"
-                  >
-                    {Object.entries(FOLLOW_UP_CATEGORY_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                  <Label className="text-xs">Note (optional)</Label>
-                  <textarea
-                    value={addNote}
-                    onChange={(e) => setAddNote(e.target.value)}
-                    placeholder="e.g. Call parent by Friday"
-                    className="w-full min-h-[60px] rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm"
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleCreate} disabled={submitting}>
-                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => { setShowAdd(false); setAddNote("") }} disabled={submitting}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <Button type="button" variant="outline" size="sm" onClick={() => setFollowUpModalOpen(true)}>
+                Add follow-up
+              </Button>
+              <AddFollowUpModal
+                open={followUpModalOpen}
+                onOpenChange={setFollowUpModalOpen}
+                playerId={playerId}
+                teamId={teamId}
+                playerDisplayName={playerDisplayName}
+                onSuccess={() => void load()}
+              />
             </div>
           )}
         </>
@@ -824,7 +791,12 @@ function OverviewTab({
       )}
 
       {/* Follow-ups (coach intervention tracking) */}
-      <FollowUpsSection playerId={playerId} teamId={teamId} canEdit={canEdit} />
+      <FollowUpsSection
+        playerId={playerId}
+        teamId={teamId}
+        canEdit={canEdit}
+        playerDisplayName={`${String(profile.firstName ?? "").trim()} ${String(profile.lastName ?? "").trim()}`.trim() || "Player"}
+      />
 
       {/* Contact card */}
       <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">

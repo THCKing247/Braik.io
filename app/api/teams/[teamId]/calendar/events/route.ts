@@ -157,6 +157,7 @@ export async function POST(
       practice: "PRACTICE",
       game: "GAME",
       meeting: "MEETING",
+      follow_up: "FOLLOW_UP",
       other: "CUSTOM",
     }
     const eventType = eventTypeMap[typeStr] || "CUSTOM"

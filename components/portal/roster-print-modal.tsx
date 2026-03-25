@@ -5,65 +5,17 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { X, Printer, Settings } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { parseRosterPrintClientData, type RosterPrintClientData } from "@/lib/roster/roster-print-payload"
 
 interface RosterPrintModalProps {
   teamId: string
   onClose: () => void
 }
 
-interface RosterData {
-  team: {
-    id: string
-    name: string
-    schoolName: string | null
-    seasonName: string | null
-    year: number
-  }
-  template: {
-    header: {
-      showYear: boolean
-      showSchoolName: boolean
-      showTeamName: boolean
-      yearLabel: string
-      schoolNameLabel: string
-      teamNameLabel: string
-    }
-    body: {
-      showJerseyNumber: boolean
-      showPlayerName: boolean
-      showGrade: boolean
-      showPosition?: boolean
-      showWeight?: boolean
-      showHeight?: boolean
-      jerseyNumberLabel: string
-      playerNameLabel: string
-      gradeLabel: string
-      positionLabel?: string
-      weightLabel?: string
-      heightLabel?: string
-      sortBy: string
-    }
-    footer: {
-      showGeneratedDate: boolean
-      customText: string
-    }
-  }
-  players: Array<{
-    id: string
-    jerseyNumber: number | null
-    name: string
-    grade: number | null
-    gradeLabel: string | null
-    position: string | null
-    weight: number | null
-    height: string | null
-  }>
-  generatedAt: string
-}
-
 export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   const printRef = useRef<HTMLDivElement>(null)
-  const [rosterData, setRosterData] = useState<RosterData | null>(null)
+  const [rosterData, setRosterData] = useState<RosterPrintClientData | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -86,27 +38,32 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
 
   useEffect(() => {
     const loadRoster = async () => {
+      setLoadError(null)
       try {
-        const response = await fetch(`/api/roster/print?teamId=${teamId}`)
-        if (response.ok) {
-          const data = await response.json()
-          console.log("[roster-print-modal] API response payload", {
-            hasTeam: !!data?.team,
-            hasTemplate: !!data?.template,
-            playerCount: data?.players?.length ?? 0,
-            teamName: data?.team?.name,
-          })
-          setRosterData(data)
-          const ids = (data.players || []).map((p: { id: string }) => p.id)
-          setSelectedIds(new Set(ids))
-        } else {
-          const body = await response.json().catch(() => ({}))
-          const message = typeof body?.error === "string" ? body.error : "Failed to load roster data"
-          alert(message)
+        const response = await fetch(`/api/roster/print?teamId=${encodeURIComponent(teamId)}`)
+        const data: unknown = await response.json().catch(() => null)
+        if (!response.ok) {
+          const body = data && typeof data === "object" ? (data as Record<string, unknown>) : null
+          const message =
+            body && typeof body.error === "string"
+              ? body.error
+              : `Could not load roster for printing (${response.status}).`
+          setLoadError(message)
+          setRosterData(null)
+          return
         }
+        const normalized = parseRosterPrintClientData(data)
+        if (!normalized) {
+          setLoadError("The server returned an unexpected roster print response. Try again or refresh the page.")
+          setRosterData(null)
+          return
+        }
+        setRosterData(normalized)
+        setSelectedIds(new Set(normalized.players.map((p) => p.id)))
       } catch (error) {
         console.error("Failed to load roster:", error)
-        alert("Failed to load roster data")
+        setLoadError("Network error while loading the roster. Check your connection and try again.")
+        setRosterData(null)
       } finally {
         setLoading(false)
       }
@@ -151,9 +108,11 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   if (!rosterData) {
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#1e3a5f] rounded-lg p-8 text-white">
-          <p>Failed to load roster data</p>
-          <Button onClick={onClose} className="mt-4">Close</Button>
+        <div className="bg-[#1e3a5f] rounded-lg p-8 text-white max-w-md text-center">
+          <p>{loadError ?? "Failed to load roster data"}</p>
+          <Button onClick={onClose} className="mt-4">
+            Close
+          </Button>
         </div>
       </div>
     )

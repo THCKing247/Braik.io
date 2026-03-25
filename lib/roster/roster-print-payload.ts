@@ -115,7 +115,7 @@ export async function buildRosterPrintPayload(
     if (meta) {
       seasonName = (meta as { season_name?: string | null }).season_name ?? null
       const raw = (meta as { roster_template?: unknown }).roster_template
-      if (raw && typeof raw === "object" && raw !== null) {
+      if (raw && typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
         rosterTemplate = raw as typeof DEFAULT_ROSTER_TEMPLATE
       }
     }
@@ -203,4 +203,71 @@ export async function buildRosterPrintPayload(
     players: formattedPlayers,
     generatedAt: new Date().toISOString(),
   }
+}
+
+/** Shape used by roster print modal after validating API JSON (prevents render crashes). */
+export type RosterPrintClientData = {
+  team: RosterPrintPayload["team"]
+  template: typeof DEFAULT_ROSTER_TEMPLATE
+  players: RosterPrintPayload["players"]
+  generatedAt: string
+}
+
+/**
+ * Parse GET /api/roster/print JSON safely: merge template with defaults, coerce players.
+ * Returns null if the payload is not a successful roster print response.
+ */
+export function parseRosterPrintClientData(raw: unknown): RosterPrintClientData | null {
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+  if (o.success !== true) return null
+
+  const teamRaw = o.team
+  if (!teamRaw || typeof teamRaw !== "object") return null
+  const tr = teamRaw as Record<string, unknown>
+  const teamId = typeof tr.id === "string" ? tr.id : ""
+  const teamName = typeof tr.name === "string" ? tr.name : ""
+  if (!teamId || !teamName) return null
+
+  const team: RosterPrintPayload["team"] = {
+    id: teamId,
+    name: teamName,
+    schoolName: typeof tr.schoolName === "string" || tr.schoolName === null ? (tr.schoolName as string | null) : null,
+    seasonName: typeof tr.seasonName === "string" || tr.seasonName === null ? (tr.seasonName as string | null) : null,
+    year: typeof tr.year === "number" && Number.isFinite(tr.year) ? tr.year : new Date().getFullYear(),
+  }
+
+  const tpl = o.template
+  const rawTemplate =
+    tpl && typeof tpl === "object" && tpl !== null && !Array.isArray(tpl)
+      ? (tpl as Partial<typeof DEFAULT_ROSTER_TEMPLATE>)
+      : null
+  const template = {
+    ...DEFAULT_ROSTER_TEMPLATE,
+    ...(rawTemplate ?? {}),
+    header: { ...DEFAULT_ROSTER_TEMPLATE.header, ...(rawTemplate?.header ?? {}) },
+    body: { ...DEFAULT_ROSTER_TEMPLATE.body, ...(rawTemplate?.body ?? {}) },
+    footer: { ...DEFAULT_ROSTER_TEMPLATE.footer, ...(rawTemplate?.footer ?? {}) },
+  }
+
+  const players: RosterPrintPayload["players"] = Array.isArray(o.players)
+    ? (o.players as unknown[]).map((p, idx) => {
+        const row = p && typeof p === "object" ? (p as Record<string, unknown>) : {}
+        return {
+          id: typeof row.id === "string" ? row.id : `row-${idx}`,
+          jerseyNumber: typeof row.jerseyNumber === "number" ? row.jerseyNumber : null,
+          name: typeof row.name === "string" ? row.name : "",
+          grade: typeof row.grade === "number" ? row.grade : null,
+          gradeLabel:
+            typeof row.gradeLabel === "string" || row.gradeLabel === null ? (row.gradeLabel as string | null) : null,
+          position: typeof row.position === "string" || row.position === null ? (row.position as string | null) : null,
+          weight: typeof row.weight === "number" ? row.weight : null,
+          height: typeof row.height === "string" || row.height === null ? (row.height as string | null) : null,
+        }
+      })
+    : []
+
+  const generatedAt = typeof o.generatedAt === "string" ? o.generatedAt : new Date().toISOString()
+
+  return { team, template, players, generatedAt }
 }

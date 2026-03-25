@@ -72,6 +72,25 @@ export async function PATCH(
     }
 
     if (updates.status === "resolved") {
+      const { data: linkedEv } = await supabase
+        .from("events")
+        .select("id, title, description")
+        .eq("linked_follow_up_id", followUpId)
+        .eq("team_id", teamId)
+        .maybeSingle()
+
+      if (linkedEv) {
+        const ev = linkedEv as { id: string; title: string; description: string | null }
+        const newTitle = ev.title.startsWith("[Resolved]") ? ev.title : `[Resolved] ${ev.title}`
+        const resolvedLine = `Resolved: ${new Date().toISOString()}`
+        const desc = (ev.description ?? "").trim()
+        const newDesc = desc ? `${desc}\n\n${resolvedLine}` : resolvedLine
+        const { error: evUpdErr } = await supabase.from("events").update({ title: newTitle, description: newDesc }).eq("id", ev.id)
+        if (evUpdErr) {
+          console.warn("[PATCH /api/roster/.../follow-ups/...] calendar update failed", evUpdErr.message)
+        }
+      }
+
       await logPlayerProfileActivity({
         playerId: row.player_id,
         teamId: row.team_id,

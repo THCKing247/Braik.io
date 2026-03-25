@@ -26,7 +26,10 @@ export interface ReadinessResult {
   ready: boolean
 }
 
-export function computeReadiness(input: ReadinessInput): ReadinessResult {
+export function computeReadiness(
+  input: ReadinessInput,
+  opts?: { omitMissingItems?: boolean }
+): ReadinessResult {
   const {
     hasName,
     hasContact,
@@ -45,11 +48,13 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
   const equipmentAssigned = assignedEquipmentCount > 0
 
   const missingItems: string[] = []
-  if (!profileComplete) missingItems.push("Profile incomplete (name + contact)")
-  if (!physicalOnFile) missingItems.push("Physical on file")
-  if (!waiverOnFile) missingItems.push("Waiver on file")
-  if (!requiredDocsComplete) missingItems.push("Required documents")
-  if (!eligibilityStatus?.trim()) missingItems.push("Eligibility status")
+  if (!opts?.omitMissingItems) {
+    if (!profileComplete) missingItems.push("Profile incomplete (name + contact)")
+    if (!physicalOnFile) missingItems.push("Physical on file")
+    if (!waiverOnFile) missingItems.push("Waiver on file")
+    if (!requiredDocsComplete) missingItems.push("Required documents")
+    if (!eligibilityStatus?.trim()) missingItems.push("Eligibility status")
+  }
 
   return {
     profileComplete,

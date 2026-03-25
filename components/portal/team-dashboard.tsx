@@ -281,7 +281,7 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
     if (!teamId) return
     setLoading(true)
     setForbidden(false)
-    fetch(`/api/teams/${teamId}/readiness`)
+    fetch(`/api/teams/${teamId}/readiness?summaryOnly=1`)
       .then((res) => {
         if (res.status === 403) {
           setForbidden(true)

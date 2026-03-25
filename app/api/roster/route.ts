@@ -61,16 +61,32 @@ export async function GET(request: Request) {
     }
 
     await requireTeamAccess(teamId)
-    // Use a minimal select so roster loads even if optional columns (health_status, weight, height, missing_forms, forms_complete) are missing
-    const { data: rows, error } = await supabase
-      .from("players")
-      .select(
-        "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
-      )
-      .eq("team_id", teamId)
-      .order("last_name", { ascending: true })
-      .order("first_name", { ascending: true })
 
+    type InjuryRow = {
+      player_id: string
+      injury_reason: string
+      severity: string | null
+      exempt_from_practice: boolean | null
+      expected_return_date: string | null
+    }
+
+    const [playersResult, injuriesResult] = await Promise.all([
+      supabase
+        .from("players")
+        .select(
+          "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
+        )
+        .eq("team_id", teamId)
+        .order("last_name", { ascending: true })
+        .order("first_name", { ascending: true }),
+      supabase
+        .from("player_injuries")
+        .select("player_id, injury_reason, severity, exempt_from_practice, expected_return_date, status")
+        .eq("team_id", teamId)
+        .eq("status", "active"),
+    ])
+
+    const { data: rows, error } = playersResult
     if (error) {
       console.error("[GET /api/roster]", error.message, error)
       return NextResponse.json(
@@ -81,22 +97,10 @@ export async function GET(request: Request) {
 
     const typedRows = (rows ?? []) as PlayerRow[]
 
-    type InjuryRow = {
-      player_id: string
-      injury_reason: string
-      severity: string | null
-      exempt_from_practice: boolean | null
-      expected_return_date: string | null
-    }
     const injuryByPlayer = new Map<string, InjuryRow>()
     try {
-      const { data: activeInjuryRows, error: injFetchErr } = await supabase
-        .from("player_injuries")
-        .select("player_id, injury_reason, severity, exempt_from_practice, expected_return_date, status")
-        .eq("team_id", teamId)
-        .eq("status", "active")
-      if (!injFetchErr && activeInjuryRows?.length) {
-        for (const row of activeInjuryRows as InjuryRow[]) {
+      if (!injuriesResult.error && injuriesResult.data?.length) {
+        for (const row of injuriesResult.data as InjuryRow[]) {
           if (!injuryByPlayer.has(row.player_id)) injuryByPlayer.set(row.player_id, row)
         }
       }
@@ -105,20 +109,20 @@ export async function GET(request: Request) {
     }
 
     const userIds = [...new Set(typedRows.map((r) => r.user_id).filter(Boolean))] as string[]
-    let userMap = new Map<string, { id: string; email: string }>()
-    if (userIds.length > 0) {
-      const { data: users } = await supabase
-        .from("users")
-        .select("id, email")
-        .in("id", userIds)
-      userMap = new Map((users ?? []).map((u) => [u.id, u]))
-    }
 
-    const { data: inviteRows } = await supabase
-      .from("player_invites")
-      .select("player_id, status, token, sent_email_at, sent_sms_at")
-      .eq("team_id", teamId)
-      .in("status", ["pending", "sent", "claimed"])
+    const [usersResult, invitesResult] = await Promise.all([
+      userIds.length > 0
+        ? supabase.from("users").select("id, email").in("id", userIds)
+        : Promise.resolve({ data: [] as { id: string; email: string }[], error: null }),
+      supabase
+        .from("player_invites")
+        .select("player_id, status, token, sent_email_at, sent_sms_at")
+        .eq("team_id", teamId)
+        .in("status", ["pending", "sent", "claimed"]),
+    ])
+
+    const userMap = new Map((usersResult.data ?? []).map((u) => [u.id, u]))
+    const inviteRows = invitesResult.data
     type InviteRow = { player_id: string; status: string; token: string; sent_email_at?: string | null; sent_sms_at?: string | null }
     const inviteByPlayer = new Map<string, InviteRow>()
     for (const row of (inviteRows ?? []) as InviteRow[]) {

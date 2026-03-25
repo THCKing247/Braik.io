@@ -617,6 +617,8 @@ export function RosterManagerEnhanced({
   }>>([])
   const [teamActivityLoading, setTeamActivityLoading] = useState(false)
   const [teamOpenFollowUps, setTeamOpenFollowUps] = useState<Array<{ id: string; playerId: string; category: string }>>([])
+  /** Bumps after roster mutations so readiness refetches without depending on players.length (avoids N slow refetches). */
+  const [readinessRefetchNonce, setReadinessRefetchNonce] = useState(0)
   const [depthChart, setDepthChart] = useState<DepthChartEntry[]>([])
   const [depthChartSnapshot, setDepthChartSnapshot] = useState<DepthChartEntry[]>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -684,34 +686,59 @@ export function RosterManagerEnhanced({
 
   useEffect(() => {
     if (!canEdit || !teamId) return
+    let cancelled = false
     fetch(`/api/teams/${teamId}/readiness`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { summary: TeamReadinessSummary; players: PlayerReadinessItem[] } | null) =>
-        data ? setTeamReadiness({ summary: data.summary, players: data.players }) : setTeamReadiness(null)
-      )
-      .catch(() => setTeamReadiness(null))
-  }, [canEdit, teamId, players.length])
+      .then((data: { summary: TeamReadinessSummary; players: PlayerReadinessItem[] } | null) => {
+        if (cancelled) return
+        data
+          ? setTeamReadiness({ summary: data.summary, players: data.players ?? [] })
+          : setTeamReadiness(null)
+      })
+      .catch(() => {
+        if (!cancelled) setTeamReadiness(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canEdit, teamId, readinessRefetchNonce])
 
   useEffect(() => {
     if (!canEdit || !teamId || activeTab !== "readiness") return
     setTeamActivityLoading(true)
-    fetch(`/api/teams/${teamId}/activity?limit=15`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: Array<{ id: string; playerId: string; playerName: string; actionType: string; createdAt: string; actor: { name: string | null; email: string } | null }>) =>
-        setTeamActivity(Array.isArray(data) ? data : [])
-      )
-      .catch(() => setTeamActivity([]))
-      .finally(() => setTeamActivityLoading(false))
-  }, [canEdit, teamId, activeTab])
-
-  useEffect(() => {
-    if (!canEdit || !teamId || activeTab !== "readiness") return
-    fetch(`/api/teams/${teamId}/follow-ups?status=open`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: Array<{ id: string; playerId: string; category: string }>) =>
-        setTeamOpenFollowUps(Array.isArray(data) ? data : [])
-      )
-      .catch(() => setTeamOpenFollowUps([]))
+    let cancelled = false
+    Promise.all([
+      fetch(`/api/teams/${teamId}/activity?limit=15`).then((res) => (res.ok ? res.json() : [])),
+      fetch(`/api/teams/${teamId}/follow-ups?status=open`).then((res) => (res.ok ? res.json() : [])),
+    ])
+      .then(([activityData, followData]) => {
+        if (cancelled) return
+        setTeamActivity(
+          Array.isArray(activityData)
+            ? (activityData as Array<{
+                id: string
+                playerId: string
+                playerName: string
+                actionType: string
+                createdAt: string
+                actor: { name: string | null; email: string } | null
+              }>)
+            : []
+        )
+        setTeamOpenFollowUps(Array.isArray(followData) ? (followData as Array<{ id: string; playerId: string; category: string }>) : [])
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTeamActivity([])
+          setTeamOpenFollowUps([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTeamActivityLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [canEdit, teamId, activeTab])
 
   const isFootball = teamSport?.toLowerCase() === "football"
@@ -866,6 +893,7 @@ export function RosterManagerEnhanced({
       }
       const newPlayer = data as Player
       setPlayers([...players, newPlayer])
+      setReadinessRefetchNonce((n) => n + 1)
       setPendingPlayerData(null)
       setShowAddModal(false)
     } catch (err) {
@@ -930,6 +958,7 @@ export function RosterManagerEnhanced({
       } else {
         setPlayers([...players, ...(Array.isArray(data.players) ? data.players : [])])
       }
+      setReadinessRefetchNonce((n) => n + 1)
       setCsvFile(null)
       setShowImportForm(false)
       setShowReplaceConfirmModal(false)
@@ -1000,6 +1029,7 @@ export function RosterManagerEnhanced({
       }
       const updated = data as Player
       setPlayers((prev) => prev.map((p) => (p.id === updated.id ? { ...updated, user: editingPlayer.user, guardianLinks: editingPlayer.guardianLinks ?? [] } : p)))
+      setReadinessRefetchNonce((n) => n + 1)
       setEditingPlayer(null)
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error updating player")
@@ -1026,6 +1056,7 @@ export function RosterManagerEnhanced({
         throw new Error((data as { error?: string }).error ?? "Failed to delete player")
       }
       setPlayers((prev) => prev.filter((p) => p.id !== player.id))
+      setReadinessRefetchNonce((n) => n + 1)
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error deleting player")
     } finally {

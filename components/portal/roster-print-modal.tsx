@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
-import { X, Printer, Settings } from "lucide-react"
+import { X, Printer, Settings, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { parseRosterPrintClientData, type RosterPrintClientData } from "@/lib/roster/roster-print-payload"
 
@@ -19,6 +19,8 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  /** In-modal roster layout preview; print stays disabled until user opens preview (guided flow). */
+  const [previewVisible, setPreviewVisible] = useState(false)
 
   const togglePlayer = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -35,6 +37,22 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   }, [rosterData])
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  const playersToPrint = useMemo(() => {
+    const pl = rosterData?.players ?? []
+    return pl.filter((p) => selectedIds.has(p.id))
+  }, [rosterData, selectedIds])
+
+  const allSelected = useMemo(() => {
+    const pl = rosterData?.players ?? []
+    return pl.length > 0 && pl.every((p) => selectedIds.has(p.id))
+  }, [rosterData, selectedIds])
+
+  const hasPlayers = playersToPrint.length > 0
+
+  useEffect(() => {
+    setPreviewVisible(false)
+  }, [teamId])
 
   useEffect(() => {
     const loadRoster = async () => {
@@ -60,6 +78,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
         }
         setRosterData(normalized)
         setSelectedIds(new Set(normalized.players.map((p) => p.id)))
+        setPreviewVisible(false)
       } catch (error) {
         console.error("Failed to load roster:", error)
         setLoadError("Network error while loading the roster. Check your connection and try again.")
@@ -85,6 +104,10 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
     }
     if (!rosterData) {
       console.warn("[roster-print-modal] Print aborted: no roster data")
+      return
+    }
+    if (!previewVisible) {
+      console.warn("[roster-print-modal] Print aborted: preview not shown yet")
       return
     }
     // Wait for layout/paint so printable content is in the DOM before opening print dialog
@@ -119,13 +142,6 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   }
 
   const { team, template, players, generatedAt } = rosterData
-  const playersToPrint = useMemo(
-    () => (players || []).filter((p) => selectedIds.has(p.id)),
-    [players, selectedIds]
-  )
-  const hasPlayers = playersToPrint.length > 0
-  const allSelected =
-    (players?.length ?? 0) > 0 && (players || []).every((p) => selectedIds.has(p.id))
 
   const printBody = (
     <>
@@ -294,6 +310,9 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                   {playersToPrint.length} of {players?.length ?? 0} selected
                 </span>
               </div>
+              <p className="text-white/70 text-xs mb-2">
+                Select players, then click <strong className="text-white">Preview</strong> to see the print layout. Use <strong className="text-white">Print</strong> when ready.
+              </p>
               <div className="max-h-36 overflow-y-auto rounded border border-white/20 bg-black/20">
                 <table className="w-full text-sm text-white">
                   <thead>
@@ -342,16 +361,32 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
               </div>
             )}
 
-            <div className="no-print bg-white p-8 mx-auto max-w-4xl text-black rounded-lg" style={{ width: "8.5in" }}>
-              {printBody}
-            </div>
+            {previewVisible ? (
+              <div className="no-print bg-white p-8 mx-auto max-w-4xl text-black rounded-lg border border-white/20" style={{ width: "8.5in" }}>
+                {printBody}
+              </div>
+            ) : (
+              <div className="no-print rounded-lg border border-dashed border-white/30 bg-white/5 px-4 py-6 text-center text-sm text-white/80">
+                Preview is hidden. Select players and click <strong className="text-white">Preview</strong> to see how the roster will print.
+              </div>
+            )}
 
-            <div className="no-print flex gap-3 mt-6">
-              <Button onClick={handlePrint} className="flex-1" disabled={!hasPlayers}>
+            <div className="no-print flex flex-wrap gap-3 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                className="text-white border-white/30"
+                onClick={() => setPreviewVisible(true)}
+                disabled={!hasPlayers || previewVisible}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Preview
+              </Button>
+              <Button onClick={handlePrint} className="flex-1 min-w-[140px]" disabled={!hasPlayers || !previewVisible}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print Roster
               </Button>
-              <Button variant="outline" onClick={onClose}>
+              <Button variant="outline" onClick={onClose} className="text-white border-white/30">
                 Close
               </Button>
             </div>
@@ -362,6 +397,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
       {/* Printable content rendered into body so @media print can hide entire page and show only this */}
       {typeof document !== "undefined" &&
         document.body &&
+        previewVisible &&
         createPortal(
           <div
             className="roster-print-portal"

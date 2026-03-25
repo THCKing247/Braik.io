@@ -57,7 +57,8 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
   const [message, setMessage] = useState("")
   const [sending, setSending] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [showPreview, setShowPreview] = useState(true)
+  /** Email body preview: only after explicit Preview (not shown when modal opens). */
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -68,6 +69,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
           setRosterData(data)
           const ids = (data.players || []).map((p: RosterRow) => p.id)
           setSelectedIds(new Set(ids))
+          setEmailPreviewOpen(false)
           setSubject(`Roster — ${data.team?.name ?? "Team"} — ${new Date().toLocaleDateString()}`)
         } else {
           showToast("Could not load roster", "error")
@@ -174,7 +176,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
             </button>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Preview matches the email body. Sending uses Postmark when{" "}
+            Fill in recipients and message, select players, then click <strong className="text-foreground">Preview</strong> to see the email body. Sending uses Postmark when{" "}
             <code className="text-xs bg-muted px-1 rounded">POSTMARK_SERVER_TOKEN</code> is set.
           </p>
         </CardHeader>
@@ -220,16 +222,23 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
             <span className="text-sm text-muted-foreground">
               {filteredPlayers.length} of {rosterData.players.length} selected
             </span>
-            <Button
-              type="button"
-              variant={showPreview ? "secondary" : "outline"}
-              size="sm"
-              className="ml-auto"
-              onClick={() => setShowPreview(!showPreview)}
-            >
-              <Eye className="h-4 w-4 mr-1" />
-              {showPreview ? "Hide preview" : "Show preview"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEmailPreviewOpen(true)}
+                disabled={emailPreviewOpen}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                Preview
+              </Button>
+              {emailPreviewOpen ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setEmailPreviewOpen(false)}>
+                  Hide preview
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           <div className="rounded-md border border-border overflow-hidden max-h-40 overflow-y-auto">
@@ -265,7 +274,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
             </table>
           </div>
 
-          {showPreview && (
+          {emailPreviewOpen && (
             <div className="rounded-lg border border-border bg-white text-black p-6 shadow-inner">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Email preview</p>
               <div className="text-center mb-4">

@@ -13,14 +13,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FOLLOW_UP_CATEGORY_LABELS } from "@/lib/roster/follow-up-ui"
-import { dateToYmd } from "@/components/portal/date-time-picker"
+import { DateTimePicker } from "@/components/portal/date-time-picker"
 
-function combineLocalDateAndTime(dateStr: string, timeStr: string): Date | null {
-  if (!dateStr?.trim() || !timeStr?.trim()) return null
-  const [y, m, d] = dateStr.split("-").map(Number)
-  const [hh, mm] = timeStr.split(":").map(Number)
-  if (!y || !m || !d || Number.isNaN(hh)) return null
-  return new Date(y, m - 1, d, hh || 0, Number.isFinite(mm) ? mm : 0, 0, 0)
+/** Same next-slot rounding as scheduling create-event flow (`defaultCreateWindow` start). */
+function defaultFollowUpStart(): Date {
+  const now = new Date()
+  const start = new Date(now)
+  start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0)
+  if (start <= now) start.setMinutes(start.getMinutes() + 15)
+  return start
 }
 
 export type AddFollowUpModalProps = {
@@ -41,8 +42,7 @@ export function AddFollowUpModal({
   onSuccess,
 }: AddFollowUpModalProps) {
   const [category, setCategory] = useState("physical_follow_up")
-  const [dateStr, setDateStr] = useState("")
-  const [timeStr, setTimeStr] = useState("09:00")
+  const [startDate, setStartDate] = useState<Date | null>(null)
   const [note, setNote] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,16 +51,14 @@ export function AddFollowUpModal({
     if (!open) return
     setError(null)
     setCategory("physical_follow_up")
-    setDateStr(dateToYmd(new Date()))
-    setTimeStr("09:00")
+    setStartDate(defaultFollowUpStart())
     setNote("")
   }, [open])
 
   const handleSubmit = async () => {
     setError(null)
-    const start = combineLocalDateAndTime(dateStr, timeStr)
-    if (!start || Number.isNaN(start.getTime())) {
-      setError("Choose a valid date and time.")
+    if (!startDate || Number.isNaN(startDate.getTime())) {
+      setError("Choose a date and time using the picker.")
       return
     }
     setSubmitting(true)
@@ -71,7 +69,7 @@ export function AddFollowUpModal({
         body: JSON.stringify({
           category,
           note: note.trim() || undefined,
-          start: start.toISOString(),
+          start: startDate.toISOString(),
         }),
       })
       if (!res.ok) {
@@ -90,7 +88,7 @@ export function AddFollowUpModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md overflow-visible">
         <DialogHeader>
           <DialogTitle>Add follow-up</DialogTitle>
           <DialogDescription>
@@ -114,28 +112,13 @@ export function AddFollowUpModal({
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="follow-up-date">Date</Label>
-              <input
-                id="follow-up-date"
-                type="date"
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="follow-up-time">Time</Label>
-              <input
-                id="follow-up-time"
-                type="time"
-                value={timeStr}
-                onChange={(e) => setTimeStr(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </div>
-          </div>
+          <DateTimePicker
+            label="Scheduled time *"
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Date and time"
+            id="follow-up-scheduled-start"
+          />
           <div className="grid gap-1.5">
             <Label htmlFor="follow-up-note">Notes (optional)</Label>
             <textarea

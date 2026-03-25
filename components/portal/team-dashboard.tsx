@@ -272,6 +272,44 @@ function TeamBanner({
 
 // ─── Readiness Summary Card (coach only; fetches team readiness) ───────────────
 
+/** Coalesce concurrent summaryOnly fetches (duplicate mounts, Strict Mode, fast remounts). */
+const readinessSummaryInFlight = new Map<
+  string,
+  Promise<
+    | { forbidden: true }
+    | {
+        summary: { total: number; incompleteCount: number; readyCount: number } | null
+      }
+  >
+>()
+
+function fetchReadinessSummaryOnce(teamId: string) {
+  const existing = readinessSummaryInFlight.get(teamId)
+  if (existing) return existing
+  const p = (async () => {
+    const res = await fetch(`/api/teams/${teamId}/readiness?summaryOnly=1`)
+    if (res.status === 403) return { forbidden: true as const }
+    if (!res.ok) {
+      return { summary: null as { total: number; incompleteCount: number; readyCount: number } | null }
+    }
+    const data = (await res.json()) as {
+      summary?: { total?: number; incompleteCount?: number; readyCount?: number }
+    }
+    if (data?.summary) {
+      return {
+        summary: {
+          total: data.summary.total ?? 0,
+          incompleteCount: data.summary.incompleteCount ?? 0,
+          readyCount: data.summary.readyCount ?? 0,
+        },
+      }
+    }
+    return { summary: null }
+  })().finally(() => readinessSummaryInFlight.delete(teamId))
+  readinessSummaryInFlight.set(teamId, p)
+  return p
+}
+
 function ReadinessSummaryCard({ teamId }: { teamId: string }) {
   const readinessHref = `/dashboard/roster?teamId=${encodeURIComponent(teamId)}&tab=readiness`
   const [summary, setSummary] = useState<{ total: number; incompleteCount: number; readyCount: number } | null>(null)
@@ -280,29 +318,32 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
 
   useEffect(() => {
     if (!teamId) return
+    let cancelled = false
     setLoading(true)
     setForbidden(false)
-    fetch(`/api/teams/${teamId}/readiness?summaryOnly=1`)
-      .then((res) => {
-        if (res.status === 403) {
+    fetchReadinessSummaryOnce(teamId)
+      .then((r) => {
+        if (cancelled) return
+        if ("forbidden" in r) {
           setForbidden(true)
-          return null
-        }
-        return res.ok ? res.json() : null
-      })
-      .then((data: { summary?: { total?: number; incompleteCount?: number; readyCount?: number } } | null) => {
-        if (data?.summary) {
-          setSummary({
-            total: data.summary.total ?? 0,
-            incompleteCount: data.summary.incompleteCount ?? 0,
-            readyCount: data.summary.readyCount ?? 0,
-          })
-        } else {
           setSummary(null)
+          return
+        }
+        setForbidden(false)
+        setSummary(r.summary)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSummary(null)
+          setForbidden(false)
         }
       })
-      .catch(() => setSummary(null))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [teamId])
 
   if (forbidden) return null
@@ -941,10 +982,8 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
             <div className="hidden lg:block lg:flex-1">
               <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
             </div>
-            <div className="lg:hidden">
-              <ReadinessSummaryCard teamId={teamId} />
-            </div>
-            <div className="hidden lg:block lg:flex-1">
+            {/* One mount only: `hidden lg:block` + `lg:hidden` still mount both branches and duplicate /readiness?summaryOnly=1 */}
+            <div className="shrink-0 lg:flex-1">
               <ReadinessSummaryCard teamId={teamId} />
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "@/lib/auth/client-auth"
@@ -31,27 +31,37 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
   const [loading, setLoading] = useState(false)
   const [dismissTick, setDismissTick] = useState(0)
 
-  const showStrip = pathname === "/dashboard" && currentTeamId && COACH_ROLES.has(session?.user?.role ?? "")
-
-  const load = useCallback(async () => {
-    if (!currentTeamId || !showStrip) return
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`)
-      const data = await res.json()
-      if (res.ok && Array.isArray(data.hints)) {
-        setHints(data.hints as Hint[])
-      }
-    } catch {
-      setHints([])
-    } finally {
-      setLoading(false)
-    }
-  }, [currentTeamId, showStrip])
+  const coachRole = session?.user?.role ?? ""
+  const showStrip = pathname === "/dashboard" && Boolean(currentTeamId) && COACH_ROLES.has(coachRole)
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (!currentTeamId || !showStrip) {
+      setHints([])
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`)
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (res.ok && Array.isArray(data.hints)) {
+          setHints(data.hints as Hint[])
+        } else {
+          setHints([])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHints([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentTeamId, showStrip])
 
   const nextHint = useMemo(() => {
     for (const h of hints) {

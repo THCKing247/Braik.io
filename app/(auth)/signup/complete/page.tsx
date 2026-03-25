@@ -55,6 +55,11 @@ export default function CompleteSignupPage() {
     setLoading(true)
 
     try {
+      const joinToken =
+        typeof window !== "undefined" && signupData.role === "player"
+          ? sessionStorage.getItem("braik_join_token")
+          : null
+
       const response = await fetch("/api/auth/signup-secure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,6 +69,7 @@ export default function CompleteSignupPage() {
           password: signupData.password,
           role: signupData.role,
           teamId: signupData.teamId,
+          joinToken: joinToken || undefined,
           playerAge: signupData.playerAge,
           parentEmail: signupData.parentEmail,
           compliance: signupData.compliance,
@@ -102,6 +108,10 @@ export default function CompleteSignupPage() {
 
       // Clear localStorage
       localStorage.removeItem("signupData")
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("braik_join_token")
+        sessionStorage.removeItem("braik_parent_player_code")
+      }
 
       // Redirect to dashboard
       router.push("/dashboard")
@@ -159,13 +169,19 @@ export default function CompleteSignupPage() {
                       {signupData.teamId ? (
                         <p>
                           <strong className="text-[#212529]">
-                            {signupData.role === "parent" ? "Player Code:" : "Team Code:"}
+                            {signupData.role === "parent" ? "Player code:" : signupData.role === "player" ? "Invite code:" : "Team code:"}
                           </strong>{" "}
                           {signupData.teamId}
                         </p>
+                      ) : signupData.role === "player" && typeof window !== "undefined" && sessionStorage.getItem("braik_join_token") ? (
+                        <p className="text-[#495057] text-sm">
+                          <strong className="text-[#212529]">Coach invite link:</strong> you&apos;ll be linked to your roster after your account is created.
+                        </p>
                       ) : (
                         <p className="text-[#6c757d] text-sm italic">
-                          No code entered — you can connect to your {signupData.role === "parent" ? "player" : "team"} from your dashboard after signing up.
+                          {signupData.role === "parent"
+                            ? "Parent accounts require a player code — go back and enter it, or start at /parent/join."
+                            : "No code entered — go back and add your coach invite or player code."}
                         </p>
                       )}
                     </div>

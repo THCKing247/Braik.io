@@ -2,13 +2,11 @@ import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import {
-  buildAdTeamsOrFilter,
-  logAdTeamVisibility,
-  resolveAthleticDirectorScope,
-  teamRowVisibleToAdScope,
-} from "@/lib/ad-team-scope"
+import { logAdTeamVisibility, resolveAdPortalTeamScope, teamRowVisibleToAdScope } from "@/lib/ad-team-scope"
+import { canAccessAdPortalRoutes } from "@/lib/enforcement/football-ad-access"
 import { assistantCoachUserIds, pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
+import { AdTeamEditForm } from "@/components/portal/ad/ad-team-edit-form"
+import { SPORT_OPTIONS } from "@/lib/pricing-sports"
 
 export const dynamic = "force-dynamic"
 
@@ -21,10 +19,12 @@ export default async function AdTeamEditPage({
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  const scope = await resolveAthleticDirectorScope(supabase, session.user.id)
-  const teamsOrFilter = buildAdTeamsOrFilter(scope)
+  const { scope, orFilter: teamsOrFilter, footballAccess } = await resolveAdPortalTeamScope(
+    supabase,
+    session.user.id
+  )
 
-  if (!teamsOrFilter) {
+  if (!canAccessAdPortalRoutes(footballAccess) || !teamsOrFilter) {
     logAdTeamVisibility("AdTeamEditPage", {
       scope,
       sessionRole: session.user.role ?? null,
@@ -38,7 +38,9 @@ export default async function AdTeamEditPage({
 
   const { data: team } = await supabase
     .from("teams")
-    .select("id, name, sport, roster_size, season, notes, school_id, athletic_department_id, program_id")
+    .select(
+      "id, name, sport, roster_size, season, notes, school_id, athletic_department_id, program_id, team_level, gender"
+    )
     .eq("id", params.id)
     .maybeSingle()
 
@@ -94,9 +96,20 @@ export default async function AdTeamEditPage({
   const rawHcName = headCoachUserId ? nameById.get(headCoachUserId) : null
   const headCoachDisplay = rawHcName && rawHcName.length > 0 ? rawHcName : null
 
+  let headCoachEmail: string | null = null
+  if (headCoachUserId) {
+    const { data: hp } = await supabase.from("profiles").select("email").eq("id", headCoachUserId).maybeSingle()
+    headCoachEmail = (hp?.email as string | null) ?? null
+  }
+
   const assistantNames = assistantIds
     .map((id) => nameById.get(id))
     .filter((n): n is string => Boolean(n && n.length > 0))
+
+  const rawSport =
+    (team as { sport?: string | null }).sport?.trim() || programSport?.trim() || "football"
+  const sportDisplay =
+    SPORT_OPTIONS.find((o) => o.toLowerCase() === rawSport.toLowerCase()) ?? "Football"
 
   return (
     <div className="space-y-8">
@@ -111,34 +124,24 @@ export default async function AdTeamEditPage({
         <p className="mt-1 text-[#6B7280]">{team.name}</p>
       </div>
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-        <p className="text-[#6B7280]">
-          Full team editing (sport, roster size, coach assignment) will be available in a future update.
-        </p>
-        <dl className="mt-4 grid gap-2 text-sm">
+        <AdTeamEditForm
+          teamId={team.id}
+          initialName={(team as { name?: string | null }).name ?? ""}
+          initialSport={sportDisplay}
+          initialRosterSize={(team as { roster_size?: number | null }).roster_size ?? null}
+          initialTeamLevel={(team as { team_level?: string | null }).team_level ?? null}
+          initialGender={(team as { gender?: string | null }).gender ?? null}
+          initialHeadCoachEmail={headCoachEmail}
+        />
+        <dl className="mt-8 grid gap-2 text-sm border-t border-[#E5E7EB] pt-6">
           <div>
-            <dt className="font-medium text-[#6B7280]">Head coach</dt>
+            <dt className="font-medium text-[#6B7280]">Head coach (display)</dt>
             <dd className="text-[#212529]">{headCoachDisplay ?? "No head coach assigned"}</dd>
           </div>
           <div>
             <dt className="font-medium text-[#6B7280]">Assistant coaches</dt>
             <dd className="text-[#212529]">
               {assistantNames.length > 0 ? assistantNames.join(", ") : "None listed"}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium text-[#6B7280]">Sport</dt>
-            <dd className="text-[#212529]">
-              {(team as { sport?: string | null }).sport?.trim() ||
-                programSport?.trim() ||
-                "Not set"}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium text-[#6B7280]">Roster size</dt>
-            <dd className="text-[#212529]">
-              {(team as { roster_size?: number | null }).roster_size != null
-                ? String((team as { roster_size?: number | null }).roster_size)
-                : "Not set"}
             </dd>
           </div>
           <div>

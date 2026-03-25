@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { generateUniqueInviteCode } from "@/lib/invites/invite-codes"
 import type { InviteCodeType } from "@/lib/invites/invite-codes"
 import { getOrCreateAdOrganization } from "@/lib/ad-organization"
+import { canPerformDepartmentOwnerActions, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 
 export const runtime = "nodejs"
 
@@ -48,6 +49,13 @@ export async function POST(request: Request) {
     let organizationId: string | null = bodyOrgId ?? null
 
     if (inviteType === "athletic_director_link_invite") {
+      const footballAccess = await resolveFootballAdAccessState(supabase, session.user.id)
+      if (!canPerformDepartmentOwnerActions(footballAccess)) {
+        return NextResponse.json(
+          { error: "Only the athletic department license holder can create this link code." },
+          { status: 403 }
+        )
+      }
       const adOrg = await getOrCreateAdOrganization(supabase, session.user.id)
       if (!adOrg) {
         return NextResponse.json(

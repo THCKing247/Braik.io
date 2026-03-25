@@ -33,9 +33,15 @@ export function readLastVisitedAppPath(): string | null {
   }
 }
 
-/** Last visited dashboard/admin path, or role default (for post-login / mobile `/` redirect). */
-export function getResumeOrDefaultAppPath(role?: string | null): string {
+/**
+ * Last visited dashboard/admin path, or server default (Phase 2), or role fallback.
+ * Prefer `sessionDefaultPath` from `/api/auth/session` when no stored path.
+ */
+export function getResumeOrDefaultAppPath(role?: string | null, sessionDefaultPath?: string | null): string {
   const stored = readLastVisitedAppPath()
   if (stored) return stored
+  if (typeof sessionDefaultPath === "string" && sessionDefaultPath.startsWith("/") && sessionDefaultPath.length <= MAX_LEN) {
+    return sessionDefaultPath
+  }
   return getDefaultAppPathForRole(role)
 }

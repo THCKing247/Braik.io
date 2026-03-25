@@ -1,9 +1,12 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
+import { cookies } from "next/headers"
 import { isRedirectError } from "next/dist/client/components/redirect"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { fetchAdPortalVisibleTeams } from "@/lib/ad-team-scope"
+import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
 import { SubscriptionGuard } from "@/components/portal/subscription-guard"
 import { DashboardLayoutClient } from "@/components/portal/dashboard-layout-client"
@@ -75,57 +78,64 @@ export default async function DashboardLayout({
     }
 
     const userRole = session.user.role?.toUpperCase()
-    if (userRole === "ATHLETIC_DIRECTOR") {
-      return <>{children}</>
-    }
-
     const supabase = getSupabaseServer()
 
     // When impersonating, load the target user's teams; otherwise use session user
     impersonationSession = await getActiveImpersonationFromCookies()
     const effectiveUserId = impersonationSession?.target_user_id ?? session.user.id
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("team_id")
-      .eq("id", effectiveUserId)
-      .maybeSingle()
+    let teamIds: string[] = []
 
-    const { data: membershipRows } = await supabase
-      .from("team_members")
-      .select("team_id")
-      .eq("user_id", effectiveUserId)
-      .eq("active", true)
+    if (userRole === "ATHLETIC_DIRECTOR") {
+      const { teams: adTeams } = await fetchAdPortalVisibleTeams(supabase, session.user.id)
+      teamIds = [...new Set((adTeams ?? []).map((t) => t.id).filter(Boolean))]
+      if (teamIds.length === 0) {
+        redirect("/dashboard/ad/teams")
+      }
+    } else {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("team_id")
+        .eq("id", effectiveUserId)
+        .maybeSingle()
 
-    let teamIds: string[] = [...new Set((membershipRows ?? []).map((r) => r.team_id).filter(Boolean))]
+      const { data: membershipRows } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", effectiveUserId)
+        .eq("active", true)
 
-    if (profile?.team_id && !teamIds.includes(profile.team_id)) {
-      teamIds = [...teamIds, profile.team_id]
-    }
+      teamIds = [...new Set((membershipRows ?? []).map((r) => r.team_id).filter(Boolean))]
 
-    if (teamIds.length === 0) {
-      const { data: hcTeams } = await supabase
-        .from("teams")
-        .select("id")
-        .eq("head_coach_user_id", effectiveUserId)
-      if (hcTeams?.length) {
-        teamIds = hcTeams.map((t) => t.id)
+      if (profile?.team_id && !teamIds.includes(profile.team_id)) {
+        teamIds = [...teamIds, profile.team_id]
+      }
+
+      if (teamIds.length === 0) {
+        const { data: hcTeams } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("head_coach_user_id", effectiveUserId)
+        if (hcTeams?.length) {
+          teamIds = hcTeams.map((t) => t.id)
+        }
+      }
+
+      if (teamIds.length === 0) {
+        const { data: createdTeams } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("created_by", effectiveUserId)
+        if (createdTeams?.length) {
+          teamIds = createdTeams.map((t) => t.id)
+        }
+      }
+      if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
+        teamIds = [session.user.teamId]
       }
     }
 
-    // Last resort: teams.created_by (audit / legacy) when no team_members or profile link
-    if (teamIds.length === 0) {
-      const { data: createdTeams } = await supabase
-        .from("teams")
-        .select("id")
-        .eq("created_by", effectiveUserId)
-      if (createdTeams?.length) {
-        teamIds = createdTeams.map((t) => t.id)
-      }
-    }
-    if (teamIds.length === 0 && session.user.teamId && effectiveUserId === session.user.id) {
-      teamIds = [session.user.teamId]
-    }
+    const dashboardTeamHint = cookies().get(BRAIK_DASHBOARD_TEAM_HINT_COOKIE)?.value ?? null
 
     teams = []
 
@@ -159,9 +169,17 @@ export default async function DashboardLayout({
     // Resolve currentTeamId only from teams we actually loaded (never use stale session.teamId that no longer exists)
     const validTeamIds = new Set(teams.map((t) => t.id))
     const sessionTeamId = session.user.teamId
+    const hintOk =
+      userRole === "ATHLETIC_DIRECTOR" &&
+      dashboardTeamHint &&
+      validTeamIds.has(dashboardTeamHint)
     const currentTeamId = impersonationSession
       ? teams[0]?.id
-      : (sessionTeamId && validTeamIds.has(sessionTeamId) ? sessionTeamId : teams[0]?.id) ?? ""
+      : hintOk
+        ? dashboardTeamHint
+        : sessionTeamId && validTeamIds.has(sessionTeamId)
+          ? sessionTeamId
+          : teams[0]?.id ?? ""
     currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
 
     // ── Dev mode: treat all accounts as fully paid ─────────────────────────

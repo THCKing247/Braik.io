@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireProgramCoach } from "@/lib/auth/rbac"
+import { requireProgramTeamsListAccess } from "@/lib/auth/rbac"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 
 /**
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: "programId is required" }, { status: 400 })
     }
 
-    await requireProgramCoach(programId)
+    await requireProgramTeamsListAccess(programId)
 
     const supabase = getSupabaseServer()
     const { data, error } = await supabase

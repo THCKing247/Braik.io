@@ -24,7 +24,7 @@ function generateSecureToken(): string {
 /**
  * POST /api/roster/[playerId]/invite - Create or update a player invite (token + optional email/phone).
  * Returns join link so the player can open /join?token=... without entering a code.
- * Legacy: still sets players.invite_code and invite_status for backward compatibility.
+ * Sets `players.invite_code` (unique player code) and syncs a typed `invite_codes` row (`player_claim_invite`) for signup/redeem flows.
  */
 export async function POST(
   request: Request,
@@ -152,6 +152,34 @@ export async function POST(
     if (error) {
       console.error("[POST /api/roster/[playerId]/invite]", error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    const teamIdForInvite = (player as { team_id: string }).team_id
+    const { data: teamRow } = await supabase.from("teams").select("program_id").eq("id", teamIdForInvite).maybeSingle()
+    const programIdForInvite = (teamRow as { program_id?: string | null } | null)?.program_id ?? null
+
+    await supabase
+      .from("invite_codes")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("invite_type", "player_claim_invite")
+      .eq("target_player_id", playerId)
+      .eq("is_active", true)
+
+    const expiresAtIso = expiresAt.toISOString()
+    const { error: typedInviteErr } = await supabase.from("invite_codes").insert({
+      code,
+      invite_type: "player_claim_invite",
+      organization_id: null,
+      program_id: programIdForInvite,
+      team_id: teamIdForInvite,
+      target_player_id: playerId,
+      max_uses: 1,
+      expires_at: expiresAtIso,
+      is_active: true,
+      created_by_user_id: session.user.id,
+    })
+    if (typedInviteErr) {
+      console.warn("[POST /api/roster/[playerId]/invite] invite_codes player_claim_invite", typedInviteErr.message)
     }
 
     const origin =

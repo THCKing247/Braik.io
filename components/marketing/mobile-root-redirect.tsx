@@ -29,7 +29,7 @@ export function MobileRootRedirect() {
     if (status !== "authenticated" || !data?.user) return
     if (didRun.current) return
     didRun.current = true
-    router.replace(getResumeOrDefaultAppPath(data.user.role))
+    router.replace(getResumeOrDefaultAppPath(data.user.role, data.user.defaultAppPath))
   }, [router, status, data?.user])
 
   if (status === "unauthenticated") {

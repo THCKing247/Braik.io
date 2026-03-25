@@ -1,5 +1,6 @@
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { isFootballProgramSport } from "@/lib/enforcement/football-ad-access"
 import { ROLES, type Role, canManageTeam, canEditRoster, canManageBilling, canPostAnnouncements, canViewPayments } from "./roles"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 
@@ -322,4 +323,159 @@ export async function requireProgramHeadCoach(programId: string): Promise<{ user
   }
 
   return { user, membership }
+}
+
+/**
+ * List program teams for roster UI (e.g. promotion dropdown). Allows program coaches (not `athletic_director`
+ * program role) and team-level head/assistant coaches without a `program_members` row (legacy / team-scoped).
+ */
+export async function requireProgramTeamsListAccess(programId: string): Promise<{ user: { id: string } }> {
+  const user = await requireAuth()
+  const supabase = getSupabaseServer()
+
+  const { data: pm, error: pmErr } = await supabase
+    .from("program_members")
+    .select("role")
+    .eq("program_id", programId)
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .maybeSingle()
+
+  if (pmErr) {
+    console.error("[requireProgramTeamsListAccess] program_members", pmErr)
+    throw new MembershipLookupError("Database error during program membership lookup", pmErr)
+  }
+
+  const pmRole = (pm?.role as string | undefined) ?? ""
+  if (pmRole === "head_coach" || pmRole === "assistant_coach") {
+    return { user }
+  }
+
+  const { data: programTeams, error: tErr } = await supabase.from("teams").select("id").eq("program_id", programId)
+  if (tErr) {
+    console.error("[requireProgramTeamsListAccess] teams", tErr)
+    throw new MembershipLookupError("Database error listing program teams", tErr)
+  }
+  const teamIds = (programTeams ?? []).map((r) => (r as { id: string }).id)
+  if (teamIds.length === 0) {
+    logPermissionDenial({ userId: user.id, teamId: programId, reason: "No teams in program" })
+    throw new Error("Access denied")
+  }
+
+  const { data: tm, error: tmErr } = await supabase
+    .from("team_members")
+    .select("id")
+    .in("team_id", teamIds)
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .in("role", ["head_coach", "assistant_coach"])
+    .limit(1)
+
+  if (tmErr) {
+    console.error("[requireProgramTeamsListAccess] team_members", tmErr)
+    throw new MembershipLookupError("Database error during team membership lookup", tmErr)
+  }
+
+  if (tm && tm.length > 0) {
+    return { user }
+  }
+
+  logPermissionDenial({
+    userId: user.id,
+    teamId: programId,
+    reason: "Not a coach with access to this program's teams",
+  })
+  throw new Error("Access denied: Not a coach in this program")
+}
+
+/**
+ * Phase 7: move players between football team levels within one program. Head coach via `program_members` or
+ * primary head coach (`team_members` head_coach with is_primary !== false) on any program team.
+ * Does not grant access via `athletic_director` program role (AD portal is separate).
+ */
+export async function requireProgramFootballPlayerReassignmentAuthority(
+  programId: string
+): Promise<{ user: { id: string } }> {
+  const user = await requireAuth()
+  const supabase = getSupabaseServer()
+
+  const { data: program, error: progErr } = await supabase
+    .from("programs")
+    .select("id, sport")
+    .eq("id", programId)
+    .maybeSingle()
+
+  if (progErr) {
+    console.error("[requireProgramFootballPlayerReassignmentAuthority] programs", progErr)
+    throw new MembershipLookupError("Database error loading program", progErr)
+  }
+  if (!program) {
+    logPermissionDenial({ userId: user.id, teamId: programId, reason: "Program not found" })
+    throw new Error("Access denied")
+  }
+
+  if (!isFootballProgramSport((program as { sport?: string | null }).sport)) {
+    logPermissionDenial({
+      userId: user.id,
+      teamId: programId,
+      reason: "Player level reassignment is only for football programs",
+    })
+    throw new Error("Access denied: Player level moves are only supported for football programs")
+  }
+
+  const { data: pm, error: pmErr } = await supabase
+    .from("program_members")
+    .select("role")
+    .eq("program_id", programId)
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .maybeSingle()
+
+  if (pmErr) {
+    console.error("[requireProgramFootballPlayerReassignmentAuthority] program_members", pmErr)
+    throw new MembershipLookupError("Database error during program membership lookup", pmErr)
+  }
+
+  if ((pm?.role as string | undefined) === "head_coach") {
+    return { user }
+  }
+
+  const { data: programTeams, error: tErr } = await supabase.from("teams").select("id").eq("program_id", programId)
+  if (tErr) {
+    console.error("[requireProgramFootballPlayerReassignmentAuthority] teams", tErr)
+    throw new MembershipLookupError("Database error listing program teams", tErr)
+  }
+  const teamIds = (programTeams ?? []).map((r) => (r as { id: string }).id)
+  if (teamIds.length === 0) {
+    logPermissionDenial({ userId: user.id, teamId: programId, reason: "No teams in program" })
+    throw new Error("Access denied")
+  }
+
+  const { data: headRows, error: tmErr } = await supabase
+    .from("team_members")
+    .select("id, is_primary")
+    .in("team_id", teamIds)
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .eq("role", "head_coach")
+
+  if (tmErr) {
+    console.error("[requireProgramFootballPlayerReassignmentAuthority] team_members", tmErr)
+    throw new MembershipLookupError("Database error during team membership lookup", tmErr)
+  }
+
+  const hasHeadSeat = (headRows ?? []).some((row) => {
+    const ip = (row as { is_primary?: boolean | null }).is_primary
+    return ip !== false
+  })
+  if (hasHeadSeat) {
+    return { user }
+  }
+
+  logPermissionDenial({
+    userId: user.id,
+    teamId: programId,
+    reason: "Head coach authority required for roster moves between levels",
+  })
+  throw new Error("Access denied: Head coach required for this action")
 }

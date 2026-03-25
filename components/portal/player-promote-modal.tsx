@@ -102,8 +102,8 @@ export function PlayerPromoteModal({
             Move player
           </DialogTitle>
           <DialogDescription>
-            Move <strong>{playerName}</strong> to another team level in the program. This will update their roster
-            and record the move in history.
+            Move <strong>{playerName}</strong> to another football squad in this program (varsity, JV, or freshman).
+            Their player record and parent links stay the same; linked accounts and gear assignments move with them.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

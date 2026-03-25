@@ -8,6 +8,7 @@ import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { headCoachSignupTeamLevels } from "@/lib/onboarding/head-coach-team-levels"
 import { logTeamMembersAudit, setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
+import { claimPlayerInviteForUser } from "@/lib/player-invite-claim"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 
@@ -32,6 +33,8 @@ type RawSignupBody = {
   phone?: string
   sport?: string
   programCode?: string
+  /** From /join?token= — links roster during signup (Phase 6). */
+  joinToken?: string
   // Backward-compatible aliases from the existing flow
   name?: string
   teamName?: string
@@ -86,6 +89,7 @@ function parseSignupPayload(body: RawSignupBody) {
   const programType = asNonEmptyString(body.programType)
   const programCode =
     (asNonEmptyString(body.programCode) ?? asNonEmptyString(body.teamId))?.toUpperCase() ?? null
+  const joinToken = asNonEmptyString(body.joinToken)?.trim() ?? null
   const role = normalizeRole(asNonEmptyString(body.role))
   const smsOptIn = parseOptIn(body.smsOptIn)
 
@@ -99,6 +103,7 @@ function parseSignupPayload(body: RawSignupBody) {
     sport,
     programType,
     programCode,
+    joinToken,
     smsOptIn,
   }
 }
@@ -131,7 +136,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as RawSignupBody
-    const { fullName, programName, email, password, role, phone, sport, programType, programCode, smsOptIn } =
+    const { fullName, programName, email, password, role, phone, sport, programType, programCode, joinToken, smsOptIn } =
       parseSignupPayload(body)
 
     // programName and sport are only required when the user is creating a new team (head_coach)
@@ -165,8 +170,19 @@ export async function POST(request: Request) {
       throw new SignupRouteError(403, "Role tampering detected")
     }
 
-    // Note: programCode is now OPTIONAL for non-head-coach roles.
-    // Users can join a team from the dashboard after signing up.
+    if (role === "parent" && !programCode) {
+      throw new SignupRouteError(
+        400,
+        "A player code is required for parent accounts. Start at /parent/join to enter your child's code, then complete signup."
+      )
+    }
+
+    if (role === "player" && !programCode && !joinToken) {
+      throw new SignupRouteError(
+        400,
+        "Player accounts require a coach invite. Use the invite link from your coach, or enter your personal player code from the team portal."
+      )
+    }
 
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
@@ -463,6 +479,19 @@ export async function POST(request: Request) {
         )
       }
 
+      const { data: otherParentRows } = await supabase
+        .from("parent_player_links")
+        .select("id")
+        .eq("player_id", linkedPlayerId)
+        .limit(1)
+
+      if (otherParentRows && otherParentRows.length > 0) {
+        throw new SignupRouteError(
+          409,
+          "This player already has a linked parent account. Sign in with that account or contact support if you need help."
+        )
+      }
+
       const { data: existingParentLink } = await supabase
         .from("parent_player_links")
         .select("id")
@@ -495,6 +524,12 @@ export async function POST(request: Request) {
       })
 
       teamId = linkedTeamId
+    } else if (role === "player" && joinToken) {
+      const claim = await claimPlayerInviteForUser(supabase, createdAuthUserId, { token: joinToken })
+      if (!claim.ok) {
+        throw new SignupRouteError(claim.status, claim.error)
+      }
+      teamId = claim.teamId
     } else if (programCode && role === "player") {
       try {
         const typedCode = await findInviteCode(supabase, programCode, ["team_player_join", "player_claim_invite"])
@@ -728,6 +763,7 @@ export async function POST(request: Request) {
       metadata: {
         profile_role: role,
         used_program_code: Boolean(programCode),
+        used_join_token: Boolean(joinToken),
       },
     })
 

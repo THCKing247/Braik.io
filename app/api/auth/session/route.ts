@@ -21,6 +21,7 @@ export async function GET() {
           organizationName: session.user.organizationName,
           positionGroups: session.user.positionGroups ?? undefined,
           isPlatformOwner: session.user.isPlatformOwner,
+          defaultAppPath: session.user.defaultAppPath,
         },
       })
       if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)

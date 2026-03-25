@@ -32,6 +32,8 @@ export type SessionResponse = {
     organizationName?: string
     positionGroups?: string[] | null
     isPlatformOwner?: boolean
+    /** Server-resolved first portal (Phase 2); used when no last-visited path. */
+    defaultAppPath?: string
   }
 }
 

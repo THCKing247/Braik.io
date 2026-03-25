@@ -6,10 +6,14 @@ import { AdTeamStatusBadge } from "./ad-team-status-badge"
 export type TeamRow = {
   id: string
   name: string
+  /** For filters only — not shown as its own column. */
   sport: string | null
+  genderLabel: string
+  levelLabel: string
   rosterSize: number | null
-  createdAt: string
   headCoachName: string | null
+  creatorName: string | null
+  createdAt: string
   invitePending: boolean
 }
 
@@ -22,7 +26,7 @@ function formatDate(iso: string) {
     const d = new Date(iso)
     return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
   } catch {
-    return "Not set"
+    return "—"
   }
 }
 
@@ -38,19 +42,25 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
           <thead className="bg-[#F9FAFB]">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
+                Gender
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
                 Team
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
-                Sport
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
-                Roster size
+                Level
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
                 Head coach
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
-                Created
+                Roster size
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
+                Creator
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
+                Date created
               </th>
               <th className="px-4 py-3 text-right text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
                 Actions
@@ -66,15 +76,11 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                   : "none"
               return (
                 <tr key={team.id}>
+                  <td className="px-4 py-3 text-sm text-[#6B7280]">{team.genderLabel}</td>
                   <td className="px-4 py-3">
                     <span className="font-medium text-[#212529]">{team.name}</span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-[#6B7280]">
-                    {team.sport?.trim() ? team.sport : "Not set"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-[#6B7280]">
-                    {team.rosterSize != null ? team.rosterSize : "Not set"}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-[#6B7280]">{team.levelLabel}</td>
                   <td className="px-4 py-3">
                     <AdTeamStatusBadge
                       status={status}
@@ -82,9 +88,19 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                     />
                   </td>
                   <td className="px-4 py-3 text-sm text-[#6B7280]">
-                    {formatDate(team.createdAt)}
+                    {team.rosterSize != null ? team.rosterSize : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm">
+                  <td className="px-4 py-3 text-sm text-[#6B7280]">
+                    {team.creatorName?.trim() ? team.creatorName : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[#6B7280]">{formatDate(team.createdAt)}</td>
+                  <td className="px-4 py-3 text-right text-sm space-x-3 whitespace-nowrap">
+                    <Link
+                      href={`/dashboard?teamId=${team.id}`}
+                      className="text-[#3B82F6] hover:underline font-medium"
+                    >
+                      Portal access
+                    </Link>
                     <Link
                       href={`/dashboard/ad/teams/${team.id}`}
                       className="text-[#3B82F6] hover:underline font-medium"

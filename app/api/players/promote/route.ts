@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireProgramHeadCoach } from "@/lib/auth/rbac"
-import { MembershipLookupError } from "@/lib/auth/rbac"
+import {
+  MembershipLookupError,
+  requireProgramFootballPlayerReassignmentAuthority,
+} from "@/lib/auth/rbac"
 import { upsertStaffTeamMember } from "@/lib/team-members-sync"
+import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 
 const TEAM_LEVELS = ["varsity", "jv", "freshman"] as const
 
 /**
  * POST /api/players/promote
- * Promote or demote a player between program team levels (Freshman, JV, Varsity).
- * Requires head coach of the program. Records history in player_team_history and updates players.team_id.
+ * Phase 7: Move a player between football team levels (Freshman / JV / Varsity) within the same program.
+ * Preserves `players.id`, `user_id`, and `parent_player_links`. Updates profile team, pending invites, and assigned gear team.
  */
 export async function POST(request: Request) {
   try {
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
 
     const { data: player, error: playerErr } = await supabase
       .from("players")
-      .select("id, team_id, user_id")
+      .select("id, team_id, user_id, status")
       .eq("id", playerId)
       .maybeSingle()
 
@@ -86,13 +89,24 @@ export async function POST(request: Request) {
       )
     }
 
-    await requireProgramHeadCoach(programId)
+    await requireProgramFootballPlayerReassignmentAuthority(programId)
 
     const fromLevel = (fromTeam.team_level ?? "").toLowerCase() || null
     const fromLevelValid =
       fromLevel && TEAM_LEVELS.includes(fromLevel as (typeof TEAM_LEVELS)[number])
         ? fromLevel
         : null
+
+    const playerStatus = String((player as { status?: string }).status ?? "active").toLowerCase()
+    if (playerStatus === "active") {
+      const cap = await assertCanAddActivePlayers(supabase, toTeamId, 1)
+      if (!cap.ok) {
+        return NextResponse.json(
+          { error: cap.message, code: "ROSTER_LIMIT_REACHED", limit: cap.limit, current: cap.current },
+          { status: 402 }
+        )
+      }
+    }
 
     const { error: historyInsertErr } = await supabase.from("player_team_history").insert({
       player_id: playerId,
@@ -130,6 +144,20 @@ export async function POST(request: Request) {
       )
     }
 
+    await supabase.from("player_invites").update({ team_id: toTeamId }).eq("player_id", playerId).in("status", ["pending", "sent"])
+
+    await supabase
+      .from("invite_codes")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("invite_type", "player_claim_invite")
+      .eq("target_player_id", playerId)
+      .eq("is_active", true)
+
+    await supabase
+      .from("inventory_items")
+      .update({ team_id: toTeamId, updated_at: new Date().toISOString() })
+      .eq("assigned_to_player_id", playerId)
+
     const linkedUserId = (player as { user_id?: string | null }).user_id
     if (linkedUserId) {
       await supabase.from("team_members").delete().eq("team_id", fromTeamId).eq("user_id", linkedUserId)
@@ -142,6 +170,14 @@ export async function POST(request: Request) {
           { error: "Failed to update team membership for linked account", details: tmErr.message },
           { status: 500 }
         )
+      }
+
+      const { error: profErr } = await supabase
+        .from("profiles")
+        .update({ team_id: toTeamId, updated_at: new Date().toISOString() })
+        .eq("id", linkedUserId)
+      if (profErr) {
+        console.warn("[POST /api/players/promote] profiles team_id update", profErr.message)
       }
     }
 

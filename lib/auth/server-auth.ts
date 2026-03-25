@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
+import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
 
 const AUTH_DEBUG = process.env.DEBUG_AUTH === "true"
 
@@ -16,6 +17,8 @@ export type SessionUser = {
   organizationName?: string
   positionGroups?: string[] | null
   isPlatformOwner?: boolean
+  /** Role-aware default when no last-visited path (Phase 2 portal entry). */
+  defaultAppPath?: string
 }
 
 export type AppSession = { user: SessionUser }
@@ -105,6 +108,12 @@ async function buildSessionUser(
 
   const rawRole = profile?.role ?? "player"
   const role = rawRole.toUpperCase().replace(/ /g, "_")
+  let defaultAppPath = "/dashboard"
+  try {
+    defaultAppPath = await resolvePortalEntryPath(supabase, userId)
+  } catch {
+    defaultAppPath = "/dashboard"
+  }
   return {
     id: userId,
     email,
@@ -116,6 +125,7 @@ async function buildSessionUser(
     organizationName: undefined,
     positionGroups: null,
     isPlatformOwner,
+    defaultAppPath,
   }
 }
 

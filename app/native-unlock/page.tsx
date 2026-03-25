@@ -42,7 +42,7 @@ export default function NativeUnlockPage() {
       const bio = await getNativeBiometricUnlockEnabled()
       if (!bio) {
         markNativeBiometricUnlockedThisLaunch()
-        router.replace(getResumeOrDefaultAppPath(data.user.role))
+        router.replace(getResumeOrDefaultAppPath(data.user.role, data.user.defaultAppPath))
       }
     })()
   }, [status, data, router])
@@ -50,7 +50,7 @@ export default function NativeUnlockPage() {
   const goDashboard = () => {
     if (!data?.user) return
     markNativeBiometricUnlockedThisLaunch()
-    router.replace(getResumeOrDefaultAppPath(data.user.role))
+    router.replace(getResumeOrDefaultAppPath(data.user.role, data.user.defaultAppPath))
   }
 
   const onUnlockBiometric = async () => {

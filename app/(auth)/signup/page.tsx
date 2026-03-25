@@ -10,6 +10,9 @@ import { LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 import Link from "next/link"
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 
+const JOIN_TOKEN_SESSION_KEY = "braik_join_token"
+const PARENT_CODE_SESSION_KEY = "braik_parent_player_code"
+
 export default function SignupPage() {
   const router = useRouter()
   const [error, setError] = useState("")
@@ -39,7 +42,16 @@ export default function SignupPage() {
       const data = JSON.parse(saved)
       setRole(data.role || "")
       if (data.role !== "head-coach") {
-        setTeamId(data.teamId || "")
+        let tid = data.teamId || ""
+        if (data.role === "parent" && typeof window !== "undefined" && !tid) {
+          const fromParentFlow = sessionStorage.getItem(PARENT_CODE_SESSION_KEY)
+          if (fromParentFlow) {
+            tid = fromParentFlow
+            data.teamId = fromParentFlow
+            localStorage.setItem("signupData", JSON.stringify(data))
+          }
+        }
+        setTeamId(tid)
       }
       setFirstName(data.firstName || "")
       setLastName(data.lastName || "")
@@ -94,7 +106,29 @@ export default function SignupPage() {
       return
     }
 
-    // Team/player code is now optional at sign-up — users can enter it from the dashboard after logging in.
+    if (role === "parent" && !teamId.trim()) {
+      setError(
+        withErrorCode(
+          "SIGNUP-VALIDATION-008",
+          "Enter your child's player code, or start at Parent sign up (/parent/join) to validate the code first."
+        )
+      )
+      return
+    }
+
+    if (role === "player") {
+      const hasJoinToken =
+        typeof window !== "undefined" && Boolean(sessionStorage.getItem(JOIN_TOKEN_SESSION_KEY))
+      if (!teamId.trim() && !hasJoinToken) {
+        setError(
+          withErrorCode(
+            "SIGNUP-VALIDATION-009",
+            "Use the invite link from your coach, or enter your personal player code from the team roster before continuing."
+          )
+        )
+        return
+      }
+    }
 
     if (!acceptLegalBundle) {
       setError(
@@ -258,8 +292,18 @@ export default function SignupPage() {
                   {role && role !== "head-coach" && (
                     <div className="space-y-2">
                       <Label htmlFor="teamId" className="text-sm font-medium text-foreground">
-                        {role === "parent" ? "Player Code" : "Team Code"}{" "}
-                        <span className="font-normal text-[#9CA3AF]">(Optional)</span>
+                        {role === "parent"
+                          ? "Player code"
+                          : role === "player"
+                            ? "Player / team code"
+                            : "Team code"}{" "}
+                        {role === "parent" ? (
+                          <span className="font-normal text-[#9CA3AF]">(required)</span>
+                        ) : role === "player" ? (
+                          <span className="font-normal text-[#9CA3AF]">(required unless you use a coach invite link)</span>
+                        ) : (
+                          <span className="font-normal text-[#9CA3AF]">(optional)</span>
+                        )}
                       </Label>
                       <Input
                         id="teamId"
@@ -269,15 +313,27 @@ export default function SignupPage() {
                         className="bg-background text-foreground placeholder:text-muted-foreground font-mono text-lg tracking-wider"
                         placeholder={
                           role === "parent"
-                            ? "Enter Player Code — you can add this after signing up"
-                            : "Enter Team Code — you can add this after signing up"
+                            ? "Your child's personal player code"
+                            : role === "player"
+                              ? "Personal player code from your coach"
+                              : "Staff invite or team code from your head coach"
                         }
-                        maxLength={8}
+                        maxLength={20}
                       />
                       <p className="text-xs text-muted-foreground">
-                        {role === "parent"
-                          ? "Your Player Code comes from your child's coaching staff. You can enter it now or from your dashboard after signing up."
-                          : "Get your Team Code from your Head Coach. You can enter it now or connect from your dashboard after signing up."}
+                        {role === "parent" ? (
+                          <>
+                            Parents should start at{" "}
+                            <a href="/parent/join" className="font-medium text-[#3B82F6] hover:underline">
+                              Parent sign up
+                            </a>{" "}
+                            to enter this code first (same code works here).
+                          </>
+                        ) : role === "player" ? (
+                          "Coaches issue this from the team roster. If you opened an invite link from your coach, you can leave this blank and finish linking after you create your account."
+                        ) : (
+                          "Get a staff invite or team code from your head coach. You can also connect after signing up."
+                        )}
                       </p>
                     </div>
                   )}

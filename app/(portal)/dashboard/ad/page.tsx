@@ -1,11 +1,13 @@
+import { redirect } from "next/navigation"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 import Link from "next/link"
 import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
 import {
-  fetchAdVisibleTeams,
+  fetchAdPortalVisibleTeams,
   logAdDashboardMetrics,
   logAdTeamVisibility,
 } from "@/lib/ad-team-scope"
@@ -17,6 +19,11 @@ export default async function AthleticDirectorOverviewPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
+  const access = await resolveFootballAdAccessState(supabase, session.user.id)
+  if (access.state === "restricted_football_ad") {
+    redirect("/dashboard/ad/teams")
+  }
+
   let school: { name: string } | null = null
   let department: { status: string } | null = null
 
@@ -38,7 +45,7 @@ export default async function AthleticDirectorOverviewPage() {
     .maybeSingle()
   department = deptRow
 
-  const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdVisibleTeams(
+  const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdPortalVisibleTeams(
     supabase,
     session.user.id
   )
@@ -114,15 +121,16 @@ export default async function AthleticDirectorOverviewPage() {
 
       {emptyStateTriggered && (
         <div className="rounded-xl border-2 border-[#3B82F6] bg-[#EFF6FF] p-6">
-          <h2 className="text-lg font-semibold text-[#1E40AF]">Get started with your department</h2>
+          <h2 className="text-lg font-semibold text-[#1E40AF]">No teams in view yet</h2>
           <p className="mt-2 text-sm text-[#1E3A8A]">
-            Create your first team and invite a head coach to start using Braik.
+            Teams appear here from signup and provisioning. Open the Teams tab when programs are linked to your
+            department.
           </p>
           <Link
-            href="/dashboard/ad/teams/new"
+            href="/dashboard/ad/teams"
             className="mt-4 inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white hover:bg-[#2563EB]"
           >
-            Create your first team
+            View teams
           </Link>
         </div>
       )}

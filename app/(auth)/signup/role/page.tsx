@@ -74,7 +74,8 @@ export default function RoleSelectionPage() {
     {
       value: "parent",
       label: "Parent / Guardian",
-      description: "Join your child's team. Access to payments, schedule, and updates (requires Team Code).",
+      description:
+        "Link to your child's roster with their personal player code. Prefer the Parent sign up flow (/parent/join) first.",
       icon: "👪",
     },
   ]

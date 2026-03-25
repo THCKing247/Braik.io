@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation"
 import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 
 export const dynamic = "force-dynamic"
 
@@ -8,6 +10,11 @@ export default async function AdSettingsPage() {
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
+  const access = await resolveFootballAdAccessState(supabase, session.user.id)
+  if (access.state === "restricted_football_ad") {
+    redirect("/dashboard/ad/teams")
+  }
+
   let school: { name: string; city: string | null; state: string | null; school_type: string | null; mascot: string | null; website: string | null } | null = null
   const { data: profile } = await supabase
     .from("profiles")

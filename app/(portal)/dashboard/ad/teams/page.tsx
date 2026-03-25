@@ -2,17 +2,26 @@ import { getServerSessionOrSupabase } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
-import { fetchAdVisibleTeams, logAdTeamVisibility } from "@/lib/ad-team-scope"
+import { fetchAdPortalVisibleTeams, logAdTeamVisibility } from "@/lib/ad-team-scope"
 import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
 export const dynamic = "force-dynamic"
+
+function formatTeamLevel(level: string | null | undefined): string {
+  if (level == null || String(level).trim() === "") return "Varsity"
+  const l = String(level).toLowerCase()
+  if (l === "varsity") return "Varsity"
+  if (l === "jv") return "JV"
+  if (l === "freshman") return "Freshman"
+  return String(level)
+}
 
 export default async function AdTeamsPage() {
   const session = await getServerSessionOrSupabase()
   if (!session?.user?.id) return null
 
   const supabase = getSupabaseServer()
-  const { scope, orFilter, teams: teamsData, error: teamsErr } = await fetchAdVisibleTeams(
+  const { scope, orFilter, teams: teamsData, error: teamsErr } = await fetchAdPortalVisibleTeams(
     supabase,
     session.user.id
   )
@@ -105,18 +114,48 @@ export default async function AdTeamsPage() {
         }
       }
 
+      const creatorIds = [
+        ...new Set(
+          teamsData
+            .map((t) => t.created_by)
+            .filter((id): id is string => typeof id === "string" && id.length > 0)
+        ),
+      ]
+      const creatorNameById = new Map<string, string>()
+      if (creatorIds.length > 0) {
+        const { data: creatorUsers } = await supabase.from("users").select("id, name").in("id", creatorIds)
+        for (const u of creatorUsers ?? []) {
+          const nm = (u as { name?: string | null }).name?.trim()
+          if (u?.id && nm) creatorNameById.set(u.id, nm)
+        }
+        const missing = creatorIds.filter((id) => !creatorNameById.has(id))
+        if (missing.length > 0) {
+          const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", missing)
+          for (const p of profs ?? []) {
+            const pid = (p as { id: string }).id
+            const fn = (p as { full_name?: string | null }).full_name?.trim()
+            if (pid && fn && !creatorNameById.has(pid)) creatorNameById.set(pid, fn)
+          }
+        }
+      }
+
       teamsData.forEach((t) => {
         const headCoachName = headCoachByTeam.get(t.id) ?? null
         const invitePending = pendingTeamIds.has(t.id)
         const programId = t.program_id as string | null | undefined
         const sportFromProgram = programId ? sportByProgramId.get(programId) : undefined
+        const createdBy = t.created_by ?? null
+        const genderRaw = (t as { gender?: string | null }).gender
         teams.push({
           id: t.id,
           name: t.name ?? "",
           sport: t.sport ?? sportFromProgram ?? null,
-          rosterSize: (t as { roster_size?: number }).roster_size ?? null,
-          createdAt: t.created_at ?? new Date().toISOString(),
+          genderLabel: genderRaw?.trim() ? String(genderRaw) : "—",
+          levelLabel: formatTeamLevel(t.team_level),
+          rosterSize: t.roster_size ?? null,
           headCoachName,
+          creatorName: createdBy ? creatorNameById.get(createdBy) ?? null : null,
+          createdAt: t.created_at ?? new Date().toISOString(),
           invitePending,
         })
       })

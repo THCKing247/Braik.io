@@ -1,4 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import {
+  canAccessAdPortalRoutes,
+  resolveFootballAdAccessState,
+  type FootballAdAccessContext,
+} from "@/lib/enforcement/football-ad-access"
 
 /**
  * Resolves which teams an Athletic Director should see:
@@ -15,6 +20,18 @@ export type AthleticDirectorScope = {
   athleticDepartmentId: string | null
   organizationIds: string[]
   linkedProgramIds: string[]
+}
+
+/** Merge varsity football program scope for head coaches who may use the AD portal. */
+export function mergeAdPortalScope(
+  base: AthleticDirectorScope,
+  access: FootballAdAccessContext
+): AthleticDirectorScope {
+  if (access.isDepartmentAthleticDirector) return base
+  if (!canAccessAdPortalRoutes(access) || !access.programId) return base
+  const linked = new Set(base.linkedProgramIds)
+  linked.add(access.programId)
+  return { ...base, linkedProgramIds: Array.from(linked) }
 }
 
 export async function resolveAthleticDirectorScope(
@@ -137,6 +154,9 @@ export type AdVisibleTeamRow = {
   school_id: string | null
   program_id: string | null
   athletic_department_id: string | null
+  team_level: string | null
+  created_by: string | null
+  gender: string | null
 }
 
 export async function fetchAdVisibleTeams(
@@ -155,7 +175,9 @@ export async function fetchAdVisibleTeams(
   }
   const { data, error } = await supabase
     .from("teams")
-    .select("id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id")
+    .select(
+      "id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id, team_level, created_by, gender"
+    )
     .or(orFilter)
     .order("created_at", { ascending: false })
   return {
@@ -164,6 +186,60 @@ export async function fetchAdVisibleTeams(
     teams: (data ?? []) as AdVisibleTeamRow[],
     error: error?.message ?? null,
   }
+}
+
+/** AD portal team list: department AD scope plus varsity football head-coach program scope. */
+export async function fetchAdPortalVisibleTeams(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{
+  scope: AthleticDirectorScope
+  orFilter: string | null
+  teams: AdVisibleTeamRow[]
+  error: string | null
+  footballAccess: FootballAdAccessContext
+}> {
+  const footballAccess = await resolveFootballAdAccessState(supabase, userId)
+  if (!canAccessAdPortalRoutes(footballAccess)) {
+    const scope = await resolveAthleticDirectorScope(supabase, userId)
+    return { scope, orFilter: null, teams: [], error: null, footballAccess }
+  }
+  const base = await resolveAthleticDirectorScope(supabase, userId)
+  const scope = mergeAdPortalScope(base, footballAccess)
+  const orFilter = buildAdTeamsOrFilter(scope)
+  if (!orFilter) {
+    return { scope, orFilter: null, teams: [], error: null, footballAccess }
+  }
+  const { data, error } = await supabase
+    .from("teams")
+    .select(
+      "id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id, team_level, created_by, gender"
+    )
+    .or(orFilter)
+    .order("created_at", { ascending: false })
+  return {
+    scope,
+    orFilter,
+    teams: (data ?? []) as AdVisibleTeamRow[],
+    error: error?.message ?? null,
+    footballAccess,
+  }
+}
+
+/** Scope + filter for a single AD portal team page (no list fetch). */
+export async function resolveAdPortalTeamScope(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{
+  scope: AthleticDirectorScope
+  orFilter: string | null
+  footballAccess: FootballAdAccessContext
+}> {
+  const footballAccess = await resolveFootballAdAccessState(supabase, userId)
+  const base = await resolveAthleticDirectorScope(supabase, userId)
+  const scope = mergeAdPortalScope(base, footballAccess)
+  const orFilter = buildAdTeamsOrFilter(scope)
+  return { scope, orFilter, footballAccess }
 }
 
 export function logAdDashboardMetrics(

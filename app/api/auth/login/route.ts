@@ -2,23 +2,7 @@ import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { BRAIK_PERSIST_SESSION_COOKIE } from "@/lib/auth/persist-session-cookie"
-
-function getRoleRedirect(role: string) {
-  switch (role) {
-    case "admin":
-      return "/admin/dashboard"
-    case "athletic_director":
-      return "/dashboard/ad"
-    case "head_coach":
-    case "assistant_coach":
-    case "player":
-    case "parent":
-    case "athlete":
-      return "/dashboard"
-    default:
-      return "/dashboard"
-  }
-}
+import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
 
 /** Map stored role (e.g. HEAD_COACH) to profile role (e.g. head_coach) */
 function mapRoleToProfileRole(storedRole: string): string {
@@ -126,11 +110,18 @@ export async function POST(request: Request) {
     const allowJoinCallback =
       typeof requestedCallbackUrl === "string" &&
       requestedCallbackUrl.startsWith("/join")
+    let defaultEntryPath = "/dashboard"
+    try {
+      defaultEntryPath = await resolvePortalEntryPath(supabaseServerClient, data.user.id)
+    } catch {
+      defaultEntryPath = "/dashboard"
+    }
+
     const redirectTo = allowAdminCallback
       ? requestedCallbackUrl
       : allowJoinCallback
         ? requestedCallbackUrl
-        : getRoleRedirect(role)
+        : defaultEntryPath
 
     // Ensure public.users has a row for this auth user (for admin checks and profile sync).
     // Must complete before returning so /admin/dashboard layout sees the correct role.

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import {
-  fetchAdVisibleTeams,
+  fetchAdPortalVisibleTeams,
   type AthleticDirectorScope,
 } from "@/lib/ad-team-scope"
 
@@ -24,7 +24,7 @@ export type AdPrimaryHeadCoachesResult = {
   finalCoachesCount: number
   scope: AthleticDirectorScope
   orFilter: string | null
-  /** Set when `fetchAdVisibleTeams` fails (same query as Teams tab). */
+  /** Set when `fetchAdPortalVisibleTeams` fails (same query as Teams tab). */
   teamsQueryError: string | null
 }
 
@@ -149,7 +149,7 @@ export async function fetchAdPrimaryHeadCoachesForVisibleTeams(
 }
 
 /**
- * Loads primary head coaches for AD scope (same visible teams as Teams tab via `fetchAdVisibleTeams`).
+ * Loads primary head coaches for AD scope (same visible teams as Teams tab via `fetchAdPortalVisibleTeams`).
  * Profiles supply display fields only (full_name, email).
  */
 export async function fetchAdPrimaryHeadCoaches(
@@ -157,7 +157,7 @@ export async function fetchAdPrimaryHeadCoaches(
   sessionUserId: string,
   sessionRole: string | null
 ): Promise<AdPrimaryHeadCoachesResult> {
-  const { scope, orFilter, teams: teamRows, error: teamsErr } = await fetchAdVisibleTeams(
+  const { scope, orFilter, teams: teamRows, error: teamsErr } = await fetchAdPortalVisibleTeams(
     supabase,
     sessionUserId
   )

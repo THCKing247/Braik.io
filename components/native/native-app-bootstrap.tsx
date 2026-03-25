@@ -62,7 +62,7 @@ export function NativeAppBootstrap() {
           return
         }
 
-        router.replace(getResumeOrDefaultAppPath(data?.user?.role))
+        router.replace(getResumeOrDefaultAppPath(data?.user?.role, data?.user?.defaultAppPath))
       } finally {
         routingRef.current = false
       }

@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { logTeamMembersAudit } from "@/lib/team-members-sync"
+import { canPerformDepartmentOwnerActions, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 
 export async function POST(request: Request) {
   try {
@@ -10,8 +11,10 @@ export async function POST(request: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    const role = session.user.role?.toUpperCase()
-    if (role !== "ATHLETIC_DIRECTOR") {
+
+    const supabaseEarly = getSupabaseServer()
+    const access = await resolveFootballAdAccessState(supabaseEarly, session.user.id)
+    if (!canPerformDepartmentOwnerActions(access)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
     const headCoachFirstName = body.headCoachFirstName ? String(body.headCoachFirstName).trim() || null : null
     const headCoachLastName = body.headCoachLastName ? String(body.headCoachLastName).trim() || null : null
 
-    const supabase = getSupabaseServer()
+    const supabase = supabaseEarly
 
     const { data: profile } = await supabase
       .from("profiles")

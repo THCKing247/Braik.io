@@ -1498,7 +1498,7 @@ export function RosterManagerEnhanced({
                 onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
                 onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
                 onPromotePlayer={
-                  programId && userRole === "HEAD_COACH" && canEdit
+                  isFootball && programId && userRole === "HEAD_COACH" && canEdit
                     ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
                     : undefined
                 }
@@ -2239,7 +2239,7 @@ export function RosterManagerEnhanced({
               onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
               onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
               onPromotePlayer={
-                programId && userRole === "HEAD_COACH" && canEdit
+                isFootball && programId && userRole === "HEAD_COACH" && canEdit
                   ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
                   : undefined
               }
@@ -2257,7 +2257,7 @@ export function RosterManagerEnhanced({
               onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
               onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
               onPromotePlayer={
-                programId && userRole === "HEAD_COACH" && canEdit
+                isFootball && programId && userRole === "HEAD_COACH" && canEdit
                   ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
                   : undefined
               }
@@ -2331,7 +2331,7 @@ export function RosterManagerEnhanced({
       )}
 
       {/* Promote / Move player modal */}
-      {promotePlayer && programId && (
+      {promotePlayer && programId && isFootball && (
         <PlayerPromoteModal
           open={!!promotePlayer}
           onClose={() => setPromotePlayer(null)}

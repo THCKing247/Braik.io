@@ -1,8 +1,10 @@
-/** Default app entry after sign-in or mobile root redirect (role-aware). */
+/** Fallback when `session.user.defaultAppPath` is unavailable (offline shape, tests). */
 export function getDefaultAppPathForRole(role?: string | null) {
   switch ((role || "").toLowerCase()) {
     case "admin":
       return "/admin/dashboard"
+    case "athletic_director":
+      return "/dashboard/ad"
     case "head_coach":
     case "assistant_coach":
     case "player":

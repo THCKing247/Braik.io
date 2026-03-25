@@ -3,18 +3,12 @@
  * Scheduled games for the team (for weekly stat entry + filters).
  */
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")?.trim()
     const seasonYearParam = searchParams.get("seasonYear")?.trim()
@@ -58,6 +52,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
     const msg = err instanceof Error ? err.message : "Failed"
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (msg.includes("Access denied")) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }

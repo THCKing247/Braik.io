@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireAuth, requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
 import {
@@ -25,11 +24,6 @@ export async function GET(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { teamId } = await params
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -57,6 +51,9 @@ export async function GET(
     return NextResponse.json({ announcements })
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed"
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (msg.includes("Access denied") || msg.includes("Not a member")) {
       return NextResponse.json({ error: msg }, { status: 403 })
     }
@@ -73,11 +70,6 @@ export async function POST(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { teamId } = await params
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -133,7 +125,7 @@ export async function POST(
       eventName: BRAIK_EVENTS.announcements.posted,
       userId: user.id,
       teamId,
-      role: session.user.role ?? null,
+      role: user.role ?? null,
       metadata: {
         announcement_id: inserted?.id ?? null,
         audience,
@@ -145,6 +137,9 @@ export async function POST(
     return NextResponse.json(inserted)
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed"
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (msg.includes("Access denied") || msg.includes("Insufficient permissions")) {
       return NextResponse.json({ error: msg }, { status: 403 })
     }

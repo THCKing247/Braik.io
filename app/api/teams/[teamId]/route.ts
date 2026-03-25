@@ -13,11 +13,6 @@ export async function GET(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { teamId } = await params
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -61,7 +56,10 @@ export async function GET(
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to load team"
-    if (String(message).includes("Access denied")) {
+    if (message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    if (String(message).includes("Access denied") || String(message).includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
     console.error("[GET /api/teams/[teamId]]", error)

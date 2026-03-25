@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { requireTeamAccess } from "@/lib/auth/rbac"
 
 /**
  * GET /api/messages/threads?teamId=xxx
@@ -9,11 +9,6 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
  */
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!teamId) {
@@ -26,10 +21,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
+    const { user } = await requireTeamAccess(teamId)
+    const userId = user.id
+
     const { data: participantThreads, error: participantError } = await supabase
       .from("message_thread_participants")
       .select("thread_id, last_read_at")
-      .eq("user_id", session.user.id)
+      .eq("user_id", userId)
 
     if (participantError) {
       console.error("[GET /api/messages/threads] participants", participantError)
@@ -167,7 +165,7 @@ export async function GET(request: Request) {
         .select("id", { count: "exact", head: true })
         .eq("thread_id", threadId)
         .is("deleted_at", null)
-        .neq("sender_id", session.user.id)
+        .neq("sender_id", userId)
       if (lr) {
         q = q.gt("created_at", lr)
       }
@@ -262,11 +260,15 @@ export async function GET(request: Request) {
     })
 
     return NextResponse.json(formatted)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/messages/threads]", error)
+    const msg = error instanceof Error ? error.message : "Failed to load threads"
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     return NextResponse.json(
-      { error: error.message || "Failed to load threads" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
+      { error: msg },
+      { status: msg.includes("Access denied") || msg.includes("Not a member") ? 403 : 500 }
     )
   }
 }

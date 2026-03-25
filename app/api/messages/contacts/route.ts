@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 
@@ -9,11 +8,6 @@ import { requireTeamAccess } from "@/lib/auth/rbac"
  */
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!teamId) {
@@ -26,7 +20,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
-    await requireTeamAccess(teamId)
+    const { user } = await requireTeamAccess(teamId)
 
     // Get team members (coaches, etc.)
     const { data: members, error: membersError } = await supabase
@@ -111,14 +105,18 @@ export async function GET(request: Request) {
           type: teamRole,
         }
       })
-      .filter((c) => c.id !== session.user.id) // Exclude self
+      .filter((c) => c.id !== user.id) // Exclude self
 
     return NextResponse.json(contacts)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/messages/contacts]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to load contacts" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    const msg = error instanceof Error ? error.message : "Failed to load contacts"
+    if (msg === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    return NextResponse.json(
+      { error: msg },
+      { status: msg.includes("Access denied") || msg.includes("Not a member") ? 403 : 500 }
+    )
   }
 }

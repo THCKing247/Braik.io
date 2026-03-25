@@ -262,6 +262,16 @@
   display: none;
 }
 
+@media (min-width: 1024px) {
+  body.dashboard-desktop-scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  body.dashboard-desktop-scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Layout Structure - Rail Offset */
 /* Root shell */
 .app-shell {

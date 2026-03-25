@@ -1,6 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { useEffect } from "react"
 import { useRef } from "react"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
 import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
@@ -39,6 +40,13 @@ export function DashboardLayoutClient({
     (pathname?.includes("/dashboard/schedule") ?? false) || (pathname?.includes("/dashboard/calendar") ?? false)
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
   const useMobilePortalShell = !isPlayEditorRoute && !isSchedulePage
+
+  useEffect(() => {
+    document.body.classList.add("dashboard-desktop-scrollbar-hidden")
+    return () => {
+      document.body.classList.remove("dashboard-desktop-scrollbar-hidden")
+    }
+  }, [])
 
   // RSC passes a new `teams` array every navigation; keep referential stability when id+name are unchanged
   // so PortalTeamProvider and the sidebar subtree skip useless context updates during soft route changes.

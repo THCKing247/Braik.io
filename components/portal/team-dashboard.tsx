@@ -414,7 +414,9 @@ function NotificationsCard({ teamId }: { teamId: string }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15`)
+      const res = await fetch(
+        `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15&unreadOnly=true`
+      )
       if (!res.ok) return
       const data = await res.json()
       const raw = (data.notifications || []) as DashNotification[]
@@ -466,8 +468,7 @@ function NotificationsCard({ teamId }: { teamId: string }) {
         body: JSON.stringify({ teamId }),
       })
       if (!res.ok) return
-      setNotifications((prev) => prev.map((x) => ({ ...x, read: true })))
-      await load()
+      setNotifications([])
     } catch {
       /* ignore */
     }

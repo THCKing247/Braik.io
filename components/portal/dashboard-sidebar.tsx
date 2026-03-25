@@ -45,7 +45,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       {/* Scrollable: role, user, nav, Coach B — sign out stays pinned below */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll">
+      <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll">
         <div className="flex-shrink-0 border-b border-white/10 p-4">
           {roleLabel && (
             <p className="text-xs font-medium uppercase tracking-wide text-white/70">

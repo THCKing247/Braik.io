@@ -45,14 +45,63 @@ const EMPTY_SUMMARY: TeamReadinessSummary = {
   noGuardiansCount: 0,
 }
 
+const GUARDIAN_IN_CHUNK = 250
+
+async function guardianPlayerIdSet(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  playerIds: string[]
+): Promise<Set<string>> {
+  const out = new Set<string>()
+  for (let i = 0; i < playerIds.length; i += GUARDIAN_IN_CHUNK) {
+    const slice = playerIds.slice(i, i + GUARDIAN_IN_CHUNK)
+    const { data } = await supabase.from("guardian_links").select("player_id").in("player_id", slice)
+    for (const g of data ?? []) {
+      out.add((g as { player_id: string }).player_id)
+    }
+  }
+  return out
+}
+
 /**
- * Team readiness from Supabase. summaryOnly skips per-player JSON (dashboard card).
- * Called from GET handler after auth; may be wrapped in unstable_cache.
+ * Dashboard summary: one DB round-trip, no document/equipment/guardian row hydration.
+ * Matches computeReadiness "ready" = profileComplete && requiredDocsComplete (physical + waiver).
+ * Breakdown fields in TeamReadinessSummary are set to 0 (not computed on this path).
  */
-export async function computeTeamReadinessPayload(
-  teamId: string,
-  summaryOnly: boolean
-): Promise<{ summary: TeamReadinessSummary; players?: PlayerReadinessItem[] }> {
+async function computeSummaryMinimalRpc(teamId: string): Promise<TeamReadinessSummary | null> {
+  const supabase = getSupabaseServer()
+  const { data, error } = await supabase.rpc("team_readiness_summary_minimal", { p_team_id: teamId })
+  if (error || data == null || typeof data !== "object") {
+    console.warn("[computeTeamReadiness] team_readiness_summary_minimal RPC unavailable or failed", error)
+    return null
+  }
+  const row = data as { total?: unknown; ready_count?: unknown }
+  const total = Math.max(0, Number(row.total) || 0)
+  const readyCount = Math.min(total, Math.max(0, Number(row.ready_count) || 0))
+  return {
+    ...EMPTY_SUMMARY,
+    total,
+    readyCount,
+    incompleteCount: total - readyCount,
+  }
+}
+
+type PlayerRow = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  player_phone: string | null
+  parent_guardian_contact: string | null
+  eligibility_status: string | null
+  user_id: string | null
+}
+
+async function loadReadinessContext(teamId: string): Promise<{
+  players: PlayerRow[]
+  docsByPlayer: Map<string, string[]>
+  equipmentByPlayer: Map<string, number>
+  guardiansByPlayer: Set<string>
+} | null> {
   const supabase = getSupabaseServer()
 
   const { data: players, error: playersErr } = await supabase
@@ -65,66 +114,60 @@ export async function computeTeamReadinessPayload(
     .order("first_name", { ascending: true })
 
   if (playersErr || !players?.length) {
-    return summaryOnly
-      ? { summary: { ...EMPTY_SUMMARY } }
-      : { summary: { ...EMPTY_SUMMARY }, players: [] }
+    return null
   }
 
-  const playerIds = players.map((p) => (p as { id: string }).id)
+  const typedPlayers = players as PlayerRow[]
+  const playerIds = typedPlayers.map((p) => p.id)
 
-  const [docsRes, equipmentCounts, guardianCounts] = await Promise.all([
+  const [docsRes, equipmentRes, guardiansByPlayer] = await Promise.all([
     supabase
       .from("player_documents")
-      .select("player_id, category, document_type, deleted_at, expires_at")
+      .select("player_id, category, document_type, expires_at")
       .eq("team_id", teamId)
-      .is("deleted_at", null)
-      .in("player_id", playerIds),
+      .is("deleted_at", null),
     supabase
       .from("inventory_items")
       .select("assigned_to_player_id")
       .eq("team_id", teamId)
       .not("assigned_to_player_id", "is", null),
-    supabase.from("guardian_links").select("player_id").in("player_id", playerIds),
+    guardianPlayerIdSet(supabase, playerIds),
   ])
 
-  const docsByPlayer = new Map<string, string[]>()
   const byPlayerRaw = new Map<
     string,
-    Array<{
-      category?: string | null
-      document_type?: string | null
-      deleted_at?: string | null
-      expires_at?: string | null
-    }>
+    Array<{ category?: string | null; document_type?: string | null; expires_at?: string | null }>
   >()
   for (const d of docsRes.data ?? []) {
     const pid = (d as { player_id: string }).player_id
     const list = byPlayerRaw.get(pid) ?? []
     list.push(
-      d as {
-        category?: string | null
-        document_type?: string | null
-        deleted_at?: string | null
-        expires_at?: string | null
-      }
+      d as { category?: string | null; document_type?: string | null; expires_at?: string | null }
     )
     byPlayerRaw.set(pid, list)
   }
+
+  const docsByPlayer = new Map<string, string[]>()
   byPlayerRaw.forEach((rows, pid) => {
     docsByPlayer.set(pid, activeDocumentCategoriesForReadiness(rows))
   })
 
   const equipmentByPlayer = new Map<string, number>()
-  for (const e of equipmentCounts.data ?? []) {
+  for (const e of equipmentRes.data ?? []) {
     const pid = (e as { assigned_to_player_id: string }).assigned_to_player_id
     equipmentByPlayer.set(pid, (equipmentByPlayer.get(pid) ?? 0) + 1)
   }
 
-  const guardiansByPlayer = new Set<string>()
-  for (const g of guardianCounts.data ?? []) {
-    guardiansByPlayer.add((g as { player_id: string }).player_id)
-  }
+  return { players: typedPlayers, docsByPlayer, equipmentByPlayer, guardiansByPlayer }
+}
 
+function aggregateReadiness(
+  players: PlayerRow[],
+  docsByPlayer: Map<string, string[]>,
+  equipmentByPlayer: Map<string, number>,
+  guardiansByPlayer: Set<string>,
+  buildList: boolean
+): { summary: TeamReadinessSummary; players?: PlayerReadinessItem[] } {
   const playerReadinessList: PlayerReadinessItem[] = []
 
   let readyCount = 0
@@ -136,17 +179,7 @@ export async function computeTeamReadinessPayload(
   let eligibilityMissingCount = 0
   let noGuardiansCount = 0
 
-  for (const p of players) {
-    const row = p as {
-      id: string
-      first_name: string | null
-      last_name: string | null
-      email: string | null
-      player_phone: string | null
-      parent_guardian_contact: string | null
-      eligibility_status: string | null
-      user_id: string | null
-    }
+  for (const row of players) {
     const accountLinked = Boolean(row.user_id)
     const hasName = Boolean(row.first_name?.trim()) && Boolean(row.last_name?.trim())
     const hasContact =
@@ -165,7 +198,7 @@ export async function computeTeamReadinessPayload(
         eligibilityStatus: row.eligibility_status ?? null,
         assignedEquipmentCount,
       },
-      { omitMissingItems: summaryOnly }
+      { omitMissingItems: !buildList }
     )
 
     if (result.ready) readyCount++
@@ -177,7 +210,7 @@ export async function computeTeamReadinessPayload(
     if (!result.eligibilityStatus?.trim()) eligibilityMissingCount++
     if (!hasGuardians) noGuardiansCount++
 
-    if (!summaryOnly) {
+    if (buildList) {
       const missingItems = [...result.missingItems, ...(!accountLinked ? ["Account not linked"] : [])]
       playerReadinessList.push({
         playerId: row.id,
@@ -214,8 +247,41 @@ export async function computeTeamReadinessPayload(
     noGuardiansCount,
   }
 
-  if (summaryOnly) {
-    return { summary }
+  if (buildList) {
+    return { summary, players: playerReadinessList }
   }
-  return { summary, players: playerReadinessList }
+  return { summary }
+}
+
+/** Fallback when RPC is missing: same queries as full path but no per-player JSON. */
+async function computeSummaryHeavyFallback(teamId: string): Promise<{ summary: TeamReadinessSummary }> {
+  const ctx = await loadReadinessContext(teamId)
+  if (!ctx) {
+    return { summary: { ...EMPTY_SUMMARY } }
+  }
+  return aggregateReadiness(ctx.players, ctx.docsByPlayer, ctx.equipmentByPlayer, ctx.guardiansByPlayer, false)
+}
+
+/**
+ * Team readiness from Supabase.
+ * - summaryOnly: DB aggregation RPC (fast); fallback aggregates in memory without building player rows.
+ * - full: loads team-scoped documents/inventory + chunked guardian IN; builds per-player list.
+ */
+export async function computeTeamReadinessPayload(
+  teamId: string,
+  summaryOnly: boolean
+): Promise<{ summary: TeamReadinessSummary; players?: PlayerReadinessItem[] }> {
+  if (summaryOnly) {
+    const rpcSummary = await computeSummaryMinimalRpc(teamId)
+    if (rpcSummary) {
+      return { summary: rpcSummary }
+    }
+    return computeSummaryHeavyFallback(teamId)
+  }
+
+  const ctx = await loadReadinessContext(teamId)
+  if (!ctx) {
+    return { summary: { ...EMPTY_SUMMARY }, players: [] }
+  }
+  return aggregateReadiness(ctx.players, ctx.docsByPlayer, ctx.equipmentByPlayer, ctx.guardiansByPlayer, true)
 }

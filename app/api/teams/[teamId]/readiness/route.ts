@@ -8,7 +8,8 @@ import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness
 /**
  * GET /api/teams/[teamId]/readiness?summaryOnly=1
  * Team-wide readiness. Coach only.
- * summaryOnly=1 returns { summary } only (fast; cached ~45s). Full response includes per-player rows for roster tab.
+ * summaryOnly=1: aggregated counts (RPC) + unstable_cache revalidate 30s per teamId.
+ * Full: per-player rows, not cached so roster filters stay fresh after edits.
  */
 export async function GET(
   request: Request,
@@ -33,12 +34,11 @@ export async function GET(
 
     const summaryOnly = new URL(request.url).searchParams.get("summaryOnly") === "1"
 
-    // Cache dashboard-style summary only; full payload powers roster filters and should reflect edits immediately.
     const body = summaryOnly
       ? await unstable_cache(
           async () => computeTeamReadinessPayload(teamId, true),
-          ["braik-team-readiness-summary-v1", teamId],
-          { revalidate: 45 }
+          ["braik-team-readiness-summary-v4", teamId],
+          { revalidate: 30 }
         )()
       : await computeTeamReadinessPayload(teamId, false)
 

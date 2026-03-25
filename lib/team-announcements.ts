@@ -47,6 +47,47 @@ export function sortTeamAnnouncements<T extends { is_pinned: boolean; created_at
   })
 }
 
+/** Pinned for this viewer: server pin unless locally unpinned, or locally pinned. */
+export function isAnnouncementEffectivelyPinned<T extends { id: string; is_pinned: boolean }>(
+  row: T,
+  userPinnedIds: Set<string>,
+  userUnpinnedIds: Set<string>
+): boolean {
+  if (userUnpinnedIds.has(row.id)) return false
+  if (userPinnedIds.has(row.id)) return true
+  return row.is_pinned
+}
+
+/** Same ordering as sortTeamAnnouncements, using per-viewer effective pin state. */
+export function sortTeamAnnouncementsForViewer<
+  T extends { id: string; is_pinned: boolean; created_at: string },
+>(rows: T[], userPinnedIds: Set<string>, userUnpinnedIds: Set<string>): T[] {
+  return [...rows].sort((a, b) => {
+    const pa = isAnnouncementEffectivelyPinned(a, userPinnedIds, userUnpinnedIds)
+    const pb = isAnnouncementEffectivelyPinned(b, userPinnedIds, userUnpinnedIds)
+    if (pa !== pb) return pa ? -1 : 1
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
+}
+
+export function toggleAnnouncementPinOverride<T extends { id: string; is_pinned: boolean }>(
+  row: T,
+  userPinnedIds: Set<string>,
+  userUnpinnedIds: Set<string>
+): { pinned: Set<string>; unpinned: Set<string> } {
+  const pinned = new Set(userPinnedIds)
+  const unpinned = new Set(userUnpinnedIds)
+  const eff = isAnnouncementEffectivelyPinned(row, pinned, unpinned)
+  if (eff) {
+    pinned.delete(row.id)
+    if (row.is_pinned) unpinned.add(row.id)
+  } else {
+    unpinned.delete(row.id)
+    if (!row.is_pinned) pinned.add(row.id)
+  }
+  return { pinned, unpinned }
+}
+
 export const AUDIENCE_LABELS: Record<TeamAnnouncementAudience, string> = {
   all: "Everyone",
   staff: "Staff only",

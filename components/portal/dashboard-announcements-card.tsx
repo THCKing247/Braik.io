@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -16,10 +16,18 @@ import { Megaphone, Plus, X, Pin } from "lucide-react"
 import {
   AUDIENCE_LABELS,
   formatAnnouncementDateTime,
+  isAnnouncementEffectivelyPinned,
+  sortTeamAnnouncementsForViewer,
+  toggleAnnouncementPinOverride,
   userCanEditTeamAnnouncement,
   type TeamAnnouncementRow,
 } from "@/lib/team-announcements"
+import {
+  loadAnnouncementPinOverrides,
+  saveAnnouncementPinOverrides,
+} from "@/lib/navigation/dashboard-announcement-pins"
 import { ROLES, type Role } from "@/lib/auth/roles"
+import { cn } from "@/lib/utils"
 
 function sessionRoleToRole(s?: string | null): Role {
   const u = (s || "").toUpperCase().replace(/-/g, "_")
@@ -37,6 +45,39 @@ function bodyPreview(body: string, max = BODY_PREVIEW_LEN) {
   const t = body.replace(/\s+/g, " ").trim()
   if (t.length <= max) return t
   return `${t.slice(0, max)}…`
+}
+
+function AnnouncementPinControl({
+  row,
+  effectivePinned,
+  onToggle,
+  size = "sm",
+}: {
+  row: TeamAnnouncementRow
+  effectivePinned: boolean
+  onToggle: (row: TeamAnnouncementRow) => void
+  size?: "sm" | "md"
+}) {
+  const iconClass = size === "md" ? "h-4 w-4" : "h-3.5 w-3.5"
+  return (
+    <button
+      type="button"
+      className="flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors hover:bg-[rgb(var(--platinum))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[rgb(var(--accent))] touch-manipulation"
+      style={{ color: effectivePinned ? undefined : "rgb(var(--muted))" }}
+      aria-label={effectivePinned ? "Unpin announcement" : "Pin announcement"}
+      aria-pressed={effectivePinned}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onToggle(row)
+      }}
+    >
+      <Pin
+        className={cn("shrink-0", iconClass, effectivePinned && "fill-amber-600 text-amber-600")}
+        aria-hidden
+      />
+    </button>
+  )
 }
 
 export function DashboardAnnouncementsCard({
@@ -73,6 +114,9 @@ export function DashboardAnnouncementsCard({
   const [editError, setEditError] = useState<string | null>(null)
   const [editSaving, setEditSaving] = useState(false)
 
+  const [userPinnedIds, setUserPinnedIds] = useState<Set<string>>(() => new Set())
+  const [userUnpinnedIds, setUserUnpinnedIds] = useState<Set<string>>(() => new Set())
+
   const load = useCallback(async () => {
     if (!teamId) return
     try {
@@ -99,6 +143,29 @@ export function DashboardAnnouncementsCard({
     }, 10000)
     return () => clearInterval(id)
   }, [teamId, load])
+
+  useEffect(() => {
+    if (!viewerUserId || !teamId) return
+    const loaded = loadAnnouncementPinOverrides(viewerUserId, teamId)
+    setUserPinnedIds(loaded.pinned)
+    setUserUnpinnedIds(loaded.unpinned)
+  }, [viewerUserId, teamId])
+
+  const sortedAnnouncements = useMemo(
+    () => sortTeamAnnouncementsForViewer(announcements, userPinnedIds, userUnpinnedIds),
+    [announcements, userPinnedIds, userUnpinnedIds]
+  )
+
+  const toggleUserPin = useCallback(
+    (row: TeamAnnouncementRow) => {
+      if (!viewerUserId || !teamId) return
+      const next = toggleAnnouncementPinOverride(row, userPinnedIds, userUnpinnedIds)
+      setUserPinnedIds(next.pinned)
+      setUserUnpinnedIds(next.unpinned)
+      saveAnnouncementPinOverrides(viewerUserId, teamId, next.pinned, next.unpinned)
+    },
+    [viewerUserId, teamId, userPinnedIds, userUnpinnedIds]
+  )
 
   const openCreate = () => {
     setCreateError(null)
@@ -244,7 +311,7 @@ export function DashboardAnnouncementsCard({
             <div className="flex justify-center py-10">
               <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-          ) : announcements.length === 0 ? (
+          ) : sortedAnnouncements.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <div
                 className="flex h-12 w-12 items-center justify-center rounded-xl"
@@ -262,30 +329,37 @@ export function DashboardAnnouncementsCard({
               </div>
             </div>
           ) : (
-            announcements.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => setViewOpen(true)}
-                className="flex w-full gap-2 rounded-lg p-2.5 text-left transition-colors hover:bg-[rgb(var(--platinum))]"
-              >
-                <div className="flex w-4 shrink-0 justify-center pt-0.5">
-                  {a.is_pinned ? <Pin className="h-3.5 w-3.5 text-amber-600" aria-hidden /> : null}
+            sortedAnnouncements.map((a) => {
+              const effectivePinned = isAnnouncementEffectivelyPinned(a, userPinnedIds, userUnpinnedIds)
+              return (
+                <div
+                  key={a.id}
+                  className="flex w-full items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-[rgb(var(--platinum))]"
+                >
+                  <AnnouncementPinControl
+                    row={a}
+                    effectivePinned={effectivePinned}
+                    onToggle={toggleUserPin}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setViewOpen(true)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "rgb(var(--text))" }}>
+                      {a.title}
+                    </p>
+                    <p className="mt-0.5 text-xs line-clamp-2" style={{ color: "rgb(var(--muted))" }}>
+                      {bodyPreview(a.body)}
+                    </p>
+                    <p className="mt-0.5 text-[11px]" style={{ color: "rgb(var(--muted))" }}>
+                      {a.author_name ? `${a.author_name} · ` : ""}
+                      {formatAnnouncementDateTime(a.created_at)}
+                    </p>
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "rgb(var(--text))" }}>
-                    {a.title}
-                  </p>
-                  <p className="mt-0.5 text-xs line-clamp-2" style={{ color: "rgb(var(--muted))" }}>
-                    {bodyPreview(a.body)}
-                  </p>
-                  <p className="mt-0.5 text-[11px]" style={{ color: "rgb(var(--muted))" }}>
-                    {a.author_name ? `${a.author_name} · ` : ""}
-                    {formatAnnouncementDateTime(a.created_at)}
-                  </p>
-                </div>
-              </button>
-            ))
+              )
+            })
           )}
         </CardContent>
       </Card>
@@ -305,7 +379,7 @@ export function DashboardAnnouncementsCard({
             <DialogTitle className="text-xl text-[rgb(var(--text))]">Announcements</DialogTitle>
           </DialogHeader>
           <div className="max-h-[min(70vh,560px)] overflow-y-auto px-6 py-4">
-            {announcements.length === 0 ? (
+            {sortedAnnouncements.length === 0 ? (
               <div className="py-12 text-center">
                 <Megaphone className="mx-auto h-10 w-10 opacity-30" style={{ color: "rgb(var(--muted))" }} />
                 <p className="mt-3 text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
@@ -317,11 +391,12 @@ export function DashboardAnnouncementsCard({
               </div>
             ) : (
               <ul className="space-y-6">
-                {announcements.map((a) => {
+                {sortedAnnouncements.map((a) => {
                   const expanded = expandedInView[a.id]
                   const long = a.body.length > 400
                   const showBody = !long || expanded ? a.body : `${a.body.slice(0, 400)}…`
                   const edited = a.updated_at !== a.created_at
+                  const effectivePinned = isAnnouncementEffectivelyPinned(a, userPinnedIds, userUnpinnedIds)
 
                   return (
                     <li
@@ -388,9 +463,14 @@ export function DashboardAnnouncementsCard({
                       ) : (
                         <>
                           <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div className="flex min-w-0 items-start gap-2">
-                              {a.is_pinned && <Pin className="mt-1 h-4 w-4 shrink-0 text-amber-600" />}
-                              <h3 className="text-lg font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
+                            <div className="flex min-w-0 flex-1 items-start gap-2">
+                              <AnnouncementPinControl
+                                row={a}
+                                effectivePinned={effectivePinned}
+                                onToggle={toggleUserPin}
+                                size="md"
+                              />
+                              <h3 className="min-w-0 pt-0.5 text-lg font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
                                 {a.title}
                               </h3>
                             </div>

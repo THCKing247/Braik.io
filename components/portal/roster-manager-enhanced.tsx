@@ -142,6 +142,26 @@ const TEAM_ACTIVITY_LABELS: Record<string, string> = {
   follow_up_resolved: "Follow-up resolved",
 }
 
+/** Coalesce concurrent full-readiness fetches (Strict Mode remounts, duplicate mounts). Bust via readinessRefetchNonce when data must refresh. */
+const teamReadinessFullInFlight = new Map<string, Promise<{ summary: TeamReadinessSummary; players: PlayerReadinessItem[] } | null>>()
+
+function fetchTeamReadinessFullOnce(teamId: string, bustNonce: number) {
+  const key = `${teamId}:${bustNonce}`
+  const existing = teamReadinessFullInFlight.get(key)
+  if (existing) return existing
+  const p = (async () => {
+    const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness`)
+    if (!res.ok) return null
+    const data = (await res.json()) as { summary?: TeamReadinessSummary; players?: PlayerReadinessItem[] }
+    if (data && data.summary && typeof data.summary.total === "number") {
+      return { summary: data.summary, players: data.players ?? [] }
+    }
+    return null
+  })().finally(() => teamReadinessFullInFlight.delete(key))
+  teamReadinessFullInFlight.set(key, p)
+  return p
+}
+
 function EditPlayerModal({
   player,
   onSave,
@@ -698,12 +718,11 @@ export function RosterManagerEnhanced({
   useEffect(() => {
     if (!canEdit || !teamId) return
     let cancelled = false
-    fetch(`/api/teams/${teamId}/readiness`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { summary?: TeamReadinessSummary; players?: PlayerReadinessItem[] } | null) => {
+    fetchTeamReadinessFullOnce(teamId, readinessRefetchNonce)
+      .then((data) => {
         if (cancelled) return
-        if (data && data.summary && typeof data.summary.total === "number") {
-          setTeamReadiness({ summary: data.summary, players: data.players ?? [] })
+        if (data) {
+          setTeamReadiness({ summary: data.summary, players: data.players })
         } else {
           setTeamReadiness(null)
         }

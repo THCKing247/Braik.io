@@ -170,7 +170,7 @@ export function PlaybookWorkspace({
   }, [teamId])
 
   const fetchRoster = useCallback(async () => {
-    const res = await fetch(`/api/roster?teamId=${teamId}`, { credentials: "same-origin" })
+    const res = await fetch(`/api/roster?teamId=${teamId}&lite=1`, { credentials: "same-origin" })
     if (res.ok) {
       const data = await res.json()
       setRosterPlayers(

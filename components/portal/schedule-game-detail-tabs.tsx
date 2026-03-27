@@ -174,7 +174,7 @@ export function ScheduleGameDetailTabs({
 
   useEffect(() => {
     if (tab !== "players" || !canEdit || roster.length > 0) return
-    fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`)
+    fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}&lite=1`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const rows = d as RosterRow[] | undefined

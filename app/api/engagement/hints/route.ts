@@ -1,31 +1,37 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
+import { getRequestUserLite, applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
+import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
+import {
+  buildEngagementHints,
+  getCachedEngagementHintCounts,
+  loadEngagementHintCounts,
+  type EngagementHint,
+} from "@/lib/engagement/dashboard-hints-data"
+import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
 
-export type EngagementHint = {
-  id: string
-  title: string
-  description: string
-  ctaLabel: string
-  ctaHref: string
-}
+export type { EngagementHint }
 
 const COACH_ROLES = new Set(["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"])
 
 /**
  * GET /api/engagement/hints?teamId= — lightweight, privacy-safe setup nudges for coaches.
+ * Uses lite auth + parallel counts + short-lived cached counts (team-scoped).
  */
 export async function GET(request: Request) {
+  const started = performance.now()
+  const sink: RoutePerfSink | null = shouldLogRoutePerf() ? [] : null
+
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const sessionResult = await routePerf(sink, "auth", () => getRequestUserLite())
+    if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const role = session.user.role ?? ""
+    const role = sessionResult.user.role ?? ""
     if (!COACH_ROLES.has(role)) {
-      return NextResponse.json({ hints: [] as EngagementHint[] })
+      const empty = NextResponse.json({ hints: [] as EngagementHint[] })
+      if (sessionResult.refreshedSession) applyRefreshedSessionCookies(empty, sessionResult.refreshedSession)
+      return empty
     }
 
     const { searchParams } = new URL(request.url)
@@ -34,73 +40,31 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    await requireTeamAccess(teamId)
-    const supabase = getSupabaseServer()
+    await routePerf(sink, "membership", () =>
+      requireTeamAccessWithUser(teamId, sessionResult.user as SessionUser)
+    )
 
-    const hints: EngagementHint[] = []
+    const useCountCache = !shouldLogRoutePerf()
+    const counts = await routePerf(sink, "hint_counts", () =>
+      useCountCache ? getCachedEngagementHintCounts(teamId) : loadEngagementHintCounts(teamId)
+    )
 
-    const { count: playerCount } = await supabase
-      .from("players")
-      .select("id", { count: "exact", head: true })
-      .eq("team_id", teamId)
+    const hints = buildEngagementHints(teamId, counts)
 
-    if ((playerCount ?? 0) === 0) {
-      hints.push({
-        id: "first_roster",
-        title: "Add your first players",
-        description: "A roster unlocks depth charts, messaging, and health tracking for this team.",
-        ctaLabel: "Open roster",
-        ctaHref: `/dashboard/roster?teamId=${encodeURIComponent(teamId)}`,
+    if (sink) {
+      sink.push({ label: "total", ms: Math.round(performance.now() - started) })
+      logRoutePerf("GET /api/engagement/hints", sink, {
+        teamId,
+        userId: sessionResult.user.id,
+        countsCached: String(useCountCache),
       })
     }
 
-    const { count: playbookCount } = await supabase
-      .from("playbooks")
-      .select("id", { count: "exact", head: true })
-      .eq("team_id", teamId)
-
-    if ((playbookCount ?? 0) === 0) {
-      hints.push({
-        id: "first_playbook",
-        title: "Create a playbook",
-        description: "Capture your installs and call sheets in one place.",
-        ctaLabel: "Playbooks",
-        ctaHref: `/dashboard/playbooks?teamId=${encodeURIComponent(teamId)}`,
-      })
+    const res = NextResponse.json({ hints })
+    if (sessionResult.refreshedSession) {
+      applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
     }
-
-    const { count: openInjuryCount } = await supabase
-      .from("player_injuries")
-      .select("id", { count: "exact", head: true })
-      .eq("team_id", teamId)
-      .eq("status", "active")
-
-    if ((openInjuryCount ?? 0) > 0) {
-      hints.push({
-        id: "open_injuries",
-        title: "You have active injuries",
-        description: "Resolve or update return expectations so staff stays aligned.",
-        ctaLabel: "Health",
-        ctaHref: `/dashboard/health?teamId=${encodeURIComponent(teamId)}`,
-      })
-    }
-
-    const { count: annCount } = await supabase
-      .from("team_announcements")
-      .select("id", { count: "exact", head: true })
-      .eq("team_id", teamId)
-
-    if ((annCount ?? 0) === 0 && (playerCount ?? 0) > 0) {
-      hints.push({
-        id: "first_announcement",
-        title: "Post a team announcement",
-        description: "Share schedules or reminders—parents and players see updates here.",
-        ctaLabel: "Messaging & announcements",
-        ctaHref: `/dashboard/messages?teamId=${encodeURIComponent(teamId)}`,
-      })
-    }
-
-    return NextResponse.json({ hints })
+    return res
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Failed to verify access" }, { status: 500 })

@@ -105,7 +105,7 @@ function PlayEditorContent() {
   }, [])
 
   const fetchRoster = useCallback(async (tid: string) => {
-    const res = await fetch(`/api/roster?teamId=${tid}`, { credentials: "same-origin" })
+    const res = await fetch(`/api/roster?teamId=${tid}&lite=1`, { credentials: "same-origin" })
     if (res.ok) {
       const data = await res.json()
       setRosterPlayers(

@@ -38,7 +38,7 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
 
   const loadNotifications = async () => {
     try {
-      const response = await fetch(`/api/notifications?teamId=${teamId}&limit=10`)
+      const response = await fetch(`/api/notifications?teamId=${teamId}&limit=10&preview=1`)
       if (response.ok) {
         const data = await response.json()
         setNotifications(data.notifications || [])

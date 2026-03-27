@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireAuth, requireTeamAccessWithUser, requireTeamPermission } from "@/lib/auth/rbac"
 import {
-  sortTeamAnnouncements,
-  userCanViewTeamAnnouncement,
-  type TeamAnnouncementAudience,
-} from "@/lib/team-announcements"
+  getRequestUserLite,
+  getServerSession,
+  applyRefreshedSessionCookies,
+  type SessionUser,
+} from "@/lib/auth/server-auth"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { requireAuth, requireTeamAccessWithUser, requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
+import { type TeamAnnouncementAudience } from "@/lib/team-announcements"
+import {
+  getCachedVisibleTeamAnnouncements,
+  loadVisibleTeamAnnouncementsSorted,
+} from "@/lib/team-announcements/visible-announcements-query"
+import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 
@@ -19,45 +25,56 @@ function parseAudience(v: unknown): TeamAnnouncementAudience {
 
 /**
  * GET /api/teams/[teamId]/team-announcements
+ * Lite auth + slim select (no send_notification). Short-lived cache keyed by team + viewer role.
  */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
+  const started = performance.now()
+  const sink: RoutePerfSink | null = shouldLogRoutePerf() ? [] : null
+
   try {
     const { teamId } = await params
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const sessionResult = await routePerf(sink, "auth", () => getRequestUserLite())
+    if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { membership } = await requireTeamAccessWithUser(teamId, session.user)
-    const supabase = getSupabaseServer()
+    const { membership } = await routePerf(sink, "membership", () =>
+      requireTeamAccessWithUser(teamId, sessionResult.user as SessionUser)
+    )
 
-    const { data: rows, error } = await supabase
-      .from("team_announcements")
-      .select(
-        "id, team_id, title, body, author_id, author_name, created_at, updated_at, is_pinned, audience, send_notification"
-      )
-      .eq("team_id", teamId)
-      .order("created_at", { ascending: false })
+    const useCache = !shouldLogRoutePerf()
+    const announcements = await routePerf(sink, "announcements_query", () =>
+      useCache
+        ? getCachedVisibleTeamAnnouncements(teamId, membership.role)
+        : loadVisibleTeamAnnouncementsSorted(teamId, membership.role)
+    )
 
-    if (error) {
-      console.error("[GET team-announcements]", error)
-      return NextResponse.json({ error: "Failed to load announcements" }, { status: 500 })
+    if (sink) {
+      sink.push({ label: "total", ms: Math.round(performance.now() - started) })
+      logRoutePerf("GET /api/teams/.../team-announcements", sink, {
+        teamId,
+        userId: sessionResult.user.id,
+        cached: String(useCache),
+      })
     }
 
-    const list = (rows || []).filter((r) =>
-      userCanViewTeamAnnouncement(membership.role, String((r as { audience?: string }).audience || "all"))
-    )
-    const announcements = sortTeamAnnouncements(list as Parameters<typeof sortTeamAnnouncements>[0])
-
-    return NextResponse.json({ announcements })
+    const res = NextResponse.json({ announcements })
+    if (sessionResult.refreshedSession) {
+      applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+    }
+    return res
   } catch (err) {
+    if (err instanceof MembershipLookupError) {
+      console.error("[GET team-announcements] membership", err)
+      return NextResponse.json({ error: "Failed to verify access" }, { status: 500 })
+    }
     const msg = err instanceof Error ? err.message : "Failed"
     if (msg === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

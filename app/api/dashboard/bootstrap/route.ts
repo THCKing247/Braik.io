@@ -2,8 +2,10 @@
  * GET /api/dashboard/bootstrap?teamId=
  *
  * First-paint payload: team header, games, calendar event rows (minimal fields), coach readiness summary.
- * Notifications and announcements are deferred — cards fetch `/api/notifications` and
- * `/api/teams/.../team-announcements` after mount so this handler stays fast.
+ * Hints (`/api/engagement/hints`), roster preview (`/api/roster?lite=1`), notifications, and team
+ * announcements stay out of bootstrap: they are secondary for first paint, poll or load in parallel,
+ * and would widen the cached key surface or duplicate work with those dedicated routes (which now
+ * use short-lived caching and slimmer queries).
  *
  * Caching:
  * - Payload: `unstable_cache` 12s, key includes teamId + userId + coach/noncoach (readiness differs).

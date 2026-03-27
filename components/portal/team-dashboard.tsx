@@ -567,7 +567,7 @@ function NotificationsCard({
   const load = useCallback(async () => {
     try {
       const res = await fetch(
-        `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15&unreadOnly=true`
+        `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15&unreadOnly=true&preview=1`
       )
       if (!res.ok) return
       const data = await res.json()

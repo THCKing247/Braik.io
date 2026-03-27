@@ -88,7 +88,11 @@ export async function markAllNotificationsAsRead(userId: string, teamId?: string
 
 export async function getUnreadNotificationCount(userId: string, teamId?: string): Promise<number> {
   const supabase = getSupabaseServer()
-  let q = supabase.from("notifications").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("read", false)
+  let q = supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("read", false)
   if (teamId) q = q.eq("team_id", teamId)
   const { count } = await q
   return count ?? 0

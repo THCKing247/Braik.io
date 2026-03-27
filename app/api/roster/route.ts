@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
+import { getServerSession, getRequestUserLite, applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
+import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 import { createNotifications } from "@/lib/utils/notifications"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
@@ -35,14 +36,19 @@ type PlayerRow = {
 /**
  * GET /api/roster?teamId=xxx
  * Returns team roster (players) for RosterManagerEnhanced.
- * Resolves team from query; enforces team membership.
+ * `lite=1`: minimal fields only (id, names, jersey, position) — skips injuries, invites, user join; use for pickers (playbook, schedule stats).
+ * Lite + full use `getRequestUserLite` (no portal path). POST still uses full session.
  */
 export async function GET(request: Request) {
+  const started = performance.now()
+  const sink: RoutePerfSink | null = shouldLogRoutePerf() ? [] : null
+
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const sessionResult = await routePerf(sink, "auth", () => getRequestUserLite())
+    if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const sessionUser = sessionResult.user as SessionUser
 
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
@@ -50,8 +56,40 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
+    const lite = searchParams.get("lite") === "1"
     const supabase = getSupabaseServer()
-    await requireTeamAccessWithUser(teamId, session.user)
+
+    if (lite) {
+      await routePerf(sink, "membership", () => requireTeamAccessWithUser(teamId, sessionUser))
+      const { data: rows, error } = await routePerf(sink, "query_players_lite", async () =>
+        await supabase
+          .from("players")
+          .select("id, first_name, last_name, jersey_number, position_group")
+          .eq("team_id", teamId)
+          .order("last_name", { ascending: true })
+          .order("first_name", { ascending: true })
+      )
+      if (error) {
+        console.error("[GET /api/roster] lite", error.message, error)
+        return NextResponse.json({ error: "Failed to load roster" }, { status: 500 })
+      }
+      const litePlayers = (rows ?? []).map((p: Record<string, unknown>) => ({
+        id: p.id as string,
+        firstName: (p.first_name as string) ?? "",
+        lastName: (p.last_name as string) ?? "",
+        jerseyNumber: (p.jersey_number as number | null) ?? null,
+        positionGroup: (p.position_group as string | null) ?? null,
+      }))
+      if (sink) {
+        sink.push({ label: "total", ms: Math.round(performance.now() - started) })
+        logRoutePerf("GET /api/roster?lite=1", sink, { teamId })
+      }
+      const res = NextResponse.json(litePlayers)
+      if (sessionResult.refreshedSession) applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+      return res
+    }
+
+    await routePerf(sink, "membership", () => requireTeamAccessWithUser(teamId, sessionUser))
 
     type InjuryRow = {
       player_id: string
@@ -61,21 +99,23 @@ export async function GET(request: Request) {
       expected_return_date: string | null
     }
 
-    const [playersResult, injuriesResult] = await Promise.all([
-      supabase
-        .from("players")
-        .select(
-          "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
-        )
-        .eq("team_id", teamId)
-        .order("last_name", { ascending: true })
-        .order("first_name", { ascending: true }),
-      supabase
-        .from("player_injuries")
-        .select("player_id, injury_reason, severity, exempt_from_practice, expected_return_date, status")
-        .eq("team_id", teamId)
-        .eq("status", "active"),
-    ])
+    const [playersResult, injuriesResult] = await routePerf(sink, "players_and_injuries", () =>
+      Promise.all([
+        supabase
+          .from("players")
+          .select(
+            "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
+          )
+          .eq("team_id", teamId)
+          .order("last_name", { ascending: true })
+          .order("first_name", { ascending: true }),
+        supabase
+          .from("player_injuries")
+          .select("player_id, injury_reason, severity, exempt_from_practice, expected_return_date, status")
+          .eq("team_id", teamId)
+          .eq("status", "active"),
+      ])
+    )
 
     const { data: rows, error } = playersResult
     if (error) {
@@ -101,16 +141,18 @@ export async function GET(request: Request) {
 
     const userIds = [...new Set(typedRows.map((r) => r.user_id).filter(Boolean))] as string[]
 
-    const [usersResult, invitesResult] = await Promise.all([
-      userIds.length > 0
-        ? supabase.from("users").select("id, email").in("id", userIds)
-        : Promise.resolve({ data: [] as { id: string; email: string }[], error: null }),
-      supabase
-        .from("player_invites")
-        .select("player_id, status, token, sent_email_at, sent_sms_at")
-        .eq("team_id", teamId)
-        .in("status", ["pending", "sent", "claimed"]),
-    ])
+    const [usersResult, invitesResult] = await routePerf(sink, "users_and_invites", () =>
+      Promise.all([
+        userIds.length > 0
+          ? supabase.from("users").select("id, email").in("id", userIds)
+          : Promise.resolve({ data: [] as { id: string; email: string }[], error: null }),
+        supabase
+          .from("player_invites")
+          .select("player_id, status, token, sent_email_at, sent_sms_at")
+          .eq("team_id", teamId)
+          .in("status", ["pending", "sent", "claimed"]),
+      ])
+    )
 
     const userMap = new Map((usersResult.data ?? []).map((u) => [u.id, u]))
     const inviteRows = invitesResult.data
@@ -180,7 +222,14 @@ export async function GET(request: Request) {
       }
     })
 
-    return NextResponse.json(players)
+    if (sink) {
+      sink.push({ label: "total", ms: Math.round(performance.now() - started) })
+      logRoutePerf("GET /api/roster", sink, { teamId })
+    }
+
+    const res = NextResponse.json(players)
+    if (sessionResult.refreshedSession) applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+    return res
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       console.error("[GET /api/roster] membership lookup failed (DB/schema)", { error: err.message, cause: err.cause })

@@ -23,30 +23,58 @@ function isFootballSport(sport: string | null | undefined): boolean {
   return s === "" || s === "football"
 }
 
-async function athleticDirectorUserIdForOrganization(
+/** Batch-resolve athletic director user id per organization (2 queries total vs 2× per org). */
+async function mapOrganizationIdsToAthleticDirectorUserId(
   supabase: SupabaseClient,
-  organizationId: string | null | undefined
-): Promise<string | null> {
-  if (!organizationId) return null
-  const { data: org } = await supabase
+  organizationIds: (string | null | undefined)[]
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>()
+  const unique = [...new Set(organizationIds.filter((id): id is string => Boolean(id)))]
+  for (const id of unique) out.set(id, null)
+  if (unique.length === 0) return out
+
+  const { data: orgs } = await supabase
     .from("organizations")
-    .select("athletic_department_id")
-    .eq("id", organizationId)
-    .maybeSingle()
-  const deptId = (org as { athletic_department_id?: string | null } | null)?.athletic_department_id
-  if (!deptId) return null
-  const { data: dept } = await supabase
-    .from("athletic_departments")
-    .select("athletic_director_user_id")
-    .eq("id", deptId)
-    .maybeSingle()
-  return (dept as { athletic_director_user_id?: string | null } | null)?.athletic_director_user_id ?? null
+    .select("id, athletic_department_id")
+    .in("id", unique)
+
+  const deptIds = [
+    ...new Set(
+      (orgs ?? [])
+        .map((o) => (o as { athletic_department_id?: string | null }).athletic_department_id)
+        .filter((x): x is string => Boolean(x))
+    ),
+  ]
+
+  const deptToAd = new Map<string, string | null>()
+  if (deptIds.length > 0) {
+    const { data: depts } = await supabase
+      .from("athletic_departments")
+      .select("id, athletic_director_user_id")
+      .in("id", deptIds)
+    for (const d of depts ?? []) {
+      const row = d as { id: string; athletic_director_user_id?: string | null }
+      deptToAd.set(row.id, row.athletic_director_user_id ?? null)
+    }
+  }
+
+  for (const o of orgs ?? []) {
+    const oid = (o as { id: string }).id
+    const did = (o as { athletic_department_id?: string | null }).athletic_department_id
+    const adUid = did ? deptToAd.get(did) ?? null : null
+    out.set(oid, adUid)
+  }
+  return out
 }
 
 /**
  * Head coaches only get football AD portal entry (and the HC-shell “Department” link) when they are
  * program director_of_football or primary head on Varsity (or legacy team_level unset) for that program.
  * JV/Freshman-only heads stay team-scoped and do not see AD portal affordances.
+ */
+/**
+ * Varsity HC / director eligibility: one program_members query, then at most one teams + one team_members
+ * query for all programs that need varsity checks (avoids per-program round trips).
  */
 async function filterProgramIdsForVarsityAdPortalEligibility(
   supabase: SupabaseClient,
@@ -62,50 +90,83 @@ async function filterProgramIdsForVarsityAdPortalEligibility(
     .eq("active", true)
     .in("program_id", programIds)
 
-  const eligible: string[] = []
+  const rolesByProgram = new Map<string, Set<string>>()
+  for (const r of rows ?? []) {
+    const pid = String((r as { program_id: string }).program_id)
+    if (!rolesByProgram.has(pid)) rolesByProgram.set(pid, new Set())
+    rolesByProgram.get(pid)!.add(String((r as { role: string }).role))
+  }
+
+  const directorPrograms = new Set<string>()
+  const needsVarsityCheck: string[] = []
   for (const pid of programIds) {
-    const memberRoles = (rows ?? []).filter((r) => (r as { program_id: string }).program_id === pid)
-    const roleSet = new Set(memberRoles.map((r) => String((r as { role: string }).role)))
+    const roleSet = rolesByProgram.get(pid) ?? new Set()
     if (roleSet.has("director_of_football")) {
-      eligible.push(pid)
-      continue
-    }
-    if (!roleSet.has("head_coach")) continue
-
-    const { data: teams } = await supabase
-      .from("teams")
-      .select("id, team_level")
-      .eq("program_id", pid)
-
-    const candidateTeamIds = (teams ?? [])
-      .filter((t) => {
-        const tl = String((t as { team_level?: string | null }).team_level ?? "")
-          .trim()
-          .toLowerCase()
-        return tl === "varsity" || tl === ""
-      })
-      .map((t) => (t as { id: string }).id)
-
-    if (candidateTeamIds.length === 0) continue
-
-    const { data: staff } = await supabase
-      .from("team_members")
-      .select("team_id, user_id, role, is_primary")
-      .eq("user_id", userId)
-      .eq("active", true)
-      .in("team_id", candidateTeamIds)
-
-    const staffRows: TeamMemberStaffRow[] = (staff ?? []).map((s) => ({
-      user_id: (s as { user_id: string }).user_id,
-      role: (s as { role: string }).role,
-      is_primary: (s as { is_primary?: boolean | null }).is_primary,
-    }))
-    if (pickHeadCoachUserId(staffRows) === userId) {
-      eligible.push(pid)
+      directorPrograms.add(pid)
+    } else if (roleSet.has("head_coach")) {
+      needsVarsityCheck.push(pid)
     }
   }
 
-  return eligible
+  const eligibleFromVarsity = new Set<string>()
+  if (needsVarsityCheck.length > 0) {
+    const needsSet = new Set(needsVarsityCheck)
+    const { data: teams } = await supabase
+      .from("teams")
+      .select("id, program_id, team_level")
+      .in("program_id", needsVarsityCheck)
+
+    const candidatesByProgram = new Map<string, string[]>()
+    for (const pid of needsVarsityCheck) candidatesByProgram.set(pid, [])
+
+    for (const t of teams ?? []) {
+      const pid = String((t as { program_id: string }).program_id)
+      if (!needsSet.has(pid)) continue
+      const tl = String((t as { team_level?: string | null }).team_level ?? "")
+        .trim()
+        .toLowerCase()
+      if (tl !== "varsity" && tl !== "") continue
+      const id = (t as { id: string }).id
+      candidatesByProgram.get(pid)!.push(id)
+    }
+
+    const allCandidateIds = [...new Set([...candidatesByProgram.values()].flat())]
+    let staffByTeam = new Map<string, TeamMemberStaffRow[]>()
+    if (allCandidateIds.length > 0) {
+      const { data: staff } = await supabase
+        .from("team_members")
+        .select("team_id, user_id, role, is_primary")
+        .eq("user_id", userId)
+        .eq("active", true)
+        .in("team_id", allCandidateIds)
+
+      staffByTeam = new Map()
+      for (const s of staff ?? []) {
+        const tid = String((s as { team_id: string }).team_id)
+        if (!staffByTeam.has(tid)) staffByTeam.set(tid, [])
+        staffByTeam.get(tid)!.push({
+          user_id: (s as { user_id: string }).user_id,
+          role: (s as { role: string }).role,
+          is_primary: (s as { is_primary?: boolean | null }).is_primary,
+        })
+      }
+    }
+
+    for (const pid of needsVarsityCheck) {
+      const teamIds = candidatesByProgram.get(pid) ?? []
+      const combined: TeamMemberStaffRow[] = []
+      for (const tid of teamIds) {
+        for (const row of staffByTeam.get(tid) ?? []) combined.push(row)
+      }
+      if (pickHeadCoachUserId(combined) === userId) eligibleFromVarsity.add(pid)
+    }
+  }
+
+  const ordered: string[] = []
+  for (const pid of programIds) {
+    if (directorPrograms.has(pid) || eligibleFromVarsity.has(pid)) ordered.push(pid)
+  }
+  return ordered
 }
 
 export async function getAdPortalAccessForUser(
@@ -162,10 +223,13 @@ export async function getAdPortalAccessForUser(
 
   const footballIds = footballProgs.map((p) => (p as { id: string }).id)
 
+  const orgIdsForAd = footballProgs.map((p) => (p as { organization_id?: string | null }).organization_id)
+  const orgToAdUser = await mapOrganizationIdsToAthleticDirectorUserId(supabase, orgIdsForAd)
+
   let hasExternalAd = false
   for (const p of footballProgs) {
     const orgId = (p as { organization_id?: string | null }).organization_id
-    const adUid = await athleticDirectorUserIdForOrganization(supabase, orgId ?? null)
+    const adUid = orgId ? orgToAdUser.get(orgId) ?? null : null
     if (adUid && adUid !== userId) {
       hasExternalAd = true
       break

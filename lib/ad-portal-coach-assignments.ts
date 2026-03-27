@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { fetchAdPortalVisibleTeams, type AthleticDirectorScope } from "@/lib/ad-team-scope"
+import {
+  fetchAdPortalVisibleTeams,
+  type AdPortalTeamsSelectMode,
+  type AthleticDirectorScope,
+} from "@/lib/ad-team-scope"
 import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
 /** Team-level head coach slot (one row per AD-visible team). */
@@ -37,11 +41,14 @@ export type AdCoachAssignmentsPageData = {
  */
 export async function fetchAdCoachAssignmentsPageData(
   supabase: SupabaseClient,
-  sessionUserId: string
+  sessionUserId: string,
+  options?: { teamSelect?: AdPortalTeamsSelectMode }
 ): Promise<AdCoachAssignmentsPageData> {
+  const teamSelect: AdPortalTeamsSelectMode = options?.teamSelect ?? "full"
   const { scope, orFilter, teams: teamRows, error: teamsErr } = await fetchAdPortalVisibleTeams(
     supabase,
-    sessionUserId
+    sessionUserId,
+    teamSelect
   )
 
   if (!orFilter || teamsErr || !teamRows?.length) {
@@ -56,7 +63,10 @@ export async function fetchAdCoachAssignmentsPageData(
   }
 
   const visibleTeamIds = teamRows.map((t) => t.id)
-  const teamNameById = new Map(teamRows.map((t) => [t.id, t.name ?? ""]))
+  const teamNameById = new Map<string, string>()
+  for (const t of teamRows) {
+    teamNameById.set(t.id, t.name ?? "")
+  }
 
   const teamsPicklist: AdCoachAssignmentsPicklistTeam[] = teamRows.map((t) => ({
     id: t.id,
@@ -64,11 +74,22 @@ export async function fetchAdCoachAssignmentsPageData(
     programId: (t.program_id as string | null | undefined) ?? null,
   }))
 
-  const { data: headMemberRows } = await supabase
-    .from("team_members")
-    .select("team_id, user_id, role, is_primary")
-    .in("team_id", visibleTeamIds)
-    .eq("active", true)
+  const [headMembersRes, asstMembersRes] = await Promise.all([
+    supabase
+      .from("team_members")
+      .select("team_id, user_id, role, is_primary")
+      .in("team_id", visibleTeamIds)
+      .eq("active", true),
+    supabase
+      .from("team_members")
+      .select("team_id, user_id, role")
+      .in("team_id", visibleTeamIds)
+      .eq("active", true)
+      .eq("role", "assistant_coach"),
+  ])
+
+  const headMemberRows = headMembersRes.data
+  const asstMemberRows = asstMembersRes.data
 
   const staffByTeam = new Map<string, TeamMemberStaffRow[]>()
   for (const row of headMemberRows ?? []) {
@@ -92,13 +113,6 @@ export async function fetchAdCoachAssignmentsPageData(
       email: null,
     }
   })
-
-  const { data: asstMemberRows } = await supabase
-    .from("team_members")
-    .select("team_id, user_id, role")
-    .in("team_id", visibleTeamIds)
-    .eq("active", true)
-    .eq("role", "assistant_coach")
 
   const assistantPairs = (asstMemberRows ?? []) as { team_id: string; user_id: string }[]
   const asstUserIds = new Set(assistantPairs.map((r) => r.user_id))

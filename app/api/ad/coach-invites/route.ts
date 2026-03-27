@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 import { assertTeamInAdPortalScope } from "@/lib/ad-portal-coach-assignments"
+import { revalidateAdCoachesBootstrapCache } from "@/lib/ad/ad-bootstrap-cache"
 import { generateUniqueInviteCode } from "@/lib/invites/invite-codes"
 
 export const runtime = "nodejs"
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message ?? "Failed to create invite." }, { status: 500 })
     }
 
+    revalidateAdCoachesBootstrapCache()
     return NextResponse.json(row)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

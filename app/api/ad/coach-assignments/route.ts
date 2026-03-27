@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 import { assertTeamInAdPortalScope } from "@/lib/ad-portal-coach-assignments"
+import { revalidateAdCoachesBootstrapCache } from "@/lib/ad/ad-bootstrap-cache"
 import { setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    revalidateAdCoachesBootstrapCache()
     return NextResponse.json({ success: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -145,6 +147,7 @@ export async function PATCH(request: Request) {
     const sameRole = currentRole === targetRole
 
     if (sameTeam && sameRole) {
+      revalidateAdCoachesBootstrapCache()
       return NextResponse.json({ success: true })
     }
 
@@ -170,6 +173,7 @@ export async function PATCH(request: Request) {
         source: "ad_coaches_promote_assistant",
       })
       if (hcErr) return NextResponse.json({ error: hcErr.message }, { status: 500 })
+      revalidateAdCoachesBootstrapCache()
       return NextResponse.json({ success: true })
     }
 
@@ -180,6 +184,7 @@ export async function PATCH(request: Request) {
         source: "ad_coaches_demote_head",
       })
       if (asErr) return NextResponse.json({ error: asErr.message }, { status: 500 })
+      revalidateAdCoachesBootstrapCache()
       return NextResponse.json({ success: true })
     }
 
@@ -189,6 +194,7 @@ export async function PATCH(request: Request) {
         source: "ad_coaches_move_assistant",
       })
       if (asErr) return NextResponse.json({ error: asErr.message }, { status: 500 })
+      revalidateAdCoachesBootstrapCache()
       return NextResponse.json({ success: true })
     }
 
@@ -206,6 +212,7 @@ export async function PATCH(request: Request) {
         source: "ad_coaches_move_head",
       })
       if (hcErr) return NextResponse.json({ error: hcErr.message }, { status: 500 })
+      revalidateAdCoachesBootstrapCache()
       return NextResponse.json({ success: true })
     }
 
@@ -222,6 +229,7 @@ export async function PATCH(request: Request) {
         source: "ad_coaches_assistant_to_head_move",
       })
       if (hcErr) return NextResponse.json({ error: hcErr.message }, { status: 500 })
+      revalidateAdCoachesBootstrapCache()
       return NextResponse.json({ success: true })
     }
 
@@ -232,6 +240,7 @@ export async function PATCH(request: Request) {
         source: "ad_coaches_head_to_assistant_move",
       })
       if (asErr) return NextResponse.json({ error: asErr.message }, { status: 500 })
+      revalidateAdCoachesBootstrapCache()
       return NextResponse.json({ success: true })
     }
 

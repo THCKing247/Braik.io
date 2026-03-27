@@ -1,8 +1,11 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { EngagementHint } from "@/lib/engagement/dashboard-hints-data"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -19,10 +22,18 @@ import type {
   AdHeadCoachAssignmentRow,
 } from "@/lib/ad-portal-coach-assignments"
 
+function hintStorageKey(teamId: string, hintId: string) {
+  return `braik_hint_dismissed:${teamId}:${hintId}`
+}
+
 type Props = {
   headRows: AdHeadCoachAssignmentRow[]
   assistantRows: AdAssistantCoachAssignmentRow[]
   teamsPicklist: AdCoachAssignmentsPicklistTeam[]
+  hints?: EngagementHint[]
+  hintsContextTeamId?: string | null
+  /** After invite/assignment mutations, reload bootstrap data (client fetch). */
+  onBootstrapRefetch?: () => void
 }
 
 function displayCoachName(row: { fullName: string | null; email: string | null }) {
@@ -37,8 +48,36 @@ const tableWrap = "rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflo
 const th = "px-4 py-3 text-left text-xs font-semibold text-[#6B7280] uppercase tracking-wider"
 const td = "px-4 py-3 text-sm"
 
-export function AdCoachesPageClient({ headRows, assistantRows, teamsPicklist }: Props) {
+export function AdCoachesPageClient({
+  headRows,
+  assistantRows,
+  teamsPicklist,
+  hints = [],
+  hintsContextTeamId = null,
+  onBootstrapRefetch,
+}: Props) {
   const router = useRouter()
+  const [hintDismissTick, setHintDismissTick] = useState(0)
+
+  const nextHint = useMemo(() => {
+    if (!hintsContextTeamId || hints.length === 0) return null
+    for (const h of hints) {
+      if (typeof window === "undefined") continue
+      if (window.localStorage.getItem(hintStorageKey(hintsContextTeamId, h.id))) continue
+      return h
+    }
+    return null
+  }, [hints, hintsContextTeamId, hintDismissTick])
+
+  const dismissHint = () => {
+    if (!nextHint || !hintsContextTeamId) return
+    try {
+      window.localStorage.setItem(hintStorageKey(hintsContextTeamId, nextHint.id), "1")
+    } catch {
+      /* ignore */
+    }
+    setHintDismissTick((t) => t + 1)
+  }
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteTeamId, setInviteTeamId] = useState("")
   const [inviteRole, setInviteRole] = useState<"head_coach" | "assistant_coach">("head_coach")
@@ -90,6 +129,7 @@ export function AdCoachesPageClient({ headRows, assistantRows, teamsPicklist }: 
         return
       }
       setInviteCode(String((data as { code?: string }).code ?? ""))
+      onBootstrapRefetch?.()
       router.refresh()
     } catch {
       setInviteError("Something went wrong.")
@@ -151,6 +191,7 @@ export function AdCoachesPageClient({ headRows, assistantRows, teamsPicklist }: 
           return
         }
         setEditOpen(false)
+        onBootstrapRefetch?.()
         router.refresh()
       } catch {
         setEditError("Something went wrong.")
@@ -180,6 +221,7 @@ export function AdCoachesPageClient({ headRows, assistantRows, teamsPicklist }: 
         return
       }
       setEditOpen(false)
+      onBootstrapRefetch?.()
       router.refresh()
     } catch {
       setEditError("Something went wrong.")
@@ -197,6 +239,26 @@ export function AdCoachesPageClient({ headRows, assistantRows, teamsPicklist }: 
 
   return (
     <div className="space-y-8">
+      {nextHint && hintsContextTeamId ? (
+        <div
+          className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+          role="status"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[#212529]">{nextHint.title}</p>
+            <p className="text-xs text-[#6B7280]">{nextHint.description}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button asChild size="sm" className="bg-[#3B82F6] text-white hover:bg-[#2563EB]">
+              <Link href={nextHint.ctaHref}>{nextHint.ctaLabel}</Link>
+            </Button>
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={dismissHint} aria-label="Dismiss">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#212529]">Coaches</h1>

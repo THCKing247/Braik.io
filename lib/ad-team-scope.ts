@@ -189,14 +189,20 @@ export async function fetchAdVisibleTeams(
   }
 }
 
+/** Minimal columns for AD coaches bootstrap / picklists (no select('*')). */
+export type AdPortalTeamPicklistRow = Pick<AdVisibleTeamRow, "id" | "name" | "program_id">
+
+export type AdPortalTeamsSelectMode = "full" | "picklist"
+
 /** AD portal team list: department AD scope plus varsity football head-coach program scope. */
 export async function fetchAdPortalVisibleTeams(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  selectMode: AdPortalTeamsSelectMode = "full"
 ): Promise<{
   scope: AthleticDirectorScope
   orFilter: string | null
-  teams: AdVisibleTeamRow[]
+  teams: AdVisibleTeamRow[] | AdPortalTeamPicklistRow[]
   error: string | null
   footballAccess: FootballAdAccessContext
 }> {
@@ -210,6 +216,20 @@ export async function fetchAdPortalVisibleTeams(
   const orFilter = buildAdTeamsOrFilter(scope)
   if (!orFilter) {
     return { scope, orFilter: null, teams: [], error: null, footballAccess }
+  }
+  if (selectMode === "picklist") {
+    const { data, error } = await supabase
+      .from("teams")
+      .select("id, name, program_id")
+      .or(orFilter)
+      .order("created_at", { ascending: false })
+    return {
+      scope,
+      orFilter,
+      teams: (data ?? []) as AdPortalTeamPicklistRow[],
+      error: error?.message ?? null,
+      footballAccess,
+    }
   }
   const { data, error } = await supabase
     .from("teams")
@@ -263,10 +283,11 @@ export async function fetchAdVisibleTeamsForAccess(
   }
 
   const merged = await fetchAdPortalVisibleTeams(supabase, userId)
+  const mergedTeams = merged.teams as AdVisibleTeamRow[]
 
   if (access.teamQuery === "program_ids" && access.footballProgramIds.length > 0) {
     const idSet = new Set(access.footballProgramIds)
-    const teams = merged.teams.filter((t) => t.program_id && idSet.has(t.program_id))
+    const teams = mergedTeams.filter((t) => t.program_id && idSet.has(t.program_id))
     const orFilter = `program_id.in.(${access.footballProgramIds.join(",")})`
     const linked = new Set(merged.scope.linkedProgramIds)
     for (const id of access.footballProgramIds) linked.add(id)
@@ -281,7 +302,7 @@ export async function fetchAdVisibleTeamsForAccess(
   return {
     scope: merged.scope,
     orFilter: merged.orFilter,
-    teams: merged.teams,
+    teams: mergedTeams,
     error: merged.error,
   }
 }

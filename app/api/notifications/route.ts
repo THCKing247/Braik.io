@@ -1,7 +1,7 @@
-﻿import { NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getUserMembership } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 
 /**
@@ -25,16 +25,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    // Verify user has access to this team
-    const membership = await getUserMembership(teamId)
-    if (!membership) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
-    }
+    await requireTeamAccessWithUser(teamId, session.user)
 
     const supabase = getSupabaseServer()
     let q = supabase
       .from("notifications")
-      .select("*")
+      .select("id, user_id, team_id, type, title, body, link_url, link_type, link_id, metadata, read, read_at, created_at")
       .eq("user_id", session.user.id)
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })

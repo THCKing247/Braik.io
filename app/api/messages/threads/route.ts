@@ -11,16 +11,15 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
+    const limitRaw = Number.parseInt(searchParams.get("limit") || "50", 10)
+    const offsetRaw = Number.parseInt(searchParams.get("offset") || "0", 10)
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50
+    const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
     const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
-    }
-
     const { user } = await requireTeamAccess(teamId)
     const userId = user.id
 
@@ -49,10 +48,16 @@ export async function GET(request: Request) {
       .eq("team_id", teamId)
       .in("id", threadIds)
       .order("updated_at", { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (threadsError) {
       console.error("[GET /api/messages/threads] threads", threadsError)
       return NextResponse.json({ error: "Failed to load threads" }, { status: 500 })
+    }
+
+    const selectedThreadIds = [...new Set((threads ?? []).map((t) => t.id))]
+    if (selectedThreadIds.length === 0) {
+      return NextResponse.json([])
     }
 
     const creatorIds = [...new Set((threads ?? []).map((t) => t.created_by))]
@@ -65,21 +70,26 @@ export async function GET(request: Request) {
       creatorMap = new Map((users ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
     }
 
-    const { data: messageCounts } = await supabase
-      .from("messages")
-      .select("thread_id")
-      .in("thread_id", threadIds)
-      .is("deleted_at", null)
-
     const countMap = new Map<string, number>()
-    ;(messageCounts ?? []).forEach((m) => {
-      countMap.set(m.thread_id, (countMap.get(m.thread_id) || 0) + 1)
+    const unreadCounts = new Map<string, number>()
+    const { data: messageStatsRows } = await supabase
+      .from("messages")
+      .select("thread_id, sender_id, created_at")
+      .in("thread_id", selectedThreadIds)
+      .is("deleted_at", null)
+    ;(messageStatsRows ?? []).forEach((m) => {
+      countMap.set(m.thread_id, (countMap.get(m.thread_id) ?? 0) + 1)
+      if (m.sender_id === userId) return
+      const lastReadAt = lastReadByThread.get(m.thread_id)
+      if (!lastReadAt || new Date(m.created_at).getTime() > new Date(lastReadAt).getTime()) {
+        unreadCounts.set(m.thread_id, (unreadCounts.get(m.thread_id) ?? 0) + 1)
+      }
     })
 
     const { data: allParticipants } = await supabase
       .from("message_thread_participants")
       .select("thread_id, user_id")
-      .in("thread_id", threadIds)
+      .in("thread_id", selectedThreadIds)
 
     const participantsByThread = new Map<string, string[]>()
     ;(allParticipants ?? []).forEach((p) => {
@@ -139,7 +149,7 @@ export async function GET(request: Request) {
     const { data: recentMessages } = await supabase
       .from("messages")
       .select("id, thread_id, sender_id, content, created_at")
-      .in("thread_id", threadIds)
+      .in("thread_id", selectedThreadIds)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(400)
@@ -156,33 +166,6 @@ export async function GET(request: Request) {
         : { data: [] as { id: string; name: string | null; email: string }[] }
 
     const latestSenderMap = new Map((latestSenders ?? []).map((u) => [u.id, u]))
-
-    const unreadCounts = new Map<string, number>()
-    const countUnread = async (threadId: string) => {
-      const lr = lastReadByThread.get(threadId) ?? null
-      let q = supabase
-        .from("messages")
-        .select("id", { count: "exact", head: true })
-        .eq("thread_id", threadId)
-        .is("deleted_at", null)
-        .neq("sender_id", userId)
-      if (lr) {
-        q = q.gt("created_at", lr)
-      }
-      const { count, error } = await q
-      if (error) {
-        console.error("[GET /api/messages/threads] unread count", threadId, error)
-        unreadCounts.set(threadId, 0)
-        return
-      }
-      unreadCounts.set(threadId, count ?? 0)
-    }
-
-    const batchSize = 12
-    for (let i = 0; i < threadIds.length; i += batchSize) {
-      const slice = threadIds.slice(i, i + batchSize)
-      await Promise.all(slice.map((tid) => countUnread(tid)))
-    }
 
     const formatted = (threads ?? []).map((t) => {
       const creator = creatorMap.get(t.created_by) || { id: t.created_by, name: null, email: "" }

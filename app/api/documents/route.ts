@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "fs/promises"
 import { join } from "path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccess, requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { ROLES, type Role } from "@/lib/auth/roles"
 import { teamDocumentVisibleToMember } from "@/lib/documents/document-visibility"
 import { getUploadRoot } from "@/lib/upload-path"
@@ -39,12 +39,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
-    }
-
-    const { membership } = await requireTeamAccess(teamId)
+    const { membership } = await requireTeamAccessWithUser(teamId, session.user)
     const viewerRole = membership.role as Role
 
     let viewerPlayerRowIds: string[] = []

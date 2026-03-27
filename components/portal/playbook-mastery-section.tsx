@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { BookOpen, Loader2 } from "lucide-react"
 
@@ -23,6 +23,8 @@ export function PlaybookMasterySection({ teamId, canEdit }: PlaybookMasterySecti
   const [programId, setProgramId] = useState<string | null>(null)
   const [players, setPlayers] = useState<MasteryRow[]>([])
   const [loading, setLoading] = useState(true)
+  /** Avoid hammering a stale or removed program id (repeated 404s in Network tab). */
+  const masteryNotFoundPrograms = useRef(new Set<string>())
 
   useEffect(() => {
     if (!teamId) return
@@ -32,12 +34,29 @@ export function PlaybookMasterySection({ teamId, canEdit }: PlaybookMasterySecti
       .then((team: { programId?: string } | null) => {
         if (team?.programId) {
           setProgramId(team.programId)
+          if (masteryNotFoundPrograms.current.has(team.programId)) {
+            return Promise.resolve(null)
+          }
           return fetch(`/api/programs/${team.programId}/playbook-mastery`)
         }
         setProgramId(null)
         return Promise.resolve(null)
       })
-      .then((res) => (res?.ok ? res.json() : { players: [] }))
+      .then((res) => {
+        if (res && !res.ok && res.status === 404) {
+          try {
+            const u = new URL(res.url)
+            const parts = u.pathname.split("/").filter(Boolean)
+            const idx = parts.indexOf("programs")
+            const pid = idx >= 0 ? parts[idx + 1] : null
+            if (pid) masteryNotFoundPrograms.current.add(pid)
+          } catch {
+            /* ignore */
+          }
+          return { players: [] }
+        }
+        return res?.ok ? res.json() : { players: [] }
+      })
       .then((data: { players?: MasteryRow[] }) => setPlayers(data.players ?? []))
       .catch(() => setPlayers([]))
       .finally(() => setLoading(false))

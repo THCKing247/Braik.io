@@ -47,6 +47,8 @@ import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notifi
 import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team-schedule-games"
 import { computeTeamRecord, formatRecordLine } from "@/lib/records/compute-team-record"
 import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
+import { fetchDashboardBootstrap } from "@/lib/dashboard/fetch-dashboard-bootstrap"
+import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -141,13 +143,20 @@ function TeamBanner({
   teamId,
   scheduleGames,
   scheduleGamesLoading,
+  prefetchedTeamSummary,
+  bootstrapTeamLoading,
 }: {
   user: SessionUser
   teamId: string
   scheduleGames: TeamGameRow[]
   scheduleGamesLoading: boolean
+  /** From `/api/dashboard/bootstrap` — avoids a separate GET /api/teams/:id for the header. */
+  prefetchedTeamSummary?: { name: string; slogan: string | null; logoUrl: string | null }
+  /** While bootstrap is in flight, skip redundant team GET until success or fallback. */
+  bootstrapTeamLoading?: boolean
 }) {
   const [teamSummary, setTeamSummary] = useState<{ name: string; slogan: string | null; logoUrl: string | null } | null>(null)
+  const [logoBroken, setLogoBroken] = useState(false)
   const hasTeam = Boolean(user.teamId)
 
   const record = useMemo(() => computeTeamRecord(scheduleGames), [scheduleGames])
@@ -157,6 +166,15 @@ function TeamBanner({
   useEffect(() => {
     if (!teamId) {
       setTeamSummary(null)
+      setLogoBroken(false)
+      return
+    }
+    setLogoBroken(false)
+    if (prefetchedTeamSummary) {
+      setTeamSummary(prefetchedTeamSummary)
+      return
+    }
+    if (bootstrapTeamLoading) {
       return
     }
     let cancelled = false
@@ -175,12 +193,12 @@ function TeamBanner({
         if (!cancelled) setTeamSummary(null)
       })
     return () => { cancelled = true }
-  }, [teamId])
+  }, [teamId, prefetchedTeamSummary, bootstrapTeamLoading])
 
   const teamName = teamSummary?.name || user.teamName || user.organizationName || "Your Team"
   const lastName = user?.name?.split(" ").slice(-1)[0] || ""
   const roleLabel = getRoleLabel(user.role)
-  const logoUrl = teamSummary?.logoUrl ?? null
+  const logoUrl = logoBroken ? null : (teamSummary?.logoUrl ?? null)
 
   return (
     <div
@@ -206,7 +224,12 @@ function TeamBanner({
             title={hasTeam ? "Team logo" : "Connect to a team"}
           >
             {logoUrl ? (
-              <img src={logoUrl} alt={`${teamName} logo`} className="h-full w-full object-contain" />
+              <img
+                src={logoUrl}
+                alt={`${teamName} logo`}
+                className="h-full w-full object-contain"
+                onError={() => setLogoBroken(true)}
+              />
             ) : (
               <ImageIcon className="h-7 w-7 text-white/50" />
             )}
@@ -310,14 +333,66 @@ function fetchReadinessSummaryOnce(teamId: string) {
   return p
 }
 
-function ReadinessSummaryCard({ teamId }: { teamId: string }) {
+function ReadinessSummaryCard({
+  teamId,
+  dashboardBootstrapState,
+  readinessFromBootstrap,
+}: {
+  teamId: string
+  dashboardBootstrapState: "loading" | "ok" | "fallback"
+  readinessFromBootstrap?: DashboardBootstrapPayload["readiness"]
+}) {
   const readinessHref = `/dashboard/roster?teamId=${encodeURIComponent(teamId)}&tab=readiness`
+  const okSkipped =
+    dashboardBootstrapState === "ok" &&
+    readinessFromBootstrap &&
+    "skipped" in readinessFromBootstrap
+  const okSummary =
+    dashboardBootstrapState === "ok" &&
+    readinessFromBootstrap &&
+    "summary" in readinessFromBootstrap
+      ? readinessFromBootstrap.summary
+      : null
+
   const [summary, setSummary] = useState<{ total: number; incompleteCount: number; readyCount: number } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    if (dashboardBootstrapState === "loading") return true
+    if (okSummary) return false
+    return dashboardBootstrapState === "fallback"
+  })
   const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
-    if (!teamId) return
+    setSummary(null)
+    setForbidden(false)
+  }, [teamId])
+
+  useEffect(() => {
+    if (dashboardBootstrapState === "loading") {
+      setLoading(true)
+      return
+    }
+    const skipped =
+      dashboardBootstrapState === "ok" &&
+      readinessFromBootstrap &&
+      "skipped" in readinessFromBootstrap
+    const inlineSummary =
+      dashboardBootstrapState === "ok" &&
+      readinessFromBootstrap &&
+      "summary" in readinessFromBootstrap
+        ? readinessFromBootstrap.summary
+        : null
+    if (inlineSummary) {
+      setSummary(null)
+      setForbidden(false)
+      setLoading(false)
+      return
+    }
+    if (skipped) {
+      setLoading(false)
+      return
+    }
+    if (dashboardBootstrapState !== "fallback" || !teamId) return
     let cancelled = false
     setLoading(true)
     setForbidden(false)
@@ -344,7 +419,33 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
     return () => {
       cancelled = true
     }
-  }, [teamId])
+  }, [teamId, dashboardBootstrapState, readinessFromBootstrap])
+
+  const displaySummary = okSummary ?? summary
+
+  if (dashboardBootstrapState === "loading") {
+    return (
+      <Card
+        className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      >
+        <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
+          <CardTitle
+            className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
+            style={{ color: "rgb(var(--text))" }}
+          >
+            <ClipboardCheck className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
+            Roster Readiness
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex min-h-[100px] items-center justify-center px-4 pb-4 md:px-6 md:pb-6">
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (okSkipped) return null
 
   if (forbidden) return null
 
@@ -370,7 +471,7 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
     )
   }
 
-  if (!summary) return null
+  if (!displaySummary) return null
 
   return (
     <Card
@@ -390,16 +491,16 @@ function ReadinessSummaryCard({ teamId }: { teamId: string }) {
       </CardHeader>
       <CardContent className="space-y-2 px-4 pb-4 md:px-6 md:pb-6">
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{summary.total}</span>
+          <span className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{displaySummary.total}</span>
           <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>players</span>
         </div>
         <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-          <span className="font-medium text-green-600">{summary.readyCount} ready</span>
-          {summary.incompleteCount > 0 && (
-            <> · <span className="font-medium text-amber-600">{summary.incompleteCount} need attention</span></>
+          <span className="font-medium text-green-600">{displaySummary.readyCount} ready</span>
+          {displaySummary.incompleteCount > 0 && (
+            <> · <span className="font-medium text-amber-600">{displaySummary.incompleteCount} need attention</span></>
           )}
         </p>
-        {summary.incompleteCount > 0 && (
+        {displaySummary.incompleteCount > 0 && (
           <Link href={readinessHref}>
             <Button size="sm" variant="outline" className="mt-2 text-xs">
               Open Readiness tab
@@ -449,7 +550,16 @@ function notificationStyle(t: string) {
   return { dot: "rgb(var(--accent))", bg: "rgba(37,99,235,0.06)", border: "rgba(37,99,235,0.2)" }
 }
 
-function NotificationsCard({ teamId }: { teamId: string }) {
+function NotificationsCard({
+  teamId,
+  bootstrapLoading,
+  initialNotifications,
+}: {
+  teamId: string
+  bootstrapLoading?: boolean
+  /** Mapped from `/api/dashboard/bootstrap` (same shape after client filter). */
+  initialNotifications?: DashNotification[]
+}) {
   const router = useRouter()
   const [notifications, setNotifications] = useState<DashNotification[]>([])
   const [loading, setLoading] = useState(true)
@@ -472,10 +582,23 @@ function NotificationsCard({ teamId }: { teamId: string }) {
   }, [teamId])
 
   useEffect(() => {
+    if (bootstrapLoading) {
+      setLoading(true)
+      return
+    }
+    if (initialNotifications !== undefined) {
+      setNotifications(initialNotifications)
+      setLoading(false)
+      return
+    }
     load()
+  }, [bootstrapLoading, initialNotifications, teamId, load])
+
+  useEffect(() => {
+    if (bootstrapLoading) return
     const interval = setInterval(load, 10000)
     return () => clearInterval(interval)
-  }, [load])
+  }, [bootstrapLoading, teamId, load])
 
   const openNotification = async (n: DashNotification) => {
     if (!n.read) {
@@ -870,8 +993,39 @@ function ConnectToTeamCard({ user }: { user: SessionUser }) {
 export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDashboardProps) {
   const user = session?.user
 
+  const [bootstrap, setBootstrap] = useState<DashboardBootstrapPayload | null | undefined>(undefined)
+  const bootstrapOwnerTeamRef = useRef<string | null>(null)
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
+
+  const tid = teamId?.trim() ?? ""
+  const bootstrapAligned: DashboardBootstrapPayload | null | undefined =
+    tid && bootstrapOwnerTeamRef.current === tid ? bootstrap : undefined
+
+  const dashboardBootstrapState = useMemo((): "loading" | "ok" | "fallback" => {
+    if (!tid) return "fallback"
+    if (bootstrapOwnerTeamRef.current !== tid) return "loading"
+    if (bootstrap === undefined) return "loading"
+    if (bootstrap === null) return "fallback"
+    return "ok"
+  }, [tid, bootstrap])
+
+  const notificationPreviewList = useMemo((): DashNotification[] | undefined => {
+    if (!bootstrapAligned) return undefined
+    return bootstrapAligned.notifications
+      .filter((n) => NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE.has(n.type))
+      .map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        linkUrl: n.linkUrl,
+        linkType: n.linkType,
+        linkId: n.linkId,
+        read: n.read,
+        createdAt: n.createdAt,
+        type: n.type,
+      }))
+  }, [bootstrapAligned])
 
   const loadScheduleGames = useCallback(() => {
     if (!teamId?.trim()) {
@@ -893,27 +1047,34 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       .finally(() => setScheduleGamesLoading(false))
   }, [teamId])
 
-  // Initial games fetch is non-blocking for paint: defer to idle so Link navigations to /dashboard settle first.
+  /** One bootstrap request replaces parallel GETs for team, games, notifications, announcements, and coach readiness summary. */
   useEffect(() => {
+    if (!teamId?.trim()) {
+      setBootstrap(null)
+      setScheduleGames([])
+      setScheduleGamesLoading(false)
+      return
+    }
     let cancelled = false
-    const run = () => {
-      if (!cancelled) loadScheduleGames()
-    }
-    let idleHandle: number | undefined
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      idleHandle = window.requestIdleCallback(run, { timeout: 2000 })
-    } else {
-      timeoutHandle = setTimeout(run, 0)
-    }
+    setBootstrap(undefined)
+    setScheduleGamesLoading(true)
+    const fetchTid = teamId.trim()
+    fetchDashboardBootstrap(fetchTid).then((data) => {
+      if (cancelled) return
+      bootstrapOwnerTeamRef.current = fetchTid
+      if (data) {
+        setBootstrap(data)
+        setScheduleGames(data.games)
+        setScheduleGamesLoading(false)
+      } else {
+        setBootstrap(null)
+        loadScheduleGames()
+      }
+    })
     return () => {
       cancelled = true
-      if (idleHandle !== undefined && typeof window !== "undefined" && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleHandle)
-      }
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
     }
-  }, [loadScheduleGames])
+  }, [teamId, loadScheduleGames])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -949,6 +1110,16 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         teamId={teamId}
         scheduleGames={scheduleGames}
         scheduleGamesLoading={scheduleGamesLoading}
+        prefetchedTeamSummary={
+          bootstrapAligned
+            ? {
+                name: bootstrapAligned.team.name,
+                slogan: bootstrapAligned.team.slogan,
+                logoUrl: bootstrapAligned.team.logoUrl,
+              }
+            : undefined
+        }
+        bootstrapTeamLoading={dashboardBootstrapState === "loading"}
       />
 
       {/* ── Connect to Team Card (if no team and not head coach) ── */}
@@ -973,10 +1144,16 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
               canCreate={canAddCalendarEvents}
               viewerUserId={user.id}
               viewerRole={user.role}
+              bootstrapLoading={dashboardBootstrapState === "loading"}
+              initialAnnouncements={bootstrapAligned?.announcements}
             />
           </div>
           <div className="lg:col-span-5">
-            <NotificationsCard teamId={teamId} />
+            <NotificationsCard
+              teamId={teamId}
+              bootstrapLoading={dashboardBootstrapState === "loading"}
+              initialNotifications={notificationPreviewList}
+            />
           </div>
           <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">
             <div className="hidden lg:block lg:flex-1">
@@ -984,7 +1161,11 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
             </div>
             {/* One mount only: `hidden lg:block` + `lg:hidden` still mount both branches and duplicate /readiness?summaryOnly=1 */}
             <div className="shrink-0 lg:flex-1">
-              <ReadinessSummaryCard teamId={teamId} />
+              <ReadinessSummaryCard
+                teamId={teamId}
+                dashboardBootstrapState={dashboardBootstrapState}
+                readinessFromBootstrap={bootstrapAligned?.readiness}
+              />
             </div>
           </div>
         </DeferredHomeDashboardRow>

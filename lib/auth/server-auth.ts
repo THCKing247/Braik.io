@@ -36,6 +36,25 @@ export type SessionResult = {
 }
 
 /**
+ * Minimal authenticated identity for API routes that only need RBAC and team scoping.
+ * Skips `resolvePortalEntryPath`, full profile hydration, and other session UI fields so
+ * high-frequency routes avoid extra DB work. Use `getServerSession()` when the client needs
+ * `defaultAppPath`, `name`, or full portal session shape.
+ */
+export type RequestUserLite = {
+  id: string
+  email: string
+  role: string
+  teamId?: string
+  isPlatformOwner?: boolean
+}
+
+export type RequestUserLiteResult = {
+  user: RequestUserLite
+  refreshedSession?: RefreshedSession
+}
+
+/**
  * Refresh Supabase session using refresh_token (Supabase Auth REST API).
  * Requires SUPABASE_URL and anon key (SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY).
  */
@@ -127,6 +146,69 @@ async function buildSessionUser(
     isPlatformOwner,
     defaultAppPath,
   }
+}
+
+/**
+ * Load role, team_id, and platform-owner flag only (parallel queries). No portal entry resolution.
+ */
+async function buildSessionUserLite(userId: string, email: string): Promise<RequestUserLite> {
+  const supabase = getSupabaseServer()
+  const [profileResult, appUserResult] = await Promise.all([
+    supabase.from("profiles").select("role, team_id").eq("id", userId).maybeSingle(),
+    supabase.from("users").select("role, is_platform_owner").eq("id", userId).maybeSingle(),
+  ])
+  const profile = profileResult.data
+  const appUser = appUserResult.data as { is_platform_owner?: boolean } | null
+  const rawRole = profile?.role ?? "player"
+  const role = rawRole.toUpperCase().replace(/ /g, "_")
+  return {
+    id: userId,
+    email,
+    role,
+    teamId: (profile?.team_id as string | null | undefined) ?? undefined,
+    isPlatformOwner: appUser?.is_platform_owner === true,
+  }
+}
+
+/**
+ * Same cookie/token flow as `getServerSession`, but returns `RequestUserLite` (cheaper DB reads).
+ */
+export async function getRequestUserLite(): Promise<RequestUserLiteResult | null> {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return null
+  }
+
+  const cookieStore = cookies()
+  const accessToken = cookieStore.get("sb-access-token")?.value
+  const refreshToken = cookieStore.get("sb-refresh-token")?.value
+
+  const supabase = getSupabaseServer()
+
+  if (accessToken) {
+    const { data: userData, error } = await supabase.auth.getUser(accessToken)
+    if (!error && userData?.user?.email) {
+      const user = await buildSessionUserLite(userData.user.id, userData.user.email)
+      return { user }
+    }
+    if (AUTH_DEBUG) console.warn("[auth] lite: access token invalid or expired:", error?.message ?? "no user")
+  }
+
+  if (refreshToken) {
+    const refreshed = await refreshSupabaseSession(refreshToken)
+    if (refreshed) {
+      const user = await buildSessionUserLite(refreshed.user.id, refreshed.user.email ?? "")
+      return {
+        user,
+        refreshedSession: {
+          access_token: refreshed.access_token,
+          refresh_token: refreshed.refresh_token,
+          expires_in: refreshed.expires_in,
+        },
+      }
+    }
+  }
+
+  return null
 }
 
 /**

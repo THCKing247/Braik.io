@@ -85,11 +85,17 @@ export function DashboardAnnouncementsCard({
   canCreate,
   viewerUserId,
   viewerRole,
+  /** When set (including []), seed list from dashboard bootstrap and skip the first GET. */
+  initialAnnouncements,
+  /** True while parent is loading `/api/dashboard/bootstrap` — avoids duplicate GET until bootstrap settles. */
+  bootstrapLoading,
 }: {
   teamId: string
   canCreate: boolean
   viewerUserId: string
   viewerRole?: string | null
+  initialAnnouncements?: TeamAnnouncementRow[]
+  bootstrapLoading?: boolean
 }) {
   const role = sessionRoleToRole(viewerRole)
   const [announcements, setAnnouncements] = useState<TeamAnnouncementRow[]>([])
@@ -132,9 +138,19 @@ export function DashboardAnnouncementsCard({
   }, [teamId])
 
   useEffect(() => {
+    if (!teamId) return
+    if (bootstrapLoading) {
+      setLoading(true)
+      return
+    }
+    if (initialAnnouncements !== undefined) {
+      setAnnouncements(initialAnnouncements)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     load()
-  }, [load])
+  }, [teamId, load, initialAnnouncements, bootstrapLoading])
 
   useEffect(() => {
     if (!teamId) return

@@ -396,11 +396,17 @@ function NotificationsCard({
 }) {
   const router = useRouter()
   const shell = useAppBootstrapOptional()
+  const shellRef = useRef(shell)
+  shellRef.current = shell
+
   const [notifications, setNotifications] = useState<DashNotification[]>([])
   const [loading, setLoading] = useState(true)
   const [markBusy, setMarkBusy] = useState(false)
+  const notifFetchInFlight = useRef(false)
 
   const load = useCallback(async () => {
+    if (!teamId.trim() || notifFetchInFlight.current) return
+    notifFetchInFlight.current = true
     try {
       const res = await fetchWithTimeout(
         `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15&unreadOnly=true&preview=1`,
@@ -412,14 +418,18 @@ function NotificationsCard({
       const list = raw.filter((n) => NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE.has(n.type))
       setNotifications(list)
       if (typeof data.unreadCount === "number") {
-        shell?.syncUnreadFromServerCount(data.unreadCount)
+        shellRef.current?.syncUnreadFromServerCount(data.unreadCount)
       }
     } catch {
       /* ignore */
     } finally {
+      notifFetchInFlight.current = false
       setLoading(false)
     }
-  }, [teamId, shell])
+  }, [teamId])
+
+  const loadRef = useRef(load)
+  loadRef.current = load
 
   useEffect(() => {
     if (bootstrapLoading) {
@@ -431,19 +441,22 @@ function NotificationsCard({
       setLoading(false)
       return
     }
-    load()
-  }, [bootstrapLoading, initialNotifications, teamId, load])
+    void loadRef.current()
+  }, [bootstrapLoading, initialNotifications, teamId])
 
   const pollingAllowed = useNotificationsPollingActive()
   const pollMs = useNotificationPollIntervalMs()
 
   useEffect(() => {
     if (bootstrapLoading || !pollingAllowed) return
-    const interval = setInterval(() => void load(), pollMs)
+    const interval = setInterval(() => void loadRef.current(), pollMs)
     return () => clearInterval(interval)
-  }, [bootstrapLoading, pollingAllowed, pollMs, teamId, load])
+  }, [bootstrapLoading, pollingAllowed, pollMs])
 
-  useOnDocumentForeground(() => void load(), !bootstrapLoading && Boolean(teamId))
+  useOnDocumentForeground(
+    () => void loadRef.current(),
+    !bootstrapLoading && Boolean(teamId)
+  )
 
   const openNotification = async (n: DashNotification) => {
     if (!n.read) {

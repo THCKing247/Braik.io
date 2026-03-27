@@ -104,8 +104,13 @@ export function AppBootstrapProvider({
   }, [])
 
   const syncUnreadFromServerCount = useCallback((count: number) => {
+    const next = Math.max(0, count)
     setPendingUnreadDelta(0)
-    setPayload((p) => (p ? { ...p, unreadNotifications: Math.max(0, count) } : p))
+    setPayload((p) => {
+      if (!p) return p
+      if (p.unreadNotifications === next) return p
+      return { ...p, unreadNotifications: next }
+    })
   }, [])
 
   const effectiveUnreadNotifications = Math.max(

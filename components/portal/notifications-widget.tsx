@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Bell, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,9 @@ const notifMemKey = (teamId: string) => `lw-mem:notifications-preview:${teamId.t
 export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
   const router = useRouter()
   const shell = useAppBootstrapOptional()
+  const shellRef = useRef(shell)
+  shellRef.current = shell
+
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
@@ -43,7 +46,11 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
   const pollingAllowed = useNotificationsPollingActive()
   const pollMs = useNotificationPollIntervalMs()
 
+  const fetchInFlight = useRef(false)
+
   const loadNotifications = useCallback(async () => {
+    if (!teamId.trim() || fetchInFlight.current) return
+    fetchInFlight.current = true
     try {
       const response = await fetchWithTimeout(
         `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=10&preview=1`,
@@ -55,7 +62,7 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
         const uc = typeof data.unreadCount === "number" ? data.unreadCount : 0
         setNotifications(list)
         setUnreadCount(uc)
-        shell?.syncUnreadFromServerCount(uc)
+        shellRef.current?.syncUnreadFromServerCount(uc)
         writeLightweightMemory(notifMemKey(teamId), { notifications: list, unreadCount: uc })
         setStaleHint(null)
       } else if (readLightweightMemoryRaw(notifMemKey(teamId))) {
@@ -69,8 +76,13 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
         setUnreadCount(v.unreadCount)
         setStaleHint("Showing last notifications — still syncing…")
       }
+    } finally {
+      fetchInFlight.current = false
     }
-  }, [teamId, shell])
+  }, [teamId])
+
+  const loadRef = useRef(loadNotifications)
+  loadRef.current = loadNotifications
 
   useEffect(() => {
     const mem = readLightweightMemoryRaw(notifMemKey(teamId))
@@ -79,16 +91,16 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
       setNotifications(v.notifications)
       setUnreadCount(v.unreadCount)
     }
-    void loadNotifications()
-  }, [loadNotifications, teamId])
+    void loadRef.current()
+  }, [teamId])
 
   useEffect(() => {
     if (!pollingAllowed) return
-    const interval = setInterval(() => void loadNotifications(), pollMs)
+    const interval = setInterval(() => void loadRef.current(), pollMs)
     return () => clearInterval(interval)
-  }, [pollingAllowed, pollMs, loadNotifications])
+  }, [pollingAllowed, pollMs])
 
-  useOnDocumentForeground(() => void loadNotifications(), Boolean(teamId))
+  useOnDocumentForeground(() => void loadRef.current(), Boolean(teamId))
 
   const markAsRead = async (notificationId: string) => {
     shell?.applyUnreadDelta(-1)

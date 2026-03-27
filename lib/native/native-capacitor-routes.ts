@@ -13,6 +13,7 @@ const MARKETING_EXACT = new Set([
   "/privacy",
   "/acceptable-use",
   "/ai-transparency",
+  "/waitlist",
 ])
 
 export function isNativeMarketingSurface(pathname: string): boolean {
@@ -29,7 +30,7 @@ export function isNativePublicWithoutAppUnlock(pathname: string): boolean {
   }
   if (pathname.startsWith("/admin/login")) return true
   if (isNativeMarketingSurface(pathname)) return true
-  if (pathname.startsWith("/signup")) return true
+  if (pathname.startsWith("/signup") || pathname.startsWith("/waitlist")) return true
   if (pathname.startsWith("/join")) return true
   if (pathname.startsWith("/invite")) return true
   if (pathname.startsWith("/recruiting")) return true

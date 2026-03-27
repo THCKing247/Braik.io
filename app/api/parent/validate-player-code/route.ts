@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { isValidParentSignupPlayerCode, normalizePlayerInviteCode } from "@/lib/parent-player-code"
+import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import {
+  BRAIK_SIGNUP_SESSION_COOKIE,
+  BRAIK_SIGNUP_SESSION_MAX_AGE_SEC,
+} from "@/lib/auth/signup-session-cookie"
 
 export const runtime = "nodejs"
 
@@ -26,7 +31,18 @@ export async function POST(request: Request) {
       })
     }
 
-    return NextResponse.json({ valid: true })
+    const res = NextResponse.json({ valid: true })
+    if (isWaitlistMode()) {
+      const isProd = process.env.NODE_ENV === "production"
+      res.cookies.set(BRAIK_SIGNUP_SESSION_COOKIE, "1", {
+        path: "/",
+        maxAge: BRAIK_SIGNUP_SESSION_MAX_AGE_SEC,
+        sameSite: "lax",
+        secure: isProd,
+        httpOnly: true,
+      })
+    }
+    return res
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ valid: false, error: msg }, { status: 500 })

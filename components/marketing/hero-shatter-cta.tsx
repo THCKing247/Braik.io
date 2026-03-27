@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 
 interface HeroShatterCtaProps {
   className?: string
@@ -25,10 +27,12 @@ type Shard = {
 
 const ANIMATION_MS = 520
 
+const defaultHeroLabel = isWaitlistMode() ? "Join the waitlist" : "Braik into your season"
+
 export function HeroShatterCta({
   className = "",
   size = "lg",
-  label = "Braik into your season",
+  label = defaultHeroLabel,
   onAnimationStart,
 }: HeroShatterCtaProps) {
   const router = useRouter()
@@ -57,7 +61,7 @@ export function HeroShatterCta({
   }, [])
 
   const navigateToSignup = () => {
-    router.push("/signup/role?fromHero=1")
+    router.push(getPublicJoinHref({ hero: true }))
   }
 
   const runDesktopShatter = () => {

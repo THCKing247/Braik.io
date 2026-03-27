@@ -4,6 +4,8 @@ import Link from "next/link"
 import Image from "next/image"
 import { type FormEvent, useEffect, useState } from "react"
 import { useSession } from "@/lib/auth/client-auth"
+import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 
 export function SiteFooter() {
   const { data: session } = useSession()
@@ -175,8 +177,8 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="/signup" className="text-[#212529] hover:text-[#3B82F6] transition-colors text-sm">
-                  Sign Up
+                <Link href={getPublicJoinHref()} className="text-[#212529] hover:text-[#3B82F6] transition-colors text-sm">
+                  {isWaitlistMode() ? "Join the Waitlist" : "Sign Up"}
                 </Link>
               </li>
               <li>

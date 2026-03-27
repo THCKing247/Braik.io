@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
+import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 
 const navLinks = [
   { href: "/features", label: "Features", desktopOnly: false },
@@ -146,9 +148,9 @@ export function SiteHeader() {
 
         {/* Drawer footer CTAs */}
         <div className="px-4 py-6 border-t border-[#E5E7EB] space-y-3">
-          <Link href="/signup/role" className="block">
+          <Link href={getPublicJoinHref()} className="block">
             <Button className="w-full font-athletic uppercase tracking-wide" size="lg">
-              Get Started
+              {isWaitlistMode() ? "Join the Waitlist" : "Get Started"}
             </Button>
           </Link>
           <Link href="/login" className="block">

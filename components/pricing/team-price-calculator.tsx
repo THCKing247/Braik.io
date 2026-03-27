@@ -16,6 +16,7 @@ import {
   getAthleticDirectorAnnual,
   HEAD_COACH_PRICING,
 } from "@/lib/billing"
+import { getPricingCalculatorCta } from "@/lib/marketing/join-cta"
 
 const MAX_ROSTER = 200
 const MAX_COACHES = 20
@@ -123,10 +124,11 @@ export function TeamPriceCalculator() {
 
   const sportForSignup =
     sport === "Track & Field" ? "track" : sport === "Cross Country" ? "other" : sport.toLowerCase()
-  const signupHref =
-    planChoice === "athletic_director"
-      ? "/signup/athletic-director"
-      : `/signup/role?role=head-coach&sport=${encodeURIComponent(sportForSignup)}&varsity=${clampedVarsity}&jv=${hasJv ? clampedJv : 0}&freshman=${hasFreshman ? clampedFreshman : 0}&coaches=${clampedCoaches}`
+  const headCoachSignupHref = `/signup/role?role=head-coach&sport=${encodeURIComponent(sportForSignup)}&varsity=${clampedVarsity}&jv=${hasJv ? clampedJv : 0}&freshman=${hasFreshman ? clampedFreshman : 0}&coaches=${clampedCoaches}`
+  const calculatorCta = getPricingCalculatorCta({
+    planChoice,
+    headCoachHref: headCoachSignupHref,
+  })
 
   return (
     <div className="rounded-2xl border border-[#e5e7eb] bg-white shadow-xl shadow-[#0f172a]/5 overflow-hidden">
@@ -179,13 +181,13 @@ export function TeamPriceCalculator() {
               </p>
             </div>
             <Link
-              href={signupHref}
+              href={calculatorCta.href}
               className={cn(
                 "block w-full text-center rounded-xl py-4 text-base font-semibold transition-all",
                 "bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-lg shadow-[#3B82F6]/25 hover:shadow-[#3B82F6]/30"
               )}
             >
-              Start Athletic Director setup
+              {calculatorCta.label}
             </Link>
           </>
         ) : (
@@ -392,13 +394,13 @@ export function TeamPriceCalculator() {
             </div>
 
             <Link
-              href={signupHref}
+              href={calculatorCta.href}
               className={cn(
                 "block w-full text-center rounded-xl py-4 text-base font-semibold transition-all",
                 "bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-lg shadow-[#3B82F6]/25 hover:shadow-[#3B82F6]/30"
               )}
             >
-              Start your program
+              {calculatorCta.label}
             </Link>
           </>
         )}

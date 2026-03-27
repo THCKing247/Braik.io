@@ -12,6 +12,7 @@ export function inferEventCategory(eventName: string): ProductEventCategory {
     e.startsWith("viewed_") ||
     e.startsWith("clicked_") ||
     e.startsWith("submitted_lead") ||
+    e.startsWith("submitted_waitlist") ||
     e.includes("pricing") ||
     e.includes("cta")
   ) {

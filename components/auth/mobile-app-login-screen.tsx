@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 import { Suspense } from "react"
 import { HeroLoginForm } from "@/components/marketing/hero-login-form"
 
@@ -109,14 +111,16 @@ export function MobileAppLoginScreen() {
               <p className="text-sm text-slate-400">
                 New to Braik?{" "}
                 <Link
-                  href="/signup/role"
+                  href={getPublicJoinHref()}
                   className="font-semibold text-sky-400 transition-colors hover:text-sky-300"
                 >
-                  Create an account
+                  {isWaitlistMode() ? "Join the waitlist" : "Create an account"}
                 </Link>
               </p>
               <p className="mt-2 text-xs text-slate-500">
-                Coaches &amp; programs — request access to get started.
+                {isWaitlistMode()
+                  ? "Coaches and programs — join the waitlist for early access."
+                  : "Coaches & programs — request access to get started."}
               </p>
             </div>
 

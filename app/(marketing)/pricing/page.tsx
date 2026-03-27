@@ -7,6 +7,8 @@ import { TeamPriceCalculator } from "@/components/pricing/team-price-calculator"
 import { PricingComparison } from "@/components/pricing/pricing-comparison"
 import { PricingFaq } from "@/components/pricing/pricing-faq"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
+import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import { getAthleticDirectorMarketingHref } from "@/lib/marketing/join-cta"
 
 const cardStyle = {
   backgroundColor: "rgba(28, 28, 28, 0.9)",
@@ -146,10 +148,10 @@ export default function PricingPage() {
                 </div>
                 <div className="pt-4">
                   <a
-                    href="/signup/athletic-director"
+                    href={getAthleticDirectorMarketingHref()}
                     className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-6 py-3 text-base font-semibold text-white hover:bg-[#2563EB] transition-colors"
                   >
-                    Start Athletic Director setup
+                    {isWaitlistMode() ? "Join the waitlist" : "Start Athletic Director setup"}
                   </a>
                 </div>
               </div>

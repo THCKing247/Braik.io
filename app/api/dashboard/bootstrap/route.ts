@@ -1,16 +1,14 @@
 /**
  * GET /api/dashboard/bootstrap?teamId=
  *
- * First-paint payload: team header, games, calendar event rows (minimal fields), coach readiness summary.
- * Hints (`/api/engagement/hints`), roster preview (`/api/roster?lite=1`), notifications, and team
- * announcements stay out of bootstrap: they are secondary for first paint, poll or load in parallel,
- * and would widen the cached key surface or duplicate work with those dedicated routes (which now
- * use short-lived caching and slimmer queries).
+ * Single round-trip for the team dashboard: `shell` (nav / app bootstrap shape), `dashboard` (home:
+ * team header, games, calendar, readiness summary), full `roster`, `depthChart`, notifications preview,
+ * announcements, and coach-only `readinessDetail` (full per-player readiness for roster tab).
  *
  * Caching:
- * - Payload: `unstable_cache` 12s, key includes teamId + userId + coach/noncoach (readiness differs).
- * - Membership: cached in `resolveTeamAccess` (~22s) via `getUserMembershipForUserIdCached`.
- * - Readiness summary: existing 30s cache inside `buildDashboardBootstrapData`.
+ * - Full payload: `unstable_cache` (LW_TTL_DASHBOARD_BOOTSTRAP), key teamId + userId + coach bucket.
+ * - Nested `dashboard` slice may hit its own cache entry.
+ * - Tags: dashboard bootstrap, announcements, notifications (user+team).
  *
  * With DEBUG_BOOTSTRAP_TIMING=1 or NODE_ENV=development, payload cache is skipped so sub-step timings log.
  */
@@ -20,9 +18,12 @@ import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 import {
-  buildDashboardBootstrapData,
-  getCachedDashboardBootstrapData,
-} from "@/lib/dashboard/build-dashboard-bootstrap-data"
+  buildFullDashboardBootstrapData,
+  getCachedFullDashboardBootstrap,
+  liteUserToSessionUser,
+  requestAppOrigin,
+} from "@/lib/dashboard/build-full-dashboard-bootstrap"
+import type { FullDashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import {
   shouldLogBootstrapTiming,
   timedBootstrap,
@@ -68,13 +69,37 @@ export async function GET(request: Request) {
     }
 
     const usePayloadCache = !shouldLogBootstrapTiming()
-    let payload: Awaited<ReturnType<typeof buildDashboardBootstrapData>>
+    const u = session.user
+    const sessionUser = liteUserToSessionUser(u)
+    const appOrigin = requestAppOrigin(request)
+    let payload: FullDashboardBootstrapPayload
     if (usePayloadCache) {
       payload = await timedBootstrap(timingSink, "bootstrap_payload_cached", () =>
-        getCachedDashboardBootstrapData(teamId, userId, access.canEditRoster)
+        getCachedFullDashboardBootstrap(
+          teamId,
+          userId,
+          u.email,
+          u.teamId,
+          u.role ?? "",
+          u.isPlatformOwner === true,
+          access,
+          sessionUser,
+          appOrigin
+        )
       )
     } else {
-      payload = await buildDashboardBootstrapData(teamId, access.canEditRoster, timingSink)
+      payload = await buildFullDashboardBootstrapData(
+        teamId,
+        userId,
+        u.email,
+        u.teamId,
+        u.role ?? "",
+        u.isPlatformOwner === true,
+        access,
+        sessionUser,
+        appOrigin,
+        timingSink
+      )
     }
 
     if (timingSink) {

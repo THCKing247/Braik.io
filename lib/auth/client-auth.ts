@@ -7,8 +7,8 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useState,
 } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { NATIVE_SESSION_UNLOCK_EVENT } from "@/lib/auth/session-unlock-events"
 
@@ -157,6 +157,8 @@ async function fetchSessionOnce(): Promise<SessionResponse | null> {
   return null
 }
 
+const AUTH_SESSION_STALE_MS = 5 * 60 * 1000
+
 /**
  * Fetches session from /api/auth/session. Retries once on 5xx or network failure
  * so temporary server errors don't make the app think the user is logged out.
@@ -186,46 +188,41 @@ export function useSession(): SessionContextValue {
  *
  * In the team dashboard shell, prefer `useDashboardShellIdentity` + `AppBootstrapProvider` for routine
  * id/email/role/team/unread display — do not depend on session alone for that UI when bootstrap is mounted.
+ *
+ * Session is cached with React Query (`staleTime` 5m, no refetch on window focus) to avoid duplicate
+ * `/api/auth/session` calls on dashboard navigation. Native biometric unlock still invalidates the query.
  */
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<SessionResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = opts?.silent === true
-    if (!silent) setLoading(true)
-    try {
-      const session = await getSession()
-      setData(session)
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }, [])
+  const queryClient = useQueryClient()
+  const query = useQuery({
+    queryKey: ["braik-auth-session"] as const,
+    queryFn: getSession,
+    staleTime: AUTH_SESSION_STALE_MS,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
 
   useEffect(() => {
-    void load({ silent: false })
-  }, [load])
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void load({ silent: true })
+    const onNativeUnlock = () => {
+      void queryClient.invalidateQueries({ queryKey: ["braik-auth-session"] })
     }
-    const onNativeUnlock = () => void load({ silent: true })
-    document.addEventListener("visibilitychange", onVisible)
     window.addEventListener(NATIVE_SESSION_UNLOCK_EVENT, onNativeUnlock)
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible)
-      window.removeEventListener(NATIVE_SESSION_UNLOCK_EVENT, onNativeUnlock)
-    }
-  }, [load])
+    return () => window.removeEventListener(NATIVE_SESSION_UNLOCK_EVENT, onNativeUnlock)
+  }, [queryClient])
+
+  const refetchSession = useCallback(
+    () => query.refetch().then(() => undefined),
+    [query.refetch]
+  )
 
   const value = useMemo<SessionContextValue>(
     () => ({
-      data,
-      status: loading ? "loading" : data ? "authenticated" : "unauthenticated",
-      refetch: () => load({ silent: true }),
+      data: query.data ?? null,
+      status: query.isPending ? "loading" : query.data ? "authenticated" : "unauthenticated",
+      refetch: refetchSession,
     }),
-    [data, loading, load]
+    [query.data, query.isPending, refetchSession]
   )
 
   return React.createElement(SessionContext.Provider, { value }, children)

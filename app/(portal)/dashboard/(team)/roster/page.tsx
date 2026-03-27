@@ -1,11 +1,12 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { RosterDesktopSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { RosterMobileSkeleton } from "@/components/portal/roster-mobile-view"
+import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
 
 const RosterManagerEnhanced = dynamic(
   () => import("@/components/portal/roster-manager-enhanced").then((m) => m.RosterManagerEnhanced),
@@ -61,50 +62,20 @@ function RosterPageContent({
     user: { email: string } | null
     guardianLinks: Array<{ guardian: { user: { email: string } } }>
   }
-  const [players, setPlayers] = useState<PlayerItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [programId, setProgramId] = useState<string | null>(null)
+  const bootstrapQ = useDashboardBootstrapQuery(teamId)
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setProgramId(null)
+  const players = useMemo((): PlayerItem[] => {
+    const r = bootstrapQ.data?.roster
+    if (!Array.isArray(r)) return []
+    return (r as Record<string, unknown>[]).map((p) => ({
+      ...p,
+      guardianLinks: Array.isArray(p.guardianLinks) ? p.guardianLinks : [],
+    })) as PlayerItem[]
+  }, [bootstrapQ.data?.roster])
 
-    // Critical path: roster list only — show UI as soon as this returns (do not wait for team meta).
-    fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((rosterData: unknown) => {
-        if (cancelled) return
-        if (Array.isArray(rosterData)) {
-          setPlayers(
-            (rosterData as Record<string, unknown>[]).map((p) => ({
-              ...p,
-              guardianLinks: Array.isArray(p.guardianLinks) ? p.guardianLinks : [],
-            })) as PlayerItem[]
-          )
-        } else {
-          setPlayers([])
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setPlayers([])
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    // Secondary: minimal team row for programId (depth chart / promote) — parallel, non-blocking for first paint.
-    fetch(`/api/teams/${encodeURIComponent(teamId)}?scope=meta`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((teamData: { programId?: string | null } | null) => {
-        if (!cancelled && teamData?.programId) setProgramId(teamData.programId)
-      })
-      .catch(() => {})
-
-    return () => {
-      cancelled = true
-    }
-  }, [teamId])
+  const programId = bootstrapQ.data?.dashboard?.team?.programId ?? null
+  const loading = bootstrapQ.isPending && !bootstrapQ.data
+  const prefetchedReadinessDetail = bootstrapQ.data?.readinessDetail ?? null
 
   if (loading) {
     return (
@@ -137,6 +108,7 @@ function RosterPageContent({
       initialSearch={initialSearch}
       initialPosition={initialPosition}
       initialTab={initialTab}
+      prefetchedReadinessDetail={prefetchedReadinessDetail}
     />
   )
 }

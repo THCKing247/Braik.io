@@ -86,19 +86,6 @@ interface DepthChartEntry {
   specialTeamType?: string | null
 }
 
-interface RosterManagerEnhancedProps {
-  teamId: string
-  programId?: string | null
-  players: Player[]
-  canEdit: boolean
-  teamSport: string
-  userRole?: string
-  initialView?: "card" | "list"
-  initialSearch?: string
-  initialPosition?: string
-  initialTab?: "roster" | "depth-chart" | "readiness" | "program-depth"
-}
-
 type TeamReadinessSummary = {
   total: number
   readyCount: number
@@ -127,6 +114,21 @@ type PlayerReadinessItem = {
   eligibilityStatus: string | null
   hasGuardians: boolean
   missingItems: string[]
+}
+
+interface RosterManagerEnhancedProps {
+  teamId: string
+  programId?: string | null
+  players: Player[]
+  canEdit: boolean
+  teamSport: string
+  userRole?: string
+  initialView?: "card" | "list"
+  initialSearch?: string
+  initialPosition?: string
+  initialTab?: "roster" | "depth-chart" | "readiness" | "program-depth"
+  /** From dashboard bootstrap — skips initial GET /api/teams/.../readiness until nonce bumps. */
+  prefetchedReadinessDetail?: { summary: TeamReadinessSummary; players?: PlayerReadinessItem[] } | null
 }
 
 const TEAM_ACTIVITY_LABELS: Record<string, string> = {
@@ -619,6 +621,7 @@ export function RosterManagerEnhanced({
   initialSearch = "",
   initialPosition = "",
   initialTab = "roster",
+  prefetchedReadinessDetail = null,
 }: RosterManagerEnhancedProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -717,6 +720,13 @@ export function RosterManagerEnhanced({
 
   useEffect(() => {
     if (!canEdit || !teamId) return
+    if (readinessRefetchNonce === 0 && prefetchedReadinessDetail) {
+      setTeamReadiness({
+        summary: prefetchedReadinessDetail.summary,
+        players: prefetchedReadinessDetail.players ?? [],
+      })
+      return
+    }
     let cancelled = false
     fetchTeamReadinessFullOnce(teamId, readinessRefetchNonce)
       .then((data) => {
@@ -733,7 +743,7 @@ export function RosterManagerEnhanced({
     return () => {
       cancelled = true
     }
-  }, [canEdit, teamId, readinessRefetchNonce])
+  }, [canEdit, teamId, readinessRefetchNonce, prefetchedReadinessDetail])
 
   useEffect(() => {
     if (!canEdit || !teamId || activeTab !== "readiness") return

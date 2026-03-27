@@ -63,9 +63,10 @@ import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notifi
 import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team-schedule-games"
 import { computeTeamRecord, formatRecordLine } from "@/lib/records/compute-team-record"
 import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
-import { fetchDashboardBootstrap, peekDashboardBootstrapMemory } from "@/lib/dashboard/fetch-dashboard-bootstrap"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+import type { NotificationApiRow } from "@/lib/notifications/notifications-api-query"
+import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -867,26 +868,38 @@ function ConnectToTeamCard({ user }: { user: SessionUser }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+function mapNotificationRowsForHomeCard(rows: NotificationApiRow[]): DashNotification[] {
+  return rows.map((n) => ({
+    id: n.id,
+    title: n.title,
+    body: n.body,
+    linkUrl: n.linkUrl,
+    linkType: n.linkType,
+    linkId: n.linkId,
+    read: n.read,
+    createdAt: n.createdAt,
+    type: n.type,
+  }))
+}
+
 export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDashboardProps) {
   const user = session?.user
 
-  const [bootstrap, setBootstrap] = useState<DashboardBootstrapPayload | null | undefined>(undefined)
-  const bootstrapOwnerTeamRef = useRef<string | null>(null)
+  const tid = teamId?.trim() ?? ""
+  const dashQ = useDashboardBootstrapQuery(teamId)
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
   const [dashNetworkHint, setDashNetworkHint] = useState<string | null>(null)
 
-  const tid = teamId?.trim() ?? ""
-  const bootstrapAligned: DashboardBootstrapPayload | null | undefined =
-    tid && bootstrapOwnerTeamRef.current === tid ? bootstrap : undefined
+  const bootstrapAligned: DashboardBootstrapPayload | null | undefined = dashQ.data?.dashboard
 
   const dashboardBootstrapState = useMemo((): "loading" | "ok" | "fallback" => {
     if (!tid) return "fallback"
-    if (bootstrapOwnerTeamRef.current !== tid) return "loading"
-    if (bootstrap === undefined) return "loading"
-    if (bootstrap === null) return "fallback"
-    return "ok"
-  }, [tid, bootstrap])
+    if (dashQ.isPending && !dashQ.data) return "loading"
+    if (dashQ.isError && !dashQ.data) return "fallback"
+    if (dashQ.data?.dashboard) return "ok"
+    return "fallback"
+  }, [tid, dashQ.isPending, dashQ.isError, dashQ.data])
 
   const loadScheduleGames = useCallback(() => {
     if (!teamId?.trim()) {
@@ -908,49 +921,34 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       .finally(() => setScheduleGamesLoading(false))
   }, [teamId])
 
-  /** Bootstrap: team + games + readiness; notifications/announcements load from their own routes after paint. */
   useEffect(() => {
-    if (!teamId?.trim()) {
-      setBootstrap(null)
+    if (!tid) {
       setScheduleGames([])
       setScheduleGamesLoading(false)
       setDashNetworkHint(null)
       return
     }
-    let cancelled = false
-    const fetchTid = teamId.trim()
-    const mem = peekDashboardBootstrapMemory(fetchTid)
-    if (mem) {
-      bootstrapOwnerTeamRef.current = fetchTid
-      setBootstrap(mem)
-      setScheduleGames(mem.games)
+    if (dashQ.data?.dashboard?.games) {
+      setScheduleGames(dashQ.data.dashboard.games)
       setScheduleGamesLoading(false)
-      setDashNetworkHint("Showing last updated data · still syncing…")
-    } else {
-      setBootstrap(undefined)
+      setDashNetworkHint(dashQ.isFetching ? "Refreshing dashboard data…" : null)
+    } else if (dashQ.isPending && !dashQ.data) {
       setScheduleGamesLoading(true)
       setDashNetworkHint(null)
+    } else if (dashQ.isError && !dashQ.data) {
+      setDashNetworkHint(null)
+      loadScheduleGames()
+    } else if (!dashQ.isPending && !dashQ.data?.dashboard) {
+      loadScheduleGames()
     }
-    fetchDashboardBootstrap(fetchTid).then((data) => {
-      if (cancelled) return
-      bootstrapOwnerTeamRef.current = fetchTid
-      if (data) {
-        setBootstrap(data)
-        setScheduleGames(data.games)
-        setScheduleGamesLoading(false)
-        setDashNetworkHint(null)
-      } else if (mem) {
-        setDashNetworkHint("Could not refresh — showing last updated data")
-      } else {
-        setBootstrap(null)
-        setDashNetworkHint(null)
-        loadScheduleGames()
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, loadScheduleGames])
+  }, [tid, dashQ.data?.dashboard?.games, dashQ.data?.dashboard, dashQ.isPending, dashQ.isFetching, dashQ.isError, dashQ.data, loadScheduleGames])
+
+  const homeNotificationsFiltered = useMemo(() => {
+    const raw = dashQ.data?.notifications?.notifications ?? []
+    return mapNotificationRowsForHomeCard(raw).filter((n) =>
+      NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE.has(n.type)
+    )
+  }, [dashQ.data?.notifications?.notifications])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1031,12 +1029,14 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
               viewerUserId={user.id}
               viewerRole={user.role}
               bootstrapLoading={dashboardBootstrapState === "loading"}
+              initialAnnouncements={dashboardBootstrapState === "ok" ? dashQ.data?.announcements : undefined}
             />
           </div>
           <div className="lg:col-span-5">
             <NotificationsCard
               teamId={teamId}
               bootstrapLoading={dashboardBootstrapState === "loading"}
+              initialNotifications={dashboardBootstrapState === "ok" ? homeNotificationsFiltered : undefined}
             />
           </div>
           <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">

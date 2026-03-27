@@ -4,13 +4,17 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import type { AppBootstrapPayload } from "@/lib/app/app-bootstrap-types"
-import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
+import type { FullDashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+import {
+  dashboardBootstrapQueryKey,
+  useDashboardBootstrapQuery,
+} from "@/lib/dashboard/dashboard-bootstrap-query"
 
 type Phase = "idle" | "loading" | "ok" | "error"
 
@@ -52,66 +56,56 @@ export function AppBootstrapProvider({
   teamId: string
   children: ReactNode
 }) {
-  const [phase, setPhase] = useState<Phase>("idle")
-  const [payload, setPayload] = useState<AppBootstrapPayload | null>(null)
+  const tid = teamId.trim()
+  const q = useDashboardBootstrapQuery(teamId)
+  const queryClient = useQueryClient()
   const [pendingUnreadDelta, setPendingUnreadDelta] = useState(0)
 
-  const load = useCallback(async () => {
-    if (!teamId) {
-      setPhase("idle")
-      setPayload(null)
-      return
-    }
-    const memK = `lw-mem:app-bootstrap:${teamId}`
-    const mem = readLightweightMemoryRaw(memK)
-    if (mem) {
-      setPayload(mem.value as AppBootstrapPayload)
-      setPendingUnreadDelta(0)
-      setPhase("ok")
-    } else {
-      setPhase("loading")
-    }
-    try {
-      const res = await fetch(`/api/app/bootstrap?teamId=${encodeURIComponent(teamId)}`, {
-        credentials: "same-origin",
-      })
-      if (!res.ok) {
-        if (!mem) {
-          setPhase("error")
-          setPayload(null)
-        }
-        return
-      }
-      const data = (await res.json()) as AppBootstrapPayload
-      writeLightweightMemory(memK, data)
-      setPayload(data)
-      setPendingUnreadDelta(0)
-      setPhase("ok")
-    } catch {
-      if (!mem) {
-        setPhase("error")
-        setPayload(null)
-      }
-    }
-  }, [teamId])
+  const payload = tid && q.data?.shell ? q.data.shell : null
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const phase: Phase = !tid
+    ? "idle"
+    : q.isPending && !q.data
+      ? "loading"
+      : q.data?.shell
+        ? "ok"
+        : q.isError
+          ? "error"
+          : q.isPending
+            ? "loading"
+            : "error"
+
+  const refetch = useCallback(async () => {
+    await q.refetch()
+  }, [q])
 
   const applyUnreadDelta = useCallback((delta: number) => {
     setPendingUnreadDelta((x) => x + delta)
   }, [])
 
-  const syncUnreadFromServerCount = useCallback((count: number) => {
-    const next = Math.max(0, count)
-    setPendingUnreadDelta(0)
-    setPayload((p) => {
-      if (!p) return p
-      if (p.unreadNotifications === next) return p
-      return { ...p, unreadNotifications: next }
-    })
-  }, [])
+  const syncUnreadFromServerCount = useCallback(
+    (count: number) => {
+      const next = Math.max(0, count)
+      setPendingUnreadDelta(0)
+      if (!tid) return
+      queryClient.setQueryData(
+        dashboardBootstrapQueryKey(tid),
+        (prev: FullDashboardBootstrapPayload | undefined) => {
+          if (!prev?.shell) return prev
+          if (prev.shell.unreadNotifications === next) return prev
+          return {
+            ...prev,
+            shell: { ...prev.shell, unreadNotifications: next },
+            notifications: {
+              ...prev.notifications,
+              unreadCount: next,
+            },
+          }
+        }
+      )
+    },
+    [queryClient, tid]
+  )
 
   const effectiveUnreadNotifications = Math.max(
     0,
@@ -124,11 +118,19 @@ export function AppBootstrapProvider({
       phase,
       payload,
       effectiveUnreadNotifications,
-      refetch: load,
+      refetch,
       applyUnreadDelta,
       syncUnreadFromServerCount,
     }),
-    [teamId, phase, payload, effectiveUnreadNotifications, load, applyUnreadDelta, syncUnreadFromServerCount]
+    [
+      teamId,
+      phase,
+      payload,
+      effectiveUnreadNotifications,
+      refetch,
+      applyUnreadDelta,
+      syncUnreadFromServerCount,
+    ]
   )
 
   return <AppBootstrapContext.Provider value={value}>{children}</AppBootstrapContext.Provider>

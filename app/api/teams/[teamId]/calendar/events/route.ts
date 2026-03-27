@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
+import {
+  getServerSession,
+  getRequestUserLite,
+  applyRefreshedSessionCookies,
+  type SessionUser,
+} from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser, requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
 import { requireBillingPermission } from "@/lib/billing/billing-state"
@@ -8,15 +13,22 @@ import { logEventAction } from "@/lib/audit/structured-logger"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
-import { getCachedTeamCalendarEvents } from "@/lib/teams/cached-team-calendar-events"
+import {
+  getCachedTeamCalendarEventsInRange,
+  getCachedTeamCalendarEventsDefaultWindow,
+} from "@/lib/teams/cached-team-calendar-events"
 import { revalidateTeamCalendar, revalidateTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
 
+const CALENDAR_EVENTS_CACHE_CONTROL =
+  "private, max-age=0, s-maxage=60, stale-while-revalidate=300"
+
 /**
- * GET /api/teams/[teamId]/calendar/events
- * Returns calendar events for the team. Shape matches CalendarManager Event.
+ * GET /api/teams/[teamId]/calendar/events?from=<ISO>&to=<ISO>
+ * Returns events overlapping [from, to] (overlap semantics). Omits joins except batched creator lookup.
+ * Legacy: omit from/to to use a wide default window (month-aligned, ~6mo back → 24mo forward).
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
@@ -25,15 +37,37 @@ export async function GET(
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const sessionResult = await getRequestUserLite()
+    if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    await requireTeamAccessWithUser(teamId, session.user)
+    const u = sessionResult.user
+    const sessionUser: SessionUser = {
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      teamId: u.teamId,
+      isPlatformOwner: u.isPlatformOwner,
+    }
+
+    await requireTeamAccessWithUser(teamId, sessionUser)
+
+    const sp = new URL(request.url).searchParams
+    const from = sp.get("from")?.trim()
+    const to = sp.get("to")?.trim()
+
     try {
-      const events = await getCachedTeamCalendarEvents(teamId)
-      return NextResponse.json(events)
+      const events =
+        from && to
+          ? await getCachedTeamCalendarEventsInRange(teamId, from, to)
+          : await getCachedTeamCalendarEventsDefaultWindow(teamId)
+      const res = NextResponse.json(events)
+      res.headers.set("Cache-Control", CALENDAR_EVENTS_CACHE_CONTROL)
+      if (sessionResult.refreshedSession) {
+        applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+      }
+      return res
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load events"
       console.error("[GET /api/teams/.../calendar/events]", msg, e)

@@ -19,6 +19,7 @@ import {
 } from "date-fns"
 import { CreateEventOverlay, type CreateEventCreatedPayload } from "@/components/portal/create-event-overlay"
 import type { DashboardBootstrapCalendarEvent } from "@/lib/dashboard/dashboard-bootstrap-types"
+import { calendarEventsUrl } from "@/lib/calendar/calendar-events-client"
 
 type DashboardCalendarEvent = {
   id: string
@@ -31,6 +32,14 @@ type DashboardCalendarEvent = {
   highlight: boolean
   /** True while the create request is in flight (optimistic row). */
   isPending?: boolean
+}
+
+function dashboardCalendarGridRangeIso(month: Date): { from: string; to: string } {
+  const monthStart = startOfMonth(month)
+  const monthEnd = endOfMonth(month)
+  const weekStart = startOfWeek(monthStart, { weekStartsOn: 0 })
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+  return { from: weekStart.toISOString(), to: calendarEnd.toISOString() }
 }
 
 function mapApiEventsToRows(
@@ -90,7 +99,8 @@ export function DashboardCalendar({
   const [createRange, setCreateRange] = useState<{ start: Date; end: Date } | null>(null)
 
   const refetchEventsSilently = useCallback(() => {
-    fetch(`/api/teams/${teamId}/calendar/events`)
+    const { from, to } = dashboardCalendarGridRangeIso(currentMonth)
+    fetch(calendarEventsUrl(teamId, from, to))
       .then((res) => (res.ok ? res.json() : []))
       .then((data: unknown) => {
         if (Array.isArray(data)) {
@@ -109,7 +119,7 @@ export function DashboardCalendar({
         }
       })
       .catch(() => {})
-  }, [teamId])
+  }, [teamId, currentMonth])
 
   const mapPayloadToRow = useCallback((p: CreateEventCreatedPayload): DashboardCalendarEvent => {
     const t = (p.type || "CUSTOM").toUpperCase()
@@ -185,7 +195,7 @@ export function DashboardCalendar({
       }
     }
 
-    if (Array.isArray(initialCalendarEvents)) {
+    if (Array.isArray(initialCalendarEvents) && initialCalendarEvents.length > 0) {
       setEvents(
         mapApiEventsToRows(
           initialCalendarEvents.map((e) => ({
@@ -198,14 +208,11 @@ export function DashboardCalendar({
           }))
         )
       )
-      setLoading(false)
-      return () => {
-        cancelled = true
-      }
     }
 
     setLoading(true)
-    fetch(`/api/teams/${teamId}/calendar/events`)
+    const { from, to } = dashboardCalendarGridRangeIso(currentMonth)
+    fetch(calendarEventsUrl(teamId, from, to))
       .then((res) => (res.ok ? res.json() : []))
       .then((data: unknown) => {
         if (!cancelled && Array.isArray(data)) {
@@ -232,7 +239,7 @@ export function DashboardCalendar({
     return () => {
       cancelled = true
     }
-  }, [teamId, bootstrapLoading, initialCalendarEvents])
+  }, [teamId, bootstrapLoading, initialCalendarEvents, currentMonth])
 
   const openCreateForDay = (day: Date) => {
     const start = new Date(day)

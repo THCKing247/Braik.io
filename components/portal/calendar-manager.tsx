@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { CalendarWidgetEnhanced } from "./calendar-widget-enhanced"
 import { CreateEventOverlay, type CreateEventCreatedPayload } from "./create-event-overlay"
+import type { CalendarFetchView } from "@/lib/calendar/calendar-events-client"
 
 interface Event {
   id: string
@@ -37,6 +38,10 @@ export interface CalendarManagerProps {
   defaultView?: "day" | "week" | "month" | "year"
   /** When true, show overlay so shell mounts immediately while events fetch completes */
   eventsLoading?: boolean
+  /** Visible range / view changes from the grid — for range-scoped event fetching. */
+  onVisibleRangeChange?: (payload: { start: Date; end: Date; view: CalendarFetchView }) => void
+  /** After a create/replace succeeds — invalidate client cache if using React Query. */
+  onEventWrite?: () => void
 }
 
 export function CalendarManager({
@@ -45,6 +50,8 @@ export function CalendarManager({
   canEdit,
   defaultView = "day",
   eventsLoading = false,
+  onVisibleRangeChange,
+  onEventWrite,
 }: CalendarManagerProps) {
   const [events, setEvents] = useState(initialEvents)
   const [createOpen, setCreateOpen] = useState(false)
@@ -96,45 +103,49 @@ export function CalendarManager({
     setEvents((prev) => prev.filter((e) => e.id !== tempId))
   }, [])
 
-  const handleCreated = useCallback((payload: CreateEventCreatedPayload) => {
-    setEvents((prev) => {
-      if (payload.replacesTempId) {
-        return prev.map((e) =>
-          e.id === payload.replacesTempId
-            ? {
-                id: payload.id,
-                type: payload.type,
-                title: payload.title,
-                start: new Date(payload.start),
-                end: new Date(payload.end),
-                location: payload.location,
-                notes: payload.notes,
-                audience: payload.audience,
-                creator: e.creator,
-                rsvps: e.rsvps,
-                linkedDocuments: e.linkedDocuments,
-              }
-            : e
-        )
-      }
-      return [
-        ...prev,
-        {
-          id: payload.id,
-          type: payload.type,
-          title: payload.title,
-          start: new Date(payload.start),
-          end: new Date(payload.end),
-          location: payload.location,
-          notes: payload.notes,
-          audience: payload.audience,
-          creator: prev[0]?.creator ?? { name: null, email: "" },
-          rsvps: [],
-          linkedDocuments: [],
-        },
-      ]
-    })
-  }, [])
+  const handleCreated = useCallback(
+    (payload: CreateEventCreatedPayload) => {
+      setEvents((prev) => {
+        if (payload.replacesTempId) {
+          return prev.map((e) =>
+            e.id === payload.replacesTempId
+              ? {
+                  id: payload.id,
+                  type: payload.type,
+                  title: payload.title,
+                  start: new Date(payload.start),
+                  end: new Date(payload.end),
+                  location: payload.location,
+                  notes: payload.notes,
+                  audience: payload.audience,
+                  creator: e.creator,
+                  rsvps: e.rsvps,
+                  linkedDocuments: e.linkedDocuments,
+                }
+              : e
+          )
+        }
+        return [
+          ...prev,
+          {
+            id: payload.id,
+            type: payload.type,
+            title: payload.title,
+            start: new Date(payload.start),
+            end: new Date(payload.end),
+            location: payload.location,
+            notes: payload.notes,
+            audience: payload.audience,
+            creator: prev[0]?.creator ?? { name: null, email: "" },
+            rsvps: [],
+            linkedDocuments: [],
+          },
+        ]
+      })
+      onEventWrite?.()
+    },
+    [onEventWrite]
+  )
 
   const calendarEvents = events.map((event) => ({
     id: event.id,
@@ -171,6 +182,7 @@ export function CalendarManager({
           canEdit={canEdit}
           defaultView={defaultView}
           onCreateEvent={canEdit ? openCreateModal : undefined}
+          onVisibleRangeChange={onVisibleRangeChange}
         />
         {eventsLoading ? (
           <div

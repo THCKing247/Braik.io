@@ -51,6 +51,8 @@ interface CalendarEvent {
   highlight: boolean
 }
 
+type CalendarView = "agenda" | "day" | "week" | "month" | "year"
+
 interface CalendarWidgetProps {
   teamId: string
   events: CalendarEvent[]
@@ -59,9 +61,13 @@ interface CalendarWidgetProps {
   /** Open create-event modal; optional start/end from day/week grid selection */
   onCreateEvent?: (opts?: { start: Date; end: Date }) => void
   defaultView?: "day" | "week" | "month" | "year"
+  /** Fired when the visible date range or view changes — parent can refetch events for that window. */
+  onVisibleRangeChange?: (payload: {
+    start: Date
+    end: Date
+    view: CalendarView
+  }) => void
 }
-
-type CalendarView = "agenda" | "day" | "week" | "month" | "year"
 
 /** One day column height in px (24h × px/hour). Day and week time grids render a single bounded range — no stacked copies. */
 const DAY_VIEW_HOUR_HEIGHT = 60
@@ -91,6 +97,7 @@ export function CalendarWidgetEnhanced({
   onEventClick,
   onCreateEvent,
   defaultView = "day",
+  onVisibleRangeChange,
 }: CalendarWidgetProps) {
   const [view, setView] = useState<CalendarView>((defaultView as CalendarView) || "week")
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -154,6 +161,10 @@ export function CalendarWidgetEnhanced({
     }
     return { start: startOfDay(currentDate), end: endOfDay(currentDate) }
   }, [view, currentDate, agendaWeekSpan])
+
+  useEffect(() => {
+    onVisibleRangeChange?.({ start: visibleRange.start, end: visibleRange.end, view })
+  }, [visibleRange.start, visibleRange.end, view, onVisibleRangeChange])
 
   const getSlotFromPointer = useCallback(
     (clientX: number, clientY: number): { dateKey: string; minutes: number } | null => {

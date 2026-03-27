@@ -1,8 +1,18 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useEffect, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
+import type { TeamCalendarEventApiRow } from "@/lib/teams/cached-team-calendar-events"
+import {
+  defaultCalendarWeekRange,
+  invalidateTeamCalendarQueries,
+  useTeamCalendarEventsQuery,
+  type CalendarFetchView,
+  type CalendarVisibleRangePayload,
+} from "@/lib/calendar/calendar-events-client"
 
 const CalendarManager = dynamic(
   () => import("@/components/portal/calendar-manager").then((m) => m.CalendarManager),
@@ -22,9 +32,7 @@ const CalendarManager = dynamic(
 export default function CalendarPage() {
   return (
     <DashboardPageShell>
-      {({ teamId, canEdit }) => (
-        <CalendarPageContent teamId={teamId} canEdit={canEdit} />
-      )}
+      {({ teamId, canEdit }) => <CalendarPageContent teamId={teamId} canEdit={canEdit} />}
     </DashboardPageShell>
   )
 }
@@ -43,46 +51,59 @@ type EventItem = {
   linkedDocuments?: Array<{ document: { id: string; title: string; fileName: string; fileUrl: string; fileSize: number | null; mimeType: string | null } }>
 }
 
+function mapApiToEventItems(rows: TeamCalendarEventApiRow[]): EventItem[] {
+  return rows.map((e) => ({
+    id: e.id,
+    type: e.type,
+    title: e.title,
+    start: e.start,
+    end: e.end,
+    location: e.location,
+    notes: e.notes,
+    audience: e.audience,
+    creator: e.creator,
+    rsvps: Array.isArray(e.rsvps) ? e.rsvps : [],
+    linkedDocuments: Array.isArray(e.linkedDocuments) ? e.linkedDocuments : [],
+  }))
+}
+
 function CalendarPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
-  const [events, setEvents] = useState<EventItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const [visibleRange, setVisibleRange] = useState<CalendarVisibleRangePayload>(() => defaultCalendarWeekRange())
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    fetch(`/api/teams/${teamId}/calendar/events`)
-      .then((res) => {
-        if (!res.ok) return []
-        return res.json()
-      })
-      .then((data: unknown) => {
-        if (!cancelled && Array.isArray(data)) {
-          setEvents(
-            (data as Record<string, unknown>[]).map((e) => ({
-              ...e,
-              rsvps: Array.isArray(e.rsvps) ? e.rsvps : [],
-              linkedDocuments: Array.isArray(e.linkedDocuments) ? e.linkedDocuments : [],
-            })) as EventItem[]
-          )
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setEvents([])
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId])
+  const dashQ = useDashboardBootstrapQuery(teamId)
+  const calQ = useTeamCalendarEventsQuery(
+    teamId,
+    visibleRange,
+    dashQ.data?.dashboard?.calendarEvents ?? null
+  )
 
-  // Mount calendar shell + toolbar immediately; overlay in CalendarManager until events arrive (no full-page blank wait).
+  const events = useMemo(() => mapApiToEventItems(calQ.data ?? []), [calQ.data])
+
+  const handleVisibleRangeChange = useCallback((payload: { start: Date; end: Date; view: CalendarFetchView }) => {
+    setVisibleRange((prev) => {
+      if (
+        prev.view === payload.view &&
+        prev.start.getTime() === payload.start.getTime() &&
+        prev.end.getTime() === payload.end.getTime()
+      ) {
+        return prev
+      }
+      return { start: payload.start, end: payload.end, view: payload.view }
+    })
+  }, [])
+
+  const handleEventWrite = useCallback(() => {
+    void invalidateTeamCalendarQueries(queryClient, teamId)
+  }, [queryClient, teamId])
+
   const eventsWithDates = events.map((e) => ({
     ...e,
     start: new Date(e.start),
     end: new Date(e.end),
   }))
+
+  const eventsLoading = calQ.isFetching && events.length === 0
 
   return (
     <div
@@ -94,7 +115,9 @@ function CalendarPageContent({ teamId, canEdit }: { teamId: string; canEdit: boo
         events={eventsWithDates}
         canEdit={canEdit}
         defaultView="week"
-        eventsLoading={loading}
+        eventsLoading={eventsLoading}
+        onVisibleRangeChange={handleVisibleRangeChange}
+        onEventWrite={handleEventWrite}
       />
     </div>
   )

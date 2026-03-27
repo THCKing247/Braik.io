@@ -5,6 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useSession, signOut } from "@/lib/auth/client-auth"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
 import { cn } from "@/lib/utils"
@@ -24,6 +25,8 @@ interface Team {
 
 export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const { data: session } = useSession()
+  const shell = useAppBootstrapOptional()
+  const shellUnread = shell?.effectiveUnreadNotifications ?? 0
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const coachB = useCoachB()
@@ -87,6 +90,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
               href={action.href}
               label={action.label}
               icon={action.icon}
+              badgeCount={action.id === "messages" && shellUnread > 0 ? Math.min(shellUnread, 99) : undefined}
               isActive={
                 pathname === action.href ||
                 (action.href !== "/dashboard" && pathname.startsWith(action.href))
@@ -164,11 +168,13 @@ const SidebarNavItem = memo(function SidebarNavItem({
   label,
   icon: Icon,
   isActive,
+  badgeCount,
 }: {
   href: string
   label: string
   icon: QuickAction["icon"]
   isActive: boolean
+  badgeCount?: number
 }) {
   return (
     <Link
@@ -183,7 +189,15 @@ const SidebarNavItem = memo(function SidebarNavItem({
       aria-current={isActive ? "page" : undefined}
     >
       <Icon className="h-5 w-5 flex-shrink-0" aria-hidden />
-      <span>{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {badgeCount != null && badgeCount > 0 ? (
+        <span
+          className="ml-1 flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white"
+          aria-label={`${badgeCount} unread`}
+        >
+          {badgeCount > 9 ? "9+" : badgeCount}
+        </span>
+      ) : null}
     </Link>
   )
 })

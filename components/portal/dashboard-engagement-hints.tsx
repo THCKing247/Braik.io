@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "@/lib/auth/client-auth"
+import { buildEngagementHints } from "@/lib/engagement/dashboard-hints-data"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -27,6 +29,7 @@ function storageKey(teamId: string, hintId: string) {
 export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: string }) {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const shell = useAppBootstrapOptional()
   const [hints, setHints] = useState<Hint[]>([])
   const [loading, setLoading] = useState(false)
   const [dismissTick, setDismissTick] = useState(0)
@@ -37,6 +40,12 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
   useEffect(() => {
     if (!currentTeamId || !showStrip) {
       setHints([])
+      setLoading(false)
+      return
+    }
+    const counts = shell?.payload?.engagement?.counts ?? null
+    if (shell?.phase === "ok" && shell.payload?.team.id === currentTeamId && counts) {
+      setHints(buildEngagementHints(currentTeamId, counts))
       setLoading(false)
       return
     }
@@ -61,7 +70,7 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
     return () => {
       cancelled = true
     }
-  }, [currentTeamId, showStrip])
+  }, [currentTeamId, showStrip, shell?.phase, shell?.payload])
 
   const nextHint = useMemo(() => {
     for (const h of hints) {

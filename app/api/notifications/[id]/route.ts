@@ -1,8 +1,9 @@
-﻿import { NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUserMembership } from "@/lib/auth/rbac"
 import { markNotificationAsRead } from "@/lib/utils/notifications"
+import { revalidateAppBootstrapCache } from "@/lib/app/app-bootstrap-cache"
 
 /**
  * PATCH /api/notifications/[id]
@@ -41,6 +42,7 @@ export async function PATCH(
     }
 
     await markNotificationAsRead(id)
+    revalidateAppBootstrapCache()
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

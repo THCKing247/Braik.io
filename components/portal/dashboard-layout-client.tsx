@@ -11,6 +11,7 @@ import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-
 import { MobilePortalShell } from "@/components/mobile/mobile-portal-shell"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
 import { DashboardEngagementHints } from "@/components/portal/dashboard-engagement-hints"
+import { AppBootstrapProvider } from "@/components/portal/app-bootstrap-context"
 import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { cn } from "@/lib/utils"
@@ -67,10 +68,11 @@ export function DashboardLayoutClient({
 
   return (
     <PortalTeamProvider teamIds={shellTeamIds} currentTeamId={resolvedCurrentTeamId}>
-      <CoachBProvider isDesktop={isLgUp}>
-        <PlaybookToastProvider>
-          <BiometricEnablePrompt />
-          <div className={cn("flex w-full min-w-0 flex-col", className)}>
+      <AppBootstrapProvider teamId={resolvedCurrentTeamId}>
+        <CoachBProvider isDesktop={isLgUp}>
+          <PlaybookToastProvider>
+            <BiometricEnablePrompt />
+            <div className={cn("flex w-full min-w-0 flex-col", className)}>
             <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
               <aside
                 className={cn(
@@ -145,6 +147,7 @@ export function DashboardLayoutClient({
           </div>
         </PlaybookToastProvider>
       </CoachBProvider>
+      </AppBootstrapProvider>
     </PortalTeamProvider>
   )
 }

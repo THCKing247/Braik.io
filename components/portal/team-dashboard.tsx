@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import {
   Trophy,
   Bell,
@@ -561,8 +562,10 @@ function NotificationsCard({
   initialNotifications?: DashNotification[]
 }) {
   const router = useRouter()
+  const shell = useAppBootstrapOptional()
   const [notifications, setNotifications] = useState<DashNotification[]>([])
   const [loading, setLoading] = useState(true)
+  const [markBusy, setMarkBusy] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -602,11 +605,17 @@ function NotificationsCard({
 
   const openNotification = async (n: DashNotification) => {
     if (!n.read) {
+      const prev = notifications
+      setNotifications((p) => p.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
+      shell?.applyUnreadDelta(-1)
       try {
-        await fetch(`/api/notifications/${n.id}`, { method: "PATCH" })
-        setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
+        const res = await fetch(`/api/notifications/${n.id}`, { method: "PATCH" })
+        if (!res.ok) throw new Error("mark read failed")
+        void shell?.refetch()
       } catch {
-        /* ignore */
+        setNotifications(prev)
+        shell?.applyUnreadDelta(1)
+        void shell?.refetch()
       }
     }
     const route = buildNotificationRoute(n.linkType, n.linkId, n.linkUrl, teamId)
@@ -626,16 +635,25 @@ function NotificationsCard({
   }
 
   const markAllRead = async () => {
+    const prev = notifications
+    const unreadBefore = prev.filter((x) => !x.read).length
+    if (unreadBefore === 0) return
+    setMarkBusy(true)
+    setNotifications([])
+    shell?.applyUnreadDelta(-unreadBefore)
     try {
       const res = await fetch("/api/notifications/mark-all-read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamId }),
       })
-      if (!res.ok) return
-      setNotifications([])
+      if (!res.ok) throw new Error("mark all failed")
+      void shell?.refetch()
     } catch {
-      /* ignore */
+      setNotifications(prev)
+      void shell?.refetch()
+    } finally {
+      setMarkBusy(false)
     }
   }
 
@@ -669,9 +687,10 @@ function NotificationsCard({
             size="sm"
             className="h-9 px-2 text-xs md:h-7"
             style={{ color: "rgb(var(--muted))" }}
-            onClick={markAllRead}
+            disabled={markBusy}
+            onClick={() => void markAllRead()}
           >
-            Mark all read
+            {markBusy ? "Saving…" : "Mark all read"}
           </Button>
         ) : (
           <span className="h-9 w-16 shrink-0 md:h-7" aria-hidden />

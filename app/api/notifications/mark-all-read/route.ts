@@ -1,7 +1,8 @@
-﻿import { NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getUserMembership } from "@/lib/auth/rbac"
 import { markAllNotificationsAsRead } from "@/lib/utils/notifications"
+import { revalidateAppBootstrapCache } from "@/lib/app/app-bootstrap-cache"
 
 /**
  * POST /api/notifications/mark-all-read
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
     }
 
     await markAllNotificationsAsRead(session.user.id, teamId)
+    revalidateAppBootstrapCache()
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

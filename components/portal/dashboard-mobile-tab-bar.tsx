@@ -9,6 +9,7 @@ import { useMobileDashboardNav } from "@/components/portal/mobile-dashboard-nav-
 import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickActions"
 import { useSession } from "@/lib/auth/client-auth"
 import { usePortalTeam } from "@/components/portal/portal-team-context"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 
 const tabs = [
   {
@@ -50,6 +51,7 @@ export function DashboardMobileTabBar() {
   const searchParams = useSearchParams()
   const portal = usePortalTeam()
   const { data: session } = useSession()
+  const shellUnread = useAppBootstrapOptional()?.effectiveUnreadNotifications ?? 0
   const { openMoreSheet, moreSheetOpen } = useMobileDashboardNav()
   const contextTeamId =
     searchParams.get("teamId") || portal?.currentTeamId || portal?.teamIds?.[0] || ""
@@ -79,18 +81,29 @@ export function DashboardMobileTabBar() {
         {tabs.map(({ href, label, icon: Icon, match }) => {
           const active = match(pathname)
           const resolvedHref = href === "/dashboard" ? homeDashboardHref : href
+          const showMsgBadge = href === "/dashboard/messages" && shellUnread > 0
           return (
             <Link
               key={href}
               href={resolvedHref}
               className={cn(
-                "flex min-h-[44px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1",
+                "relative flex min-h-[44px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1",
                 "transition-colors active:bg-muted/80",
                 active ? "text-[rgb(var(--accent))]" : "text-muted-foreground"
               )}
               aria-current={active ? "page" : undefined}
             >
-              <Icon className={cn("h-5 w-5 shrink-0", active && "stroke-[2.25px]")} aria-hidden />
+              <span className="relative">
+                <Icon className={cn("h-5 w-5 shrink-0", active && "stroke-[2.25px]")} aria-hidden />
+                {showMsgBadge ? (
+                  <span
+                    className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[9px] font-bold text-white"
+                    aria-label={`${Math.min(shellUnread, 99)} unread notifications`}
+                  >
+                    {shellUnread > 9 ? "9+" : shellUnread}
+                  </span>
+                ) : null}
+              </span>
               <span className="max-w-full truncate text-[10px] font-semibold leading-tight sm:text-[11px]">
                 {label}
               </span>

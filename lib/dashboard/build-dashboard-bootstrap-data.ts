@@ -1,0 +1,114 @@
+/**
+ * DB work for dashboard bootstrap (team + games + readiness).
+ * Notifications and announcements are intentionally omitted — cards load them after first paint.
+ */
+import { unstable_cache } from "next/cache"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
+import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
+import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+import type { BootstrapTimingSink } from "@/lib/debug/bootstrap-timing"
+import { timedBootstrap } from "@/lib/debug/bootstrap-timing"
+
+const READINESS_CACHE_KEY = "braik-team-readiness-summary-v4"
+
+/** Games columns needed for banner record + next-game card (scores/quarters for outcomes; no game_type / confirmed_by_coach on home). */
+const GAMES_SELECT_BOOTSTRAP =
+  "id, opponent, game_date, location, result, notes, conference_game, team_score, opponent_score, season_id, seasons(year), q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
+
+/**
+ * Fetches team row + games + optional readiness. Caller must have already authorized the user for teamId.
+ * `userId` + `canEditRoster` are part of the outer cache key so coach vs player payloads never mix.
+ */
+export async function buildDashboardBootstrapData(
+  teamId: string,
+  canEditRoster: boolean,
+  timing: BootstrapTimingSink | null
+): Promise<DashboardBootstrapPayload> {
+  const supabase = getSupabaseServer()
+
+  const readinessPromise = canEditRoster
+    ? timedBootstrap(timing, "readiness", () =>
+        unstable_cache(
+          async () => computeTeamReadinessPayload(teamId, true),
+          [READINESS_CACHE_KEY, teamId],
+          { revalidate: 30 }
+        )()
+      )
+    : Promise.resolve(null)
+
+  const [teamRow, gamesResult, readinessPayload] = await Promise.all([
+    timedBootstrap(timing, "team", async () =>
+      supabase
+        .from("teams")
+        .select("id, name, slogan, sport, season_name, logo_url, program_id, team_level")
+        .eq("id", teamId)
+        .maybeSingle()
+    ),
+    timedBootstrap(timing, "games", async () =>
+      supabase
+        .from("games")
+        .select(GAMES_SELECT_BOOTSTRAP)
+        .eq("team_id", teamId)
+        .order("game_date", { ascending: true })
+    ),
+    readinessPromise,
+  ])
+
+  if (teamRow.error || !teamRow.data) {
+    throw new Error("TEAM_NOT_FOUND")
+  }
+
+  if (gamesResult.error) {
+    throw new Error(`GAMES_QUERY_FAILED:${gamesResult.error.message}`)
+  }
+
+  const t = teamRow.data as Record<string, unknown>
+  const games = (gamesResult.data ?? []).map((r: Record<string, unknown>) => mapDbGameRowToTeamGameRow(r))
+
+  let readiness: DashboardBootstrapPayload["readiness"]
+  if (canEditRoster && readinessPayload?.summary) {
+    const s = readinessPayload.summary
+    readiness = {
+      summary: {
+        total: s.total,
+        incompleteCount: s.incompleteCount,
+        readyCount: s.readyCount,
+      },
+    }
+  } else {
+    readiness = { skipped: true }
+  }
+
+  return {
+    team: {
+      id: t.id as string,
+      name: (t.name as string) ?? "",
+      slogan: (t.slogan as string | null) ?? null,
+      sport: (t.sport as string) ?? "football",
+      seasonName: (t.season_name as string) ?? "",
+      logoUrl: (t.logo_url as string | null) ?? null,
+      programId: (t.program_id as string | null) ?? null,
+      teamLevel: (t.team_level as string | null) ?? null,
+    },
+    games,
+    readiness,
+  }
+}
+
+/**
+ * Short-lived Data Cache for the team-scoped bootstrap payload.
+ * Key includes userId + canEditRoster so responses never leak across users or coach/player views.
+ */
+export function getCachedDashboardBootstrapData(
+  teamId: string,
+  userId: string,
+  canEditRoster: boolean
+): Promise<DashboardBootstrapPayload> {
+  return unstable_cache(
+    async () => buildDashboardBootstrapData(teamId, canEditRoster, null),
+    /** userId + role bucket: same team row/games for everyone, but readiness slice differs for coaches. */
+    ["dashboard-bootstrap-payload-v1", teamId, userId, canEditRoster ? "coach" : "noncoach"],
+    { revalidate: 12 }
+  )()
+}

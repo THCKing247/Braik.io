@@ -1,4 +1,5 @@
-import { getUserMembershipForUserId, type UserMembership } from "@/lib/auth/rbac"
+import type { UserMembership } from "@/lib/auth/rbac"
+import { getUserMembershipForUserIdCached } from "@/lib/auth/cached-membership"
 import {
   canEditRoster,
   canManageTeam,
@@ -9,7 +10,7 @@ import {
 /**
  * Result of resolving team membership once for a request (e.g. dashboard bootstrap).
  * Prefer this over calling `getServerSession` + `requireTeamAccess` repeatedly across
- * parallel sub-handlers — keeps a single `team_members` / `profiles` / `program_members` path.
+ * parallel sub-handlers — uses cached membership lookup where safe (see `cached-membership.ts`).
  */
 export type ResolvedTeamAccess = {
   membership: UserMembership
@@ -26,7 +27,7 @@ export type ResolvedTeamAccess = {
  * Returns null if the user is not a member (caller should 403 + audit if needed).
  */
 export async function resolveTeamAccess(teamId: string, userId: string): Promise<ResolvedTeamAccess | null> {
-  const membership = await getUserMembershipForUserId(teamId, userId)
+  const membership = await getUserMembershipForUserIdCached(teamId, userId)
   if (!membership) return null
   const delegated = Boolean(membership.delegatedTeamManage)
   return {

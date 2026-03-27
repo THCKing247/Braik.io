@@ -95,8 +95,8 @@ function formatRelativeTime(iso: string) {
 }
 
 /**
- * Below-the-fold home row: defer mounting (and thus /api/notifications, readiness, announcements fetches)
- * until the user scrolls near this row — banner + calendar paint first without competing requests.
+ * Below-the-fold home row: defer mounting until the user scrolls near this row.
+ * Bootstrap already omits notifications/announcements; those cards load their APIs after mount here.
  */
 function DeferredHomeDashboardRow({ children }: { children: ReactNode }) {
   const [show, setShow] = useState(false)
@@ -1010,23 +1010,6 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
     return "ok"
   }, [tid, bootstrap])
 
-  const notificationPreviewList = useMemo((): DashNotification[] | undefined => {
-    if (!bootstrapAligned) return undefined
-    return bootstrapAligned.notifications
-      .filter((n) => NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE.has(n.type))
-      .map((n) => ({
-        id: n.id,
-        title: n.title,
-        body: n.body,
-        linkUrl: n.linkUrl,
-        linkType: n.linkType,
-        linkId: n.linkId,
-        read: n.read,
-        createdAt: n.createdAt,
-        type: n.type,
-      }))
-  }, [bootstrapAligned])
-
   const loadScheduleGames = useCallback(() => {
     if (!teamId?.trim()) {
       setScheduleGames([])
@@ -1047,7 +1030,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       .finally(() => setScheduleGamesLoading(false))
   }, [teamId])
 
-  /** One bootstrap request replaces parallel GETs for team, games, notifications, announcements, and coach readiness summary. */
+  /** Bootstrap: team + games + readiness; notifications/announcements load from their own routes after paint. */
   useEffect(() => {
     if (!teamId?.trim()) {
       setBootstrap(null)
@@ -1145,14 +1128,12 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
               viewerUserId={user.id}
               viewerRole={user.role}
               bootstrapLoading={dashboardBootstrapState === "loading"}
-              initialAnnouncements={bootstrapAligned?.announcements}
             />
           </div>
           <div className="lg:col-span-5">
             <NotificationsCard
               teamId={teamId}
               bootstrapLoading={dashboardBootstrapState === "loading"}
-              initialNotifications={notificationPreviewList}
             />
           </div>
           <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">

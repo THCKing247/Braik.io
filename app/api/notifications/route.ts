@@ -38,7 +38,11 @@ export async function GET(request: Request) {
     if (unreadOnly) {
       q = q.eq("read", false)
     }
-    const { data: rows } = await q
+    const [rowsResult, unreadCount] = await Promise.all([
+      q,
+      getUnreadNotificationCount(session.user.id, teamId),
+    ])
+    const { data: rows } = rowsResult
     const notifications = (rows ?? []).map((n) => ({
       id: n.id,
       userId: n.user_id,
@@ -54,9 +58,6 @@ export async function GET(request: Request) {
       readAt: n.read_at,
       createdAt: n.created_at,
     }))
-
-    // Get unread count
-    const unreadCount = await getUnreadNotificationCount(session.user.id, teamId)
 
     return NextResponse.json({
       notifications,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser, requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
 import { requireBillingPermission } from "@/lib/billing/billing-state"
 import { createNotifications } from "@/lib/utils/notifications"
 import { logEventAction } from "@/lib/audit/structured-logger"
@@ -23,13 +23,13 @@ export async function GET(
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    await requireTeamAccess(teamId)
+    const supabase = getSupabaseServer()
+    await requireTeamAccessWithUser(teamId, session.user)
     const { data: rows, error } = await supabase
       .from("events")
       .select("id, event_type, title, description, start, end, location, visibility, created_by, created_at")

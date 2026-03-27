@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
+import { requireTeamAccess, requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 import { createNotifications } from "@/lib/utils/notifications"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
@@ -51,16 +51,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = getSupabaseServer()
-    const { data: team, error: teamErr } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (teamErr) {
-      console.error("[GET /api/roster] teams lookup failed", { teamId, error: teamErr })
-      return NextResponse.json({ error: "Failed to load roster" }, { status: 500 })
-    }
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
-    }
-
-    await requireTeamAccess(teamId)
+    await requireTeamAccessWithUser(teamId, session.user)
 
     type InjuryRow = {
       player_id: string

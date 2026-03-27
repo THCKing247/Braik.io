@@ -3,8 +3,9 @@
  * Scheduled games for the team (for weekly stat entry + filters).
  */
 import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
 import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
 
 export async function GET(request: Request) {
@@ -16,13 +17,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    await requireTeamAccess(teamId)
+    const supabase = getSupabaseServer()
+    await requireTeamAccessWithUser(teamId, session.user)
 
     const { data: rows, error } = await supabase
       .from("games")

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireAuth, requireTeamAccess, requireTeamPermission } from "@/lib/auth/rbac"
+import { requireAuth, requireTeamAccessWithUser, requireTeamPermission } from "@/lib/auth/rbac"
 import {
   sortTeamAnnouncements,
   userCanViewTeamAnnouncement,
@@ -29,12 +30,19 @@ export async function GET(
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const { membership } = await requireTeamAccess(teamId)
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { membership } = await requireTeamAccessWithUser(teamId, session.user)
     const supabase = getSupabaseServer()
 
     const { data: rows, error } = await supabase
       .from("team_announcements")
-      .select("*")
+      .select(
+        "id, team_id, title, body, author_id, author_name, created_at, updated_at, is_pinned, audience, send_notification"
+      )
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
 

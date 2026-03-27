@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
 import { getPositionSide, toPlayerStatsRow } from "@/lib/stats-helpers"
 
 type PlayerRow = {
@@ -32,12 +32,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
-    }
-
-    await requireTeamAccess(teamId)
+    await requireTeamAccessWithUser(teamId, session.user)
 
     const { data: rows, error } = await supabase
       .from("players")

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getUserMembership, requireTeamAccess } from "@/lib/auth/rbac"
+import { getUserMembershipForUserId, requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { canModerateMessages } from "@/lib/auth/roles"
 import { MODERATED_MESSAGE_PLACEHOLDER } from "@/lib/messaging/moderation-copy"
 
@@ -25,83 +25,81 @@ export async function GET(
     }
 
     const supabase = getSupabaseServer()
+    const userId = session.user.id
 
-    // Get thread
-    const { data: thread, error: threadError } = await supabase
-      .from("message_threads")
-      .select("id, team_id, title, thread_type, created_by, created_at, updated_at")
-      .eq("id", threadId)
-      .maybeSingle()
+    const [threadRes, selfParticipantRes] = await Promise.all([
+      supabase
+        .from("message_threads")
+        .select("id, team_id, title, thread_type, created_by, created_at, updated_at")
+        .eq("id", threadId)
+        .maybeSingle(),
+      supabase
+        .from("message_thread_participants")
+        .select("user_id")
+        .eq("thread_id", threadId)
+        .eq("user_id", userId)
+        .maybeSingle(),
+    ])
 
+    const { data: thread, error: threadError } = threadRes
     if (threadError || !thread) {
       return NextResponse.json({ error: "Thread not found" }, { status: 404 })
     }
 
-    // Verify user is a participant FIRST (participants can access even if not team members)
-    const { data: participant } = await supabase
-      .from("message_thread_participants")
-      .select("user_id")
-      .eq("thread_id", threadId)
-      .eq("user_id", session.user.id)
-      .maybeSingle()
-
-    if (!participant) {
-      // If not a participant, check team access as fallback
+    if (!selfParticipantRes.data) {
       try {
-        await requireTeamAccess(thread.team_id)
-      } catch (error: any) {
+        await requireTeamAccessWithUser(thread.team_id, session.user)
+      } catch {
         return NextResponse.json({ error: "Access denied" }, { status: 403 })
       }
     }
 
-    // Get creator
-    const { data: creator } = await supabase
-      .from("users")
-      .select("id, name, email")
-      .eq("id", thread.created_by)
-      .maybeSingle()
+    const [partsRes, msgsRes, mem] = await Promise.all([
+      supabase
+        .from("message_thread_participants")
+        .select("user_id, joined_at, last_read_at")
+        .eq("thread_id", threadId),
+      supabase
+        .from("messages")
+        .select("id, sender_id, content, created_at, updated_at, deleted_at")
+        .eq("thread_id", threadId)
+        .order("created_at", { ascending: true }),
+      getUserMembershipForUserId(thread.team_id, userId),
+    ])
 
-    // Get participants
-    const { data: participants } = await supabase
-      .from("message_thread_participants")
-      .select("user_id, joined_at, last_read_at")
-      .eq("thread_id", threadId)
+    const { data: participants, error: partsError } = partsRes
+    if (partsError) {
+      console.error("[GET /api/messages/threads/[threadId]] participants", partsError)
+      return NextResponse.json({ error: "Failed to load thread" }, { status: 500 })
+    }
 
-    const participantUserIds = (participants ?? []).map((p) => p.user_id)
-    const { data: participantUsers } = await supabase
-      .from("users")
-      .select("id, name, email")
-      .in("id", participantUserIds)
-
-    const participantUserMap = new Map((participantUsers ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
-
-    // Get messages (include soft-deleted; mask content server-side)
-    const { data: messages, error: messagesError } = await supabase
-      .from("messages")
-      .select("id, sender_id, content, created_at, updated_at, deleted_at")
-      .eq("thread_id", threadId)
-      .order("created_at", { ascending: true })
-
+    const { data: messages, error: messagesError } = msgsRes
     if (messagesError) {
       console.error("[GET /api/messages/threads/[threadId]] messages", messagesError)
       return NextResponse.json({ error: "Failed to load messages" }, { status: 500 })
     }
 
-    // Get message senders
+    const participantUserIds = (participants ?? []).map((p) => p.user_id)
     const senderIds = [...new Set((messages ?? []).map((m) => m.sender_id))]
-    const { data: senders } = await supabase
-      .from("users")
-      .select("id, name, email")
-      .in("id", senderIds)
+    const userIdSet = new Set<string>([thread.created_by, ...participantUserIds, ...senderIds])
+    const allUserIds = [...userIdSet].filter(Boolean)
 
-    const senderMap = new Map((senders ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
+    const { data: userRows } =
+      allUserIds.length > 0
+        ? await supabase.from("users").select("id, name, email").in("id", allUserIds)
+        : { data: [] as { id: string; name: string | null; email: string }[] }
 
-    // Get attachments for messages
+    const userMap = new Map((userRows ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
+
+    const creator = userMap.get(thread.created_by)
     const messageIds = (messages ?? []).map((m) => m.id)
-    const { data: attachments } = await supabase
-      .from("message_attachments")
-      .select("id, message_id, file_name, file_url, file_size, mime_type")
-      .in("message_id", messageIds)
+    const { data: attachments } =
+      messageIds.length > 0
+        ? await supabase
+            .from("message_attachments")
+            .select("id, message_id, file_name, file_url, file_size, mime_type")
+            .in("message_id", messageIds)
+        : { data: [] as { id: string; message_id: string; file_name: string; file_url: string; file_size: number; mime_type: string }[] }
 
     const attachmentsByMessage = new Map<string, Array<{ id: string; fileName: string; fileUrl: string; fileSize: number; mimeType: string }>>()
     ;(attachments ?? []).forEach((att) => {
@@ -118,17 +116,10 @@ export async function GET(
       ])
     })
 
-    let canModerate = false
-    try {
-      const mem = await getUserMembership(thread.team_id)
-      canModerate = mem ? canModerateMessages(mem.role) : false
-    } catch {
-      canModerate = false
-    }
+    const canModerate = mem ? canModerateMessages(mem.role) : false
 
-    // Format response
     const formattedMessages = (messages ?? []).map((m) => {
-      const sender = senderMap.get(m.sender_id) || { id: m.sender_id, name: null, email: "" }
+      const sender = userMap.get(m.sender_id) || { id: m.sender_id, name: null, email: "" }
       const removed = !!(m as { deleted_at?: string | null }).deleted_at
       return {
         id: m.id,
@@ -140,17 +131,19 @@ export async function GET(
       }
     })
 
-    const formattedParticipants = (participants ?? []).map((p) => {
-      const user = participantUserMap.get(p.user_id)
-      return user
-        ? {
-            id: `${threadId}-${p.user_id}`,
-            userId: p.user_id,
-            user,
-            readOnly: false,
-          }
-        : null
-    }).filter(Boolean)
+    const formattedParticipants = (participants ?? [])
+      .map((p) => {
+        const user = userMap.get(p.user_id)
+        return user
+          ? {
+              id: `${threadId}-${p.user_id}`,
+              userId: p.user_id,
+              user,
+              readOnly: false,
+            }
+          : null
+      })
+      .filter(Boolean)
 
     return NextResponse.json({
       id: thread.id,
@@ -158,7 +151,9 @@ export async function GET(
       threadType: thread.thread_type.toUpperCase(),
       createdAt: thread.created_at,
       updatedAt: thread.updated_at,
-      creator: creator ? { id: creator.id, name: creator.name, email: creator.email } : { id: thread.created_by, name: null, email: "" },
+      creator: creator
+        ? { id: creator.id, name: creator.name, email: creator.email }
+        : { id: thread.created_by, name: null, email: "" },
       participants: formattedParticipants,
       messages: formattedMessages,
       _count: { messages: formattedMessages.length },
@@ -166,11 +161,12 @@ export async function GET(
       canReply: true,
       canModerate,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/messages/threads/[threadId]]", error)
-  return NextResponse.json(
-      { error: error.message || "Failed to load thread" },
-      { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    const msg = error instanceof Error ? error.message : ""
+    return NextResponse.json(
+      { error: msg || "Failed to load thread" },
+      { status: msg.includes("Access denied") ? 403 : 500 }
+    )
   }
 }

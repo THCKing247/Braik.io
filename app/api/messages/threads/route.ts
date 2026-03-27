@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 
 /**
  * GET /api/messages/threads?teamId=xxx
@@ -19,8 +20,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const supabase = getSupabaseServer()
-    const { user } = await requireTeamAccess(teamId)
+    const { user } = await requireTeamAccessWithUser(teamId, session.user)
     const userId = user.id
 
     const { data: participantThreads, error: participantError } = await supabase

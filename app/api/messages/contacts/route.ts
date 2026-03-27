@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 
 /**
  * GET /api/messages/contacts?teamId=xxx
@@ -14,33 +15,35 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServer()
-    const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { user } = await requireTeamAccess(teamId)
+    const supabase = getSupabaseServer()
+    const { user } = await requireTeamAccessWithUser(teamId, session.user)
 
-    // Get team members (coaches, etc.)
-    const { data: members, error: membersError } = await supabase
-      .from("team_members")
-      .select("user_id, role")
-      .eq("team_id", teamId)
-      .eq("active", true)
+    const [membersResult, playersResult] = await Promise.all([
+      supabase
+        .from("team_members")
+        .select("user_id, role")
+        .eq("team_id", teamId)
+        .eq("active", true),
+      supabase
+        .from("players")
+        .select("user_id, first_name, last_name, email")
+        .eq("team_id", teamId)
+        .eq("status", "active")
+        .not("user_id", "is", null),
+    ])
+
+    const { data: members, error: membersError } = membersResult
+    const { data: players, error: playersError } = playersResult
 
     if (membersError) {
       console.error("[GET /api/messages/contacts] members", membersError)
       return NextResponse.json({ error: "Failed to load contacts" }, { status: 500 })
     }
-
-    // Get players with user accounts (players who have signed up)
-    const { data: players, error: playersError } = await supabase
-      .from("players")
-      .select("user_id, first_name, last_name, email")
-      .eq("team_id", teamId)
-      .eq("status", "active")
-      .not("user_id", "is", null)
 
     if (playersError) {
       console.error("[GET /api/messages/contacts] players", playersError)

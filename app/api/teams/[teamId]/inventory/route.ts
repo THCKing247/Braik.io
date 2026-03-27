@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 
 const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 type InventoryBucket = (typeof INVENTORY_BUCKETS)[number]
@@ -75,18 +75,7 @@ export async function GET(
     }
 
     const supabase = getSupabaseServer()
-    
-    // Verify team exists
-    const { data: team, error: teamError } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-    if (teamError) {
-      console.error("[GET /api/teams/.../inventory] team lookup error", teamError)
-      return NextResponse.json({ error: "Failed to verify team" }, { status: 500 })
-    }
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
-    }
-
-    await requireTeamAccess(teamId)
+    await requireTeamAccessWithUser(teamId, session.user)
 
     // Fetch inventory items and players
     const [itemsRes, playersRes] = await Promise.all([
@@ -167,7 +156,7 @@ export async function POST(
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    await requireTeamAccess(teamId)
+    await requireTeamAccessWithUser(teamId, session.user)
 
     const body = await request.json()
     const {

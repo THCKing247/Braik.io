@@ -41,3 +41,7 @@ create index if not exists idx_team_members_team_active_user
 
 create index if not exists idx_program_members_program_user_active
   on public.program_members(program_id, user_id, active);
+
+-- Games list by team + date (schedule / stats games API)
+create index if not exists idx_games_team_game_date
+  on public.games(team_id, game_date asc);

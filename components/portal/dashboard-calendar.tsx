@@ -18,6 +18,7 @@ import {
   subMonths,
 } from "date-fns"
 import { CreateEventOverlay } from "@/components/portal/create-event-overlay"
+import type { DashboardBootstrapCalendarEvent } from "@/lib/dashboard/dashboard-bootstrap-types"
 
 type DashboardCalendarEvent = {
   id: string
@@ -62,13 +63,22 @@ function mapApiEventsToRows(
 export type DashboardCalendarProps = {
   teamId: string
   canAddEvents: boolean
+  /** From dashboard bootstrap — same fields as calendar API uses for the home grid. When absent after load, we fetch `/api/teams/.../calendar/events`. */
+  initialCalendarEvents?: DashboardBootstrapCalendarEvent[] | null
+  /** True while parent bootstrap is in flight — avoids a duplicate calendar request during that window. */
+  bootstrapLoading?: boolean
 }
 
 /**
  * Home dashboard schedule strip + month grid.
  * Create event uses shared CreateEventOverlay (same as Calendar page).
  */
-export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarProps) {
+export function DashboardCalendar({
+  teamId,
+  canAddEvents,
+  initialCalendarEvents,
+  bootstrapLoading = false,
+}: DashboardCalendarProps) {
   const [events, setEvents] = useState<DashboardCalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -101,6 +111,33 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
 
   useEffect(() => {
     let cancelled = false
+
+    if (bootstrapLoading) {
+      setLoading(true)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    if (Array.isArray(initialCalendarEvents)) {
+      setEvents(
+        mapApiEventsToRows(
+          initialCalendarEvents.map((e) => ({
+            id: e.id,
+            type: e.type,
+            title: e.title,
+            start: e.start,
+            end: e.end,
+            location: e.location,
+          }))
+        )
+      )
+      setLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
     setLoading(true)
     fetch(`/api/teams/${teamId}/calendar/events`)
       .then((res) => (res.ok ? res.json() : []))
@@ -129,7 +166,7 @@ export function DashboardCalendar({ teamId, canAddEvents }: DashboardCalendarPro
     return () => {
       cancelled = true
     }
-  }, [teamId])
+  }, [teamId, bootstrapLoading, initialCalendarEvents])
 
   const openCreateForDay = (day: Date) => {
     const start = new Date(day)

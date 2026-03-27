@@ -1,7 +1,7 @@
 /**
  * GET /api/dashboard/bootstrap?teamId=
  *
- * First-paint payload: team header fields, full games list (banner + next game), coach readiness summary.
+ * First-paint payload: team header, games, calendar event rows (minimal fields), coach readiness summary.
  * Notifications and announcements are deferred — cards fetch `/api/notifications` and
  * `/api/teams/.../team-announcements` after mount so this handler stays fast.
  *
@@ -99,6 +99,10 @@ export async function GET(request: Request) {
     if (err instanceof Error && err.message.startsWith("GAMES_QUERY_FAILED")) {
       console.error("[GET /api/dashboard/bootstrap] games", err.message)
       return NextResponse.json({ error: "Failed to load games" }, { status: 500 })
+    }
+    if (err instanceof Error && err.message.startsWith("CALENDAR_QUERY_FAILED")) {
+      console.error("[GET /api/dashboard/bootstrap] calendar", err.message)
+      return NextResponse.json({ error: "Failed to load calendar" }, { status: 500 })
     }
     console.error("[GET /api/dashboard/bootstrap]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

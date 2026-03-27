@@ -1114,7 +1114,16 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
           <div className="lg:hidden">
             <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
           </div>
-          <DashboardCalendar teamId={teamId} canAddEvents={canAddCalendarEvents} />
+          <DashboardCalendar
+            teamId={teamId}
+            canAddEvents={canAddCalendarEvents}
+            bootstrapLoading={dashboardBootstrapState === "loading"}
+            initialCalendarEvents={
+              dashboardBootstrapState === "ok" && bootstrapAligned
+                ? bootstrapAligned.calendarEvents
+                : undefined
+            }
+          />
         </div>
       )}
 

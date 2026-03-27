@@ -1,5 +1,5 @@
 /**
- * DB work for dashboard bootstrap (team + games + readiness).
+ * DB work for dashboard bootstrap (team + games + calendar + readiness).
  * Notifications and announcements are intentionally omitted — cards load them after first paint.
  */
 import { unstable_cache } from "next/cache"
@@ -37,7 +37,7 @@ export async function buildDashboardBootstrapData(
       )
     : Promise.resolve(null)
 
-  const [teamRow, gamesResult, readinessPayload] = await Promise.all([
+  const [teamRow, gamesResult, calendarResult, readinessPayload] = await Promise.all([
     timedBootstrap(timing, "team", async () =>
       supabase
         .from("teams")
@@ -52,6 +52,13 @@ export async function buildDashboardBootstrapData(
         .eq("team_id", teamId)
         .order("game_date", { ascending: true })
     ),
+    timedBootstrap(timing, "calendar_events", async () =>
+      supabase
+        .from("events")
+        .select("id, event_type, title, start, end, location")
+        .eq("team_id", teamId)
+        .order("start", { ascending: true })
+    ),
     readinessPromise,
   ])
 
@@ -63,8 +70,21 @@ export async function buildDashboardBootstrapData(
     throw new Error(`GAMES_QUERY_FAILED:${gamesResult.error.message}`)
   }
 
+  if (calendarResult.error) {
+    throw new Error(`CALENDAR_QUERY_FAILED:${calendarResult.error.message}`)
+  }
+
   const t = teamRow.data as Record<string, unknown>
   const games = (gamesResult.data ?? []).map((r: Record<string, unknown>) => mapDbGameRowToTeamGameRow(r))
+
+  const calendarEvents = (calendarResult.data ?? []).map((e: Record<string, unknown>) => ({
+    id: e.id as string,
+    type: (e.event_type as string) ?? "CUSTOM",
+    title: (e.title as string) ?? "",
+    start: e.start as string,
+    end: e.end as string,
+    location: (e.location as string | null) ?? null,
+  }))
 
   let readiness: DashboardBootstrapPayload["readiness"]
   if (canEditRoster && readinessPayload?.summary) {
@@ -92,6 +112,7 @@ export async function buildDashboardBootstrapData(
       teamLevel: (t.team_level as string | null) ?? null,
     },
     games,
+    calendarEvents,
     readiness,
   }
 }
@@ -108,7 +129,7 @@ export function getCachedDashboardBootstrapData(
   return unstable_cache(
     async () => buildDashboardBootstrapData(teamId, canEditRoster, null),
     /** userId + role bucket: same team row/games for everyone, but readiness slice differs for coaches. */
-    ["dashboard-bootstrap-payload-v1", teamId, userId, canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-payload-v2", teamId, userId, canEditRoster ? "coach" : "noncoach"],
     { revalidate: 12 }
   )()
 }

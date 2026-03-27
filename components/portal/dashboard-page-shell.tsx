@@ -5,6 +5,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"
 import { ConnectToTeam } from "@/components/portal/connect-to-team"
 import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 
 /**
  * Internal component that uses useSearchParams - must be wrapped in Suspense
@@ -16,17 +17,21 @@ function DashboardPageShellContent({
   children: (props: { teamId: string; userRole: string; userId: string; canEdit: boolean }) => React.ReactNode
   requireTeam?: boolean
 }) {
+  const identity = useDashboardShellIdentity()
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
   const teamIdFromQuery = searchParams.get("teamId")
-  const effectiveTeamId = useEffectiveTeamId(teamIdFromQuery, session?.user?.teamId)
+  const sessionTeamHint = identity.sessionUser?.teamId
+  const effectiveTeamId = useEffectiveTeamId(teamIdFromQuery, sessionTeamHint)
   // Use only context-resolved or URL teamId; never fall back to session.teamId so we never send a stale/deleted team id to APIs
   const teamId = effectiveTeamId || teamIdFromQuery || ""
-  const userRole = session?.user?.role ?? "PLAYER"
-  const userId = session?.user?.id ?? ""
+  const userRole = identity.roleUpper
+  const userId = identity.userId
   const canEdit = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
 
-  if (status === "loading") {
+  const sessionStillLoading = !identity.hasIdentity && status === "loading"
+
+  if (sessionStillLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
@@ -34,7 +39,7 @@ function DashboardPageShellContent({
     )
   }
 
-  if (!session?.user) {
+  if (!identity.hasIdentity) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-6">
         <div className="rounded-lg border bg-white p-6 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
@@ -59,7 +64,25 @@ function DashboardPageShellContent({
     return <ConnectToTeam role={userRole} />
   }
 
-  return <>{children({ teamId, userRole, userId, canEdit })}</>
+  return (
+    <>
+      {identity.bootstrapLoading && identity.hasIdentity ? (
+        <div
+          className="mb-2 flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-center text-xs"
+          style={{
+            borderColor: "rgb(var(--border))",
+            backgroundColor: "rgb(var(--platinum))",
+            color: "rgb(var(--muted))",
+          }}
+          role="status"
+        >
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" aria-hidden />
+          Refreshing team menu and badges…
+        </div>
+      ) : null}
+      {children({ teamId, userRole, userId, canEdit })}
+    </>
+  )
 }
 
 /**

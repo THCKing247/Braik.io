@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { signOut } from "@/lib/auth/client-auth"
 import { Button } from "@/components/ui/button"
+import { useAdAppBootstrapOptional } from "@/components/portal/ad-app-bootstrap-context"
 import type { AdPortalTabVisibility } from "@/lib/enforcement/football-ad-access"
 
 const fullOwnerNav: {
@@ -26,12 +27,16 @@ const defaultTabVisibility: AdPortalTabVisibility = {
 }
 
 export function AdNav({
-  userEmail,
-  tabVisibility = defaultTabVisibility,
+  userEmail: userEmailProp,
+  tabVisibility: tabVisibilityProp,
 }: {
   userEmail?: string | null
   tabVisibility?: AdPortalTabVisibility
 }) {
+  const ad = useAdAppBootstrapOptional()
+  const tabVisibility =
+    ad?.payload?.flags.tabVisibility ?? tabVisibilityProp ?? defaultTabVisibility
+  const userEmail = ad?.payload?.user.email ?? userEmailProp
   const navItems = fullOwnerNav.filter((item) => Boolean(tabVisibility[item.key]))
   const homeHref = tabVisibility.homeHref
 

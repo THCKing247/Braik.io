@@ -9,6 +9,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { mergeGameScoringPatch, type GamesDbRow } from "@/lib/games-api-scoring"
+import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -117,6 +118,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
 
     revalidatePath("/dashboard/schedule")
     revalidatePath("/dashboard")
+    revalidateTeamGamesAndDashboard(teamId)
 
     return NextResponse.json({ success: true, updated })
   } catch (err) {

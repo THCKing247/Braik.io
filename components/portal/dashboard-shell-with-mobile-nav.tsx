@@ -13,15 +13,16 @@ interface Team {
 
 export function DashboardShellWithMobileNav({
   teams,
-  showAdminLink,
+  currentTeamId,
   children,
 }: {
   teams: Team[]
-  showAdminLink?: boolean
+  currentTeamId: string
   children: ReactNode
 }) {
+  const bootstrapTeamId = currentTeamId.trim() || teams[0]?.id || ""
   return (
-    <MobileDashboardNavProvider teams={teams} showAdminLink={showAdminLink}>
+    <MobileDashboardNavProvider teams={teams} bootstrapTeamId={bootstrapTeamId}>
       {children}
     </MobileDashboardNavProvider>
   )

@@ -1,6 +1,7 @@
 "use client"
 
 import { useSession } from "@/lib/auth/client-auth"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 
 interface SubscriptionGuardProps {
   subscriptionPaid: boolean
@@ -9,10 +10,11 @@ interface SubscriptionGuardProps {
 }
 
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
+  const identity = useDashboardShellIdentity()
   const { status } = useSession()
 
-  // Wait for session to load
-  if (status === "loading") {
+  // Avoid flashing gated UI while shell identity or session is still resolving
+  if (identity.bootstrapLoading || (!identity.hasIdentity && status === "loading")) {
     return <>{children}</>
   }
 

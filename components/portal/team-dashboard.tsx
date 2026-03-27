@@ -1,7 +1,16 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react"
+import {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,14 +20,20 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import {
+  useNotificationPollIntervalMs,
+  useNotificationsPollingActive,
+  useOnDocumentForeground,
+} from "@/lib/hooks/use-notifications-polling"
+import {
   Trophy,
   Bell,
   Users,
   ImageIcon,
   MapPin,
   Clock,
-  ClipboardCheck,
 } from "lucide-react"
+
+const ReadinessSummaryCardLazy = lazy(() => import("@/components/portal/readiness-summary-card"))
 
 const DashboardCalendar = dynamic(
   () => import("@/components/portal/dashboard-calendar").then((m) => m.DashboardCalendar),
@@ -48,7 +63,8 @@ import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notifi
 import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team-schedule-games"
 import { computeTeamRecord, formatRecordLine } from "@/lib/records/compute-team-record"
 import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
-import { fetchDashboardBootstrap } from "@/lib/dashboard/fetch-dashboard-bootstrap"
+import { fetchDashboardBootstrap, peekDashboardBootstrapMemory } from "@/lib/dashboard/fetch-dashboard-bootstrap"
+import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -146,6 +162,7 @@ function TeamBanner({
   scheduleGamesLoading,
   prefetchedTeamSummary,
   bootstrapTeamLoading,
+  networkSyncHint,
 }: {
   user: SessionUser
   teamId: string
@@ -155,6 +172,8 @@ function TeamBanner({
   prefetchedTeamSummary?: { name: string; slogan: string | null; logoUrl: string | null }
   /** While bootstrap is in flight, skip redundant team GET until success or fallback. */
   bootstrapTeamLoading?: boolean
+  /** Shown under the welcome line when showing cached data or background refresh. */
+  networkSyncHint?: string | null
 }) {
   const [teamSummary, setTeamSummary] = useState<{ name: string; slogan: string | null; logoUrl: string | null } | null>(null)
   const [logoBroken, setLogoBroken] = useState(false)
@@ -247,6 +266,11 @@ function TeamBanner({
               {hasTeam ? teamName : "Welcome to Your Portal"}
             </h1>
             <p className="mt-1 text-[11px] text-white/45 sm:text-xs sm:text-white/50">{hasTeam ? roleLabel : "Connect to a team to get started"}</p>
+            {networkSyncHint ? (
+              <p className="mt-1.5 text-[10px] font-medium text-amber-200/90 sm:text-[11px]" role="status">
+                {networkSyncHint}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -294,220 +318,29 @@ function TeamBanner({
   )
 }
 
-// ─── Readiness Summary Card (coach only; fetches team readiness) ───────────────
-
-/** Coalesce concurrent summaryOnly fetches (duplicate mounts, Strict Mode, fast remounts). */
-const readinessSummaryInFlight = new Map<
-  string,
-  Promise<
-    | { forbidden: true }
-    | {
-        summary: { total: number; incompleteCount: number; readyCount: number } | null
-      }
-  >
->()
-
-function fetchReadinessSummaryOnce(teamId: string) {
-  const existing = readinessSummaryInFlight.get(teamId)
-  if (existing) return existing
-  const p = (async () => {
-    const res = await fetch(`/api/teams/${teamId}/readiness?summaryOnly=1`)
-    if (res.status === 403) return { forbidden: true as const }
-    if (!res.ok) {
-      return { summary: null as { total: number; incompleteCount: number; readyCount: number } | null }
-    }
-    const data = (await res.json()) as {
-      summary?: { total?: number; incompleteCount?: number; readyCount?: number }
-    }
-    if (data?.summary) {
-      return {
-        summary: {
-          total: data.summary.total ?? 0,
-          incompleteCount: data.summary.incompleteCount ?? 0,
-          readyCount: data.summary.readyCount ?? 0,
-        },
-      }
-    }
-    return { summary: null }
-  })().finally(() => readinessSummaryInFlight.delete(teamId))
-  readinessSummaryInFlight.set(teamId, p)
-  return p
-}
-
-function ReadinessSummaryCard({
-  teamId,
-  dashboardBootstrapState,
-  readinessFromBootstrap,
-}: {
-  teamId: string
-  dashboardBootstrapState: "loading" | "ok" | "fallback"
-  readinessFromBootstrap?: DashboardBootstrapPayload["readiness"]
-}) {
-  const readinessHref = `/dashboard/roster?teamId=${encodeURIComponent(teamId)}&tab=readiness`
-  const okSkipped =
-    dashboardBootstrapState === "ok" &&
-    readinessFromBootstrap &&
-    "skipped" in readinessFromBootstrap
-  const okSummary =
-    dashboardBootstrapState === "ok" &&
-    readinessFromBootstrap &&
-    "summary" in readinessFromBootstrap
-      ? readinessFromBootstrap.summary
-      : null
-
-  const [summary, setSummary] = useState<{ total: number; incompleteCount: number; readyCount: number } | null>(null)
-  const [loading, setLoading] = useState(() => {
-    if (dashboardBootstrapState === "loading") return true
-    if (okSummary) return false
-    return dashboardBootstrapState === "fallback"
-  })
-  const [forbidden, setForbidden] = useState(false)
-
-  useEffect(() => {
-    setSummary(null)
-    setForbidden(false)
-  }, [teamId])
-
-  useEffect(() => {
-    if (dashboardBootstrapState === "loading") {
-      setLoading(true)
-      return
-    }
-    const skipped =
-      dashboardBootstrapState === "ok" &&
-      readinessFromBootstrap &&
-      "skipped" in readinessFromBootstrap
-    const inlineSummary =
-      dashboardBootstrapState === "ok" &&
-      readinessFromBootstrap &&
-      "summary" in readinessFromBootstrap
-        ? readinessFromBootstrap.summary
-        : null
-    if (inlineSummary) {
-      setSummary(null)
-      setForbidden(false)
-      setLoading(false)
-      return
-    }
-    if (skipped) {
-      setLoading(false)
-      return
-    }
-    if (dashboardBootstrapState !== "fallback" || !teamId) return
-    let cancelled = false
-    setLoading(true)
-    setForbidden(false)
-    fetchReadinessSummaryOnce(teamId)
-      .then((r) => {
-        if (cancelled) return
-        if ("forbidden" in r) {
-          setForbidden(true)
-          setSummary(null)
-          return
-        }
-        setForbidden(false)
-        setSummary(r.summary)
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSummary(null)
-          setForbidden(false)
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, dashboardBootstrapState, readinessFromBootstrap])
-
-  const displaySummary = okSummary ?? summary
-
-  if (dashboardBootstrapState === "loading") {
-    return (
-      <Card
-        className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
-        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
-      >
-        <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
-          <CardTitle
-            className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
-            style={{ color: "rgb(var(--text))" }}
-          >
-            <ClipboardCheck className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
-            Roster Readiness
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex min-h-[100px] items-center justify-center px-4 pb-4 md:px-6 md:pb-6">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (okSkipped) return null
-
-  if (forbidden) return null
-
-  if (loading) {
-    return (
-      <Card
-        className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
-        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
-      >
-        <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
-          <CardTitle
-            className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
-            style={{ color: "rgb(var(--text))" }}
-          >
-            <ClipboardCheck className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
-            Roster Readiness
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex min-h-[100px] items-center justify-center px-4 pb-4 md:px-6 md:pb-6">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (!displaySummary) return null
-
+/** Static shell while the readiness chunk loads (after `DeferredHomeDashboardRow` reveals the row). */
+function ReadinessSummarySuspenseFallback() {
   return (
     <Card
       className="h-full rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
       style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
+      aria-busy
+      aria-label="Loading roster readiness"
     >
       <CardHeader className="flex flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
-        <CardTitle className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold" style={{ color: "rgb(var(--text))" }}>
-          <ClipboardCheck className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
-          Roster Readiness
+        <CardTitle
+          className="flex items-center gap-2 text-sm font-bold md:text-base md:font-semibold"
+          style={{ color: "rgb(var(--text))" }}
+        >
+          <span className="h-4 w-4 shrink-0 rounded bg-[rgb(var(--platinum))] animate-pulse" aria-hidden />
+          <span className="h-4 w-32 rounded bg-[rgb(var(--platinum))] animate-pulse" aria-hidden />
         </CardTitle>
-        <Link href={readinessHref} className="shrink-0">
-          <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
-            View
-          </Button>
-        </Link>
+        <span className="h-7 w-12 shrink-0 rounded-md bg-[rgb(var(--platinum))] animate-pulse md:h-7" aria-hidden />
       </CardHeader>
-      <CardContent className="space-y-2 px-4 pb-4 md:px-6 md:pb-6">
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{displaySummary.total}</span>
-          <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>players</span>
-        </div>
-        <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-          <span className="font-medium text-green-600">{displaySummary.readyCount} ready</span>
-          {displaySummary.incompleteCount > 0 && (
-            <> · <span className="font-medium text-amber-600">{displaySummary.incompleteCount} need attention</span></>
-          )}
-        </p>
-        {displaySummary.incompleteCount > 0 && (
-          <Link href={readinessHref}>
-            <Button size="sm" variant="outline" className="mt-2 text-xs">
-              Open Readiness tab
-            </Button>
-          </Link>
-        )}
+      <CardContent className="min-h-[100px] space-y-3 px-4 pb-4 md:px-6 md:pb-6">
+        <div className="h-9 w-16 rounded-md bg-[rgb(var(--platinum))] animate-pulse" aria-hidden />
+        <div className="h-4 w-full max-w-[220px] rounded bg-[rgb(var(--platinum))] animate-pulse" aria-hidden />
+        <div className="h-4 w-full max-w-[180px] rounded bg-[rgb(var(--platinum))] animate-pulse" aria-hidden />
       </CardContent>
     </Card>
   )
@@ -569,20 +402,24 @@ function NotificationsCard({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15&unreadOnly=true&preview=1`
+      const res = await fetchWithTimeout(
+        `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15&unreadOnly=true&preview=1`,
+        { credentials: "same-origin" }
       )
       if (!res.ok) return
       const data = await res.json()
       const raw = (data.notifications || []) as DashNotification[]
       const list = raw.filter((n) => NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE.has(n.type))
       setNotifications(list)
+      if (typeof data.unreadCount === "number") {
+        shell?.syncUnreadFromServerCount(data.unreadCount)
+      }
     } catch {
       /* ignore */
     } finally {
       setLoading(false)
     }
-  }, [teamId])
+  }, [teamId, shell])
 
   useEffect(() => {
     if (bootstrapLoading) {
@@ -597,11 +434,16 @@ function NotificationsCard({
     load()
   }, [bootstrapLoading, initialNotifications, teamId, load])
 
+  const pollingAllowed = useNotificationsPollingActive()
+  const pollMs = useNotificationPollIntervalMs()
+
   useEffect(() => {
-    if (bootstrapLoading) return
-    const interval = setInterval(load, 10000)
+    if (bootstrapLoading || !pollingAllowed) return
+    const interval = setInterval(() => void load(), pollMs)
     return () => clearInterval(interval)
-  }, [bootstrapLoading, teamId, load])
+  }, [bootstrapLoading, pollingAllowed, pollMs, teamId, load])
+
+  useOnDocumentForeground(() => void load(), !bootstrapLoading && Boolean(teamId))
 
   const openNotification = async (n: DashNotification) => {
     if (!n.read) {
@@ -611,7 +453,7 @@ function NotificationsCard({
       try {
         const res = await fetch(`/api/notifications/${n.id}`, { method: "PATCH" })
         if (!res.ok) throw new Error("mark read failed")
-        void shell?.refetch()
+        void load()
       } catch {
         setNotifications(prev)
         shell?.applyUnreadDelta(1)
@@ -648,9 +490,10 @@ function NotificationsCard({
         body: JSON.stringify({ teamId }),
       })
       if (!res.ok) throw new Error("mark all failed")
-      void shell?.refetch()
+      void load()
     } catch {
       setNotifications(prev)
+      shell?.applyUnreadDelta(unreadBefore)
       void shell?.refetch()
     } finally {
       setMarkBusy(false)
@@ -698,8 +541,10 @@ function NotificationsCard({
       </CardHeader>
       <CardContent className="scrollbar-hidden max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
         {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="space-y-3 py-6" aria-busy="true" aria-label="Loading notifications">
+            <div className="h-4 w-full max-w-[240px] animate-pulse rounded bg-[rgb(var(--platinum))]" />
+            <div className="h-14 w-full animate-pulse rounded-lg bg-[rgb(var(--platinum))]" />
+            <div className="h-14 w-full animate-pulse rounded-lg bg-[rgb(var(--platinum))]" />
           </div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
@@ -712,7 +557,7 @@ function NotificationsCard({
             <div className="space-y-1">
               <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>All caught up!</p>
               <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                Roster changes, new messages, and schedule updates only. Refreshes every 10 seconds.
+                Roster changes, new messages, and schedule updates only. Refreshes when you return here or while you are active on this tab.
               </p>
             </div>
           </div>
@@ -1016,6 +861,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const bootstrapOwnerTeamRef = useRef<string | null>(null)
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
+  const [dashNetworkHint, setDashNetworkHint] = useState<string | null>(null)
 
   const tid = teamId?.trim() ?? ""
   const bootstrapAligned: DashboardBootstrapPayload | null | undefined =
@@ -1055,12 +901,23 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       setBootstrap(null)
       setScheduleGames([])
       setScheduleGamesLoading(false)
+      setDashNetworkHint(null)
       return
     }
     let cancelled = false
-    setBootstrap(undefined)
-    setScheduleGamesLoading(true)
     const fetchTid = teamId.trim()
+    const mem = peekDashboardBootstrapMemory(fetchTid)
+    if (mem) {
+      bootstrapOwnerTeamRef.current = fetchTid
+      setBootstrap(mem)
+      setScheduleGames(mem.games)
+      setScheduleGamesLoading(false)
+      setDashNetworkHint("Showing last updated data · still syncing…")
+    } else {
+      setBootstrap(undefined)
+      setScheduleGamesLoading(true)
+      setDashNetworkHint(null)
+    }
     fetchDashboardBootstrap(fetchTid).then((data) => {
       if (cancelled) return
       bootstrapOwnerTeamRef.current = fetchTid
@@ -1068,8 +925,12 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         setBootstrap(data)
         setScheduleGames(data.games)
         setScheduleGamesLoading(false)
+        setDashNetworkHint(null)
+      } else if (mem) {
+        setDashNetworkHint("Could not refresh — showing last updated data")
       } else {
         setBootstrap(null)
+        setDashNetworkHint(null)
         loadScheduleGames()
       }
     })
@@ -1111,7 +972,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         user={user}
         teamId={teamId}
         scheduleGames={scheduleGames}
-        scheduleGamesLoading={scheduleGamesLoading}
+        scheduleGamesLoading={scheduleGamesLoading && !bootstrapAligned}
         prefetchedTeamSummary={
           bootstrapAligned
             ? {
@@ -1122,6 +983,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
             : undefined
         }
         bootstrapTeamLoading={dashboardBootstrapState === "loading"}
+        networkSyncHint={dashNetworkHint}
       />
 
       {/* ── Connect to Team Card (if no team and not head coach) ── */}
@@ -1170,11 +1032,13 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
             </div>
             {/* One mount only: `hidden lg:block` + `lg:hidden` still mount both branches and duplicate /readiness?summaryOnly=1 */}
             <div className="shrink-0 lg:flex-1">
-              <ReadinessSummaryCard
-                teamId={teamId}
-                dashboardBootstrapState={dashboardBootstrapState}
-                readinessFromBootstrap={bootstrapAligned?.readiness}
-              />
+              <Suspense fallback={<ReadinessSummarySuspenseFallback />}>
+                <ReadinessSummaryCardLazy
+                  teamId={teamId}
+                  dashboardBootstrapState={dashboardBootstrapState}
+                  readinessFromBootstrap={bootstrapAligned?.readiness}
+                />
+              </Suspense>
             </div>
           </div>
         </DeferredHomeDashboardRow>

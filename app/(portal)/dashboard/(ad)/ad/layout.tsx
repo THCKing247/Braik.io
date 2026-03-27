@@ -1,11 +1,9 @@
 import { redirect } from "next/navigation"
 import { getCachedServerSession } from "@/lib/auth/cached-server-session"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import {
-  canAccessAdPortalRoutes,
-  getAdPortalTabVisibility,
-  resolveFootballAdAccessState,
-} from "@/lib/enforcement/football-ad-access"
+import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
+import { getCachedAdPortalBootstrapRequest } from "@/lib/app/ad-portal-bootstrap-server"
+import { AdAppBootstrapProvider } from "@/components/portal/ad-app-bootstrap-context"
 import { AdNav } from "@/components/portal/ad/ad-nav"
 
 export default async function AthleticDirectorLayout({
@@ -24,12 +22,19 @@ export default async function AthleticDirectorLayout({
     redirect("/dashboard")
   }
 
-  const tabVisibility = getAdPortalTabVisibility(footballAccess)
+  const adBootstrap = await getCachedAdPortalBootstrapRequest(
+    session.user.id,
+    session.user.email ?? "",
+    session.user.role ?? "",
+    session.user.isPlatformOwner === true
+  )
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "rgb(var(--snow))" }}>
-      <AdNav userEmail={session.user.email} tabVisibility={tabVisibility} />
-      <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
-    </div>
+    <AdAppBootstrapProvider initialPayload={adBootstrap}>
+      <div className="min-h-screen" style={{ backgroundColor: "rgb(var(--snow))" }}>
+        <AdNav />
+        <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
+      </div>
+    </AdAppBootstrapProvider>
   )
 }

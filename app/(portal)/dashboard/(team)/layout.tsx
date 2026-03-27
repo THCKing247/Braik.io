@@ -140,10 +140,7 @@ export default async function DashboardLayout({
     // ──────────────────────────────────────────────────────────────────────
 
     return (
-      <DashboardShellWithMobileNav
-        teams={teams}
-        showAdminLink={Boolean(session.user?.isPlatformOwner)}
-      >
+      <DashboardShellWithMobileNav teams={teams} currentTeamId={currentTeamId}>
         <div className="app-shell flex min-h-screen flex-col bg-background">
           <header className="shrink-0">
             <Suspense

@@ -61,9 +61,63 @@ export function CalendarManager({
     setEvents(initialEvents)
   }, [initialEvents])
 
-  const handleCreated = useCallback(
-    (payload: CreateEventCreatedPayload) => {
+  const handleOptimisticCreate = useCallback(
+    (d: {
+      tempId: string
+      type: string
+      title: string
+      start: string
+      end: string
+      location: string | null
+      notes: string | null
+      audience: string
+    }) => {
       setEvents((prev) => [
+        ...prev,
+        {
+          id: d.tempId,
+          type: d.type,
+          title: d.title,
+          start: new Date(d.start),
+          end: new Date(d.end),
+          location: d.location,
+          notes: d.notes,
+          audience: d.audience,
+          creator: prev[0]?.creator ?? { name: null, email: "" },
+          rsvps: [],
+          linkedDocuments: [],
+        },
+      ])
+    },
+    []
+  )
+
+  const handleOptimisticRollback = useCallback((tempId: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== tempId))
+  }, [])
+
+  const handleCreated = useCallback((payload: CreateEventCreatedPayload) => {
+    setEvents((prev) => {
+      if (payload.replacesTempId) {
+        return prev.map((e) =>
+          e.id === payload.replacesTempId
+            ? {
+                id: payload.id,
+                type: payload.type,
+                title: payload.title,
+                start: new Date(payload.start),
+                end: new Date(payload.end),
+                location: payload.location,
+                notes: payload.notes,
+                audience: payload.audience,
+                creator: e.creator,
+                rsvps: e.rsvps,
+                linkedDocuments: e.linkedDocuments,
+              }
+            : e
+        )
+      }
+      return [
         ...prev,
         {
           id: payload.id,
@@ -78,10 +132,9 @@ export function CalendarManager({
           rsvps: [],
           linkedDocuments: [],
         },
-      ])
-    },
-    []
-  )
+      ]
+    })
+  }, [])
 
   const calendarEvents = events.map((event) => ({
     id: event.id,
@@ -106,6 +159,8 @@ export function CalendarManager({
           initialRange={createRange}
           openKey={createKey}
           onCreated={handleCreated}
+          onOptimisticCreate={handleOptimisticCreate}
+          onOptimisticRollback={handleOptimisticRollback}
         />
       )}
 

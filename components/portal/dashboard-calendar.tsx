@@ -17,7 +17,7 @@ import {
   addMonths,
   subMonths,
 } from "date-fns"
-import { CreateEventOverlay } from "@/components/portal/create-event-overlay"
+import { CreateEventOverlay, type CreateEventCreatedPayload } from "@/components/portal/create-event-overlay"
 import type { DashboardBootstrapCalendarEvent } from "@/lib/dashboard/dashboard-bootstrap-types"
 
 type DashboardCalendarEvent = {
@@ -29,6 +29,8 @@ type DashboardCalendarEvent = {
   location?: string
   color?: string
   highlight: boolean
+  /** True while the create request is in flight (optimistic row). */
+  isPending?: boolean
 }
 
 function mapApiEventsToRows(
@@ -108,6 +110,70 @@ export function DashboardCalendar({
       })
       .catch(() => {})
   }, [teamId])
+
+  const mapPayloadToRow = useCallback((p: CreateEventCreatedPayload): DashboardCalendarEvent => {
+    const t = (p.type || "CUSTOM").toUpperCase()
+    return {
+      id: p.id,
+      eventType: t,
+      title: p.title || "",
+      start: p.start,
+      end: p.end,
+      location: p.location || undefined,
+      color:
+        t === "GAME"
+          ? "#EF4444"
+          : t === "PRACTICE"
+            ? "#10B981"
+            : t === "MEETING"
+              ? "#F59E0B"
+              : "#8B5CF6",
+      highlight: false,
+      isPending: false,
+    }
+  }, [])
+
+  const onOptimisticCreate = useCallback(
+    (d: {
+      tempId: string
+      type: string
+      title: string
+      start: string
+      end: string
+      location: string | null
+      notes: string | null
+      audience: string
+    }) => {
+      const row = mapPayloadToRow({
+        id: d.tempId,
+        type: d.type,
+        title: d.title,
+        start: d.start,
+        end: d.end,
+        location: d.location,
+        notes: d.notes,
+        audience: d.audience,
+      })
+      setEvents((prev) => [...prev, { ...row, isPending: true }])
+    },
+    [mapPayloadToRow]
+  )
+
+  const onOptimisticRollback = useCallback((tempId: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== tempId))
+  }, [])
+
+  const onEventCreated = useCallback(
+    (p: CreateEventCreatedPayload) => {
+      if (p.replacesTempId) {
+        setEvents((prev) =>
+          prev.map((e) => (e.id === p.replacesTempId ? mapPayloadToRow(p) : e))
+        )
+      }
+      refetchEventsSilently()
+    },
+    [mapPayloadToRow, refetchEventsSilently]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -215,8 +281,13 @@ export function DashboardCalendar({
           </Link>
         </CardHeader>
         <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+          <p className="mb-3 text-center text-xs" style={{ color: "rgb(var(--muted))" }} role="status">
+            Loading schedule…
+          </p>
+          <div className="grid min-h-[280px] grid-cols-7 gap-1" aria-busy="true" aria-label="Calendar loading">
+            {Array.from({ length: 35 }).map((_, i) => (
+              <div key={i} className="min-h-[40px] animate-pulse rounded-md bg-[rgb(var(--platinum))] sm:min-h-[48px]" />
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -232,7 +303,9 @@ export function DashboardCalendar({
           teamId={teamId}
           initialRange={createRange}
           openKey={createKey}
-          onCreated={() => refetchEventsSilently()}
+          onCreated={onEventCreated}
+          onOptimisticCreate={onOptimisticCreate}
+          onOptimisticRollback={onOptimisticRollback}
         />
       )}
 
@@ -337,7 +410,7 @@ export function DashboardCalendar({
                         {dayEvents.slice(0, 2).map((event) => (
                           <div
                             key={event.id}
-                            className="text-[10px] p-0.5 rounded truncate border-l-2"
+                            className={`text-[10px] p-0.5 rounded truncate border-l-2 ${event.isPending ? "opacity-70" : ""}`}
                             style={{
                               backgroundColor: "#FFFFFF",
                               borderLeftColor: event.color || "#3B82F6",
@@ -346,6 +419,7 @@ export function DashboardCalendar({
                           >
                             <span className="block truncate" style={{ color: "rgb(var(--text))" }}>
                               {event.title}
+                              {event.isPending ? "…" : ""}
                             </span>
                           </div>
                         ))}
@@ -376,7 +450,7 @@ export function DashboardCalendar({
                       {dayEvents.slice(0, 2).map((event) => (
                         <div
                           key={event.id}
-                          className="text-[10px] p-0.5 rounded truncate border-l-2"
+                          className={`text-[10px] p-0.5 rounded truncate border-l-2 ${event.isPending ? "opacity-70" : ""}`}
                           style={{
                             backgroundColor: "#FFFFFF",
                             borderLeftColor: event.color || "#3B82F6",
@@ -385,6 +459,7 @@ export function DashboardCalendar({
                         >
                           <span className="block truncate" style={{ color: "rgb(var(--text))" }}>
                             {event.title}
+                            {event.isPending ? "…" : ""}
                           </span>
                         </div>
                       ))}

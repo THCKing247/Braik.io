@@ -1,4 +1,8 @@
-import { unstable_cache } from "next/cache"
+import {
+  lightweightCached,
+  LW_TTL_ENGAGEMENT_HINTS,
+  tagTeamEngagementHints,
+} from "@/lib/cache/lightweight-get-cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export type EngagementHint = {
@@ -89,9 +93,13 @@ export function buildEngagementHints(teamId: string, c: HintCounts): EngagementH
  * Team-scoped counts; safe to share across coaches on the same team (hints are derived from public team state).
  */
 export function getCachedEngagementHintCounts(teamId: string): Promise<HintCounts> {
-  return unstable_cache(
-    async () => loadEngagementHintCounts(teamId),
+  return lightweightCached(
     ["engagement-hint-counts-v1", teamId],
-    { revalidate: 22 }
-  )()
+    {
+      revalidate: LW_TTL_ENGAGEMENT_HINTS,
+      /** Team-scoped aggregate counts; safe across members (no PII in cache value). */
+      tags: [tagTeamEngagementHints(teamId)],
+    },
+    () => loadEngagementHintCounts(teamId)
+  )
 }

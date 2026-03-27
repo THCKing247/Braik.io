@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { userCanEditTeamAnnouncement, type TeamAnnouncementAudience } from "@/lib/team-announcements"
+import { revalidateTeamAnnouncements, revalidateTeamEngagementHints } from "@/lib/cache/lightweight-get-cache"
 
 const AUDIENCES: TeamAnnouncementAudience[] = ["all", "staff", "players", "parents"]
 
@@ -82,6 +83,9 @@ export async function PATCH(
       console.error("[PATCH team-announcements]", error)
       return NextResponse.json({ error: "Failed to update" }, { status: 500 })
     }
+
+    revalidateTeamAnnouncements(teamId)
+    revalidateTeamEngagementHints(teamId)
 
     return NextResponse.json(updated)
   } catch (err) {

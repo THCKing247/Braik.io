@@ -7,6 +7,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { mergeGameScoringPatch, type GamesDbRow } from "@/lib/games-api-scoring"
+import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -162,6 +163,7 @@ export async function PATCH(
 
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidateTeamGamesAndDashboard(teamId)
 
     return NextResponse.json({ success: true })
   } catch (err) {
@@ -214,6 +216,7 @@ export async function DELETE(
 
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidateTeamGamesAndDashboard(teamId)
 
     return NextResponse.json({ success: true })
   } catch (err) {

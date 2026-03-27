@@ -2,14 +2,16 @@ import { NextResponse } from "next/server"
 import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
 import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
 import { buildAppBootstrapPayload } from "@/lib/app/build-app-bootstrap"
-import { getCachedAppBootstrap } from "@/lib/app/app-bootstrap-cache"
+import { buildAppAdPortalBootstrapPayload } from "@/lib/app/build-app-ad-portal-bootstrap"
+import { getCachedAppBootstrap, getCachedAppAdPortalBootstrap } from "@/lib/app/app-bootstrap-cache"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
 
 export const runtime = "nodejs"
 
 /**
- * GET /api/app/bootstrap?teamId=
- * Lightweight portal shell: user + team header fields, unread count, engagement counts, capability flags.
+ * GET /api/app/bootstrap?teamId= — team portal shell.
+ * GET /api/app/bootstrap?portal=ad — Athletic Director portal shell (no teamId).
  */
 export async function GET(request: Request) {
   const started = performance.now()
@@ -21,7 +23,45 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const teamId = new URL(request.url).searchParams.get("teamId")?.trim()
+    const url = new URL(request.url)
+    const portal = url.searchParams.get("portal")?.trim().toLowerCase()
+
+    if (portal === "ad") {
+      const u = sessionResult.user
+      const useCache = !shouldLogRoutePerf()
+      try {
+        const payload = await routePerf(sink, "query", () =>
+          useCache
+            ? getCachedAppAdPortalBootstrap(u.id, u.email, u.role ?? "", u.isPlatformOwner === true)
+            : buildAppAdPortalBootstrapPayload(getSupabaseServer(), {
+                userId: u.id,
+                email: u.email,
+                liteRole: u.role ?? "",
+                isPlatformOwner: u.isPlatformOwner === true,
+              })
+        )
+        if (sink) {
+          sink.push({ label: "total", ms: Math.round(performance.now() - started) })
+          logRoutePerf("GET /api/app/bootstrap?portal=ad", sink, {
+            userId: u.id,
+            cached: String(useCache),
+          })
+        }
+        const res = NextResponse.json(payload)
+        if (sessionResult.refreshedSession) {
+          applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+        }
+        return res
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg === "AD_BOOTSTRAP_FORBIDDEN") {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        }
+        throw err
+      }
+    }
+
+    const teamId = url.searchParams.get("teamId")?.trim()
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }

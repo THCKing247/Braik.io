@@ -1,4 +1,8 @@
-import { unstable_cache } from "next/cache"
+import {
+  lightweightCached,
+  LW_TTL_NOTIFICATIONS_PREVIEW,
+  tagNotificationsUserTeam,
+} from "@/lib/cache/lightweight-get-cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 
@@ -101,9 +105,7 @@ export function getCachedNotificationsPayload(
   offset: number,
   previewMode: boolean
 ): Promise<NotificationsApiPayload> {
-  return unstable_cache(
-    async () =>
-      loadNotificationsApiPayload({ userId, teamId, unreadOnly, limit, offset, previewMode }),
+  return lightweightCached(
     [
       "notifications-api-v1",
       userId,
@@ -113,6 +115,11 @@ export function getCachedNotificationsPayload(
       String(offset),
       previewMode ? "preview" : "full",
     ],
-    { revalidate: 8 }
-  )()
+    {
+      revalidate: LW_TTL_NOTIFICATIONS_PREVIEW,
+      /** userId + teamId: rows and unread count are per recipient and team; never share across users. */
+      tags: [tagNotificationsUserTeam(userId, teamId)],
+    },
+    () => loadNotificationsApiPayload({ userId, teamId, unreadOnly, limit, offset, previewMode })
+  )
 }

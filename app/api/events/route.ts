@@ -12,6 +12,7 @@ import { createNotifications } from "@/lib/utils/notifications"
 import { logEventAction } from "@/lib/audit/structured-logger"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
+import { revalidateTeamCalendar, revalidateTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
 
 /** Ensures this route is always run as a serverless function (e.g. on Netlify). */
 export const dynamic = "force-dynamic"
@@ -279,6 +280,8 @@ export async function POST(req: NextRequest) {
       console.log("[api/events] error", { stage: "notifying", message })
       // Event was inserted; do not fail the request
     }
+    revalidateTeamCalendar(teamId)
+    revalidateTeamDashboardBootstrap(teamId)
     console.log("[api/events] success")
     return NextResponse.json(event, { status: 201 })
   } catch (error: unknown) {

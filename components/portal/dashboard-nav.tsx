@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession } from "@/lib/auth/client-auth"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
@@ -38,14 +38,13 @@ const departmentNavLinkClass = cn(
 )
 
 export function DashboardNav({ teams }: { teams: Team[] }) {
-  const { data: session } = useSession()
+  const identity = useDashboardShellIdentity()
   const { departmentHref: adDepartmentHref } = useAdPortalDepartmentLink()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
-  const isPlatformOwner = session?.user?.isPlatformOwner || false
-  const showAdminLink = isPlatformOwner
-  const userRole = session?.user?.role?.toUpperCase() || ""
+  const showAdminLink = identity.isPlatformOwner
+  const userRole = identity.roleUpper
 
   const path = pathname ?? ""
   const onAdPortalShell = path.startsWith("/dashboard/ad")
@@ -58,7 +57,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
     Boolean(adDepartmentHref) && userRole === "HEAD_COACH" && !onAdPortalShell && inTeamPortal
 
   const dashboardHomeHref =
-    session?.user?.role?.toUpperCase() === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+    userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
       ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
       : "/dashboard"
 

@@ -2,18 +2,11 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getCachedServerSession } from "@/lib/auth/cached-server-session"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import {
-  getAdPortalTabVisibility,
-  resolveFootballAdAccessState,
-} from "@/lib/enforcement/football-ad-access"
+import { getCachedAdPortalBootstrapRequest } from "@/lib/app/ad-portal-bootstrap-server"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
-import {
-  fetchAdPortalVisibleTeams,
-  logAdDashboardMetrics,
-  logAdTeamVisibility,
-} from "@/lib/ad-team-scope"
+import { logAdDashboardMetrics, logAdTeamVisibility } from "@/lib/ad-team-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -21,40 +14,26 @@ export default async function AthleticDirectorOverviewPage() {
   const session = await getCachedServerSession()
   if (!session?.user?.id) return null
 
-  const supabase = getSupabaseServer()
-  const footballAccess = await resolveFootballAdAccessState(supabase, session.user.id)
-  if (!getAdPortalTabVisibility(footballAccess).showOverview) {
+  const shell = await getCachedAdPortalBootstrapRequest(
+    session.user.id,
+    session.user.email ?? "",
+    session.user.role ?? "",
+    session.user.isPlatformOwner === true
+  )
+
+  if (!shell.flags.tabVisibility.showOverview) {
     redirect("/dashboard/ad/teams")
   }
 
-  let school: { name: string } | null = null
-  let department: { status: string } | null = null
+  const supabase = getSupabaseServer()
+  const school = shell.school.name ? { name: shell.school.name } : null
+  const department = shell.organization.departmentStatus
+    ? { status: shell.organization.departmentStatus }
+    : null
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("school_id")
-    .eq("id", session.user.id)
-    .maybeSingle()
-
-  if (profile?.school_id) {
-    const { data: schoolRow } = await supabase.from("schools").select("name").eq("id", profile.school_id).single()
-    school = schoolRow
-  }
-
-  const { data: deptRow } = await supabase
-    .from("athletic_departments")
-    .select("status")
-    .eq("athletic_director_user_id", session.user.id)
-    .maybeSingle()
-  department = deptRow
-
-  const { scope, orFilter, teams: visibleTeams, error: teamsQueryError } = await fetchAdPortalVisibleTeams(
-    supabase,
-    session.user.id
-  )
-
-  const teamIds = visibleTeams.map((t) => t.id)
-  const teamsCount = visibleTeams.length
+  const { scope, orFilter, teamsQueryError } = shell
+  const teamIds = shell.teamsSummary.map((t) => t.id)
+  const teamsCount = shell.teamsSummary.length
 
   logAdTeamVisibility("AthleticDirectorOverviewPage", {
     scope,

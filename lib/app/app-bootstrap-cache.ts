@@ -1,11 +1,19 @@
-import { revalidateTag, unstable_cache } from "next/cache"
 import type { UserMembership } from "@/lib/auth/rbac"
 import { buildAppBootstrapPayload } from "@/lib/app/build-app-bootstrap"
+import { buildAppAdPortalBootstrapPayload } from "@/lib/app/build-app-ad-portal-bootstrap"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import {
+  lightweightCached,
+  LW_TTL_APP_BOOTSTRAP,
+  LW_TTL_AD_PORTAL_SHELL,
+  revalidateLightweightAppShell,
+  TAG_LIGHTWEIGHT_APP_SHELL,
+} from "@/lib/cache/lightweight-get-cache"
 
-export const APP_BOOTSTRAP_CACHE_TAG = "app-bootstrap-v1"
+export const APP_BOOTSTRAP_CACHE_TAG = TAG_LIGHTWEIGHT_APP_SHELL
 
 export function revalidateAppBootstrapCache(): void {
-  revalidateTag(APP_BOOTSTRAP_CACHE_TAG)
+  revalidateLightweightAppShell()
 }
 
 function membershipCacheKey(m: UserMembership): string {
@@ -26,8 +34,10 @@ export function getCachedAppBootstrap(
   membership: UserMembership
 ): Promise<import("@/lib/app/app-bootstrap-types").AppBootstrapPayload> {
   const mKey = membershipCacheKey(membership)
-  return unstable_cache(
-    async () =>
+  return lightweightCached(
+    ["app-bootstrap-v1", userId, teamId, mKey],
+    { revalidate: LW_TTL_APP_BOOTSTRAP, tags: [APP_BOOTSTRAP_CACHE_TAG] },
+    () =>
       buildAppBootstrapPayload({
         userId,
         email,
@@ -36,8 +46,31 @@ export function getCachedAppBootstrap(
         liteRole,
         isPlatformOwner,
         membership,
-      }),
-    ["app-bootstrap-v1", userId, teamId, mKey],
-    { revalidate: 10, tags: [APP_BOOTSTRAP_CACHE_TAG] }
-  )()
+      })
+  )
+}
+
+const ROLE_CACHE_NONE = "__no_role__"
+
+/**
+ * AD portal shell; same tag as team bootstrap so `revalidateAppBootstrapCache` clears both.
+ */
+export function getCachedAppAdPortalBootstrap(
+  userId: string,
+  email: string,
+  liteRole: string,
+  isPlatformOwner: boolean
+): Promise<import("@/lib/app/app-ad-portal-bootstrap-types").AppAdPortalBootstrapPayload> {
+  const roleKey = liteRole?.toUpperCase().replace(/ /g, "_") || ROLE_CACHE_NONE
+  return lightweightCached(
+    ["app-ad-portal-bootstrap-v1", userId, roleKey],
+    { revalidate: LW_TTL_AD_PORTAL_SHELL, tags: [APP_BOOTSTRAP_CACHE_TAG] },
+    () =>
+      buildAppAdPortalBootstrapPayload(getSupabaseServer(), {
+        userId,
+        email,
+        liteRole,
+        isPlatformOwner,
+      })
+  )
 }

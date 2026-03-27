@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSession } from "@/lib/auth/client-auth"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { buildEngagementHints } from "@/lib/engagement/dashboard-hints-data"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
+import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 
 type Hint = {
   id: string
@@ -19,6 +21,10 @@ type Hint = {
 
 const COACH_ROLES = new Set(["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"])
 
+function hintsMemKey(teamId: string) {
+  return `lw-mem:engagement-hints:${teamId.trim()}`
+}
+
 function storageKey(teamId: string, hintId: string) {
   return `braik_hint_dismissed:${teamId}:${hintId}`
 }
@@ -28,13 +34,13 @@ function storageKey(teamId: string, hintId: string) {
  */
 export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: string }) {
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const identity = useDashboardShellIdentity()
   const shell = useAppBootstrapOptional()
   const [hints, setHints] = useState<Hint[]>([])
   const [loading, setLoading] = useState(false)
   const [dismissTick, setDismissTick] = useState(0)
 
-  const coachRole = session?.user?.role ?? ""
+  const coachRole = identity.roleUpper
   const showStrip = pathname === "/dashboard" && Boolean(currentTeamId) && COACH_ROLES.has(coachRole)
 
   useEffect(() => {
@@ -50,19 +56,34 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
       return
     }
     let cancelled = false
-    setLoading(true)
-    fetch(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`)
+    const mem = readLightweightMemoryRaw(hintsMemKey(currentTeamId))
+    if (mem && mem.ageMs < 45_000) {
+      const v = mem.value as { hints?: Hint[] }
+      if (Array.isArray(v.hints)) {
+        setHints(v.hints)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
+    } else {
+      setLoading(true)
+    }
+    fetchWithTimeout(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`, {
+      credentials: "same-origin",
+    })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (cancelled) return
         if (res.ok && Array.isArray(data.hints)) {
-          setHints(data.hints as Hint[])
-        } else {
+          const list = data.hints as Hint[]
+          setHints(list)
+          writeLightweightMemory(hintsMemKey(currentTeamId), { hints: list })
+        } else if (!mem) {
           setHints([])
         }
       })
       .catch(() => {
-        if (!cancelled) setHints([])
+        if (!cancelled && !mem) setHints([])
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

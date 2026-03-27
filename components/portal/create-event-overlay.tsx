@@ -9,6 +9,7 @@ import { DateTimePicker } from "@/components/portal/date-time-picker"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { cn } from "@/lib/utils"
 import { X } from "lucide-react"
+import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 
 export function defaultCreateWindow(): { start: Date; end: Date } {
   const now = new Date()
@@ -27,6 +28,8 @@ export type CreateEventCreatedPayload = {
   location: string | null
   notes: string | null
   audience: string
+  /** When set, parent should drop the optimistic row with this id. */
+  replacesTempId?: string
 }
 
 const selectClass = "mobile-select"
@@ -40,6 +43,18 @@ type CreateEventOverlayProps = {
   /** Bumped each time the parent opens the overlay so the form re-inits. */
   openKey: number
   onCreated?: (payload: CreateEventCreatedPayload) => void
+  /** Only used when there are no file attachments — safe optimistic row on the calendar. */
+  onOptimisticCreate?: (draft: {
+    tempId: string
+    type: string
+    title: string
+    start: string
+    end: string
+    location: string | null
+    notes: string | null
+    audience: string
+  }) => void
+  onOptimisticRollback?: (tempId: string) => void
 }
 
 export function CreateEventOverlay({
@@ -49,6 +64,8 @@ export function CreateEventOverlay({
   initialRange,
   openKey,
   onCreated,
+  onOptimisticCreate,
+  onOptimisticRollback,
 }: CreateEventOverlayProps) {
   const isLg = useMinWidthLg()
   const [type, setType] = useState("practice")
@@ -113,11 +130,25 @@ export function CreateEventOverlay({
       return
     }
 
+    const start = startDate.toISOString()
+    const end = endDate.toISOString()
+    const tempId = files.length === 0 ? `tmp-cal-${Date.now()}` : null
+    if (tempId) {
+      onOptimisticCreate?.({
+        tempId,
+        type,
+        title: title.trim(),
+        start,
+        end,
+        location: location || null,
+        notes: notes.trim() || null,
+        audience,
+      })
+    }
+
     setLoading(true)
     try {
-      const start = startDate.toISOString()
-      const end = endDate.toISOString()
-      const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}/calendar/events`, {
+      const response = await fetchWithTimeout(`/api/teams/${encodeURIComponent(teamId)}/calendar/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -200,9 +231,11 @@ export function CreateEventOverlay({
         location: (newEvent.location as string | null | undefined) ?? (location.trim() || null),
         notes: (newEvent.description as string | null | undefined) ?? (notes.trim() || null),
         audience,
+        replacesTempId: tempId ?? undefined,
       })
       close()
     } catch (error) {
+      if (tempId) onOptimisticRollback?.(tempId)
       alert(error instanceof Error ? error.message : "Error creating event")
     } finally {
       setLoading(false)

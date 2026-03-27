@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react"
 import type { AppBootstrapPayload } from "@/lib/app/app-bootstrap-types"
+import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
 
 type Phase = "idle" | "loading" | "ok" | "error"
 
@@ -22,6 +23,11 @@ export type AppBootstrapContextValue = {
   refetch: () => Promise<void>
   /** Negative values reduce displayed unread until next refetch. */
   applyUnreadDelta: (delta: number) => void
+  /**
+   * Align shell unread with GET /api/notifications `unreadCount` (same source as bootstrap).
+   * Clears pending optimistic delta.
+   */
+  syncUnreadFromServerCount: (count: number) => void
 }
 
 const AppBootstrapContext = createContext<AppBootstrapContextValue | null>(null)
@@ -56,23 +62,36 @@ export function AppBootstrapProvider({
       setPayload(null)
       return
     }
-    setPhase("loading")
+    const memK = `lw-mem:app-bootstrap:${teamId}`
+    const mem = readLightweightMemoryRaw(memK)
+    if (mem) {
+      setPayload(mem.value as AppBootstrapPayload)
+      setPendingUnreadDelta(0)
+      setPhase("ok")
+    } else {
+      setPhase("loading")
+    }
     try {
       const res = await fetch(`/api/app/bootstrap?teamId=${encodeURIComponent(teamId)}`, {
         credentials: "same-origin",
       })
       if (!res.ok) {
-        setPhase("error")
-        setPayload(null)
+        if (!mem) {
+          setPhase("error")
+          setPayload(null)
+        }
         return
       }
       const data = (await res.json()) as AppBootstrapPayload
+      writeLightweightMemory(memK, data)
       setPayload(data)
       setPendingUnreadDelta(0)
       setPhase("ok")
     } catch {
-      setPhase("error")
-      setPayload(null)
+      if (!mem) {
+        setPhase("error")
+        setPayload(null)
+      }
     }
   }, [teamId])
 
@@ -82,6 +101,11 @@ export function AppBootstrapProvider({
 
   const applyUnreadDelta = useCallback((delta: number) => {
     setPendingUnreadDelta((x) => x + delta)
+  }, [])
+
+  const syncUnreadFromServerCount = useCallback((count: number) => {
+    setPendingUnreadDelta(0)
+    setPayload((p) => (p ? { ...p, unreadNotifications: Math.max(0, count) } : p))
   }, [])
 
   const effectiveUnreadNotifications = Math.max(
@@ -97,8 +121,9 @@ export function AppBootstrapProvider({
       effectiveUnreadNotifications,
       refetch: load,
       applyUnreadDelta,
+      syncUnreadFromServerCount,
     }),
-    [teamId, phase, payload, effectiveUnreadNotifications, load, applyUnreadDelta]
+    [teamId, phase, payload, effectiveUnreadNotifications, load, applyUnreadDelta, syncUnreadFromServerCount]
   )
 
   return <AppBootstrapContext.Provider value={value}>{children}</AppBootstrapContext.Provider>

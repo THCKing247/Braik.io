@@ -189,8 +189,11 @@ export async function fetchAdVisibleTeams(
   }
 }
 
-/** Minimal columns for AD coaches bootstrap / picklists (no select('*')). */
-export type AdPortalTeamPicklistRow = Pick<AdVisibleTeamRow, "id" | "name" | "program_id">
+/** Minimal columns for AD coaches bootstrap / picklists / app shell (no select('*')). */
+export type AdPortalTeamPicklistRow = Pick<
+  AdVisibleTeamRow,
+  "id" | "name" | "program_id" | "sport" | "team_level" | "gender"
+>
 
 export type AdPortalTeamsSelectMode = "full" | "picklist"
 
@@ -220,7 +223,7 @@ export async function fetchAdPortalVisibleTeams(
   if (selectMode === "picklist") {
     const { data, error } = await supabase
       .from("teams")
-      .select("id, name, program_id")
+      .select("id, name, program_id, sport, team_level, gender")
       .or(orFilter)
       .order("created_at", { ascending: false })
     return {

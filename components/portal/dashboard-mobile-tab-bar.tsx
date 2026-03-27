@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { LayoutDashboard, Users, Calendar, MessageSquare, Menu } from "lucide-react"
 import { useMobileDashboardNav } from "@/components/portal/mobile-dashboard-nav-provider"
 import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickActions"
-import { useSession } from "@/lib/auth/client-auth"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { usePortalTeam } from "@/components/portal/portal-team-context"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 
@@ -50,18 +50,18 @@ export function DashboardMobileTabBar() {
   const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
   const portal = usePortalTeam()
-  const { data: session } = useSession()
+  const identity = useDashboardShellIdentity()
   const shellUnread = useAppBootstrapOptional()?.effectiveUnreadNotifications ?? 0
   const { openMoreSheet, moreSheetOpen } = useMobileDashboardNav()
   const contextTeamId =
     searchParams.get("teamId") || portal?.currentTeamId || portal?.teamIds?.[0] || ""
   const homeDashboardHref =
-    session?.user?.role?.toUpperCase() === "HEAD_COACH" && contextTeamId
+    identity.roleUpper === "HEAD_COACH" && contextTeamId
       ? `/dashboard?teamId=${encodeURIComponent(contextTeamId)}`
       : "/dashboard"
   const moreRouteActive = useMemo(
-    () => pathMatchesMoreArea(pathname, session?.user?.role),
-    [pathname, session?.user?.role]
+    () => pathMatchesMoreArea(pathname, identity.roleUpper),
+    [pathname, identity.roleUpper]
   )
 
   /** Immersive play editor: full-bleed field, no tab bar */

@@ -4,7 +4,8 @@ import type { ComponentType } from "react"
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from "react"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useSession, signOut } from "@/lib/auth/client-auth"
+import { signOut } from "@/lib/auth/client-auth"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickActions"
 import { cn } from "@/lib/utils"
@@ -25,19 +26,18 @@ export function DashboardMoreBottomSheet({
   open,
   onOpenChange,
   teams,
-  showAdminLink = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   teams: Team[]
-  showAdminLink?: boolean
 }) {
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const identity = useDashboardShellIdentity()
   const coachB = useCoachB()
-  const userRole = session?.user?.role
+  const userRole = identity.roleUpper || undefined
+  const showAdminLink = identity.isPlatformOwner
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
@@ -150,7 +150,7 @@ export function DashboardMoreBottomSheet({
                 {currentTeam.name}
               </p>
             )}
-            <p className="mt-2 truncate text-sm text-muted-foreground">{session?.user?.email}</p>
+            <p className="mt-2 truncate text-sm text-muted-foreground">{identity.email}</p>
             {teams.length > 1 && (
               <div className="mt-4 border-t border-border pt-4" onClick={(e) => e.stopPropagation()}>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

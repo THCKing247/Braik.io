@@ -4,9 +4,9 @@
  */
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
-import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
-import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
+import { getCachedStatsGamesPayload } from "@/lib/stats/cached-stats-games"
+import type { TeamGameRow } from "@/lib/team-schedule-games"
 
 export async function GET(request: Request) {
   try {
@@ -22,23 +22,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = getSupabaseServer()
     await requireTeamAccessWithUser(teamId, session.user)
 
-    const { data: rows, error } = await supabase
-      .from("games")
-      .select(
-        "id, opponent, game_date, location, game_type, result, notes, conference_game, team_score, opponent_score, confirmed_by_coach, season_id, seasons(year), q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
-      )
-      .eq("team_id", teamId)
-      .order("game_date", { ascending: true })
-
-    if (error) {
-      console.error("[GET /api/stats/games]", error)
+    let games: TeamGameRow[]
+    try {
+      const payload = await getCachedStatsGamesPayload(teamId)
+      games = payload.games
+    } catch (e) {
+      console.error("[GET /api/stats/games]", e)
       return NextResponse.json({ error: "Failed to load games" }, { status: 500 })
     }
-
-    let games = (rows ?? []).map((r: Record<string, unknown>) => mapDbGameRowToTeamGameRow(r))
 
     if (seasonYearParam) {
       const y = parseInt(seasonYearParam, 10)

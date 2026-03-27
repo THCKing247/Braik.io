@@ -8,6 +8,7 @@ import { createNotifications } from "@/lib/utils/notifications"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { revalidateTeamRosterDerivedCaches } from "@/lib/cache/lightweight-get-cache"
 
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
@@ -465,6 +466,7 @@ export async function POST(request: Request) {
       user: null as { email: string } | null,
       guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
     }
+    revalidateTeamRosterDerivedCaches(teamId)
     return NextResponse.json(out)
   } catch (err) {
     if (err instanceof MembershipLookupError) {

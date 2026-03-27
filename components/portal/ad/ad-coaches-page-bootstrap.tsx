@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { AdCoachesPageClient } from "@/components/portal/ad/ad-coaches-page-client"
 import type {
   AdAssistantCoachAssignmentRow,
@@ -8,6 +8,8 @@ import type {
   AdHeadCoachAssignmentRow,
 } from "@/lib/ad-portal-coach-assignments"
 import type { EngagementHint } from "@/lib/engagement/dashboard-hints-data"
+import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
+import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 
 type BootstrapJson = {
   teams: AdCoachAssignmentsPicklistTeam[]
@@ -18,6 +20,8 @@ type BootstrapJson = {
   hints: EngagementHint[]
   hintsContextTeamId: string | null
 }
+
+const AD_COACHES_MEM_KEY = "lw-mem:ad-coaches-bootstrap"
 
 function CoachesSkeleton() {
   return (
@@ -42,14 +46,27 @@ function CoachesSkeleton() {
 }
 
 export function AdCoachesPageBootstrap() {
-  const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading")
+  const memInit = typeof window !== "undefined" ? readLightweightMemoryRaw(AD_COACHES_MEM_KEY) : null
+  const [phase, setPhase] = useState<"loading" | "error" | "ready">(() =>
+    memInit ? "ready" : "loading"
+  )
   const [errorMessage, setErrorMessage] = useState("")
-  const [data, setData] = useState<BootstrapJson | null>(null)
+  const [data, setData] = useState<BootstrapJson | null>(() =>
+    memInit ? (memInit.value as BootstrapJson) : null
+  )
+  const [quietRefresh, setQuietRefresh] = useState(false)
+  const dataRef = useRef(data)
+  dataRef.current = data
 
   const load = useCallback(() => {
-    setPhase("loading")
+    const had = Boolean(dataRef.current)
+    if (had) {
+      setQuietRefresh(true)
+    } else {
+      setPhase("loading")
+    }
     setErrorMessage("")
-    fetch("/api/ad/bootstrap", { credentials: "same-origin" })
+    fetchWithTimeout("/api/ad/bootstrap", { credentials: "same-origin" })
       .then(async (res) => {
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         if (!res.ok) {
@@ -59,11 +76,19 @@ export function AdCoachesPageBootstrap() {
       })
       .then((json) => {
         setData(json)
+        writeLightweightMemory(AD_COACHES_MEM_KEY, json)
         setPhase("ready")
+        setQuietRefresh(false)
       })
       .catch((e: unknown) => {
+        if (had && dataRef.current) {
+          setQuietRefresh(false)
+          setErrorMessage(e instanceof Error ? e.message : "Could not refresh")
+          return
+        }
         setErrorMessage(e instanceof Error ? e.message : "Failed to load")
         setPhase("error")
+        setQuietRefresh(false)
       })
   }, [])
 
@@ -71,11 +96,11 @@ export function AdCoachesPageBootstrap() {
     load()
   }, [load])
 
-  if (phase === "loading") {
+  if (phase === "loading" && !data) {
     return <CoachesSkeleton />
   }
 
-  if (phase === "error" || !data) {
+  if (phase === "error" && !data) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
         <p className="font-medium">Could not load coaches</p>
@@ -91,14 +116,33 @@ export function AdCoachesPageBootstrap() {
     )
   }
 
+  if (!data) {
+    return <CoachesSkeleton />
+  }
+
   return (
-    <AdCoachesPageClient
-      headRows={data.coaches.headRows}
-      assistantRows={data.coaches.assistantRows}
-      teamsPicklist={data.teams}
-      hints={data.hints}
-      hintsContextTeamId={data.hintsContextTeamId}
-      onBootstrapRefetch={load}
-    />
+    <div className="relative space-y-2">
+      {quietRefresh ? (
+        <p
+          className="flex items-center gap-2 text-xs text-[#6B7280]"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#3B82F6] border-t-transparent" />
+          Updating coaches…
+        </p>
+      ) : null}
+      {errorMessage && !quietRefresh ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{errorMessage}</p>
+      ) : null}
+      <AdCoachesPageClient
+        headRows={data.coaches.headRows}
+        assistantRows={data.coaches.assistantRows}
+        teamsPicklist={data.teams}
+        hints={data.hints}
+        hintsContextTeamId={data.hintsContextTeamId}
+        onBootstrapRefetch={load}
+      />
+    </div>
   )
 }

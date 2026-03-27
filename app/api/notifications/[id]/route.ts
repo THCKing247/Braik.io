@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUserMembership } from "@/lib/auth/rbac"
 import { markNotificationAsRead } from "@/lib/utils/notifications"
 import { revalidateAppBootstrapCache } from "@/lib/app/app-bootstrap-cache"
+import { revalidateNotificationsForUserTeam } from "@/lib/cache/lightweight-get-cache"
 
 /**
  * PATCH /api/notifications/[id]
@@ -42,6 +43,7 @@ export async function PATCH(
     }
 
     await markNotificationAsRead(id)
+    revalidateNotificationsForUserTeam(session.user.id, notification.team_id as string)
     revalidateAppBootstrapCache()
 
     return NextResponse.json({ success: true })
@@ -73,7 +75,7 @@ export async function DELETE(
     const supabase = getSupabaseServer()
     const { data: notification, error: fetchError } = await supabase
       .from("notifications")
-      .select("id, user_id")
+      .select("id, user_id, team_id")
       .eq("id", id)
       .single()
 
@@ -86,6 +88,12 @@ export async function DELETE(
     }
 
     await supabase.from("notifications").delete().eq("id", id)
+
+    const tid = (notification as { team_id?: string }).team_id
+    if (tid) {
+      revalidateNotificationsForUserTeam(session.user.id, tid)
+    }
+    revalidateAppBootstrapCache()
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

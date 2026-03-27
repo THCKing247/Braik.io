@@ -13,6 +13,7 @@ import {
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { revalidateTeamRosterDerivedCaches } from "@/lib/cache/lightweight-get-cache"
 
 const IMPORT_MODES = ["create_only", "create_or_update", "replace_roster"] as const
 export type ImportMode = (typeof IMPORT_MODES)[number]
@@ -351,6 +352,10 @@ export async function POST(request: Request) {
         conflicts: summary.conflicts,
       },
     })
+
+    if (created > 0 || updated > 0 || (importMode === "replace_roster" && replacedCount > 0)) {
+      revalidateTeamRosterDerivedCaches(teamId)
+    }
 
     return NextResponse.json({
       success: true,

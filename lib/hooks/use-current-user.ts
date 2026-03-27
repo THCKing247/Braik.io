@@ -4,8 +4,9 @@ import { useSession } from "@/lib/auth/client-auth"
 import type { SessionUser } from "@/lib/auth/server-auth"
 
 /**
- * Thin wrapper around the portal session hook for pages that only need the user slice.
- * Uses the same client session source as the rest of the dashboard (no extra fetches).
+ * Thin wrapper around the client session hook (GET `/api/auth/session`).
+ * Inside the team dashboard shell, prefer `useDashboardShellIdentity` when you only need
+ * id/email/role for UI; keep `useCurrentUser` for auth-only pages or session-only fields.
  */
 export function useCurrentUser(): {
   user: SessionUser | undefined

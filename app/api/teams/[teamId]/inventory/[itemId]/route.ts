@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
+import { revalidateTeamInventory } from "@/lib/cache/lightweight-get-cache"
 
 const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 type InventoryBucket = (typeof INVENTORY_BUCKETS)[number]
@@ -177,6 +178,8 @@ export async function PATCH(
       }
     }
 
+    revalidateTeamInventory(teamId)
+
     return NextResponse.json({
       id: updatedItem.id,
       category: updatedItem.category ?? "",
@@ -254,6 +257,8 @@ export async function DELETE(
       console.error("[DELETE /api/teams/.../inventory/[itemId]]", deleteError)
       return NextResponse.json({ error: "Failed to delete item" }, { status: 500 })
     }
+
+    revalidateTeamInventory(teamId)
 
     return NextResponse.json({ success: true })
   } catch (err) {

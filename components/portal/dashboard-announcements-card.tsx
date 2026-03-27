@@ -28,6 +28,11 @@ import {
 } from "@/lib/navigation/dashboard-announcement-pins"
 import { ROLES, type Role } from "@/lib/auth/roles"
 import { cn } from "@/lib/utils"
+import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import {
+  useNotificationPollIntervalMs,
+  useNotificationsPollingActive,
+} from "@/lib/hooks/use-notifications-polling"
 
 function sessionRoleToRole(s?: string | null): Role {
   const u = (s || "").toUpperCase().replace(/-/g, "_")
@@ -126,7 +131,10 @@ export function DashboardAnnouncementsCard({
   const load = useCallback(async () => {
     if (!teamId) return
     try {
-      const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/team-announcements`)
+      const res = await fetchWithTimeout(
+        `/api/teams/${encodeURIComponent(teamId)}/team-announcements`,
+        { credentials: "same-origin" }
+      )
       if (!res.ok) return
       const data = await res.json()
       setAnnouncements(Array.isArray(data.announcements) ? data.announcements : [])
@@ -136,6 +144,9 @@ export function DashboardAnnouncementsCard({
       setLoading(false)
     }
   }, [teamId])
+
+  const pollingAllowed = useNotificationsPollingActive()
+  const annPollMs = useNotificationPollIntervalMs()
 
   useEffect(() => {
     if (!teamId) return
@@ -153,12 +164,13 @@ export function DashboardAnnouncementsCard({
   }, [teamId, load, initialAnnouncements, bootstrapLoading])
 
   useEffect(() => {
-    if (!teamId) return
+    if (!teamId || !pollingAllowed) return
+    const ms = Math.max(annPollMs, 60_000)
     const id = window.setInterval(() => {
       load()
-    }, 10000)
+    }, ms)
     return () => clearInterval(id)
-  }, [teamId, load])
+  }, [teamId, load, pollingAllowed, annPollMs])
 
   useEffect(() => {
     if (!viewerUserId || !teamId) return
@@ -202,8 +214,24 @@ export function DashboardAnnouncementsCard({
     }
     setCreateError(null)
     setCreateSubmitting(true)
+    const optimisticId = `optimistic-${Date.now()}`
+    const optimisticRow: TeamAnnouncementRow = {
+      id: optimisticId,
+      team_id: teamId,
+      title: t,
+      body: b,
+      author_id: viewerUserId,
+      author_name: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_pinned: createPinned,
+      audience: createAudience,
+      send_notification: createNotify,
+    }
+    setAnnouncements((prev) => [optimisticRow, ...prev.filter((a) => !a.id.startsWith("optimistic-"))])
+    setCreateOpen(false)
     try {
-      const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/team-announcements`, {
+      const res = await fetchWithTimeout(`/api/teams/${encodeURIComponent(teamId)}/team-announcements`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -214,15 +242,23 @@ export function DashboardAnnouncementsCard({
           send_notification: createNotify,
         }),
       })
-      const j = await res.json().catch(() => ({}))
+      const j = (await res.json().catch(() => ({}))) as Record<string, unknown>
       if (!res.ok) {
+        setAnnouncements((prev) => prev.filter((a) => a.id !== optimisticId))
         setCreateError(typeof j.error === "string" ? j.error : "Could not post announcement.")
+        setCreateOpen(true)
         return
       }
-      setCreateOpen(false)
-      await load()
+      const row = j as unknown as TeamAnnouncementRow
+      if (row?.id && typeof row.id === "string" && row.team_id) {
+        setAnnouncements((prev) => prev.map((a) => (a.id === optimisticId ? row : a)))
+      } else {
+        await load()
+      }
     } catch {
+      setAnnouncements((prev) => prev.filter((a) => a.id !== optimisticId))
       setCreateError("Network error. Try again.")
+      setCreateOpen(true)
     } finally {
       setCreateSubmitting(false)
     }
@@ -251,8 +287,23 @@ export function DashboardAnnouncementsCard({
     }
     setEditError(null)
     setEditSaving(true)
+    const prevSnap = announcements
+    setAnnouncements((p) =>
+      p.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              title: t,
+              body: b,
+              audience: editAudience,
+              is_pinned: editPinned,
+              updated_at: new Date().toISOString(),
+            }
+          : a
+      )
+    )
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `/api/teams/${encodeURIComponent(teamId)}/team-announcements/${encodeURIComponent(id)}`,
         {
           method: "PATCH",
@@ -267,12 +318,14 @@ export function DashboardAnnouncementsCard({
       )
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setEditError(typeof j.error === "string" ? j.error : "Could not save.")
+        setAnnouncements(prevSnap)
+        setEditError(typeof (j as { error?: string }).error === "string" ? (j as { error: string }).error : "Could not save.")
         return
       }
       setEditingId(null)
       await load()
     } catch {
+      setAnnouncements(prevSnap)
       setEditError("Network error.")
     } finally {
       setEditSaving(false)
@@ -324,8 +377,10 @@ export function DashboardAnnouncementsCard({
         </CardHeader>
         <CardContent className="max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
           {loading ? (
-            <div className="flex justify-center py-10">
-              <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <div className="space-y-3 py-6" aria-busy="true" aria-label="Loading announcements">
+              <div className="h-4 max-w-[200px] animate-pulse rounded bg-[rgb(var(--platinum))]" />
+              <div className="h-16 w-full animate-pulse rounded-lg bg-[rgb(var(--platinum))]" />
+              <div className="h-16 w-full animate-pulse rounded-lg bg-[rgb(var(--platinum))]" />
             </div>
           ) : sortedAnnouncements.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
@@ -350,7 +405,9 @@ export function DashboardAnnouncementsCard({
               return (
                 <div
                   key={a.id}
-                  className="flex w-full items-start gap-2 rounded-lg border p-2.5 transition-colors hover:opacity-95"
+                  className={`flex w-full items-start gap-2 rounded-lg border p-2.5 transition-colors hover:opacity-95 ${
+                    a.id.startsWith("optimistic-") ? "opacity-80" : ""
+                  }`}
                   style={{ backgroundColor: "rgba(37,99,235,0.06)", borderColor: "rgba(37,99,235,0.2)" }}
                 >
                   <AnnouncementPinControl

@@ -5,11 +5,13 @@ import {
   getCachedEngagementHintCounts,
   type EngagementHint,
 } from "@/lib/engagement/dashboard-hints-data"
+import { fetchAdPortalVisibleTeams } from "@/lib/ad-team-scope"
 import {
   fetchAdCoachAssignmentsPageData,
   type AdAssistantCoachAssignmentRow,
   type AdCoachAssignmentsPageData,
   type AdHeadCoachAssignmentRow,
+  type AdPortalPreloadedTeamBundle,
 } from "@/lib/ad-portal-coach-assignments"
 
 const COACH_HINT_ROLES = new Set(["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"])
@@ -49,13 +51,27 @@ export type AdBootstrapLoadResult = {
  * AD Coaches bootstrap: slim team list + coach rows + engagement hints for one context team.
  * Caller must already verify `canAccessAdPortalRoutes` (layout does; API route enforces too).
  */
+function toPreloadedTeamBundle(
+  bundle: Awaited<ReturnType<typeof fetchAdPortalVisibleTeams>>
+): AdPortalPreloadedTeamBundle {
+  return {
+    scope: bundle.scope,
+    orFilter: bundle.orFilter,
+    teams: bundle.teams as AdPortalPreloadedTeamBundle["teams"],
+    teamsQueryError: bundle.error,
+  }
+}
+
 export async function loadAdCoachesBootstrapWithMeta(
   supabase: SupabaseClient,
   userId: string,
   viewerRoleUpper: string,
   hintsTeamIdParam: string | null
 ): Promise<AdBootstrapLoadResult> {
-  const pageData = await fetchAdCoachAssignmentsPageData(supabase, userId, { teamSelect: "picklist" })
+  const teamBundle = await fetchAdPortalVisibleTeams(supabase, userId, "picklist")
+  const pageData = await fetchAdCoachAssignmentsPageData(supabase, userId, {
+    preloadedTeamBundle: toPreloadedTeamBundle(teamBundle),
+  })
 
   const teams: AdBootstrapTeam[] = pageData.teamsPicklist.map((t) => ({
     id: t.id,

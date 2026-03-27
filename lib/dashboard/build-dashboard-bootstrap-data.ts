@@ -2,8 +2,14 @@
  * DB work for dashboard bootstrap (team + games + calendar + readiness).
  * Notifications and announcements are intentionally omitted — cards load them after first paint.
  */
-import { unstable_cache } from "next/cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import {
+  lightweightCached,
+  LW_TTL_DASHBOARD_BOOTSTRAP,
+  LW_TTL_READINESS_SUMMARY,
+  tagTeamDashboardBootstrap,
+  tagTeamReadinessSummary,
+} from "@/lib/cache/lightweight-get-cache"
 import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
 import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
@@ -29,11 +35,18 @@ export async function buildDashboardBootstrapData(
 
   const readinessPromise = canEditRoster
     ? timedBootstrap(timing, "readiness", () =>
-        unstable_cache(
-          async () => computeTeamReadinessPayload(teamId, true),
+        lightweightCached(
           [READINESS_CACHE_KEY, teamId],
-          { revalidate: 30 }
-        )()
+          {
+            revalidate: LW_TTL_READINESS_SUMMARY,
+            /**
+             * Shared key with GET …/readiness?summaryOnly=1. Tag dashboard so roster edits that
+             * invalidate the home payload also drop this nested entry; tag readiness for targeted API refresh.
+             */
+            tags: [tagTeamReadinessSummary(teamId), tagTeamDashboardBootstrap(teamId)],
+          },
+          () => computeTeamReadinessPayload(teamId, true)
+        )
       )
     : Promise.resolve(null)
 
@@ -126,10 +139,13 @@ export function getCachedDashboardBootstrapData(
   userId: string,
   canEditRoster: boolean
 ): Promise<DashboardBootstrapPayload> {
-  return unstable_cache(
-    async () => buildDashboardBootstrapData(teamId, canEditRoster, null),
+  return lightweightCached(
     /** userId + role bucket: same team row/games for everyone, but readiness slice differs for coaches. */
     ["dashboard-bootstrap-payload-v2", teamId, userId, canEditRoster ? "coach" : "noncoach"],
-    { revalidate: 12 }
-  )()
+    {
+      revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
+      tags: [tagTeamDashboardBootstrap(teamId)],
+    },
+    () => buildDashboardBootstrapData(teamId, canEditRoster, null)
+  )
 }

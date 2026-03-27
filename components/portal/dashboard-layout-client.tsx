@@ -11,7 +11,6 @@ import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-
 import { MobilePortalShell } from "@/components/mobile/mobile-portal-shell"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
 import { DashboardEngagementHints } from "@/components/portal/dashboard-engagement-hints"
-import { AppBootstrapProvider } from "@/components/portal/app-bootstrap-context"
 import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { cn } from "@/lib/utils"
@@ -68,7 +67,6 @@ export function DashboardLayoutClient({
 
   return (
     <PortalTeamProvider teamIds={shellTeamIds} currentTeamId={resolvedCurrentTeamId}>
-      <AppBootstrapProvider teamId={resolvedCurrentTeamId}>
         <CoachBProvider isDesktop={isLgUp}>
           <PlaybookToastProvider>
             <BiometricEnablePrompt />
@@ -147,7 +145,6 @@ export function DashboardLayoutClient({
           </div>
         </PlaybookToastProvider>
       </CoachBProvider>
-      </AppBootstrapProvider>
     </PortalTeamProvider>
   )
 }

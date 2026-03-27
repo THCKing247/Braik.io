@@ -1,4 +1,8 @@
-import { unstable_cache } from "next/cache"
+import {
+  lightweightCached,
+  LW_TTL_TEAM_ANNOUNCEMENTS,
+  tagTeamAnnouncements,
+} from "@/lib/cache/lightweight-get-cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import type { Role } from "@/lib/auth/roles"
 import { sortTeamAnnouncements, userCanViewTeamAnnouncement } from "@/lib/team-announcements"
@@ -26,9 +30,13 @@ export async function loadVisibleTeamAnnouncementsSorted(teamId: string, viewerR
 
 /** Visibility depends on viewer role — key includes role. */
 export function getCachedVisibleTeamAnnouncements(teamId: string, viewerRole: Role) {
-  return unstable_cache(
-    async () => loadVisibleTeamAnnouncementsSorted(teamId, viewerRole),
+  return lightweightCached(
     ["team-announcements-visible-v1", teamId, viewerRole],
-    { revalidate: 8 }
-  )()
+    {
+      revalidate: LW_TTL_TEAM_ANNOUNCEMENTS,
+      /** teamId + role: parents vs players see different announcement subsets from the same team rows. */
+      tags: [tagTeamAnnouncements(teamId)],
+    },
+    () => loadVisibleTeamAnnouncementsSorted(teamId, viewerRole)
+  )
 }

@@ -179,6 +179,14 @@ export function useSession(): SessionContextValue {
   return ctx
 }
 
+/**
+ * Full client session from GET `/api/auth/session` (initial load + visibility/native unlock refresh).
+ * Still needed for: global auth boundary (login/logout), fields not on app bootstrap (`defaultAppPath`,
+ * `adminRole`, `positionGroups`, etc.), and `refetch()` after secure flows.
+ *
+ * In the team dashboard shell, prefer `useDashboardShellIdentity` + `AppBootstrapProvider` for routine
+ * id/email/role/team/unread display — do not depend on session alone for that UI when bootstrap is mounted.
+ */
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<SessionResponse | null>(null)
   const [loading, setLoading] = useState(true)

@@ -4,8 +4,9 @@ import { memo, useMemo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useSession, signOut } from "@/lib/auth/client-auth"
+import { signOut } from "@/lib/auth/client-auth"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
 import { cn } from "@/lib/utils"
@@ -24,13 +25,13 @@ interface Team {
 }
 
 export function DashboardSidebar({ teams }: { teams: Team[] }) {
-  const { data: session } = useSession()
+  const identity = useDashboardShellIdentity()
   const shell = useAppBootstrapOptional()
   const shellUnread = shell?.effectiveUnreadNotifications ?? 0
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const coachB = useCoachB()
-  const userRole = session?.user?.role
+  const userRole = identity.roleUpper || undefined
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
   const dashboardHomeHref =
@@ -69,11 +70,11 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           <div className="rounded-lg bg-white/10 px-3 py-2">
             <p
               className="truncate text-sm font-medium text-white"
-              title={session?.user?.email}
+              title={identity.email}
             >
-              {session?.user?.name || session?.user?.email || "User"}
+              {identity.displayName || identity.email || "User"}
             </p>
-            <p className="truncate text-xs text-white/70">{session?.user?.email}</p>
+            <p className="truncate text-xs text-white/70">{identity.email}</p>
           </div>
         </div>
 

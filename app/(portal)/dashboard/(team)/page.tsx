@@ -11,8 +11,14 @@ const TeamDashboard = dynamic(
   () => import("@/components/portal/team-dashboard").then((m) => m.TeamDashboard),
   {
     loading: () => (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      <div className="min-w-0 space-y-4 pb-4 md:space-y-6" aria-busy="true" aria-label="Loading dashboard">
+        <div className="h-36 w-full animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:h-40" />
+        <div className="h-52 w-full animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:gap-6">
+          <div className="h-64 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] lg:col-span-4 md:rounded-lg" />
+          <div className="h-64 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] lg:col-span-5 md:rounded-lg" />
+          <div className="h-64 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] lg:col-span-3 md:rounded-lg" />
+        </div>
       </div>
     ),
   }

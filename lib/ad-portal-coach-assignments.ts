@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import {
   fetchAdPortalVisibleTeams,
+  type AdPortalTeamPicklistRow,
   type AdPortalTeamsSelectMode,
   type AthleticDirectorScope,
 } from "@/lib/ad-team-scope"
@@ -35,6 +36,14 @@ export type AdCoachAssignmentsPageData = {
   teamsQueryError: string | null
 }
 
+/** Reuse a single `fetchAdPortalVisibleTeams` result in the same request (avoids duplicate team queries). */
+export type AdPortalPreloadedTeamBundle = {
+  scope: AthleticDirectorScope
+  orFilter: string | null
+  teams: AdPortalTeamPicklistRow[]
+  teamsQueryError: string | null
+}
+
 /**
  * Coaches tab data: `team_members` only (primary head per visible team + assistants).
  * Does not use `program_members` for display or control.
@@ -42,14 +51,28 @@ export type AdCoachAssignmentsPageData = {
 export async function fetchAdCoachAssignmentsPageData(
   supabase: SupabaseClient,
   sessionUserId: string,
-  options?: { teamSelect?: AdPortalTeamsSelectMode }
+  options?: { teamSelect?: AdPortalTeamsSelectMode; preloadedTeamBundle?: AdPortalPreloadedTeamBundle }
 ): Promise<AdCoachAssignmentsPageData> {
-  const teamSelect: AdPortalTeamsSelectMode = options?.teamSelect ?? "full"
-  const { scope, orFilter, teams: teamRows, error: teamsErr } = await fetchAdPortalVisibleTeams(
-    supabase,
-    sessionUserId,
-    teamSelect
-  )
+  let scope: AthleticDirectorScope
+  let orFilter: string | null
+  let teamRows: AdPortalTeamPicklistRow[]
+  let teamsErr: string | null
+
+  if (options?.preloadedTeamBundle) {
+    ;({
+      scope,
+      orFilter,
+      teams: teamRows,
+      teamsQueryError: teamsErr,
+    } = options.preloadedTeamBundle)
+  } else {
+    const teamSelect: AdPortalTeamsSelectMode = options?.teamSelect ?? "full"
+    const fetched = await fetchAdPortalVisibleTeams(supabase, sessionUserId, teamSelect)
+    scope = fetched.scope
+    orFilter = fetched.orFilter
+    teamRows = fetched.teams as AdPortalTeamPicklistRow[]
+    teamsErr = fetched.error
+  }
 
   if (!orFilter || teamsErr || !teamRows?.length) {
     return {
@@ -163,7 +186,7 @@ export async function fetchAdCoachAssignmentsPageData(
     teamsPicklist,
     scope,
     orFilter,
-    teamsQueryError: null,
+    teamsQueryError: teamsErr,
   }
 }
 

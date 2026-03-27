@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { useSession } from "@/lib/auth/client-auth"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 
 /**
  * One fetch per dashboard shell mount for HEAD_COACH → Athletic Department link.
@@ -28,13 +28,12 @@ const AdPortalLinkContext = createContext<AdPortalLinkContextValue>({
 })
 
 export function AdPortalLinkProvider({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession()
-  const userRole = session?.user?.role?.toUpperCase() ?? ""
+  const identity = useDashboardShellIdentity()
   const [departmentHref, setDepartmentHref] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    if (status !== "authenticated" || userRole !== "HEAD_COACH") {
+    if (!identity.hasIdentity || identity.roleUpper !== "HEAD_COACH") {
       setDepartmentHref(null)
       setReady(true)
       return
@@ -77,7 +76,7 @@ export function AdPortalLinkProvider({ children }: { children: ReactNode }) {
       }
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
     }
-  }, [status, userRole])
+  }, [identity.hasIdentity, identity.roleUpper])
 
   const value = useMemo(
     () => ({ departmentHref, ready }),

@@ -8,6 +8,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveSeasonIdForTeam } from "@/lib/team-season-resolve"
 import { parseGamesScheduleCsv } from "@/lib/games-import-csv"
+import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
 
 const CSV_EXTENSION = /\.csv$/i
 const CSV_MIME = /^text\/(csv|plain)|application\/csv$/i
@@ -91,6 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
 
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidateTeamGamesAndDashboard(teamId)
 
     return NextResponse.json({
       success: true,

@@ -8,6 +8,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveSeasonIdForTeam } from "@/lib/team-season-resolve"
 import { scoringFieldsForInsert } from "@/lib/games-api-scoring"
+import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -116,6 +117,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
 
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidateTeamGamesAndDashboard(teamId)
 
     return NextResponse.json({ id: inserted.id as string }, { status: 201 })
   } catch (err) {

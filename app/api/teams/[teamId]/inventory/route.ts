@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
+import { getCachedTeamInventoryGetPayload } from "@/lib/teams/cached-team-inventory-get"
+import { revalidateTeamInventory } from "@/lib/cache/lightweight-get-cache"
 
 const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 type InventoryBucket = (typeof INVENTORY_BUCKETS)[number]
@@ -74,60 +76,16 @@ export async function GET(
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const supabase = getSupabaseServer()
     await requireTeamAccessWithUser(teamId, session.user)
 
-    // Fetch inventory items and players
-    const [itemsRes, playersRes] = await Promise.all([
-      supabase
-        .from("inventory_items")
-        .select("id, category, name, quantity_total, quantity_available, condition, assigned_to_player_id, notes, status, equipment_type, size, make, item_code")
-        .eq("team_id", teamId)
-        .order("name", { ascending: true }),
-      supabase
-        .from("players")
-        .select("id, first_name, last_name, jersey_number")
-        .eq("team_id", teamId)
-        .order("last_name", { ascending: true }),
-    ])
-
-    if (itemsRes.error) {
-      console.error("[GET /api/teams/.../inventory] items error:", {
-        message: itemsRes.error.message,
-        details: itemsRes.error.details,
-        hint: itemsRes.error.hint,
-        code: itemsRes.error.code,
-      })
-      return NextResponse.json(
-        { error: "Failed to load inventory", details: itemsRes.error.message },
-        { status: 500 }
-      )
+    try {
+      const { items, players } = await getCachedTeamInventoryGetPayload(teamId)
+      return NextResponse.json({ items, players })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load inventory"
+      console.error("[GET /api/teams/.../inventory]", msg, e)
+      return NextResponse.json({ error: "Failed to load inventory", details: msg }, { status: 500 })
     }
-    if (playersRes.error) {
-      console.error("[GET /api/teams/.../inventory] players error:", {
-        message: playersRes.error.message,
-        details: playersRes.error.details,
-        hint: playersRes.error.hint,
-        code: playersRes.error.code,
-      })
-      return NextResponse.json(
-        { error: "Failed to load players", details: playersRes.error.message },
-        { status: 500 }
-      )
-    }
-
-    const players = (playersRes.data ?? []).map((p) => ({
-      id: p.id,
-      firstName: p.first_name ?? "",
-      lastName: p.last_name ?? "",
-      jerseyNumber: p.jersey_number ?? null,
-    }))
-
-    const playerMap = new Map(players.map((p) => [p.id, p]))
-
-    const items = (itemsRes.data ?? []).map((i) => mapItemRow(i as Record<string, unknown>, playerMap))
-
-    return NextResponse.json({ items, players })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Not a member")) {
@@ -281,6 +239,8 @@ export async function POST(
     const formattedItems = (createdItems || []).map((item) =>
       mapItemRow(item as unknown as Record<string, unknown>, playerMap)
     )
+
+    revalidateTeamInventory(teamId)
 
     // If multiple items created, return the first one (for compatibility)
     return NextResponse.json(formattedItems[0] || formattedItems)

@@ -4,11 +4,13 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Copy, Building2 } from "lucide-react"
+import { useAdAppBootstrapOptional } from "@/components/portal/ad-app-bootstrap-context"
 
 const DEFAULT_EXPIRES_DAYS = 14
 const DEFAULT_MAX_USES = 1
 
 export function AdLinkCodeGenerator() {
+  const ad = useAdAppBootstrapOptional()
   const [loading, setLoading] = useState(false)
   const [generatedCode, setGeneratedCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +50,13 @@ export function AdLinkCodeGenerator() {
     } catch {
       setError("Could not copy to clipboard.")
     }
+  }
+
+  if (
+    ad?.payload &&
+    ad.payload.flags.canPerformDepartmentOwnerActions === false
+  ) {
+    return null
   }
 
   return (

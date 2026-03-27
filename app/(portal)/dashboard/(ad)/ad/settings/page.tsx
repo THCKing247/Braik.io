@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { getCachedServerSession } from "@/lib/auth/cached-server-session"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getAdPortalTabVisibility, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
+import { getCachedAdPortalBootstrapRequest } from "@/lib/app/ad-portal-bootstrap-server"
 
 export const dynamic = "force-dynamic"
 
@@ -9,11 +9,17 @@ export default async function AdSettingsPage() {
   const session = await getCachedServerSession()
   if (!session?.user?.id) return null
 
-  const supabase = getSupabaseServer()
-  const footballAccess = await resolveFootballAdAccessState(supabase, session.user.id)
-  if (!getAdPortalTabVisibility(footballAccess).showSettings) {
+  const shell = await getCachedAdPortalBootstrapRequest(
+    session.user.id,
+    session.user.email ?? "",
+    session.user.role ?? "",
+    session.user.isPlatformOwner === true
+  )
+  if (!shell.flags.tabVisibility.showSettings) {
     redirect("/dashboard/ad/teams")
   }
+
+  const supabase = getSupabaseServer()
 
   let school: { name: string; city: string | null; state: string | null; school_type: string | null; mascot: string | null; website: string | null } | null = null
   const { data: profile } = await supabase

@@ -8,6 +8,7 @@ import {
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireAuth, requireTeamAccessWithUser, requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { type TeamAnnouncementAudience } from "@/lib/team-announcements"
+import { revalidateTeamAnnouncements, revalidateTeamEngagementHints } from "@/lib/cache/lightweight-get-cache"
 import {
   getCachedVisibleTeamAnnouncements,
   loadVisibleTeamAnnouncementsSorted,
@@ -158,6 +159,9 @@ export async function POST(
         send_notification,
       },
     })
+
+    revalidateTeamAnnouncements(teamId)
+    revalidateTeamEngagementHints(teamId)
 
     return NextResponse.json(inserted)
   } catch (err) {

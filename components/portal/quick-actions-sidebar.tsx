@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import { useSession } from "@/lib/auth/client-auth"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { useState, useRef, useEffect } from "react"
@@ -9,9 +9,9 @@ import { getQuickActionsForRole } from "@/config/quickActions"
 import { cn } from "@/lib/utils"
 
 export function QuickActionsSidebar() {
-  const { data: session } = useSession()
+  const identity = useDashboardShellIdentity()
   const pathname = usePathname()
-  const userRole = session?.user?.role
+  const userRole = identity.roleUpper || undefined
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   
   const quickActions = getQuickActionsForRole(userRole)

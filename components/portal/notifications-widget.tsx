@@ -1,10 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Bell, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import {
+  useNotificationPollIntervalMs,
+  useNotificationsPollingActive,
+  useOnDocumentForeground,
+} from "@/lib/hooks/use-notifications-polling"
+import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
+import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 
 interface Notification {
   id: string
@@ -22,53 +30,96 @@ interface NotificationsWidgetProps {
   teamId: string
 }
 
+const notifMemKey = (teamId: string) => `lw-mem:notifications-preview:${teamId.trim()}`
+
 export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
   const router = useRouter()
+  const shell = useAppBootstrapOptional()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [staleHint, setStaleHint] = useState<string | null>(null)
+  const pollingAllowed = useNotificationsPollingActive()
+  const pollMs = useNotificationPollIntervalMs()
 
-  useEffect(() => {
-    loadNotifications()
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadNotifications, 30000)
-    return () => clearInterval(interval)
-  }, [teamId])
-
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
-      const response = await fetch(`/api/notifications?teamId=${teamId}&limit=10&preview=1`)
+      const response = await fetchWithTimeout(
+        `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=10&preview=1`,
+        { credentials: "same-origin" }
+      )
       if (response.ok) {
         const data = await response.json()
-        setNotifications(data.notifications || [])
-        setUnreadCount(data.unreadCount || 0)
+        const list = (data.notifications || []) as Notification[]
+        const uc = typeof data.unreadCount === "number" ? data.unreadCount : 0
+        setNotifications(list)
+        setUnreadCount(uc)
+        shell?.syncUnreadFromServerCount(uc)
+        writeLightweightMemory(notifMemKey(teamId), { notifications: list, unreadCount: uc })
+        setStaleHint(null)
+      } else if (readLightweightMemoryRaw(notifMemKey(teamId))) {
+        setStaleHint("Showing last notifications — refresh failed")
       }
-    } catch (error) {
-      console.error("Error loading notifications:", error)
+    } catch {
+      const mem = readLightweightMemoryRaw(notifMemKey(teamId))
+      if (mem) {
+        const v = mem.value as { notifications: Notification[]; unreadCount: number }
+        setNotifications(v.notifications)
+        setUnreadCount(v.unreadCount)
+        setStaleHint("Showing last notifications — still syncing…")
+      }
     }
-  }
+  }, [teamId, shell])
+
+  useEffect(() => {
+    const mem = readLightweightMemoryRaw(notifMemKey(teamId))
+    if (mem && mem.ageMs < 25_000) {
+      const v = mem.value as { notifications: Notification[]; unreadCount: number }
+      setNotifications(v.notifications)
+      setUnreadCount(v.unreadCount)
+    }
+    void loadNotifications()
+  }, [loadNotifications, teamId])
+
+  useEffect(() => {
+    if (!pollingAllowed) return
+    const interval = setInterval(() => void loadNotifications(), pollMs)
+    return () => clearInterval(interval)
+  }, [pollingAllowed, pollMs, loadNotifications])
+
+  useOnDocumentForeground(() => void loadNotifications(), Boolean(teamId))
 
   const markAsRead = async (notificationId: string) => {
+    shell?.applyUnreadDelta(-1)
+    setUnreadCount((prev) => Math.max(0, prev - 1))
     try {
       const response = await fetch(`/api/notifications/${notificationId}`, {
         method: "PATCH",
       })
       if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n =>
-            n.id === notificationId ? { ...n, read: true } : n
-          )
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
         )
-        setUnreadCount(prev => Math.max(0, prev - 1))
+        void loadNotifications()
+      } else {
+        shell?.applyUnreadDelta(1)
+        setUnreadCount((prev) => prev + 1)
       }
     } catch (error) {
+      shell?.applyUnreadDelta(1)
+      setUnreadCount((prev) => prev + 1)
       console.error("Error marking notification as read:", error)
     }
   }
 
   const markAllAsRead = async () => {
+    const prev = notifications
+    const unreadBefore = prev.filter((n) => !n.read).length
+    if (unreadBefore === 0) return
     setLoading(true)
+    shell?.applyUnreadDelta(-unreadBefore)
+    setUnreadCount(0)
     try {
       const response = await fetch("/api/notifications/mark-all-read", {
         method: "POST",
@@ -76,10 +127,17 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
         body: JSON.stringify({ teamId }),
       })
       if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-        setUnreadCount(0)
+        setNotifications((p) => p.map((n) => ({ ...n, read: true })))
+        void loadNotifications()
+      } else {
+        shell?.applyUnreadDelta(unreadBefore)
+        setUnreadCount(unreadBefore)
+        setNotifications(prev)
       }
     } catch (error) {
+      shell?.applyUnreadDelta(unreadBefore)
+      setUnreadCount(unreadBefore)
+      setNotifications(prev)
       console.error("Error marking all as read:", error)
     } finally {
       setLoading(false)
@@ -175,9 +233,14 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
           {/* Dropdown */}
           <div className="absolute right-0 top-12 z-50 w-80 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                Notifications
-              </h3>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                  Notifications
+                </h3>
+                {staleHint ? (
+                  <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">{staleHint}</p>
+                ) : null}
+              </div>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}

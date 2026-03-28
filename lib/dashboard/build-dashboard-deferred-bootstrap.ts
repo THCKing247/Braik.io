@@ -1,7 +1,11 @@
 import type { ResolvedTeamAccess } from "@/lib/auth/team-access-resolve"
 import type { SessionUser } from "@/lib/auth/server-auth"
-import type { DashboardBootstrapDeferredPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+import type {
+  DashboardBootstrapDeferredCorePayload,
+  DashboardBootstrapDeferredHeavyPayload,
+} from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { TeamAnnouncementRow } from "@/lib/team-announcements"
+import { getCachedDashboardBootstrapData } from "@/lib/dashboard/build-dashboard-bootstrap-data"
 import { loadTeamRosterForBootstrap } from "@/lib/roster/load-team-roster-for-bootstrap"
 import { loadDepthChartForBootstrap } from "@/lib/roster/load-depth-chart-for-bootstrap"
 import { loadNotificationsApiPayload } from "@/lib/notifications/notifications-api-query"
@@ -15,22 +19,20 @@ import {
   tagNotificationsUserTeam,
 } from "@/lib/cache/lightweight-get-cache"
 
-export async function buildDashboardBootstrapDeferredData(
+/** Home slice (games, calendar, readiness summary) + roster + notifications + announcements + readiness detail — no depth chart. */
+export async function buildDashboardBootstrapDeferredCoreData(
   teamId: string,
   userId: string,
   access: ResolvedTeamAccess,
   sessionUser: SessionUser,
   appOrigin: string
-): Promise<DashboardBootstrapDeferredPayload> {
+): Promise<DashboardBootstrapDeferredCorePayload> {
   const canCoach = access.canEditRoster
 
-  const [roster, depthEntries, notifications, announcements, readinessDetail] = await Promise.all([
+  const [dashboard, roster, notifications, announcements, readinessDetail] = await Promise.all([
+    getCachedDashboardBootstrapData(teamId, userId, canCoach),
     loadTeamRosterForBootstrap(teamId, sessionUser, appOrigin).catch((e) => {
-      console.error("[buildDashboardBootstrapDeferredData] roster", e)
-      return []
-    }),
-    loadDepthChartForBootstrap(teamId).catch((e) => {
-      console.error("[buildDashboardBootstrapDeferredData] depthChart", e)
+      console.error("[buildDashboardBootstrapDeferredCoreData] roster", e)
       return []
     }),
     loadNotificationsApiPayload({
@@ -41,24 +43,24 @@ export async function buildDashboardBootstrapDeferredData(
       offset: 0,
       previewMode: true,
     }).catch((e) => {
-      console.error("[buildDashboardBootstrapDeferredData] notifications", e)
+      console.error("[buildDashboardBootstrapDeferredCoreData] notifications", e)
       return { notifications: [], unreadCount: 0, hasMore: false }
     }),
     getCachedVisibleTeamAnnouncements(teamId, access.membership.role).catch((e): TeamAnnouncementRow[] => {
-      console.error("[buildDashboardBootstrapDeferredData] announcements", e)
+      console.error("[buildDashboardBootstrapDeferredCoreData] announcements", e)
       return []
     }),
     canCoach
       ? computeTeamReadinessPayload(teamId, false).catch((e) => {
-          console.error("[buildDashboardBootstrapDeferredData] readinessDetail", e)
+          console.error("[buildDashboardBootstrapDeferredCoreData] readinessDetail", e)
           return null
         })
       : Promise.resolve(null),
   ])
 
   return {
+    dashboard,
     roster,
-    depthChart: { entries: depthEntries },
     notifications,
     announcements: announcements as TeamAnnouncementRow[],
     readinessDetail,
@@ -66,15 +68,15 @@ export async function buildDashboardBootstrapDeferredData(
   }
 }
 
-export function getCachedDashboardBootstrapDeferred(
+export function getCachedDashboardBootstrapDeferredCore(
   teamId: string,
   userId: string,
   access: ResolvedTeamAccess,
   sessionUser: SessionUser,
   appOrigin: string
-): Promise<DashboardBootstrapDeferredPayload> {
+): Promise<DashboardBootstrapDeferredCorePayload> {
   return lightweightCached(
-    ["dashboard-bootstrap-deferred-v1", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-deferred-core-v1", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [
@@ -83,6 +85,28 @@ export function getCachedDashboardBootstrapDeferred(
         tagNotificationsUserTeam(userId, teamId),
       ],
     },
-    () => buildDashboardBootstrapDeferredData(teamId, userId, access, sessionUser, appOrigin)
+    () => buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
+  )
+}
+
+export async function buildDashboardBootstrapDeferredHeavyData(teamId: string): Promise<DashboardBootstrapDeferredHeavyPayload> {
+  const depthEntries = await loadDepthChartForBootstrap(teamId).catch((e) => {
+    console.error("[buildDashboardBootstrapDeferredHeavyData] depthChart", e)
+    return []
+  })
+  return {
+    depthChart: { entries: depthEntries },
+    generatedAt: new Date().toISOString(),
+  }
+}
+
+export function getCachedDashboardBootstrapDeferredHeavy(teamId: string): Promise<DashboardBootstrapDeferredHeavyPayload> {
+  return lightweightCached(
+    ["dashboard-bootstrap-deferred-heavy-v1", teamId],
+    {
+      revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
+      tags: [tagTeamDashboardBootstrap(teamId)],
+    },
+    () => buildDashboardBootstrapDeferredHeavyData(teamId)
   )
 }

@@ -17,8 +17,9 @@ export type DashboardBootstrapCalendarEvent = {
 
 /**
  * Contract for GET /api/dashboard/bootstrap* — shared by routes and the portal dashboard client.
- * Team header, games, calendar preview rows, and coach readiness summary live in bootstrap-light.
- * Roster, depth chart, notification rows, announcements, and readiness detail load via bootstrap-deferred (merged client-side).
+ * bootstrap-light: team header + empty games/calendar + skipped readiness (minimal first paint).
+ * bootstrap-deferred-core: full home slice, roster, notifications, announcements, readiness detail.
+ * bootstrap-deferred-heavy: depth chart entries only.
  */
 export type DashboardBootstrapPayload = {
   team: {
@@ -58,13 +59,31 @@ export type FullDashboardBootstrapPayload = {
   readinessDetail: DashboardReadinessDetailPayload | null
   generatedAt: string
   /**
-   * When true, `roster` / previews are placeholders; client should merge
-   * GET /api/dashboard/bootstrap-deferred (or await full bootstrap) before relying on roster.
+   * When true, core deferred slice (games, calendar, roster, notification rows, etc.) has not merged yet.
    */
   deferredPending?: boolean
+  /**
+   * When true, depth chart bootstrap has not merged yet (after core is ready).
+   */
+  deferredHeavyPending?: boolean
 }
 
-/** Deferred half merged into {@link FullDashboardBootstrapPayload} after first paint. */
+/** Core deferred slice — replaces `dashboard` and fills roster / notification previews / announcements / readiness detail. */
+export type DashboardBootstrapDeferredCorePayload = {
+  dashboard: DashboardBootstrapPayload
+  roster: unknown[]
+  notifications: NotificationsApiPayload
+  announcements: TeamAnnouncementRow[]
+  readinessDetail: DashboardReadinessDetailPayload | null
+  generatedAt: string
+}
+
+export type DashboardBootstrapDeferredHeavyPayload = {
+  depthChart: { entries: DepthChartBootstrapEntry[] }
+  generatedAt: string
+}
+
+/** @deprecated Use core + heavy payloads; kept for typing merged in-memory snapshots. */
 export type DashboardBootstrapDeferredPayload = {
   roster: unknown[]
   depthChart: { entries: DepthChartBootstrapEntry[] }

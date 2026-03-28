@@ -1,8 +1,8 @@
 /**
- * GET /api/dashboard/bootstrap-light?teamId=
+ * GET /api/dashboard/bootstrap-deferred-core?teamId=
  *
- * First paint only: lite shell + minimal dashboard (team header; empty games/calendar; readiness skipped).
- * Full home slice + roster + previews: bootstrap-deferred-core. Depth chart: bootstrap-deferred-heavy.
+ * Second phase: full home dashboard slice (games, calendar, readiness summary) + roster + notification rows +
+ * announcements + coach readiness detail. Depth chart is bootstrap-deferred-heavy.
  */
 import { NextResponse } from "next/server"
 import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
@@ -10,10 +10,11 @@ import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 import {
-  buildLightFullDashboardBootstrapData,
-  getCachedLightFullDashboardBootstrap,
-} from "@/lib/dashboard/build-full-dashboard-bootstrap"
-import type { FullDashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+  buildDashboardBootstrapDeferredCoreData,
+  getCachedDashboardBootstrapDeferredCore,
+} from "@/lib/dashboard/build-dashboard-deferred-bootstrap"
+import { liteUserToSessionUser, requestAppOrigin } from "@/lib/dashboard/build-full-dashboard-bootstrap"
+import type { DashboardBootstrapDeferredCorePayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import { applyDashboardBootstrapCacheHeaders } from "@/lib/dashboard/dashboard-bootstrap-http"
 import {
   shouldLogBootstrapTiming,
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
       access = await timedBootstrap(timingSink, "membership", () => resolveTeamAccess(teamId, userId))
     } catch (err) {
       if (err instanceof MembershipLookupError) {
-        console.error("[GET /api/dashboard/bootstrap-light] membership lookup", err)
+        console.error("[GET /api/dashboard/bootstrap-deferred-core] membership lookup", err)
         return NextResponse.json({ error: "Access check failed" }, { status: 500 })
       }
       throw err
@@ -61,30 +62,17 @@ export async function GET(request: Request) {
 
     const usePayloadCache = !shouldLogBootstrapTiming()
     const u = session.user
+    const sessionUser = liteUserToSessionUser(u)
+    const appOrigin = requestAppOrigin(request)
 
-    let payload: FullDashboardBootstrapPayload
+    let payload: DashboardBootstrapDeferredCorePayload
     if (usePayloadCache) {
-      payload = await timedBootstrap(timingSink, "bootstrap_light_cached", () =>
-        getCachedLightFullDashboardBootstrap(
-          teamId,
-          userId,
-          u.email,
-          u.teamId,
-          u.role ?? "",
-          u.isPlatformOwner === true,
-          access
-        )
+      payload = await timedBootstrap(timingSink, "bootstrap_deferred_core_cached", () =>
+        getCachedDashboardBootstrapDeferredCore(teamId, userId, access, sessionUser, appOrigin)
       )
     } else {
-      payload = await buildLightFullDashboardBootstrapData(
-        teamId,
-        userId,
-        u.email,
-        u.teamId,
-        u.role ?? "",
-        u.isPlatformOwner === true,
-        access,
-        timingSink
+      payload = await timedBootstrap(timingSink, "bootstrap_deferred_core", () =>
+        buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
       )
     }
 
@@ -111,14 +99,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
     if (err instanceof Error && err.message.startsWith("GAMES_QUERY_FAILED")) {
-      console.error("[GET /api/dashboard/bootstrap-light] games", err.message)
+      console.error("[GET /api/dashboard/bootstrap-deferred-core] games", err.message)
       return NextResponse.json({ error: "Failed to load games" }, { status: 500 })
     }
     if (err instanceof Error && err.message.startsWith("CALENDAR_QUERY_FAILED")) {
-      console.error("[GET /api/dashboard/bootstrap-light] calendar", err.message)
+      console.error("[GET /api/dashboard/bootstrap-deferred-core] calendar", err.message)
       return NextResponse.json({ error: "Failed to load calendar" }, { status: 500 })
     }
-    console.error("[GET /api/dashboard/bootstrap-light]", err)
+    console.error("[GET /api/dashboard/bootstrap-deferred-core]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

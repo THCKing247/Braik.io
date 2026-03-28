@@ -3,24 +3,23 @@ import type { SessionUser } from "@/lib/auth/server-auth"
 import type { RequestUserLite } from "@/lib/auth/server-auth"
 import { buildAppBootstrapPayloadLite } from "@/lib/app/build-app-bootstrap"
 import {
-  getCachedDashboardBootstrapData,
-  buildDashboardBootstrapData,
+  buildMinimalDashboardBootstrapPayload,
+  getCachedMinimalDashboardBootstrapPayload,
 } from "@/lib/dashboard/build-dashboard-bootstrap-data"
 import type { FullDashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import {
-  buildDashboardBootstrapDeferredData,
-  getCachedDashboardBootstrapDeferred,
+  buildDashboardBootstrapDeferredCoreData,
+  buildDashboardBootstrapDeferredHeavyData,
+  getCachedDashboardBootstrapDeferredCore,
+  getCachedDashboardBootstrapDeferredHeavy,
 } from "@/lib/dashboard/build-dashboard-deferred-bootstrap"
-import { mergeDashboardBootstrapDeferred } from "@/lib/dashboard/merge-dashboard-bootstrap"
+import {
+  mergeDashboardBootstrapDeferredCore,
+  mergeDashboardBootstrapDeferredHeavy,
+} from "@/lib/dashboard/merge-dashboard-bootstrap"
 import type { BootstrapTimingSink } from "@/lib/debug/bootstrap-timing"
 import { timedBootstrap } from "@/lib/debug/bootstrap-timing"
-import {
-  lightweightCached,
-  LW_TTL_DASHBOARD_BOOTSTRAP,
-  tagTeamDashboardBootstrap,
-  tagTeamAnnouncements,
-  tagNotificationsUserTeam,
-} from "@/lib/cache/lightweight-get-cache"
+import { lightweightCached, LW_TTL_DASHBOARD_BOOTSTRAP, tagTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
 
 export function requestAppOrigin(request: Request): string {
   const h = request.headers
@@ -63,8 +62,8 @@ const shellLiteInput = (args: {
 })
 
 /**
- * First paint: dashboard home slice (team, games, calendar, readiness summary) + lite shell.
- * Roster / depth / notification rows / announcements / readiness detail load via deferred route.
+ * First paint: lite shell + minimal `dashboard` (team header only; empty games/calendar; readiness skipped).
+ * Deferred core fills the full home slice + roster + previews; deferred heavy adds depth chart.
  */
 export async function buildLightFullDashboardBootstrapData(
   teamId: string,
@@ -76,11 +75,9 @@ export async function buildLightFullDashboardBootstrapData(
   access: ResolvedTeamAccess,
   timing: BootstrapTimingSink | null
 ): Promise<FullDashboardBootstrapPayload> {
-  const canCoach = access.canEditRoster
-
   const dashboardPromise = timing
-    ? buildDashboardBootstrapData(teamId, canCoach, timing)
-    : getCachedDashboardBootstrapData(teamId, userId, canCoach)
+    ? timedBootstrap(timing, "dashboard_minimal", () => buildMinimalDashboardBootstrapPayload(teamId))
+    : getCachedMinimalDashboardBootstrapPayload(teamId)
 
   const shellPromise = timing
     ? timedBootstrap(timing, "shell_lite", () =>
@@ -104,6 +101,7 @@ export async function buildLightFullDashboardBootstrapData(
     readinessDetail: null,
     generatedAt: new Date().toISOString(),
     deferredPending: true,
+    deferredHeavyPending: true,
   }
 }
 
@@ -117,7 +115,7 @@ export function getCachedLightFullDashboardBootstrap(
   access: ResolvedTeamAccess
 ): Promise<FullDashboardBootstrapPayload> {
   return lightweightCached(
-    ["dashboard-bootstrap-light-v1", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-light-v2", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [tagTeamDashboardBootstrap(teamId)],
@@ -136,7 +134,7 @@ export function getCachedLightFullDashboardBootstrap(
   )
 }
 
-/** Composes cached light + deferred halves (same DB work as pre-split full bootstrap, better cache granularity). */
+/** Single GET: minimal light + cached core + cached heavy (full dashboard snapshot). */
 export function getCachedFullDashboardBootstrap(
   teamId: string,
   userId: string,
@@ -158,8 +156,11 @@ export function getCachedFullDashboardBootstrap(
       isPlatformOwner,
       access
     ),
-    getCachedDashboardBootstrapDeferred(teamId, userId, access, sessionUser, appOrigin),
-  ]).then(([light, deferred]) => mergeDashboardBootstrapDeferred(light, deferred))
+    getCachedDashboardBootstrapDeferredCore(teamId, userId, access, sessionUser, appOrigin),
+    getCachedDashboardBootstrapDeferredHeavy(teamId),
+  ]).then(([light, core, heavy]) =>
+    mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
+  )
 }
 
 export async function buildFullDashboardBootstrapData(
@@ -184,10 +185,13 @@ export async function buildFullDashboardBootstrapData(
     access,
     timing
   )
-  const deferred = timing
-    ? await timedBootstrap(timing, "deferred_slice", () =>
-        buildDashboardBootstrapDeferredData(teamId, userId, access, sessionUser, appOrigin)
+  const core = timing
+    ? await timedBootstrap(timing, "deferred_core", () =>
+        buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
       )
-    : await buildDashboardBootstrapDeferredData(teamId, userId, access, sessionUser, appOrigin)
-  return mergeDashboardBootstrapDeferred(light, deferred)
+    : await buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
+  const heavy = timing
+    ? await timedBootstrap(timing, "deferred_heavy", () => buildDashboardBootstrapDeferredHeavyData(teamId))
+    : await buildDashboardBootstrapDeferredHeavyData(teamId)
+  return mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
 }

@@ -3,15 +3,25 @@
 import { useEffect, useMemo } from "react"
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import type {
-  DashboardBootstrapDeferredPayload,
+  DashboardBootstrapDeferredCorePayload,
+  DashboardBootstrapDeferredHeavyPayload,
   FullDashboardBootstrapPayload,
 } from "@/lib/dashboard/dashboard-bootstrap-types"
-import { mergeDashboardBootstrapDeferred } from "@/lib/dashboard/merge-dashboard-bootstrap"
+import {
+  mergeDashboardBootstrapDeferredCore,
+  mergeDashboardBootstrapDeferredHeavy,
+} from "@/lib/dashboard/merge-dashboard-bootstrap"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 
-/** Light payload can stay warm across short navigations; explicit refetch reloads light + deferred in parallel. */
+/** Light payload can stay warm across short navigations. */
 export const DASHBOARD_BOOTSTRAP_STALE_MS = 90 * 1000
+
+/** Delay before loading deferred core if the home deferred zone is not yet visible (ms). */
+export const DEFERRED_HOME_FALLBACK_DELAY_MS = 700
+
+/** After core merges, wait this long before fetching heavy (depth chart) so first paint stays idle (ms). */
+export const DEFERRED_HEAVY_AFTER_CORE_MS = 450
 
 export function dashboardBootstrapQueryKey(teamId: string) {
   return ["dashboard-bootstrap", teamId.trim()] as const
@@ -28,7 +38,10 @@ export function peekDashboardBootstrapMemory(teamId: string): FullDashboardBoots
 }
 
 const lightInflight = new Map<string, Promise<FullDashboardBootstrapPayload>>()
-const deferredMergeInflight = new Map<string, Promise<void>>()
+/** Synchronous guard so two kicks in one tick cannot both fetch core. */
+const coreMergeInFlight = new Set<string>()
+const heavyMergeInFlight = new Set<string>()
+const heavyScheduleTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 async function fetchBootstrapLight(teamId: string): Promise<FullDashboardBootstrapPayload> {
   const res = await fetchWithTimeout(
@@ -41,40 +54,95 @@ async function fetchBootstrapLight(teamId: string): Promise<FullDashboardBootstr
   return (await res.json()) as FullDashboardBootstrapPayload
 }
 
-async function fetchBootstrapDeferred(teamId: string): Promise<DashboardBootstrapDeferredPayload> {
+async function fetchBootstrapDeferredCore(teamId: string): Promise<DashboardBootstrapDeferredCorePayload> {
   const res = await fetchWithTimeout(
-    `/api/dashboard/bootstrap-deferred?teamId=${encodeURIComponent(teamId)}`,
+    `/api/dashboard/bootstrap-deferred-core?teamId=${encodeURIComponent(teamId)}`,
     { credentials: "same-origin" }
   )
   if (!res.ok) {
-    throw new Error(`bootstrap-deferred ${res.status}`)
+    throw new Error(`bootstrap-deferred-core ${res.status}`)
   }
-  return (await res.json()) as DashboardBootstrapDeferredPayload
+  return (await res.json()) as DashboardBootstrapDeferredCorePayload
 }
 
-export function kickDeferredBootstrapMerge(teamId: string, queryClient: QueryClient): void {
+async function fetchBootstrapDeferredHeavy(teamId: string): Promise<DashboardBootstrapDeferredHeavyPayload> {
+  const res = await fetchWithTimeout(
+    `/api/dashboard/bootstrap-deferred-heavy?teamId=${encodeURIComponent(teamId)}`,
+    { credentials: "same-origin" }
+  )
+  if (!res.ok) {
+    throw new Error(`bootstrap-deferred-heavy ${res.status}`)
+  }
+  return (await res.json()) as DashboardBootstrapDeferredHeavyPayload
+}
+
+function scheduleHeavyAfterCore(teamId: string, queryClient: QueryClient): void {
   const t = teamId.trim()
   if (!t) return
-  if (deferredMergeInflight.has(t)) return
+  const prev = heavyScheduleTimers.get(t)
+  if (prev != null) clearTimeout(prev)
+  const timer = setTimeout(() => {
+    heavyScheduleTimers.delete(t)
+    void kickDeferredHeavyMerge(t, queryClient)
+  }, DEFERRED_HEAVY_AFTER_CORE_MS)
+  heavyScheduleTimers.set(t, timer)
+}
 
-  const job = (async () => {
+/**
+ * Fetches deferred-core and merges. Schedules deferred-heavy after {@link DEFERRED_HEAVY_AFTER_CORE_MS}.
+ * No-ops if core already merged or request in flight.
+ */
+export function kickDeferredCoreMerge(teamId: string, queryClient: QueryClient): void {
+  const t = teamId.trim()
+  if (!t) return
+  const pre = queryClient.getQueryData(dashboardBootstrapQueryKey(t)) as FullDashboardBootstrapPayload | undefined
+  if (!pre?.deferredPending) return
+  if (coreMergeInFlight.has(t)) return
+  coreMergeInFlight.add(t)
+
+  void (async () => {
     try {
-      const deferred = await fetchBootstrapDeferred(t)
+      const core = await fetchBootstrapDeferredCore(t)
       queryClient.setQueryData(dashboardBootstrapQueryKey(t), (prev: FullDashboardBootstrapPayload | undefined) => {
         if (!prev?.deferredPending) return prev
         if (prev.dashboard?.team?.id !== t) return prev
-        const merged = mergeDashboardBootstrapDeferred(prev, deferred)
+        const merged = mergeDashboardBootstrapDeferredCore(prev, core)
+        writeLightweightMemory(dashboardBootstrapMemoryKey(t), merged)
+        return merged
+      })
+      scheduleHeavyAfterCore(t, queryClient)
+    } catch {
+      /* widgets fall back to their own endpoints */
+    } finally {
+      coreMergeInFlight.delete(t)
+    }
+  })()
+}
+
+export function kickDeferredHeavyMerge(teamId: string, queryClient: QueryClient): void {
+  const t = teamId.trim()
+  if (!t) return
+  const pre = queryClient.getQueryData(dashboardBootstrapQueryKey(t)) as FullDashboardBootstrapPayload | undefined
+  if (pre?.deferredHeavyPending !== true) return
+  if (heavyMergeInFlight.has(t)) return
+  heavyMergeInFlight.add(t)
+
+  void (async () => {
+    try {
+      const heavy = await fetchBootstrapDeferredHeavy(t)
+      queryClient.setQueryData(dashboardBootstrapQueryKey(t), (prev: FullDashboardBootstrapPayload | undefined) => {
+        if (!prev || prev.deferredHeavyPending !== true) return prev
+        if (prev.dashboard?.team?.id !== t) return prev
+        const merged = mergeDashboardBootstrapDeferredHeavy(prev, heavy)
         writeLightweightMemory(dashboardBootstrapMemoryKey(t), merged)
         return merged
       })
     } catch {
-      /* roster page and cards fall back to their own fetches */
+      /* depth tab can load lazily elsewhere */
     } finally {
-      deferredMergeInflight.delete(t)
+      heavyMergeInFlight.delete(t)
     }
   })()
-
-  deferredMergeInflight.set(t, job)
 }
 
 export async function fetchDashboardBootstrap(teamId: string, queryClient: QueryClient): Promise<FullDashboardBootstrapPayload> {
@@ -88,9 +156,17 @@ export async function fetchDashboardBootstrap(teamId: string, queryClient: Query
     const qk = dashboardBootstrapQueryKey(key)
     const prev = queryClient.getQueryData(qk) as FullDashboardBootstrapPayload | undefined
 
-    if (prev?.deferredPending === false && prev.dashboard?.team?.id === key) {
-      const [light, deferred] = await Promise.all([fetchBootstrapLight(key), fetchBootstrapDeferred(key)])
-      const merged = mergeDashboardBootstrapDeferred(light, deferred)
+    const coreDone = prev?.deferredPending === false
+    const heavyDone =
+      prev?.deferredHeavyPending === false ||
+      (prev?.deferredPending === false && prev?.deferredHeavyPending === undefined)
+    if (coreDone && heavyDone && prev?.dashboard?.team?.id === key) {
+      const [light, core, heavy] = await Promise.all([
+        fetchBootstrapLight(key),
+        fetchBootstrapDeferredCore(key),
+        fetchBootstrapDeferredHeavy(key),
+      ])
+      const merged = mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
       writeLightweightMemory(dashboardBootstrapMemoryKey(key), merged)
       return merged
     }
@@ -127,9 +203,13 @@ export function useDashboardBootstrapQuery(teamId: string) {
   })
 
   useEffect(() => {
-    if (!tid || !query.data?.deferredPending) return
-    kickDeferredBootstrapMerge(tid, queryClient)
-  }, [tid, query.data?.deferredPending, queryClient])
+    return () => {
+      if (!tid) return
+      const tm = heavyScheduleTimers.get(tid)
+      if (tm != null) clearTimeout(tm)
+      heavyScheduleTimers.delete(tid)
+    }
+  }, [tid])
 
   return query
 }

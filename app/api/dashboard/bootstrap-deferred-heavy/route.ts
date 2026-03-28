@@ -1,8 +1,7 @@
 /**
- * GET /api/dashboard/bootstrap-deferred?teamId=
+ * GET /api/dashboard/bootstrap-deferred-heavy?teamId=
  *
- * Second-phase dashboard payload: roster, depth chart, notifications preview, announcements,
- * coach readiness detail. Merge client-side into bootstrap-light with mergeDashboardBootstrapDeferred.
+ * Third phase: depth chart entries only (after deferred-core).
  */
 import { NextResponse } from "next/server"
 import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
@@ -10,11 +9,10 @@ import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 import {
-  buildDashboardBootstrapDeferredData,
-  getCachedDashboardBootstrapDeferred,
+  buildDashboardBootstrapDeferredHeavyData,
+  getCachedDashboardBootstrapDeferredHeavy,
 } from "@/lib/dashboard/build-dashboard-deferred-bootstrap"
-import { liteUserToSessionUser, requestAppOrigin } from "@/lib/dashboard/build-full-dashboard-bootstrap"
-import type { DashboardBootstrapDeferredPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+import type { DashboardBootstrapDeferredHeavyPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import { applyDashboardBootstrapCacheHeaders } from "@/lib/dashboard/dashboard-bootstrap-http"
 import {
   shouldLogBootstrapTiming,
@@ -45,7 +43,7 @@ export async function GET(request: Request) {
       access = await timedBootstrap(timingSink, "membership", () => resolveTeamAccess(teamId, userId))
     } catch (err) {
       if (err instanceof MembershipLookupError) {
-        console.error("[GET /api/dashboard/bootstrap-deferred] membership lookup", err)
+        console.error("[GET /api/dashboard/bootstrap-deferred-heavy] membership lookup", err)
         return NextResponse.json({ error: "Access check failed" }, { status: 500 })
       }
       throw err
@@ -61,18 +59,15 @@ export async function GET(request: Request) {
     }
 
     const usePayloadCache = !shouldLogBootstrapTiming()
-    const u = session.user
-    const sessionUser = liteUserToSessionUser(u)
-    const appOrigin = requestAppOrigin(request)
 
-    let payload: DashboardBootstrapDeferredPayload
+    let payload: DashboardBootstrapDeferredHeavyPayload
     if (usePayloadCache) {
-      payload = await timedBootstrap(timingSink, "bootstrap_deferred_cached", () =>
-        getCachedDashboardBootstrapDeferred(teamId, userId, access, sessionUser, appOrigin)
+      payload = await timedBootstrap(timingSink, "bootstrap_deferred_heavy_cached", () =>
+        getCachedDashboardBootstrapDeferredHeavy(teamId)
       )
     } else {
-      payload = await timedBootstrap(timingSink, "bootstrap_deferred", () =>
-        buildDashboardBootstrapDeferredData(teamId, userId, access, sessionUser, appOrigin)
+      payload = await timedBootstrap(timingSink, "bootstrap_deferred_heavy", () =>
+        buildDashboardBootstrapDeferredHeavyData(teamId)
       )
     }
 
@@ -95,7 +90,7 @@ export async function GET(request: Request) {
     }
     return res
   } catch (err) {
-    console.error("[GET /api/dashboard/bootstrap-deferred]", err)
+    console.error("[GET /api/dashboard/bootstrap-deferred-heavy]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

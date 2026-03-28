@@ -1,12 +1,16 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { RosterDesktopSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { RosterMobileSkeleton } from "@/components/portal/roster-mobile-view"
-import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
+import {
+  kickDeferredCoreMerge,
+  useDashboardBootstrapQuery,
+} from "@/lib/dashboard/dashboard-bootstrap-query"
 
 const RosterManagerEnhanced = dynamic(
   () => import("@/components/portal/roster-manager-enhanced").then((m) => m.RosterManagerEnhanced),
@@ -62,7 +66,14 @@ function RosterPageContent({
     user: { email: string } | null
     guardianLinks: Array<{ guardian: { user: { email: string } } }>
   }
+  const queryClient = useQueryClient()
   const bootstrapQ = useDashboardBootstrapQuery(teamId)
+
+  useEffect(() => {
+    const t = teamId.trim()
+    if (!t || !bootstrapQ.data?.deferredPending) return
+    kickDeferredCoreMerge(t, queryClient)
+  }, [teamId, bootstrapQ.data?.deferredPending, queryClient])
 
   const players = useMemo((): PlayerItem[] => {
     const r = bootstrapQ.data?.roster

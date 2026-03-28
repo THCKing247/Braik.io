@@ -67,6 +67,7 @@ import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { NotificationApiRow } from "@/lib/notifications/notifications-api-query"
 import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
+import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -928,7 +929,13 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       setDashNetworkHint(null)
       return
     }
-    if (dashQ.data?.dashboard?.games) {
+    const awaitingCore = dashQ.data?.deferredPending === true
+    if (awaitingCore) {
+      setScheduleGamesLoading(true)
+      setDashNetworkHint(null)
+      return
+    }
+    if (dashQ.data?.dashboard?.games && Array.isArray(dashQ.data.dashboard.games)) {
       setScheduleGames(dashQ.data.dashboard.games)
       setScheduleGamesLoading(false)
       setDashNetworkHint(dashQ.isFetching ? "Refreshing dashboard data…" : null)
@@ -941,7 +948,17 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
     } else if (!dashQ.isPending && !dashQ.data?.dashboard) {
       loadScheduleGames()
     }
-  }, [tid, dashQ.data?.dashboard?.games, dashQ.data?.dashboard, dashQ.isPending, dashQ.isFetching, dashQ.isError, dashQ.data, loadScheduleGames])
+  }, [
+    tid,
+    dashQ.data?.deferredPending,
+    dashQ.data?.dashboard?.games,
+    dashQ.data?.dashboard,
+    dashQ.isPending,
+    dashQ.isFetching,
+    dashQ.isError,
+    dashQ.data,
+    loadScheduleGames,
+  ])
 
   const homeNotificationsFiltered = useMemo(() => {
     const raw = dashQ.data?.notifications?.notifications ?? []
@@ -974,6 +991,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
 
   const hasTeam = Boolean(teamId)
   const isHeadCoach = user.role?.toUpperCase() === "HEAD_COACH"
+  const awaitingDeferredCore = Boolean(dashQ.data?.deferredPending)
 
   return (
     <div className="min-w-0 space-y-3 pb-2 sm:space-y-4 md:space-y-6 md:pb-6">
@@ -1009,15 +1027,18 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
           <DashboardCalendar
             teamId={teamId}
             canAddEvents={canAddCalendarEvents}
-            bootstrapLoading={dashboardBootstrapState === "loading"}
+            bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
             initialCalendarEvents={
-              dashboardBootstrapState === "ok" && bootstrapAligned
+              dashboardBootstrapState === "ok" && bootstrapAligned && !awaitingDeferredCore
                 ? bootstrapAligned.calendarEvents
                 : undefined
             }
           />
         </div>
       )}
+
+      {/* ── Sentinel: loads deferred-core when near viewport or after fallback delay (not on first paint) ── */}
+      {hasTeam ? <DashboardHomeDeferredBootstrapTrigger teamId={teamId} /> : null}
 
       {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
       {hasTeam && (
@@ -1028,15 +1049,21 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
               canCreate={canAddCalendarEvents}
               viewerUserId={user.id}
               viewerRole={user.role}
-              bootstrapLoading={dashboardBootstrapState === "loading"}
-              initialAnnouncements={dashboardBootstrapState === "ok" ? dashQ.data?.announcements : undefined}
+              bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
+              initialAnnouncements={
+                dashboardBootstrapState === "ok" && !awaitingDeferredCore ? dashQ.data?.announcements : undefined
+              }
             />
           </div>
           <div className="lg:col-span-5">
             <NotificationsCard
               teamId={teamId}
-              bootstrapLoading={dashboardBootstrapState === "loading"}
-              initialNotifications={dashboardBootstrapState === "ok" ? homeNotificationsFiltered : undefined}
+              bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
+              initialNotifications={
+                dashboardBootstrapState === "ok" && !awaitingDeferredCore
+                  ? homeNotificationsFiltered
+                  : undefined
+              }
             />
           </div>
           <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">

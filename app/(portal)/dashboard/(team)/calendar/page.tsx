@@ -1,10 +1,13 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
+import {
+  kickDeferredCoreMerge,
+  useDashboardBootstrapQuery,
+} from "@/lib/dashboard/dashboard-bootstrap-query"
 import type { TeamCalendarEventApiRow } from "@/lib/teams/cached-team-calendar-events"
 import {
   defaultCalendarWeekRange,
@@ -72,6 +75,13 @@ function CalendarPageContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const [visibleRange, setVisibleRange] = useState<CalendarVisibleRangePayload>(() => defaultCalendarWeekRange())
 
   const dashQ = useDashboardBootstrapQuery(teamId)
+
+  useEffect(() => {
+    const t = teamId.trim()
+    if (!t || !dashQ.data?.deferredPending) return
+    kickDeferredCoreMerge(t, queryClient)
+  }, [teamId, dashQ.data?.deferredPending, queryClient])
+
   const calQ = useTeamCalendarEventsQuery(
     teamId,
     visibleRange,

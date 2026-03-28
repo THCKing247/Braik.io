@@ -1,26 +1,41 @@
 import type {
-  DashboardBootstrapDeferredPayload,
+  DashboardBootstrapDeferredCorePayload,
+  DashboardBootstrapDeferredHeavyPayload,
   FullDashboardBootstrapPayload,
 } from "@/lib/dashboard/dashboard-bootstrap-types"
 
-export function mergeDashboardBootstrapDeferred(
+export function mergeDashboardBootstrapDeferredCore(
   light: FullDashboardBootstrapPayload,
-  deferred: DashboardBootstrapDeferredPayload
+  core: DashboardBootstrapDeferredCorePayload
 ): FullDashboardBootstrapPayload {
-  const unread = deferred.notifications.unreadCount ?? light.shell.unreadNotifications
+  const unread = core.notifications.unreadCount ?? light.shell.unreadNotifications
   return {
     ...light,
-    roster: deferred.roster,
-    depthChart: deferred.depthChart,
-    notifications: deferred.notifications,
-    announcements: deferred.announcements,
-    readinessDetail: deferred.readinessDetail,
-    generatedAt: light.generatedAt,
+    dashboard: core.dashboard,
+    roster: core.roster,
+    notifications: core.notifications,
+    announcements: core.announcements,
+    readinessDetail: core.readinessDetail,
+    depthChart: { entries: [] },
     deferredPending: false,
+    deferredHeavyPending: true,
+    generatedAt: light.generatedAt,
     shell: {
       ...light.shell,
       unreadNotifications: unread,
       generatedAt: light.shell.generatedAt,
     },
+  }
+}
+
+export function mergeDashboardBootstrapDeferredHeavy(
+  payload: FullDashboardBootstrapPayload,
+  heavy: DashboardBootstrapDeferredHeavyPayload
+): FullDashboardBootstrapPayload {
+  return {
+    ...payload,
+    depthChart: heavy.depthChart,
+    deferredHeavyPending: false,
+    generatedAt: payload.generatedAt,
   }
 }

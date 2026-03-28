@@ -7,6 +7,7 @@ import { PortalTeamProvider, useEffectiveTeamId } from "@/components/portal/port
 import { AppBootstrapProvider } from "@/components/portal/app-bootstrap-context"
 import { AdPortalLinkProvider } from "@/components/portal/ad-portal-link-context"
 import { rememberActiveDashboardTeam } from "@/lib/dashboard/active-team-session"
+import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 
 interface Team {
   id: string
@@ -21,11 +22,26 @@ function UrlResolvedTeamBootstrap({ teams, children }: { teams: Team[]; children
   const { data: session } = useSession()
   const urlTeamId = searchParams.get("teamId")
   const effective = useEffectiveTeamId(urlTeamId, session?.user?.teamId)
-  const tid = (effective.trim() || teams[0]?.id || "").trim()
+  /**
+   * MUST match `DashboardPageShell`: `effectiveTeamId || teamIdFromQuery || ""`, then shell fallbacks.
+   * Previously we used `(effective || teams[0])` only — missing `urlTeamId` caused AppBootstrap to bind to
+   * `teams[0]` while the page passed `?teamId=` to children → two React Query keys, network OK for one, skeleton forever on the other.
+   */
+  const tid = (effective.trim() || urlTeamId?.trim() || teams[0]?.id || "").trim()
 
   useEffect(() => {
     if (tid) rememberActiveDashboardTeam(tid)
   }, [tid])
+
+  const shellTeamIdsSig = teams.map((t) => t.id).join(",")
+  useEffect(() => {
+    devDashboardHandoffLog("UrlResolvedTeamBootstrap", {
+      urlTeamId,
+      effectiveFromContext: effective.trim(),
+      resolvedAppBootstrapTeamId: tid,
+      shellTeamIds: shellTeamIdsSig,
+    })
+  }, [urlTeamId, effective, tid, shellTeamIdsSig])
 
   return (
     <AdPortalLinkProvider>

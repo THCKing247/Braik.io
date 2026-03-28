@@ -1,11 +1,12 @@
 "use client"
 
-import { Suspense } from "react"
+import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"
 import { ConnectToTeam } from "@/components/portal/connect-to-team"
 import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
+import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 
 /**
  * Internal component that uses useSearchParams - must be wrapped in Suspense
@@ -26,6 +27,14 @@ function DashboardPageShellContent({
   // Use only context-resolved or URL teamId; never fall back to session.teamId so we never send a stale/deleted team id to APIs
   const teamId = effectiveTeamId || teamIdFromQuery || ""
   const userRole = identity.roleUpper
+
+  useEffect(() => {
+    devDashboardHandoffLog("DashboardPageShell", {
+      teamIdFromQuery,
+      effectiveTeamId,
+      resolvedPageTeamId: teamId,
+    })
+  }, [teamIdFromQuery, effectiveTeamId, teamId])
   const userId = identity.userId
   const canEdit = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
 

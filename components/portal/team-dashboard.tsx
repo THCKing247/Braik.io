@@ -67,6 +67,7 @@ import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { NotificationApiRow } from "@/lib/notifications/notifications-api-query"
 import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
+import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -887,29 +888,55 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const user = session?.user
 
   const tid = teamId?.trim() ?? ""
-  const dashQ = useDashboardBootstrapQuery(teamId)
+  /** Same team id as `AppBootstrapProvider` (must share one React Query cache). */
+  const shell = useAppBootstrapOptional()
+  const bootstrapQueryTeamId = (shell?.teamId?.trim() || tid).trim()
+  const dashQ = useDashboardBootstrapQuery(bootstrapQueryTeamId)
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
   const [dashNetworkHint, setDashNetworkHint] = useState<string | null>(null)
 
+  useEffect(() => {
+    devDashboardHandoffLog("TeamDashboard", {
+      teamIdProp: tid,
+      shellTeamId: shell?.teamId ?? null,
+      bootstrapQueryTeamId,
+      queryStatus: dashQ.status,
+      isPending: dashQ.isPending,
+      isFetching: dashQ.isFetching,
+      hasData: Boolean(dashQ.data),
+      deferredPending: dashQ.data?.deferredPending,
+      dashboardPresent: Boolean(dashQ.data?.dashboard),
+    })
+  }, [
+    tid,
+    shell?.teamId,
+    bootstrapQueryTeamId,
+    dashQ.status,
+    dashQ.isPending,
+    dashQ.isFetching,
+    dashQ.data,
+  ])
+
   const bootstrapAligned: DashboardBootstrapPayload | null | undefined = dashQ.data?.dashboard
 
   const dashboardBootstrapState = useMemo((): "loading" | "ok" | "fallback" => {
-    if (!tid) return "fallback"
+    if (!bootstrapQueryTeamId.trim()) return "fallback"
     if (dashQ.isPending && !dashQ.data) return "loading"
     if (dashQ.isError && !dashQ.data) return "fallback"
     if (dashQ.data?.dashboard) return "ok"
     return "fallback"
-  }, [tid, dashQ.isPending, dashQ.isError, dashQ.data])
+  }, [bootstrapQueryTeamId, dashQ.isPending, dashQ.isError, dashQ.data])
 
   const loadScheduleGames = useCallback(() => {
-    if (!teamId?.trim()) {
+    const gid = bootstrapQueryTeamId.trim()
+    if (!gid) {
       setScheduleGames([])
       setScheduleGamesLoading(false)
       return
     }
     setScheduleGamesLoading(true)
-    fetch(`/api/stats/games?teamId=${encodeURIComponent(teamId)}`)
+    fetch(`/api/stats/games?teamId=${encodeURIComponent(gid)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { games?: TeamGameRow[] } | null) => {
         if (data?.games && Array.isArray(data.games)) {
@@ -920,10 +947,10 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       })
       .catch(() => setScheduleGames([]))
       .finally(() => setScheduleGamesLoading(false))
-  }, [teamId])
+  }, [bootstrapQueryTeamId])
 
   useEffect(() => {
-    if (!tid) {
+    if (!bootstrapQueryTeamId.trim()) {
       setScheduleGames([])
       setScheduleGamesLoading(false)
       setDashNetworkHint(null)
@@ -949,7 +976,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       loadScheduleGames()
     }
   }, [
-    tid,
+    bootstrapQueryTeamId,
     dashQ.data?.deferredPending,
     dashQ.data?.dashboard?.games,
     dashQ.data?.dashboard,
@@ -970,11 +997,11 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   useEffect(() => {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<{ teamId?: string }>
-      if (ce.detail?.teamId === teamId) loadScheduleGames()
+      if (ce.detail?.teamId === bootstrapQueryTeamId) loadScheduleGames()
     }
     window.addEventListener(TEAM_GAMES_CHANGED_EVENT, handler)
     return () => window.removeEventListener(TEAM_GAMES_CHANGED_EVENT, handler)
-  }, [teamId, loadScheduleGames])
+  }, [bootstrapQueryTeamId, loadScheduleGames])
 
   if (!user) {
     return (
@@ -990,6 +1017,8 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   }
 
   const hasTeam = Boolean(teamId)
+  /** Align all dashboard API calls with `AppBootstrapProvider` / bootstrap query key. */
+  const dataTeamId = bootstrapQueryTeamId
   const isHeadCoach = user.role?.toUpperCase() === "HEAD_COACH"
   const awaitingDeferredCore = Boolean(dashQ.data?.deferredPending)
 
@@ -999,7 +1028,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {/* ── Team Banner ── */}
       <TeamBanner
         user={user}
-        teamId={teamId}
+        teamId={dataTeamId}
         scheduleGames={scheduleGames}
         scheduleGamesLoading={scheduleGamesLoading && !bootstrapAligned}
         prefetchedTeamSummary={
@@ -1022,10 +1051,10 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {hasTeam && (
         <div className="space-y-3 sm:space-y-4">
           <div className="lg:hidden">
-            <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
+            <UpcomingGameCard teamId={dataTeamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
           </div>
           <DashboardCalendar
-            teamId={teamId}
+            teamId={dataTeamId}
             canAddEvents={canAddCalendarEvents}
             bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
             initialCalendarEvents={
@@ -1038,14 +1067,14 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       )}
 
       {/* ── Sentinel: loads deferred-core when near viewport or after fallback delay (not on first paint) ── */}
-      {hasTeam ? <DashboardHomeDeferredBootstrapTrigger teamId={teamId} /> : null}
+      {hasTeam ? <DashboardHomeDeferredBootstrapTrigger teamId={dataTeamId} /> : null}
 
       {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
       {hasTeam && (
-        <DeferredHomeDashboardRow>
+        <DeferredHomeDashboardRow key={dataTeamId}>
           <div className="lg:col-span-4">
             <DashboardAnnouncementsCard
-              teamId={teamId}
+              teamId={dataTeamId}
               canCreate={canAddCalendarEvents}
               viewerUserId={user.id}
               viewerRole={user.role}
@@ -1057,7 +1086,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
           </div>
           <div className="lg:col-span-5">
             <NotificationsCard
-              teamId={teamId}
+              teamId={dataTeamId}
               bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
               initialNotifications={
                 dashboardBootstrapState === "ok" && !awaitingDeferredCore
@@ -1068,13 +1097,13 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
           </div>
           <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">
             <div className="hidden lg:block lg:flex-1">
-              <UpcomingGameCard teamId={teamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
+              <UpcomingGameCard teamId={dataTeamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
             </div>
             {/* One mount only: `hidden lg:block` + `lg:hidden` still mount both branches and duplicate /readiness?summaryOnly=1 */}
             <div className="shrink-0 lg:flex-1">
               <Suspense fallback={<ReadinessSummarySuspenseFallback />}>
                 <ReadinessSummaryCardLazy
-                  teamId={teamId}
+                  teamId={dataTeamId}
                   dashboardBootstrapState={dashboardBootstrapState}
                   readinessFromBootstrap={bootstrapAligned?.readiness}
                 />

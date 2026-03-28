@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { warmDashboardBootstrapLight } from "@/lib/dashboard/warm-dashboard-bootstrap-light"
+import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -70,6 +71,14 @@ export function AdFootballProgramHub() {
       return defaultVarsityTeamId(data.teams)
     })
   }, [data?.teams])
+
+  useEffect(() => {
+    if (!selectedTeamId) return
+    devDashboardHandoffLog("AdFootballProgramHub", {
+      selectedTeamId,
+      portalHref: `/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`,
+    })
+  }, [selectedTeamId])
 
   const assignStaffTeam = async (userId: string, teamId: string) => {
     if (!data?.programId) return

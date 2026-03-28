@@ -658,7 +658,7 @@ function UpcomingGameCard({
             <Trophy className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
             Next game
           </CardTitle>
-          <Link href={scheduleHref} className="shrink-0">
+          <Link href={scheduleHref} prefetch={false} className="shrink-0">
             <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
               Schedule
             </Button>
@@ -688,7 +688,7 @@ function UpcomingGameCard({
           <Trophy className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
           Next game
         </CardTitle>
-        <Link href={scheduleHref} className="shrink-0">
+        <Link href={scheduleHref} prefetch={false} className="shrink-0">
           <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
             Full schedule
           </Button>

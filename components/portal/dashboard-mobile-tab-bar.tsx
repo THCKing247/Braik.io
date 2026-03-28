@@ -86,6 +86,7 @@ export function DashboardMobileTabBar() {
             <Link
               key={href}
               href={resolvedHref}
+              prefetch={false}
               className={cn(
                 "relative flex min-h-[44px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1",
                 "transition-colors active:bg-muted/80",

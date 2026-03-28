@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -93,6 +93,8 @@ export function DashboardCalendar({
   const [events, setEvents] = useState<DashboardCalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  /** Full list from dashboard bootstrap / deferred-core — month grid is derived client-side (no duplicate GET for default month). */
+  const bootstrapEventsRef = useRef<DashboardBootstrapCalendarEvent[] | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createKey, setCreateKey] = useState(0)
@@ -186,6 +188,16 @@ export function DashboardCalendar({
   )
 
   useEffect(() => {
+    bootstrapEventsRef.current = null
+  }, [teamId])
+
+  useEffect(() => {
+    if (Array.isArray(initialCalendarEvents)) {
+      bootstrapEventsRef.current = initialCalendarEvents
+    }
+  }, [initialCalendarEvents])
+
+  useEffect(() => {
     let cancelled = false
 
     if (bootstrapLoading) {
@@ -195,19 +207,33 @@ export function DashboardCalendar({
       }
     }
 
-    if (Array.isArray(initialCalendarEvents) && initialCalendarEvents.length > 0) {
-      setEvents(
-        mapApiEventsToRows(
-          initialCalendarEvents.map((e) => ({
-            id: e.id,
-            type: e.type,
-            title: e.title,
-            start: e.start,
-            end: e.end,
-            location: e.location,
-          }))
+    const full = bootstrapEventsRef.current
+    if (full !== null) {
+      const { from, to } = dashboardCalendarGridRangeIso(currentMonth)
+      const fromT = new Date(from).getTime()
+      const toT = new Date(to).getTime()
+      const inRange = full.filter((e) => {
+        const s = new Date(e.start).getTime()
+        return s >= fromT && s <= toT
+      })
+      if (!cancelled) {
+        setEvents(
+          mapApiEventsToRows(
+            inRange.map((e) => ({
+              id: e.id,
+              type: e.type,
+              title: e.title,
+              start: e.start,
+              end: e.end,
+              location: e.location,
+            }))
+          )
         )
-      )
+        setLoading(false)
+      }
+      return () => {
+        cancelled = true
+      }
     }
 
     setLoading(true)
@@ -281,11 +307,11 @@ export function DashboardCalendar({
             <Calendar className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} />
             Calendar
           </CardTitle>
-          <Link href="/dashboard/calendar" className="shrink-0">
-            <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
-              Full view
-            </Button>
-          </Link>
+            <Link href="/dashboard/calendar" prefetch={false} className="shrink-0">
+              <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
+                Full view
+              </Button>
+            </Link>
         </CardHeader>
         <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
           <p className="mb-3 text-center text-xs" style={{ color: "rgb(var(--muted))" }} role="status">
@@ -339,7 +365,7 @@ export function DashboardCalendar({
                 Add event
               </Button>
             )}
-            <Link href="/dashboard/calendar">
+            <Link href="/dashboard/calendar" prefetch={false}>
               <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium md:h-7 md:px-2" style={{ color: "rgb(var(--accent))" }}>
                 Full view
               </Button>

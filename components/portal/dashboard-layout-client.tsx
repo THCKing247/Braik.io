@@ -1,8 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
-import { useRef } from "react"
+import { useEffect, useState, useRef } from "react"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
 import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
 import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
@@ -22,25 +21,31 @@ interface Team {
   seasonName: string
 }
 
-/** Mount coach hints after first paint so they do not compete with bootstrap-light. */
+/** Mount coach hints only when the strip nears the viewport — avoids /api/engagement/hints on first paint. */
 function DeferredDashboardEngagementHints({ currentTeamId }: { currentTeamId: string }) {
-  const [show, setShow] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
   useEffect(() => {
-    let cancelled = false
-    let inner: number | undefined
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => {
-        if (!cancelled) setShow(true)
-      })
-    })
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(outer)
-      if (inner != null) cancelAnimationFrame(inner)
+    const el = sentinelRef.current
+    if (!el) return
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true)
+      return
     }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setVisible(true)
+      },
+      { root: null, rootMargin: "160px 0px", threshold: 0 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
   }, [])
-  if (!show) return null
-  return <DashboardEngagementHints currentTeamId={currentTeamId} />
+  return (
+    <div ref={sentinelRef} className="min-h-px w-full max-w-full">
+      {visible ? <DashboardEngagementHints currentTeamId={currentTeamId} /> : null}
+    </div>
+  )
 }
 
 export function DashboardLayoutClient({

@@ -237,6 +237,7 @@ function SheetNavRow({
   return (
     <Link
       href={href}
+      prefetch={false}
       onClick={onNavigate}
       className={cn(
         "flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-[15px] font-medium transition-colors md:min-h-[52px] md:px-5",

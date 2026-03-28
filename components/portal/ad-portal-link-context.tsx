@@ -10,10 +10,12 @@ import {
 } from "react"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 
+const AD_PORTAL_LINK_STORAGE_KEY = "braik_ad_portal_dept_href_v1"
+const AD_PORTAL_LINK_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
 /**
- * One fetch per dashboard shell mount for HEAD_COACH → Athletic Department link.
- * Lives under the persistent dashboard layout so internal navigations do not
- * re-hit /api/me/ad-portal on every route change (Nav previously used useEffect per mount).
+ * HEAD_COACH → Athletic Department href from /api/me/ad-portal, cached in sessionStorage
+ * so repeat dashboard sessions skip the network call. First visit still loads after idle.
  */
 type AdPortalLinkContextValue = {
   /** Default AD portal path when the coach may enter; null otherwise */
@@ -40,17 +42,46 @@ export function AdPortalLinkProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false
+
+    try {
+      const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(AD_PORTAL_LINK_STORAGE_KEY) : null
+      if (raw) {
+        const parsed = JSON.parse(raw) as { href?: string; ts?: number }
+        if (
+          parsed.href &&
+          typeof parsed.ts === "number" &&
+          Date.now() - parsed.ts < AD_PORTAL_LINK_MAX_AGE_MS
+        ) {
+          setDepartmentHref(parsed.href)
+          setReady(true)
+          return
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
     setReady(false)
 
-    // Defer until idle so first paint / route transition is not competing with this request.
     const run = () => {
       if (cancelled) return
       fetch("/api/me/ad-portal")
         .then((r) => r.json())
         .then((d: { canEnterAdPortal?: boolean; defaultPath?: string }) => {
           if (cancelled) return
-          if (d.canEnterAdPortal && d.defaultPath) setDepartmentHref(d.defaultPath)
-          else setDepartmentHref(null)
+          if (d.canEnterAdPortal && d.defaultPath) {
+            setDepartmentHref(d.defaultPath)
+            try {
+              sessionStorage.setItem(
+                AD_PORTAL_LINK_STORAGE_KEY,
+                JSON.stringify({ href: d.defaultPath, ts: Date.now() })
+              )
+            } catch {
+              /* ignore */
+            }
+          } else {
+            setDepartmentHref(null)
+          }
           setReady(true)
         })
         .catch(() => {

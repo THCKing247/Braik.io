@@ -1,20 +1,19 @@
 import type { ResolvedTeamAccess } from "@/lib/auth/team-access-resolve"
 import type { SessionUser } from "@/lib/auth/server-auth"
 import type { RequestUserLite } from "@/lib/auth/server-auth"
-import { buildAppBootstrapPayload } from "@/lib/app/build-app-bootstrap"
-import type { AppBootstrapPayload } from "@/lib/app/app-bootstrap-types"
+import { buildAppBootstrapPayloadLite } from "@/lib/app/build-app-bootstrap"
 import {
   getCachedDashboardBootstrapData,
   buildDashboardBootstrapData,
 } from "@/lib/dashboard/build-dashboard-bootstrap-data"
 import type { FullDashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
-import type { TeamAnnouncementRow } from "@/lib/team-announcements"
+import {
+  buildDashboardBootstrapDeferredData,
+  getCachedDashboardBootstrapDeferred,
+} from "@/lib/dashboard/build-dashboard-deferred-bootstrap"
+import { mergeDashboardBootstrapDeferred } from "@/lib/dashboard/merge-dashboard-bootstrap"
 import type { BootstrapTimingSink } from "@/lib/debug/bootstrap-timing"
-import { loadTeamRosterForBootstrap } from "@/lib/roster/load-team-roster-for-bootstrap"
-import { loadDepthChartForBootstrap } from "@/lib/roster/load-depth-chart-for-bootstrap"
-import { loadNotificationsApiPayload } from "@/lib/notifications/notifications-api-query"
-import { getCachedVisibleTeamAnnouncements } from "@/lib/team-announcements/visible-announcements-query"
-import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
+import { timedBootstrap } from "@/lib/debug/bootstrap-timing"
 import {
   lightweightCached,
   LW_TTL_DASHBOARD_BOOTSTRAP,
@@ -45,6 +44,124 @@ export function liteUserToSessionUser(u: RequestUserLite): SessionUser {
   }
 }
 
+const shellLiteInput = (args: {
+  userId: string
+  email: string
+  teamId: string
+  liteTeamId: string | undefined
+  liteRole: string
+  isPlatformOwner: boolean
+  access: ResolvedTeamAccess
+}) => ({
+  userId: args.userId,
+  email: args.email,
+  teamId: args.teamId,
+  liteTeamId: args.liteTeamId,
+  liteRole: args.liteRole,
+  isPlatformOwner: args.isPlatformOwner,
+  membership: args.access.membership,
+})
+
+/**
+ * First paint: dashboard home slice (team, games, calendar, readiness summary) + lite shell.
+ * Roster / depth / notification rows / announcements / readiness detail load via deferred route.
+ */
+export async function buildLightFullDashboardBootstrapData(
+  teamId: string,
+  userId: string,
+  email: string,
+  liteTeamId: string | undefined,
+  liteRole: string,
+  isPlatformOwner: boolean,
+  access: ResolvedTeamAccess,
+  timing: BootstrapTimingSink | null
+): Promise<FullDashboardBootstrapPayload> {
+  const canCoach = access.canEditRoster
+
+  const dashboardPromise = timing
+    ? buildDashboardBootstrapData(teamId, canCoach, timing)
+    : getCachedDashboardBootstrapData(teamId, userId, canCoach)
+
+  const shellPromise = timing
+    ? timedBootstrap(timing, "shell_lite", () =>
+        buildAppBootstrapPayloadLite(shellLiteInput({ userId, email, teamId, liteTeamId, liteRole, isPlatformOwner, access }))
+      )
+    : buildAppBootstrapPayloadLite(
+        shellLiteInput({ userId, email, teamId, liteTeamId, liteRole, isPlatformOwner, access })
+      )
+
+  const [dashboard, shellBase] = await Promise.all([dashboardPromise, shellPromise])
+
+  const unread = shellBase.unreadNotifications
+
+  return {
+    shell: shellBase,
+    dashboard,
+    roster: [],
+    depthChart: { entries: [] },
+    notifications: { notifications: [], unreadCount: unread, hasMore: false },
+    announcements: [],
+    readinessDetail: null,
+    generatedAt: new Date().toISOString(),
+    deferredPending: true,
+  }
+}
+
+export function getCachedLightFullDashboardBootstrap(
+  teamId: string,
+  userId: string,
+  email: string,
+  liteTeamId: string | undefined,
+  liteRole: string,
+  isPlatformOwner: boolean,
+  access: ResolvedTeamAccess
+): Promise<FullDashboardBootstrapPayload> {
+  return lightweightCached(
+    ["dashboard-bootstrap-light-v1", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    {
+      revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
+      tags: [tagTeamDashboardBootstrap(teamId)],
+    },
+    () =>
+      buildLightFullDashboardBootstrapData(
+        teamId,
+        userId,
+        email,
+        liteTeamId,
+        liteRole,
+        isPlatformOwner,
+        access,
+        null
+      )
+  )
+}
+
+/** Composes cached light + deferred halves (same DB work as pre-split full bootstrap, better cache granularity). */
+export function getCachedFullDashboardBootstrap(
+  teamId: string,
+  userId: string,
+  email: string,
+  liteTeamId: string | undefined,
+  liteRole: string,
+  isPlatformOwner: boolean,
+  access: ResolvedTeamAccess,
+  sessionUser: SessionUser,
+  appOrigin: string
+): Promise<FullDashboardBootstrapPayload> {
+  return Promise.all([
+    getCachedLightFullDashboardBootstrap(
+      teamId,
+      userId,
+      email,
+      liteTeamId,
+      liteRole,
+      isPlatformOwner,
+      access
+    ),
+    getCachedDashboardBootstrapDeferred(teamId, userId, access, sessionUser, appOrigin),
+  ]).then(([light, deferred]) => mergeDashboardBootstrapDeferred(light, deferred))
+}
+
 export async function buildFullDashboardBootstrapData(
   teamId: string,
   userId: string,
@@ -57,113 +174,20 @@ export async function buildFullDashboardBootstrapData(
   appOrigin: string,
   timing: BootstrapTimingSink | null
 ): Promise<FullDashboardBootstrapPayload> {
-  const canCoach = access.canEditRoster
-
-  const dashboardPromise = timing
-    ? buildDashboardBootstrapData(teamId, canCoach, timing)
-    : getCachedDashboardBootstrapData(teamId, userId, canCoach)
-
-  const [
-    dashboard,
-    shellBase,
-    roster,
-    depthEntries,
-    notifications,
-    announcements,
-    readinessDetail,
-  ] = await Promise.all([
-    dashboardPromise,
-    buildAppBootstrapPayload({
-      userId,
-      email,
-      teamId,
-      liteTeamId,
-      liteRole,
-      isPlatformOwner,
-      membership: access.membership,
-    }),
-    loadTeamRosterForBootstrap(teamId, sessionUser, appOrigin).catch((e) => {
-      console.error("[buildFullDashboardBootstrap] roster", e)
-      return []
-    }),
-    loadDepthChartForBootstrap(teamId).catch((e) => {
-      console.error("[buildFullDashboardBootstrap] depthChart", e)
-      return []
-    }),
-    loadNotificationsApiPayload({
-      userId,
-      teamId,
-      unreadOnly: true,
-      limit: 15,
-      offset: 0,
-      previewMode: true,
-    }).catch((e) => {
-      console.error("[buildFullDashboardBootstrap] notifications", e)
-      return { notifications: [], unreadCount: 0, hasMore: false }
-    }),
-    getCachedVisibleTeamAnnouncements(teamId, access.membership.role).catch((e): TeamAnnouncementRow[] => {
-      console.error("[buildFullDashboardBootstrap] announcements", e)
-      return []
-    }),
-    canCoach
-      ? computeTeamReadinessPayload(teamId, false).catch((e) => {
-          console.error("[buildFullDashboardBootstrap] readinessDetail", e)
-          return null
-        })
-      : Promise.resolve(null),
-  ])
-
-  const shell: AppBootstrapPayload = {
-    ...shellBase,
-    unreadNotifications: notifications.unreadCount,
-    generatedAt: new Date().toISOString(),
-  }
-
-  return {
-    shell,
-    dashboard,
-    roster,
-    depthChart: { entries: depthEntries },
-    notifications,
-    announcements: announcements as TeamAnnouncementRow[],
-    readinessDetail,
-    generatedAt: new Date().toISOString(),
-  }
-}
-
-export function getCachedFullDashboardBootstrap(
-  teamId: string,
-  userId: string,
-  email: string,
-  liteTeamId: string | undefined,
-  liteRole: string,
-  isPlatformOwner: boolean,
-  access: ResolvedTeamAccess,
-  sessionUser: SessionUser,
-  appOrigin: string
-): Promise<FullDashboardBootstrapPayload> {
-  return lightweightCached(
-    ["dashboard-bootstrap-full-v1", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
-    {
-      revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
-      tags: [
-        tagTeamDashboardBootstrap(teamId),
-        tagTeamAnnouncements(teamId),
-        tagNotificationsUserTeam(userId, teamId),
-      ],
-    },
-    () =>
-      buildFullDashboardBootstrapData(
-        teamId,
-        userId,
-        email,
-        liteTeamId,
-        liteRole,
-        isPlatformOwner,
-        access,
-        sessionUser,
-        appOrigin,
-        null
-      )
+  const light = await buildLightFullDashboardBootstrapData(
+    teamId,
+    userId,
+    email,
+    liteTeamId,
+    liteRole,
+    isPlatformOwner,
+    access,
+    timing
   )
+  const deferred = timing
+    ? await timedBootstrap(timing, "deferred_slice", () =>
+        buildDashboardBootstrapDeferredData(teamId, userId, access, sessionUser, appOrigin)
+      )
+    : await buildDashboardBootstrapDeferredData(teamId, userId, access, sessionUser, appOrigin)
+  return mergeDashboardBootstrapDeferred(light, deferred)
 }

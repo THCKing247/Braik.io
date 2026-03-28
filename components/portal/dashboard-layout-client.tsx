@@ -1,11 +1,10 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRef } from "react"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
 import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
-import { PortalTeamProvider } from "@/components/portal/portal-team-context"
 import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-bar"
 import { MobilePortalShell } from "@/components/mobile/mobile-portal-shell"
@@ -21,6 +20,27 @@ interface Team {
   organization: { name: string }
   sport: string
   seasonName: string
+}
+
+/** Mount coach hints after first paint so they do not compete with bootstrap-light. */
+function DeferredDashboardEngagementHints({ currentTeamId }: { currentTeamId: string }) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    let inner: number | undefined
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        if (!cancelled) setShow(true)
+      })
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(outer)
+      if (inner != null) cancelAnimationFrame(inner)
+    }
+  }, [])
+  if (!show) return null
+  return <DashboardEngagementHints currentTeamId={currentTeamId} />
 }
 
 export function DashboardLayoutClient({
@@ -49,25 +69,22 @@ export function DashboardLayoutClient({
   }, [])
 
   // RSC passes a new `teams` array every navigation; keep referential stability when id+name are unchanged
-  // so PortalTeamProvider and the sidebar subtree skip useless context updates during soft route changes.
-  const shellTeamsRef = useRef<{ sig: string; teams: Team[]; teamIds: string[] } | null>(null)
+  // so the sidebar subtree skips useless updates during soft route changes.
+  const shellTeamsRef = useRef<{ sig: string; teams: Team[] } | null>(null)
   const teamsSig = teams.map((t) => `${t.id}\0${t.name}`).join("\n")
   if (!shellTeamsRef.current || shellTeamsRef.current.sig !== teamsSig) {
     shellTeamsRef.current = {
       sig: teamsSig,
       teams,
-      teamIds: teams.map((t) => t.id),
     }
   }
   const shellTeams = shellTeamsRef.current.teams
-  const shellTeamIds = shellTeamsRef.current.teamIds
 
   const resolvedCurrentTeamId = currentTeamId ?? shellTeams[0]?.id ?? ""
   const isDashboardHome = pathname === "/dashboard"
 
   return (
-    <PortalTeamProvider teamIds={shellTeamIds} currentTeamId={resolvedCurrentTeamId}>
-        <CoachBProvider isDesktop={isLgUp}>
+    <CoachBProvider isDesktop={isLgUp}>
           <PlaybookToastProvider>
             <BiometricEnablePrompt />
             <div className={cn("flex w-full min-w-0 flex-col", className)}>
@@ -131,7 +148,7 @@ export function DashboardLayoutClient({
                     >
                       {/* Hints only on home dashboard — avoids mounting /api fetch wiring on every route */}
                       {isDashboardHome && resolvedCurrentTeamId ? (
-                        <DashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
+                        <DeferredDashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
                       ) : null}
                       {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
                     </div>
@@ -145,6 +162,5 @@ export function DashboardLayoutClient({
           </div>
         </PlaybookToastProvider>
       </CoachBProvider>
-    </PortalTeamProvider>
   )
 }

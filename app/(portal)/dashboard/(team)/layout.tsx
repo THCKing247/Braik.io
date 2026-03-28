@@ -6,7 +6,6 @@
  */
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Suspense } from "react"
 import { cookies } from "next/headers"
 import { isRedirectError } from "next/dist/client/components/redirect"
 import { getCachedServerSession } from "@/lib/auth/cached-server-session"
@@ -143,16 +142,7 @@ export default async function DashboardLayout({
       <DashboardShellWithMobileNav teams={teams} currentTeamId={currentTeamId}>
         <div className="app-shell flex min-h-screen flex-col bg-background">
           <header className="shrink-0">
-            <Suspense
-              fallback={
-                <div
-                  className="min-h-[52px] w-full border-b border-border bg-card pt-[env(safe-area-inset-top,0px)]"
-                  style={{ minHeight: "max(52px, calc(52px + env(safe-area-inset-top, 0px)))" }}
-                />
-              }
-            >
-              <DashboardNav teams={teams} />
-            </Suspense>
+            <DashboardNav teams={teams} />
           </header>
           <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex w-full min-w-0 flex-col">
             {process.env.NODE_ENV === "development" ? (

@@ -12,6 +12,55 @@ import type { AppBootstrapPayload, AppBootstrapTeamFlags } from "@/lib/app/app-b
 
 const ENGAGEMENT_ROLES = new Set(["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"])
 
+/** Shell for first paint — skips engagement hint counts (hints card fetches `/api/engagement/hints` when needed). */
+export async function buildAppBootstrapPayloadLite(input: {
+  userId: string
+  email: string
+  teamId: string
+  liteTeamId: string | undefined
+  liteRole: string
+  isPlatformOwner: boolean
+  membership: UserMembership
+}): Promise<AppBootstrapPayload> {
+  const supabase = getSupabaseServer()
+
+  const [profileRes, teamRes, unread] = await Promise.all([
+    supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
+    supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
+    getUnreadNotificationCount(input.userId, input.teamId),
+  ])
+
+  const fullName = (profileRes.data as { full_name?: string | null } | null)?.full_name?.trim() ?? null
+  const displayName = fullName && fullName.length > 0 ? fullName : null
+
+  const tr = teamRes.data as { id?: string; name?: string | null; logo_url?: string | null } | null
+  if (!tr?.id) {
+    throw new Error("TEAM_NOT_FOUND")
+  }
+
+  const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
+
+  return {
+    user: {
+      id: input.userId,
+      email: input.email,
+      role: roleUpper,
+      teamId: input.liteTeamId,
+      displayName,
+      isPlatformOwner: input.isPlatformOwner,
+    },
+    team: {
+      id: tr.id,
+      name: tr.name ?? "",
+      logoUrl: tr.logo_url ?? null,
+    },
+    flags: flagsFromMembership(input.membership),
+    unreadNotifications: unread,
+    engagement: { counts: null },
+    generatedAt: new Date().toISOString(),
+  }
+}
+
 function flagsFromMembership(m: UserMembership): AppBootstrapTeamFlags {
   const delegated = Boolean(m.delegatedTeamManage)
   return {

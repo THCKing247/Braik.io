@@ -2,6 +2,10 @@
 
 import type { ReactNode } from "react"
 import { MobileDashboardNavProvider } from "@/components/portal/mobile-dashboard-nav-provider"
+import {
+  DashboardTeamInner,
+  DashboardTeamScopeSuspense,
+} from "@/components/portal/dashboard-team-inner"
 
 interface Team {
   id: string
@@ -20,10 +24,13 @@ export function DashboardShellWithMobileNav({
   currentTeamId: string
   children: ReactNode
 }) {
-  const bootstrapTeamId = currentTeamId.trim() || teams[0]?.id || ""
   return (
-    <MobileDashboardNavProvider teams={teams} bootstrapTeamId={bootstrapTeamId}>
-      {children}
+    <MobileDashboardNavProvider teams={teams}>
+      <DashboardTeamScopeSuspense>
+        <DashboardTeamInner teams={teams} serverCurrentTeamId={currentTeamId}>
+          {children}
+        </DashboardTeamInner>
+      </DashboardTeamScopeSuspense>
     </MobileDashboardNavProvider>
   )
 }

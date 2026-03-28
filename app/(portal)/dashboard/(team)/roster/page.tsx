@@ -74,7 +74,8 @@ function RosterPageContent({
   }, [bootstrapQ.data?.roster])
 
   const programId = bootstrapQ.data?.dashboard?.team?.programId ?? null
-  const loading = bootstrapQ.isPending && !bootstrapQ.data
+  const rosterAwaitingDeferred = Boolean(bootstrapQ.data?.deferredPending)
+  const loading = (bootstrapQ.isPending && !bootstrapQ.data) || rosterAwaitingDeferred
   const prefetchedReadinessDetail = bootstrapQ.data?.readinessDetail ?? null
 
   if (loading) {

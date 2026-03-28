@@ -1,16 +1,8 @@
 /**
- * GET /api/dashboard/bootstrap?teamId=
+ * GET /api/dashboard/bootstrap-deferred?teamId=
  *
- * Single round-trip for the team dashboard: `shell` (nav / app bootstrap shape), `dashboard` (home:
- * team header, games, calendar, readiness summary), full `roster`, `depthChart`, notifications preview,
- * announcements, and coach-only `readinessDetail` (full per-player readiness for roster tab).
- *
- * Caching:
- * - Full payload: `unstable_cache` (LW_TTL_DASHBOARD_BOOTSTRAP), key teamId + userId + coach bucket.
- * - Nested `dashboard` slice may hit its own cache entry.
- * - Tags: dashboard bootstrap, announcements, notifications (user+team).
- *
- * With DEBUG_BOOTSTRAP_TIMING=1 or NODE_ENV=development, payload cache is skipped so sub-step timings log.
+ * Second-phase dashboard payload: roster, depth chart, notifications preview, announcements,
+ * coach readiness detail. Merge client-side into bootstrap-light with mergeDashboardBootstrapDeferred.
  */
 import { NextResponse } from "next/server"
 import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
@@ -18,19 +10,18 @@ import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 import {
-  buildFullDashboardBootstrapData,
-  getCachedFullDashboardBootstrap,
-  liteUserToSessionUser,
-  requestAppOrigin,
-} from "@/lib/dashboard/build-full-dashboard-bootstrap"
-import type { FullDashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+  buildDashboardBootstrapDeferredData,
+  getCachedDashboardBootstrapDeferred,
+} from "@/lib/dashboard/build-dashboard-deferred-bootstrap"
+import { liteUserToSessionUser, requestAppOrigin } from "@/lib/dashboard/build-full-dashboard-bootstrap"
+import type { DashboardBootstrapDeferredPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+import { applyDashboardBootstrapCacheHeaders } from "@/lib/dashboard/dashboard-bootstrap-http"
 import {
   shouldLogBootstrapTiming,
   timedBootstrap,
   logBootstrapTimingSummary,
   type BootstrapTimingSink,
 } from "@/lib/debug/bootstrap-timing"
-import { applyDashboardBootstrapCacheHeaders } from "@/lib/dashboard/dashboard-bootstrap-http"
 
 export async function GET(request: Request) {
   const requestStarted = performance.now()
@@ -54,7 +45,7 @@ export async function GET(request: Request) {
       access = await timedBootstrap(timingSink, "membership", () => resolveTeamAccess(teamId, userId))
     } catch (err) {
       if (err instanceof MembershipLookupError) {
-        console.error("[GET /api/dashboard/bootstrap] membership lookup", err)
+        console.error("[GET /api/dashboard/bootstrap-deferred] membership lookup", err)
         return NextResponse.json({ error: "Access check failed" }, { status: 500 })
       }
       throw err
@@ -73,33 +64,15 @@ export async function GET(request: Request) {
     const u = session.user
     const sessionUser = liteUserToSessionUser(u)
     const appOrigin = requestAppOrigin(request)
-    let payload: FullDashboardBootstrapPayload
+
+    let payload: DashboardBootstrapDeferredPayload
     if (usePayloadCache) {
-      payload = await timedBootstrap(timingSink, "bootstrap_payload_cached", () =>
-        getCachedFullDashboardBootstrap(
-          teamId,
-          userId,
-          u.email,
-          u.teamId,
-          u.role ?? "",
-          u.isPlatformOwner === true,
-          access,
-          sessionUser,
-          appOrigin
-        )
+      payload = await timedBootstrap(timingSink, "bootstrap_deferred_cached", () =>
+        getCachedDashboardBootstrapDeferred(teamId, userId, access, sessionUser, appOrigin)
       )
     } else {
-      payload = await buildFullDashboardBootstrapData(
-        teamId,
-        userId,
-        u.email,
-        u.teamId,
-        u.role ?? "",
-        u.isPlatformOwner === true,
-        access,
-        sessionUser,
-        appOrigin,
-        timingSink
+      payload = await timedBootstrap(timingSink, "bootstrap_deferred", () =>
+        buildDashboardBootstrapDeferredData(teamId, userId, access, sessionUser, appOrigin)
       )
     }
 
@@ -122,18 +95,7 @@ export async function GET(request: Request) {
     }
     return res
   } catch (err) {
-    if (err instanceof Error && err.message === "TEAM_NOT_FOUND") {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 })
-    }
-    if (err instanceof Error && err.message.startsWith("GAMES_QUERY_FAILED")) {
-      console.error("[GET /api/dashboard/bootstrap] games", err.message)
-      return NextResponse.json({ error: "Failed to load games" }, { status: 500 })
-    }
-    if (err instanceof Error && err.message.startsWith("CALENDAR_QUERY_FAILED")) {
-      console.error("[GET /api/dashboard/bootstrap] calendar", err.message)
-      return NextResponse.json({ error: "Failed to load calendar" }, { status: 500 })
-    }
-    console.error("[GET /api/dashboard/bootstrap]", err)
+    console.error("[GET /api/dashboard/bootstrap-deferred]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

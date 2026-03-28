@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { warmDashboardBootstrapLight } from "@/lib/dashboard/warm-dashboard-bootstrap-light"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -169,7 +170,12 @@ export function AdFootballProgramHub() {
           {selectedTeamId && selectedTeam && (
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <Button className="w-full sm:w-auto" asChild>
-                <Link href={`/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`}>
+                <Link
+                  href={`/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`}
+                  prefetch
+                  onMouseEnter={() => warmDashboardBootstrapLight(selectedTeamId)}
+                  onFocus={() => warmDashboardBootstrapLight(selectedTeamId)}
+                >
                   Open {selectedLevelLabel} portal ({selectedTeam.name})
                 </Link>
               </Button>

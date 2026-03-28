@@ -16,9 +16,9 @@ export type DashboardBootstrapCalendarEvent = {
 }
 
 /**
- * Contract for GET /api/dashboard/bootstrap — shared by the route and the portal dashboard client.
- * Team header, games, calendar preview rows, and coach readiness summary.
- * Notifications and announcements load from their own endpoints after first paint (see route comments).
+ * Contract for GET /api/dashboard/bootstrap* — shared by routes and the portal dashboard client.
+ * Team header, games, calendar preview rows, and coach readiness summary live in bootstrap-light.
+ * Roster, depth chart, notification rows, announcements, and readiness detail load via bootstrap-deferred (merged client-side).
  */
 export type DashboardBootstrapPayload = {
   team: {
@@ -51,6 +51,21 @@ export type DashboardReadinessDetailPayload = {
 export type FullDashboardBootstrapPayload = {
   shell: AppBootstrapPayload
   dashboard: DashboardBootstrapPayload
+  roster: unknown[]
+  depthChart: { entries: DepthChartBootstrapEntry[] }
+  notifications: NotificationsApiPayload
+  announcements: TeamAnnouncementRow[]
+  readinessDetail: DashboardReadinessDetailPayload | null
+  generatedAt: string
+  /**
+   * When true, `roster` / previews are placeholders; client should merge
+   * GET /api/dashboard/bootstrap-deferred (or await full bootstrap) before relying on roster.
+   */
+  deferredPending?: boolean
+}
+
+/** Deferred half merged into {@link FullDashboardBootstrapPayload} after first paint. */
+export type DashboardBootstrapDeferredPayload = {
   roster: unknown[]
   depthChart: { entries: DepthChartBootstrapEntry[] }
   notifications: NotificationsApiPayload

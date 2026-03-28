@@ -130,6 +130,54 @@ export async function buildDashboardBootstrapData(
   }
 }
 
+function mapTeamRowToDashboardPayloadTeam(t: Record<string, unknown>): DashboardBootstrapPayload["team"] {
+  return {
+    id: t.id as string,
+    name: (t.name as string) ?? "",
+    slogan: (t.slogan as string | null) ?? null,
+    sport: (t.sport as string) ?? "football",
+    seasonName: (t.season_name as string) ?? "",
+    logoUrl: (t.logo_url as string | null) ?? null,
+    programId: (t.program_id as string | null) ?? null,
+    teamLevel: (t.team_level as string | null) ?? null,
+  }
+}
+
+/**
+ * Team header fields only — no games/calendar/readiness queries. Used for bootstrap-light first paint.
+ */
+export async function buildMinimalDashboardBootstrapPayload(teamId: string): Promise<DashboardBootstrapPayload> {
+  const supabase = getSupabaseServer()
+  const teamRow = await supabase
+    .from("teams")
+    .select("id, name, slogan, sport, season_name, logo_url, program_id, team_level")
+    .eq("id", teamId)
+    .maybeSingle()
+
+  if (teamRow.error || !teamRow.data) {
+    throw new Error("TEAM_NOT_FOUND")
+  }
+
+  const t = teamRow.data as Record<string, unknown>
+  return {
+    team: mapTeamRowToDashboardPayloadTeam(t),
+    games: [],
+    calendarEvents: [],
+    readiness: { skipped: true },
+  }
+}
+
+export function getCachedMinimalDashboardBootstrapPayload(teamId: string): Promise<DashboardBootstrapPayload> {
+  return lightweightCached(
+    ["dashboard-bootstrap-minimal-v1", teamId],
+    {
+      revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
+      tags: [tagTeamDashboardBootstrap(teamId)],
+    },
+    () => buildMinimalDashboardBootstrapPayload(teamId)
+  )
+}
+
 /**
  * Short-lived Data Cache for the team-scoped bootstrap payload.
  * Key includes userId + canEditRoster so responses never leak across users or coach/player views.

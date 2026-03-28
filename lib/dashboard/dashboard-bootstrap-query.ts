@@ -112,7 +112,11 @@ export function kickDeferredCoreMerge(teamId: string, queryClient: QueryClient):
       })
       scheduleHeavyAfterCore(t, queryClient)
     } catch {
-      /* widgets fall back to their own endpoints */
+      queryClient.setQueryData(dashboardBootstrapQueryKey(t), (prev: FullDashboardBootstrapPayload | undefined) => {
+        if (!prev?.deferredPending) return prev
+        if (prev.dashboard?.team?.id !== t) return prev
+        return { ...prev, deferredPending: false, deferredHeavyPending: false }
+      })
     } finally {
       coreMergeInFlight.delete(t)
     }
@@ -172,6 +176,20 @@ export async function fetchDashboardBootstrap(teamId: string, queryClient: Query
     }
 
     const light = await fetchBootstrapLight(key)
+    /**
+     * Deferred-core can merge via `kickDeferredCoreMerge` while this await is in flight.
+     * If we return `light` here, we overwrite the merged cache and reset `deferredPending`,
+     * leaving calendar / notifications / announcements stuck in bootstrapLoading forever.
+     */
+    const afterParallelMerge = queryClient.getQueryData(qk) as FullDashboardBootstrapPayload | undefined
+    if (
+      afterParallelMerge?.deferredPending === false &&
+      afterParallelMerge.dashboard?.team?.id === key
+    ) {
+      writeLightweightMemory(dashboardBootstrapMemoryKey(key), afterParallelMerge)
+      return afterParallelMerge
+    }
+
     writeLightweightMemory(dashboardBootstrapMemoryKey(key), light)
     return light
   })().finally(() => lightInflight.delete(key))

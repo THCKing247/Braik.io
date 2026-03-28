@@ -1,10 +1,6 @@
 export const WAITLIST_ROLE_OPTIONS = [
   { value: "head_coach", label: "Head coach" },
-  { value: "assistant_coach", label: "Assistant coach" },
   { value: "athletic_director", label: "Athletic director" },
-  { value: "parent", label: "Parent" },
-  { value: "athlete", label: "Athlete" },
-  { value: "other", label: "Other" },
 ] as const
 
 export type WaitlistRoleValue = (typeof WAITLIST_ROLE_OPTIONS)[number]["value"]

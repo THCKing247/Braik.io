@@ -1,6 +1,8 @@
 /**
- * GET /api/stats/games?teamId=&seasonYear=
- * Scheduled games for the team (for weekly stat entry + filters).
+ * GET /api/stats/games?teamId=&seasonYear=&startDate=&endDate=
+ * Scheduled games for the team (schedule page, weekly stats, dashboard).
+ *
+ * Optional startDate/endDate (ISO) bound `game_date` for smaller responses + index-friendly scans.
  */
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
@@ -8,11 +10,17 @@ import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rba
 import { getCachedStatsGamesPayload } from "@/lib/stats/cached-stats-games"
 import type { TeamGameRow } from "@/lib/team-schedule-games"
 
+/** Personalized payload; teamId is in the URL — use CDN/browser revalidation conservatively. */
+const GAMES_CACHE_CONTROL =
+  "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")?.trim()
     const seasonYearParam = searchParams.get("seasonYear")?.trim()
+    const startDate = searchParams.get("startDate")?.trim() || null
+    const endDate = searchParams.get("endDate")?.trim() || null
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
@@ -26,7 +34,10 @@ export async function GET(request: Request) {
 
     let games: TeamGameRow[]
     try {
-      const payload = await getCachedStatsGamesPayload(teamId)
+      const payload = await getCachedStatsGamesPayload(teamId, {
+        startDate,
+        endDate,
+      })
       games = payload.games
     } catch (e) {
       console.error("[GET /api/stats/games]", e)
@@ -40,7 +51,14 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ games })
+    return NextResponse.json(
+      { games },
+      {
+        headers: {
+          "Cache-Control": GAMES_CACHE_CONTROL,
+        },
+      }
+    )
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })

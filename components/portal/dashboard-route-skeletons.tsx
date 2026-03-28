@@ -75,6 +75,17 @@ export function DashboardCalendarSkeleton() {
   )
 }
 
+/** Skeleton rows inside the schedule game card (shell stays visible). */
+export function ScheduleGameListSkeleton({ rows = 8 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 px-4 pb-4 md:px-0" aria-busy="true" aria-label="Loading games">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="h-16 w-full animate-pulse rounded-lg bg-[rgb(var(--platinum))]" />
+      ))}
+    </div>
+  )
+}
+
 export function DashboardScheduleSkeleton() {
   return (
     <div className="min-h-[50vh] w-full animate-pulse space-y-4" aria-busy="true" aria-label="Loading schedule">

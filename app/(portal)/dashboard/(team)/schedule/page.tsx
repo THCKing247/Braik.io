@@ -1,17 +1,24 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useQueries, useQueryClient } from "@tanstack/react-query"
 import { format } from "date-fns"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { DashboardScheduleSkeleton } from "@/components/portal/dashboard-route-skeletons"
+import { ScheduleGameListSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { type TeamGameRow, parseGameDateMs } from "@/lib/team-schedule-games"
 import { ListOrdered, Plus, Upload, Download } from "lucide-react"
-import { emitTeamGamesChanged } from "@/lib/team-games-events"
+import { emitTeamGamesChanged, TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
+import {
+  fetchTeamGamesForRange,
+  SCHEDULE_TEAM_GAMES_STALE_MS,
+  teamGamesQueryKey,
+} from "@/lib/stats/fetch-team-games-client"
+import { getScheduleGamesWindows } from "@/lib/stats/schedule-games-windows"
 
 const ScheduleGameCentricView = dynamic(
   () =>
@@ -37,6 +44,16 @@ export default function TeamSchedulePage() {
   )
 }
 
+function mergeScheduleGamesFromQueries(results: { data?: { games?: TeamGameRow[] } }[]): TeamGameRow[] {
+  const map = new Map<string, TeamGameRow>()
+  for (const r of results) {
+    for (const g of r.data?.games ?? []) {
+      map.set(g.id, g)
+    }
+  }
+  return [...map.values()].sort((a, b) => parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate))
+}
+
 function downloadScheduleCsv(games: TeamGameRow[]) {
   const header = "opponent,game_date,location,game_type,conference_game,notes"
   const lines = games.map((g) => {
@@ -60,31 +77,66 @@ function downloadScheduleCsv(games: TeamGameRow[]) {
 
 function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
   const router = useRouter()
-  const [games, setGames] = useState<TeamGameRow[]>([])
+  const queryClient = useQueryClient()
+  const windowsRef = useRef(getScheduleGamesWindows())
+  const { prev, main, next } = windowsRef.current
+
   const [teamName, setTeamName] = useState<string>("Your team")
-  const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<TeamGameRow | null>(null)
 
-  const loadGames = useCallback(() => {
-    setLoading(true)
-    fetch(`/api/stats/games?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { games?: TeamGameRow[] } | null) => {
-        if (data?.games && Array.isArray(data.games)) {
-          setGames(data.games)
-        } else {
-          setGames([])
-        }
-      })
-      .catch(() => setGames([]))
-      .finally(() => setLoading(false))
-  }, [teamId])
+  const rangeQueries = useQueries({
+    queries: [
+      {
+        queryKey: teamGamesQueryKey(teamId, prev.startIso, prev.endIso),
+        queryFn: () => fetchTeamGamesForRange(teamId, prev.startIso, prev.endIso),
+        enabled: Boolean(teamId),
+        staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+      },
+      {
+        queryKey: teamGamesQueryKey(teamId, main.startIso, main.endIso),
+        queryFn: () => fetchTeamGamesForRange(teamId, main.startIso, main.endIso),
+        enabled: Boolean(teamId),
+        staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+      },
+      {
+        queryKey: teamGamesQueryKey(teamId, next.startIso, next.endIso),
+        queryFn: () => fetchTeamGamesForRange(teamId, next.startIso, next.endIso),
+        enabled: Boolean(teamId),
+        staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+      },
+    ],
+  })
+
+  const gamesLoading = rangeQueries.some((q) => q.isPending)
+  const gamesError = rangeQueries.some((q) => q.isError)
+
+  const games = useMemo(() => mergeScheduleGamesFromQueries(rangeQueries), [rangeQueries])
+
+  const refreshGames = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["games", teamId] })
+  }, [queryClient, teamId])
+
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const ce = ev as CustomEvent<{ teamId?: string }>
+      if (ce.detail?.teamId === teamId) {
+        void queryClient.invalidateQueries({ queryKey: ["games", teamId] })
+      }
+    }
+    window.addEventListener(TEAM_GAMES_CHANGED_EVENT, handler as EventListener)
+    return () => window.removeEventListener(TEAM_GAMES_CHANGED_EVENT, handler as EventListener)
+  }, [queryClient, teamId])
 
   useEffect(() => {
     let cancelled = false
-    // Defer team display name — games list is the critical path for first paint
     const t = window.setTimeout(() => {
       fetch(`/api/teams/${encodeURIComponent(teamId)}`)
         .then((res) => (res.ok ? res.json() : null))
@@ -99,20 +151,13 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
     }
   }, [teamId])
 
-  useEffect(() => {
-    loadGames()
-  }, [loadGames])
-
   const onSaved = useCallback(() => {
-    loadGames()
+    refreshGames()
     router.refresh()
     emitTeamGamesChanged(teamId)
-  }, [loadGames, router, teamId])
+  }, [refreshGames, router, teamId])
 
-  const orderedGames = useMemo(
-    () => [...games].sort((a, b) => parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate)),
-    [games]
-  )
+  const orderedGames = games
 
   const openAdd = () => {
     setEditing(null)
@@ -122,10 +167,6 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const openEdit = (g: TeamGameRow) => {
     setEditing(g)
     setFormOpen(true)
-  }
-
-  if (loading) {
-    return <DashboardScheduleSkeleton />
   }
 
   return (
@@ -183,7 +224,16 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 pb-4 md:px-6 md:pb-6">
-          {orderedGames.length === 0 ? (
+          {gamesError ? (
+            <div className="px-4 py-8 text-center md:px-0">
+              <p className="text-sm font-medium text-red-600">Couldn&apos;t load games. Try again.</p>
+              <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => refreshGames()}>
+                Retry
+              </Button>
+            </div>
+          ) : gamesLoading ? (
+            <ScheduleGameListSkeleton rows={8} />
+          ) : orderedGames.length === 0 ? (
             <div className="px-4 py-10 text-center md:px-0">
               <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
                 No games scheduled yet.
@@ -211,7 +261,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
               teamName={teamName}
               games={orderedGames}
               canEdit={canEdit}
-              onRefresh={loadGames}
+              onRefresh={refreshGames}
               onEditGame={(g) => openEdit(g)}
             />
           )}

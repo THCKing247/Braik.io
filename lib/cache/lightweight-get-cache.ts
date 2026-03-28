@@ -38,8 +38,8 @@ export const LW_TTL_AD_PORTAL_SHELL = 15
 /** Full calendar list GET for team (same rows for all members; RBAC at route) */
 export const LW_TTL_TEAM_CALENDAR = 8
 
-/** Stats weekly games list GET */
-export const LW_TTL_STATS_GAMES = 8
+/** Stats / schedule games list GET (aligned with HTTP s-maxage for shared caches) */
+export const LW_TTL_STATS_GAMES = 60
 
 /** Inventory list + player map — changes less often but payload is larger */
 export const LW_TTL_TEAM_INVENTORY = 10

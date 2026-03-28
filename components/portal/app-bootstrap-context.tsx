@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -60,6 +61,10 @@ export function AppBootstrapProvider({
   const q = useDashboardBootstrapQuery(teamId)
   const queryClient = useQueryClient()
   const [pendingUnreadDelta, setPendingUnreadDelta] = useState(0)
+
+  useEffect(() => {
+    setPendingUnreadDelta(0)
+  }, [tid])
 
   const payload = tid && q.data?.shell ? q.data.shell : null
 

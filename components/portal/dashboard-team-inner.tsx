@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, type ReactNode } from "react"
+import { Suspense, useEffect, useMemo, type ReactNode } from "react"
 import { useSearchParams } from "next/navigation"
 import { useSession } from "@/lib/auth/client-auth"
 import { PortalTeamProvider, useEffectiveTeamId } from "@/components/portal/portal-team-context"
@@ -47,11 +47,17 @@ export function DashboardTeamInner({
   serverCurrentTeamId: string
   children: ReactNode
 }) {
+  const searchParams = useSearchParams()
   const shellTeamIds = teams.map((t) => t.id)
+  const validTeamIds = useMemo(() => new Set(shellTeamIds), [shellTeamIds])
   const serverResolved = serverCurrentTeamId.trim() || teams[0]?.id || ""
+  /** Client navigation (e.g. AD portal → /dashboard?teamId=…) — URL must win over server-resolved default. */
+  const urlTeamId = searchParams.get("teamId")
+  const currentTeamIdForPortal =
+    urlTeamId && validTeamIds.has(urlTeamId) ? urlTeamId : serverResolved
 
   return (
-    <PortalTeamProvider teamIds={shellTeamIds} currentTeamId={serverResolved}>
+    <PortalTeamProvider teamIds={shellTeamIds} currentTeamId={currentTeamIdForPortal}>
       <UrlResolvedTeamBootstrap teams={teams}>{children}</UrlResolvedTeamBootstrap>
     </PortalTeamProvider>
   )

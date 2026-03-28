@@ -205,7 +205,12 @@ export function useDashboardBootstrapQuery(teamId: string) {
     const p = tid ? peekDashboardBootstrapMemory(tid) : null
     return {
       initialData: p ?? undefined,
-      initialDataUpdatedAt: p ? Date.now() : undefined,
+      /**
+       * Memory snapshot is a hint only — treat as stale so the first fetch after navigation
+       * always runs when the query cache is empty (e.g. AD portal → team dashboard client nav).
+       * If React Query already has data for this key, initialData is ignored.
+       */
+      initialDataUpdatedAt: p ? 0 : undefined,
     }
   }, [tid])
 

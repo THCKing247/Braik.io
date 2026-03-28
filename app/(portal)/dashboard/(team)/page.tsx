@@ -68,6 +68,7 @@ export default function DashboardPage() {
         <DashboardPageShell>
           {({ teamId, canEdit }) => (
             <TeamDashboard
+              key={teamId || "no-team"}
               session={session}
               teamId={teamId}
               canAddCalendarEvents={canEdit}

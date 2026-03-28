@@ -66,7 +66,11 @@ import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { NotificationApiRow } from "@/lib/notifications/notifications-api-query"
-import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  kickDeferredCoreMerge,
+  useDashboardBootstrapQuery,
+} from "@/lib/dashboard/dashboard-bootstrap-query"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
 
@@ -114,45 +118,10 @@ function formatRelativeTime(iso: string) {
   return d.toLocaleDateString()
 }
 
-/**
- * Below-the-fold home row: defer mounting until the user scrolls near this row.
- * Bootstrap already omits notifications/announcements; those cards load their APIs after mount here.
- */
-function DeferredHomeDashboardRow({ children }: { children: ReactNode }) {
-  const [show, setShow] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (show) return
-    const el = ref.current
-    if (!el) return
-    if (typeof IntersectionObserver === "undefined") {
-      setShow(true)
-      return
-    }
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setShow(true)
-      },
-      { root: null, rootMargin: "240px 0px", threshold: 0 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [show])
+/** Announcements / notifications / readiness row — must mount on first paint so widget APIs run on client navigation (no viewport gate). */
+function HomeDashboardWidgetsRow({ children }: { children: ReactNode }) {
   return (
-    <div
-      ref={ref}
-      className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-12"
-    >
-      {show ? (
-        children
-      ) : (
-        <>
-          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
-          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
-          <div className="h-64 min-w-0 animate-pulse rounded-2xl bg-[rgb(var(--platinum))] md:rounded-lg" />
-        </>
-      )}
-    </div>
+    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-12">{children}</div>
   )
 }
 
@@ -890,11 +859,19 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const tid = teamId?.trim() ?? ""
   /** Same team id as `AppBootstrapProvider` (must share one React Query cache). */
   const shell = useAppBootstrapOptional()
+  const queryClient = useQueryClient()
   const bootstrapQueryTeamId = (shell?.teamId?.trim() || tid).trim()
   const dashQ = useDashboardBootstrapQuery(bootstrapQueryTeamId)
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
   const [dashNetworkHint, setDashNetworkHint] = useState<string | null>(null)
+
+  /** Ensure deferred-core merge runs on entry (do not rely only on sentinel/timer — AD portal → dashboard must load widgets). */
+  useEffect(() => {
+    const t = bootstrapQueryTeamId.trim()
+    if (!t) return
+    kickDeferredCoreMerge(t, queryClient)
+  }, [bootstrapQueryTeamId, queryClient])
 
   useEffect(() => {
     devDashboardHandoffLog("TeamDashboard", {
@@ -1056,7 +1033,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
           <DashboardCalendar
             teamId={dataTeamId}
             canAddEvents={canAddCalendarEvents}
-            bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
+            bootstrapLoading={dashboardBootstrapState === "loading"}
             initialCalendarEvents={
               dashboardBootstrapState === "ok" && bootstrapAligned && !awaitingDeferredCore
                 ? bootstrapAligned.calendarEvents
@@ -1071,14 +1048,14 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
 
       {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
       {hasTeam && (
-        <DeferredHomeDashboardRow key={dataTeamId}>
+        <HomeDashboardWidgetsRow key={dataTeamId}>
           <div className="lg:col-span-4">
             <DashboardAnnouncementsCard
               teamId={dataTeamId}
               canCreate={canAddCalendarEvents}
               viewerUserId={user.id}
               viewerRole={user.role}
-              bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
+              bootstrapLoading={dashboardBootstrapState === "loading"}
               initialAnnouncements={
                 dashboardBootstrapState === "ok" && !awaitingDeferredCore ? dashQ.data?.announcements : undefined
               }
@@ -1087,7 +1064,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
           <div className="lg:col-span-5">
             <NotificationsCard
               teamId={dataTeamId}
-              bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
+              bootstrapLoading={dashboardBootstrapState === "loading"}
               initialNotifications={
                 dashboardBootstrapState === "ok" && !awaitingDeferredCore
                   ? homeNotificationsFiltered
@@ -1110,7 +1087,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
               </Suspense>
             </div>
           </div>
-        </DeferredHomeDashboardRow>
+        </HomeDashboardWidgetsRow>
       )}
 
     </div>

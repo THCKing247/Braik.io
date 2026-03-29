@@ -95,12 +95,6 @@ export default function LoginPage() {
                     Terms of Service
                   </Link>
                 </p>
-                <p className="text-sm text-[#6c757d]">
-                  Parent creating an account?{" "}
-                  <Link href="/parent/join" className="font-medium text-[#3B82F6] hover:underline">
-                    Enter your child&apos;s player code
-                  </Link>
-                </p>
                 <div className="mt-4 border-t border-[#E5E7EB] pt-3">
                   <Link
                     href="/admin/login"

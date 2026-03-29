@@ -280,6 +280,16 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
         >
           {isWaitlistMode() ? "Join the waitlist" : "Sign Up"}
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className={`mt-3 w-full font-athletic uppercase tracking-wide ${isApp ? "min-h-[52px] rounded-2xl text-base" : "min-h-[48px]"}`}
+          size="lg"
+          onClick={() => router.push("/enter-player-code")}
+          aria-label={"Enter your child's player code"}
+        >
+          Enter your child&apos;s player code
+        </Button>
       </form>
     </div>
   )

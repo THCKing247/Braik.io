@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSession } from "@/lib/auth/client-auth"
+import { signIn, useSession } from "@/lib/auth/client-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -95,18 +95,13 @@ export function InviteAcceptCard({ invite, onAcceptSuccess }: InviteAcceptCardPr
     setLoading(true)
     setError("")
     try {
-      const loginRes = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: invite.email,
-          password,
-        }),
-        credentials: "include",
+      const loginResult = await signIn("credentials", {
+        email: invite.email,
+        password,
+        redirect: false,
       })
-      const loginData = (await loginRes.json().catch(() => ({}))) as { success?: boolean; error?: string }
-      if (!loginRes.ok || !loginData.success) {
-        setError(loginData.error ?? "Sign in failed.")
+      if (!loginResult.ok) {
+        setError(loginResult.error ?? "Sign in failed.")
         return
       }
       const acceptRes = await fetch(`/api/invites/${invite.id}/accept`, {

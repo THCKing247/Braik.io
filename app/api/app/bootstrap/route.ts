@@ -9,11 +9,19 @@ import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from 
 
 export const runtime = "nodejs"
 
-/** User-specific; CDN may cache briefly at the edge without exposing shared public HTML caches. */
+/** Team portal shell — short CDN hint; client React Query also dedupes. */
 const APP_BOOTSTRAP_CACHE_CONTROL = "private, max-age=0, s-maxage=30, stale-while-revalidate=60"
+
+/** AD portal shell — matches server `unstable_cache` TTL and user-scoped tag invalidation. */
+const AD_PORTAL_BOOTSTRAP_CACHE_CONTROL = "private, max-age=60, stale-while-revalidate=120"
 
 function withAppBootstrapCache(res: NextResponse): NextResponse {
   res.headers.set("Cache-Control", APP_BOOTSTRAP_CACHE_CONTROL)
+  return res
+}
+
+function withAdPortalBootstrapCache(res: NextResponse): NextResponse {
+  res.headers.set("Cache-Control", AD_PORTAL_BOOTSTRAP_CACHE_CONTROL)
   return res
 }
 
@@ -55,7 +63,7 @@ export async function GET(request: Request) {
             cached: String(useCache),
           })
         }
-        const res = withAppBootstrapCache(NextResponse.json(payload))
+        const res = withAdPortalBootstrapCache(NextResponse.json(payload))
         if (sessionResult.refreshedSession) {
           applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
         }

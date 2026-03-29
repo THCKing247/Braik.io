@@ -32,8 +32,8 @@ export const LW_TTL_READINESS_SUMMARY = 24
 /** AD coaches tab bootstrap (teams picklist + coach rows) */
 export const LW_TTL_AD_COACHES_BOOTSTRAP = 15
 
-/** AD portal shell payload (org, teams summary, flags) */
-export const LW_TTL_AD_PORTAL_SHELL = 15
+/** AD portal shell payload (org, teams summary, flags) — aligned with HTTP private max-age */
+export const LW_TTL_AD_PORTAL_SHELL = 60
 
 /** Full calendar list GET for team (same rows for all members; RBAC at route) */
 export const LW_TTL_TEAM_CALENDAR = 8
@@ -86,6 +86,16 @@ export const TAG_AD_COACHES_BOOTSTRAP = "lw-ad-coaches-bootstrap"
 
 export function tagAdCoachesBootstrap(): string {
   return TAG_AD_COACHES_BOOTSTRAP
+}
+
+/** Narrow invalidation for GET /api/app/bootstrap?portal=ad (per signed-in user). */
+export function tagAdPortalBootstrapUser(userId: string): string {
+  return `ad-bootstrap-user-${userId}`
+}
+
+export function revalidateAdPortalBootstrapForUser(userId: string): void {
+  if (!userId) return
+  revalidateTag(tagAdPortalBootstrapUser(userId))
 }
 
 /** Games list + embedded games on dashboard bootstrap share invalidation after schedule/score edits. */

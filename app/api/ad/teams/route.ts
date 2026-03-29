@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { revalidateAdTeamsTableCacheForUser } from "@/lib/ad/ad-teams-table-server-cache"
+import { revalidateAdPortalBootstrapForUser } from "@/lib/cache/lightweight-get-cache"
 import { logTeamMembersAudit } from "@/lib/team-members-sync"
 import { canPerformDepartmentOwnerActions, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
     }
 
     revalidateAdTeamsTableCacheForUser(session.user.id)
+    revalidateAdPortalBootstrapForUser(session.user.id)
 
     return NextResponse.json(
       { success: true, teamId: team.id, inviteId },

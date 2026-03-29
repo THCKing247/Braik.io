@@ -232,7 +232,12 @@ async function fetchClientSession(queryClient: QueryClient): Promise<SessionResp
   return merged
 }
 
-const AUTH_SESSION_STALE_MS = 5 * 60 * 1000
+/**
+ * Session is hydrated from Supabase local persistence (`getSession`) + shell/login seeds.
+ * Keep “fresh” until explicit invalidation (logout, native unlock, sign-in) so navigations do not
+ * re-run the session query or rely on extra network for auth state.
+ */
+const AUTH_SESSION_STALE_MS = Number.POSITIVE_INFINITY
 
 /** Single source of truth for the client session query — shell/bootstrap seeds merge with `supabase.auth.getSession()`. */
 export const BRAIK_AUTH_SESSION_QUERY_KEY = ["braik-auth-session"] as const
@@ -270,8 +275,8 @@ export function useSession(): SessionContextValue {
  * Client session from `supabase.auth.getSession()` merged with shell/login seeds (no GET `/api/auth/session`).
  * Team dashboard shell and AD bootstrap still supply richer fields via `seedAuthSessionCacheFromShellUser`.
  *
- * Session is cached with React Query (`staleTime` 5m, no refetch on window focus). Native biometric unlock
- * invalidates the query.
+ * Session is cached with React Query (`staleTime: Infinity`, no refetch on mount/window focus). Native
+ * biometric unlock invalidates the query.
  */
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -308,7 +313,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     staleTime: AUTH_SESSION_STALE_MS,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    retry: false,
   })
 
   useEffect(() => {

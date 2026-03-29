@@ -8,6 +8,7 @@ import {
   LW_TTL_AD_PORTAL_SHELL,
   revalidateLightweightAppShell,
   TAG_LIGHTWEIGHT_APP_SHELL,
+  tagAdPortalBootstrapUser,
 } from "@/lib/cache/lightweight-get-cache"
 
 export const APP_BOOTSTRAP_CACHE_TAG = TAG_LIGHTWEIGHT_APP_SHELL
@@ -64,7 +65,10 @@ export function getCachedAppAdPortalBootstrap(
   const roleKey = liteRole?.toUpperCase().replace(/ /g, "_") || ROLE_CACHE_NONE
   return lightweightCached(
     ["app-ad-portal-bootstrap-v1", userId, roleKey],
-    { revalidate: LW_TTL_AD_PORTAL_SHELL, tags: [APP_BOOTSTRAP_CACHE_TAG] },
+    {
+      revalidate: LW_TTL_AD_PORTAL_SHELL,
+      tags: [APP_BOOTSTRAP_CACHE_TAG, tagAdPortalBootstrapUser(userId)],
+    },
     () =>
       buildAppAdPortalBootstrapPayload(getSupabaseServer(), {
         userId,

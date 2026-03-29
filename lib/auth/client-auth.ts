@@ -64,9 +64,49 @@ type SignInOptions = {
 
 export { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 
+type ServerAuthSessionPayload = {
+  user?: SessionResponse["user"]
+  supabaseSession?: {
+    access_token: string
+    refresh_token: string
+    expires_at?: number
+  }
+}
+
+/** Sync browser Supabase + React Query seed from login or signup-secure JSON (no extra `/api/auth/login`). */
+export async function applyServerAuthSessionPayload(payload: ServerAuthSessionPayload): Promise<void> {
+  const tok = payload.supabaseSession
+  if (tok?.access_token && tok.refresh_token) {
+    const { error: setErr } = await supabaseClient.auth.setSession({
+      access_token: tok.access_token,
+      refresh_token: tok.refresh_token,
+    })
+    if (setErr && AUTH_DEBUG) {
+      console.warn("[auth] setSession after server auth payload:", setErr.message)
+    }
+  }
+  if (payload.user?.id && typeof window !== "undefined") {
+    authTimingClient("sign_in_session_seed_dispatch", { userId: payload.user.id })
+    window.dispatchEvent(
+      new CustomEvent(BRAIK_AUTH_LOGIN_SESSION_EVENT, {
+        detail: { user: payload.user } as SessionResponse,
+      })
+    )
+  }
+}
+
+/**
+ * Password sign-in only. This is the **only** client path that calls `POST /api/auth/login`
+ * (httpOnly cookies + profile upsert). Session hydration elsewhere uses `supabase.auth.getSession()`.
+ */
 export async function signIn(provider: string, options: SignInOptions = {}) {
   if (provider !== "credentials") {
     return { ok: false, status: 400, error: "UnsupportedProvider" }
+  }
+
+  const email = options.email?.trim()
+  if (!email || options.password == null || options.password === "") {
+    return { ok: false, status: 400, error: "MissingCredentials" }
   }
 
   const t0 = typeof performance !== "undefined" ? performance.now() : 0
@@ -76,7 +116,7 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      email: options.email,
+      email,
       password: options.password,
       callbackUrl: options.callbackUrl || undefined,
       rememberMe: options.rememberMe || false,
@@ -106,24 +146,10 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
 
   if (isSuccess) {
     authLog("SIGNED_IN", { redirectTo: callbackUrl })
-    const tok = data.supabaseSession
-    if (tok?.access_token && tok.refresh_token) {
-      const { error: setErr } = await supabaseClient.auth.setSession({
-        access_token: tok.access_token,
-        refresh_token: tok.refresh_token,
-      })
-      if (setErr && AUTH_DEBUG) {
-        console.warn("[auth] setSession after login:", setErr.message)
-      }
-    }
-    if (data.user?.id && typeof window !== "undefined") {
-      authTimingClient("sign_in_session_seed_dispatch", { userId: data.user.id })
-      window.dispatchEvent(
-        new CustomEvent(BRAIK_AUTH_LOGIN_SESSION_EVENT, {
-          detail: { user: data.user } as SessionResponse,
-        })
-      )
-    }
+    await applyServerAuthSessionPayload({
+      user: data.user,
+      supabaseSession: data.supabaseSession,
+    })
     if (options.redirect !== false) {
       authTimingClient("sign_in_full_redirect", { href: callbackUrl })
       window.location.href = callbackUrl

@@ -1,6 +1,8 @@
 import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { buildPasswordSessionSuccessPayload } from "@/lib/auth/build-password-session-success"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
@@ -779,12 +781,45 @@ export async function POST(request: Request) {
       },
     })
 
+    const normalizedEmail = email.toLowerCase().trim()
+    const signInClient = getSupabaseServer()
+    const signInResult = await signInClient.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    })
+
+    if (!signInResult.error && signInResult.data.session && signInResult.data.user) {
+      try {
+        const sessionPayload = await buildPasswordSessionSuccessPayload(
+          signInClient,
+          signInResult.data,
+          normalizedEmail,
+          { rememberMe: false }
+        )
+        const response = NextResponse.json(
+          {
+            ...sessionPayload.body,
+            teamId,
+            inviteCode,
+          },
+          { status: 201 }
+        )
+        sessionPayload.applySessionCookies(response)
+        return response
+      } catch (sessionErr) {
+        console.error("[signup-secure] establish session failed:", sessionErr)
+      }
+    } else if (signInResult.error) {
+      console.warn("[signup-secure] post-signup signIn failed:", signInResult.error.message)
+    }
+
     return NextResponse.json(
       {
         success: true,
         role,
         teamId,
         inviteCode,
+        sessionEstablishFailed: true,
       },
       { status: 201 }
     )

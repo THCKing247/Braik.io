@@ -5,6 +5,11 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { CheckCircle, Copy, Check } from "lucide-react"
+import {
+  applyServerAuthSessionPayload,
+  signIn,
+  type SessionResponse,
+} from "@/lib/auth/client-auth"
 
 type SignupApiError = {
   error?: string
@@ -67,6 +72,7 @@ export default function PaymentPage() {
     try {
       const response = await fetch("/api/auth/signup-secure", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           name: `${signupData.firstName} ${signupData.lastName}`,
@@ -86,7 +92,11 @@ export default function PaymentPage() {
         }),
       })
 
-      const data = (await response.json()) as SignupApiError
+      const data = (await response.json()) as SignupApiError & {
+        supabaseSession?: { access_token: string; refresh_token: string; expires_at?: number }
+        user?: SessionResponse["user"]
+        sessionEstablishFailed?: boolean
+      }
 
       if (!response.ok) {
         setError(getApiErrorMessage(response.status, data))
@@ -101,18 +111,23 @@ export default function PaymentPage() {
         return
       }
 
-      // Auto-login the user
-      const { signIn } = await import("@/lib/auth/client-auth")
-      const result = await signIn("credentials", {
-        email: String(signupData.email || ""),
-        password: String(signupData.password || ""),
-        redirect: false,
-      })
+      if (data.supabaseSession && data.user) {
+        await applyServerAuthSessionPayload({
+          user: data.user,
+          supabaseSession: data.supabaseSession,
+        })
+      } else {
+        const result = await signIn("credentials", {
+          email: String(signupData.email || ""),
+          password: String(signupData.password || ""),
+          redirect: false,
+        })
 
-      if (result?.error) {
-        setError(`[SIGNUP-AUTH-${result.error}] Account was created, but auto-login failed. Please sign in manually on the login page.`)
-        setLoading(false)
-        return
+        if (result?.error) {
+          setError(`[SIGNUP-AUTH-${result.error}] Account was created, but auto-login failed. Please sign in manually on the login page.`)
+          setLoading(false)
+          return
+        }
       }
 
       setLoading(false)

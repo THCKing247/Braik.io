@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { signIn } from "@/lib/auth/client-auth"
+import { applyServerAuthSessionPayload, signIn, type SessionResponse } from "@/lib/auth/client-auth"
 import { SiteHeader } from "@/components/marketing/site-header"
 
 type SignupApiError = {
@@ -62,6 +62,7 @@ export default function CompleteSignupPage() {
 
       const response = await fetch("/api/auth/signup-secure", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           name: `${signupData.firstName} ${signupData.lastName}`,
@@ -78,7 +79,11 @@ export default function CompleteSignupPage() {
         }),
       })
 
-      const data = (await response.json()) as SignupApiError
+      const data = (await response.json()) as SignupApiError & {
+        supabaseSession?: { access_token: string; refresh_token: string; expires_at?: number }
+        user?: SessionResponse["user"]
+        sessionEstablishFailed?: boolean
+      }
 
       if (!response.ok) {
         setError(getApiErrorMessage(response.status, data))
@@ -93,17 +98,23 @@ export default function CompleteSignupPage() {
         return
       }
 
-      // Auto-login the user
-      const result = await signIn("credentials", {
-        email: signupData.email,
-        password: signupData.password,
-        redirect: false,
-      })
+      if (data.supabaseSession && data.user) {
+        await applyServerAuthSessionPayload({
+          user: data.user,
+          supabaseSession: data.supabaseSession,
+        })
+      } else {
+        const result = await signIn("credentials", {
+          email: signupData.email,
+          password: signupData.password,
+          redirect: false,
+        })
 
-      if (result?.error) {
-        setError(`[SIGNUP-AUTH-${result.error}] Account was created, but auto-login failed. Please sign in manually on the login page.`)
-        setLoading(false)
-        return
+        if (result?.error) {
+          setError(`[SIGNUP-AUTH-${result.error}] Account was created, but auto-login failed. Please sign in manually on the login page.`)
+          setLoading(false)
+          return
+        }
       }
 
       // Clear localStorage

@@ -73,18 +73,21 @@ type ServerAuthSessionPayload = {
   }
 }
 
+type ApplyServerAuthOptions = {
+  /**
+   * When false, `setSession` runs in the background (faster handoff to full-page redirect).
+   * When true (default), await `setSession` — use before client-side navigation without full reload.
+   */
+  awaitSupabaseSession?: boolean
+}
+
 /** Sync browser Supabase + React Query seed from login or signup-secure JSON (no extra `/api/auth/login`). */
-export async function applyServerAuthSessionPayload(payload: ServerAuthSessionPayload): Promise<void> {
-  const tok = payload.supabaseSession
-  if (tok?.access_token && tok.refresh_token) {
-    const { error: setErr } = await supabaseClient.auth.setSession({
-      access_token: tok.access_token,
-      refresh_token: tok.refresh_token,
-    })
-    if (setErr && AUTH_DEBUG) {
-      console.warn("[auth] setSession after server auth payload:", setErr.message)
-    }
-  }
+export async function applyServerAuthSessionPayload(
+  payload: ServerAuthSessionPayload,
+  options: ApplyServerAuthOptions = {}
+): Promise<void> {
+  const { awaitSupabaseSession = true } = options
+
   if (payload.user?.id && typeof window !== "undefined") {
     authTimingClient("sign_in_session_seed_dispatch", { userId: payload.user.id })
     window.dispatchEvent(
@@ -92,6 +95,27 @@ export async function applyServerAuthSessionPayload(payload: ServerAuthSessionPa
         detail: { user: payload.user } as SessionResponse,
       })
     )
+  }
+
+  const tok = payload.supabaseSession
+  if (tok?.access_token && tok.refresh_token) {
+    const p = supabaseClient.auth.setSession({
+      access_token: tok.access_token,
+      refresh_token: tok.refresh_token,
+    })
+    if (awaitSupabaseSession) {
+      const { error: setErr } = await p
+      if (setErr && AUTH_DEBUG) {
+        console.warn("[auth] setSession after server auth payload:", setErr.message)
+      }
+    } else {
+      authTimingClient("sign_in_set_session_deferred")
+      void p.then(({ error: setErr }) => {
+        if (setErr && AUTH_DEBUG) {
+          console.warn("[auth] setSession after server auth payload:", setErr.message)
+        }
+      })
+    }
   }
 }
 
@@ -146,11 +170,15 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
 
   if (isSuccess) {
     authLog("SIGNED_IN", { redirectTo: callbackUrl })
-    await applyServerAuthSessionPayload({
-      user: data.user,
-      supabaseSession: data.supabaseSession,
-    })
-    if (options.redirect !== false) {
+    const fullPageRedirect = options.redirect !== false
+    await applyServerAuthSessionPayload(
+      {
+        user: data.user,
+        supabaseSession: data.supabaseSession,
+      },
+      { awaitSupabaseSession: !fullPageRedirect }
+    )
+    if (fullPageRedirect) {
       authTimingClient("sign_in_full_redirect", { href: callbackUrl })
       window.location.href = callbackUrl
     }

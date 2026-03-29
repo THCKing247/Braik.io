@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { authTimingMiddleware } from "@/lib/auth/login-flow-timing"
 import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
 import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 
@@ -12,18 +13,24 @@ const UUID_RE =
  * - Protected routes: presence of `sb-access-token` cookie only (validation in Node API routes + client shell).
  */
 export function middleware(request: NextRequest): NextResponse {
+  const mwT0 = process.env.BRAIK_MIDDLEWARE_TIMING === "1" ? Date.now() : 0
   const { pathname } = request.nextUrl
+
+  const finish = (res: NextResponse): NextResponse => {
+    if (mwT0) authTimingMiddleware(pathname, Date.now() - mwT0)
+    return res
+  }
 
   // Never run auth or redirects for static assets (avoids ERR_HTTP2_PROTOCOL_ERROR on chunks)
   if (pathname.startsWith("/_next/") || pathname.startsWith("/favicon")) {
-    return NextResponse.next()
+    return finish(NextResponse.next())
   }
 
   // Legacy calendar deep links used /dashboard/schedule?eventId= — games now live at /dashboard/schedule
   if (pathname === "/dashboard/schedule" && request.nextUrl.searchParams.has("eventId")) {
     const u = request.nextUrl.clone()
     u.pathname = "/dashboard/calendar"
-    return NextResponse.redirect(u)
+    return finish(NextResponse.redirect(u))
   }
 
   if (pathname.startsWith("/api/dev/")) {
@@ -35,23 +42,23 @@ export function middleware(request: NextRequest): NextResponse {
       }
     }
 
-    return NextResponse.next()
+    return finish(NextResponse.next())
   }
 
   const requiresAuth = pathname.startsWith("/dashboard") || pathname.startsWith("/admin")
   if (!requiresAuth) {
-    return NextResponse.next()
+    return finish(NextResponse.next())
   }
 
   // Admin login is its own portal; allow unauthenticated access
   if (pathname === "/admin/login") {
-    return NextResponse.next()
+    return finish(NextResponse.next())
   }
 
   if (!isSupabaseServerConfigured()) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/login"
-    return NextResponse.redirect(loginUrl)
+    return finish(NextResponse.redirect(loginUrl))
   }
 
   // Only check that an auth cookie is present. JWT validation runs in Node (e.g. GET /api/dashboard/shell)
@@ -63,7 +70,7 @@ export function middleware(request: NextRequest): NextResponse {
     loginUrl.searchParams.set("callbackUrl", pathname)
     // Do not clear auth cookies on redirect: they may be valid but not sent (e.g. race).
     // Clearing here could wipe a valid session and cause random sign-outs.
-    return NextResponse.redirect(loginUrl)
+    return finish(NextResponse.redirect(loginUrl))
   }
 
   if (pathname.startsWith("/dashboard")) {
@@ -91,10 +98,10 @@ export function middleware(request: NextRequest): NextResponse {
         })
       }
     }
-    return res
+    return finish(res)
   }
 
-  return NextResponse.next()
+  return finish(NextResponse.next())
 }
 
 export const config = {

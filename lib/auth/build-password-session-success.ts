@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import { BRAIK_PERSIST_SESSION_COOKIE } from "@/lib/auth/persist-session-cookie"
-import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
+import { authTimingServer } from "@/lib/auth/login-flow-timing"
+import { resolvePortalEntryPathWithProfileRole } from "@/lib/auth/portal-entry-path"
 
 /** Map stored role (e.g. HEAD_COACH) to profile role (e.g. head_coach) */
 function mapRoleToProfileRole(storedRole: string): string {
@@ -55,11 +56,20 @@ export async function buildPasswordSessionSuccessPayload(
 ): Promise<PasswordSessionSuccessPayload> {
   const { requestedCallbackUrl, rememberMe = false } = options
 
-  let { data: profile, error: profileError } = await supabaseServerClient
-    .from("profiles")
-    .select("role, team_id, full_name")
-    .eq("id", data.user.id)
-    .maybeSingle()
+  const tParallel0 = typeof performance !== "undefined" ? performance.now() : 0
+  const [profileRes, usersRowRes] = await Promise.all([
+    supabaseServerClient
+      .from("profiles")
+      .select("role, team_id, full_name")
+      .eq("id", data.user.id)
+      .maybeSingle(),
+    supabaseServerClient.from("users").select("is_platform_owner").eq("id", data.user.id).maybeSingle(),
+  ])
+  authTimingServer("login_profile_users_parallel_done", {
+    ms: typeof performance !== "undefined" ? Math.round(performance.now() - tParallel0) : 0,
+  })
+
+  let { data: profile, error: profileError } = profileRes
 
   const metadata = (data.user.user_metadata || {}) as { role?: string; teamId?: string; displayName?: string }
   const metaRole = metadata.role
@@ -105,12 +115,15 @@ export async function buildPasswordSessionSuccessPayload(
     typeof requestedCallbackUrl === "string" && requestedCallbackUrl.startsWith("/join")
   const needAdProbe = !allowAdminCallback && !allowJoinCallback && role === "head_coach"
 
-  const [defaultEntryPath, adAccess, existingUserRow] = await Promise.all([
-    resolvePortalEntryPath(supabaseServerClient, data.user.id).catch(() => "/dashboard"),
+  const [defaultEntryPath, adAccess] = await Promise.all([
+    resolvePortalEntryPathWithProfileRole(
+      supabaseServerClient,
+      data.user.id,
+      typeof profile?.role === "string" ? profile.role : null
+    ).catch(() => "/dashboard"),
     needAdProbe
       ? getAdPortalAccessForUser(supabaseServerClient, data.user.id, "HEAD_COACH")
       : Promise.resolve({ mode: "none" as const }),
-    supabaseServerClient.from("users").select("is_platform_owner").eq("id", data.user.id).maybeSingle(),
   ])
 
   let redirectTo = allowAdminCallback
@@ -160,7 +173,7 @@ export async function buildPasswordSessionSuccessPayload(
     name: (profile?.full_name as string | null) ?? (data.user.user_metadata?.full_name as string | null) ?? null,
     role: sessionRoleUpper,
     teamId: (profile?.team_id as string | null | undefined) ?? undefined,
-    isPlatformOwner: (existingUserRow.data as { is_platform_owner?: boolean } | null)?.is_platform_owner === true,
+    isPlatformOwner: (usersRowRes.data as { is_platform_owner?: boolean } | null)?.is_platform_owner === true,
     defaultAppPath: redirectTo,
   }
 

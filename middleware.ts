@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
+import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -47,7 +48,7 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next()
   }
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseServerConfigured()) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/login"
     return NextResponse.redirect(loginUrl)

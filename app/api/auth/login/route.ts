@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { buildPasswordSessionSuccessPayload } from "@/lib/auth/build-password-session-success"
 import { authTimingServer } from "@/lib/auth/login-flow-timing"
 
@@ -8,7 +9,7 @@ export const runtime = "nodejs"
 export async function POST(request: Request) {
   const t0 = performance.now()
   try {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!isSupabaseServerConfigured()) {
       return NextResponse.json({ success: false, error: "Server auth is not configured" }, { status: 500 })
     }
 

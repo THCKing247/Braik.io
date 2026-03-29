@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js"
+import { getSupabaseProjectUrl, getSupabaseServiceRoleKey } from "@/src/lib/supabase-project-env"
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = getSupabaseProjectUrl()
+const supabaseServiceRoleKey = getSupabaseServiceRoleKey()
 
 export const missingSupabaseAdminEnv = [
-  !supabaseUrl ? "SUPABASE_URL" : null,
+  !supabaseUrl ? "SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL" : null,
   !supabaseServiceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
 ].filter((value): value is string => typeof value === "string")
 

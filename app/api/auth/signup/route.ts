@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
+import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 
 type SignupPayload = {
   fullName?: string
@@ -50,7 +51,7 @@ export const runtime = "nodejs"
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!isSupabaseServerConfigured()) {
       return NextResponse.json({ success: false, error: "Server auth is not configured" }, { status: 500 })
     }
 

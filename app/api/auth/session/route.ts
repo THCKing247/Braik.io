@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 
 /** Cookie JWT + `getUser` via `getServerSession` — not `auth.getSession()`. */
 export async function GET() {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseServerConfigured()) {
     return NextResponse.json({ user: null }, { status: 200 })
   }
 

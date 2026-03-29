@@ -5,6 +5,7 @@ import {
   applyRefreshedSessionCookies,
   type SessionUser,
 } from "@/lib/auth/server-auth"
+import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { authTimingServer } from "@/lib/auth/login-flow-timing"
 import { loadDashboardShellTeamsUncached } from "@/lib/dashboard/load-dashboard-shell-teams-uncached"
@@ -27,7 +28,7 @@ export type { DashboardShellPayload as DashboardShellResponse }
  */
 export async function GET(request: Request) {
   const t0 = performance.now()
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseServerConfigured()) {
     return NextResponse.json({ error: "Server auth is not configured" }, { status: 500 })
   }
 

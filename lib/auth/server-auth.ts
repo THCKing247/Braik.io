@@ -5,6 +5,7 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { getSupabaseAnonKey, getSupabaseProjectUrl, isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
 import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
 
@@ -60,7 +61,7 @@ export type RequestUserLiteResult = {
 
 /**
  * Refresh Supabase session using refresh_token (Supabase Auth REST API).
- * Requires SUPABASE_URL and anon key (SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY).
+ * Requires project URL and anon key (see `supabase-project-env`).
  */
 async function refreshSupabaseSession(refreshToken: string): Promise<{
   access_token: string
@@ -68,10 +69,10 @@ async function refreshSupabaseSession(refreshToken: string): Promise<{
   expires_in: number
   user: { id: string; email?: string; user_metadata?: Record<string, unknown> }
 } | null> {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const url = getSupabaseProjectUrl()
+  const anonKey = getSupabaseAnonKey()
   if (!url || !anonKey) {
-    if (AUTH_DEBUG) console.warn("[auth] refresh skipped: missing SUPABASE_URL or anon key")
+    if (AUTH_DEBUG) console.warn("[auth] refresh skipped: missing Supabase URL or anon key")
     return null
   }
   const res = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
@@ -178,7 +179,7 @@ async function buildSessionUserLite(userId: string, email: string): Promise<Requ
  * Same cookie/token flow as `getServerSession`, but returns `RequestUserLite` (cheaper DB reads).
  */
 export async function getRequestUserLite(): Promise<RequestUserLiteResult | null> {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseServerConfigured()) {
     return null
   }
 
@@ -222,7 +223,7 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
  * Returns null only when there is no valid session and no successful refresh.
  */
 export async function getServerSession(): Promise<SessionResult | null> {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseServerConfigured()) {
     return null
   }
 

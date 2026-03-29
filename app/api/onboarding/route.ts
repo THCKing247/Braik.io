@@ -5,6 +5,7 @@ import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { setPrimaryHeadCoach } from "@/lib/team-members-sync"
+import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 
 function normalizeProfileRole(role: string | null | undefined): string {
   return (role ?? "").trim().toLowerCase().replace(/-/g, "_")
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!isSupabaseServerConfigured()) {
       return NextResponse.json(
         { error: "Server is not configured for onboarding" },
         { status: 500 }

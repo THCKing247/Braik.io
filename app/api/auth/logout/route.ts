@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { BRAIK_PERSIST_SESSION_COOKIE } from "@/lib/auth/persist-session-cookie"
 
 export const runtime = "nodejs"
 
 export async function POST() {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!isSupabaseServerConfigured()) {
     return NextResponse.json({ success: false, error: "Server auth is not configured" }, { status: 500 })
   }
 

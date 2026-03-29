@@ -1,4 +1,5 @@
 import { createClient, type User } from "@supabase/supabase-js"
+import { getSupabaseAnonKey, getSupabaseProjectUrl, getSupabaseServiceRoleKey } from "@/src/lib/supabase-project-env"
 
 type SyncSupabaseUserParams = {
   email: string
@@ -28,11 +29,9 @@ type UpdateSupabaseUserByAppUserIdParams = {
   banned?: boolean
 }
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
 export function getSupabaseAdminClient() {
+  const supabaseUrl = getSupabaseProjectUrl()
+  const supabaseServiceRoleKey = getSupabaseServiceRoleKey()
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     return null
   }
@@ -46,6 +45,8 @@ export function getSupabaseAdminClient() {
 }
 
 function getSupabasePublicClient() {
+  const supabaseUrl = getSupabaseProjectUrl()
+  const supabaseAnonKey = getSupabaseAnonKey()
   if (!supabaseUrl || !supabaseAnonKey) {
     return null
   }
@@ -64,7 +65,7 @@ export async function verifySupabaseCredentials(email: string, password: string)
   if (!supabase) {
     return {
       verified: false,
-      reason: "SUPABASE_URL or SUPABASE_ANON_KEY is not configured",
+      reason: "Supabase URL or anon key is not configured (SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL and anon key)",
     }
   }
 
@@ -164,7 +165,7 @@ export async function syncUserToSupabaseAuth(
     return {
       synced: false,
       skipped: true,
-      reason: "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured",
+      reason: "Supabase URL or SUPABASE_SERVICE_ROLE_KEY is not configured",
     }
   }
 
@@ -219,7 +220,7 @@ export async function listSupabaseAuthUsers(limit = 100) {
     return {
       synced: false,
       users: [],
-      reason: "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured",
+      reason: "Supabase URL or SUPABASE_SERVICE_ROLE_KEY is not configured",
     }
   }
 
@@ -245,7 +246,7 @@ export async function updateSupabaseUserByAppUserId(
     return {
       synced: false,
       skipped: true,
-      reason: "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured",
+      reason: "Supabase URL or SUPABASE_SERVICE_ROLE_KEY is not configured",
     }
   }
 

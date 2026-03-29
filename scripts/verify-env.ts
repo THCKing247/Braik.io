@@ -1,6 +1,11 @@
+/**
+ * Pre-build guard: required Supabase vars for Braik (Next.js + Netlify).
+ * Optional: set SUPABASE_URL to the same value as NEXT_PUBLIC_SUPABASE_URL if you want a server-only duplicate.
+ */
+
 const required = [
-  "SUPABASE_URL_OR_NEXT_PUBLIC_SUPABASE_URL",
-  "SUPABASE_ANON_KEY_OR_NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
 ] as const
 
@@ -12,19 +17,6 @@ function verify() {
   const missing: string[] = []
 
   for (const key of required) {
-    if (key === "SUPABASE_URL_OR_NEXT_PUBLIC_SUPABASE_URL") {
-      if (!isSet(process.env.SUPABASE_URL) && !isSet(process.env.NEXT_PUBLIC_SUPABASE_URL)) {
-        missing.push("SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)")
-      }
-      continue
-    }
-    if (key === "SUPABASE_ANON_KEY_OR_NEXT_PUBLIC_SUPABASE_ANON_KEY") {
-      if (!isSet(process.env.SUPABASE_ANON_KEY) && !isSet(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
-        missing.push("SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)")
-      }
-      continue
-    }
-
     if (!isSet(process.env[key])) {
       missing.push(key)
     }
@@ -35,6 +27,9 @@ function verify() {
     for (const item of missing) {
       console.error(`- ${item}`)
     }
+    console.error(
+      "Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to your Supabase project, and SUPABASE_SERVICE_ROLE_KEY on the server only."
+    )
     process.exit(1)
   }
 
@@ -56,4 +51,3 @@ if (shouldEnforce) {
 } else {
   console.log("Skipping env verification outside CI/production context.")
 }
-

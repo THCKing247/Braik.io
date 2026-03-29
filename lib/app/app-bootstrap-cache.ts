@@ -60,11 +60,13 @@ export function getCachedAppAdPortalBootstrap(
   userId: string,
   email: string,
   liteRole: string,
-  isPlatformOwner: boolean
+  isPlatformOwner: boolean,
+  includeTeamsTable = false
 ): Promise<import("@/lib/app/app-ad-portal-bootstrap-types").AppAdPortalBootstrapPayload> {
   const roleKey = liteRole?.toUpperCase().replace(/ /g, "_") || ROLE_CACHE_NONE
+  const variant = includeTeamsTable ? "with_teams" : "shell"
   return lightweightCached(
-    ["app-ad-portal-bootstrap-v1", userId, roleKey],
+    ["app-ad-portal-bootstrap-v1", userId, roleKey, variant],
     {
       revalidate: LW_TTL_AD_PORTAL_SHELL,
       tags: [APP_BOOTSTRAP_CACHE_TAG, tagAdPortalBootstrapUser(userId)],
@@ -75,6 +77,7 @@ export function getCachedAppAdPortalBootstrap(
         email,
         liteRole,
         isPlatformOwner,
+        includeTeamsTable,
       })
   )
 }

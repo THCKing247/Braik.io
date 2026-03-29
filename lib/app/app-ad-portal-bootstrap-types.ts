@@ -2,6 +2,7 @@ import type { AdPortalAccess } from "@/lib/ad-portal-access"
 import type { AthleticDirectorScope } from "@/lib/ad-team-scope"
 import type { AppBootstrapUser } from "@/lib/app/app-bootstrap-types"
 import type { AdPortalTabVisibility, FootballAdAccessState } from "@/lib/enforcement/football-ad-access"
+import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
 
 export type AdPortalTeamSummary = {
   id: string
@@ -39,5 +40,12 @@ export type AppAdPortalBootstrapPayload = {
     programId: string | null
     primaryTeamId: string | null
   }
+  /**
+   * Present when `GET /api/app/bootstrap?portal=ad&includeTeamsTable=1` — same rows as
+   * GET /api/ad/pages/teams-table (avoids a second HTTP round trip on the Teams page).
+   */
+  teamsTable?: TeamRow[]
+  /** Set when embedded teams-table load fails (rare); shell fields still valid. */
+  teamsTableError?: string | null
   generatedAt: string
 }

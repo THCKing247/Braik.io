@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
+import { loadAdTeamsTableData, type AdTeamsTableAuthUser } from "@/lib/ad/load-ad-teams-page-rows"
 import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import {
   buildAdTeamsOrFilter,
@@ -45,8 +47,8 @@ async function loadPrimaryOrganizationName(
  * Lightweight AD portal shell. Caller must redirect or 403 when `canAccessAdPortalRoutes` is false;
  * this function still validates and throws `AD_BOOTSTRAP_FORBIDDEN` for defense in depth.
  *
- * Perf: no visible-team list here — `/api/ad/pages/teams-table` loads rows. Shell resolves football access,
- * AD scope (orgs/programs), portal access, org name + program summary only.
+ * Perf: optional `includeTeamsTable` embeds the same rows as GET /api/ad/pages/teams-table using the
+ * already-resolved `adPortalAccess` + `footballAccess` (no duplicate access resolution).
  */
 export async function buildAppAdPortalBootstrapPayload(
   supabase: SupabaseClient,
@@ -55,6 +57,8 @@ export async function buildAppAdPortalBootstrapPayload(
     email: string
     liteRole: string
     isPlatformOwner: boolean
+    /** When true, runs `loadAdTeamsTableData` once and attaches `teamsTable` to the payload. */
+    includeTeamsTable?: boolean
   }
 ): Promise<AppAdPortalBootstrapPayload> {
   const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
@@ -168,12 +172,39 @@ export async function buildAppAdPortalBootstrapPayload(
 
   const dept = deptData
 
+  let teamsTable: TeamRow[] | undefined
+  let teamsTableError: string | null | undefined
+  if (input.includeTeamsTable) {
+    const tEmbed = performance.now()
+    const userLite: AdTeamsTableAuthUser = {
+      id: input.userId,
+      role: roleUpper,
+      isPlatformOwner: input.isPlatformOwner,
+      profileRoleDb: profileData?.role ?? null,
+      profileTeamId: profileData?.team_id ?? null,
+      profileSchoolId: profileData?.school_id ?? null,
+      directorDeptAsUser: directorDeptRow,
+    }
+    try {
+      teamsTable = await loadAdTeamsTableData(supabase, userLite, adPortalAccess, footballAccess)
+      teamsTableError = null
+    } catch (err) {
+      teamsTable = []
+      teamsTableError = err instanceof Error ? err.message : String(err)
+    }
+    adPortalBootstrapPerfLog("embedded_teams_table", performance.now() - tEmbed, {
+      userId: input.userId,
+      rows: teamsTable?.length ?? 0,
+    })
+  }
+
   adPortalBootstrapPerfLog("buildAppAdPortalBootstrapPayload_total", performance.now() - tAll, {
     userId: input.userId,
     teamsSummary: 0,
+    includeTeamsTable: Boolean(input.includeTeamsTable),
   })
 
-  return {
+  const base: AppAdPortalBootstrapPayload = {
     portal: "ad",
     user: {
       id: input.userId,
@@ -204,4 +235,9 @@ export async function buildAppAdPortalBootstrapPayload(
     },
     generatedAt: new Date().toISOString(),
   }
+
+  if (input.includeTeamsTable) {
+    return { ...base, teamsTable, teamsTableError }
+  }
+  return base
 }

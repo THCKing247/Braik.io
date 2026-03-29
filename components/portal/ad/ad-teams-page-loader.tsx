@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
@@ -11,18 +11,31 @@ import {
   fetchAdTeamsTableQuery,
 } from "@/lib/ad/ad-teams-table-query"
 import { adTeamsFlowPerfClient } from "@/lib/ad/ad-teams-table-perf-client"
+import {
+  adPortalBootstrapIncludeTeamsTable,
+  useAdPortalBootstrapQuery,
+} from "@/lib/app/ad-portal-bootstrap-query"
 
 /**
- * Teams page: layout + table shell mount immediately; fetch runs in background.
- * Cached data (prefetch + prior visit) shows instantly via placeholderData.
+ * Teams page: shares one React Query subscription with the AD shell for bootstrap+teams when
+ * `includeTeamsTable=1`. Falls back to GET /api/ad/pages/teams-table only if bootstrap has no rows.
  */
 export function AdTeamsPageLoader() {
   const router = useRouter()
+  const pathname = usePathname()
   const mountT0 = useRef(typeof performance !== "undefined" ? performance.now() : 0)
   const loggedPaint = useRef(false)
   const loggedDataReady = useRef(false)
 
-  const q = useQuery({
+  const onTeamsRoute = adPortalBootstrapIncludeTeamsTable(pathname)
+  const bootstrapQ = useAdPortalBootstrapQuery()
+
+  const embeddedRows =
+    onTeamsRoute && bootstrapQ.isSuccess && Array.isArray(bootstrapQ.data?.teamsTable)
+      ? bootstrapQ.data!.teamsTable!
+      : null
+
+  const teamsQ = useQuery({
     queryKey: AD_TEAMS_TABLE_QUERY_KEY,
     queryFn: ({ signal }) => fetchAdTeamsTableQuery(signal),
     staleTime: AD_TEAMS_TABLE_STALE_MS,
@@ -30,13 +43,14 @@ export function AdTeamsPageLoader() {
     placeholderData: (previousData) => previousData,
     retry: 1,
     refetchOnWindowFocus: false,
+    enabled: onTeamsRoute && bootstrapQ.isFetched && embeddedRows === null,
   })
 
-  const teamsData = q.data
-  const isPending = q.isPending
-  const isFetching = q.fetchStatus === "fetching"
-  const isError = q.isError
-  const queryError = q.error
+  const teamsData = embeddedRows ?? teamsQ.data
+  const isPending = embeddedRows !== null ? false : teamsQ.isPending
+  const isFetching = embeddedRows !== null ? false : teamsQ.fetchStatus === "fetching"
+  const isError = embeddedRows === null && teamsQ.isError
+  const queryError = teamsQ.error
 
   useEffect(() => {
     if (loggedPaint.current || typeof window === "undefined") return
@@ -58,10 +72,10 @@ export function AdTeamsPageLoader() {
     loggedDataReady.current = true
     adTeamsFlowPerfClient("teams_page_time_to_data_ms", {
       ms: Math.round(performance.now() - mountT0.current),
-      rowCount: teamsData.length,
-      isPlaceholderData: q.isPlaceholderData,
+      rowCount: Array.isArray(teamsData) ? teamsData.length : 0,
+      source: embeddedRows !== null ? "bootstrap" : "teams_table_api",
     })
-  }, [teamsData, q.isPlaceholderData])
+  }, [teamsData, embeddedRows])
 
   if (isError && teamsData === undefined) {
     const status = (queryError as Error & { status?: number })?.status
@@ -76,13 +90,25 @@ export function AdTeamsPageLoader() {
     return <p className="text-[#212529]">Could not load teams.</p>
   }
 
-  const initialLoading = teamsData === undefined && (isPending || isFetching)
+  const waitingBootstrap = onTeamsRoute && !bootstrapQ.isFetched
+  const waitingFallbackApi =
+    onTeamsRoute &&
+    bootstrapQ.isFetched &&
+    embeddedRows === null &&
+    (teamsQ.isPending || teamsQ.isFetching) &&
+    teamsData === undefined
+
+  const initialLoading = waitingBootstrap || waitingFallbackApi
+
+  const isRefreshing =
+    (embeddedRows !== null && bootstrapQ.isFetching) ||
+    (embeddedRows === null && teamsData !== undefined && teamsQ.isFetching && !teamsQ.isPending)
 
   return (
     <AdTeamsPageClient
       teams={teamsData ?? []}
       initialLoading={initialLoading}
-      isRefreshing={Boolean(teamsData !== undefined && isFetching && !initialLoading)}
+      isRefreshing={isRefreshing}
     />
   )
 }

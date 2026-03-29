@@ -13,9 +13,9 @@ import {
 
 /**
  * AD teams table architecture:
- * - AD shell bootstrap does not load visible-team rows; this loader + GET /api/ad/pages/teams-table own them.
- * - Dedicated teams-table route: capped teams query (`table` mode), batched `team_members` / `invites`, etc.
- * - If product needs >500 teams, add cursor pagination here rather than growing payloads.
+ * - On `/dashboard/ad/teams`, `GET /api/app/bootstrap?portal=ad&includeTeamsTable=1` embeds rows via
+ *   `loadAdTeamsTableData` (single HTTP). This module still powers that loader and the standalone
+ *   GET /api/ad/pages/teams-table fallback.
  */
 
 /** React Query key for AD teams table — shared with visibility refresh invalidation. */

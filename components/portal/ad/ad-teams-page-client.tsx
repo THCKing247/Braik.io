@@ -6,6 +6,7 @@ import { AdTeamFilters } from "./ad-team-filters"
 import { AdTeamsTable, AdTeamsTableSkeleton, type TeamRow } from "./ad-teams-table"
 import { AdEmptyState } from "./ad-empty-state"
 import { AD_TEAMS_TABLE_QUERY_KEY } from "@/lib/ad/ad-teams-table-query"
+import { AD_PORTAL_BOOTSTRAP_QUERY_ROOT } from "@/lib/app/ad-portal-bootstrap-query"
 
 interface AdTeamsPageClientProps {
   teams: TeamRow[]
@@ -30,6 +31,7 @@ function AdTeamsPageClientInner({
       if (document.visibilityState !== "visible") return
       clearTimeout(debounce)
       debounce = setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: [AD_PORTAL_BOOTSTRAP_QUERY_ROOT] })
         void queryClient.invalidateQueries({ queryKey: AD_TEAMS_TABLE_QUERY_KEY })
       }, 400)
     }

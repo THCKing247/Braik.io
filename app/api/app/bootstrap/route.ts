@@ -44,16 +44,24 @@ export async function GET(request: Request) {
 
     if (portal === "ad") {
       const u = sessionResult.user
+      const includeTeamsTable = url.searchParams.get("includeTeamsTable") === "1"
       const useCache = !shouldLogRoutePerf()
       try {
         const payload = await routePerf(sink, "query", () =>
           useCache
-            ? getCachedAppAdPortalBootstrap(u.id, u.email, u.role ?? "", u.isPlatformOwner === true)
+            ? getCachedAppAdPortalBootstrap(
+                u.id,
+                u.email,
+                u.role ?? "",
+                u.isPlatformOwner === true,
+                includeTeamsTable
+              )
             : buildAppAdPortalBootstrapPayload(getSupabaseServer(), {
                 userId: u.id,
                 email: u.email,
                 liteRole: u.role ?? "",
                 isPlatformOwner: u.isPlatformOwner === true,
+                includeTeamsTable,
               })
         )
         if (sink) {
@@ -61,6 +69,7 @@ export async function GET(request: Request) {
           logRoutePerf("GET /api/app/bootstrap?portal=ad", sink, {
             userId: u.id,
             cached: String(useCache),
+            includeTeamsTable: String(includeTeamsTable),
           })
         }
         if (
@@ -71,6 +80,7 @@ export async function GET(request: Request) {
             ms: Math.round(performance.now() - started),
             userId: u.id,
             cached: useCache,
+            includeTeamsTable,
           })
         }
         const res = withAdPortalBootstrapCache(NextResponse.json(payload))

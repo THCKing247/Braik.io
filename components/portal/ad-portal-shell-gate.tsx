@@ -14,12 +14,6 @@ import {
 } from "@/lib/app/ad-portal-bootstrap-query"
 import { AdAppBootstrapProvider } from "@/components/portal/ad-app-bootstrap-context"
 import { AdNav, AdNavShellSkeleton } from "@/components/portal/ad/ad-nav"
-import {
-  AD_TEAMS_TABLE_GC_MS,
-  AD_TEAMS_TABLE_QUERY_KEY,
-  AD_TEAMS_TABLE_STALE_MS,
-  fetchAdTeamsTableQuery,
-} from "@/lib/ad/ad-teams-table-query"
 
 export function AdPortalShellGate({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -53,17 +47,6 @@ export function AdPortalShellGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     authTimingClient("ad_portal_shell_gate_layout_mounted", { pathname })
   }, [pathname])
-
-  useEffect(() => {
-    if (!pathname?.startsWith("/dashboard/ad")) return
-    if (!session.data?.user?.id) return
-    void queryClient.prefetchQuery({
-      queryKey: AD_TEAMS_TABLE_QUERY_KEY,
-      queryFn: () => fetchAdTeamsTableQuery(),
-      staleTime: AD_TEAMS_TABLE_STALE_MS,
-      gcTime: AD_TEAMS_TABLE_GC_MS,
-    })
-  }, [pathname, queryClient, session.data?.user?.id])
 
   useEffect(() => {
     if (q.isPending && !q.data && pendingSinceRef.current === null) {

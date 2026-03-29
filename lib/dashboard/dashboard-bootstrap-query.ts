@@ -13,6 +13,7 @@ import {
 } from "@/lib/dashboard/merge-dashboard-bootstrap"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { dashboardBootstrapClientPerf } from "@/lib/debug/dashboard-bootstrap-client-perf"
 
 /** Light payload can stay warm across short navigations. */
 export const DASHBOARD_BOOTSTRAP_STALE_MS = 90 * 1000
@@ -38,8 +39,10 @@ export function peekDashboardBootstrapMemory(teamId: string): FullDashboardBoots
 }
 
 const lightInflight = new Map<string, Promise<FullDashboardBootstrapPayload>>()
-/** Synchronous guard so two kicks in one tick cannot both fetch core. */
-const coreMergeInFlight = new Set<string>()
+/** One in-flight deferred-core fetch per team (shared by queryFn + kickDeferredCoreMerge). */
+const deferredCoreInflight = new Map<string, Promise<DashboardBootstrapDeferredCorePayload>>()
+/** Core finished before bootstrap-light was in cache — merge when light returns from queryFn. */
+const pendingCoreByTeam = new Map<string, DashboardBootstrapDeferredCorePayload>()
 const heavyMergeInFlight = new Set<string>()
 const heavyScheduleTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -76,6 +79,28 @@ async function fetchBootstrapDeferredHeavy(teamId: string): Promise<DashboardBoo
   return (await res.json()) as DashboardBootstrapDeferredHeavyPayload
 }
 
+function getOrCreateDeferredCoreFetch(teamId: string): Promise<DashboardBootstrapDeferredCorePayload> {
+  const t = teamId.trim()
+  let p = deferredCoreInflight.get(t)
+  if (!p) {
+    dashboardBootstrapClientPerf("deferred_core_fetch_start", { teamId: t })
+    const t0 = typeof performance !== "undefined" ? performance.now() : 0
+    p = fetchBootstrapDeferredCore(t)
+      .then((core) => {
+        dashboardBootstrapClientPerf("deferred_core_fetch_done", {
+          teamId: t,
+          ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+        })
+        return core
+      })
+      .finally(() => {
+        deferredCoreInflight.delete(t)
+      })
+    deferredCoreInflight.set(t, p)
+  }
+  return p
+}
+
 function scheduleHeavyAfterCore(teamId: string, queryClient: QueryClient): void {
   const t = teamId.trim()
   if (!t) return
@@ -88,39 +113,57 @@ function scheduleHeavyAfterCore(teamId: string, queryClient: QueryClient): void 
   heavyScheduleTimers.set(t, timer)
 }
 
+function applyDeferredCoreToCache(
+  teamId: string,
+  core: DashboardBootstrapDeferredCorePayload,
+  queryClient: QueryClient
+): boolean {
+  const t = teamId.trim()
+  const qk = dashboardBootstrapQueryKey(t)
+  let applied = false
+  queryClient.setQueryData(qk, (prev: FullDashboardBootstrapPayload | undefined) => {
+    if (!prev?.deferredPending || prev.dashboard?.team?.id !== t) return prev
+    applied = true
+    const merged = mergeDashboardBootstrapDeferredCore(prev, core)
+    writeLightweightMemory(dashboardBootstrapMemoryKey(t), merged)
+    return merged
+  })
+  if (applied) {
+    scheduleHeavyAfterCore(t, queryClient)
+  }
+  return applied
+}
+
+function settleDeferredCore(teamId: string, core: DashboardBootstrapDeferredCorePayload, queryClient: QueryClient): void {
+  const t = teamId.trim()
+  if (applyDeferredCoreToCache(t, core, queryClient)) return
+  const snapshot = queryClient.getQueryData(dashboardBootstrapQueryKey(t)) as FullDashboardBootstrapPayload | undefined
+  if (snapshot && !snapshot.deferredPending) return
+  pendingCoreByTeam.set(t, core)
+}
+
+function failDeferredCore(teamId: string, queryClient: QueryClient): void {
+  const t = teamId.trim()
+  pendingCoreByTeam.delete(t)
+  queryClient.setQueryData(dashboardBootstrapQueryKey(t), (prev: FullDashboardBootstrapPayload | undefined) => {
+    if (!prev?.deferredPending || prev.dashboard?.team?.id !== t) return prev
+    return { ...prev, deferredPending: false, deferredHeavyPending: false }
+  })
+}
+
 /**
- * Fetches deferred-core and merges. Schedules deferred-heavy after {@link DEFERRED_HEAVY_AFTER_CORE_MS}.
- * No-ops if core already merged or request in flight.
+ * Starts (or joins) deferred-core fetch and merges when bootstrap-light is in cache.
+ * Safe to call before light exists — core is buffered until `fetchDashboardBootstrap` applies it.
  */
 export function kickDeferredCoreMerge(teamId: string, queryClient: QueryClient): void {
   const t = teamId.trim()
   if (!t) return
   const pre = queryClient.getQueryData(dashboardBootstrapQueryKey(t)) as FullDashboardBootstrapPayload | undefined
-  if (!pre?.deferredPending) return
-  if (coreMergeInFlight.has(t)) return
-  coreMergeInFlight.add(t)
+  if (pre && !pre.deferredPending) return
 
-  void (async () => {
-    try {
-      const core = await fetchBootstrapDeferredCore(t)
-      queryClient.setQueryData(dashboardBootstrapQueryKey(t), (prev: FullDashboardBootstrapPayload | undefined) => {
-        if (!prev?.deferredPending) return prev
-        if (prev.dashboard?.team?.id !== t) return prev
-        const merged = mergeDashboardBootstrapDeferredCore(prev, core)
-        writeLightweightMemory(dashboardBootstrapMemoryKey(t), merged)
-        return merged
-      })
-      scheduleHeavyAfterCore(t, queryClient)
-    } catch {
-      queryClient.setQueryData(dashboardBootstrapQueryKey(t), (prev: FullDashboardBootstrapPayload | undefined) => {
-        if (!prev?.deferredPending) return prev
-        if (prev.dashboard?.team?.id !== t) return prev
-        return { ...prev, deferredPending: false, deferredHeavyPending: false }
-      })
-    } finally {
-      coreMergeInFlight.delete(t)
-    }
-  })()
+  void getOrCreateDeferredCoreFetch(t)
+    .then((core) => settleDeferredCore(t, core, queryClient))
+    .catch(() => failDeferredCore(t, queryClient))
 }
 
 export function kickDeferredHeavyMerge(teamId: string, queryClient: QueryClient): void {
@@ -165,22 +208,41 @@ export async function fetchDashboardBootstrap(teamId: string, queryClient: Query
       prev?.deferredHeavyPending === false ||
       (prev?.deferredPending === false && prev?.deferredHeavyPending === undefined)
     if (coreDone && heavyDone && prev?.dashboard?.team?.id === key) {
+      const t0 = typeof performance !== "undefined" ? performance.now() : 0
+      dashboardBootstrapClientPerf("bootstrap_parallel_refresh_start", { teamId: key })
       const [light, core, heavy] = await Promise.all([
         fetchBootstrapLight(key),
         fetchBootstrapDeferredCore(key),
         fetchBootstrapDeferredHeavy(key),
       ])
+      dashboardBootstrapClientPerf("bootstrap_parallel_refresh_done", {
+        teamId: key,
+        ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+      })
       const merged = mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
       writeLightweightMemory(dashboardBootstrapMemoryKey(key), merged)
       return merged
     }
 
+    kickDeferredCoreMerge(key, queryClient)
+
+    const t0Light = typeof performance !== "undefined" ? performance.now() : 0
+    dashboardBootstrapClientPerf("bootstrap_light_fetch_start", { teamId: key })
     const light = await fetchBootstrapLight(key)
-    /**
-     * Deferred-core can merge via `kickDeferredCoreMerge` while this await is in flight.
-     * If we return `light` here, we overwrite the merged cache and reset `deferredPending`,
-     * leaving calendar / notifications / announcements stuck in bootstrapLoading forever.
-     */
+    dashboardBootstrapClientPerf("bootstrap_light_fetch_done", {
+      teamId: key,
+      ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0Light) : 0,
+    })
+
+    const buffered = pendingCoreByTeam.get(key)
+    let out: FullDashboardBootstrapPayload = light
+    if (buffered && light.deferredPending) {
+      pendingCoreByTeam.delete(key)
+      out = mergeDashboardBootstrapDeferredCore(light, buffered)
+      writeLightweightMemory(dashboardBootstrapMemoryKey(key), out)
+      scheduleHeavyAfterCore(key, queryClient)
+    }
+
     const afterParallelMerge = queryClient.getQueryData(qk) as FullDashboardBootstrapPayload | undefined
     if (
       afterParallelMerge?.deferredPending === false &&
@@ -190,8 +252,8 @@ export async function fetchDashboardBootstrap(teamId: string, queryClient: Query
       return afterParallelMerge
     }
 
-    writeLightweightMemory(dashboardBootstrapMemoryKey(key), light)
-    return light
+    writeLightweightMemory(dashboardBootstrapMemoryKey(key), out)
+    return out
   })().finally(() => lightInflight.delete(key))
 
   lightInflight.set(key, p)

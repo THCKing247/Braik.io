@@ -10,6 +10,7 @@ import type {
 import type { EngagementHint } from "@/lib/engagement/dashboard-hints-data"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { adPortalClientPerf } from "@/lib/debug/ad-portal-client-perf"
 
 type BootstrapJson = {
   teams: AdCoachAssignmentsPicklistTeam[]
@@ -66,8 +67,14 @@ export function AdCoachesPageBootstrap() {
       setPhase("loading")
     }
     setErrorMessage("")
+    const t0 = typeof performance !== "undefined" ? performance.now() : 0
+    adPortalClientPerf("ad_coaches_bootstrap_fetch_start")
     fetchWithTimeout("/api/ad/bootstrap", { credentials: "same-origin" })
       .then(async (res) => {
+        adPortalClientPerf("ad_coaches_bootstrap_fetch_done", {
+          ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+          status: res.status,
+        })
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         if (!res.ok) {
           throw new Error(body.error || (res.status === 403 ? "Access denied" : "Failed to load"))

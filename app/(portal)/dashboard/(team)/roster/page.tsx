@@ -5,8 +5,6 @@ import { useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { RosterDesktopSkeleton } from "@/components/portal/dashboard-route-skeletons"
-import { RosterMobileSkeleton } from "@/components/portal/roster-mobile-view"
 import {
   kickDeferredCoreMerge,
   useDashboardBootstrapQuery,
@@ -16,8 +14,12 @@ const RosterManagerEnhanced = dynamic(
   () => import("@/components/portal/roster-manager-enhanced").then((m) => m.RosterManagerEnhanced),
   {
     loading: () => (
-      <div className="hidden min-h-[40vh] items-center justify-center lg:flex">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="w-full min-w-0 max-w-full overflow-x-hidden">
+        <div className="lg:hidden">
+          <div className="sticky top-0 z-10 mb-4 space-y-3 border-b border-border bg-background/95 py-3 backdrop-blur-md">
+            <div className="h-11 w-full animate-pulse rounded-xl bg-muted" />
+          </div>
+        </div>
       </div>
     ),
   }
@@ -86,24 +88,14 @@ function RosterPageContent({
 
   const programId = bootstrapQ.data?.dashboard?.team?.programId ?? null
   const rosterAwaitingDeferred = Boolean(bootstrapQ.data?.deferredPending)
-  const loading = (bootstrapQ.isPending && !bootstrapQ.data) || rosterAwaitingDeferred
+  const blockingLoad = bootstrapQ.isPending && !bootstrapQ.data
   const prefetchedReadinessDetail = bootstrapQ.data?.readinessDetail ?? null
 
-  if (loading) {
+  if (blockingLoad) {
     return (
-      <div className="w-full min-w-0 max-w-full overflow-x-hidden">
-        <div className="lg:hidden">
-          <div className="sticky top-0 z-10 mb-4 space-y-3 border-b border-border bg-background/95 py-3 backdrop-blur-md">
-            <div className="h-11 w-full animate-pulse rounded-xl bg-muted" />
-            <div className="flex gap-2">
-              <div className="h-11 w-28 shrink-0 animate-pulse rounded-xl bg-muted" />
-              <div className="h-11 w-24 shrink-0 animate-pulse rounded-xl bg-muted" />
-              <div className="h-11 w-32 shrink-0 animate-pulse rounded-xl bg-muted" />
-            </div>
-          </div>
-          <RosterMobileSkeleton count={6} />
-        </div>
-        <RosterDesktopSkeleton />
+      <div className="w-full min-w-0 max-w-full overflow-x-hidden px-4 py-4 lg:px-0" aria-busy="true" aria-label="Loading roster">
+        <div className="mb-4 h-10 w-48 animate-pulse rounded-lg bg-muted lg:mb-6" />
+        <div className="h-72 w-full animate-pulse rounded-xl bg-muted lg:h-80" />
       </div>
     )
   }
@@ -121,6 +113,7 @@ function RosterPageContent({
       initialPosition={initialPosition}
       initialTab={initialTab}
       prefetchedReadinessDetail={prefetchedReadinessDetail}
+      rosterBootstrapPending={rosterAwaitingDeferred}
     />
   )
 }

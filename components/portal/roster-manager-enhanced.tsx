@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect, useMemo } from "react"
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { RosterDesktopSkeleton } from "@/components/portal/dashboard-route-skeletons"
+import { RosterMobileSkeleton } from "@/components/portal/roster-mobile-view"
 import { RosterGridView } from "./roster-grid-view"
 import { RosterListView } from "./roster-list-view"
 import { RosterMobileView, type MobileRosterSort } from "./roster-mobile-view"
@@ -129,6 +131,8 @@ interface RosterManagerEnhancedProps {
   initialTab?: "roster" | "depth-chart" | "readiness" | "program-depth"
   /** From dashboard bootstrap — skips initial GET /api/teams/.../readiness until nonce bumps. */
   prefetchedReadinessDetail?: { summary: TeamReadinessSummary; players?: PlayerReadinessItem[] } | null
+  /** True while deferred dashboard bootstrap has not merged roster yet — show skeleton without blocking page mount. */
+  rosterBootstrapPending?: boolean
 }
 
 const TEAM_ACTIVITY_LABELS: Record<string, string> = {
@@ -622,6 +626,7 @@ export function RosterManagerEnhanced({
   initialPosition = "",
   initialTab = "roster",
   prefetchedReadinessDetail = null,
+  rosterBootstrapPending = false,
 }: RosterManagerEnhancedProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -701,6 +706,14 @@ export function RosterManagerEnhanced({
     setRosterSearchQuery(initialSearch)
     setRosterPositionFilter(initialPosition)
   }, [initialView, initialSearch, initialPosition])
+
+  const prevRosterBootstrapPending = useRef(rosterBootstrapPending)
+  useEffect(() => {
+    if (prevRosterBootstrapPending.current && !rosterBootstrapPending) {
+      setPlayers(initialPlayers)
+    }
+    prevRosterBootstrapPending.current = rosterBootstrapPending
+  }, [initialPlayers, rosterBootstrapPending])
 
   const syncRosterParamsToUrl = useMemo(() => {
     return (view: "card" | "list", q: string, position: string) => {
@@ -1378,6 +1391,25 @@ export function RosterManagerEnhanced({
     `border-b-2 px-3 py-2.5 text-left text-sm font-semibold transition-colors -mb-px sm:px-4 ${
       active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
     }`
+
+  if (rosterBootstrapPending) {
+    return (
+      <div className="w-full min-w-0 max-w-full overflow-x-hidden">
+        <div className="lg:hidden">
+          <div className="sticky top-0 z-10 mb-4 space-y-3 border-b border-border bg-background/95 py-3 backdrop-blur-md">
+            <div className="h-11 w-full animate-pulse rounded-xl bg-muted" />
+            <div className="flex gap-2">
+              <div className="h-11 w-28 shrink-0 animate-pulse rounded-xl bg-muted" />
+              <div className="h-11 w-24 shrink-0 animate-pulse rounded-xl bg-muted" />
+              <div className="h-11 w-32 shrink-0 animate-pulse rounded-xl bg-muted" />
+            </div>
+          </div>
+          <RosterMobileSkeleton count={6} />
+        </div>
+        <RosterDesktopSkeleton />
+      </div>
+    )
+  }
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-hidden px-4 pb-6 lg:px-0 lg:pb-0">

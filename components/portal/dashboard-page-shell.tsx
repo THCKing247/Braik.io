@@ -8,6 +8,17 @@ import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 
+/** Pulse placeholders while search params / session hydrate — avoids a full-page spinner. */
+export function DashboardPageShellSkeleton() {
+  return (
+    <div className="min-w-0 space-y-4 px-4 pb-4 pt-2 md:space-y-6 md:px-6" aria-busy="true" aria-label="Loading page">
+      <div className="h-9 w-44 animate-pulse rounded-md bg-[rgb(var(--platinum))]" />
+      <div className="h-32 w-full animate-pulse rounded-xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+      <div className="h-40 w-full animate-pulse rounded-xl bg-[rgb(var(--platinum))] md:rounded-lg" />
+    </div>
+  )
+}
+
 /**
  * Internal component that uses useSearchParams - must be wrapped in Suspense
  */
@@ -41,11 +52,7 @@ function DashboardPageShellContent({
   const sessionStillLoading = !identity.hasIdentity && status === "loading"
 
   if (sessionStillLoading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
+    return <DashboardPageShellSkeleton />
   }
 
   if (!identity.hasIdentity) {
@@ -107,13 +114,7 @@ export function DashboardPageShell({
   requireTeam?: boolean
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[40vh] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-        </div>
-      }
-    >
+    <Suspense fallback={<DashboardPageShellSkeleton />}>
       <DashboardPageShellContent requireTeam={requireTeam}>
         {children}
       </DashboardPageShellContent>

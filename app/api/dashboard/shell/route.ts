@@ -15,6 +15,7 @@ import {
   getSupportTokenFromRequestCookieHeader,
 } from "@/lib/admin/impersonation"
 import type { DashboardShellPayload } from "@/lib/dashboard/dashboard-shell-payload"
+import { applyDashboardShellCacheHeaders } from "@/lib/dashboard/dashboard-shell-http"
 
 export const runtime = "nodejs"
 
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
 
     const jsonResponse = (body: DashboardShellPayload) => {
       const res = NextResponse.json(body)
+      applyDashboardShellCacheHeaders(res)
       if (liteResult.refreshedSession) {
         applyRefreshedSessionCookies(res, liteResult.refreshedSession)
       }

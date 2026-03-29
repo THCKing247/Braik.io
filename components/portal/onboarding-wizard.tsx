@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
+import { invalidateDashboardShell } from "@/lib/dashboard/dashboard-shell-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,6 +12,7 @@ import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
 
 export function OnboardingWizard() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -89,6 +92,7 @@ export function OnboardingWizard() {
         return
       }
 
+      void invalidateDashboardShell(queryClient)
       router.push("/dashboard")
       router.refresh()
     } catch (err) {

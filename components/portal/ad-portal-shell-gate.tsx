@@ -1,11 +1,16 @@
 "use client"
 
 import { useRouter, usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { authTimingClient } from "@/lib/auth/login-flow-timing"
 import { getDefaultAppPathForRole, seedAuthSessionCacheFromShellUser } from "@/lib/auth/client-auth"
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
+import {
+  isAdPortalBootstrapForbiddenError,
+  isAdPortalBootstrapUnauthorizedError,
+  useAdPortalBootstrapQuery,
+} from "@/lib/app/ad-portal-bootstrap-query"
 import { AdAppBootstrapProvider } from "@/components/portal/ad-app-bootstrap-context"
 import { AdNav } from "@/components/portal/ad/ad-nav"
 
@@ -27,56 +32,57 @@ export function AdPortalShellGate({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const queryClient = useQueryClient()
-  const [phase, setPhase] = useState<Phase>("loading")
-  const [payload, setPayload] = useState<AppAdPortalBootstrapPayload | null>(null)
+  const q = useAdPortalBootstrapQuery()
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const t0 = performance.now()
-      authTimingClient("ad_portal_bootstrap_fetch_start")
-      try {
-        const res = await fetch("/api/app/bootstrap?portal=ad", {
-          credentials: "include",
-          cache: "no-store",
-        })
-        if (res.status === 401) {
-          router.replace(`/login?callbackUrl=${encodeURIComponent(pathname || "/dashboard/ad")}`)
-          return
-        }
-        if (res.status === 403) {
-          router.replace("/dashboard")
-          return
-        }
-        if (!res.ok) throw new Error(String(res.status))
-        const json = (await res.json()) as AppAdPortalBootstrapPayload
-        authTimingClient("ad_portal_bootstrap_fetch_done", { ms: Math.round(performance.now() - t0) })
-        if (!cancelled && json.user?.id) {
-          const u = json.user
-          seedAuthSessionCacheFromShellUser(queryClient, {
-            id: u.id,
-            email: u.email,
-            name: u.displayName,
-            role: u.role,
-            teamId: u.teamId,
-            isPlatformOwner: u.isPlatformOwner,
-            defaultAppPath: getDefaultAppPathForRole(u.role),
-          })
-        }
-        if (cancelled) return
-        setPayload(json)
-        setPhase("ready")
-      } catch (e) {
-        console.error("[AdPortalShellGate]", e)
-        if (!cancelled) setPhase("error")
-      }
-    })()
-    return () => {
-      cancelled = true
+    if (!q.isError || !q.error) return
+    if (isAdPortalBootstrapUnauthorizedError(q.error)) {
+      router.replace(`/login?callbackUrl=${encodeURIComponent(pathname || "/dashboard/ad")}`)
+      return
     }
-  }, [router, pathname, queryClient])
+    if (isAdPortalBootstrapForbiddenError(q.error)) {
+      router.replace("/dashboard")
+    }
+  }, [q.isError, q.error, router, pathname])
 
-  if (phase === "loading" || !payload) {
+  useEffect(() => {
+    const json = q.data as AppAdPortalBootstrapPayload | undefined
+    if (!json?.user?.id) return
+    const u = json.user
+    seedAuthSessionCacheFromShellUser(queryClient, {
+      id: u.id,
+      email: u.email,
+      name: u.displayName,
+      role: u.role,
+      teamId: u.teamId,
+      isPlatformOwner: u.isPlatformOwner,
+      defaultAppPath: getDefaultAppPathForRole(u.role),
+    })
+  }, [q.data, queryClient])
+
+  const authRedirectError =
+    q.isError &&
+    q.error &&
+    (isAdPortalBootstrapUnauthorizedError(q.error) || isAdPortalBootstrapForbiddenError(q.error))
+
+  const phase: Phase =
+    q.isPending && !q.data
+      ? "loading"
+      : q.isError && !authRedirectError
+        ? "error"
+        : q.data
+          ? "ready"
+          : "loading"
+
+  useEffect(() => {
+    if (phase === "ready" && q.dataUpdatedAt) {
+      authTimingClient("ad_portal_bootstrap_gate_ready", {
+        fromCache: Boolean(q.data) && !q.isFetching,
+      })
+    }
+  }, [phase, q.dataUpdatedAt, q.data, q.isFetching])
+
+  if (authRedirectError || (phase === "loading" && !q.data)) {
     return <AdPortalShellSkeleton />
   }
 
@@ -86,6 +92,11 @@ export function AdPortalShellGate({ children }: { children: React.ReactNode }) {
         <p className="text-[#212529]">Could not load the Athletic Director portal. Please refresh or try again later.</p>
       </div>
     )
+  }
+
+  const payload = q.data
+  if (!payload) {
+    return <AdPortalShellSkeleton />
   }
 
   return (

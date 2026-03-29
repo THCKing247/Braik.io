@@ -9,7 +9,12 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
+import {
+  BRAIK_AD_PORTAL_BOOTSTRAP_QUERY_KEY,
+  fetchAdPortalBootstrap,
+} from "@/lib/app/ad-portal-bootstrap-query"
 
 type Phase = "idle" | "loading" | "ok" | "error"
 
@@ -40,6 +45,7 @@ export function AdAppBootstrapProvider({
   initialPayload: AppAdPortalBootstrapPayload
   children: ReactNode
 }) {
+  const queryClient = useQueryClient()
   const [phase, setPhase] = useState<Phase>("ok")
   const [payload, setPayload] = useState<AppAdPortalBootstrapPayload>(initialPayload)
 
@@ -51,18 +57,17 @@ export function AdAppBootstrapProvider({
   const refetch = useCallback(async () => {
     setPhase("loading")
     try {
-      const res = await fetch("/api/app/bootstrap?portal=ad", { credentials: "same-origin" })
-      if (!res.ok) {
-        setPhase("error")
-        return
-      }
-      const data = (await res.json()) as AppAdPortalBootstrapPayload
+      await queryClient.invalidateQueries({ queryKey: BRAIK_AD_PORTAL_BOOTSTRAP_QUERY_KEY })
+      const data = await queryClient.fetchQuery({
+        queryKey: BRAIK_AD_PORTAL_BOOTSTRAP_QUERY_KEY,
+        queryFn: fetchAdPortalBootstrap,
+      })
       setPayload(data)
       setPhase("ok")
     } catch {
       setPhase("error")
     }
-  }, [])
+  }, [queryClient])
 
   const value = useMemo<AdAppBootstrapContextValue>(
     () => ({ phase, payload, refetch }),

@@ -4,7 +4,10 @@ import dynamic from "next/dynamic"
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
-import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import {
+  DashboardPageShell,
+  DashboardPageShellSkeleton,
+} from "@/components/portal/dashboard-page-shell"
 import { AdPortalLandingGate } from "@/components/portal/ad-portal-landing-gate"
 import { authTimingClient } from "@/lib/auth/login-flow-timing"
 
@@ -24,14 +27,6 @@ const TeamDashboard = dynamic(
     ),
   }
 )
-
-function SessionWaitSpinner() {
-  return (
-    <div className="flex min-h-[50vh] items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2563EB] border-t-transparent" />
-    </div>
-  )
-}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -65,18 +60,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-        </div>
-      }
-    >
+    <Suspense fallback={<DashboardPageShellSkeleton />}>
       <AdPortalLandingGate>
         <DashboardPageShell>
           {({ teamId, canEdit }) =>
             waitForSession ? (
-              <SessionWaitSpinner />
+              <DashboardPageShellSkeleton />
             ) : (
               <TeamDashboard
                 key={teamId || "no-team"}

@@ -3,6 +3,8 @@ import { unstable_cache } from "next/cache"
 import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getAdPortalAccessForUser, type AdPortalAccess } from "@/lib/ad-portal-access"
+import { adTeamsFlowPerfLog, shouldLogAdTeamsFlowPerf } from "@/lib/ad/ad-teams-table-perf"
+import { adTeamsTableCacheTagForUser } from "@/lib/ad/ad-teams-table-server-cache"
 import {
   loadAdTeamsTableData,
   type AdTeamsTableAuthUser,
@@ -53,13 +55,14 @@ function parseFootballAccessCacheKey(s: string): FootballAdAccessContext {
   return JSON.parse(s) as FootballAdAccessContext
 }
 
-const shouldLogRoutePerf =
-  process.env.NODE_ENV === "development" || process.env.AD_TEAMS_TABLE_PERF === "1"
-
 export async function GET() {
   const t0 = performance.now()
+  const devLog = shouldLogAdTeamsFlowPerf()
   try {
+    const t1 = performance.now()
     const sessionResult = await getRequestUserLite()
+    if (devLog) adTeamsFlowPerfLog("route", "getRequestUserLite", performance.now() - t1)
+
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -67,12 +70,18 @@ export async function GET() {
     const supabase = getSupabaseServer()
     const roleUpper = (u.role ?? "").toUpperCase().replace(/ /g, "_")
 
+    const t2 = performance.now()
     const footballAccess = await resolveFootballAdAccessState(supabase, u.id)
+    if (devLog) adTeamsFlowPerfLog("route", "resolveFootballAdAccessState", performance.now() - t2)
+
     if (!canAccessAdPortalRoutes(footballAccess)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    const t3 = performance.now()
     const adPortalAccess = await getAdPortalAccessForUser(supabase, u.id, roleUpper)
+    if (devLog) adTeamsFlowPerfLog("route", "getAdPortalAccessForUser", performance.now() - t3)
+
     const accessKey = adPortalAccessCacheKey(adPortalAccess)
     const fcKey = footballAccessCacheKey(footballAccess)
     const userLite: AdTeamsTableAuthUser = {
@@ -84,6 +93,7 @@ export async function GET() {
     const useServerRowCache =
       process.env.NODE_ENV === "production" && process.env.AD_TEAMS_TABLE_SERVER_CACHE !== "0"
 
+    const t4 = performance.now()
     let teams: Awaited<ReturnType<typeof loadAdTeamsTableData>>
     if (useServerRowCache) {
       teams = await unstable_cache(
@@ -97,15 +107,18 @@ export async function GET() {
           )
         },
         ["ad-teams-table-rows", u.id, accessKey, fcKey],
-        { revalidate: 60, tags: [`ad-teams-user-${u.id}`] }
+        { revalidate: 60, tags: [adTeamsTableCacheTagForUser(u.id)] }
       )()
     } else {
       teams = await loadAdTeamsTableData(supabase, userLite, adPortalAccess, footballAccess)
     }
+    if (devLog) adTeamsFlowPerfLog("route", "loadAdTeamsTableData_total", performance.now() - t4, {
+      rowCount: teams.length,
+      serverRowCache: useServerRowCache,
+    })
 
-    if (shouldLogRoutePerf) {
-      console.info("[ad-teams-table-route]", {
-        totalMs: Math.round((performance.now() - t0) * 10) / 10,
+    if (devLog) {
+      adTeamsFlowPerfLog("route", "GET_total", performance.now() - t0, {
         userId: u.id,
         rowCount: teams.length,
         serverRowCache: useServerRowCache,

@@ -12,6 +12,8 @@ export type InviteRecord = {
   token: string
   expires_at: string
   accepted_at: string | null
+  /** Inviter (often AD); used to invalidate AD teams-table cache after accept. */
+  created_by: string | null
 }
 
 export type TeamRecord = {
@@ -29,7 +31,7 @@ export async function validateInviteById(
 ): Promise<InviteValidation> {
   const { data: invite, error: inviteError } = await supabase
     .from("invites")
-    .select("id, email, role, team_id, token, expires_at, accepted_at")
+    .select("id, email, role, team_id, token, expires_at, accepted_at, created_by")
     .eq("id", inviteId)
     .maybeSingle()
 
@@ -72,7 +74,7 @@ export async function validateInviteByToken(
 ): Promise<InviteValidation> {
   const { data: invite, error: inviteError } = await supabase
     .from("invites")
-    .select("id, email, role, team_id, token, expires_at, accepted_at")
+    .select("id, email, role, team_id, token, expires_at, accepted_at, created_by")
     .eq("token", token)
     .maybeSingle()
 

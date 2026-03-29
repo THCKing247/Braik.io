@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { revalidateAdTeamsTableCacheForUser } from "@/lib/ad/ad-teams-table-server-cache"
 import { validateInviteById } from "@/lib/invites/validate-invite"
 import { acceptInvite } from "@/lib/invites/accept-invite"
 
@@ -74,6 +75,9 @@ export async function POST(
         { status }
       )
     }
+
+    const inviterId = validation.invite.created_by
+    if (inviterId) revalidateAdTeamsTableCacheForUser(inviterId)
 
     return NextResponse.json({ success: true })
   } catch (err) {

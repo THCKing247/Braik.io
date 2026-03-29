@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
+import { revalidateAdTeamsTableCacheForUser } from "@/lib/ad/ad-teams-table-server-cache"
 import { validateInviteByToken } from "@/lib/invites/validate-invite"
 import { acceptInvite } from "@/lib/invites/accept-invite"
 
@@ -105,6 +106,9 @@ export async function POST(request: Request) {
         { status: result.reason === "head_coach_exists" ? 409 : 500 }
       )
     }
+
+    const inviterId = invite.created_by
+    if (inviterId) revalidateAdTeamsTableCacheForUser(inviterId)
 
     return NextResponse.json(
       { success: true, userId: createdAuthUserId },

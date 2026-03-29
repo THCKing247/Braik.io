@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, memo } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { AdTeamFilters } from "./ad-team-filters"
 import { AdTeamsTable, type TeamRow } from "./ad-teams-table"
@@ -11,7 +11,7 @@ interface AdTeamsPageClientProps {
   teams: TeamRow[]
 }
 
-export function AdTeamsPageClient({ teams: initialTeams }: AdTeamsPageClientProps) {
+function AdTeamsPageClientInner({ teams: initialTeams }: AdTeamsPageClientProps) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [sportFilter, setSportFilter] = useState("")
@@ -92,3 +92,5 @@ export function AdTeamsPageClient({ teams: initialTeams }: AdTeamsPageClientProp
     </div>
   )
 }
+
+export const AdTeamsPageClient = memo(AdTeamsPageClientInner)

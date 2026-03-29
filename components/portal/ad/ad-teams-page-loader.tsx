@@ -41,6 +41,8 @@ export function AdTeamsPageLoader() {
     staleTime: 90_000,
     gcTime: 20 * 60_000,
     retry: 1,
+    // Visibility handler in AdTeamsPageClient invalidates explicitly; avoid duplicate refetch with window focus.
+    refetchOnWindowFocus: false,
   })
 
   if (q.isPending) {

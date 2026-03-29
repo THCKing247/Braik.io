@@ -1,10 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { AdPortalAccess } from "@/lib/ad-portal-access"
+import { adTeamsFlowPerfLog } from "@/lib/ad/ad-teams-table-perf"
 import {
   canAccessAdPortalRoutes,
   resolveFootballAdAccessState,
   type FootballAdAccessContext,
 } from "@/lib/enforcement/football-ad-access"
+
+/**
+ * Max teams returned for AD teams table (newest `created_at` first). If you need more, add pagination
+ * (PostgREST URL limits and payload size grow quickly with enrichment queries).
+ */
+export const AD_TEAMS_TABLE_QUERY_LIMIT = 500
 
 /**
  * Resolves which teams an Athletic Director should see:
@@ -195,7 +202,7 @@ export type AdPortalTeamPicklistRow = Pick<
   "id" | "name" | "program_id" | "sport" | "team_level" | "gender"
 >
 
-export type AdPortalTeamsSelectMode = "full" | "picklist"
+export type AdPortalTeamsSelectMode = "full" | "picklist" | "table"
 
 /** AD portal team list: department AD scope plus varsity football head-coach program scope. */
 export async function fetchAdPortalVisibleTeams(
@@ -210,24 +217,47 @@ export async function fetchAdPortalVisibleTeams(
   error: string | null
   footballAccess: FootballAdAccessContext
 }> {
+  const tFootball = performance.now()
   const footballAccess =
     opts?.reuseFootballAccess ?? (await resolveFootballAdAccessState(supabase, userId))
+  adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "football_access", performance.now() - tFootball, {
+    reused: Boolean(opts?.reuseFootballAccess),
+    userId,
+  })
+
   if (!canAccessAdPortalRoutes(footballAccess)) {
+    const tScope = performance.now()
     const scope = await resolveAthleticDirectorScope(supabase, userId)
+    adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "scope_early_denied", performance.now() - tScope, {
+      userId,
+    })
     return { scope, orFilter: null, teams: [], error: null, footballAccess }
   }
+
+  const tScope = performance.now()
   const base = await resolveAthleticDirectorScope(supabase, userId)
   const scope = mergeAdPortalScope(base, footballAccess)
   const orFilter = buildAdTeamsOrFilter(scope)
+  adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "ad_scope_merge", performance.now() - tScope, {
+    userId,
+    hasOrFilter: Boolean(orFilter),
+  })
+
   if (!orFilter) {
     return { scope, orFilter: null, teams: [], error: null, footballAccess }
   }
+
   if (selectMode === "picklist") {
+    const tq = performance.now()
     const { data, error } = await supabase
       .from("teams")
       .select("id, name, program_id, sport, team_level, gender")
       .or(orFilter)
       .order("created_at", { ascending: false })
+    adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "teams_query", performance.now() - tq, {
+      mode: "picklist",
+      rowCount: data?.length ?? 0,
+    })
     return {
       scope,
       orFilter,
@@ -236,6 +266,32 @@ export async function fetchAdPortalVisibleTeams(
       footballAccess,
     }
   }
+
+  if (selectMode === "table") {
+    const tq = performance.now()
+    const { data, error } = await supabase
+      .from("teams")
+      .select(
+        "id, name, sport, roster_size, created_at, program_id, team_level, created_by, gender"
+      )
+      .or(orFilter)
+      .order("created_at", { ascending: false })
+      .limit(AD_TEAMS_TABLE_QUERY_LIMIT)
+    adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "teams_query", performance.now() - tq, {
+      mode: "table",
+      rowCount: data?.length ?? 0,
+      atCap: (data?.length ?? 0) >= AD_TEAMS_TABLE_QUERY_LIMIT,
+    })
+    return {
+      scope,
+      orFilter,
+      teams: (data ?? []) as AdVisibleTeamRow[],
+      error: error?.message ?? null,
+      footballAccess,
+    }
+  }
+
+  const tq = performance.now()
   const { data, error } = await supabase
     .from("teams")
     .select(
@@ -243,6 +299,10 @@ export async function fetchAdPortalVisibleTeams(
     )
     .or(orFilter)
     .order("created_at", { ascending: false })
+  adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "teams_query", performance.now() - tq, {
+    mode: "full",
+    rowCount: data?.length ?? 0,
+  })
   return {
     scope,
     orFilter,
@@ -276,7 +336,7 @@ export async function fetchAdVisibleTeamsForAccess(
   supabase: SupabaseClient,
   userId: string,
   access: AdPortalAccess,
-  opts?: { reuseFootballAccess?: FootballAdAccessContext }
+  opts?: { reuseFootballAccess?: FootballAdAccessContext; teamsSelectMode?: "full" | "table" }
 ): Promise<{
   scope: AthleticDirectorScope
   orFilter: string | null
@@ -288,7 +348,8 @@ export async function fetchAdVisibleTeamsForAccess(
     return { scope, orFilter: null, teams: [], error: null }
   }
 
-  const merged = await fetchAdPortalVisibleTeams(supabase, userId, "full", opts)
+  const selectMode: AdPortalTeamsSelectMode = opts?.teamsSelectMode === "table" ? "table" : "full"
+  const merged = await fetchAdPortalVisibleTeams(supabase, userId, selectMode, opts)
   const mergedTeams = merged.teams as AdVisibleTeamRow[]
 
   if (access.teamQuery === "program_ids" && access.footballProgramIds.length > 0) {

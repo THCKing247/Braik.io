@@ -1,6 +1,7 @@
 "use client"
 
 import { useSession } from "@/lib/auth/client-auth"
+import { DashboardPageShellSkeleton } from "@/components/portal/dashboard-page-shell"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 
@@ -55,11 +56,8 @@ export function AdPortalLandingGate({ children }: { children: ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div
-          className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent"
-          aria-hidden
-        />
+      <div className="min-h-[50vh] w-full" aria-busy="true" aria-label="Loading dashboard">
+        <DashboardPageShellSkeleton />
       </div>
     )
   }

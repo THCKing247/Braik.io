@@ -1,6 +1,7 @@
 /**
  * Dev / opt-in timing for AD teams-table and related server paths.
  * Enable in production with AD_TEAMS_TABLE_PERF=1.
+ * GET /api/ad/pages/teams-table: `parallel_football_and_ad_access` replaces sequential access calls.
  */
 export function shouldLogAdTeamsFlowPerf(): boolean {
   return process.env.NODE_ENV === "development" || process.env.AD_TEAMS_TABLE_PERF === "1"

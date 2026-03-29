@@ -49,7 +49,8 @@ function DashboardPageShellContent({
   const userId = identity.userId
   const canEdit = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
 
-  const sessionStillLoading = !identity.hasIdentity && status === "loading"
+  /** Prefer shell/bootstrap identity; do not block the whole shell on session query if user id is already known. */
+  const sessionStillLoading = !identity.hasIdentity && status === "loading" && !session?.user?.id
 
   if (sessionStillLoading) {
     return <DashboardPageShellSkeleton />

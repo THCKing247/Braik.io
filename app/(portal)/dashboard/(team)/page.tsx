@@ -44,7 +44,8 @@ export default function DashboardPage() {
     }
   }, [status, role, router])
 
-  const waitForSession = status === "loading" || status === "unauthenticated"
+  /** Cookie + middleware already gate /dashboard; avoid blanking the whole home on brief session hydration. */
+  const waitForSession = status === "loading" && !session?.user?.id
 
   if (status === "authenticated" && !session?.user) {
     return (

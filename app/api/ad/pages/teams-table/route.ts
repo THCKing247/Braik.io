@@ -71,16 +71,20 @@ export async function GET() {
     const roleUpper = (u.role ?? "").toUpperCase().replace(/ /g, "_")
 
     const t2 = performance.now()
-    const footballAccess = await resolveFootballAdAccessState(supabase, u.id)
-    if (devLog) adTeamsFlowPerfLog("route", "resolveFootballAdAccessState", performance.now() - t2)
+    const [footballAccess, adPortalAccess] = await Promise.all([
+      resolveFootballAdAccessState(supabase, u.id),
+      getAdPortalAccessForUser(supabase, u.id, roleUpper),
+    ])
+    if (devLog) {
+      adTeamsFlowPerfLog("route", "parallel_football_and_ad_access", performance.now() - t2, {
+        canEnterAdPortal: canAccessAdPortalRoutes(footballAccess),
+        adMode: adPortalAccess.mode,
+      })
+    }
 
     if (!canAccessAdPortalRoutes(footballAccess)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-
-    const t3 = performance.now()
-    const adPortalAccess = await getAdPortalAccessForUser(supabase, u.id, roleUpper)
-    if (devLog) adTeamsFlowPerfLog("route", "getAdPortalAccessForUser", performance.now() - t3)
 
     const accessKey = adPortalAccessCacheKey(adPortalAccess)
     const fcKey = footballAccessCacheKey(footballAccess)

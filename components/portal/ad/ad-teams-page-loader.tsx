@@ -1,10 +1,12 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
 import { AD_TEAMS_TABLE_QUERY_KEY } from "@/lib/ad/load-ad-teams-page-rows"
+import { adTeamsFlowPerfClient } from "@/lib/ad/ad-teams-table-perf-client"
 import { adPortalClientPerf } from "@/lib/debug/ad-portal-client-perf"
 
 const FETCH_TIMEOUT_MS = 12_000
@@ -41,6 +43,8 @@ async function fetchAdTeamsTable(signal: AbortSignal): Promise<TeamRow[]> {
 
 export function AdTeamsPageLoader() {
   const router = useRouter()
+  const mountT0 = useRef(typeof performance !== "undefined" ? performance.now() : 0)
+  const loggedSettled = useRef(false)
 
   const q = useQuery({
     queryKey: AD_TEAMS_TABLE_QUERY_KEY,
@@ -51,6 +55,16 @@ export function AdTeamsPageLoader() {
     // Visibility handler in AdTeamsPageClient invalidates explicitly; avoid duplicate refetch with window focus.
     refetchOnWindowFocus: false,
   })
+
+  useEffect(() => {
+    if (!q.isFetched || loggedSettled.current) return
+    loggedSettled.current = true
+    adTeamsFlowPerfClient("teams_table_loader_to_first_fetch_ms", {
+      queryStatus: q.status,
+      ms: Math.round(performance.now() - mountT0.current),
+      rowCount: Array.isArray(q.data) ? q.data.length : 0,
+    })
+  }, [q.isFetched, q.status, q.data])
 
   if (q.isPending) {
     return (

@@ -63,6 +63,16 @@ export async function GET(request: Request) {
             cached: String(useCache),
           })
         }
+        if (
+          process.env.NODE_ENV === "development" ||
+          process.env.AD_PORTAL_BOOTSTRAP_PERF === "1"
+        ) {
+          console.info("[ad-portal-bootstrap-route]", {
+            ms: Math.round(performance.now() - started),
+            userId: u.id,
+            cached: useCache,
+          })
+        }
         const res = withAdPortalBootstrapCache(NextResponse.json(payload))
         if (sessionResult.refreshedSession) {
           applyRefreshedSessionCookies(res, sessionResult.refreshedSession)

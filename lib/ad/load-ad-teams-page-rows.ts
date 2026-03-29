@@ -12,12 +12,10 @@ import {
 } from "@/lib/enforcement/football-ad-access"
 
 /**
- * AD teams table architecture (second-pass perf notes):
- * - Bootstrap `teamsSummary` stays a picklist (nav/shell). Enriching bootstrap with roster, head coach,
- *   creator, and pending `invites` would duplicate this loader’s work and enlarge every AD page load.
- * - Dedicated GET /api/ad/pages/teams-table stays the right boundary: one capped teams query (`table`
- *   select mode), staff-filtered `team_members`, batched follow-ups, plus server + React Query caches.
- * - If product needs >500 teams, add cursor pagination here rather than growing bootstrap JSON.
+ * AD teams table architecture:
+ * - AD shell bootstrap does not load visible-team rows; this loader + GET /api/ad/pages/teams-table own them.
+ * - Dedicated teams-table route: capped teams query (`table` mode), batched `team_members` / `invites`, etc.
+ * - If product needs >500 teams, add cursor pagination here rather than growing payloads.
  */
 
 /** React Query key for AD teams table — shared with visibility refresh invalidation. */

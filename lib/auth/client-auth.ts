@@ -171,16 +171,25 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
   if (isSuccess) {
     authLog("SIGNED_IN", { redirectTo: callbackUrl })
     const fullPageRedirect = options.redirect !== false
-    await applyServerAuthSessionPayload(
-      {
-        user: data.user,
-        supabaseSession: data.supabaseSession,
-      },
-      { awaitSupabaseSession: !fullPageRedirect }
-    )
     if (fullPageRedirect) {
+      authTimingClient("sign_in_apply_payload_fire_and_forget", { href: callbackUrl })
+      void applyServerAuthSessionPayload(
+        {
+          user: data.user,
+          supabaseSession: data.supabaseSession,
+        },
+        { awaitSupabaseSession: false }
+      )
       authTimingClient("sign_in_full_redirect", { href: callbackUrl })
       window.location.href = callbackUrl
+    } else {
+      await applyServerAuthSessionPayload(
+        {
+          user: data.user,
+          supabaseSession: data.supabaseSession,
+        },
+        { awaitSupabaseSession: true }
+      )
     }
     return { ok: true, status: response.status, error: undefined, url: callbackUrl }
   }

@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import {
-  fetchAdPortalVisibleTeams,
+  buildAdTeamsOrFilter,
+  mergeAdPortalScope,
+  resolveAthleticDirectorScope,
   type AthleticDirectorScopePrefetch,
 } from "@/lib/ad-team-scope"
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
@@ -43,9 +45,8 @@ async function loadPrimaryOrganizationName(
  * Lightweight AD portal shell. Caller must redirect or 403 when `canAccessAdPortalRoutes` is false;
  * this function still validates and throws `AD_BOOTSTRAP_FORBIDDEN` for defense in depth.
  *
- * Perf: one `resolveFootballAdAccessState`, then `fetchAdPortalVisibleTeams` with `reuseFootballAccess`
- * (avoids duplicate football resolution inside the teams fetch). One parallel batch for access, profile,
- * department, primary org name (limit 1), and program; school row only after profile (needs school_id).
+ * Perf: no visible-team list here — `/api/ad/pages/teams-table` loads rows. Shell resolves football access,
+ * AD scope (orgs/programs), portal access, org name + program summary only.
  */
 export async function buildAppAdPortalBootstrapPayload(
   supabase: SupabaseClient,
@@ -110,24 +111,23 @@ export async function buildAppAdPortalBootstrapPayload(
     }
   }
 
-  const tTeamsAndAccess = performance.now()
-  const [
-    { scope, orFilter, teams: teamRows, error: teamsQueryError, footballAccess: fa },
-    adPortalAccess,
-  ] = await Promise.all([
-    fetchAdPortalVisibleTeams(supabase, input.userId, "picklist", {
-      reuseFootballAccess: footballAccess,
-      scopePrefetch,
-    }),
+  const tScopeAndAccess = performance.now()
+  const [mergedScope, adPortalAccess] = await Promise.all([
+    (async () => {
+      const base = await resolveAthleticDirectorScope(supabase, input.userId, scopePrefetch)
+      return mergeAdPortalScope(base, footballAccess)
+    })(),
     getAdPortalAccessForUser(supabase, input.userId, roleUpper, {
       prefetchedMyDeptRow: directorDeptRow,
     }),
   ])
-  adPortalBootstrapPerfLog("fetch_picklist_and_getAdPortal_parallel", performance.now() - tTeamsAndAccess, {
-    teamCount: teamRows.length,
+  const scope = mergedScope
+  const orFilter = buildAdTeamsOrFilter(scope)
+  adPortalBootstrapPerfLog("resolve_scope_and_getAdPortal_parallel", performance.now() - tScopeAndAccess, {
+    userId: input.userId,
   })
 
-  const programId = fa.programId
+  const programId = footballAccess.programId
 
   const tParallel = performance.now()
   const [primaryOrganizationName, programRes] = await Promise.all([
@@ -164,20 +164,13 @@ export async function buildAppAdPortalBootstrapPayload(
     }
   }
 
-  const teamsSummary: AppAdPortalBootstrapPayload["teamsSummary"] = teamRows.map((t) => ({
-    id: t.id,
-    name: (t.name ?? "").trim() || "—",
-    programId: t.program_id ?? null,
-    sport: t.sport ?? null,
-    teamLevel: t.team_level ?? null,
-    gender: t.gender ?? null,
-  }))
+  const teamsSummary: AppAdPortalBootstrapPayload["teamsSummary"] = []
 
   const dept = deptData
 
   adPortalBootstrapPerfLog("buildAppAdPortalBootstrapPayload_total", performance.now() - tAll, {
     userId: input.userId,
-    teamsSummary: teamsSummary.length,
+    teamsSummary: 0,
   })
 
   return {
@@ -200,14 +193,14 @@ export async function buildAppAdPortalBootstrapPayload(
     teamsSummary,
     scope,
     orFilter,
-    teamsQueryError,
+    teamsQueryError: null,
     adPortalAccess,
     flags: {
-      tabVisibility: getAdPortalTabVisibility(fa),
-      canPerformDepartmentOwnerActions: canPerformDepartmentOwnerActions(fa),
-      accessState: fa.state,
-      programId: fa.programId,
-      primaryTeamId: fa.primaryTeamId,
+      tabVisibility: getAdPortalTabVisibility(footballAccess),
+      canPerformDepartmentOwnerActions: canPerformDepartmentOwnerActions(footballAccess),
+      accessState: footballAccess.state,
+      programId: footballAccess.programId,
+      primaryTeamId: footballAccess.primaryTeamId,
     },
     generatedAt: new Date().toISOString(),
   }

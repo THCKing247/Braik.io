@@ -352,7 +352,7 @@ export async function fetchAdVisibleTeamsForAccess(
   access: AdPortalAccess,
   opts?: {
     reuseFootballAccess?: FootballAdAccessContext
-    teamsSelectMode?: "full" | "table"
+    teamsSelectMode?: "full" | "table" | "picklist"
     scopePrefetch?: AthleticDirectorScopePrefetch
   }
 ): Promise<{
@@ -366,7 +366,12 @@ export async function fetchAdVisibleTeamsForAccess(
     return { scope, orFilter: null, teams: [], error: null }
   }
 
-  const selectMode: AdPortalTeamsSelectMode = opts?.teamsSelectMode === "table" ? "table" : "full"
+  const selectMode: AdPortalTeamsSelectMode =
+    opts?.teamsSelectMode === "table"
+      ? "table"
+      : opts?.teamsSelectMode === "picklist"
+        ? "picklist"
+        : "full"
   const merged = await fetchAdPortalVisibleTeams(supabase, userId, selectMode, {
     reuseFootballAccess: opts?.reuseFootballAccess,
     scopePrefetch: opts?.scopePrefetch,

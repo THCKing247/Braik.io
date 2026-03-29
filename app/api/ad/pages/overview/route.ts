@@ -3,7 +3,12 @@ import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/ser
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { buildAppAdPortalBootstrapPayload } from "@/lib/app/build-app-ad-portal-bootstrap"
 import { fetchAdCoachRoleCountsByLevel } from "@/lib/ad-coach-role-counts"
-import { logAdDashboardMetrics, logAdTeamVisibility } from "@/lib/ad-team-scope"
+import {
+  fetchAdVisibleTeamsForAccess,
+  logAdDashboardMetrics,
+  logAdTeamVisibility,
+} from "@/lib/ad-team-scope"
+import { resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 
 export const runtime = "nodejs"
 
@@ -43,9 +48,18 @@ export async function GET() {
       ? { status: shell.organization.departmentStatus }
       : null
 
-    const { scope, orFilter, teamsQueryError } = shell
-    const teamIds = shell.teamsSummary.map((t) => t.id)
-    const teamsCount = shell.teamsSummary.length
+    const { scope, orFilter } = shell
+
+    const footballAccess = await resolveFootballAdAccessState(supabase, u.id)
+    const { teams: visibleTeams, error: visibleTeamsListError } = await fetchAdVisibleTeamsForAccess(
+      supabase,
+      u.id,
+      shell.adPortalAccess,
+      { reuseFootballAccess: footballAccess, teamsSelectMode: "picklist" }
+    )
+    const teamIds = visibleTeams.map((t) => t.id)
+    const teamsCount = teamIds.length
+    const teamsListQueryError = visibleTeamsListError ?? null
 
     logAdTeamVisibility("AdOverviewApi", {
       scope,
@@ -53,7 +67,9 @@ export async function GET() {
       teamCount: teamsCount,
       teamIds,
       filter: orFilter,
-      queryError: teamsQueryError ?? (!orFilter ? "no_or_filter: missing school, department, and linked programs" : null),
+      queryError:
+        teamsListQueryError ??
+        (!orFilter ? "no_or_filter: missing school, department, and linked programs" : null),
     })
 
     let athletesCount = 0
@@ -70,7 +86,7 @@ export async function GET() {
 
     let headCoachCount = 0
     let assistantCoachCount = 0
-    if (teamIds.length > 0 && !teamsQueryError) {
+    if (teamIds.length > 0 && !teamsListQueryError) {
       const roleCounts = await fetchAdCoachRoleCountsByLevel(supabase, teamIds)
       headCoachCount = roleCounts.headCoachCount
       assistantCoachCount = roleCounts.assistantCoachCount
@@ -89,7 +105,7 @@ export async function GET() {
       athleteCount: athletesCount,
       emptyStateTriggered,
       orFilter,
-      teamsQueryError: teamsQueryError ?? null,
+      teamsQueryError: teamsListQueryError,
       playersCountError,
     })
 

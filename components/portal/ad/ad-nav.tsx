@@ -26,6 +26,32 @@ const defaultTabVisibility: AdPortalTabVisibility = {
   homeHref: "/dashboard/ad",
 }
 
+/** Top bar placeholder while AD bootstrap is in flight (shell no longer blocks page mount). */
+export function AdNavShellSkeleton() {
+  return (
+    <nav
+      className="sticky top-0 z-50 border-b bg-white"
+      style={{ borderColor: "rgb(var(--border))" }}
+      aria-busy
+      aria-label="Loading navigation"
+    >
+      <div className="mx-auto px-4">
+        <div className="flex h-14 items-center justify-between">
+          <div className="flex items-center gap-8">
+            <div className="h-8 w-[120px] animate-pulse rounded bg-[#E5E7EB]" />
+            <div className="hidden md:flex gap-2">
+              <div className="h-9 w-20 animate-pulse rounded-md bg-[#E5E7EB]" />
+              <div className="h-9 w-16 animate-pulse rounded-md bg-[#E5E7EB]" />
+              <div className="h-9 w-20 animate-pulse rounded-md bg-[#E5E7EB]" />
+            </div>
+          </div>
+          <div className="h-8 w-24 animate-pulse rounded-md bg-[#E5E7EB]" />
+        </div>
+      </div>
+    </nav>
+  )
+}
+
 export function AdNav({
   userEmail: userEmailProp,
   tabVisibility: tabVisibilityProp,

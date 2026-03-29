@@ -1,8 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { buildAppAdPortalBootstrapPayload } from "@/lib/app/build-app-ad-portal-bootstrap"
+import type { AdPortalAccess } from "@/lib/ad-portal-access"
+import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
 import { fetchAdVisibleTeamsForAccess, logAdTeamVisibility } from "@/lib/ad-team-scope"
 import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
+import {
+  canAccessAdPortalRoutes,
+  resolveFootballAdAccessState,
+  type FootballAdAccessContext,
+} from "@/lib/enforcement/football-ad-access"
+
+/** React Query key for AD teams table — shared with visibility refresh invalidation. */
+export const AD_TEAMS_TABLE_QUERY_KEY = ["ad-pages", "teams-table"] as const
 
 function formatTeamLevel(level: string | null | undefined): string {
   if (level == null || String(level).trim() === "") return "Varsity"
@@ -13,22 +22,40 @@ function formatTeamLevel(level: string | null | undefined): string {
   return String(level)
 }
 
-export async function loadAdTeamsPageRows(
+export type AdTeamsTableAuthUser = {
+  id: string
+  role: string
+  isPlatformOwner: boolean
+}
+
+const shouldLogAdTeamsPerf =
+  process.env.NODE_ENV === "development" || process.env.AD_TEAMS_TABLE_PERF === "1"
+
+function perfLog(phase: string, ms: number, extra?: Record<string, unknown>) {
+  if (!shouldLogAdTeamsPerf) return
+  console.info(`[ad-teams-table-perf] ${phase}`, { ms: Math.round(ms * 10) / 10, ...extra })
+}
+
+/**
+ * Builds AD Teams table rows. Caller must enforce portal access (e.g. `canAccessAdPortalRoutes`) and
+ * pass `adPortalAccess` from `getAdPortalAccessForUser` — do not call `buildAppAdPortalBootstrapPayload`
+ * first (that duplicated the entire bootstrap + a second team list fetch).
+ */
+export async function loadAdTeamsTableData(
   supabase: SupabaseClient,
-  user: { id: string; email: string; role: string; isPlatformOwner: boolean }
+  user: AdTeamsTableAuthUser,
+  adPortalAccess: AdPortalAccess,
+  footballAccess: FootballAdAccessContext
 ): Promise<TeamRow[]> {
-  const shell = await buildAppAdPortalBootstrapPayload(supabase, {
-    userId: user.id,
-    email: user.email,
-    liteRole: user.role,
-    isPlatformOwner: user.isPlatformOwner,
-  })
+  const tRoute = performance.now()
 
   const { scope, orFilter, teams: teamsData, error: teamsErr } = await fetchAdVisibleTeamsForAccess(
     supabase,
     user.id,
-    shell.adPortalAccess
+    adPortalAccess,
+    { reuseFootballAccess: footballAccess }
   )
+  perfLog("teams_list", performance.now() - tRoute, { teamCount: teamsData?.length ?? 0 })
 
   const teams: TeamRow[] = []
 
@@ -56,14 +83,43 @@ export async function loadAdTeamsPageRows(
   if (!teamsData?.length) return teams
 
   const teamIds = teamsData.map((t) => t.id)
-  const { data: staffRows } = await supabase
-    .from("team_members")
-    .select("team_id, user_id, role, is_primary")
-    .in("team_id", teamIds)
-    .eq("active", true)
+  const programIds = [
+    ...new Set(
+      teamsData.map((t) => t.program_id).filter((id): id is string => typeof id === "string" && id.length > 0)
+    ),
+  ]
+  const creatorIds = [
+    ...new Set(
+      teamsData
+        .map((t) => t.created_by)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    ),
+  ]
+  const now = new Date().toISOString()
+
+  const tParallel = performance.now()
+  const [staffRes, invitesRes, programsRes] = await Promise.all([
+    supabase
+      .from("team_members")
+      .select("team_id, user_id, role, is_primary")
+      .in("team_id", teamIds)
+      .eq("active", true),
+    supabase
+      .from("invites")
+      .select("team_id")
+      .in("team_id", teamIds)
+      .is("accepted_at", null)
+      .gt("expires_at", now),
+    programIds.length > 0
+      ? supabase.from("programs").select("id, sport").in("id", programIds)
+      : Promise.resolve({ data: [] as { id: string; sport?: string | null }[] }),
+  ])
+  perfLog("parallel_staff_invites_programs", performance.now() - tParallel, {
+    staffRows: staffRes.data?.length ?? 0,
+  })
 
   const staffByTeam = new Map<string, TeamMemberStaffRow[]>()
-  for (const row of staffRows ?? []) {
+  for (const row of staffRes.data ?? []) {
     const tid = (row as { team_id: string }).team_id
     const list = staffByTeam.get(tid) ?? []
     list.push({
@@ -82,10 +138,37 @@ export async function loadAdTeamsPageRows(
     if (uid) coachUserIds.add(uid)
   }
 
-  const { data: users } =
-    coachUserIds.size > 0
-      ? await supabase.from("users").select("id, name").in("id", [...coachUserIds])
-      : { data: [] as { id: string; name: string | null }[] }
+  const nameUserIds = [...new Set([...coachUserIds, ...creatorIds])]
+  const tUsers = performance.now()
+  let usersRows: { id: string; name?: string | null }[] = []
+  if (nameUserIds.length > 0) {
+    const { data } = await supabase.from("users").select("id, name").in("id", nameUserIds)
+    usersRows = data ?? []
+  }
+  perfLog("users_names", performance.now() - tUsers, { ids: nameUserIds.length })
+
+  const usersById = new Map<string, { name?: string | null }>()
+  for (const u of usersRows) {
+    if (u?.id) usersById.set(u.id, u)
+  }
+
+  const creatorNameById = new Map<string, string>()
+  for (const uid of creatorIds) {
+    const nm = usersById.get(uid)?.name?.trim()
+    if (nm) creatorNameById.set(uid, nm)
+  }
+
+  const missingProfileIds = creatorIds.filter((id) => !creatorNameById.has(id))
+  const tProf = performance.now()
+  if (missingProfileIds.length > 0) {
+    const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", missingProfileIds)
+    for (const p of profs ?? []) {
+      const pid = (p as { id: string }).id
+      const fn = (p as { full_name?: string | null }).full_name?.trim()
+      if (pid && fn && !creatorNameById.has(pid)) creatorNameById.set(pid, fn)
+    }
+  }
+  perfLog("profiles_fallback", performance.now() - tProf, { missing: missingProfileIds.length })
 
   const headCoachByTeam = new Map<string, string | null>()
   headCoachUserIdByTeam.forEach((userId, teamId) => {
@@ -93,57 +176,16 @@ export async function loadAdTeamsPageRows(
       headCoachByTeam.set(teamId, null)
       return
     }
-    const u = users?.find((x) => x.id === userId)
+    const u = usersById.get(userId)
     const name = u?.name?.trim() ?? null
     headCoachByTeam.set(teamId, name && name.length > 0 ? name : null)
   })
 
-  const now = new Date().toISOString()
-  const { data: pendingInvites } = await supabase
-    .from("invites")
-    .select("team_id")
-    .in("team_id", teamIds)
-    .is("accepted_at", null)
-    .gt("expires_at", now)
+  const pendingTeamIds = new Set((invitesRes.data ?? []).map((i) => (i as { team_id: string }).team_id))
 
-  const pendingTeamIds = new Set((pendingInvites ?? []).map((i) => i.team_id))
-
-  const programIds = [
-    ...new Set(
-      teamsData.map((t) => t.program_id).filter((id): id is string => typeof id === "string" && id.length > 0)
-    ),
-  ]
   const sportByProgramId = new Map<string, string>()
-  if (programIds.length > 0) {
-    const { data: programs } = await supabase.from("programs").select("id, sport").in("id", programIds)
-    for (const p of programs ?? []) {
-      if (p?.id) sportByProgramId.set(p.id, (p.sport as string) || "football")
-    }
-  }
-
-  const creatorIds = [
-    ...new Set(
-      teamsData
-        .map((t) => t.created_by)
-        .filter((id): id is string => typeof id === "string" && id.length > 0)
-    ),
-  ]
-  const creatorNameById = new Map<string, string>()
-  if (creatorIds.length > 0) {
-    const { data: creatorUsers } = await supabase.from("users").select("id, name").in("id", creatorIds)
-    for (const u of creatorUsers ?? []) {
-      const nm = (u as { name?: string | null }).name?.trim()
-      if (u?.id && nm) creatorNameById.set(u.id, nm)
-    }
-    const missing = creatorIds.filter((id) => !creatorNameById.has(id))
-    if (missing.length > 0) {
-      const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", missing)
-      for (const p of profs ?? []) {
-        const pid = (p as { id: string }).id
-        const fn = (p as { full_name?: string | null }).full_name?.trim()
-        if (pid && fn && !creatorNameById.has(pid)) creatorNameById.set(pid, fn)
-      }
-    }
+  for (const p of programsRes.data ?? []) {
+    if (p?.id) sportByProgramId.set(p.id, (p.sport as string) || "football")
   }
 
   teamsData.forEach((t) => {
@@ -167,5 +209,20 @@ export async function loadAdTeamsPageRows(
     })
   })
 
+  perfLog("total_loadAdTeamsTableData", performance.now() - tRoute, { rows: teams.length })
   return teams
+}
+
+/** Thin wrapper when callers do not already have `adPortalAccess` (e.g. tests). */
+export async function loadAdTeamsPageRows(
+  supabase: SupabaseClient,
+  user: { id: string; email: string; role: string; isPlatformOwner: boolean }
+): Promise<TeamRow[]> {
+  const roleUpper = user.role.toUpperCase().replace(/ /g, "_")
+  const footballAccess = await resolveFootballAdAccessState(supabase, user.id)
+  if (!canAccessAdPortalRoutes(footballAccess)) {
+    throw new Error("AD_BOOTSTRAP_FORBIDDEN")
+  }
+  const adPortalAccess = await getAdPortalAccessForUser(supabase, user.id, roleUpper)
+  return loadAdTeamsTableData(supabase, user, adPortalAccess, footballAccess)
 }

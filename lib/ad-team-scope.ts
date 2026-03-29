@@ -201,7 +201,8 @@ export type AdPortalTeamsSelectMode = "full" | "picklist"
 export async function fetchAdPortalVisibleTeams(
   supabase: SupabaseClient,
   userId: string,
-  selectMode: AdPortalTeamsSelectMode = "full"
+  selectMode: AdPortalTeamsSelectMode = "full",
+  opts?: { reuseFootballAccess?: FootballAdAccessContext }
 ): Promise<{
   scope: AthleticDirectorScope
   orFilter: string | null
@@ -209,7 +210,8 @@ export async function fetchAdPortalVisibleTeams(
   error: string | null
   footballAccess: FootballAdAccessContext
 }> {
-  const footballAccess = await resolveFootballAdAccessState(supabase, userId)
+  const footballAccess =
+    opts?.reuseFootballAccess ?? (await resolveFootballAdAccessState(supabase, userId))
   if (!canAccessAdPortalRoutes(footballAccess)) {
     const scope = await resolveAthleticDirectorScope(supabase, userId)
     return { scope, orFilter: null, teams: [], error: null, footballAccess }
@@ -273,7 +275,8 @@ export async function resolveAdPortalTeamScope(
 export async function fetchAdVisibleTeamsForAccess(
   supabase: SupabaseClient,
   userId: string,
-  access: AdPortalAccess
+  access: AdPortalAccess,
+  opts?: { reuseFootballAccess?: FootballAdAccessContext }
 ): Promise<{
   scope: AthleticDirectorScope
   orFilter: string | null
@@ -285,7 +288,7 @@ export async function fetchAdVisibleTeamsForAccess(
     return { scope, orFilter: null, teams: [], error: null }
   }
 
-  const merged = await fetchAdPortalVisibleTeams(supabase, userId)
+  const merged = await fetchAdPortalVisibleTeams(supabase, userId, "full", opts)
   const mergedTeams = merged.teams as AdVisibleTeamRow[]
 
   if (access.teamQuery === "program_ids" && access.footballProgramIds.length > 0) {

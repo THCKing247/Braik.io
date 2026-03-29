@@ -1,17 +1,18 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { AdTeamFilters } from "./ad-team-filters"
 import { AdTeamsTable, type TeamRow } from "./ad-teams-table"
 import { AdEmptyState } from "./ad-empty-state"
+import { AD_TEAMS_TABLE_QUERY_KEY } from "@/lib/ad/load-ad-teams-page-rows"
 
 interface AdTeamsPageClientProps {
   teams: TeamRow[]
 }
 
 export function AdTeamsPageClient({ teams: initialTeams }: AdTeamsPageClientProps) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [sportFilter, setSportFilter] = useState("")
 
@@ -20,14 +21,16 @@ export function AdTeamsPageClient({ teams: initialTeams }: AdTeamsPageClientProp
     const onVisible = () => {
       if (document.visibilityState !== "visible") return
       clearTimeout(debounce)
-      debounce = setTimeout(() => router.refresh(), 400)
+      debounce = setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: AD_TEAMS_TABLE_QUERY_KEY })
+      }, 400)
     }
     document.addEventListener("visibilitychange", onVisible)
     return () => {
       clearTimeout(debounce)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [router])
+  }, [queryClient])
 
   const filteredTeams = useMemo(() => {
     let list = initialTeams

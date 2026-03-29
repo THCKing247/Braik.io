@@ -56,28 +56,33 @@ export async function buildAppAdPortalBootstrapPayload(
   const fullName = profile?.full_name?.trim() ?? null
   const displayName = fullName && fullName.length > 0 ? fullName : null
 
-  let school: { id: string | null; name: string | null } = { id: null, name: null }
   const schoolId = profile?.school_id ?? null
+  const programId = footballAccess.programId
+
+  const [schoolRes, programRes] = await Promise.all([
+    schoolId
+      ? supabase.from("schools").select("name").eq("id", schoolId).maybeSingle()
+      : Promise.resolve({ data: null as { name?: string | null } | null }),
+    programId
+      ? supabase.from("programs").select("id, name, sport").eq("id", programId).maybeSingle()
+      : Promise.resolve({ data: null as { id?: string; name?: string | null; sport?: string | null } | null }),
+  ])
+
+  let school: { id: string | null; name: string | null } = { id: null, name: null }
   if (schoolId) {
-    const { data: schoolRow } = await supabase.from("schools").select("name").eq("id", schoolId).maybeSingle()
-    const nm = (schoolRow as { name?: string | null } | null)?.name?.trim()
+    const schoolRow = schoolRes.data as { name?: string | null } | null
+    const nm = schoolRow?.name?.trim()
     school = { id: schoolId, name: nm && nm.length > 0 ? nm : null }
   }
 
   let program: AppAdPortalBootstrapPayload["program"] = null
-  if (footballAccess.programId) {
-    const { data: pr } = await supabase
-      .from("programs")
-      .select("id, name, sport")
-      .eq("id", footballAccess.programId)
-      .maybeSingle()
-    if (pr && (pr as { id?: string }).id) {
-      const row = pr as { id: string; name?: string | null; sport?: string | null }
-      program = {
-        id: row.id,
-        name: row.name?.trim() ?? null,
-        sport: row.sport ?? null,
-      }
+  const pr = programRes.data
+  if (pr && (pr as { id?: string }).id) {
+    const row = pr as { id: string; name?: string | null; sport?: string | null }
+    program = {
+      id: row.id,
+      name: row.name?.trim() ?? null,
+      sport: row.sport ?? null,
     }
   }
 

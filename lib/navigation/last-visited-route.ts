@@ -35,7 +35,7 @@ export function readLastVisitedAppPath(): string | null {
 
 /**
  * Last visited dashboard/admin path, or server default (Phase 2), or role fallback.
- * Prefer `sessionDefaultPath` from `/api/auth/session` when no stored path.
+ * Prefer `sessionDefaultPath` from client session (`useSession`) when no stored path.
  */
 export function getResumeOrDefaultAppPath(role?: string | null, sessionDefaultPath?: string | null): string {
   const stored = readLastVisitedAppPath()

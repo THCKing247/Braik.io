@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from "react"
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import type { Session } from "@supabase/supabase-js"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { NATIVE_SESSION_UNLOCK_EVENT } from "@/lib/auth/session-unlock-events"
 import { supabaseClient } from "@/src/lib/supabaseClient"
@@ -89,6 +90,11 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
     role?: string
     redirectTo?: string
     user?: SessionResponse["user"]
+    supabaseSession?: {
+      access_token: string
+      refresh_token: string
+      expires_at?: number
+    }
   }
   const callbackUrl = options.callbackUrl || data.redirectTo || getDefaultAppPathForRole(data.role)
   const isSuccess = response.ok && data.success === true
@@ -100,11 +106,17 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
 
   if (isSuccess) {
     authLog("SIGNED_IN", { redirectTo: callbackUrl })
-    if (
-      options.redirect === false &&
-      data.user?.id &&
-      typeof window !== "undefined"
-    ) {
+    const tok = data.supabaseSession
+    if (tok?.access_token && tok.refresh_token) {
+      const { error: setErr } = await supabaseClient.auth.setSession({
+        access_token: tok.access_token,
+        refresh_token: tok.refresh_token,
+      })
+      if (setErr && AUTH_DEBUG) {
+        console.warn("[auth] setSession after login:", setErr.message)
+      }
+    }
+    if (data.user?.id && typeof window !== "undefined") {
       authTimingClient("sign_in_session_seed_dispatch", { userId: data.user.id })
       window.dispatchEvent(
         new CustomEvent(BRAIK_AUTH_LOGIN_SESSION_EVENT, {
@@ -124,6 +136,7 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
 
 export async function signOut(options: { callbackUrl?: string } = {}) {
   authLog("SIGNED_OUT", { reason: "user_initiated" })
+  await supabaseClient.auth.signOut().catch(() => null)
   await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
   const { clearNativeBiometricUnlockLaunchFlag } = await import("@/lib/native/native-unlock-session")
   clearNativeBiometricUnlockLaunchFlag()
@@ -131,109 +144,118 @@ export async function signOut(options: { callbackUrl?: string } = {}) {
   window.location.href = callbackUrl
 }
 
-const SESSION_RETRY_DELAY_MS = 800
-const SESSION_MAX_RETRIES = 1
-
-let sessionFetchInFlight: Promise<SessionResponse | null> | null = null
-
-async function fetchSessionOnce(): Promise<SessionResponse | null> {
-  // Client-side Supabase session (supabase-js). With httpOnly auth cookies this is often null until `setSession`; profile still comes from `/api/auth/session`.
-  await supabaseClient.auth.getSession().catch(() => null)
-
-  authTimingClient("session_fetch_start", { source: "/api/auth/session" })
-  const t0 = typeof performance !== "undefined" ? performance.now() : 0
-
-  let lastError: unknown
-  for (let attempt = 0; attempt <= SESSION_MAX_RETRIES; attempt++) {
-    try {
-      const response = await fetch("/api/auth/session", { cache: "no-store", credentials: "include" })
-      const data = (await response.json().catch(() => null)) as SessionResponse | { user: null } | null
-
-      if (response.ok) {
-        const hasUser = data?.user && typeof (data as SessionResponse).user?.id === "string"
-        authLog(attempt === 0 ? "INITIAL_SESSION" : "SESSION_RETRY_OK", {
-          hasUser,
-          attempt: attempt + 1,
-        })
-        if (hasUser) {
-          authTimingClient("session_fetch_done", {
-            ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
-            attempt: attempt + 1,
-            hasUser: true,
-          })
-          return data as SessionResponse
-        }
-        authTimingClient("session_fetch_done", {
-          ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
-          hasUser: false,
-        })
-        return null
-      }
-
-      if (response.status === 401) {
-        authLog("SESSION_401", { attempt: attempt + 1 })
-        authTimingClient("session_fetch_401", { ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0 })
-        return null
-      }
-
-      if (response.status >= 500) {
-        lastError = new Error(`Session API ${response.status}`)
-        authLog("SESSION_SERVER_ERROR", { status: response.status, attempt: attempt + 1 })
-        if (attempt < SESSION_MAX_RETRIES) {
-          await new Promise((r) => setTimeout(r, SESSION_RETRY_DELAY_MS))
-          continue
-        }
-        return null
-      }
-
-      lastError = new Error(`Session API ${response.status}`)
-      return null
-    } catch (err) {
-      lastError = err
-      authLog("SESSION_NETWORK_ERROR", { attempt: attempt + 1 })
-      if (attempt < SESSION_MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, SESSION_RETRY_DELAY_MS))
-        continue
-      }
-      authLog("SESSION_NULL_UNEXPECTED", { reason: "network_or_server_after_retry" })
-      return null
-    }
+function mapSupabaseSessionToSessionResponse(session: Session): SessionResponse | null {
+  const u = session.user
+  if (!u?.id) return null
+  const meta = (u.user_metadata || {}) as Record<string, unknown>
+  const appMeta = (u.app_metadata || {}) as Record<string, unknown>
+  const roleRaw = meta.role ?? appMeta.role
+  let role: string | undefined
+  if (typeof roleRaw === "string" && roleRaw.trim()) {
+    role = roleRaw.trim().toUpperCase().replace(/ /g, "_")
   }
-  return null
+  const teamIdRaw = meta.teamId ?? meta.team_id
+  const teamId = typeof teamIdRaw === "string" ? teamIdRaw : undefined
+  const name =
+    (typeof meta.full_name === "string" ? meta.full_name : null) ??
+    (typeof meta.displayName === "string" ? meta.displayName : null) ??
+    null
+  const isPlatformOwner =
+    meta.is_platform_owner === true || appMeta.is_platform_owner === true ? true : undefined
+
+  return {
+    user: {
+      id: u.id,
+      email: u.email ?? "",
+      name,
+      role,
+      teamId,
+      isPlatformOwner,
+      defaultAppPath: role ? getDefaultAppPathForRole(role) : undefined,
+    },
+  }
+}
+
+function mergePreferRicherSession(
+  cached: SessionResponse | null | undefined,
+  fromSupabase: SessionResponse | null
+): SessionResponse | null {
+  if (!fromSupabase?.user?.id) {
+    return cached?.user?.id ? cached : null
+  }
+  if (!cached?.user?.id || cached.user.id !== fromSupabase.user.id) {
+    return fromSupabase
+  }
+  const a = cached.user
+  const b = fromSupabase.user
+  return {
+    user: {
+      id: b.id,
+      email: b.email || a.email,
+      name: a.name ?? b.name,
+      role: a.role ?? b.role,
+      adminRole: a.adminRole ?? b.adminRole,
+      teamId: a.teamId ?? b.teamId,
+      teamName: a.teamName ?? b.teamName,
+      organizationName: a.organizationName ?? b.organizationName,
+      positionGroups: a.positionGroups ?? b.positionGroups,
+      isPlatformOwner: a.isPlatformOwner ?? b.isPlatformOwner,
+      defaultAppPath: a.defaultAppPath ?? b.defaultAppPath,
+    },
+  }
+}
+
+async function fetchClientSession(queryClient: QueryClient): Promise<SessionResponse | null> {
+  authTimingClient("session_fetch_start", { source: "supabase.auth.getSession" })
+  const t0 = typeof performance !== "undefined" ? performance.now() : 0
+  const cached = queryClient.getQueryData(BRAIK_AUTH_SESSION_QUERY_KEY) as SessionResponse | undefined
+
+  const { data, error } = await supabaseClient.auth.getSession()
+  if (error) {
+    authLog("SUPABASE_GET_SESSION_ERROR", { message: error.message })
+    authTimingClient("session_fetch_done", {
+      ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+      hasUser: Boolean(cached?.user?.id),
+      error: true,
+    })
+    return cached?.user?.id ? cached : null
+  }
+
+  const mapped = data.session ? mapSupabaseSessionToSessionResponse(data.session) : null
+  const merged = mergePreferRicherSession(cached, mapped)
+
+  authLog("INITIAL_SESSION", { hasUser: Boolean(merged?.user?.id) })
+  authTimingClient("session_fetch_done", {
+    ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+    hasUser: Boolean(merged?.user?.id),
+  })
+  return merged
 }
 
 const AUTH_SESSION_STALE_MS = 5 * 60 * 1000
 
-/** Single source of truth for the client session query — shell/bootstrap seed here to avoid duplicate “loading” with GET /api/auth/session. */
+/** Single source of truth for the client session query — shell/bootstrap seeds merge with `supabase.auth.getSession()`. */
 export const BRAIK_AUTH_SESSION_QUERY_KEY = ["braik-auth-session"] as const
 
 /**
  * If React Query has no session yet, seed from dashboard/AD shell payloads so children don’t block on
- * `/api/auth/session` while that request still runs. Full session replaces this when the fetch completes.
+ * `getSession()` while Supabase hydrates. Merged with `supabase.auth.getSession()` when the query resolves.
  */
 export function seedAuthSessionCacheFromShellUser(
   queryClient: QueryClient,
   user: SessionResponse["user"]
 ): void {
   queryClient.setQueryData(BRAIK_AUTH_SESSION_QUERY_KEY, (prev: SessionResponse | undefined) => {
-    if (prev?.user?.id) return prev
+    if (!user?.id) return prev
+    const shellPayload: SessionResponse = { user }
+    if (!prev?.user?.id) {
+      authTimingClient("session_query_seeded_from_shell", { userId: user.id })
+      return shellPayload
+    }
+    if (prev.user.id !== user.id) return prev
     authTimingClient("session_query_seeded_from_shell", { userId: user.id })
-    return { user }
+    return mergePreferRicherSession(shellPayload, prev)
   })
-}
-
-/**
- * Fetches session from /api/auth/session. Retries once on 5xx or network failure
- * so temporary server errors don't make the app think the user is logged out.
- * Only 401 or explicit 200 with user: null are treated as "no session".
- * Concurrent callers share one in-flight request (singleflight).
- */
-export async function getSession(): Promise<SessionResponse | null> {
-  if (sessionFetchInFlight) return sessionFetchInFlight
-  sessionFetchInFlight = fetchSessionOnce().finally(() => {
-    sessionFetchInFlight = null
-  })
-  return sessionFetchInFlight
 }
 
 export function useSession(): SessionContextValue {
@@ -245,15 +267,11 @@ export function useSession(): SessionContextValue {
 }
 
 /**
- * Full client session from GET `/api/auth/session` (initial load + visibility/native unlock refresh).
- * Still needed for: global auth boundary (login/logout), fields not on app bootstrap (`defaultAppPath`,
- * `adminRole`, `positionGroups`, etc.), and `refetch()` after secure flows.
+ * Client session from `supabase.auth.getSession()` merged with shell/login seeds (no GET `/api/auth/session`).
+ * Team dashboard shell and AD bootstrap still supply richer fields via `seedAuthSessionCacheFromShellUser`.
  *
- * In the team dashboard shell, prefer `useDashboardShellIdentity` + `AppBootstrapProvider` for routine
- * id/email/role/team/unread display — do not depend on session alone for that UI when bootstrap is mounted.
- *
- * Session is cached with React Query (`staleTime` 5m, no refetch on window focus) to avoid duplicate
- * `/api/auth/session` calls on dashboard navigation. Native biometric unlock still invalidates the query.
+ * Session is cached with React Query (`staleTime` 5m, no refetch on window focus). Native biometric unlock
+ * invalidates the query.
  */
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -264,16 +282,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const ce = e as CustomEvent<SessionResponse>
       if (ce.detail?.user?.id) {
         authTimingClient("session_query_seeded_from_login", { userId: ce.detail.user.id })
-        queryClient.setQueryData(BRAIK_AUTH_SESSION_QUERY_KEY, ce.detail)
+        queryClient.setQueryData(BRAIK_AUTH_SESSION_QUERY_KEY, (prev: SessionResponse | undefined) =>
+          mergePreferRicherSession(ce.detail, prev ?? null)
+        )
       }
     }
     window.addEventListener(BRAIK_AUTH_LOGIN_SESSION_EVENT, onLoginSeed as EventListener)
     return () => window.removeEventListener(BRAIK_AUTH_LOGIN_SESSION_EVENT, onLoginSeed as EventListener)
   }, [queryClient])
 
+  useEffect(() => {
+    const { data: sub } = supabaseClient.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        queryClient.setQueryData(BRAIK_AUTH_SESSION_QUERY_KEY, null)
+      }
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [queryClient])
+
+  const sessionQueryFn = useCallback(() => fetchClientSession(queryClient), [queryClient])
+
   const query = useQuery({
     queryKey: BRAIK_AUTH_SESSION_QUERY_KEY,
-    queryFn: getSession,
+    queryFn: sessionQueryFn,
     staleTime: AUTH_SESSION_STALE_MS,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,

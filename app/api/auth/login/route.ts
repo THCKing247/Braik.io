@@ -183,6 +183,12 @@ export async function POST(request: Request) {
       role,
       redirectTo,
       user: sessionUserPreview,
+      /** Lets the browser Supabase client persist the same session as httpOnly cookies (no GET /api/auth/session). */
+      supabaseSession: {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at ?? undefined,
+      },
     })
 
     // Set cookie expiration based on "Remember me" option

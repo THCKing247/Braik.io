@@ -27,5 +27,5 @@ export function authTimingClient(label: string, detail?: Record<string, unknown>
   console.info(`[braik-auth-timing] ${label}`, { ms: Math.round(performance.now()), ...detail })
 }
 
-/** Dispatched after successful POST /api/auth/login so SessionProvider can seed React Query without waiting on GET /api/auth/session. */
+/** Dispatched after successful POST /api/auth/login so SessionProvider can seed React Query before `getSession()` resolves. */
 export const BRAIK_AUTH_LOGIN_SESSION_EVENT = "braik:auth-login-session"

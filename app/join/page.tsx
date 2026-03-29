@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { supabaseClient } from "@/src/lib/supabaseClient"
 
 const JOIN_TOKEN_KEY = "braik_join_token"
 
@@ -80,11 +81,12 @@ export default function JoinPage() {
     let cancelled = false
     setStatus("loading")
 
-    fetch("/api/auth/session", { credentials: "same-origin" })
-      .then((res) => res.json())
-      .then((data: { user?: { id: string } }) => {
+    supabaseClient.auth
+      .getSession()
+      .then(({ data }) => {
         if (cancelled) return
-        if (data?.user?.id) {
+        const uid = data.session?.user?.id
+        if (uid) {
           redeemToken(token)
         } else {
           if (typeof window !== "undefined") {

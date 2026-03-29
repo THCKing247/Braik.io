@@ -30,6 +30,8 @@ export interface PlayerProfileTeam {
   activeStatus: string
   teamId: string
   teamName?: string | null
+  /** Team-level parent join code (shared by all players on the roster). */
+  parentCode?: string | null
   roleDepthNotes?: string | null
   eligibilityStatus?: string | null
 }

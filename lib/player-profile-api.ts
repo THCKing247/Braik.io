@@ -59,17 +59,18 @@ export type AssignedEquipmentItemRow = {
   damage_reported_by_player_id?: string | null
 }
 
-/** Map DB player row + team name + assigned inventory items to PlayerProfile. */
+/** Map DB player row + team metadata + assigned inventory items to PlayerProfile. */
 export function mapRowToProfile(
   row: DbPlayerRow,
-  teamName: string | null,
+  team: { name: string | null; parentCode?: string | null },
   assignedEquipmentItems: AssignedEquipmentItemRow[]
 ): PlayerProfile {
   const tags = normalizeProfileTags(row.profile_tags)
   return {
     id: row.id,
     teamId: row.team_id,
-    teamName: teamName ?? null,
+    teamName: team.name ?? null,
+    parentCode: team.parentCode ?? null,
     firstName: row.first_name ?? "",
     lastName: row.last_name ?? "",
     preferredName: row.preferred_name ?? null,

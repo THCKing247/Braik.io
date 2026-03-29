@@ -74,7 +74,7 @@ export async function GET(
       )
     }
 
-    const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()
+    const { data: team } = await supabase.from("teams").select("name, parent_code").eq("id", teamId).maybeSingle()
     const { data: invItems } = await supabase
       .from("inventory_items")
       .select(
@@ -95,9 +95,13 @@ export async function GET(
       damage_reported_by_player_id: i.damage_reported_by_player_id ?? null,
     }))
 
+    const teamRow = team as { name?: string; parent_code?: string | null } | null
     const profile = mapRowToProfile(
       row,
-      (team as { name?: string } | null)?.name ?? null,
+      {
+        name: teamRow?.name ?? null,
+        parentCode: teamRow?.parent_code ?? null,
+      },
       assignedEquipmentItems
     )
 
@@ -304,7 +308,7 @@ export async function PATCH(
       }
     }
 
-    const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()
+    const { data: team } = await supabase.from("teams").select("name, parent_code").eq("id", teamId).maybeSingle()
     const { data: invItems } = await supabase
       .from("inventory_items")
       .select(
@@ -325,9 +329,13 @@ export async function PATCH(
       damage_reported_by_player_id: i.damage_reported_by_player_id ?? null,
     }))
 
+    const teamRow = team as { name?: string; parent_code?: string | null } | null
     const profile = mapRowToProfile(
       updated as DbPlayerRow,
-      (team as { name?: string } | null)?.name ?? null,
+      {
+        name: teamRow?.name ?? null,
+        parentCode: teamRow?.parent_code ?? null,
+      },
       assignedEquipmentItems
     )
 

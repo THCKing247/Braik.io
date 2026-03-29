@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList } from "lucide-react"
+import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList, Copy } from "lucide-react"
 import type { PlayerProfile } from "@/types/player-profile"
 import { PlayerProfilePracticeMetricsForm } from "./player-profile-stats-form"
 import { PlayerProfileWeeklyStatsPanel } from "./player-profile-weekly-stats-panel"
@@ -869,6 +869,24 @@ function OverviewTab({
         <div className="space-y-1.5">
           <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Team</Label>
           <p className={readOnlyClass}>{profile.teamName ?? "—"}</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Parent code</Label>
+          <div className="flex items-center gap-2">
+            <p className={`${readOnlyClass} flex-1 font-mono`}>{profile.parentCode?.trim() || "—"}</p>
+            {profile.parentCode?.trim() ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Copy parent code"
+                onClick={() => void navigator.clipboard.writeText(profile.parentCode!.trim())}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Status</Label>

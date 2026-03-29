@@ -67,12 +67,7 @@ export function AdTeamsPageLoader() {
   }, [q.isFetched, q.status, q.data])
 
   if (q.isPending) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 w-48 rounded bg-[#E5E7EB]" />
-        <div className="h-64 rounded-xl bg-[#F3F4F6]" />
-      </div>
-    )
+    return <AdTeamsPageClient teams={[]} initialLoading />
   }
 
   if (q.isError) {

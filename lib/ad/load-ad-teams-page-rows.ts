@@ -26,6 +26,9 @@ export const AD_TEAMS_TABLE_QUERY_KEY = ["ad-pages", "teams-table"] as const
 /** PostgREST `.in("team_id", …)` chunk size to avoid huge URLs when many teams are visible. */
 const TEAM_IDS_IN_CHUNK = 120
 
+/** Chunk size for `.in("id", …)` on users/profiles when resolving display names. */
+const NAME_USER_IDS_CHUNK = 120
+
 const TEAM_MEMBER_ROLES_FOR_HC = ["head_coach", "assistant_coach"] as const
 
 function formatTeamLevel(level: string | null | undefined): string {
@@ -189,50 +192,57 @@ export async function loadAdTeamsTableData(
   }
 
   const nameUserIds = [...new Set([...coachUserIds, ...creatorIds])]
-  const tUsers = performance.now()
-  let usersRows: { id: string; name?: string | null }[] = []
+  const tNamesParallel = performance.now()
+  let usersRowsFlat: { id: string; name?: string | null }[] = []
+  let profilesRowsFlat: { id: string; full_name?: string | null }[] = []
   if (nameUserIds.length > 0) {
-    const { data } = await supabase.from("users").select("id, name").in("id", nameUserIds)
-    usersRows = data ?? []
+    const pair = await Promise.all([
+      mapIdsInChunks(nameUserIds, NAME_USER_IDS_CHUNK, async (chunk) => {
+        const { data } = await supabase.from("users").select("id, name").in("id", chunk)
+        return data ?? []
+      }),
+      mapIdsInChunks(nameUserIds, NAME_USER_IDS_CHUNK, async (chunk) => {
+        const { data } = await supabase.from("profiles").select("id, full_name").in("id", chunk)
+        return data ?? []
+      }),
+    ])
+    usersRowsFlat = pair[0]
+    profilesRowsFlat = pair[1]
   }
-  adTeamsFlowPerfLog("loadAdTeamsTableData", "users_names", performance.now() - tUsers, {
-    ids: nameUserIds.length,
-  })
+  adTeamsFlowPerfLog(
+    "loadAdTeamsTableData",
+    "users_and_profiles_names_parallel",
+    performance.now() - tNamesParallel,
+    { ids: nameUserIds.length }
+  )
 
+  const tPostFetch = performance.now()
   const usersById = new Map<string, { name?: string | null }>()
-  for (const u of usersRows) {
+  for (const u of usersRowsFlat) {
     if (u?.id) usersById.set(u.id, u)
+  }
+  const profilesById = new Map<string, { full_name?: string | null }>()
+  for (const p of profilesRowsFlat) {
+    const id = (p as { id: string }).id
+    if (id) profilesById.set(id, p as { full_name?: string | null })
+  }
+
+  const displayNameForUserId = (uid: string): string | null => {
+    const fromUser = usersById.get(uid)?.name?.trim()
+    if (fromUser && fromUser.length > 0) return fromUser
+    const fromProfile = profilesById.get(uid)?.full_name?.trim()
+    return fromProfile && fromProfile.length > 0 ? fromProfile : null
   }
 
   const creatorNameById = new Map<string, string>()
   for (const uid of creatorIds) {
-    const nm = usersById.get(uid)?.name?.trim()
+    const nm = displayNameForUserId(uid)
     if (nm) creatorNameById.set(uid, nm)
   }
 
-  const missingProfileIds = creatorIds.filter((id) => !creatorNameById.has(id))
-  const tProf = performance.now()
-  if (missingProfileIds.length > 0) {
-    const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", missingProfileIds)
-    for (const p of profs ?? []) {
-      const pid = (p as { id: string }).id
-      const fn = (p as { full_name?: string | null }).full_name?.trim()
-      if (pid && fn && !creatorNameById.has(pid)) creatorNameById.set(pid, fn)
-    }
-  }
-  adTeamsFlowPerfLog("loadAdTeamsTableData", "profiles_fallback", performance.now() - tProf, {
-    missing: missingProfileIds.length,
-  })
-
   const headCoachByTeam = new Map<string, string | null>()
   headCoachUserIdByTeam.forEach((userId, teamId) => {
-    if (!userId) {
-      headCoachByTeam.set(teamId, null)
-      return
-    }
-    const u = usersById.get(userId)
-    const name = u?.name?.trim() ?? null
-    headCoachByTeam.set(teamId, name && name.length > 0 ? name : null)
+    headCoachByTeam.set(teamId, userId ? displayNameForUserId(userId) : null)
   })
 
   const pendingTeamIds = new Set(
@@ -243,7 +253,11 @@ export async function loadAdTeamsTableData(
   for (const p of programsRes.data ?? []) {
     if (p?.id) sportByProgramId.set(p.id, (p.sport as string) || "football")
   }
+  adTeamsFlowPerfLog("loadAdTeamsTableData", "js_postfetch_maps", performance.now() - tPostFetch, {
+    teamCount: teamIds.length,
+  })
 
+  const tBuildRows = performance.now()
   for (const t of teamsData) {
     const headCoachName = headCoachByTeam.get(t.id) ?? null
     const invitePending = pendingTeamIds.has(t.id)
@@ -264,6 +278,9 @@ export async function loadAdTeamsTableData(
       invitePending,
     })
   }
+  adTeamsFlowPerfLog("loadAdTeamsTableData", "js_build_team_rows", performance.now() - tBuildRows, {
+    rows: teams.length,
+  })
 
   adTeamsFlowPerfLog("loadAdTeamsTableData", "total", performance.now() - tRoute, { rows: teams.length })
   return teams

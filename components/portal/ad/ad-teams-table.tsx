@@ -123,3 +123,53 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
     </div>
   )
 }
+
+const SKELETON_HEADERS = [
+  "Gender",
+  "Team",
+  "Level",
+  "Head coach",
+  "Roster size",
+  "Creator",
+  "Date created",
+  "Actions",
+] as const
+
+/** Placeholder rows while `/api/ad/pages/teams-table` loads — matches real columns. */
+export function AdTeamsTableSkeleton({ rows = 10 }: { rows?: number }) {
+  return (
+    <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-[#E5E7EB]">
+          <thead className="bg-[#F9FAFB]">
+            <tr>
+              {SKELETON_HEADERS.map((label, i) => (
+                <th
+                  key={label}
+                  className={`px-4 py-3 text-xs font-semibold text-[#6B7280] uppercase tracking-wider ${
+                    i === SKELETON_HEADERS.length - 1 ? "text-right" : "text-left"
+                  }`}
+                >
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E5E7EB] bg-white">
+            {Array.from({ length: rows }).map((_, r) => (
+              <tr key={r} className="animate-pulse">
+                {SKELETON_HEADERS.map((label, c) => (
+                  <td key={`${r}-${label}`} className="px-4 py-3">
+                    <div
+                      className={`h-4 rounded bg-[#E5E7EB] ${c === 1 ? "max-w-[12rem]" : c === SKELETON_HEADERS.length - 1 ? "ml-auto max-w-[6rem]" : "max-w-[5rem]"}`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

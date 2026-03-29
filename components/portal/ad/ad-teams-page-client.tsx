@@ -3,15 +3,17 @@
 import { useMemo, useState, useEffect, memo } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { AdTeamFilters } from "./ad-team-filters"
-import { AdTeamsTable, type TeamRow } from "./ad-teams-table"
+import { AdTeamsTable, AdTeamsTableSkeleton, type TeamRow } from "./ad-teams-table"
 import { AdEmptyState } from "./ad-empty-state"
 import { AD_TEAMS_TABLE_QUERY_KEY } from "@/lib/ad/load-ad-teams-page-rows"
 
 interface AdTeamsPageClientProps {
   teams: TeamRow[]
+  /** First teams-table fetch — show page chrome + table skeleton without blocking on data. */
+  initialLoading?: boolean
 }
 
-function AdTeamsPageClientInner({ teams: initialTeams }: AdTeamsPageClientProps) {
+function AdTeamsPageClientInner({ teams: initialTeams, initialLoading = false }: AdTeamsPageClientProps) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [sportFilter, setSportFilter] = useState("")
@@ -44,7 +46,7 @@ function AdTeamsPageClientInner({ teams: initialTeams }: AdTeamsPageClientProps)
     return list
   }, [initialTeams, search, sportFilter])
 
-  const isEmpty = initialTeams.length === 0
+  const isEmpty = !initialLoading && initialTeams.length === 0
 
   return (
     <div className="space-y-8">
@@ -58,7 +60,18 @@ function AdTeamsPageClientInner({ teams: initialTeams }: AdTeamsPageClientProps)
         </div>
       </div>
 
-      {isEmpty ? (
+      {initialLoading ? (
+        <>
+          <AdTeamFilters
+            search={search}
+            onSearchChange={setSearch}
+            sportFilter={sportFilter}
+            onSportFilterChange={setSportFilter}
+            disabled
+          />
+          <AdTeamsTableSkeleton rows={10} />
+        </>
+      ) : isEmpty ? (
         <>
           <div className="rounded-xl border border-[#E5E7EB] bg-[#EFF6FF] p-6">
             <h2 className="text-lg font-semibold text-[#1E40AF]">No teams visible yet</h2>

@@ -46,17 +46,10 @@ export async function resolveAthleticDirectorScope(
   supabase: SupabaseClient,
   userId: string
 ): Promise<AthleticDirectorScope> {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("school_id, role")
-    .eq("id", userId)
-    .maybeSingle()
-
-  const { data: dept } = await supabase
-    .from("athletic_departments")
-    .select("id")
-    .eq("athletic_director_user_id", userId)
-    .maybeSingle()
+  const [{ data: profile }, { data: dept }] = await Promise.all([
+    supabase.from("profiles").select("school_id, role").eq("id", userId).maybeSingle(),
+    supabase.from("athletic_departments").select("id").eq("athletic_director_user_id", userId).maybeSingle(),
+  ])
 
   const organizationIds: string[] = []
   if (dept?.id) {

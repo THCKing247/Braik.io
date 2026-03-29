@@ -16,9 +16,6 @@ import { isNativeAppSync } from "@/lib/native/app-environment"
 import { getNativeBiometricUnlockEnabled } from "@/lib/native/native-biometric-prefs"
 import { hasNativeBiometricUnlockedThisLaunch } from "@/lib/native/native-unlock-session"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
-import { isWaitlistMode } from "@/lib/config/waitlist-mode"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
-
 export default function LoginPage() {
   const router = useRouter()
   const { data, status } = useSession()
@@ -96,12 +93,6 @@ export default function LoginPage() {
                   <span className="mx-2">·</span>
                   <Link href="/terms" className="text-[#6c757d] hover:text-[#3B82F6] hover:underline">
                     Terms of Service
-                  </Link>
-                </p>
-                <p className="text-sm text-[#6c757d]">
-                  Don&apos;t have an account?{" "}
-                  <Link href={getPublicJoinHref()} className="font-medium text-[#3B82F6] hover:underline">
-                    {isWaitlistMode() ? "Join the waitlist" : "Get started free"}
                   </Link>
                 </p>
                 <p className="text-sm text-[#6c757d]">

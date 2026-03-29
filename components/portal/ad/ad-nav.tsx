@@ -83,6 +83,7 @@ export function AdNav({
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch
                   className="rounded-md px-3 py-2 text-sm font-medium text-[#495057] hover:bg-[#F3F4F6] hover:text-[#212529]"
                 >
                   {item.label}

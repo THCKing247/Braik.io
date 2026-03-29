@@ -1,6 +1,9 @@
 /**
  * Browser timing for AD teams table (after login → bootstrap → teams-table).
  * Enable: `NEXT_PUBLIC_AD_TEAMS_FLOW_PERF=1`, or `window.__BRAIK_AD_TEAMS_FLOW_PERF__ = true`, or NODE_ENV=development.
+ *
+ * Labels: `teams_table_fetch_total_ms`, `teams_page_first_paint_proxy_ms` (rAF×2),
+ * `teams_page_time_to_data_ms` (interactive proxy when rows available).
  */
 export function shouldLogAdTeamsFlowPerfClient(): boolean {
   if (typeof window === "undefined") return false

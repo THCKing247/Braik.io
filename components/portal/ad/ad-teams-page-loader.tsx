@@ -4,78 +4,67 @@ import { useRouter } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
-import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
-import { AD_TEAMS_TABLE_QUERY_KEY } from "@/lib/ad/load-ad-teams-page-rows"
+import {
+  AD_TEAMS_TABLE_GC_MS,
+  AD_TEAMS_TABLE_QUERY_KEY,
+  AD_TEAMS_TABLE_STALE_MS,
+  fetchAdTeamsTableQuery,
+} from "@/lib/ad/ad-teams-table-query"
 import { adTeamsFlowPerfClient } from "@/lib/ad/ad-teams-table-perf-client"
-import { adPortalClientPerf } from "@/lib/debug/ad-portal-client-perf"
 
-const FETCH_TIMEOUT_MS = 12_000
-
-async function fetchAdTeamsTable(signal: AbortSignal): Promise<TeamRow[]> {
-  const ac = new AbortController()
-  const onParentAbort = () => ac.abort()
-  signal.addEventListener("abort", onParentAbort, { once: true })
-  const timeoutId = window.setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
-  try {
-    const t0 = typeof performance !== "undefined" ? performance.now() : 0
-    adPortalClientPerf("teams_table_fetch_start")
-    const res = await fetch("/api/ad/pages/teams-table", {
-      credentials: "include",
-      cache: "default",
-      signal: ac.signal,
-    })
-    adPortalClientPerf("teams_table_fetch_done", {
-      ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
-      status: res.status,
-    })
-    if (!res.ok) {
-      const err = new Error(`teams-table ${res.status}`)
-      ;(err as Error & { status?: number }).status = res.status
-      throw err
-    }
-    const json = (await res.json()) as { teams: TeamRow[] }
-    adTeamsFlowPerfClient("teams_table_fetch_total_ms", {
-      ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
-      rowCount: Array.isArray(json.teams) ? json.teams.length : 0,
-    })
-    return json.teams
-  } finally {
-    signal.removeEventListener("abort", onParentAbort)
-    clearTimeout(timeoutId)
-  }
-}
-
+/**
+ * Teams page: layout + table shell mount immediately; fetch runs in background.
+ * Cached data (prefetch + prior visit) shows instantly via placeholderData.
+ */
 export function AdTeamsPageLoader() {
   const router = useRouter()
   const mountT0 = useRef(typeof performance !== "undefined" ? performance.now() : 0)
-  const loggedSettled = useRef(false)
+  const loggedPaint = useRef(false)
+  const loggedDataReady = useRef(false)
 
   const q = useQuery({
     queryKey: AD_TEAMS_TABLE_QUERY_KEY,
-    queryFn: ({ signal }) => fetchAdTeamsTable(signal),
-    staleTime: 90_000,
-    gcTime: 20 * 60_000,
+    queryFn: ({ signal }) => fetchAdTeamsTableQuery(signal),
+    staleTime: AD_TEAMS_TABLE_STALE_MS,
+    gcTime: AD_TEAMS_TABLE_GC_MS,
+    placeholderData: (previousData) => previousData,
     retry: 1,
-    // Visibility handler in AdTeamsPageClient invalidates explicitly; avoid duplicate refetch with window focus.
     refetchOnWindowFocus: false,
   })
 
+  const teamsData = q.data
+  const isPending = q.isPending
+  const isFetching = q.fetchStatus === "fetching"
+  const isError = q.isError
+  const queryError = q.error
+
   useEffect(() => {
-    if (!q.isFetched || loggedSettled.current) return
-    loggedSettled.current = true
-    adTeamsFlowPerfClient("teams_table_loader_to_first_fetch_ms", {
-      queryStatus: q.status,
-      ms: Math.round(performance.now() - mountT0.current),
-      rowCount: Array.isArray(q.data) ? q.data.length : 0,
+    if (loggedPaint.current || typeof window === "undefined") return
+    loggedPaint.current = true
+    const t0 = performance.now()
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        adTeamsFlowPerfClient("teams_page_first_paint_proxy_ms", {
+          ms: Math.round(performance.now() - t0),
+          fromMountMs: Math.round(performance.now() - mountT0.current),
+        })
+      })
     })
-  }, [q.isFetched, q.status, q.data])
+    return () => cancelAnimationFrame(id)
+  }, [])
 
-  if (q.isPending) {
-    return <AdTeamsPageClient teams={[]} initialLoading />
-  }
+  useEffect(() => {
+    if (teamsData === undefined || loggedDataReady.current) return
+    loggedDataReady.current = true
+    adTeamsFlowPerfClient("teams_page_time_to_data_ms", {
+      ms: Math.round(performance.now() - mountT0.current),
+      rowCount: teamsData.length,
+      isPlaceholderData: q.isPlaceholderData,
+    })
+  }, [teamsData, q.isPlaceholderData])
 
-  if (q.isError) {
-    const status = (q.error as Error & { status?: number })?.status
+  if (isError && teamsData === undefined) {
+    const status = (queryError as Error & { status?: number })?.status
     if (status === 401) {
       router.replace("/login?callbackUrl=/dashboard/ad/teams")
       return null
@@ -87,5 +76,13 @@ export function AdTeamsPageLoader() {
     return <p className="text-[#212529]">Could not load teams.</p>
   }
 
-  return <AdTeamsPageClient teams={q.data ?? []} />
+  const initialLoading = teamsData === undefined && (isPending || isFetching)
+
+  return (
+    <AdTeamsPageClient
+      teams={teamsData ?? []}
+      initialLoading={initialLoading}
+      isRefreshing={Boolean(teamsData !== undefined && isFetching && !initialLoading)}
+    />
+  )
 }

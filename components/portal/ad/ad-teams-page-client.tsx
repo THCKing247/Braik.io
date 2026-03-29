@@ -5,15 +5,21 @@ import { useQueryClient } from "@tanstack/react-query"
 import { AdTeamFilters } from "./ad-team-filters"
 import { AdTeamsTable, AdTeamsTableSkeleton, type TeamRow } from "./ad-teams-table"
 import { AdEmptyState } from "./ad-empty-state"
-import { AD_TEAMS_TABLE_QUERY_KEY } from "@/lib/ad/load-ad-teams-page-rows"
+import { AD_TEAMS_TABLE_QUERY_KEY } from "@/lib/ad/ad-teams-table-query"
 
 interface AdTeamsPageClientProps {
   teams: TeamRow[]
   /** First teams-table fetch — show page chrome + table skeleton without blocking on data. */
   initialLoading?: boolean
+  /** Background refetch while showing cached rows (soft refresh). */
+  isRefreshing?: boolean
 }
 
-function AdTeamsPageClientInner({ teams: initialTeams, initialLoading = false }: AdTeamsPageClientProps) {
+function AdTeamsPageClientInner({
+  teams: initialTeams,
+  initialLoading = false,
+  isRefreshing = false,
+}: AdTeamsPageClientProps) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [sportFilter, setSportFilter] = useState("")
@@ -93,13 +99,18 @@ function AdTeamsPageClientInner({ teams: initialTeams, initialLoading = false }:
             sportFilter={sportFilter}
             onSportFilterChange={setSportFilter}
           />
-          {filteredTeams.length === 0 ? (
-            <div className="rounded-xl border border-[#E5E7EB] bg-white p-8 text-center text-[#6B7280]">
-              No teams match your filters.
-            </div>
-          ) : (
-            <AdTeamsTable teams={filteredTeams} />
-          )}
+          <div
+            className={isRefreshing ? "opacity-[0.92] transition-opacity" : undefined}
+            aria-busy={isRefreshing || undefined}
+          >
+            {filteredTeams.length === 0 ? (
+              <div className="rounded-xl border border-[#E5E7EB] bg-white p-8 text-center text-[#6B7280]">
+                No teams match your filters.
+              </div>
+            ) : (
+              <AdTeamsTable teams={filteredTeams} />
+            )}
+          </div>
         </>
       )}
     </div>

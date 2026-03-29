@@ -4,6 +4,7 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
 import { authTimingClient } from "@/lib/auth/login-flow-timing"
 import { navPerfDev } from "@/lib/debug/nav-perf-dev"
+import { adTeamsFlowPerfClient } from "@/lib/ad/ad-teams-table-perf-client"
 
 export class AdPortalBootstrapUnauthorizedError extends Error {
   override name = "AdPortalBootstrapUnauthorizedError"
@@ -39,7 +40,12 @@ export async function fetchAdPortalBootstrap(): Promise<AppAdPortalBootstrapPayl
   if (!res.ok) {
     throw new Error(`ad bootstrap ${res.status}`)
   }
-  return (await res.json()) as AppAdPortalBootstrapPayload
+  const payload = (await res.json()) as AppAdPortalBootstrapPayload
+  adTeamsFlowPerfClient("ad_portal_bootstrap_fetch_total_ms", {
+    ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+    teamsSummaryCount: Array.isArray(payload.teamsSummary) ? payload.teamsSummary.length : 0,
+  })
+  return payload
 }
 
 export function useAdPortalBootstrapQuery() {

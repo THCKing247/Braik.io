@@ -110,27 +110,50 @@ async function isProgramOwner(
   return r === "head_coach" || r === "athletic_director"
 }
 
+export type FootballAdAccessPrefetch = {
+  /** When set (including null), skips profiles read for role/team_id. */
+  prefetchedProfile?: { role?: string | null; team_id?: string | null } | null
+  /**
+   * When set (including null), skips `athletic_departments` lookup by athletic_director_user_id
+   * (row where this user is the department AD).
+   */
+  prefetchedDirectorDept?: { id: string } | null
+}
+
 /**
  * Resolve football AD portal ownership/access for a user (legacy-safe).
  */
 export async function resolveFootballAdAccessState(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  prefetch?: FootballAdAccessPrefetch
 ): Promise<FootballAdAccessContext> {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, team_id")
-    .eq("id", userId)
-    .maybeSingle()
+  let profile: { role?: string | null; team_id?: string | null } | null
+  if (prefetch?.prefetchedProfile !== undefined) {
+    profile = prefetch.prefetchedProfile
+  } else {
+    const { data } = await supabase
+      .from("profiles")
+      .select("role, team_id")
+      .eq("id", userId)
+      .maybeSingle()
+    profile = data ?? null
+  }
 
   const rawRole = (profile?.role ?? "player").toLowerCase().replace(/-/g, "_").replace(/ /g, "_")
 
   if (rawRole === "athletic_director") {
-    const { data: dept } = await supabase
-      .from("athletic_departments")
-      .select("id, athletic_director_user_id")
-      .eq("athletic_director_user_id", userId)
-      .maybeSingle()
+    let dept: { id?: string } | null
+    if (prefetch?.prefetchedDirectorDept !== undefined) {
+      dept = prefetch.prefetchedDirectorDept
+    } else {
+      const { data } = await supabase
+        .from("athletic_departments")
+        .select("id, athletic_director_user_id")
+        .eq("athletic_director_user_id", userId)
+        .maybeSingle()
+      dept = data
+    }
     if (dept?.id) {
       return {
         state: "full_owner_ad",

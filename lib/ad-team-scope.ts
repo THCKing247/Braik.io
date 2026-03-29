@@ -30,6 +30,13 @@ export type AthleticDirectorScope = {
   linkedProgramIds: string[]
 }
 
+/** Skip redundant reads when the caller already loaded profile / director dept row. */
+export type AthleticDirectorScopePrefetch = {
+  profile?: { school_id?: string | null; role?: string | null } | null
+  /** `null` = fetched, user is not department AD for this lookup. */
+  deptAsDirector?: { id: string } | null
+}
+
 /** Merge varsity football program scope for head coaches who may use the AD portal. */
 export function mergeAdPortalScope(
   base: AthleticDirectorScope,
@@ -44,11 +51,19 @@ export function mergeAdPortalScope(
 
 export async function resolveAthleticDirectorScope(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  prefetch?: AthleticDirectorScopePrefetch
 ): Promise<AthleticDirectorScope> {
+  const needProfile = prefetch?.profile === undefined
+  const needDept = prefetch?.deptAsDirector === undefined
+
   const [{ data: profile }, { data: dept }] = await Promise.all([
-    supabase.from("profiles").select("school_id, role").eq("id", userId).maybeSingle(),
-    supabase.from("athletic_departments").select("id").eq("athletic_director_user_id", userId).maybeSingle(),
+    needProfile
+      ? supabase.from("profiles").select("school_id, role").eq("id", userId).maybeSingle()
+      : Promise.resolve({ data: prefetch!.profile ?? null }),
+    needDept
+      ? supabase.from("athletic_departments").select("id").eq("athletic_director_user_id", userId).maybeSingle()
+      : Promise.resolve({ data: prefetch!.deptAsDirector ?? null }),
   ])
 
   const organizationIds: string[] = []
@@ -162,14 +177,15 @@ export type AdVisibleTeamRow = {
 
 export async function fetchAdVisibleTeams(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  scopePrefetch?: AthleticDirectorScopePrefetch
 ): Promise<{
   scope: AthleticDirectorScope
   orFilter: string | null
   teams: AdVisibleTeamRow[]
   error: string | null
 }> {
-  const scope = await resolveAthleticDirectorScope(supabase, userId)
+  const scope = await resolveAthleticDirectorScope(supabase, userId, scopePrefetch)
   const orFilter = buildAdTeamsOrFilter(scope)
   if (!orFilter) {
     return { scope, orFilter: null, teams: [], error: null }
@@ -202,7 +218,7 @@ export async function fetchAdPortalVisibleTeams(
   supabase: SupabaseClient,
   userId: string,
   selectMode: AdPortalTeamsSelectMode = "full",
-  opts?: { reuseFootballAccess?: FootballAdAccessContext }
+  opts?: { reuseFootballAccess?: FootballAdAccessContext; scopePrefetch?: AthleticDirectorScopePrefetch }
 ): Promise<{
   scope: AthleticDirectorScope
   orFilter: string | null
@@ -220,18 +236,23 @@ export async function fetchAdPortalVisibleTeams(
 
   if (!canAccessAdPortalRoutes(footballAccess)) {
     const tScope = performance.now()
-    const scope = await resolveAthleticDirectorScope(supabase, userId)
+    const scope = await resolveAthleticDirectorScope(supabase, userId, opts?.scopePrefetch)
     adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "scope_early_denied", performance.now() - tScope, {
       userId,
     })
     return { scope, orFilter: null, teams: [], error: null, footballAccess }
   }
 
-  const tScope = performance.now()
-  const base = await resolveAthleticDirectorScope(supabase, userId)
+  const tScopeResolve = performance.now()
+  const base = await resolveAthleticDirectorScope(supabase, userId, opts?.scopePrefetch)
+  adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "resolve_athletic_director_scope", performance.now() - tScopeResolve, {
+    userId,
+    prefetched: Boolean(opts?.scopePrefetch),
+  })
+  const tMerge = performance.now()
   const scope = mergeAdPortalScope(base, footballAccess)
   const orFilter = buildAdTeamsOrFilter(scope)
-  adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "ad_scope_merge", performance.now() - tScope, {
+  adTeamsFlowPerfLog("fetchAdPortalVisibleTeams", "merge_scope_and_or_filter", performance.now() - tMerge, {
     userId,
     hasOrFilter: Boolean(orFilter),
   })
@@ -329,7 +350,11 @@ export async function fetchAdVisibleTeamsForAccess(
   supabase: SupabaseClient,
   userId: string,
   access: AdPortalAccess,
-  opts?: { reuseFootballAccess?: FootballAdAccessContext; teamsSelectMode?: "full" | "table" }
+  opts?: {
+    reuseFootballAccess?: FootballAdAccessContext
+    teamsSelectMode?: "full" | "table"
+    scopePrefetch?: AthleticDirectorScopePrefetch
+  }
 ): Promise<{
   scope: AthleticDirectorScope
   orFilter: string | null
@@ -337,12 +362,15 @@ export async function fetchAdVisibleTeamsForAccess(
   error: string | null
 }> {
   if (access.mode === "none") {
-    const scope = await resolveAthleticDirectorScope(supabase, userId)
+    const scope = await resolveAthleticDirectorScope(supabase, userId, opts?.scopePrefetch)
     return { scope, orFilter: null, teams: [], error: null }
   }
 
   const selectMode: AdPortalTeamsSelectMode = opts?.teamsSelectMode === "table" ? "table" : "full"
-  const merged = await fetchAdPortalVisibleTeams(supabase, userId, selectMode, opts)
+  const merged = await fetchAdPortalVisibleTeams(supabase, userId, selectMode, {
+    reuseFootballAccess: opts?.reuseFootballAccess,
+    scopePrefetch: opts?.scopePrefetch,
+  })
   const mergedTeams = merged.teams as AdVisibleTeamRow[]
 
   if (access.teamQuery === "program_ids" && access.footballProgramIds.length > 0) {

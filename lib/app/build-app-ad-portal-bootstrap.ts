@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
-import { fetchAdPortalVisibleTeams } from "@/lib/ad-team-scope"
+import {
+  fetchAdPortalVisibleTeams,
+  type AthleticDirectorScopePrefetch,
+} from "@/lib/ad-team-scope"
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
 import {
   canAccessAdPortalRoutes,
@@ -56,8 +59,39 @@ export async function buildAppAdPortalBootstrapPayload(
   const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
   const tAll = performance.now()
 
+  const tShell = performance.now()
+  const [profileShellRes, deptShellRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("role, team_id, school_id, full_name")
+      .eq("id", input.userId)
+      .maybeSingle(),
+    supabase
+      .from("athletic_departments")
+      .select("id, status")
+      .eq("athletic_director_user_id", input.userId)
+      .maybeSingle(),
+  ])
+  adPortalBootstrapPerfLog("profile_and_dept_shell_parallel", performance.now() - tShell, {
+    userId: input.userId,
+  })
+
+  const profileData = profileShellRes.data as {
+    role?: string | null
+    team_id?: string | null
+    school_id?: string | null
+    full_name?: string | null
+  } | null
+  const deptData = deptShellRes.data as { id: string; status?: string | null } | null
+  const directorDeptRow = deptData?.id ? { id: deptData.id } : null
+
   const tFootball = performance.now()
-  const footballAccess = await resolveFootballAdAccessState(supabase, input.userId)
+  const footballAccess = await resolveFootballAdAccessState(supabase, input.userId, {
+    prefetchedProfile: profileData
+      ? { role: profileData.role, team_id: profileData.team_id }
+      : undefined,
+    prefetchedDirectorDept: directorDeptRow,
+  })
   adPortalBootstrapPerfLog("resolveFootballAdAccessState", performance.now() - tFootball, {
     userId: input.userId,
   })
@@ -66,40 +100,50 @@ export async function buildAppAdPortalBootstrapPayload(
     throw new Error("AD_BOOTSTRAP_FORBIDDEN")
   }
 
-  const tTeams = performance.now()
-  const { scope, orFilter, teams: teamRows, error: teamsQueryError, footballAccess: fa } =
-    await fetchAdPortalVisibleTeams(supabase, input.userId, "picklist", {
+  const scopePrefetch: AthleticDirectorScopePrefetch = {
+    deptAsDirector: directorDeptRow,
+  }
+  if (profileData) {
+    scopePrefetch.profile = {
+      school_id: profileData.school_id ?? null,
+      role: profileData.role ?? null,
+    }
+  }
+
+  const tTeamsAndAccess = performance.now()
+  const [
+    { scope, orFilter, teams: teamRows, error: teamsQueryError, footballAccess: fa },
+    adPortalAccess,
+  ] = await Promise.all([
+    fetchAdPortalVisibleTeams(supabase, input.userId, "picklist", {
       reuseFootballAccess: footballAccess,
-    })
-  adPortalBootstrapPerfLog("fetchAdPortalVisibleTeams_picklist", performance.now() - tTeams, {
+      scopePrefetch,
+    }),
+    getAdPortalAccessForUser(supabase, input.userId, roleUpper, {
+      prefetchedMyDeptRow: directorDeptRow,
+    }),
+  ])
+  adPortalBootstrapPerfLog("fetch_picklist_and_getAdPortal_parallel", performance.now() - tTeamsAndAccess, {
     teamCount: teamRows.length,
   })
 
   const programId = fa.programId
 
   const tParallel = performance.now()
-  const [adPortalAccess, profileRes, deptRes, primaryOrganizationName, programRes] = await Promise.all([
-    getAdPortalAccessForUser(supabase, input.userId, roleUpper),
-    supabase.from("profiles").select("full_name, school_id").eq("id", input.userId).maybeSingle(),
-    supabase
-      .from("athletic_departments")
-      .select("id, status")
-      .eq("athletic_director_user_id", input.userId)
-      .maybeSingle(),
+  const [primaryOrganizationName, programRes] = await Promise.all([
     loadPrimaryOrganizationName(supabase, scope.organizationIds),
     programId
       ? supabase.from("programs").select("id, name, sport").eq("id", programId).maybeSingle()
       : Promise.resolve({ data: null as { id?: string; name?: string | null; sport?: string | null } | null }),
   ])
-  adPortalBootstrapPerfLog("parallel_shell_batch", performance.now() - tParallel, {
+  adPortalBootstrapPerfLog("parallel_org_and_program", performance.now() - tParallel, {
     hasProgramId: Boolean(programId),
   })
 
-  const profile = profileRes.data as { full_name?: string | null; school_id?: string | null } | null
-  const fullName = profile?.full_name?.trim() ?? null
+  const fullName = profileData?.full_name?.trim() ?? null
   const displayName = fullName && fullName.length > 0 ? fullName : null
 
-  const schoolId = profile?.school_id ?? null
+  const schoolId = profileData?.school_id ?? null
   let school: { id: string | null; name: string | null } = { id: null, name: null }
   if (schoolId) {
     const tSchool = performance.now()
@@ -129,7 +173,7 @@ export async function buildAppAdPortalBootstrapPayload(
     gender: t.gender ?? null,
   }))
 
-  const dept = deptRes.data as { id?: string; status?: string | null } | null
+  const dept = deptData
 
   adPortalBootstrapPerfLog("buildAppAdPortalBootstrapPayload_total", performance.now() - tAll, {
     userId: input.userId,

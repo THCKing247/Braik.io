@@ -172,7 +172,11 @@ async function filterProgramIdsForVarsityAdPortalEligibility(
 export async function getAdPortalAccessForUser(
   supabase: SupabaseClient,
   userId: string,
-  sessionRoleUpper: string | null | undefined
+  sessionRoleUpper: string | null | undefined,
+  opts?: {
+    /** When set (including null), skips athletic_departments row where this user is the licensed AD. */
+    prefetchedMyDeptRow?: { id: string } | null
+  }
 ): Promise<AdPortalAccess> {
   const role = sessionRoleUpper?.toUpperCase() ?? ""
 
@@ -180,11 +184,17 @@ export async function getAdPortalAccessForUser(
     return { mode: "full_owner", footballProgramIds: [], teamQuery: "department" }
   }
 
-  const { data: myDept } = await supabase
-    .from("athletic_departments")
-    .select("id")
-    .eq("athletic_director_user_id", userId)
-    .maybeSingle()
+  let myDept: { id: string } | null
+  if (opts?.prefetchedMyDeptRow !== undefined) {
+    myDept = opts.prefetchedMyDeptRow
+  } else {
+    const { data } = await supabase
+      .from("athletic_departments")
+      .select("id")
+      .eq("athletic_director_user_id", userId)
+      .maybeSingle()
+    myDept = data?.id ? { id: data.id } : null
+  }
 
   if (myDept && role === "HEAD_COACH") {
     return { mode: "full_owner", footballProgramIds: [], teamQuery: "department" }

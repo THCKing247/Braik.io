@@ -44,6 +44,15 @@ export type AdTeamsTableAuthUser = {
   id: string
   role: string
   isPlatformOwner: boolean
+  /** From session lite — skips duplicate profile read inside football/scope when set with directorDeptAsUser. */
+  profileRoleDb?: string | null
+  profileTeamId?: string | null
+  profileSchoolId?: string | null
+  /**
+   * When defined (including null), `athletic_departments` row for this user as director was already loaded
+   * on the route (shared with football + getAdPortalAccess).
+   */
+  directorDeptAsUser?: { id: string } | null
 }
 
 async function mapIdsInChunks<T>(
@@ -73,12 +82,23 @@ export async function loadAdTeamsTableData(
 ): Promise<TeamRow[]> {
   const tRoute = performance.now()
 
+  const scopePrefetch =
+    user.directorDeptAsUser !== undefined
+      ? {
+          profile: {
+            school_id: user.profileSchoolId ?? null,
+            role: user.profileRoleDb ?? null,
+          },
+          deptAsDirector: user.directorDeptAsUser,
+        }
+      : undefined
+
   const tList = performance.now()
   const { scope, orFilter, teams: teamsData, error: teamsErr } = await fetchAdVisibleTeamsForAccess(
     supabase,
     user.id,
     adPortalAccess,
-    { reuseFootballAccess: footballAccess, teamsSelectMode: "table" }
+    { reuseFootballAccess: footballAccess, teamsSelectMode: "table", scopePrefetch }
   )
   adTeamsFlowPerfLog("loadAdTeamsTableData", "fetch_visible_teams", performance.now() - tList, {
     teamCount: teamsData?.length ?? 0,

@@ -70,13 +70,29 @@ export async function GET() {
     const supabase = getSupabaseServer()
     const roleUpper = (u.role ?? "").toUpperCase().replace(/ /g, "_")
 
+    const directorDeptPromise = supabase
+      .from("athletic_departments")
+      .select("id")
+      .eq("athletic_director_user_id", u.id)
+      .maybeSingle()
+
     const t2 = performance.now()
-    const [footballAccess, adPortalAccess] = await Promise.all([
-      resolveFootballAdAccessState(supabase, u.id),
-      getAdPortalAccessForUser(supabase, u.id, roleUpper),
+    const [deptRes, footballAccess, adPortalAccess] = await Promise.all([
+      directorDeptPromise,
+      directorDeptPromise.then(({ data }) =>
+        resolveFootballAdAccessState(supabase, u.id, {
+          prefetchedProfile: { role: u.profileRoleDb ?? null, team_id: u.profileTeamId ?? null },
+          prefetchedDirectorDept: data?.id ? { id: data.id } : null,
+        })
+      ),
+      directorDeptPromise.then(({ data }) =>
+        getAdPortalAccessForUser(supabase, u.id, roleUpper, {
+          prefetchedMyDeptRow: data?.id ? { id: data.id } : null,
+        })
+      ),
     ])
     if (devLog) {
-      adTeamsFlowPerfLog("route", "parallel_football_and_ad_access", performance.now() - t2, {
+      adTeamsFlowPerfLog("route", "parallel_dept_football_ad_access", performance.now() - t2, {
         canEnterAdPortal: canAccessAdPortalRoutes(footballAccess),
         adMode: adPortalAccess.mode,
       })
@@ -92,6 +108,10 @@ export async function GET() {
       id: u.id,
       role: u.role ?? "",
       isPlatformOwner: u.isPlatformOwner === true,
+      profileRoleDb: u.profileRoleDb ?? null,
+      profileTeamId: u.profileTeamId ?? null,
+      profileSchoolId: u.profileSchoolId ?? null,
+      directorDeptAsUser: deptRes.data?.id ? { id: deptRes.data.id } : null,
     }
 
     const useServerRowCache =

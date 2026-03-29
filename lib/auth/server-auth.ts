@@ -8,6 +8,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getSupabaseAnonKey, getSupabaseProjectUrl, isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
 import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
+import { adTeamsFlowPerfLog, shouldLogAdTeamsFlowPerf } from "@/lib/ad/ad-teams-table-perf"
 
 const AUTH_DEBUG = process.env.DEBUG_AUTH === "true"
 
@@ -52,6 +53,10 @@ export type RequestUserLite = {
   role: string
   teamId?: string
   isPlatformOwner?: boolean
+  /** Raw `profiles.role` for server-side access prefetch (avoids duplicate profile reads). */
+  profileRoleDb?: string | null
+  profileTeamId?: string | null
+  profileSchoolId?: string | null
 }
 
 export type RequestUserLiteResult = {
@@ -159,7 +164,7 @@ async function buildSessionUser(
 async function buildSessionUserLite(userId: string, email: string): Promise<RequestUserLite> {
   const supabase = getSupabaseServer()
   const [profileResult, appUserResult] = await Promise.all([
-    supabase.from("profiles").select("role, team_id").eq("id", userId).maybeSingle(),
+    supabase.from("profiles").select("role, team_id, school_id").eq("id", userId).maybeSingle(),
     supabase.from("users").select("role, is_platform_owner").eq("id", userId).maybeSingle(),
   ])
   const profile = profileResult.data
@@ -172,6 +177,9 @@ async function buildSessionUserLite(userId: string, email: string): Promise<Requ
     role,
     teamId: (profile?.team_id as string | null | undefined) ?? undefined,
     isPlatformOwner: appUser?.is_platform_owner === true,
+    profileRoleDb: profile?.role ?? null,
+    profileTeamId: (profile?.team_id as string | null | undefined) ?? null,
+    profileSchoolId: (profile?.school_id as string | null | undefined) ?? null,
   }
 }
 
@@ -190,18 +198,26 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
   const supabase = getSupabaseServer()
 
   if (accessToken) {
+    const devLog = shouldLogAdTeamsFlowPerf()
+    const tJwt = performance.now()
     const { data: userData, error } = await supabase.auth.getUser(accessToken)
+    if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "auth_getUser", performance.now() - tJwt)
     if (!error && userData?.user?.email) {
+      const tLite = performance.now()
       const user = await buildSessionUserLite(userData.user.id, userData.user.email)
+      if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "buildSessionUserLite", performance.now() - tLite)
       return { user }
     }
     if (AUTH_DEBUG) console.warn("[auth] lite: access token invalid or expired:", error?.message ?? "no user")
   }
 
   if (refreshToken) {
+    const devLog = shouldLogAdTeamsFlowPerf()
     const refreshed = await refreshSupabaseSession(refreshToken)
     if (refreshed) {
+      const tLite = performance.now()
       const user = await buildSessionUserLite(refreshed.user.id, refreshed.user.email ?? "")
+      if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "buildSessionUserLite", performance.now() - tLite)
       return {
         user,
         refreshedSession: {

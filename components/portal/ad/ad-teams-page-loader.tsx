@@ -34,6 +34,10 @@ async function fetchAdTeamsTable(signal: AbortSignal): Promise<TeamRow[]> {
       throw err
     }
     const json = (await res.json()) as { teams: TeamRow[] }
+    adTeamsFlowPerfClient("teams_table_fetch_total_ms", {
+      ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+      rowCount: Array.isArray(json.teams) ? json.teams.length : 0,
+    })
     return json.teams
   } finally {
     signal.removeEventListener("abort", onParentAbort)

@@ -1,12 +1,12 @@
 /**
- * Single place to resolve Supabase project URL and keys from environment.
- * Never hardcode project URLs, refs, or keys in application source.
+ * Single source for Supabase configuration. Do not hardcode URLs or keys.
  *
- * Server / service-role: URL may be `SUPABASE_URL` (optional duplicate) or fall back to
- * `NEXT_PUBLIC_SUPABASE_URL` so one URL can drive both browser and Node when desired.
- * Service role must always be `SUPABASE_SERVICE_ROLE_KEY` (never NEXT_PUBLIC_*).
+ * Required (canonical):
+ * - NEXT_PUBLIC_SUPABASE_URL
+ * - NEXT_PUBLIC_SUPABASE_ANON_KEY
+ * - SUPABASE_SERVICE_ROLE_KEY (server only; never NEXT_PUBLIC_*)
  *
- * Browser bundle: only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` exist at runtime.
+ * Server-side API routes use the same project URL and anon key as the browser (NEXT_PUBLIC_*).
  */
 
 function trimEnv(value: string | undefined): string | undefined {
@@ -14,18 +14,18 @@ function trimEnv(value: string | undefined): string | undefined {
   return t || undefined
 }
 
-/** Project API URL for server-side clients (service role, refresh, admin helpers). */
+/** Project API URL for server clients, token refresh, and admin helpers. */
 export function getSupabaseProjectUrl(): string | undefined {
-  return trimEnv(process.env.SUPABASE_URL) ?? trimEnv(process.env.NEXT_PUBLIC_SUPABASE_URL)
+  return trimEnv(process.env.NEXT_PUBLIC_SUPABASE_URL)
 }
 
 export function getSupabaseServiceRoleKey(): string | undefined {
   return trimEnv(process.env.SUPABASE_SERVICE_ROLE_KEY)
 }
 
-/** Anon key for server flows that must behave as the public client (e.g. password verify). */
+/** Anon key for server flows that must use the public Supabase client (e.g. password verify). */
 export function getSupabaseAnonKey(): string | undefined {
-  return trimEnv(process.env.SUPABASE_ANON_KEY) ?? trimEnv(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return trimEnv(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 }
 
 export function isSupabaseServerConfigured(): boolean {
@@ -36,7 +36,7 @@ export function requireSupabaseProjectUrl(): string {
   const url = getSupabaseProjectUrl()
   if (!url) {
     throw new Error(
-      "Braik Supabase: missing project URL. Set SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_URL to your project https://<ref>.supabase.co URL."
+      "Braik Supabase: missing NEXT_PUBLIC_SUPABASE_URL. Set it to your project https://<ref>.supabase.co URL and rebuild."
     )
   }
   return url
@@ -50,9 +50,9 @@ export function requireSupabaseServiceRoleKey(): string {
   return key
 }
 
-/** Used by the browser `createClient` — must be present at build time for Next.js. */
+/** Browser `createClient` — inlined at build time from NEXT_PUBLIC_*. */
 export function requireNextPublicSupabaseUrl(): string {
-  const url = trimEnv(process.env.NEXT_PUBLIC_SUPABASE_URL)
+  const url = getSupabaseProjectUrl()
   if (!url) {
     throw new Error(
       "Braik Supabase: missing NEXT_PUBLIC_SUPABASE_URL. Add it to .env / Netlify and rebuild the app."
@@ -62,7 +62,7 @@ export function requireNextPublicSupabaseUrl(): string {
 }
 
 export function requireNextPublicSupabaseAnonKey(): string {
-  const key = trimEnv(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  const key = getSupabaseAnonKey()
   if (!key) {
     throw new Error(
       "Braik Supabase: missing NEXT_PUBLIC_SUPABASE_ANON_KEY. Add it to .env / Netlify and rebuild the app."

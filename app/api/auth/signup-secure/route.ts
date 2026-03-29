@@ -190,7 +190,7 @@ export async function POST(request: Request) {
     if (!supabase) {
       throw new SignupRouteError(
         500,
-        "Server is missing Supabase credentials. Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL), NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY."
+        "Server is missing Supabase credentials. Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY."
       )
     }
 

@@ -1,6 +1,6 @@
 /**
  * Pre-build guard: required Supabase vars for Braik (Next.js + Netlify).
- * Optional: set SUPABASE_URL to the same value as NEXT_PUBLIC_SUPABASE_URL if you want a server-only duplicate.
+ * Canonical trio only — server uses NEXT_PUBLIC_* for URL + anon (same project as the browser).
  */
 
 const required = [
@@ -37,6 +37,14 @@ function verify() {
     console.warn("Warning: AUTH_SECRET is not set. Configure it in production for stronger session signing hygiene.")
   }
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (url) {
+    try {
+      console.log("[braik-env] Build will use Supabase host:", new URL(url).host)
+    } catch {
+      console.warn("[braik-env] NEXT_PUBLIC_SUPABASE_URL is set but not a valid URL.")
+    }
+  }
   console.log("Environment verification passed.")
 }
 

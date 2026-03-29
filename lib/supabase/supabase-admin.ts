@@ -65,7 +65,7 @@ export async function verifySupabaseCredentials(email: string, password: string)
   if (!supabase) {
     return {
       verified: false,
-      reason: "Supabase URL or anon key is not configured (SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL and anon key)",
+      reason: "NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured",
     }
   }
 

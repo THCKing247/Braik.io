@@ -5,7 +5,7 @@ const supabaseUrl = getSupabaseProjectUrl()
 const supabaseServiceRoleKey = getSupabaseServiceRoleKey()
 
 export const missingSupabaseAdminEnv = [
-  !supabaseUrl ? "SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL" : null,
+  !supabaseUrl ? "NEXT_PUBLIC_SUPABASE_URL" : null,
   !supabaseServiceRoleKey ? "SUPABASE_SERVICE_ROLE_KEY" : null,
 ].filter((value): value is string => typeof value === "string")
 

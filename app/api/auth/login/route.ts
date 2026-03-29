@@ -44,7 +44,7 @@ export async function POST(request: Request) {
           "Please confirm your email before signing in. Check your inbox (and spam), or in Supabase go to Authentication → Users and confirm the email for your account."
       } else if (isInvalidCreds) {
         message =
-          "Invalid email or password. If you just reset your password, ensure this app uses the same Supabase project (check SUPABASE_URL in production). Try again or use Forgot password."
+          "Invalid email or password. If you just reset your password, ensure this deployment’s NEXT_PUBLIC_SUPABASE_URL matches your Supabase project. Try again or use Forgot password."
       } else {
         message = error?.message || "Invalid credentials"
       }

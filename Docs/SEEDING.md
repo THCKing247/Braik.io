@@ -4,15 +4,11 @@ This project includes a secure seeding workflow for Supabase Auth + `public.prof
 
 ## Required environment variables
 
-Server/admin seeding vars (required for API route + CLI):
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Client app vars (required for browser Supabase usage):
+Canonical Supabase vars (same project for server + browser):
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only; seed routes / API)
 
 Optional protection var:
 

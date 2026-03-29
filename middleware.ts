@@ -6,12 +6,11 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /**
- * Braik middleware — intentionally lightweight for Netlify Edge:
- * - No Supabase getUser() or DB (token validation runs in Node in dashboard layout — avoids Edge failures).
- * - Only checks presence of sb-access-token for /dashboard and /admin (except /admin/login).
- * Internal client navigations reuse the same cookie; no extra “handshake” per route.
+ * Braik middleware — synchronous, Edge-safe:
+ * - No supabase.auth.getSession(), getUser(), JWT verification, or DB.
+ * - Protected routes: presence of `sb-access-token` cookie only (validation in Node API routes + client shell).
  */
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl
 
   // Never run auth or redirects for static assets (avoids ERR_HTTP2_PROTOCOL_ERROR on chunks)
@@ -54,7 +53,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Only check that an auth cookie is present. Token validation runs in Node (dashboard layout)
+  // Only check that an auth cookie is present. JWT validation runs in Node (e.g. GET /api/dashboard/shell)
   // because Supabase getUser() can fail on Netlify Edge even for valid tokens.
   const accessToken = request.cookies.get("sb-access-token")?.value
   if (!accessToken) {

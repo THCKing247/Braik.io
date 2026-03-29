@@ -1,3 +1,7 @@
+/**
+ * Server-side Braik session from cookies. Uses `supabase.auth.getUser(jwt)` and refresh-token exchange only.
+ * Intentionally does not call `supabase.auth.getSession()` on the server (avoids blocking session reads in RSC).
+ */
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"

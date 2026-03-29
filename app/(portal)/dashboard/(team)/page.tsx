@@ -6,6 +6,7 @@ import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { AdPortalLandingGate } from "@/components/portal/ad-portal-landing-gate"
+import { authTimingClient } from "@/lib/auth/login-flow-timing"
 
 const TeamDashboard = dynamic(
   () => import("@/components/portal/team-dashboard").then((m) => m.TeamDashboard),
@@ -24,24 +25,31 @@ const TeamDashboard = dynamic(
   }
 )
 
+function SessionWaitSpinner() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2563EB] border-t-transparent" />
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
   const role = session?.user?.role
 
   useEffect(() => {
+    authTimingClient("dashboard_home_mounted")
+  }, [])
+
+  useEffect(() => {
     if (status === "authenticated" && role === "ATHLETIC_DIRECTOR") {
+      authTimingClient("dashboard_home_ad_redirect")
       router.replace("/dashboard/ad")
     }
   }, [status, role, router])
 
-  if (status === "loading") {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2563EB] border-t-transparent" />
-      </div>
-    )
-  }
+  const waitForSession = status === "loading" || status === "unauthenticated"
 
   if (status === "authenticated" && !session?.user) {
     return (
@@ -66,14 +74,18 @@ export default function DashboardPage() {
     >
       <AdPortalLandingGate>
         <DashboardPageShell>
-          {({ teamId, canEdit }) => (
-            <TeamDashboard
-              key={teamId || "no-team"}
-              session={session}
-              teamId={teamId}
-              canAddCalendarEvents={canEdit}
-            />
-          )}
+          {({ teamId, canEdit }) =>
+            waitForSession ? (
+              <SessionWaitSpinner />
+            ) : (
+              <TeamDashboard
+                key={teamId || "no-team"}
+                session={session}
+                teamId={teamId}
+                canAddCalendarEvents={canEdit}
+              />
+            )
+          }
         </DashboardPageShell>
       </AdPortalLandingGate>
     </Suspense>

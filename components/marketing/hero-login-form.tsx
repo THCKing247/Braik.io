@@ -1,7 +1,8 @@
 "use client"
 
 import { signIn } from "@/lib/auth/client-auth"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { authTimingClient } from "@/lib/auth/login-flow-timing"
 import { useId, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,6 +34,7 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
   const emailId = `${uid}-email`
   const passwordId = `${uid}-password`
   const rememberId = `${uid}-remember`
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -113,12 +115,9 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
           variant === "app" ? getFriendlyLoginError(result.error) : getDetailedLoginError(result.error)
         )
       } else if (result?.ok) {
-        // Brief delay so the browser commits Set-Cookie from the login response before we navigate.
-        // Otherwise the next request (GET /dashboard) can still send the old cookie and get 307.
         const destination = callbackUrl ?? result.url ?? "/dashboard"
-        setTimeout(() => {
-          window.location.replace(destination)
-        }, 150)
+        authTimingClient("login_client_navigate_start", { destination })
+        router.replace(destination)
         return
       } else {
         console.error("Login returned no explicit success/error", { result })

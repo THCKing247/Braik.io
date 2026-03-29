@@ -8,9 +8,14 @@ import React, {
   useEffect,
   useMemo,
 } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { NATIVE_SESSION_UNLOCK_EVENT } from "@/lib/auth/session-unlock-events"
+import { supabaseClient } from "@/src/lib/supabaseClient"
+import {
+  authTimingClient,
+  BRAIK_AUTH_LOGIN_SESSION_EVENT,
+} from "@/lib/auth/login-flow-timing"
 
 const AUTH_DEBUG = typeof window !== "undefined" && (window as unknown as { __BRAIK_DEBUG_AUTH?: boolean }).__BRAIK_DEBUG_AUTH === true
 
@@ -63,6 +68,9 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
     return { ok: false, status: 400, error: "UnsupportedProvider" }
   }
 
+  const t0 = typeof performance !== "undefined" ? performance.now() : 0
+  authTimingClient("sign_in_request_start")
+
   const response = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -80,13 +88,32 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
     error?: string
     role?: string
     redirectTo?: string
+    user?: SessionResponse["user"]
   }
   const callbackUrl = options.callbackUrl || data.redirectTo || getDefaultAppPathForRole(data.role)
   const isSuccess = response.ok && data.success === true
 
+  authTimingClient("sign_in_response", {
+    ok: isSuccess,
+    ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+  })
+
   if (isSuccess) {
     authLog("SIGNED_IN", { redirectTo: callbackUrl })
+    if (
+      options.redirect === false &&
+      data.user?.id &&
+      typeof window !== "undefined"
+    ) {
+      authTimingClient("sign_in_session_seed_dispatch", { userId: data.user.id })
+      window.dispatchEvent(
+        new CustomEvent(BRAIK_AUTH_LOGIN_SESSION_EVENT, {
+          detail: { user: data.user } as SessionResponse,
+        })
+      )
+    }
     if (options.redirect !== false) {
+      authTimingClient("sign_in_full_redirect", { href: callbackUrl })
       window.location.href = callbackUrl
     }
     return { ok: true, status: response.status, error: undefined, url: callbackUrl }
@@ -110,6 +137,12 @@ const SESSION_MAX_RETRIES = 1
 let sessionFetchInFlight: Promise<SessionResponse | null> | null = null
 
 async function fetchSessionOnce(): Promise<SessionResponse | null> {
+  // Client-side Supabase session (supabase-js). With httpOnly auth cookies this is often null until `setSession`; profile still comes from `/api/auth/session`.
+  await supabaseClient.auth.getSession().catch(() => null)
+
+  authTimingClient("session_fetch_start", { source: "/api/auth/session" })
+  const t0 = typeof performance !== "undefined" ? performance.now() : 0
+
   let lastError: unknown
   for (let attempt = 0; attempt <= SESSION_MAX_RETRIES; attempt++) {
     try {
@@ -122,12 +155,24 @@ async function fetchSessionOnce(): Promise<SessionResponse | null> {
           hasUser,
           attempt: attempt + 1,
         })
-        if (hasUser) return data as SessionResponse
+        if (hasUser) {
+          authTimingClient("session_fetch_done", {
+            ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+            attempt: attempt + 1,
+            hasUser: true,
+          })
+          return data as SessionResponse
+        }
+        authTimingClient("session_fetch_done", {
+          ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
+          hasUser: false,
+        })
         return null
       }
 
       if (response.status === 401) {
         authLog("SESSION_401", { attempt: attempt + 1 })
+        authTimingClient("session_fetch_401", { ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0 })
         return null
       }
 
@@ -158,6 +203,24 @@ async function fetchSessionOnce(): Promise<SessionResponse | null> {
 }
 
 const AUTH_SESSION_STALE_MS = 5 * 60 * 1000
+
+/** Single source of truth for the client session query — shell/bootstrap seed here to avoid duplicate “loading” with GET /api/auth/session. */
+export const BRAIK_AUTH_SESSION_QUERY_KEY = ["braik-auth-session"] as const
+
+/**
+ * If React Query has no session yet, seed from dashboard/AD shell payloads so children don’t block on
+ * `/api/auth/session` while that request still runs. Full session replaces this when the fetch completes.
+ */
+export function seedAuthSessionCacheFromShellUser(
+  queryClient: QueryClient,
+  user: SessionResponse["user"]
+): void {
+  queryClient.setQueryData(BRAIK_AUTH_SESSION_QUERY_KEY, (prev: SessionResponse | undefined) => {
+    if (prev?.user?.id) return prev
+    authTimingClient("session_query_seeded_from_shell", { userId: user.id })
+    return { user }
+  })
+}
 
 /**
  * Fetches session from /api/auth/session. Retries once on 5xx or network failure
@@ -194,8 +257,22 @@ export function useSession(): SessionContextValue {
  */
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const onLoginSeed = (e: Event) => {
+      const ce = e as CustomEvent<SessionResponse>
+      if (ce.detail?.user?.id) {
+        authTimingClient("session_query_seeded_from_login", { userId: ce.detail.user.id })
+        queryClient.setQueryData(BRAIK_AUTH_SESSION_QUERY_KEY, ce.detail)
+      }
+    }
+    window.addEventListener(BRAIK_AUTH_LOGIN_SESSION_EVENT, onLoginSeed as EventListener)
+    return () => window.removeEventListener(BRAIK_AUTH_LOGIN_SESSION_EVENT, onLoginSeed as EventListener)
+  }, [queryClient])
+
   const query = useQuery({
-    queryKey: ["braik-auth-session"] as const,
+    queryKey: BRAIK_AUTH_SESSION_QUERY_KEY,
     queryFn: getSession,
     staleTime: AUTH_SESSION_STALE_MS,
     gcTime: 30 * 60 * 1000,
@@ -205,7 +282,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onNativeUnlock = () => {
-      void queryClient.invalidateQueries({ queryKey: ["braik-auth-session"] })
+      void queryClient.invalidateQueries({ queryKey: BRAIK_AUTH_SESSION_QUERY_KEY })
     }
     window.addEventListener(NATIVE_SESSION_UNLOCK_EVENT, onNativeUnlock)
     return () => window.removeEventListener(NATIVE_SESSION_UNLOCK_EVENT, onNativeUnlock)

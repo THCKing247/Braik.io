@@ -4,6 +4,7 @@ import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import { BRAIK_PERSIST_SESSION_COOKIE } from "@/lib/auth/persist-session-cookie"
 import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
+import { authTimingServer } from "@/lib/auth/login-flow-timing"
 
 /** Map stored role (e.g. HEAD_COACH) to profile role (e.g. head_coach) */
 function mapRoleToProfileRole(storedRole: string): string {
@@ -21,12 +22,14 @@ function mapRoleToProfileRole(storedRole: string): string {
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
+  const t0 = performance.now()
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json({ success: false, error: "Server auth is not configured" }, { status: 500 })
     }
 
     const supabaseServerClient = getSupabaseServer()
+    authTimingServer("login_request_start")
 
     const { email, password, callbackUrl: requestedCallbackUrl, rememberMe } = (await request.json()) as {
       email?: string
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
     })
 
     const { data, error } = signInResult
+    authTimingServer("login_supabase_signIn_done", { ms: Math.round(performance.now() - t0) })
     if (error || !data?.user || !data?.session) {
       const rawMessage = (error?.message || "").toLowerCase()
       const isInvalidCreds = rawMessage.includes("invalid") && rawMessage.includes("credential")
@@ -111,12 +115,17 @@ export async function POST(request: Request) {
     const allowJoinCallback =
       typeof requestedCallbackUrl === "string" &&
       requestedCallbackUrl.startsWith("/join")
-    let defaultEntryPath = "/dashboard"
-    try {
-      defaultEntryPath = await resolvePortalEntryPath(supabaseServerClient, data.user.id)
-    } catch {
-      defaultEntryPath = "/dashboard"
-    }
+    const needAdProbe =
+      !allowAdminCallback && !allowJoinCallback && role === "head_coach"
+
+    const [defaultEntryPath, adAccess, existingUserRow] = await Promise.all([
+      resolvePortalEntryPath(supabaseServerClient, data.user.id).catch(() => "/dashboard"),
+      needAdProbe
+        ? getAdPortalAccessForUser(supabaseServerClient, data.user.id, "HEAD_COACH")
+        : Promise.resolve({ mode: "none" as const }),
+      supabaseServerClient.from("users").select("is_platform_owner").eq("id", data.user.id).maybeSingle(),
+    ])
+    authTimingServer("login_parallel_portal_ad_users_done", { ms: Math.round(performance.now() - t0) })
 
     let redirectTo = allowAdminCallback
       ? requestedCallbackUrl
@@ -124,39 +133,56 @@ export async function POST(request: Request) {
         ? requestedCallbackUrl
         : defaultEntryPath
 
-    if (!allowAdminCallback && !allowJoinCallback && role === "head_coach") {
-      const adAccess = await getAdPortalAccessForUser(supabaseServerClient, data.user.id, "HEAD_COACH")
-      if (adAccess.mode !== "none") {
-        redirectTo = adAccess.mode === "restricted_football" ? "/dashboard/ad/teams" : "/dashboard/ad"
-      }
+    if (needAdProbe && adAccess.mode !== "none") {
+      redirectTo = adAccess.mode === "restricted_football" ? "/dashboard/ad/teams" : "/dashboard/ad"
     }
 
-    // Ensure public.users has a row for this auth user (for admin checks and profile sync).
-    // Must complete before returning so /admin/dashboard layout sees the correct role.
     const userRole = profileRoleToUserRole(role)
-    try {
-      await supabaseServerClient
-        .from("users")
-        .upsert(
-          {
-            id: data.user.id,
-            email: data.user.email ?? normalizedEmail,
-            name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
-            role: userRole,
-            status: "active",
-          },
-          { onConflict: "id" }
-        )
-        .select()
-        .single()
-    } catch {
-      // ignore — public.users upsert is best-effort (e.g. table may not exist in some envs)
+    const usersUpsertPayload = {
+      id: data.user.id,
+      email: data.user.email ?? normalizedEmail,
+      name: profile?.full_name ?? data.user.user_metadata?.full_name ?? null,
+      role: userRole,
+      status: "active" as const,
+    }
+
+    if (allowAdminCallback) {
+      try {
+        await supabaseServerClient
+          .from("users")
+          .upsert(usersUpsertPayload, { onConflict: "id" })
+          .select()
+          .single()
+      } catch {
+        // ignore
+      }
+    } else {
+      void (async () => {
+        try {
+          await supabaseServerClient.from("users").upsert(usersUpsertPayload, { onConflict: "id" })
+        } catch {
+          // ignore — same as awaited path
+        }
+      })()
+    }
+
+    const sessionRoleUpper = rawRole.toUpperCase().replace(/ /g, "_")
+
+    const sessionUserPreview = {
+      id: data.user.id,
+      email: data.user.email ?? normalizedEmail,
+      name: (profile?.full_name as string | null) ?? (data.user.user_metadata?.full_name as string | null) ?? null,
+      role: sessionRoleUpper,
+      teamId: (profile?.team_id as string | null | undefined) ?? undefined,
+      isPlatformOwner: (existingUserRow.data as { is_platform_owner?: boolean } | null)?.is_platform_owner === true,
+      defaultAppPath: redirectTo,
     }
 
     const response = NextResponse.json({
       success: true,
       role,
       redirectTo,
+      user: sessionUserPreview,
     })
 
     // Set cookie expiration based on "Remember me" option
@@ -203,6 +229,7 @@ export async function POST(request: Request) {
       })
     }
 
+    authTimingServer("login_response_ready", { ms: Math.round(performance.now() - t0), redirectTo })
     return response
   } catch {
     return NextResponse.json({ success: false, error: "Login failed" }, { status: 500 })

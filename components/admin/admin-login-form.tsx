@@ -1,7 +1,9 @@
 "use client"
 
 import { signIn } from "@/lib/auth/client-auth"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { authTimingClient } from "@/lib/auth/login-flow-timing"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,6 +28,7 @@ function getDetailedLoginError(code?: string) {
 }
 
 export function AdminLoginForm() {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -49,9 +52,8 @@ export function AdminLoginForm() {
         setError(getDetailedLoginError(result.error))
       } else if (result?.ok) {
         const destination = result.url ?? ADMIN_CALLBACK_URL
-        setTimeout(() => {
-          window.location.replace(destination)
-        }, 150)
+        authTimingClient("admin_login_client_navigate_start", { destination })
+        router.replace(destination)
         return
       } else {
         setError("Sign-in returned no result. Please retry.")

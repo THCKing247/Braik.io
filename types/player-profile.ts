@@ -72,6 +72,8 @@ export interface PlayerProfile extends PlayerProfileBasic, PlayerProfileTeam, Pl
   id: string
   imageUrl?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
+  /** Coach-issued code on this roster row; parents use it at parent signup (`/parent/join`). */
+  inviteCode?: string | null
   inviteStatus?: "not_invited" | "invited" | "joined"
   userId?: string | null
   createdAt?: string | null

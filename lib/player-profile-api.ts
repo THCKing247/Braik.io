@@ -45,6 +45,7 @@ export type DbPlayerRow = {
   profile_tags?: unknown
   profile_notes?: string | null
   document_refs?: unknown
+  invite_code?: string | null
 }
 
 export type AssignedEquipmentItemRow = {
@@ -71,6 +72,7 @@ export function mapRowToProfile(
     teamId: row.team_id,
     teamName: team.name ?? null,
     parentCode: team.parentCode ?? null,
+    inviteCode: row.invite_code ?? null,
     firstName: row.first_name ?? "",
     lastName: row.last_name ?? "",
     preferredName: row.preferred_name ?? null,

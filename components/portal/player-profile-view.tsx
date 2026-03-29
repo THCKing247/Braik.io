@@ -871,7 +871,27 @@ function OverviewTab({
           <p className={readOnlyClass}>{profile.teamName ?? "—"}</p>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Parent code</Label>
+          <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Personal player code</Label>
+          <p className="text-xs text-[#94A3B8] -mt-0.5">For parent signup — enter at Parent sign up.</p>
+          <div className="flex items-center gap-2">
+            <p className={`${readOnlyClass} flex-1 font-mono`}>{profile.inviteCode?.trim() || "—"}</p>
+            {profile.inviteCode?.trim() ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Copy personal player code"
+                onClick={() => void navigator.clipboard.writeText(profile.inviteCode!.trim())}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Team parent code</Label>
+          <p className="text-xs text-[#94A3B8] -mt-0.5">Optional team-wide code (if your program uses it).</p>
           <div className="flex items-center gap-2">
             <p className={`${readOnlyClass} flex-1 font-mono`}>{profile.parentCode?.trim() || "—"}</p>
             {profile.parentCode?.trim() ? (
@@ -880,7 +900,7 @@ function OverviewTab({
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9 shrink-0"
-                aria-label="Copy parent code"
+                aria-label="Copy team parent code"
                 onClick={() => void navigator.clipboard.writeText(profile.parentCode!.trim())}
               >
                 <Copy className="h-4 w-4" />

@@ -233,7 +233,6 @@ export function CalendarWidgetEnhanced({
     { id: "practice", name: "Practices", color: "#10B981", enabled: true },
     { id: "game", name: "Games", color: "#EF4444", enabled: true },
     { id: "meeting", name: "Meetings", color: "#F59E0B", enabled: true },
-    { id: "follow_up", name: "Follow-ups", color: "#7C3AED", enabled: true },
     { id: "other", name: "Other", color: "#8B5CF6", enabled: true },
   ])
 
@@ -242,7 +241,6 @@ export function CalendarWidgetEnhanced({
     if (t === "practice") return "practice"
     if (t === "game") return "game"
     if (t === "meeting") return "meeting"
-    if (t === "follow_up") return "follow_up"
     if (t === "custom" || t === "other") return "other"
     return null
   }, [])
@@ -253,7 +251,6 @@ export function CalendarWidgetEnhanced({
     if (t === "practice") return "#10B981"
     if (t === "game") return "#EF4444"
     if (t === "meeting") return "#F59E0B"
-    if (t === "follow_up") return "#7C3AED"
     if (t === "custom" || t === "other") return "#8B5CF6"
     return "#3B82F6" // Team Events / default
   }, [])

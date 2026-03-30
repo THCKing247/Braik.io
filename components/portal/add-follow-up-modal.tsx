@@ -93,7 +93,7 @@ export function AddFollowUpModal({
           <DialogTitle>Add follow-up</DialogTitle>
           <DialogDescription>
             Schedule a coach follow-up for <span className="font-medium text-foreground">{playerDisplayName}</span>. It will appear on the team calendar
-            in purple.
+            under Other (coaches only).
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 py-1">

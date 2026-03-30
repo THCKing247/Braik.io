@@ -44,6 +44,7 @@ import { usePlaybookToast } from "./playbook-toast"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { cn } from "@/lib/utils"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
 const ROSTER_BILLING_WARNING =
@@ -1414,10 +1415,14 @@ export function RosterManagerEnhanced({
         : "rounded-t-lg border-b-[3px] border-transparent text-foreground/70 hover:bg-muted/50 hover:text-foreground lg:border-transparent lg:hover:bg-muted/30"
     }`
 
-  const readinessSectionTabClass = (active: boolean) =>
-    `border-b-2 px-3 py-2.5 text-left text-sm font-semibold transition-colors -mb-px sm:px-4 ${
-      active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-    }`
+  /** Matches Player Profile tab styling (`player-profile-view.tsx` nav). */
+  const readinessProfileTabBtn = (active: boolean) =>
+    cn(
+      "whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors rounded-t",
+      active
+        ? "border-[#0B2A5B] text-[#0F172A] bg-[#F8FAFC]"
+        : "border-transparent text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC]/50"
+    )
 
   if (rosterBootstrapPending) {
     return (
@@ -1863,12 +1868,13 @@ export function RosterManagerEnhanced({
                 </Card>
               </div>
 
-              <div
-                className="border-b border-border lg:rounded-t-lg lg:border lg:border-b-0 lg:bg-muted/20 lg:p-1"
-                role="tablist"
-                aria-label="Readiness sections"
-              >
-                <div className="flex flex-wrap gap-x-1">
+              {/* Readiness sections — same tab pattern as Player Profile (underline + light active tint, page background) */}
+              <div className="border-b border-[#E5E7EB] -mx-2 px-2 sm:mx-0 sm:px-0">
+                <nav
+                  className="flex gap-1 overflow-x-auto pb-px scrollbar-thin"
+                  aria-label="Readiness sections"
+                  role="tablist"
+                >
                   <button
                     type="button"
                     role="tab"
@@ -1876,7 +1882,7 @@ export function RosterManagerEnhanced({
                     aria-controls="readiness-panel-attention"
                     aria-selected={readinessSubTab === "attention"}
                     onClick={() => setReadinessSubTab("attention")}
-                    className={readinessSectionTabClass(readinessSubTab === "attention")}
+                    className={readinessProfileTabBtn(readinessSubTab === "attention")}
                   >
                     Needs Attention
                   </button>
@@ -1887,7 +1893,7 @@ export function RosterManagerEnhanced({
                     aria-controls="readiness-panel-checklist"
                     aria-selected={readinessSubTab === "checklist"}
                     onClick={() => setReadinessSubTab("checklist")}
-                    className={readinessSectionTabClass(readinessSubTab === "checklist")}
+                    className={readinessProfileTabBtn(readinessSubTab === "checklist")}
                   >
                     Roster Checklist
                   </button>
@@ -1898,11 +1904,11 @@ export function RosterManagerEnhanced({
                     aria-controls="readiness-panel-activity"
                     aria-selected={readinessSubTab === "activity"}
                     onClick={() => setReadinessSubTab("activity")}
-                    className={readinessSectionTabClass(readinessSubTab === "activity")}
+                    className={readinessProfileTabBtn(readinessSubTab === "activity")}
                   >
                     Recent Team Activity
                   </button>
-                </div>
+                </nav>
               </div>
 
               {readinessSubTab === "attention" && (
@@ -1910,7 +1916,7 @@ export function RosterManagerEnhanced({
                   id="readiness-panel-attention"
                   role="tabpanel"
                   aria-labelledby="readiness-tab-attention"
-                  className="border border-border bg-card lg:rounded-b-lg lg:border-t-0"
+                  className="border border-border bg-card"
                 >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-foreground">
@@ -1925,13 +1931,21 @@ export function RosterManagerEnhanced({
                     ) : (
                       <div className="overflow-x-auto rounded-md border border-border">
                         <table className="w-full min-w-[640px] border-collapse text-sm">
-                          <thead className="bg-muted/50">
-                            <tr className="border-b border-border text-left text-muted-foreground">
-                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[11rem]">Player</th>
-                              <th className="px-4 py-3 text-sm font-semibold align-middle w-28 whitespace-nowrap">Status</th>
-                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[12rem]">Missing</th>
+                          <thead>
+                            <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
+                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[11rem] text-[#0F172A]">
+                                Player
+                              </th>
+                              <th className="px-4 py-3 text-sm font-semibold align-middle w-28 whitespace-nowrap text-[#0F172A]">
+                                Status
+                              </th>
+                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[12rem] text-[#0F172A]">
+                                Missing
+                              </th>
                               {canEdit && (
-                                <th className="px-4 py-3 text-sm font-semibold align-middle w-36 whitespace-nowrap">Follow-ups</th>
+                                <th className="px-4 py-3 text-sm font-semibold align-middle w-36 whitespace-nowrap text-[#0F172A]">
+                                  Follow-ups
+                                </th>
                               )}
                             </tr>
                           </thead>
@@ -2011,7 +2025,7 @@ export function RosterManagerEnhanced({
                   id="readiness-panel-checklist"
                   role="tabpanel"
                   aria-labelledby="readiness-tab-checklist"
-                  className="border border-border bg-card lg:rounded-b-lg lg:border-t-0"
+                  className="border border-border bg-card"
                 >
                   <CardHeader className="space-y-1 lg:space-y-2">
                     <CardTitle className="text-foreground">Roster checklist</CardTitle>
@@ -2124,15 +2138,13 @@ export function RosterManagerEnhanced({
                     </div>
                     <div className="overflow-x-auto max-h-[min(480px,55vh)] overflow-y-auto rounded-lg border border-border bg-card shadow-sm">
                       <table className="w-full min-w-[36rem] border-collapse text-sm">
-                        <thead className="sticky top-0 z-[1] border-b border-border bg-muted/95 backdrop-blur-sm">
-                          <tr className="text-muted-foreground">
-                            <th className="w-[40%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
-                              Player
-                            </th>
-                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide">Physical</th>
-                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide">Waiver</th>
-                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide">Forms</th>
-                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide leading-tight">
+                        <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC]">
+                          <tr>
+                            <th className="w-[40%] px-4 py-3 text-left text-sm font-semibold text-[#0F172A]">Player</th>
+                            <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Physical</th>
+                            <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Waiver</th>
+                            <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Forms</th>
+                            <th className="px-3 py-3 text-center text-sm font-semibold leading-tight text-[#0F172A]">
                               Acct linked
                             </th>
                           </tr>
@@ -2175,7 +2187,7 @@ export function RosterManagerEnhanced({
                   id="readiness-panel-activity"
                   role="tabpanel"
                   aria-labelledby="readiness-tab-activity"
-                  className="border border-border bg-card lg:rounded-b-lg lg:border-t-0"
+                  className="border border-border bg-card"
                 >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-foreground">

@@ -110,7 +110,6 @@ export function EventDetailModal({
     canEdit &&
     !!event.followUpPlayerId &&
     !!event.linkedFollowUpId &&
-    event.eventType.toUpperCase() === "FOLLOW_UP" &&
     !event.title.trim().startsWith("[Resolved]")
 
   return (
@@ -227,7 +226,7 @@ export function EventDetailModal({
             {showResolveFollowUp && (
               <div className="space-y-2 rounded-lg border border-violet-200 bg-violet-50/80 p-3 dark:border-violet-900/50 dark:bg-violet-950/30">
                 <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
-                  Follow-up (purple on calendar)
+                  Linked player follow-up
                 </p>
                 {resolveError ? <p className="text-sm text-destructive">{resolveError}</p> : null}
                 <Button

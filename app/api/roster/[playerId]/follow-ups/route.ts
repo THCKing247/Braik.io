@@ -6,6 +6,7 @@ import { canEditRoster } from "@/lib/auth/roles"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { logPlayerProfileActivity } from "@/lib/player-profile-activity"
 import { FOLLOW_UP_CATEGORY_LABELS, FOLLOW_UP_DEFAULT_DURATION_MS } from "@/lib/roster/follow-up-ui"
+import { revalidateTeamCalendar } from "@/lib/cache/lightweight-get-cache"
 
 const FOLLOW_UP_CATEGORIES = [
   "physical_follow_up",
@@ -266,7 +267,8 @@ export async function POST(
 
     const { error: eventError } = await supabase.from("events").insert({
       team_id: teamId,
-      event_type: "FOLLOW_UP",
+      /** Same as manual "Other" events — calendar UI classifies CUSTOM under Other. */
+      event_type: "CUSTOM",
       title: eventTitle,
       description: noteVal,
       start: new Date(startMs).toISOString(),
@@ -292,6 +294,8 @@ export async function POST(
       targetId: insertedRow.id,
       metadata: { category },
     })
+
+    revalidateTeamCalendar(teamId)
 
     return NextResponse.json(inserted)
   } catch (err) {

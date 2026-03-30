@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { logPlayerProfileActivity } from "@/lib/player-profile-activity"
+import { revalidateTeamCalendar } from "@/lib/cache/lightweight-get-cache"
 
 /**
  * PATCH /api/roster/[playerId]/follow-ups/[followUpId]
@@ -101,6 +102,8 @@ export async function PATCH(
         metadata: { category: row.category },
       })
     }
+
+    revalidateTeamCalendar(teamId)
 
     return NextResponse.json(updated)
   } catch (err) {

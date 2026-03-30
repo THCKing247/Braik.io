@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
+    const fullRoster = searchParams.get("fullRoster") === "1" || searchParams.get("fullRoster") === "true"
 
     const supabase = getSupabaseServer()
 
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: msg }, { status: 403 })
     }
 
-    const payload = await buildRosterPrintPayload(supabase, teamId)
+    const payload = await buildRosterPrintPayload(supabase, teamId, { fullRoster })
     if (payload && typeof payload === "object" && "error" in payload && "stage" in payload) {
       const err = payload as { error: string; stage: string }
       const status = err.stage === "team" ? 404 : 500

@@ -5,7 +5,11 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { X, Printer, Settings, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { parseRosterPrintClientData, type RosterPrintClientData } from "@/lib/roster/roster-print-payload"
+import {
+  parseRosterPrintClientData,
+  ROSTER_PRINT_PORTAL_CSS,
+  type RosterPrintClientData,
+} from "@/lib/roster/roster-print-payload"
 
 interface RosterPrintModalProps {
   teamId: string
@@ -21,6 +25,8 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   /** In-modal roster layout preview; print stays disabled until user opens preview (guided flow). */
   const [previewVisible, setPreviewVisible] = useState(false)
+  /** Guided flow: 1 = select players, 2 = preview step, 3 = print. */
+  const [flowStep, setFlowStep] = useState<1 | 2 | 3>(1)
 
   const togglePlayer = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -52,13 +58,16 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
 
   useEffect(() => {
     setPreviewVisible(false)
+    setFlowStep(1)
   }, [teamId])
 
   useEffect(() => {
     const loadRoster = async () => {
       setLoadError(null)
       try {
-        const response = await fetch(`/api/roster/print?teamId=${encodeURIComponent(teamId)}`)
+        const response = await fetch(
+          `/api/roster/print?teamId=${encodeURIComponent(teamId)}&fullRoster=1`
+        )
         const data: unknown = await response.json().catch(() => null)
         if (!response.ok) {
           const body = data && typeof data === "object" ? (data as Record<string, unknown>) : null
@@ -79,6 +88,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
         setRosterData(normalized)
         setSelectedIds(new Set(normalized.players.map((p) => p.id)))
         setPreviewVisible(false)
+        setFlowStep(1)
       } catch (error) {
         console.error("Failed to load roster:", error)
         setLoadError("Network error while loading the roster. Check your connection and try again.")
@@ -257,8 +267,15 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
     <>
       {/* Modal chrome - hidden in print via .no-print so only roster-print-root is visible */}
       <div className="no-print fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
-        <Card className="no-print w-full max-w-4xl bg-[#1e3a5f] border-[#1e3a5f] max-h-[90vh] flex flex-col">
+        <Card className="no-print w-full max-w-4xl lg:max-w-5xl bg-[#1e3a5f] border-[#1e3a5f] max-h-[90vh] flex flex-col">
           <CardHeader className="no-print flex-shrink-0">
+            <div className="hidden lg:flex items-center gap-2 mb-3 text-xs text-white/70">
+              <span className={flowStep >= 1 ? "text-white font-semibold" : ""}>1. Select</span>
+              <span aria-hidden>→</span>
+              <span className={flowStep >= 2 ? "text-white font-semibold" : ""}>2. Preview</span>
+              <span aria-hidden>→</span>
+              <span className={flowStep >= 3 ? "text-white font-semibold" : ""}>3. Print</span>
+            </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Printer className="h-6 w-6 text-white" />
@@ -284,112 +301,160 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
             </div>
           </CardHeader>
 
-          <CardContent className="no-print flex-1 overflow-y-auto">
-            <div className="no-print mb-4 p-4 bg-white/10 rounded-lg border border-white/20">
-              <h3 className="text-white font-semibold mb-2">Players to print</h3>
-              <div className="flex flex-wrap gap-2 mb-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-white border-white/30"
-                  onClick={selectAllPlayers}
-                >
-                  Select all
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-white border-white/30"
-                  onClick={clearSelection}
-                >
-                  Clear
-                </Button>
-                <span className="text-white/80 text-sm self-center">
-                  {playersToPrint.length} of {players?.length ?? 0} selected
-                </span>
-              </div>
-              <p className="text-white/70 text-xs mb-2">
-                Select players, then click <strong className="text-white">Preview</strong> to see the print layout. Use <strong className="text-white">Print</strong> when ready.
-              </p>
-              <div className="max-h-36 overflow-y-auto rounded border border-white/20 bg-black/20">
-                <table className="w-full text-sm text-white">
-                  <thead>
-                    <tr className="border-b border-white/20">
-                      <th className="w-10 p-2 text-left">
-                        <input
-                          type="checkbox"
-                          checked={allSelected}
-                          onChange={(e) => (e.target.checked ? selectAllPlayers() : clearSelection())}
-                          aria-label="Select all"
-                        />
-                      </th>
-                      <th className="p-2 text-left">Name</th>
-                      <th className="p-2 text-left w-14">#</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(players || []).map((p) => (
-                      <tr key={p.id} className="border-b border-white/10">
-                        <td className="p-2">
+          <CardContent className="no-print flex-1 overflow-y-auto min-h-0">
+            {flowStep === 1 && (
+              <div className="no-print mb-4 p-4 bg-white/10 rounded-lg border border-white/20">
+                <h3 className="text-white font-semibold mb-2">Step 1 — Players to print</h3>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-white border-white/30"
+                    onClick={selectAllPlayers}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-white border-white/30"
+                    onClick={clearSelection}
+                  >
+                    Clear
+                  </Button>
+                  <span className="text-white/80 text-sm self-center">
+                    {playersToPrint.length} of {players?.length ?? 0} selected
+                  </span>
+                </div>
+                <p className="text-white/70 text-xs mb-2 lg:hidden">
+                  Select players, then continue to preview and print.
+                </p>
+                <div className="max-h-48 lg:max-h-56 overflow-y-auto rounded border border-white/20 bg-black/20">
+                  <table className="w-full text-sm text-white">
+                    <thead>
+                      <tr className="border-b border-white/20">
+                        <th className="w-10 p-2 text-left">
                           <input
                             type="checkbox"
-                            checked={selectedIds.has(p.id)}
-                            onChange={() => togglePlayer(p.id)}
+                            checked={allSelected}
+                            onChange={(e) => (e.target.checked ? selectAllPlayers() : clearSelection())}
+                            aria-label="Select all"
                           />
-                        </td>
-                        <td className="p-2">{p.name}</td>
-                        <td className="p-2">{p.jerseyNumber ?? "—"}</td>
+                        </th>
+                        <th className="p-2 text-left">Name</th>
+                        <th className="p-2 text-left w-14">#</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {showSettings && (
-              <div className="no-print mb-6 p-4 bg-white/10 rounded-lg border border-white/20">
-                <h3 className="text-white font-semibold mb-2">Printer Settings</h3>
-                <ul className="text-white/80 text-sm space-y-1 list-disc list-inside">
-                  <li>Recommended: Portrait orientation</li>
-                  <li>Paper size: Letter (8.5" x 11")</li>
-                  <li>Turn off &quot;Headers and footers&quot; in the print dialog to hide date, URL, and page numbers</li>
-                  <li>Scale: 100% (default)</li>
-                  <li>Background graphics: Enabled (if available)</li>
-                </ul>
+                    </thead>
+                    <tbody>
+                      {(players || []).map((p) => (
+                        <tr key={p.id} className="border-b border-white/10">
+                          <td className="p-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(p.id)}
+                              onChange={() => togglePlayer(p.id)}
+                            />
+                          </td>
+                          <td className="p-2">{p.name}</td>
+                          <td className="p-2">{p.jerseyNumber ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="no-print flex flex-wrap gap-3 mt-4">
+                  <Button
+                    type="button"
+                    className="bg-white text-[#1e3a5f] hover:bg-white/90"
+                    onClick={() => hasPlayers && setFlowStep(2)}
+                    disabled={!hasPlayers}
+                  >
+                    Continue to preview
+                  </Button>
+                  <Button variant="outline" onClick={onClose} className="text-white border-white/30">
+                    Close
+                  </Button>
+                </div>
               </div>
             )}
 
-            {previewVisible ? (
-              <div className="no-print bg-white p-8 mx-auto max-w-4xl text-black rounded-lg border border-white/20" style={{ width: "8.5in" }}>
-                {printBody}
-              </div>
-            ) : (
-              <div className="no-print rounded-lg border border-dashed border-white/30 bg-white/5 px-4 py-6 text-center text-sm text-white/80">
-                Preview is hidden. Select players and click <strong className="text-white">Preview</strong> to see how the roster will print.
-              </div>
-            )}
+            {flowStep >= 2 && (
+              <>
+                {showSettings && (
+                  <div className="no-print mb-6 p-4 bg-white/10 rounded-lg border border-white/20">
+                    <h3 className="text-white font-semibold mb-2">Printer Settings</h3>
+                    <ul className="text-white/80 text-sm space-y-1 list-disc list-inside">
+                      <li>Recommended: Portrait orientation</li>
+                      <li>Paper size: Letter (8.5&quot; x 11&quot;)</li>
+                      <li>Turn off &quot;Headers and footers&quot; in the print dialog to hide date, URL, and page numbers</li>
+                      <li>Scale: 100% (default)</li>
+                      <li>Background graphics: Enabled (if available)</li>
+                    </ul>
+                  </div>
+                )}
 
-            <div className="no-print flex flex-wrap gap-3 mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                className="text-white border-white/30"
-                onClick={() => setPreviewVisible(true)}
-                disabled={!hasPlayers || previewVisible}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Preview
-              </Button>
-              <Button onClick={handlePrint} className="flex-1 min-w-[140px]" disabled={!hasPlayers || !previewVisible}>
-                <Printer className="h-4 w-4 mr-2" />
-                Print Roster
-              </Button>
-              <Button variant="outline" onClick={onClose} className="text-white border-white/30">
-                Close
-              </Button>
-            </div>
+                <div className="no-print mb-3">
+                  <h3 className="text-white font-semibold text-sm lg:text-base">
+                    {flowStep === 2 && !previewVisible
+                      ? "Step 2 — Preview layout"
+                      : "Step 3 — Print"}
+                  </h3>
+                  <p className="text-white/70 text-xs mt-1">
+                    Preview stays hidden until you click <strong className="text-white">Preview</strong>. Then use{" "}
+                    <strong className="text-white">Print</strong>.
+                  </p>
+                </div>
+
+                {previewVisible ? (
+                  <div
+                    className="no-print bg-white p-8 mx-auto max-w-4xl text-black rounded-lg border border-white/20 lg:p-10"
+                    style={{ width: "8.5in" }}
+                  >
+                    {printBody}
+                  </div>
+                ) : (
+                  <div className="no-print rounded-lg border border-dashed border-white/30 bg-white/5 px-4 py-6 text-center text-sm text-white/80">
+                    Preview is hidden. Click <strong className="text-white">Preview</strong> to see how the roster will print.
+                  </div>
+                )}
+
+                <div className="no-print flex flex-wrap gap-3 mt-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-white border-white/30"
+                    onClick={() => {
+                      setPreviewVisible(true)
+                      setFlowStep(3)
+                    }}
+                    disabled={!hasPlayers || previewVisible}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Preview
+                  </Button>
+                  <Button onClick={handlePrint} className="flex-1 min-w-[140px]" disabled={!hasPlayers || !previewVisible}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-white border-white/30"
+                    onClick={() => {
+                      setFlowStep(1)
+                      setPreviewVisible(false)
+                    }}
+                  >
+                    Back
+                  </Button>
+                  <Button variant="outline" onClick={onClose} className="text-white border-white/30">
+                    Close
+                  </Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -423,41 +488,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
           document.body
         )}
 
-      <style jsx global>{`
-        @media print {
-          /* Remove browser header/footer (date, URL, page number) by using no page margin */
-          @page {
-            margin: 0 !important;
-            size: auto;
-          }
-          /* Hide entire page with display:none so only portal takes space (prevents 2nd blank page) */
-          body * {
-            display: none !important;
-          }
-          body > .roster-print-portal {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-            pointer-events: auto !important;
-          }
-          body > .roster-print-portal * {
-            display: revert !important;
-            visibility: visible !important;
-            color: black !important;
-          }
-          body > .roster-print-portal .roster-print-root {
-            display: block !important;
-            position: static !important;
-            margin: 0 auto !important;
-            padding: 0.5in !important;
-            color: black !important;
-          }
-        }
-      `}</style>
+      <style dangerouslySetInnerHTML={{ __html: ROSTER_PRINT_PORTAL_CSS }} />
     </>
   )
 }

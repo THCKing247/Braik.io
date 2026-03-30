@@ -49,7 +49,7 @@ export async function loadTeamRosterForBootstrap(
     supabase
       .from("players")
       .select(
-        "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
+        "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, health_status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
       )
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })

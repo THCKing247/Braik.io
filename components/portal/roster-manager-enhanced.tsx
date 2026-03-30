@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import { RosterDesktopSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { RosterMobileSkeleton } from "@/components/portal/roster-mobile-view"
@@ -133,6 +134,14 @@ interface RosterManagerEnhancedProps {
   prefetchedReadinessDetail?: { summary: TeamReadinessSummary; players?: PlayerReadinessItem[] } | null
   /** True while deferred dashboard bootstrap has not merged roster yet — show skeleton without blocking page mount. */
   rosterBootstrapPending?: boolean
+}
+
+/** Roster card/list filter: aligns with list Status column semantics. */
+function rosterPlayerCategory(p: Player): "active" | "injured" | "inactive" | "unavailable" {
+  if (p.healthStatus === "injured") return "injured"
+  if (p.healthStatus === "unavailable") return "unavailable"
+  if (p.status !== "active") return "inactive"
+  return "active"
 }
 
 const TEAM_ACTIVITY_LABELS: Record<string, string> = {
@@ -699,13 +708,25 @@ export function RosterManagerEnhanced({
   const [rosterSearchQuery, setRosterSearchQuery] = useState(initialSearch)
   const [rosterPositionFilter, setRosterPositionFilter] = useState<string>(initialPosition)
   const [rosterGradeFilter, setRosterGradeFilter] = useState("")
+  /** Desktop card/list parity: filter by active / injured / inactive / unavailable */
+  const [rosterPlayerStatusFilter, setRosterPlayerStatusFilter] = useState("")
   const [mobileRosterSort, setMobileRosterSort] = useState<MobileRosterSort>("name_az")
+  /** Import CSV as modal on lg+ only; base/md keep inline card */
+  const [isLgViewport, setIsLgViewport] = useState(false)
 
   useEffect(() => {
     setRosterViewMode(initialView)
     setRosterSearchQuery(initialSearch)
     setRosterPositionFilter(initialPosition)
   }, [initialView, initialSearch, initialPosition])
+
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)")
+    const apply = () => setIsLgViewport(mq.matches)
+    apply()
+    mq.addEventListener("change", apply)
+    return () => mq.removeEventListener("change", apply)
+  }, [])
 
   const prevRosterBootstrapPending = useRef(rosterBootstrapPending)
   useEffect(() => {
@@ -845,8 +866,14 @@ export function RosterManagerEnhanced({
       const g = parseInt(rosterGradeFilter, 10)
       if (!Number.isNaN(g)) list = list.filter((p) => p.grade === g)
     }
+    if (rosterPlayerStatusFilter) {
+      list = list.filter((p) => {
+        const c = rosterPlayerCategory(p)
+        return c === rosterPlayerStatusFilter
+      })
+    }
     return list
-  }, [players, rosterSearchQuery, rosterPositionFilter, rosterGradeFilter, readinessFilteredPlayerIds])
+  }, [players, rosterSearchQuery, rosterPositionFilter, rosterGradeFilter, rosterPlayerStatusFilter, readinessFilteredPlayerIds])
 
   // Load depth chart data when modal opens
   useEffect(() => {
@@ -1672,6 +1699,34 @@ export function RosterManagerEnhanced({
                   <option value="eligibility_missing">Eligibility not set</option>
                 </select>
               )}
+              <select
+                value={rosterGradeFilter}
+                onChange={(e) => setRosterGradeFilter(e.target.value)}
+                className="hidden h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary lg:block"
+                aria-label="Filter by grade"
+              >
+                <option value="">All grades</option>
+                <option value="9">Freshman (9)</option>
+                <option value="10">Sophomore (10)</option>
+                <option value="11">Junior (11)</option>
+                <option value="12">Senior (12)</option>
+                <option value="1">College Yr 1</option>
+                <option value="2">College Yr 2</option>
+                <option value="3">College Yr 3</option>
+                <option value="4">College Yr 4</option>
+              </select>
+              <select
+                value={rosterPlayerStatusFilter}
+                onChange={(e) => setRosterPlayerStatusFilter(e.target.value)}
+                className="hidden h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary lg:block"
+                aria-label="Filter by player status"
+              >
+                <option value="">All player statuses</option>
+                <option value="active">Active</option>
+                <option value="injured">Injured</option>
+                <option value="unavailable">Unavailable</option>
+                <option value="inactive">Inactive</option>
+              </select>
               <span className="text-sm font-medium text-muted-foreground">View:</span>
               <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
                 <button
@@ -2154,8 +2209,68 @@ export function RosterManagerEnhanced({
         </div>
       )}
 
-      {/* Import Form */}
-      {showImportForm && (
+      {/* Import Form — modal on lg+, inline card below md (unchanged for mobile/tablet) */}
+      {showImportForm && isLgViewport && (
+        <Dialog open={showImportForm} onOpenChange={(open) => !open && !loading && setShowImportForm(false)}>
+          <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Import Players from CSV</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Upload a CSV to add or update players. Same modes as before.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-foreground">Import mode</Label>
+                <select
+                  value={importMode}
+                  onChange={(e) => setImportMode(e.target.value as "create_only" | "create_or_update" | "replace_roster")}
+                  className={`flex h-10 w-full rounded-md border px-3 py-2 text-sm text-foreground ${
+                    importMode === "replace_roster"
+                      ? "border-red-300 bg-red-50/50 focus-visible:ring-red-500"
+                      : "border-border bg-background focus-visible:ring-primary"
+                  }`}
+                >
+                  <option value="create_only">Create only (add new players; skip or duplicate if already exist)</option>
+                  <option value="create_or_update">Create or update (match by email or name + jersey, update existing)</option>
+                  <option value="replace_roster">Replace roster (remove all current players, then add from CSV)</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {importMode === "create_only" && "Adds new players only; existing players are left unchanged."}
+                  {importMode === "create_or_update" && "Updates matched players and creates new ones; no rows are deleted."}
+                  {importMode === "replace_roster" && (
+                    <span className="text-red-700 font-medium flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      Removes the current roster and related player-linked records, then imports from CSV. This cannot be undone.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-foreground">CSV File</Label>
+                <Input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                  className="text-foreground"
+                />
+                <p className="text-xs text-muted-foreground">
+                  CSV format: First Name, Last Name, Grade, Jersey Number, Position, Email (optional), Notes (optional), Weight (optional), Height (optional)
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button onClick={handleCsvImport} disabled={loading || !csvFile}>
+                {loading ? "Importing..." : "Import CSV"}
+              </Button>
+              <Button variant="outline" onClick={() => setShowImportForm(false)} disabled={loading}>
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {showImportForm && !isLgViewport && (
         <Card className="mb-6 bg-card border border-border">
           <CardHeader>
             <CardTitle className="text-foreground">Import Players from CSV</CardTitle>

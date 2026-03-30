@@ -50,6 +50,10 @@ export type RosterPrintPayload = {
     position: string | null
     weight: number | null
     height: string | null
+    /** Roster membership: e.g. active | inactive */
+    rosterStatus?: string
+    /** health_status: active | injured | unavailable */
+    healthStatus?: string | null
   }>
   generatedAt: string
 }
@@ -60,7 +64,7 @@ export type RosterPrintPayload = {
 export async function buildRosterPrintPayload(
   supabase: SupabaseClient,
   teamId: string,
-  options?: { playerIds?: string[] | null }
+  options?: { playerIds?: string[] | null; fullRoster?: boolean }
 ): Promise<RosterPrintPayload | { error: string; stage: string }> {
   const { data: teamRow, error: teamError } = await supabase
     .from("teams")
@@ -88,11 +92,14 @@ export async function buildRosterPrintPayload(
     /* ignore */
   }
 
-  const { data: players, error: playersError } = await supabase
+  let playersQuery = supabase
     .from("players")
-    .select("id, first_name, last_name, grade, jersey_number, position_group, weight, height")
+    .select("id, first_name, last_name, grade, jersey_number, position_group, weight, height, status, health_status")
     .eq("team_id", teamId)
-    .eq("status", "active")
+  if (!options?.fullRoster) {
+    playersQuery = playersQuery.eq("status", "active")
+  }
+  const { data: players, error: playersError } = await playersQuery
     .order("jersey_number", { ascending: true, nullsFirst: false })
     .order("last_name", { ascending: true })
     .order("first_name", { ascending: true })
@@ -157,6 +164,8 @@ export async function buildRosterPrintPayload(
       position_group?: string | null
       weight?: number | null
       height?: string | null
+      status?: string | null
+      health_status?: string | null
     }
     return {
       id: row.id,
@@ -177,6 +186,8 @@ export async function buildRosterPrintPayload(
       position: row.position_group ?? null,
       weight: row.weight != null ? row.weight : null,
       height: row.height ?? null,
+      rosterStatus: row.status ?? undefined,
+      healthStatus: row.health_status ?? null,
     }
   })
 
@@ -213,6 +224,36 @@ export type RosterPrintClientData = {
   generatedAt: string
 }
 
+/** CSS injected for browser print — avoids styled-jsx dependency issues in production. */
+export const ROSTER_PRINT_PORTAL_CSS = `
+@media print {
+  @page { margin: 0 !important; size: auto; }
+  body * { display: none !important; }
+  body > .roster-print-portal {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+  }
+  body > .roster-print-portal * {
+    display: revert !important;
+    visibility: visible !important;
+    color: black !important;
+  }
+  body > .roster-print-portal .roster-print-root {
+    display: block !important;
+    position: static !important;
+    margin: 0 auto !important;
+    padding: 0.5in !important;
+    color: black !important;
+  }
+}
+`
+
 /**
  * Parse GET /api/roster/print JSON safely: merge template with defaults, coerce players.
  * Returns null if the payload is not a successful roster print response.
@@ -226,8 +267,9 @@ export function parseRosterPrintClientData(raw: unknown): RosterPrintClientData 
   if (!teamRaw || typeof teamRaw !== "object") return null
   const tr = teamRaw as Record<string, unknown>
   const teamId = typeof tr.id === "string" ? tr.id : ""
-  const teamName = typeof tr.name === "string" ? tr.name : ""
-  if (!teamId || !teamName) return null
+  const rawName = typeof tr.name === "string" ? tr.name : ""
+  const teamName = rawName.trim() || "Team"
+  if (!teamId) return null
 
   const team: RosterPrintPayload["team"] = {
     id: teamId,
@@ -263,6 +305,11 @@ export function parseRosterPrintClientData(raw: unknown): RosterPrintClientData 
           position: typeof row.position === "string" || row.position === null ? (row.position as string | null) : null,
           weight: typeof row.weight === "number" ? row.weight : null,
           height: typeof row.height === "string" || row.height === null ? (row.height as string | null) : null,
+          rosterStatus: typeof row.rosterStatus === "string" ? row.rosterStatus : undefined,
+          healthStatus:
+            typeof row.healthStatus === "string" || row.healthStatus === null
+              ? (row.healthStatus as string | null)
+              : null,
         }
       })
     : []

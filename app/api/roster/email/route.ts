@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     const supabase = getSupabaseServer()
     const payload = await buildRosterPrintPayload(supabase, teamId, {
       playerIds: Array.isArray(playerIds) && playerIds.length > 0 ? playerIds : undefined,
+      fullRoster: true,
     })
 
     if (!("success" in payload && payload.success)) {

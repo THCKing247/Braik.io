@@ -1863,11 +1863,17 @@ export function RosterManagerEnhanced({
                 </Card>
               </div>
 
-              <div className="border-b border-border" role="tablist" aria-label="Readiness sections">
+              <div
+                className="border-b border-border lg:rounded-t-lg lg:border lg:border-b-0 lg:bg-muted/20 lg:p-1"
+                role="tablist"
+                aria-label="Readiness sections"
+              >
                 <div className="flex flex-wrap gap-x-1">
                   <button
                     type="button"
                     role="tab"
+                    id="readiness-tab-attention"
+                    aria-controls="readiness-panel-attention"
                     aria-selected={readinessSubTab === "attention"}
                     onClick={() => setReadinessSubTab("attention")}
                     className={readinessSectionTabClass(readinessSubTab === "attention")}
@@ -1877,6 +1883,8 @@ export function RosterManagerEnhanced({
                   <button
                     type="button"
                     role="tab"
+                    id="readiness-tab-checklist"
+                    aria-controls="readiness-panel-checklist"
                     aria-selected={readinessSubTab === "checklist"}
                     onClick={() => setReadinessSubTab("checklist")}
                     className={readinessSectionTabClass(readinessSubTab === "checklist")}
@@ -1886,6 +1894,8 @@ export function RosterManagerEnhanced({
                   <button
                     type="button"
                     role="tab"
+                    id="readiness-tab-activity"
+                    aria-controls="readiness-panel-activity"
                     aria-selected={readinessSubTab === "activity"}
                     onClick={() => setReadinessSubTab("activity")}
                     className={readinessSectionTabClass(readinessSubTab === "activity")}
@@ -1896,7 +1906,12 @@ export function RosterManagerEnhanced({
               </div>
 
               {readinessSubTab === "attention" && (
-                <Card className="border border-border bg-card">
+                <Card
+                  id="readiness-panel-attention"
+                  role="tabpanel"
+                  aria-labelledby="readiness-tab-attention"
+                  className="border border-border bg-card lg:rounded-b-lg lg:border-t-0"
+                >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-foreground">
                       <AlertCircle className="h-5 w-5 text-amber-500" />
@@ -1992,125 +2007,132 @@ export function RosterManagerEnhanced({
               )}
 
               {readinessSubTab === "checklist" && (
-                <Card className="border border-border bg-card">
-                  <CardHeader>
+                <Card
+                  id="readiness-panel-checklist"
+                  role="tabpanel"
+                  aria-labelledby="readiness-tab-checklist"
+                  className="border border-border bg-card lg:rounded-b-lg lg:border-t-0"
+                >
+                  <CardHeader className="space-y-1 lg:space-y-2">
                     <CardTitle className="text-foreground">Roster checklist</CardTitle>
                     <p className="text-sm text-muted-foreground">
                       Physical, waiver, required forms, and whether the player has linked their app account.
                     </p>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (!teamReadiness) return
-                          const headers = [
-                            "First Name",
-                            "Last Name",
-                            "Ready",
-                            "Profile Complete",
-                            "Physical",
-                            "Waiver",
-                            "Forms complete",
-                            "Account linked",
-                            "Equipment",
-                            "Guardians",
-                            "Eligibility",
-                            "Open Follow-ups",
-                            "Missing Items",
-                          ]
-                          const rows = teamReadiness.players.map((p) => [
-                            p.firstName,
-                            p.lastName,
-                            p.ready ? "Yes" : "No",
-                            p.profileComplete ? "Yes" : "No",
-                            p.physicalOnFile ? "Yes" : "No",
-                            p.waiverOnFile ? "Yes" : "No",
-                            p.requiredDocsComplete ? "Yes" : "No",
-                            p.accountLinked ? "Yes" : "No",
-                            p.equipmentAssigned ? "Yes" : "No",
-                            p.hasGuardians ? "Yes" : "No",
-                            p.eligibilityStatus ?? "",
-                            String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
-                            p.missingItems.join("; ") || "",
-                          ])
-                          const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
-                          const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-                          const url = URL.createObjectURL(blob)
-                          const a = document.createElement("a")
-                          a.href = url
-                          a.download = `roster-readiness-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
-                          a.click()
-                          URL.revokeObjectURL(url)
-                        }}
-                      >
-                        Export readiness (CSV)
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (!teamReadiness) return
-                          const incomplete = teamReadiness.players.filter((p) => !p.ready)
-                          const headers = [
-                            "First Name",
-                            "Last Name",
-                            "Profile Complete",
-                            "Physical",
-                            "Waiver",
-                            "Forms complete",
-                            "Account linked",
-                            "Equipment",
-                            "Guardians",
-                            "Eligibility",
-                            "Open Follow-ups",
-                            "Missing Items",
-                          ]
-                          const rows = incomplete.map((p) => [
-                            p.firstName,
-                            p.lastName,
-                            p.profileComplete ? "Yes" : "No",
-                            p.physicalOnFile ? "Yes" : "No",
-                            p.waiverOnFile ? "Yes" : "No",
-                            p.requiredDocsComplete ? "Yes" : "No",
-                            p.accountLinked ? "Yes" : "No",
-                            p.equipmentAssigned ? "Yes" : "No",
-                            p.hasGuardians ? "Yes" : "No",
-                            p.eligibilityStatus ?? "",
-                            String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
-                            p.missingItems.join("; ") || "",
-                          ])
-                          const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
-                          const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-                          const url = URL.createObjectURL(blob)
-                          const a = document.createElement("a")
-                          a.href = url
-                          a.download = `roster-incomplete-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
-                          a.click()
-                          URL.revokeObjectURL(url)
-                        }}
-                      >
-                        Export incomplete only (CSV)
-                      </Button>
+                  <CardContent className="space-y-4 lg:space-y-5">
+                    <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+                      <p className="text-sm text-muted-foreground lg:max-w-xl">
+                        Export the full checklist or incomplete players only. Downloads use your current roster data.
+                      </p>
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="lg:h-9"
+                          onClick={() => {
+                            if (!teamReadiness) return
+                            const headers = [
+                              "First Name",
+                              "Last Name",
+                              "Ready",
+                              "Profile Complete",
+                              "Physical",
+                              "Waiver",
+                              "Forms complete",
+                              "Account linked",
+                              "Equipment",
+                              "Guardians",
+                              "Eligibility",
+                              "Open Follow-ups",
+                              "Missing Items",
+                            ]
+                            const rows = teamReadiness.players.map((p) => [
+                              p.firstName,
+                              p.lastName,
+                              p.ready ? "Yes" : "No",
+                              p.profileComplete ? "Yes" : "No",
+                              p.physicalOnFile ? "Yes" : "No",
+                              p.waiverOnFile ? "Yes" : "No",
+                              p.requiredDocsComplete ? "Yes" : "No",
+                              p.accountLinked ? "Yes" : "No",
+                              p.equipmentAssigned ? "Yes" : "No",
+                              p.hasGuardians ? "Yes" : "No",
+                              p.eligibilityStatus ?? "",
+                              String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                              p.missingItems.join("; ") || "",
+                            ])
+                            const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement("a")
+                            a.href = url
+                            a.download = `roster-readiness-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                            a.click()
+                            URL.revokeObjectURL(url)
+                          }}
+                        >
+                          Export readiness (CSV)
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="lg:h-9"
+                          onClick={() => {
+                            if (!teamReadiness) return
+                            const incomplete = teamReadiness.players.filter((p) => !p.ready)
+                            const headers = [
+                              "First Name",
+                              "Last Name",
+                              "Profile Complete",
+                              "Physical",
+                              "Waiver",
+                              "Forms complete",
+                              "Account linked",
+                              "Equipment",
+                              "Guardians",
+                              "Eligibility",
+                              "Open Follow-ups",
+                              "Missing Items",
+                            ]
+                            const rows = incomplete.map((p) => [
+                              p.firstName,
+                              p.lastName,
+                              p.profileComplete ? "Yes" : "No",
+                              p.physicalOnFile ? "Yes" : "No",
+                              p.waiverOnFile ? "Yes" : "No",
+                              p.requiredDocsComplete ? "Yes" : "No",
+                              p.accountLinked ? "Yes" : "No",
+                              p.equipmentAssigned ? "Yes" : "No",
+                              p.hasGuardians ? "Yes" : "No",
+                              p.eligibilityStatus ?? "",
+                              String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                              p.missingItems.join("; ") || "",
+                            ])
+                            const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement("a")
+                            a.href = url
+                            a.download = `roster-incomplete-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                            a.click()
+                            URL.revokeObjectURL(url)
+                          }}
+                        >
+                          Export incomplete only (CSV)
+                        </Button>
+                      </div>
                     </div>
-                    <div className="overflow-x-auto max-h-[min(480px,55vh)] overflow-y-auto rounded-md border border-border">
-                      <table className="w-full min-w-[36rem] border-collapse text-sm table-fixed">
-                        <colgroup>
-                          <col />
-                          <col className="w-[5.5rem]" />
-                          <col className="w-[5.5rem]" />
-                          <col className="w-[5.5rem]" />
-                          <col className="w-[7.25rem]" />
-                        </colgroup>
-                        <thead className="sticky top-0 z-[1] bg-muted/90 backdrop-blur-sm">
-                          <tr className="border-b border-border text-muted-foreground">
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">Player</th>
-                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide">Physical</th>
-                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide">Waiver</th>
-                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide">Forms</th>
-                            <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide leading-tight">
+                    <div className="overflow-x-auto max-h-[min(480px,55vh)] overflow-y-auto rounded-lg border border-border bg-card shadow-sm">
+                      <table className="w-full min-w-[36rem] border-collapse text-sm">
+                        <thead className="sticky top-0 z-[1] border-b border-border bg-muted/95 backdrop-blur-sm">
+                          <tr className="text-muted-foreground">
+                            <th className="w-[40%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
+                              Player
+                            </th>
+                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide">Physical</th>
+                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide">Waiver</th>
+                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide">Forms</th>
+                            <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide leading-tight">
                               Acct linked
                             </th>
                           </tr>
@@ -2149,7 +2171,12 @@ export function RosterManagerEnhanced({
               )}
 
               {readinessSubTab === "activity" && (
-                <Card className="border border-border bg-card">
+                <Card
+                  id="readiness-panel-activity"
+                  role="tabpanel"
+                  aria-labelledby="readiness-tab-activity"
+                  className="border border-border bg-card lg:rounded-b-lg lg:border-t-0"
+                >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-foreground">
                       <History className="h-5 w-5 text-muted-foreground" />

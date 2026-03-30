@@ -3,8 +3,16 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
-import { X, Printer, Settings, Eye } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Printer, Settings, Eye } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   parseRosterPrintClientData,
   ROSTER_PRINT_PORTAL_CSS,
@@ -130,24 +138,38 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#1e3a5f] rounded-lg p-8 text-white">
-          <p>Loading roster...</p>
-        </div>
-      </div>
+      <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="no-print sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <Printer className="h-5 w-5 text-primary shrink-0" aria-hidden />
+              Print Roster
+            </DialogTitle>
+            <DialogDescription>Loading roster data…</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground" aria-busy="true">
+            Loading roster…
+          </div>
+        </DialogContent>
+      </Dialog>
     )
   }
 
   if (!rosterData) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#1e3a5f] rounded-lg p-8 text-white max-w-md text-center">
-          <p>{loadError ?? "Failed to load roster data"}</p>
-          <Button onClick={onClose} className="mt-4">
-            Close
-          </Button>
-        </div>
-      </div>
+      <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="no-print sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Print Roster</DialogTitle>
+            <DialogDescription>{loadError ?? "Failed to load roster data"}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={onClose}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     )
   }
 
@@ -265,76 +287,60 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
 
   return (
     <>
-      {/* Modal chrome - hidden in print via .no-print so only roster-print-root is visible */}
-      <div className="no-print fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
-        <Card className="no-print w-full max-w-4xl lg:max-w-5xl bg-[#1e3a5f] border-[#1e3a5f] max-h-[90vh] flex flex-col">
-          <CardHeader className="no-print flex-shrink-0">
-            <div className="hidden lg:flex items-center gap-2 mb-3 text-xs text-white/70">
-              <span className={flowStep >= 1 ? "text-white font-semibold" : ""}>1. Select</span>
+      <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent
+          className={cn(
+            "no-print flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 lg:max-h-[90vh]",
+            "w-[min(100vw-1rem,56rem)] max-w-[min(100vw-1rem,56rem)] lg:max-w-5xl"
+          )}
+        >
+          <DialogHeader className="no-print shrink-0 space-y-3 border-b border-border px-4 pb-3 pt-2 md:px-6 md:pb-4 md:pt-4">
+            <div className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground">
+              <span className={flowStep >= 1 ? "font-semibold text-foreground" : ""}>1. Select</span>
               <span aria-hidden>→</span>
-              <span className={flowStep >= 2 ? "text-white font-semibold" : ""}>2. Preview</span>
+              <span className={flowStep >= 2 ? "font-semibold text-foreground" : ""}>2. Preview</span>
               <span aria-hidden>→</span>
-              <span className={flowStep >= 3 ? "text-white font-semibold" : ""}>3. Print</span>
+              <span className={flowStep >= 3 ? "font-semibold text-foreground" : ""}>3. Print</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Printer className="h-6 w-6 text-white" />
-                <CardTitle className="text-white">Print Roster</CardTitle>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <DialogTitle className="flex items-center gap-2 text-left text-foreground">
+                  <Printer className="h-5 w-5 text-primary shrink-0" aria-hidden />
+                  Print Roster
+                </DialogTitle>
+                <DialogDescription className="text-left">
+                  Select players, preview the layout, then print. Browser print dialog opens when you click Print.
+                </DialogDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="text-white border-white/20"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Printer Settings
-                </Button>
-                <button
-                  onClick={onClose}
-                  className="text-white/70 hover:text-white"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+              <Button variant="outline" size="sm" type="button" onClick={() => setShowSettings(!showSettings)} className="shrink-0">
+                <Settings className="h-4 w-4 mr-2" aria-hidden />
+                Printer Settings
+              </Button>
             </div>
-          </CardHeader>
+          </DialogHeader>
 
-          <CardContent className="no-print flex-1 overflow-y-auto min-h-0">
+          <div className="no-print flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-5">
             {flowStep === 1 && (
-              <div className="no-print mb-4 p-4 bg-white/10 rounded-lg border border-white/20">
-                <h3 className="text-white font-semibold mb-2">Step 1 — Players to print</h3>
+              <div className="no-print mb-4 rounded-lg border border-border bg-muted/30 p-4">
+                <h3 className="text-sm font-semibold text-foreground mb-2">Step 1 — Players to print</h3>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="text-white border-white/30"
-                    onClick={selectAllPlayers}
-                  >
+                  <Button type="button" size="sm" variant="outline" onClick={selectAllPlayers}>
                     Select all
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="text-white border-white/30"
-                    onClick={clearSelection}
-                  >
+                  <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
                     Clear
                   </Button>
-                  <span className="text-white/80 text-sm self-center">
+                  <span className="text-muted-foreground text-sm self-center">
                     {playersToPrint.length} of {players?.length ?? 0} selected
                   </span>
                 </div>
-                <p className="text-white/70 text-xs mb-2 lg:hidden">
+                <p className="text-muted-foreground text-xs mb-2 lg:hidden">
                   Select players, then continue to preview and print.
                 </p>
-                <div className="max-h-48 lg:max-h-56 overflow-y-auto rounded border border-white/20 bg-black/20">
-                  <table className="w-full text-sm text-white">
+                <div className="max-h-48 lg:max-h-56 overflow-y-auto rounded-md border border-border bg-background">
+                  <table className="w-full text-sm text-foreground">
                     <thead>
-                      <tr className="border-b border-white/20">
+                      <tr className="border-b border-border bg-muted/50">
                         <th className="w-10 p-2 text-left">
                           <input
                             type="checkbox"
@@ -343,13 +349,13 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                             aria-label="Select all"
                           />
                         </th>
-                        <th className="p-2 text-left">Name</th>
-                        <th className="p-2 text-left w-14">#</th>
+                        <th className="p-2 text-left font-medium">Name</th>
+                        <th className="p-2 text-left w-14 font-medium">#</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(players || []).map((p) => (
-                        <tr key={p.id} className="border-b border-white/10">
+                        <tr key={p.id} className="border-b border-border/80">
                           <td className="p-2">
                             <input
                               type="checkbox"
@@ -365,15 +371,10 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                   </table>
                 </div>
                 <div className="no-print flex flex-wrap gap-3 mt-4">
-                  <Button
-                    type="button"
-                    className="bg-white text-[#1e3a5f] hover:bg-white/90"
-                    onClick={() => hasPlayers && setFlowStep(2)}
-                    disabled={!hasPlayers}
-                  >
+                  <Button type="button" onClick={() => hasPlayers && setFlowStep(2)} disabled={!hasPlayers}>
                     Continue to preview
                   </Button>
-                  <Button variant="outline" onClick={onClose} className="text-white border-white/30">
+                  <Button type="button" variant="outline" onClick={onClose}>
                     Close
                   </Button>
                 </div>
@@ -383,9 +384,9 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
             {flowStep >= 2 && (
               <>
                 {showSettings && (
-                  <div className="no-print mb-6 p-4 bg-white/10 rounded-lg border border-white/20">
-                    <h3 className="text-white font-semibold mb-2">Printer Settings</h3>
-                    <ul className="text-white/80 text-sm space-y-1 list-disc list-inside">
+                  <div className="no-print mb-6 rounded-lg border border-border bg-muted/30 p-4">
+                    <h3 className="text-sm font-semibold text-foreground mb-2">Printer Settings</h3>
+                    <ul className="text-muted-foreground text-sm space-y-1 list-disc list-inside">
                       <li>Recommended: Portrait orientation</li>
                       <li>Paper size: Letter (8.5&quot; x 11&quot;)</li>
                       <li>Turn off &quot;Headers and footers&quot; in the print dialog to hide date, URL, and page numbers</li>
@@ -396,52 +397,55 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                 )}
 
                 <div className="no-print mb-3">
-                  <h3 className="text-white font-semibold text-sm lg:text-base">
+                  <h3 className="text-sm font-semibold text-foreground lg:text-base">
                     {flowStep === 2 && !previewVisible
                       ? "Step 2 — Preview layout"
                       : "Step 3 — Print"}
                   </h3>
-                  <p className="text-white/70 text-xs mt-1">
-                    Preview stays hidden until you click <strong className="text-white">Preview</strong>. Then use{" "}
-                    <strong className="text-white">Print</strong>.
+                  <p className="text-muted-foreground text-xs mt-1">
+                    Preview stays hidden until you click <strong className="text-foreground">Preview</strong>. Then use{" "}
+                    <strong className="text-foreground">Print</strong>.
                   </p>
                 </div>
 
                 {previewVisible ? (
                   <div
-                    className="no-print bg-white p-8 mx-auto max-w-4xl text-black rounded-lg border border-white/20 lg:p-10"
+                    className="no-print mx-auto max-w-4xl rounded-lg border border-border bg-white p-8 text-black lg:p-10"
                     style={{ width: "8.5in" }}
                   >
                     {printBody}
                   </div>
                 ) : (
-                  <div className="no-print rounded-lg border border-dashed border-white/30 bg-white/5 px-4 py-6 text-center text-sm text-white/80">
-                    Preview is hidden. Click <strong className="text-white">Preview</strong> to see how the roster will print.
+                  <div className="no-print rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+                    Preview is hidden. Click <strong className="text-foreground">Preview</strong> to see how the roster will print.
                   </div>
                 )}
 
-                <div className="no-print flex flex-wrap gap-3 mt-6">
+                <div className="no-print mt-6 flex flex-wrap gap-3">
                   <Button
                     type="button"
                     variant="outline"
-                    className="text-white border-white/30"
                     onClick={() => {
                       setPreviewVisible(true)
                       setFlowStep(3)
                     }}
                     disabled={!hasPlayers || previewVisible}
                   >
-                    <Eye className="h-4 w-4 mr-2" />
+                    <Eye className="h-4 w-4 mr-2" aria-hidden />
                     Preview
                   </Button>
-                  <Button onClick={handlePrint} className="flex-1 min-w-[140px]" disabled={!hasPlayers || !previewVisible}>
-                    <Printer className="h-4 w-4 mr-2" />
+                  <Button
+                    type="button"
+                    onClick={handlePrint}
+                    className="min-w-[140px] flex-1"
+                    disabled={!hasPlayers || !previewVisible}
+                  >
+                    <Printer className="h-4 w-4 mr-2" aria-hidden />
                     Print
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    className="text-white border-white/30"
                     onClick={() => {
                       setFlowStep(1)
                       setPreviewVisible(false)
@@ -449,15 +453,15 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                   >
                     Back
                   </Button>
-                  <Button variant="outline" onClick={onClose} className="text-white border-white/30">
+                  <Button type="button" variant="outline" onClick={onClose}>
                     Close
                   </Button>
                 </div>
               </>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Printable content rendered into body so @media print can hide entire page and show only this */}
       {typeof document !== "undefined" &&

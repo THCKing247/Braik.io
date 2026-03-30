@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { X, FileText, Download } from "lucide-react"
@@ -25,6 +26,8 @@ interface EventDetail {
   description?: string | null
   creator: { name: string | null; email: string }
   linkedDocuments?: Array<{ document: EventDocument }>
+  linkedFollowUpId?: string | null
+  followUpPlayerId?: string | null
 }
 
 interface EventDetailModalProps {
@@ -32,13 +35,26 @@ interface EventDetailModalProps {
   isOpen: boolean
   onClose: () => void
   teamId: string
+  /** Coach can mark linked follow-up resolved from calendar */
+  canEdit?: boolean
+  onFollowUpResolved?: () => void
 }
 
-export function EventDetailModal({ event, isOpen, onClose, teamId }: EventDetailModalProps) {
+export function EventDetailModal({
+  event,
+  isOpen,
+  onClose,
+  teamId,
+  canEdit = false,
+  onFollowUpResolved,
+}: EventDetailModalProps) {
   const [documents, setDocuments] = useState<EventDocument[]>([])
+  const [resolving, setResolving] = useState(false)
+  const [resolveError, setResolveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen && event) {
+      setResolveError(null)
       // Load documents if not already loaded
       if (event.linkedDocuments) {
         setDocuments(event.linkedDocuments.map((link) => link.document))
@@ -62,7 +78,40 @@ export function EventDetailModal({ event, isOpen, onClose, teamId }: EventDetail
     }
   }
 
+  const handleMarkFollowUpResolved = async () => {
+    if (!event?.followUpPlayerId || !event.linkedFollowUpId) return
+    setResolveError(null)
+    setResolving(true)
+    try {
+      const res = await fetch(
+        `/api/roster/${encodeURIComponent(event.followUpPlayerId)}/follow-ups/${encodeURIComponent(event.linkedFollowUpId)}?teamId=${encodeURIComponent(teamId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "resolved" }),
+        }
+      )
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        setResolveError(typeof body.error === "string" ? body.error : "Could not resolve follow-up.")
+        return
+      }
+      onFollowUpResolved?.()
+    } catch {
+      setResolveError("Could not resolve follow-up. Try again.")
+    } finally {
+      setResolving(false)
+    }
+  }
+
   if (!isOpen || !event) return null
+
+  const showResolveFollowUp =
+    canEdit &&
+    !!event.followUpPlayerId &&
+    !!event.linkedFollowUpId &&
+    event.eventType.toUpperCase() === "FOLLOW_UP" &&
+    !event.title.trim().startsWith("[Resolved]")
 
   return (
     <>
@@ -172,6 +221,31 @@ export function EventDetailModal({ event, isOpen, onClose, teamId }: EventDetail
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {showResolveFollowUp && (
+              <div className="space-y-2 rounded-lg border border-violet-200 bg-violet-50/80 p-3 dark:border-violet-900/50 dark:bg-violet-950/30">
+                <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                  Follow-up (purple on calendar)
+                </p>
+                {resolveError ? <p className="text-sm text-destructive">{resolveError}</p> : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-violet-600 text-white hover:bg-violet-700"
+                  disabled={resolving}
+                  onClick={() => void handleMarkFollowUpResolved()}
+                >
+                  {resolving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Marking resolved…
+                    </>
+                  ) : (
+                    "Mark follow-up resolved"
+                  )}
+                </Button>
               </div>
             )}
 

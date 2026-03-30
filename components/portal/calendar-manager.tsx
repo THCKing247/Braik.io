@@ -29,6 +29,8 @@ interface Event {
       mimeType: string | null
     }
   }>
+  linkedFollowUpId?: string | null
+  followUpPlayerId?: string | null
 }
 
 export interface CalendarManagerProps {
@@ -155,9 +157,11 @@ export function CalendarManager({
     end: event.end.toISOString(),
     location: event.location || undefined,
     highlight: false,
-    description: event.notes || null,
+    description: event.notes ?? null,
     creator: event.creator,
     linkedDocuments: event.linkedDocuments,
+    linkedFollowUpId: event.linkedFollowUpId ?? undefined,
+    followUpPlayerId: event.followUpPlayerId ?? undefined,
   }))
 
   return (
@@ -183,6 +187,7 @@ export function CalendarManager({
           defaultView={defaultView}
           onCreateEvent={canEdit ? openCreateModal : undefined}
           onVisibleRangeChange={onVisibleRangeChange}
+          onEventWrite={onEventWrite}
         />
         {eventsLoading ? (
           <div

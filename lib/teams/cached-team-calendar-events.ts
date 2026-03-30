@@ -8,7 +8,7 @@ import {
 
 /** Lean row select — no `*`. `description` maps to UI notes; `visibility` → audience; `created_by` for creator batch. */
 const EVENT_SELECT_CALENDAR =
-  "id, event_type, title, description, start, end, location, visibility, created_by"
+  "id, event_type, title, description, start, end, location, visibility, created_by, linked_follow_up_id"
 
 export type TeamCalendarEventApiRow = {
   id: string
@@ -24,11 +24,15 @@ export type TeamCalendarEventApiRow = {
   linkedDocuments: Array<{
     document: { id: string; title: string; fileName: string; fileUrl: string; fileSize: number | null; mimeType: string | null }
   }>
+  /** Present when this event was created from a roster follow-up */
+  linkedFollowUpId?: string | null
+  followUpPlayerId?: string | null
 }
 
 function mapRowsToApi(
   rows: Record<string, unknown>[],
-  creatorMap: Map<string, { name: string | null; email: string }>
+  creatorMap: Map<string, { name: string | null; email: string }>,
+  followUpToPlayer: Map<string, string>
 ): TeamCalendarEventApiRow[] {
   const visibilityToAudience: Record<string, string> = {
     TEAM: "players",
@@ -39,6 +43,7 @@ function mapRowsToApi(
   return rows.map((e) => {
     const createdBy = e.created_by as string
     const creator = creatorMap.get(createdBy)
+    const linkedFu = (e.linked_follow_up_id as string | null | undefined) ?? null
     return {
       id: e.id as string,
       type: (e.event_type as string) ?? "CUSTOM",
@@ -51,6 +56,8 @@ function mapRowsToApi(
       creator: creator ? { name: creator.name, email: creator.email } : { name: null, email: "" },
       rsvps: [],
       linkedDocuments: [],
+      linkedFollowUpId: linkedFu,
+      followUpPlayerId: linkedFu ? followUpToPlayer.get(linkedFu) ?? null : null,
     }
   })
 }
@@ -88,8 +95,23 @@ export async function loadTeamCalendarEventsInRange(
   }
 
   const list = (rows ?? []) as Record<string, unknown>[]
+  const followUpIds = [
+    ...new Set(
+      list
+        .map((r) => r.linked_follow_up_id as string | undefined)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    ),
+  ]
+  const followUpToPlayer = new Map<string, string>()
+  if (followUpIds.length > 0) {
+    const { data: fuRows } = await supabase.from("player_follow_ups").select("id, player_id").in("id", followUpIds)
+    for (const row of fuRows ?? []) {
+      const r = row as { id: string; player_id: string }
+      followUpToPlayer.set(r.id, r.player_id)
+    }
+  }
   const creatorMap = await batchCreators(supabase, list)
-  return mapRowsToApi(list, creatorMap)
+  return mapRowsToApi(list, creatorMap, followUpToPlayer)
 }
 
 /** Wider window for legacy clients that omit `from`/`to` (≈6 months back → 24 months forward, month-aligned). */

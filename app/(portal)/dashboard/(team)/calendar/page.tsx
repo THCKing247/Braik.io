@@ -52,6 +52,8 @@ type EventItem = {
   creator: { name: string | null; email: string }
   rsvps: Array<{ player: { firstName: string; lastName: string }; status: string }>
   linkedDocuments?: Array<{ document: { id: string; title: string; fileName: string; fileUrl: string; fileSize: number | null; mimeType: string | null } }>
+  linkedFollowUpId?: string | null
+  followUpPlayerId?: string | null
 }
 
 function mapApiToEventItems(rows: TeamCalendarEventApiRow[]): EventItem[] {
@@ -67,6 +69,8 @@ function mapApiToEventItems(rows: TeamCalendarEventApiRow[]): EventItem[] {
     creator: e.creator,
     rsvps: Array.isArray(e.rsvps) ? e.rsvps : [],
     linkedDocuments: Array.isArray(e.linkedDocuments) ? e.linkedDocuments : [],
+    linkedFollowUpId: e.linkedFollowUpId ?? null,
+    followUpPlayerId: e.followUpPlayerId ?? null,
   }))
 }
 

@@ -49,6 +49,9 @@ interface CalendarEvent {
   location?: string
   color?: string
   highlight: boolean
+  description?: string | null
+  linkedFollowUpId?: string
+  followUpPlayerId?: string
 }
 
 type CalendarView = "agenda" | "day" | "week" | "month" | "year"
@@ -67,6 +70,8 @@ interface CalendarWidgetProps {
     end: Date
     view: CalendarView
   }) => void
+  /** After follow-up resolved from event detail or similar — parent should refetch calendar */
+  onEventWrite?: () => void
 }
 
 /** One day column height in px (24h × px/hour). Day and week time grids render a single bounded range — no stacked copies. */
@@ -98,6 +103,7 @@ export function CalendarWidgetEnhanced({
   onCreateEvent,
   defaultView = "day",
   onVisibleRangeChange,
+  onEventWrite,
 }: CalendarWidgetProps) {
   const [view, setView] = useState<CalendarView>((defaultView as CalendarView) || "week")
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -1685,9 +1691,11 @@ export function CalendarWidgetEnhanced({
             start: selectedEvent.start,
             end: selectedEvent.end,
             location: selectedEvent.location || null,
-            description: null,
+            description: selectedEvent.description ?? null,
             creator: { name: null, email: "" },
             linkedDocuments: [],
+            linkedFollowUpId: selectedEvent.linkedFollowUpId ?? null,
+            followUpPlayerId: selectedEvent.followUpPlayerId ?? null,
           }}
           isOpen={showEventDetail}
           onClose={() => {
@@ -1695,6 +1703,12 @@ export function CalendarWidgetEnhanced({
             setSelectedEvent(null)
           }}
           teamId={teamId}
+          canEdit={canEdit}
+          onFollowUpResolved={() => {
+            onEventWrite?.()
+            setShowEventDetail(false)
+            setSelectedEvent(null)
+          }}
         />
       )}
 

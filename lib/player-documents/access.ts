@@ -146,7 +146,8 @@ export async function resolvePlayerDocumentAccess(
     return {
       ...base,
       canView: true,
-      canUpload: false,
+      /** Staff can upload participation documents on behalf of the player from the roster profile. */
+      canUpload: true,
       canExport: !isAssistantOnly && isHeadCoachRole,
       canDelete: isHeadCoachRole,
       canManageVisibility: true,

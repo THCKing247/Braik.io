@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList, Copy } from "lucide-react"
 import type { PlayerProfile } from "@/types/player-profile"
 import { PlayerProfileWeeklyStatsPanel } from "./player-profile-weekly-stats-panel"
@@ -56,20 +57,11 @@ function getProfileStatusDisplay(p: PlayerProfile): { label: string; chipClass: 
   return { label: "Active", chipClass: "bg-green-100 text-green-900 border-green-200" }
 }
 
-const HEIGHT_SELECT_OPTIONS = [
-  "5'0\"",
-  "5'2\"",
-  "5'4\"",
-  "5'6\"",
-  "5'8\"",
-  "5'10\"",
-  "6'0\"",
-  "6'2\"",
-  "6'4\"",
-  "6'6\"",
-  "6'8\"",
-]
-const WEIGHT_SELECT_OPTIONS = Array.from({ length: 31 }, (_, i) => 150 + i * 5)
+/** Feet / inches → stored height string e.g. 5'10" */
+const HEIGHT_FEET_OPTIONS = ["4", "5", "6", "7"]
+const HEIGHT_INCH_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i))
+/** Single-pound steps for structured weight (lbs). */
+const WEIGHT_LB_OPTIONS = Array.from({ length: 281 }, (_, i) => 90 + i)
 
 const CLASS_SELECT_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "—" },
@@ -91,6 +83,25 @@ function normalizePositionBaseCode(raw: string): string {
   const u = raw.trim().toUpperCase()
   const m = u.match(/^([A-Z]+)/)
   return m ? m[1] : u
+}
+
+function parseHeightParts(height: string | null | undefined): { ft: string; inch: string } {
+  if (!height || typeof height !== "string") return { ft: "", inch: "" }
+  const t = height.trim()
+  const m = /^(\d)'(\d{1,2})"?$/.exec(t)
+  if (m) {
+    const inch = Math.min(11, Math.max(0, parseInt(m[2], 10)))
+    return { ft: m[1], inch: String(Number.isFinite(inch) ? inch : 0) }
+  }
+  return { ft: "", inch: "" }
+}
+
+function formatHeightParts(ft: string, inch: string): string | null {
+  if (!ft) return null
+  const f = parseInt(ft, 10)
+  const i = Math.min(11, Math.max(0, parseInt(inch || "0", 10)))
+  if (!Number.isFinite(f) || f < 4 || f > 7) return null
+  return `${f}'${i}"`
 }
 
 interface PlayerProfileViewProps {
@@ -336,6 +347,7 @@ export function PlayerProfileView({
         }
         if (editDraft.healthStatus !== undefined) body.healthStatus = editDraft.healthStatus
         if (editDraft.activeStatus !== undefined) body.activeStatus = editDraft.activeStatus
+        if (editDraft.suspensionEndDate !== undefined) body.suspensionEndDate = editDraft.suspensionEndDate
         if (editDraft.eligibilityStatus !== undefined) body.eligibilityStatus = editDraft.eligibilityStatus
         if (editDraft.roleDepthNotes !== undefined) body.roleDepthNotes = editDraft.roleDepthNotes
         if (editDraft.coachNotes !== undefined) body.coachNotes = editDraft.coachNotes
@@ -612,6 +624,7 @@ export function PlayerProfileView({
               canEditMedical={canEdit}
               setEditDraft={setEditDraft}
               value={value}
+              onProfileRefetch={refetchProfile}
             />
           )}
           {activeTab === "history" && (
@@ -1154,6 +1167,28 @@ function InfoTab({
         ? "Add a standard position (e.g. QB, WR, CB) for formations and stat views."
         : null
 
+  const secondaryDraft = String(value("secondaryPosition") ?? "").trim()
+  const secondaryBase = secondaryDraft ? normalizePositionBaseCode(secondaryDraft) : ""
+  const secondaryWarning =
+    canEdit && secondaryDraft && !getPositionByCode(secondaryBase)
+      ? `Secondary "${secondaryDraft}" is not a standard position code; use the same letter codes as primary (e.g. WR, CB).`
+      : null
+
+  const gradYearNum = (() => {
+    const gy = value("graduationYear")
+    if (gy == null || gy === "") return null
+    const n = Number(gy)
+    return Number.isFinite(n) ? n : null
+  })()
+  const nowYear = new Date().getFullYear()
+  const gradYearWarning =
+    canEdit && gradYearNum != null && (gradYearNum < nowYear - 10 || gradYearNum > nowYear + 10)
+      ? "Graduation year looks unusual; confirm it matches school records."
+      : null
+
+  const heightMerged = String(value("height") ?? "")
+  const heightParts = useMemo(() => parseHeightParts(heightMerged), [heightMerged])
+
   const readOnlyBox = "min-h-[2.5rem] rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]"
 
   const simpleFields: { key: keyof PlayerProfile; label: string }[] = [
@@ -1161,7 +1196,6 @@ function InfoTab({
     { key: "lastName", label: "Last name" },
     { key: "preferredName", label: "Preferred name / Nickname" },
     { key: "jerseyNumber", label: "Jersey number" },
-    { key: "secondaryPosition", label: "Secondary position" },
     { key: "school", label: "School" },
     { key: "parentGuardianContact", label: "Parent/Guardian contact" },
     { key: "playerEmail", label: "Player email" },
@@ -1214,6 +1248,20 @@ function InfoTab({
           {positionWarning && <p className="text-xs text-amber-800">{positionWarning}</p>}
         </div>
 
+        <div className="space-y-2 sm:col-span-2">
+          <Label className="text-[#64748B]">Secondary position</Label>
+          {canEdit ? (
+            <Input
+              value={String(value("secondaryPosition") ?? "")}
+              onChange={(e) => setEditDraft((p) => ({ ...p, secondaryPosition: e.target.value || null }))}
+              placeholder="e.g. WR, CB (optional)"
+            />
+          ) : (
+            <p className={readOnlyBox}>{profile.secondaryPosition ?? "—"}</p>
+          )}
+          {secondaryWarning && <p className="text-xs text-amber-800">{secondaryWarning}</p>}
+        </div>
+
         <div className="space-y-2">
           <Label className="text-[#64748B]">Class</Label>
           {canEdit ? (
@@ -1261,47 +1309,58 @@ function InfoTab({
           ) : (
             <p className={readOnlyBox}>{profile.graduationYear ?? "—"}</p>
           )}
+          {gradYearWarning && <p className="text-xs text-amber-800">{gradYearWarning}</p>}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 sm:col-span-2">
           <Label className="text-[#64748B]">Height</Label>
           {canEdit ? (
-            <select
-              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
-              value={(() => {
-                const h = String(value("height") ?? "")
-                if (!h) return ""
-                return HEIGHT_SELECT_OPTIONS.includes(h) ? h : "__current__"
-              })()}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === "__current__") return
-                setEditDraft((p) => ({ ...p, height: v || null }))
-              }}
-            >
-              <option value="">—</option>
-              {(() => {
-                const h = String(value("height") ?? "")
-                const showCurrent = h && !HEIGHT_SELECT_OPTIONS.includes(h)
-                return (
-                  <>
-                    {showCurrent && (
-                      <option value="__current__">{h} (current)</option>
-                    )}
-                    {HEIGHT_SELECT_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </>
-                )
-              })()}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] min-w-[4.5rem]"
+                aria-label="Feet"
+                value={heightParts.ft || ""}
+                onChange={(e) => {
+                  const nf = e.target.value
+                  const ni = heightParts.inch || "0"
+                  setEditDraft((p) => ({ ...p, height: nf ? formatHeightParts(nf, ni) : null }))
+                }}
+              >
+                <option value="">—</option>
+                {HEIGHT_FEET_OPTIONS.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-[#64748B]">ft</span>
+              <select
+                className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] min-w-[4rem]"
+                aria-label="Inches"
+                value={heightParts.ft ? heightParts.inch || "0" : ""}
+                disabled={!heightParts.ft}
+                onChange={(e) => {
+                  const ni = e.target.value
+                  const nf = heightParts.ft || "5"
+                  setEditDraft((p) => ({ ...p, height: formatHeightParts(nf, ni) }))
+                }}
+              >
+                <option value="">—</option>
+                {HEIGHT_INCH_OPTIONS.map((i) => (
+                  <option key={i} value={i}>
+                    {i}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-[#64748B]">in</span>
+            </div>
           ) : (
             <p className={readOnlyBox}>{profile.height ?? "—"}</p>
           )}
-          {canEdit && profile.height && !HEIGHT_SELECT_OPTIONS.includes(String(profile.height)) && (
-            <p className="text-xs text-amber-800">Current height is not in the preset list; choose a value to update, or leave unchanged until custom heights are supported.</p>
+          {canEdit && heightMerged && !parseHeightParts(heightMerged).ft && (
+            <p className="text-xs text-amber-800">
+              Stored height does not match ft/in format; choose feet and inches to replace it (e.g. 5 ft 10 in).
+            </p>
           )}
         </div>
 
@@ -1314,7 +1373,7 @@ function InfoTab({
                 const w = value("weight")
                 if (w == null || w === "") return ""
                 const n = Number(w)
-                return WEIGHT_SELECT_OPTIONS.includes(n) ? String(n) : "__current__"
+                return WEIGHT_LB_OPTIONS.includes(n) ? String(n) : "__current__"
               })()}
               onChange={(e) => {
                 const v = e.target.value
@@ -1329,13 +1388,13 @@ function InfoTab({
               {(() => {
                 const w = value("weight")
                 const n = w != null && w !== "" ? Number(w) : NaN
-                const showCurrent = Number.isFinite(n) && !WEIGHT_SELECT_OPTIONS.includes(n)
+                const showCurrent = Number.isFinite(n) && !WEIGHT_LB_OPTIONS.includes(n)
                 return (
                   <>
                     {showCurrent && (
                       <option value="__current__">{n} lbs (current)</option>
                     )}
-                    {WEIGHT_SELECT_OPTIONS.map((opt) => (
+                    {WEIGHT_LB_OPTIONS.map((opt) => (
                       <option key={opt} value={String(opt)}>
                         {opt} lbs
                       </option>
@@ -1347,8 +1406,8 @@ function InfoTab({
           ) : (
             <p className={readOnlyBox}>{profile.weight != null ? `${profile.weight} lbs` : "—"}</p>
           )}
-          {canEdit && profile.weight != null && !WEIGHT_SELECT_OPTIONS.includes(Number(profile.weight)) && (
-            <p className="text-xs text-amber-800">Current weight is not in the preset list; pick the nearest value to update the stored weight.</p>
+          {canEdit && profile.weight != null && !WEIGHT_LB_OPTIONS.includes(Number(profile.weight)) && (
+            <p className="text-xs text-amber-800">Pick the nearest weight (lb) from the list to update the stored value.</p>
           )}
         </div>
 
@@ -1592,6 +1651,9 @@ function EquipmentTab({
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([])
   const [inventoryLoading, setInventoryLoading] = useState(false)
   const [assignItemId, setAssignItemId] = useState<string | null>(null)
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [assignStep, setAssignStep] = useState<1 | 2>(1)
+  const [assignCategory, setAssignCategory] = useState<string | null>(null)
   const [equipmentError, setEquipmentError] = useState<string | null>(null)
   const [equipmentActivity, setEquipmentActivity] = useState<{ id: string; actionType: string; metadata: Record<string, unknown>; createdAt: string }[]>([])
   const [damageDraft, setDamageDraft] = useState<Record<string, string>>({})
@@ -1622,6 +1684,30 @@ function EquipmentTab({
   const availableToAssign = inventoryList.filter((i) => !i.assignedToPlayerId)
   const assignedToThisPlayer = inventoryList.filter((i) => i.assignedToPlayerId === playerId)
 
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const i of availableToAssign) {
+      const c = (i.category ?? "").trim() || "Uncategorized"
+      set.add(c)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [availableToAssign])
+
+  const itemsInCategory = useMemo(() => {
+    if (!assignCategory) return []
+    return availableToAssign.filter((i) => {
+      const c = (i.category ?? "").trim() || "Uncategorized"
+      return c === assignCategory
+    })
+  }, [availableToAssign, assignCategory])
+
+  const openAssignModal = () => {
+    setEquipmentError(null)
+    setAssignStep(1)
+    setAssignCategory(null)
+    setAssignModalOpen(true)
+  }
+
   const handleAssign = async (itemId: string) => {
     setEquipmentError(null)
     setAssignItemId(itemId)
@@ -1639,6 +1725,9 @@ function EquipmentTab({
       setInventoryList((prev) =>
         prev.map((i) => (i.id === itemId ? { ...i, assignedToPlayerId: playerId } : i))
       )
+      setAssignModalOpen(false)
+      setAssignStep(1)
+      setAssignCategory(null)
     } catch (err) {
       setEquipmentError(err instanceof Error ? err.message : "Assign failed")
     } finally {
@@ -1679,32 +1768,75 @@ function EquipmentTab({
         <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
           <Label className="text-[#0F172A] font-medium">Assign from team inventory</Label>
           <p className="mt-1 text-xs text-[#64748B]">Assign available gear to this player.</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <select
-              id="equipment-select"
-              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] min-w-[180px]"
-              defaultValue=""
-            >
-              <option value="">Select item...</option>
-              {availableToAssign.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name} ({i.category})
-                </option>
-              ))}
-            </select>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                const sel = document.getElementById("equipment-select") as HTMLSelectElement
-                const id = sel?.value
-                if (id) handleAssign(id)
-              }}
-              disabled={!!assignItemId}
-            >
-              {assignItemId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Assign"}
+          <div className="mt-3">
+            <Button type="button" size="sm" onClick={openAssignModal}>
+              <Package className="h-4 w-4" />
+              <span className="ml-2">Assign equipment…</span>
             </Button>
           </div>
+          <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
+            <DialogContent className="md:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-[#0F172A]">Assign equipment</DialogTitle>
+                <DialogDescription>
+                  {assignStep === 1 ? "Choose an equipment type, then pick a specific item." : `Items in ${assignCategory ?? ""}`}
+                </DialogDescription>
+              </DialogHeader>
+              {assignStep === 1 ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-[#64748B]">Step 1 — Equipment type</p>
+                  <ul className="max-h-[50vh] space-y-1 overflow-y-auto">
+                    {categoryOptions.map((cat) => (
+                      <li key={cat}>
+                        <button
+                          type="button"
+                          className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
+                          onClick={() => {
+                            setAssignCategory(cat)
+                            setAssignStep(2)
+                          }}
+                        >
+                          {cat}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-[#64748B]">Step 2 — Select item</p>
+                  <Button type="button" variant="ghost" size="sm" className="mb-2 -ml-2 text-[#64748B]" onClick={() => setAssignStep(1)}>
+                    ← Back to types
+                  </Button>
+                  <ul className="max-h-[50vh] space-y-1 overflow-y-auto">
+                    {itemsInCategory.map((i) => (
+                      <li key={i.id}>
+                        <button
+                          type="button"
+                          disabled={!!assignItemId}
+                          className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-left text-sm hover:bg-[#F8FAFC] disabled:opacity-50"
+                          onClick={() => void handleAssign(i.id)}
+                        >
+                          <span className="font-medium text-[#0F172A]">{i.name}</span>
+                          <span className="ml-2 text-xs text-[#64748B]">
+                            {[i.condition, i.status].filter(Boolean).join(" · ") || "—"}
+                          </span>
+                          {assignItemId === i.id && (
+                            <Loader2 className="ml-2 inline h-4 w-4 animate-spin align-middle" />
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAssignModalOpen(false)}>
+                  Cancel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
       {equipmentActivity.length > 0 && (
@@ -1868,6 +2000,8 @@ type PlayerDocumentRow = {
   effectiveStatus: "active" | "expired" | "deleted"
   visibleToPlayer?: boolean
   uploadedBy: string | null
+  storageBacked?: boolean
+  legacyFileUrl?: string | null
 }
 
 function getFileTypeBadge(fileName: string, mimeType?: string | null): string {
@@ -1899,6 +2033,7 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
   const [consentChecked, setConsentChecked] = useState(false)
   const [includeExpired, setIncludeExpired] = useState(false)
   const [openingId, setOpeningId] = useState<string | null>(null)
+  const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadDocs = useCallback(() => {
@@ -1929,7 +2064,7 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
   const filteredDocs =
     categoryFilter === "all" ? docs : docs.filter((d) => d.documentType === categoryFilter)
 
-  const openSigned = async (docId: string, intent: "view" | "download") => {
+  const openSigned = async (docId: string, intent: "view" | "download", fileName: string) => {
     setOpeningId(docId)
     setUploadError(null)
     try {
@@ -1942,7 +2077,25 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
         throw new Error((data as { error?: string }).error ?? "Could not open document")
       }
       const url = (data as { url?: string }).url
-      if (url) {
+      if (!url) throw new Error("No file URL returned")
+      if (intent === "download") {
+        try {
+          const fileRes = await fetch(url)
+          if (!fileRes.ok) throw new Error("Download failed")
+          const blob = await fileRes.blob()
+          const obj = URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = obj
+          a.download = fileName || "document"
+          a.rel = "noopener"
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          URL.revokeObjectURL(obj)
+        } catch {
+          window.open(url, "_blank", "noopener,noreferrer")
+        }
+      } else {
         window.open(url, "_blank", "noopener,noreferrer")
       }
     } catch (e) {
@@ -1950,6 +2103,14 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
     } finally {
       setOpeningId(null)
     }
+  }
+
+  const applyDroppedFile = (file: File) => {
+    const input = fileInputRef.current
+    if (!input) return
+    const dt = new DataTransfer()
+    dt.items.add(file)
+    input.files = dt.files
   }
 
   const handleExport = async () => {
@@ -2062,6 +2223,10 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
   const canExportUi = access?.canExport === true
   const canVis = access?.canManageVisibility === true
 
+  /** Allow open unless API explicitly marked not storage-backed with no legacy URL. */
+  const docHasRetrievableFile = (d: PlayerDocumentRow) =>
+    !(d.storageBacked === false && !d.legacyFileUrl?.trim())
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -2083,8 +2248,43 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
           <Label className="text-[#0F172A] font-medium">Upload document</Label>
           <p className="mt-1 text-xs text-[#64748B]">PDF, images, or Word. Max 15MB.</p>
           <form onSubmit={handleUpload} className="mt-3 space-y-3">
+            <div
+              className={`rounded-lg border-2 border-dashed p-4 transition-colors ${
+                dragActive ? "border-[#3B82F6] bg-blue-50/40" : "border-[#E5E7EB]"
+              }`}
+              onDragEnter={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragActive(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragActive(false)
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragActive(false)
+                const f = e.dataTransfer.files?.[0]
+                if (f) applyDroppedFile(f)
+              }}
+            >
+              <p className="text-sm text-[#64748B] mb-2">Drag and drop a file here, or choose a file below.</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                name="docFile"
+                accept=".pdf,image/*,.doc,.docx,.txt"
+                className="max-w-xs text-sm"
+                required
+              />
+            </div>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:flex-wrap">
-              <input ref={fileInputRef} type="file" name="docFile" accept=".pdf,image/*,.doc,.docx,.txt" className="max-w-xs text-sm" required />
               <Input name="docTitle" placeholder="Title" className="max-w-[200px]" />
               <select name="docCategory" className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm min-w-[160px]" aria-label="Document type">
                 {DOC_CATEGORIES.filter((c) => c !== "all").map((c) => (
@@ -2182,9 +2382,10 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
                 )}
                 <button
                   type="button"
-                  className="mt-1 font-medium text-[#0F172A] hover:text-[#3B82F6] flex items-center gap-1 text-left"
-                  onClick={() => void openSigned(d.id, "view")}
-                  disabled={openingId === d.id}
+                  className="mt-1 font-medium text-[#0F172A] hover:text-[#3B82F6] flex items-center gap-1 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => void openSigned(d.id, "view", d.fileName)}
+                  disabled={openingId === d.id || !docHasRetrievableFile(d)}
+                  title={!docHasRetrievableFile(d) ? "File is not available in storage" : undefined}
                 >
                   {d.title}
                   <ExternalLink className="h-3.5 w-3.5 shrink-0" />
@@ -2202,8 +2403,9 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
                   variant="ghost"
                   size="sm"
                   className="text-[#3B82F6]"
-                  onClick={() => void openSigned(d.id, "download")}
-                  disabled={openingId === d.id}
+                  onClick={() => void openSigned(d.id, "download", d.fileName)}
+                  disabled={openingId === d.id || !docHasRetrievableFile(d)}
+                  title={!docHasRetrievableFile(d) ? "File is not available in storage" : undefined}
                 >
                   Open
                 </Button>
@@ -2275,6 +2477,7 @@ function HealthTab({
   canEditMedical,
   setEditDraft,
   value,
+  onProfileRefetch,
 }: {
   playerId: string
   teamId: string
@@ -2282,41 +2485,96 @@ function HealthTab({
   canEditMedical: boolean
   setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
   value: (k: keyof PlayerProfile) => unknown
+  onProfileRefetch?: () => void
 }) {
   const [injuries, setInjuries] = useState<InjuryListRow[]>([])
   const [injLoading, setInjLoading] = useState(true)
   const [injuriesForbidden, setInjuriesForbidden] = useState(false)
+  const [injuryModalOpen, setInjuryModalOpen] = useState(false)
+  const [injurySaving, setInjurySaving] = useState(false)
+  const [injuryFormError, setInjuryFormError] = useState<string | null>(null)
+  const [injuryReason, setInjuryReason] = useState("")
+  const [injuryDate, setInjuryDate] = useState("")
+  const [injuryExpectedReturn, setInjuryExpectedReturn] = useState("")
+  const [injuryNotes, setInjuryNotes] = useState("")
+  const [injurySeverity, setInjurySeverity] = useState("")
+  const [injuryExemptPractice, setInjuryExemptPractice] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
+  const loadInjuries = useCallback(() => {
     setInjLoading(true)
     setInjuriesForbidden(false)
     fetch(`/api/health/injuries?teamId=${encodeURIComponent(teamId)}`)
       .then((res) => {
         if (res.status === 403) {
-          if (!cancelled) setInjuriesForbidden(true)
+          setInjuriesForbidden(true)
           return { injuries: [] }
         }
         return res.ok ? res.json() : { injuries: [] }
       })
       .then((data: { injuries?: InjuryListRow[] }) => {
-        if (cancelled) return
         const all = Array.isArray(data?.injuries) ? data.injuries : []
         setInjuries(all.filter((i) => i.player_id === playerId))
       })
-      .catch(() => {
-        if (!cancelled) setInjuries([])
-      })
-      .finally(() => {
-        if (!cancelled) setInjLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+      .catch(() => setInjuries([]))
+      .finally(() => setInjLoading(false))
   }, [teamId, playerId])
+
+  useEffect(() => {
+    loadInjuries()
+  }, [loadInjuries])
+
+  useEffect(() => {
+    if (!injuryModalOpen) return
+    const t = new Date()
+    setInjuryDate((d) => d || dateToYmd(t))
+  }, [injuryModalOpen])
 
   const statusDisplay = getProfileStatusDisplay(profile)
   const medicalCanEdit = canEditMedical
+  const rosterStatusVal = String(value("activeStatus") ?? profile.activeStatus ?? "active").toLowerCase()
+  const suspensionEndVal = String(value("suspensionEndDate") ?? profile.suspensionEndDate ?? "").slice(0, 10)
+
+  const submitInjury = async () => {
+    const reason = injuryReason.trim()
+    if (!reason) {
+      setInjuryFormError("Describe the injury or reason.")
+      return
+    }
+    setInjuryFormError(null)
+    setInjurySaving(true)
+    try {
+      const res = await fetch("/api/health/injuries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerId,
+          teamId,
+          injuryReason: reason,
+          injuryDate: injuryDate || undefined,
+          expectedReturnDate: injuryExpectedReturn || undefined,
+          notes: injuryNotes.trim() || undefined,
+          severity: injurySeverity.trim() || undefined,
+          exemptFromPractice: injuryExemptPractice,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error ?? "Failed to add injury")
+      }
+      setInjuryModalOpen(false)
+      setInjuryReason("")
+      setInjuryExpectedReturn("")
+      setInjuryNotes("")
+      setInjurySeverity("")
+      setInjuryExemptPractice(false)
+      loadInjuries()
+      onProfileRefetch?.()
+    } catch (e) {
+      setInjuryFormError(e instanceof Error ? e.message : "Failed to add injury")
+    } finally {
+      setInjurySaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -2325,14 +2583,83 @@ function HealthTab({
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="text-xs text-[#64748B]">Player status:</span>
           <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${statusDisplay.chipClass}`}>{statusDisplay.label}</span>
+          {rosterStatusVal === "suspended" && suspensionEndVal && (
+            <span className="text-xs text-[#64748B]">
+              (through {formatDocDate(suspensionEndVal)})
+            </span>
+          )}
           <span className="text-xs text-[#64748B] ml-2">Eligibility:</span>
           <span className="text-xs font-medium text-[#0F172A]">{profile.eligibilityStatus?.trim() || "—"}</span>
         </div>
       </div>
 
+      {medicalCanEdit && (
+        <div className="space-y-3 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Roster & availability (save with profile)</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-[#64748B]">Roster status</Label>
+              <select
+                className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+                value={String(value("activeStatus") ?? profile.activeStatus ?? "active")}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setEditDraft((p) => ({
+                    ...p,
+                    activeStatus: v,
+                    ...(v.toLowerCase() !== "suspended" ? { suspensionEndDate: null } : {}),
+                  }))
+                }}
+              >
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <p className="text-xs text-[#94A3B8]">Suspended shows orange in the profile banner.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[#64748B]">Health availability</Label>
+              <select
+                className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+                value={String(value("healthStatus") ?? profile.healthStatus ?? "active")}
+                onChange={(e) =>
+                  setEditDraft((p) => ({
+                    ...p,
+                    healthStatus: e.target.value as PlayerProfile["healthStatus"],
+                  }))
+                }
+              >
+                <option value="active">Available</option>
+                <option value="injured">Injured</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </div>
+          </div>
+          {rosterStatusVal === "suspended" && (
+            <div className="space-y-1.5">
+              <Label className="text-[#64748B]">Suspension expected through (optional)</Label>
+              <Input
+                type="date"
+                value={suspensionEndVal}
+                onChange={(e) => setEditDraft((p) => ({ ...p, suspensionEndDate: e.target.value || null }))}
+                className="max-w-[200px]"
+              />
+              <p className="text-xs text-[#94A3B8]">Target date for lifting roster suspension; staff reference only.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-2">
-        <Label className="text-[#64748B]">Injury report / history</Label>
-        <p className="text-xs text-[#94A3B8]">Recorded injuries for this player (read-only here). Injury add flow is planned next.</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Label className="text-[#64748B]">Injury report / history</Label>
+          {medicalCanEdit && !injuriesForbidden && (
+            <Button type="button" size="sm" variant="outline" onClick={() => setInjuryModalOpen(true)}>
+              Add injury
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-[#94A3B8]">Team injury records for this player. Add new entries below when appropriate.</p>
         {injLoading ? (
           <div className="flex justify-center py-6">
             <div className="h-7 w-7 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
@@ -2369,6 +2696,75 @@ function HealthTab({
           </ul>
         )}
       </div>
+
+      <Dialog open={injuryModalOpen} onOpenChange={setInjuryModalOpen}>
+        <DialogContent className="md:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#0F172A]">Add injury record</DialogTitle>
+            <DialogDescription>Creates a team injury entry for this player (same data as the health dashboard API).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-[#64748B]">Injury / reason</Label>
+              <Input
+                value={injuryReason}
+                onChange={(e) => setInjuryReason(e.target.value)}
+                placeholder="e.g. Ankle sprain — practice"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-[#64748B]">Injury date</Label>
+                <Input type="date" value={injuryDate} onChange={(e) => setInjuryDate(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[#64748B]">Expected return</Label>
+                <Input type="date" value={injuryExpectedReturn} onChange={(e) => setInjuryExpectedReturn(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[#64748B]">Severity (optional)</Label>
+              <select
+                className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm"
+                value={injurySeverity}
+                onChange={(e) => setInjurySeverity(e.target.value)}
+              >
+                <option value="">—</option>
+                <option value="mild">Mild</option>
+                <option value="moderate">Moderate</option>
+                <option value="severe">Severe</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[#64748B]">Notes</Label>
+              <textarea
+                className="min-h-[72px] w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm"
+                value={injuryNotes}
+                onChange={(e) => setInjuryNotes(e.target.value)}
+                placeholder="Optional details…"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-[#0F172A]">
+              <input
+                type="checkbox"
+                checked={injuryExemptPractice}
+                onChange={(e) => setInjuryExemptPractice(e.target.checked)}
+                className="rounded border-[#E5E7EB]"
+              />
+              Exempt from practice
+            </label>
+            {injuryFormError && <p className="text-sm text-red-600">{injuryFormError}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setInjuryModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void submitInjury()} disabled={injurySaving}>
+              {injurySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save injury"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-2">
         <Label className="text-[#64748B]">Medical alerts</Label>

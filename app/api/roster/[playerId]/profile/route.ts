@@ -54,7 +54,7 @@ export async function GET(
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select(
-        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, emergency_contact_relationship, medical_notes, medical_alerts, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs, invite_code"
+        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, suspension_end_date, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, emergency_contact_relationship, medical_notes, medical_alerts, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs, invite_code"
       )
       .eq("id", playerId)
       .eq("team_id", teamId)
@@ -212,7 +212,28 @@ export async function PATCH(
       if (bodyToUse.parentGuardianContact !== undefined) updates.parent_guardian_contact = (bodyToUse.parentGuardianContact as string)?.trim() ?? null
       if (bodyToUse.medicalNotes !== undefined) updates.medical_notes = (bodyToUse.medicalNotes as string)?.trim() ?? null
       if (bodyToUse.medicalAlerts !== undefined) updates.medical_alerts = (bodyToUse.medicalAlerts as string)?.trim() ?? null
-      if (bodyToUse.activeStatus !== undefined) updates.status = (bodyToUse.activeStatus as string) ?? "active"
+      if (bodyToUse.activeStatus !== undefined) {
+        const st = (bodyToUse.activeStatus as string) ?? "active"
+        updates.status = st
+        if (String(st).toLowerCase() !== "suspended") {
+          updates.suspension_end_date = null
+        }
+      }
+      if (bodyToUse.suspensionEndDate !== undefined) {
+        const nextSt = String(
+          bodyToUse.activeStatus !== undefined
+            ? (bodyToUse.activeStatus as string)
+            : (player as { status?: string }).status ?? "active"
+        ).toLowerCase()
+        const raw = bodyToUse.suspensionEndDate
+        const dateOk =
+          raw != null && String(raw).trim() && /^\d{4}-\d{2}-\d{2}$/.test(String(raw).trim())
+            ? String(raw).trim().slice(0, 10)
+            : null
+        if (nextSt === "suspended") {
+          updates.suspension_end_date = dateOk
+        }
+      }
       if (bodyToUse.healthStatus !== undefined) {
         const h = bodyToUse.healthStatus
         if (h === "active" || h === "injured" || h === "unavailable") {

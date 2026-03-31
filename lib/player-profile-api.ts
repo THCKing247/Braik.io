@@ -37,6 +37,7 @@ export type DbPlayerRow = {
   medical_notes?: string | null
   medical_alerts?: string | null
   eligibility_status?: string | null
+  suspension_end_date?: string | null
   role_depth_notes?: string | null
   season_stats?: unknown
   game_stats?: unknown
@@ -97,6 +98,10 @@ export function mapRowToProfile(
     medicalNotes: row.medical_notes ?? null,
     medicalAlerts: row.medical_alerts ?? null,
     activeStatus: row.status ?? "active",
+    suspensionEndDate:
+      row.suspension_end_date != null && String(row.suspension_end_date).trim()
+        ? String(row.suspension_end_date).slice(0, 10)
+        : null,
     roleDepthNotes: row.role_depth_notes ?? null,
     eligibilityStatus: row.eligibility_status ?? null,
     seasonStats: normalizeJsonRecord(row.season_stats),

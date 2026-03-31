@@ -40,6 +40,8 @@ export interface PlayerProfileTeam {
   parentCode?: string | null
   roleDepthNotes?: string | null
   eligibilityStatus?: string | null
+  /** When roster status is suspended, optional expected end date (YYYY-MM-DD). */
+  suspensionEndDate?: string | null
 }
 
 export interface PlayerProfileStats {
@@ -124,6 +126,8 @@ export interface PlayerProfileUpdateBody {
   medicalAlerts?: string | null
   emergencyContactRelationship?: string | null
   activeStatus?: string
+  /** Expected end of roster suspension (YYYY-MM-DD); cleared when status is not suspended. */
+  suspensionEndDate?: string | null
   /** Injury / availability (coach) */
   healthStatus?: "active" | "injured" | "unavailable"
   eligibilityStatus?: string | null

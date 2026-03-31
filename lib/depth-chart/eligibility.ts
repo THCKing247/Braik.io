@@ -37,8 +37,9 @@ function getAcceptedGroupsForSlot(slot: SlotEligibilityInput): string[] {
   if (pg === "QB") return ["QB"]
   if (key === "FB") return addAthlete(["FB", "RB"])
   if (pg === "RB" || key === "RB") return addAthlete(["RB", "FB"])
+  // TE slot often uses alias "Y" — must run before WR branch, which also treats "Y" as a WR label
+  if (pg === "TE" || key === "TE" || (alias === "Y" && key.startsWith("TE"))) return addAthlete(["TE", "WR"])
   if (pg === "WR" || ["X", "Z", "H", "Y", "F"].includes(alias)) return addAthlete(["WR"])
-  if (pg === "TE" || (alias === "Y" && key.startsWith("TE"))) return addAthlete(["TE", "WR"])
   if (pg === "OL" || ["LT", "LG", "C", "RG", "RT"].includes(key) || ["LT", "LG", "C", "RG", "RT"].includes(pg))
     return ["OL"]
 

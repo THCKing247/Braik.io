@@ -74,6 +74,17 @@ const ROSTER_SCROLL_STYLES = `
 }
 `
 
+/** Depth chart main scroll only — hide scrollbar visually, keep scroll (desktop depth modal). */
+const DEPTH_CHART_AREA_SCROLL_STYLES = `
+.depth-chart-scroll-area {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.depth-chart-scroll-area::-webkit-scrollbar {
+  display: none;
+}
+`
+
 const DEPTH_CHART_PRINT_STYLES = `
 @media print {
   @page {
@@ -139,6 +150,7 @@ export function DepthChartView({
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null)
   /** When false (default), offense/defense depth is stored on the canonical formation and shown on every formation. */
   const [independentDepthByFormation, setIndependentDepthByFormation] = useState(false)
+  const [missingBannerDismissed, setMissingBannerDismissed] = useState(false)
 
   const depthInferredRef = useRef(false)
   useEffect(() => {
@@ -178,6 +190,10 @@ export function DepthChartView({
     }
   }, [teamId, depthChart])
 
+  useEffect(() => {
+    setMissingBannerDismissed(false)
+  }, [selectedUnit, selectedPresetId])
+
   const setIndependentDepth = (value: boolean) => {
     setIndependentDepthByFormation(value)
     try {
@@ -186,6 +202,68 @@ export function DepthChartView({
       /* ignore */
     }
   }
+
+  const handleIndependentCheckboxChange = useCallback(
+    (checked: boolean) => {
+      if (checked) {
+        if (selectedUnit === "special_teams") {
+          setIndependentDepth(true)
+          return
+        }
+        const canon = DEFAULT_PRESET_BY_SIDE[selectedUnit]
+        const presetIds = getPresetsForSide(selectedUnit).map((p) => p.id)
+        const updates: DepthChartUpdate[] = []
+        const baseRows = depthChart.filter(
+          (e) => e.unit === selectedUnit && !e.specialTeamType && e.formation === canon
+        )
+        for (const formId of presetIds) {
+          if (formId === canon) continue
+          const hasAny = depthChart.some(
+            (e) =>
+              e.unit === selectedUnit &&
+              !e.specialTeamType &&
+              e.formation === formId &&
+              e.playerId
+          )
+          if (hasAny) continue
+          for (const e of baseRows) {
+            if (e.playerId) {
+              updates.push({
+                unit: e.unit,
+                position: e.position,
+                string: e.string,
+                playerId: e.playerId,
+                formation: formId,
+                specialTeamType: null,
+              })
+            }
+          }
+        }
+        if (updates.length > 0) onUpdate(updates)
+        setIndependentDepth(true)
+        return
+      }
+      if (selectedUnit !== "special_teams") {
+        const canon = DEFAULT_PRESET_BY_SIDE[selectedUnit]
+        const hasOther = depthChart.some(
+          (e) =>
+            e.unit === selectedUnit &&
+            !e.specialTeamType &&
+            e.formation &&
+            e.formation !== canon &&
+            e.playerId
+        )
+        if (hasOther) {
+          const ok = window.confirm(
+            "Turning this off shows only the default formation depth. Saved assignments for other formations stay in the database but are hidden until you turn this back on. Continue?"
+          )
+          if (!ok) return
+        }
+      }
+      setIndependentDepth(false)
+    },
+    [depthChart, selectedUnit, onUpdate, setIndependentDepth]
+  )
 
   // Clear drag state on dragend (drop, cancel, or release outside) so UI never stays stuck
   useEffect(() => {
@@ -410,6 +488,19 @@ export function DepthChartView({
       ) as DepthAssignment[],
     [depthChart, selectedUnit, persistDepthFormation, currentSpecialTeamType]
   )
+
+  const missingBannerSlots = useMemo(() => {
+    if (!presetWithLabels) return []
+    const slots = getFormationSlots(presetWithLabels)
+    const missing: string[] = []
+    for (const s of slots) {
+      const hasStarter = assignmentsForCurrentView.some(
+        (a) => a.position === s.slotKey && a.string === 1 && a.playerId
+      )
+      if (!hasStarter) missing.push(`${s.displayLabel}${s.alias ? ` (${s.alias})` : ""}`)
+    }
+    return missing
+  }, [presetWithLabels, assignmentsForCurrentView])
 
   const handleDrop = (position: string, string: number, playerId: string) => {
     const updates: DepthChartUpdate[] = []
@@ -738,7 +829,7 @@ export function DepthChartView({
 
         {/* Right: Depth chart area */}
         <div
-          className="flex flex-col p-6 flex justify-start items-stretch"
+          className="flex flex-col p-6 flex justify-start items-stretch lg:min-w-0"
         >
           {/* Unit tabs + Formation selector + Print */}
           <div className="mb-4 flex flex-wrap gap-2 items-center justify-between">
@@ -799,7 +890,7 @@ export function DepthChartView({
                     type="checkbox"
                     className="mt-0.5 shrink-0"
                     checked={independentDepthByFormation}
-                    onChange={(e) => setIndependentDepth(e.target.checked)}
+                    onChange={(e) => handleIndependentCheckboxChange(e.target.checked)}
                   />
                   <span>
                     <span className="font-medium">Different players per formation</span>
@@ -836,7 +927,23 @@ export function DepthChartView({
             )}
           </div>
 
-          <div className="flex-1 overflow-auto py-2 px-2 min-h-0">
+          {missingBannerSlots.length > 0 && !missingBannerDismissed && (
+            <div className="mb-3 flex flex-wrap items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold">Missing starters: </span>
+                {formationName} ({unitLabel}) — {missingBannerSlots.join(", ")}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 rounded-md border border-amber-300 bg-background px-2 py-1 text-xs font-medium hover:bg-muted"
+                onClick={() => setMissingBannerDismissed(true)}
+              >
+                Ignore
+              </button>
+            </div>
+          )}
+
+          <div className="depth-chart-scroll-area flex-1 overflow-auto py-2 px-2 min-h-0">
             {presetWithLabels && (
               <DepthChartGrid
                 preset={presetWithLabels}
@@ -914,6 +1021,7 @@ export function DepthChartView({
         )}
 
       <style dangerouslySetInnerHTML={{ __html: ROSTER_SCROLL_STYLES }} />
+      <style dangerouslySetInnerHTML={{ __html: DEPTH_CHART_AREA_SCROLL_STYLES }} />
       <style dangerouslySetInnerHTML={{ __html: DEPTH_CHART_PRINT_STYLES }} />
     </React.Fragment>
   )

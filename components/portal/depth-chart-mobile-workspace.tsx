@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useState, useCallback } from "react"
+import React, { useMemo, useState, useCallback, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -62,6 +62,8 @@ export interface DepthChartMobileWorkspaceProps {
   canEdit: boolean
   isHeadCoach?: boolean
   programId?: string | null
+  /** When false, hide Suggested Call-Ups (e.g. program has no JV/Freshman teams). */
+  showCallUpSuggestions?: boolean
   onClose: () => void
   onSave?: () => void | Promise<void>
   hasUnsavedChanges?: boolean
@@ -79,6 +81,7 @@ export function DepthChartMobileWorkspace({
   canEdit,
   isHeadCoach = false,
   programId,
+  showCallUpSuggestions = true,
   onClose,
   onSave,
   hasUnsavedChanges = false,
@@ -115,6 +118,7 @@ export function DepthChartMobileWorkspace({
   const [assignSheetSearch, setAssignSheetSearch] = useState("")
   /** When false, Formation mode shows structured list instead of field (fallback). */
   const [useFormationFieldView, setUseFormationFieldView] = useState(true)
+  const [missingBannerDismissed, setMissingBannerDismissed] = useState(false)
 
   const selectedPresetId = selectedPresetByUnit[selectedUnit] ?? DEFAULT_PRESET_BY_SIDE[selectedUnit]
   const preset = getPreset(selectedUnit, selectedPresetId) ?? getPreset(selectedUnit, DEFAULT_PRESET_BY_SIDE[selectedUnit])
@@ -145,6 +149,23 @@ export function DepthChartMobileWorkspace({
       ) as DepthAssignment[],
     [depthChart, selectedUnit, persistDepthFormation, currentSpecialTeamType]
   )
+
+  const missingFormationSlots = useMemo(() => {
+    if (!preset) return []
+    const slots = getFormationSlots(preset)
+    const missing: string[] = []
+    for (const s of slots) {
+      const hasStarter = assignmentsForCurrentView.some(
+        (a) => a.position === s.slotKey && a.string === 1 && a.playerId
+      )
+      if (!hasStarter) missing.push(`${s.displayLabel}${s.alias ? ` (${s.alias})` : ""}`)
+    }
+    return missing
+  }, [preset, assignmentsForCurrentView])
+
+  useEffect(() => {
+    setMissingBannerDismissed(false)
+  }, [selectedUnit, selectedPresetId])
 
   const playersById = useMemo(
     () =>
@@ -525,11 +546,24 @@ export function DepthChartMobileWorkspace({
     selectedUnit === "offense" ? "Offense" : selectedUnit === "defense" ? "Defense" : "Special Teams"
   const formationName = preset?.name ?? ""
 
-  const segmentTabs = [
-    { id: "roster" as const, label: "Roster", icon: Users },
-    { id: "formation" as const, label: "Formation", icon: LayoutGrid },
-    { id: "suggestions" as const, label: "Suggestions", icon: Lightbulb },
-  ]
+  const segmentTabs = useMemo(
+    () =>
+      showCallUpSuggestions
+        ? ([
+            { id: "roster" as const, label: "Roster", icon: Users },
+            { id: "formation" as const, label: "Formation", icon: LayoutGrid },
+            { id: "suggestions" as const, label: "Suggestions", icon: Lightbulb },
+          ] as const)
+        : ([
+            { id: "roster" as const, label: "Roster", icon: Users },
+            { id: "formation" as const, label: "Formation", icon: LayoutGrid },
+          ] as const),
+    [showCallUpSuggestions]
+  )
+
+  useEffect(() => {
+    if (!showCallUpSuggestions && mode === "suggestions") setMode("roster")
+  }, [showCallUpSuggestions, mode])
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -751,6 +785,21 @@ export function DepthChartMobileWorkspace({
 
         {mode === "formation" && preset && (
           <div className="space-y-4 p-4 pb-8">
+            {missingFormationSlots.length > 0 && !missingBannerDismissed && (
+              <div className="flex flex-wrap items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <span className="min-w-0 flex-1">
+                  <span className="font-semibold">Missing starters: </span>
+                  {preset.name} — {missingFormationSlots.join(", ")}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 rounded-md border border-amber-300 bg-background px-2 py-1 text-xs font-medium"
+                  onClick={() => setMissingBannerDismissed(true)}
+                >
+                  Ignore
+                </button>
+              </div>
+            )}
             {(() => {
               const fieldPositions = getSlotPositions(preset)
               const showField = useFormationFieldView && fieldPositions.length > 0
@@ -914,7 +963,7 @@ export function DepthChartMobileWorkspace({
           </div>
         )}
 
-        {mode === "suggestions" && (
+        {mode === "suggestions" && showCallUpSuggestions && (
           <div className="space-y-4 p-4 pb-8">
             {programId ? (
               <CallUpSuggestionsPanel programId={programId} />

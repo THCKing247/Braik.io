@@ -702,6 +702,8 @@ export function RosterManagerEnhanced({
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [showRosterToolbarMore, setShowRosterToolbarMore] = useState(false)
+  /** Suggested Call-Ups only when program has JV and/or Freshman teams to pull from */
+  const [programHasJvOrFreshmanForCallups, setProgramHasJvOrFreshmanForCallups] = useState(false)
   /** One DepthChartView at a time — layout switches at lg without double-mount on same breakpoint */
   const [depthChartIsDesktop, setDepthChartIsDesktop] = useState(false)
   const [promotePlayer, setPromotePlayer] = useState<{ player: Player; currentTeamId: string } | null>(null)
@@ -819,6 +821,32 @@ export function RosterManagerEnhanced({
   }, [canEdit, teamId, activeTab, followUpsRefetchNonce])
 
   const isFootball = teamSport?.toLowerCase() === "football"
+
+  useEffect(() => {
+    if (!programId) {
+      setProgramHasJvOrFreshmanForCallups(false)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/programs/${encodeURIComponent(programId)}/teams`)
+      .then((r) => (r.ok ? r.json() : { teams: [] }))
+      .then((data: { teams?: Array<{ teamLevel?: string | null }> }) => {
+        if (cancelled) return
+        const teams = data.teams ?? []
+        setProgramHasJvOrFreshmanForCallups(
+          teams.some((t) => {
+            const lv = (t.teamLevel ?? "").toLowerCase()
+            return lv === "jv" || lv === "freshman"
+          })
+        )
+      })
+      .catch(() => {
+        if (!cancelled) setProgramHasJvOrFreshmanForCallups(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [programId])
 
   useLayoutEffect(() => {
     if (!showDepthChartModal || !isFootball) return
@@ -2723,6 +2751,7 @@ export function RosterManagerEnhanced({
                 canEdit={canEdit}
                 isHeadCoach={userRole === "HEAD_COACH"}
                 programId={programId ?? null}
+                showCallUpSuggestions={programHasJvOrFreshmanForCallups}
                 onClose={handleCloseDepthChart}
                 onSave={handleSaveDepthChart}
                 hasUnsavedChanges={hasUnsavedChanges}
@@ -2760,7 +2789,7 @@ export function RosterManagerEnhanced({
                 isHeadCoach={userRole === "HEAD_COACH"}
               />
             </div>
-            {programId && canEdit && (
+            {programId && canEdit && programHasJvOrFreshmanForCallups && (
               <div className="w-80 shrink-0 overflow-auto border-l border-border bg-muted/20 p-4">
                 <CallUpSuggestionsPanel programId={programId} />
               </div>

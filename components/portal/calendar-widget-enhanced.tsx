@@ -241,17 +241,21 @@ export function CalendarWidgetEnhanced({
     if (t === "practice") return "practice"
     if (t === "game") return "game"
     if (t === "meeting") return "meeting"
-    if (t === "custom" || t === "other") return "other"
+    if (t === "custom" || t === "other" || t === "follow_up") return "other"
     return null
   }, [])
 
-  // Map event type to sidebar category color so schedule blocks match "My calendars" colors
-  const getEventTypeColor = useCallback((eventType: string) => {
-    const t = (eventType || "").toLowerCase()
+  /** Chip / block color — matches "Other" purple for CUSTOM and roster follow-ups (including legacy FOLLOW_UP rows). */
+  const calendarEventChipColor = useCallback((event: CalendarEvent | undefined | null) => {
+    if (!event) return "#3B82F6"
+    const t = (event.eventType || "").toLowerCase()
+    if (event.linkedFollowUpId) return "#8B5CF6"
+    const title = (event.title || "").trim()
+    if (title.toLowerCase().startsWith("follow-up:")) return "#8B5CF6"
     if (t === "practice") return "#10B981"
     if (t === "game") return "#EF4444"
     if (t === "meeting") return "#F59E0B"
-    if (t === "custom" || t === "other") return "#8B5CF6"
+    if (t === "custom" || t === "other" || t === "follow_up") return "#8B5CF6"
     return "#3B82F6" // Team Events / default
   }, [])
 
@@ -488,7 +492,7 @@ export function CalendarWidgetEnhanced({
                       >
                         <div
                           className="mt-0.5 h-14 w-1 shrink-0 rounded-full"
-                          style={{ backgroundColor: getEventTypeColor(event.eventType) }}
+                          style={{ backgroundColor: calendarEventChipColor(event) }}
                           aria-hidden
                         />
                         <div className="min-w-0 flex-1">
@@ -625,7 +629,7 @@ export function CalendarWidgetEnhanced({
                                   <div
                                     key={idx}
                                     className="w-1 h-1 rounded-full"
-                                    style={{ backgroundColor: getEventTypeColor(event.eventType) }}
+                                    style={{ backgroundColor: calendarEventChipColor(event) }}
                                   />
                                 ))}
                               </div>
@@ -811,7 +815,7 @@ export function CalendarWidgetEnhanced({
                           style={{
                             top: `${startMinutes}px`,
                             height: `${height}px`,
-                            backgroundColor: getEventTypeColor(event.eventType),
+                            backgroundColor: calendarEventChipColor(event),
                             borderLeftColor: "rgba(0,0,0,0.2)",
                             borderColor: "rgba(0,0,0,0.1)",
                             overflow: "hidden",
@@ -978,7 +982,7 @@ export function CalendarWidgetEnhanced({
                           }}
                           className="text-xs p-1 rounded truncate cursor-pointer hover:shadow-sm border-l-2"
                           style={{
-                            backgroundColor: getEventTypeColor(event.eventType),
+                            backgroundColor: calendarEventChipColor(event),
                             borderLeftColor: "rgba(0,0,0,0.2)",
                             borderLeftWidth: "3px",
                             color: "#FFFFFF",
@@ -1168,7 +1172,7 @@ export function CalendarWidgetEnhanced({
                       top: `${startMinutes}px`,
                       height: `${height}px`,
                       minHeight: "30px",
-                      backgroundColor: getEventTypeColor(event.eventType),
+                      backgroundColor: calendarEventChipColor(event),
                       borderLeftColor: "rgba(0,0,0,0.2)",
                       borderLeftWidth: "4px",
                       color: "#FFFFFF",
@@ -1312,7 +1316,7 @@ export function CalendarWidgetEnhanced({
                       <div className="flex justify-center gap-0.5 mt-0.5">
                         <div
                           className="w-1 h-1 rounded-full"
-                          style={{ backgroundColor: getEventTypeColor(dayEvents[0]?.eventType) }}
+                          style={{ backgroundColor: calendarEventChipColor(dayEvents[0]) }}
                         />
                       </div>
                     )}

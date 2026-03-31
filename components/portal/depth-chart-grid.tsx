@@ -92,7 +92,7 @@ function rowWrapClass(alignment: RowAlignment): string {
 function formationRowClass(alignment: RowAlignment, rowType?: string): string {
   const base = "formation-row flex items-start w-full"
   if (alignment === "spread") {
-    return `${base} justify-between flex-nowrap max-w-[900px] mx-auto gap-2`
+    return `${base} justify-between flex-nowrap max-w-[900px] mx-auto gap-2 lg:max-w-none lg:w-full lg:gap-3`
   }
   if (alignment === "center") {
     return `${base} justify-center flex-wrap gap-4`
@@ -146,7 +146,7 @@ export function DepthChartGrid({
 
   return (
     <div
-      className="w-full max-w-4xl mx-auto rounded-xl py-5 px-4"
+      className="w-full max-w-4xl lg:max-w-[min(100%,88rem)] mx-auto rounded-xl py-5 px-4"
       style={{
         backgroundColor: "rgb(var(--platinum))",
         boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
@@ -157,10 +157,12 @@ export function DepthChartGrid({
           const spacingClass = rowTypeSpacingClass(formationRow.rowType)
           const rowClass = formationRowClass(formationRow.alignment, formationRow.rowType)
           const isWrRow = formationRow.rowType === "skill" && formationRow.alignment === "spread"
+          const lineNoWrapLg =
+            formationRow.rowType === "line" ? "lg:flex-nowrap lg:gap-2 lg:justify-center" : ""
           return (
             <div
               key={formationRow.id ?? rowIdx}
-              className={`${rowClass} ${spacingClass} px-1 ${isWrRow ? "wr-row" : ""}`}
+              className={`${rowClass} ${spacingClass} px-1 ${lineNoWrapLg} ${isWrRow ? "wr-row" : ""}`}
               data-formation-row={formationRow.rowType ?? "default"}
               data-alignment={formationRow.alignment}
             >

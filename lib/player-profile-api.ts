@@ -33,7 +33,9 @@ export type DbPlayerRow = {
   sms_opt_in?: boolean | null
   address?: string | null
   emergency_contact?: string | null
+  emergency_contact_relationship?: string | null
   medical_notes?: string | null
+  medical_alerts?: string | null
   eligibility_status?: string | null
   role_depth_notes?: string | null
   season_stats?: unknown
@@ -80,6 +82,7 @@ export function mapRowToProfile(
     position: row.position_group ?? null,
     secondaryPosition: row.secondary_position ?? null,
     graduationYear: row.graduation_year ?? null,
+    schoolGrade: row.grade ?? null,
     height: row.height ?? null,
     weight: row.weight ?? null,
     dateOfBirth: row.date_of_birth != null ? String(row.date_of_birth) : null,
@@ -90,7 +93,9 @@ export function mapRowToProfile(
     smsTransactionalOptIn: Boolean(row.sms_opt_in),
     address: row.address ?? null,
     emergencyContact: row.emergency_contact ?? null,
+    emergencyContactRelationship: row.emergency_contact_relationship ?? null,
     medicalNotes: row.medical_notes ?? null,
+    medicalAlerts: row.medical_alerts ?? null,
     activeStatus: row.status ?? "active",
     roleDepthNotes: row.role_depth_notes ?? null,
     eligibilityStatus: row.eligibility_status ?? null,

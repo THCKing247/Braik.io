@@ -54,7 +54,7 @@ export async function GET(
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select(
-        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, medical_notes, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs, invite_code"
+        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, emergency_contact_relationship, medical_notes, medical_alerts, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs, invite_code"
       )
       .eq("id", playerId)
       .eq("team_id", teamId)
@@ -204,12 +204,14 @@ export async function PATCH(
       if (bodyToUse.position !== undefined) updates.position_group = (bodyToUse.position as string)?.trim() ?? null
       if (bodyToUse.secondaryPosition !== undefined) updates.secondary_position = (bodyToUse.secondaryPosition as string)?.trim() ?? null
       if (bodyToUse.graduationYear !== undefined) updates.graduation_year = bodyToUse.graduationYear ?? null
+      if (bodyToUse.schoolGrade !== undefined) updates.grade = bodyToUse.schoolGrade ?? null
       if (bodyToUse.height !== undefined) updates.height = (bodyToUse.height as string)?.trim() ?? null
       if (bodyToUse.weight !== undefined) updates.weight = bodyToUse.weight ?? null
       if (bodyToUse.dateOfBirth !== undefined) updates.date_of_birth = validateDateOfBirth(bodyToUse.dateOfBirth)
       if (bodyToUse.school !== undefined) updates.school = (bodyToUse.school as string)?.trim() ?? null
       if (bodyToUse.parentGuardianContact !== undefined) updates.parent_guardian_contact = (bodyToUse.parentGuardianContact as string)?.trim() ?? null
       if (bodyToUse.medicalNotes !== undefined) updates.medical_notes = (bodyToUse.medicalNotes as string)?.trim() ?? null
+      if (bodyToUse.medicalAlerts !== undefined) updates.medical_alerts = (bodyToUse.medicalAlerts as string)?.trim() ?? null
       if (bodyToUse.activeStatus !== undefined) updates.status = (bodyToUse.activeStatus as string) ?? "active"
       if (bodyToUse.healthStatus !== undefined) {
         const h = bodyToUse.healthStatus
@@ -281,6 +283,9 @@ export async function PATCH(
     }
     if (bodyToUse.address !== undefined) updates.address = (bodyToUse.address as string)?.trim() ?? null
     if (bodyToUse.emergencyContact !== undefined) updates.emergency_contact = (bodyToUse.emergencyContact as string)?.trim() ?? null
+    if (bodyToUse.emergencyContactRelationship !== undefined) {
+      updates.emergency_contact_relationship = (bodyToUse.emergencyContactRelationship as string)?.trim() ?? null
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })

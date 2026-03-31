@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList, Copy } from "lucide-react"
 import type { PlayerProfile } from "@/types/player-profile"
-import { PlayerProfilePracticeMetricsForm } from "./player-profile-stats-form"
 import { PlayerProfileWeeklyStatsPanel } from "./player-profile-weekly-stats-panel"
 import {
   SEASON_STAT_KEYS,
@@ -26,7 +25,6 @@ import {
   getStatsViewForPosition,
 } from "@/lib/stats-position-views"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
-import { PlayerDevelopmentTab } from "./player-development-tab"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 import { startOfDay } from "date-fns"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
@@ -34,8 +32,9 @@ import { PLAYER_DOCUMENT_UPLOAD_HELPER, PLAYER_DOCUMENT_CONSENT_TEXT } from "@/l
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 import { AddFollowUpModal } from "@/components/portal/add-follow-up-modal"
 import { FOLLOW_UP_CATEGORY_LABELS } from "@/lib/roster/follow-up-ui"
+import { getPositionByCode } from "@/lib/constants/playbook-positions"
 
-type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "notes" | "activity" | "development"
+type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "health" | "history"
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -43,10 +42,56 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "stats", label: "Stats" },
   { id: "equipment", label: "Equipment" },
   { id: "documents", label: "Documents" },
-  { id: "notes", label: "Notes" },
-  { id: "activity", label: "Activity" },
-  { id: "development", label: "Development" },
+  { id: "health", label: "Health" },
+  { id: "history", label: "History" },
 ]
+
+function getProfileStatusDisplay(p: PlayerProfile): { label: string; chipClass: string } {
+  const roster = (p.activeStatus ?? "active").toLowerCase()
+  const health = (p.healthStatus ?? "active").toLowerCase()
+  if (health === "injured") return { label: "Injured", chipClass: "bg-amber-100 text-amber-900 border-amber-200" }
+  if (health === "unavailable") return { label: "Suspended", chipClass: "bg-orange-100 text-orange-900 border-orange-200" }
+  if (roster === "suspended") return { label: "Suspended", chipClass: "bg-orange-100 text-orange-900 border-orange-200" }
+  if (roster === "inactive") return { label: "Inactive", chipClass: "bg-red-100 text-red-900 border-red-200" }
+  return { label: "Active", chipClass: "bg-green-100 text-green-900 border-green-200" }
+}
+
+const HEIGHT_SELECT_OPTIONS = [
+  "5'0\"",
+  "5'2\"",
+  "5'4\"",
+  "5'6\"",
+  "5'8\"",
+  "5'10\"",
+  "6'0\"",
+  "6'2\"",
+  "6'4\"",
+  "6'6\"",
+  "6'8\"",
+]
+const WEIGHT_SELECT_OPTIONS = Array.from({ length: 31 }, (_, i) => 150 + i * 5)
+
+const CLASS_SELECT_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "—" },
+  { value: "9", label: "Freshman" },
+  { value: "10", label: "Sophomore" },
+  { value: "11", label: "Junior" },
+  { value: "12", label: "Senior" },
+]
+
+function schoolGradeToLabel(grade: number | null | undefined): string {
+  if (grade === 9) return "Freshman"
+  if (grade === 10) return "Sophomore"
+  if (grade === 11) return "Junior"
+  if (grade === 12) return "Senior"
+  return "—"
+}
+
+function normalizePositionBaseCode(raw: string): string {
+  const u = raw.trim().toUpperCase()
+  const m = u.match(/^([A-Z]+)/)
+  return m ? m[1] : u
+}
 
 interface PlayerProfileViewProps {
   playerId: string
@@ -278,12 +323,18 @@ export function PlayerProfileView({
         if (editDraft.position !== undefined) body.position = editDraft.position
         if (editDraft.secondaryPosition !== undefined) body.secondaryPosition = editDraft.secondaryPosition
         if (editDraft.graduationYear !== undefined) body.graduationYear = editDraft.graduationYear
+        if (editDraft.schoolGrade !== undefined) body.schoolGrade = editDraft.schoolGrade
         if (editDraft.height !== undefined) body.height = editDraft.height
         if (editDraft.weight !== undefined) body.weight = editDraft.weight
         if (editDraft.dateOfBirth !== undefined) body.dateOfBirth = editDraft.dateOfBirth
         if (editDraft.school !== undefined) body.school = editDraft.school
         if (editDraft.parentGuardianContact !== undefined) body.parentGuardianContact = editDraft.parentGuardianContact
         if (editDraft.medicalNotes !== undefined) body.medicalNotes = editDraft.medicalNotes
+        if (editDraft.medicalAlerts !== undefined) body.medicalAlerts = editDraft.medicalAlerts
+        if (editDraft.emergencyContactRelationship !== undefined) {
+          body.emergencyContactRelationship = editDraft.emergencyContactRelationship
+        }
+        if (editDraft.healthStatus !== undefined) body.healthStatus = editDraft.healthStatus
         if (editDraft.activeStatus !== undefined) body.activeStatus = editDraft.activeStatus
         if (editDraft.eligibilityStatus !== undefined) body.eligibilityStatus = editDraft.eligibilityStatus
         if (editDraft.roleDepthNotes !== undefined) body.roleDepthNotes = editDraft.roleDepthNotes
@@ -321,10 +372,8 @@ export function PlayerProfileView({
   }
 
   const getStatusColor = () => {
-    const s = profile?.healthStatus ?? profile?.activeStatus ?? "active"
-    if (s === "injured") return "bg-red-100 text-red-700 border-red-200"
-    if (s === "unavailable" || s === "inactive") return "bg-orange-100 text-orange-700 border-orange-200"
-    return "bg-green-100 text-green-700 border-green-200"
+    if (!profile) return "bg-green-100 text-green-900 border-green-200"
+    return `${getProfileStatusDisplay(profile).chipClass} border`
   }
 
   const mergedPhoneForSms = useMemo(() => {
@@ -392,7 +441,8 @@ export function PlayerProfileView({
       {/* Back + Header: polished summary card */}
       <Card className="overflow-hidden border-[rgb(var(--border))]">
         <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-start lg:gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-4">
               <Link href={backHref} className="shrink-0">
                 <Button variant="ghost" size="icon" aria-label="Back to roster">
@@ -463,12 +513,27 @@ export function PlayerProfileView({
                   {profile.position && <span>{profile.position}</span>}
                   {profile.teamName && <span>{profile.teamName}</span>}
                   <span className={`rounded border px-2 py-0.5 text-xs font-medium ${getStatusColor()}`}>
-                    {profile.healthStatus === "injured" ? "Injured" : profile.activeStatus === "inactive" ? "Inactive" : "Active"}
+                    <span className="text-[#64748B] font-normal">Status: </span>
+                    {getProfileStatusDisplay(profile).label}
                   </span>
+                  {profile.eligibilityStatus?.trim() && (
+                    <span className="rounded border border-[#E5E7EB] bg-white px-2 py-0.5 text-xs font-medium text-[#0F172A]">
+                      <span className="text-[#64748B] font-normal">Eligibility: </span>
+                      {profile.eligibilityStatus.trim()}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <ProfileNotesCard
+                profile={profile}
+                canEdit={canEditProfile}
+                editDraft={editDraft}
+                setEditDraft={setEditDraft}
+                value={value}
+              />
+            </div>
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center lg:pt-0">
               {saveMessage && (
                 <span
                   className={`rounded-md px-3 py-1.5 text-sm ${saveMessage.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
@@ -522,10 +587,7 @@ export function PlayerProfileView({
               playerId={playerId}
               teamId={teamId}
               profile={profile}
-              canManageWeeklyStats={canEdit}
-              editDraft={editDraft}
-              setEditDraft={setEditDraft}
-              value={value}
+              canManageWeeklyStats={false}
               onProfileRefetch={refetchProfile}
             />
           )}
@@ -542,17 +604,21 @@ export function PlayerProfileView({
           {activeTab === "documents" && (
             <DocumentsTab playerId={playerId} teamId={teamId} />
           )}
-          {activeTab === "notes" && (
-            <NotesTab profile={profile} canEdit={canEditProfile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
+          {activeTab === "health" && (
+            <HealthTab
+              playerId={playerId}
+              teamId={teamId}
+              profile={profile}
+              canEditMedical={canEdit}
+              setEditDraft={setEditDraft}
+              value={value}
+            />
           )}
-          {activeTab === "activity" && (
-            <ActivityTab playerId={playerId} teamId={teamId} />
-          )}
-          {activeTab === "development" && (
-            <PlayerDevelopmentTab playerId={playerId} canEdit={canEditProfile} />
+          {activeTab === "history" && (
+            <HistoryTab playerId={playerId} teamId={teamId} />
           )}
 
-          {canEditProfile && (activeTab === "overview" || activeTab === "info") && mergedPhoneForSms.length > 0 && (
+          {canEditProfile && (activeTab === "overview" || activeTab === "info" || activeTab === "health") && mergedPhoneForSms.length > 0 && (
             <div className="mt-6 border-t border-[#E5E7EB] pt-6">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Transactional SMS</p>
               <SmsConsentCheckbox
@@ -718,6 +784,56 @@ function FollowUpsSection({
   )
 }
 
+function ProfileNotesCard({
+  profile,
+  canEdit,
+  editDraft,
+  setEditDraft,
+  value,
+}: {
+  profile: PlayerProfile
+  canEdit: boolean
+  editDraft: Partial<PlayerProfile>
+  setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
+  value: (k: keyof PlayerProfile) => unknown
+}) {
+  const notesText = profile.notes ?? profile.profileNotes ?? ""
+  const hasNotes = !!notesText.trim()
+  const hasTags = Array.isArray(profile.tags) && profile.tags.length > 0
+
+  return (
+    <div className="w-full min-w-0 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3 lg:max-w-sm lg:shrink-0">
+      <Label className="text-xs font-medium text-[#64748B]">Notes</Label>
+      {canEdit ? (
+        <textarea
+          className="mt-1.5 min-h-[72px] w-full rounded-md border border-[#E5E7EB] bg-white px-2 py-1.5 text-sm text-[#0F172A]"
+          value={String(value("notes") ?? value("profileNotes") ?? "")}
+          onChange={(e) =>
+            setEditDraft((p) => ({ ...p, notes: e.target.value || null, profileNotes: e.target.value || null }))
+          }
+          placeholder="General notes…"
+        />
+      ) : hasNotes ? (
+        <div className="mt-1.5 rounded-md border border-[#E5E7EB] bg-white p-2">
+          <p className="whitespace-pre-wrap break-words text-sm text-[#0F172A]">{notesText}</p>
+        </div>
+      ) : (
+        <p className="mt-1.5 text-xs text-[#94A3B8]">No notes yet.</p>
+      )}
+      {hasTags && (
+        <div className="mt-2 space-y-1">
+          <span className="text-xs font-medium text-[#64748B]">Tags</span>
+          <div className="flex flex-wrap gap-1.5">
+            {profile.tags!.map((t) => (
+              <span key={t} className="rounded-full bg-[#E2E8F0] px-2 py-0.5 text-xs text-[#475569]">{t}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OverviewTab({
   profile,
   playerId,
@@ -744,12 +860,13 @@ function OverviewTab({
   }, [playerId, teamId])
 
   const readOnlyClass = "rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]"
-  const statusLabel = profile.healthStatus === "injured" ? "Injured" : profile.activeStatus === "inactive" ? "Inactive" : "Active"
+  const statusDisplay = getProfileStatusDisplay(profile)
   return (
     <div className="space-y-6">
-      {/* Readiness / compliance */}
+      {/* Readiness / compliance + contact — tighter pairing on large screens */}
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-4 lg:space-y-0">
       {readiness && (
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 shadow-sm lg:p-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-3">Readiness</h3>
           <div className="flex flex-wrap items-center gap-2 mb-2">
             {readiness.ready ? (
@@ -790,16 +907,8 @@ function OverviewTab({
         </div>
       )}
 
-      {/* Follow-ups (coach intervention tracking) */}
-      <FollowUpsSection
-        playerId={playerId}
-        teamId={teamId}
-        canEdit={canEdit}
-        playerDisplayName={`${String(profile.firstName ?? "").trim()} ${String(profile.lastName ?? "").trim()}`.trim() || "Player"}
-      />
-
       {/* Contact card */}
-      <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+      <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 lg:p-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-3">Contact</h3>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-4">
           {profile.playerEmail?.trim() && (
@@ -823,34 +932,17 @@ function OverviewTab({
           )}
         </div>
       </div>
-
-      {/* Summary card */}
-      <div className="rounded-xl border border-[#E5E7EB] bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] p-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-3">At a glance</h3>
-        <div className="flex flex-wrap items-center gap-3">
-          {profile.jerseyNumber != null && (
-            <span className="rounded-lg bg-[#0F172A] px-3 py-1.5 text-sm font-bold text-white">
-              #{profile.jerseyNumber}
-            </span>
-          )}
-          {profile.position && (
-            <span className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A]">
-              {profile.position}
-            </span>
-          )}
-          <span className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-sm text-[#64748B]">
-            {profile.teamName ?? "—"}
-          </span>
-          <span className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-            profile.healthStatus === "injured" ? "bg-red-100 text-red-800" :
-            profile.activeStatus === "inactive" ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"
-          }`}>
-            {statusLabel}
-          </span>
-        </div>
       </div>
-      <p className="text-sm text-[#64748B]">Quick summary. Use the Info tab for full details.</p>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+      {/* Follow-ups (coach intervention tracking) */}
+      <FollowUpsSection
+        playerId={playerId}
+        teamId={teamId}
+        canEdit={canEdit}
+        playerDisplayName={`${String(profile.firstName ?? "").trim()} ${String(profile.lastName ?? "").trim()}`.trim() || "Player"}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Name</Label>
           <p className={readOnlyClass}>
@@ -909,10 +1001,14 @@ function OverviewTab({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Status</Label>
-          <p className={readOnlyClass}>
-            {profile.healthStatus === "injured" ? "Injured" : profile.activeStatus === "inactive" ? "Inactive" : "Active"}
+          <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Player status</Label>
+          <p className={`rounded-lg border px-3 py-2 text-sm font-medium ${statusDisplay.chipClass}`}>
+            {statusDisplay.label}
           </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Eligibility</Label>
+          <p className={readOnlyClass}>{profile.eligibilityStatus?.trim() || "—"}</p>
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Email</Label>
@@ -1044,45 +1140,43 @@ function InfoTab({
     return Number.isNaN(parsed.getTime()) ? null : startOfDay(parsed)
   })()
 
-  const fields: { key: keyof PlayerProfile; label: string; type?: string }[] = [
+  const gradYearOptions = useMemo(() => {
+    const y = new Date().getFullYear()
+    return Array.from({ length: 8 }, (_, i) => y - 2 + i)
+  }, [])
+
+  const positionDraft = String(value("position") ?? "").trim()
+  const positionBase = positionDraft ? normalizePositionBaseCode(positionDraft) : ""
+  const positionWarning =
+    canEdit && positionDraft && !getPositionByCode(positionBase)
+      ? `"${positionDraft}" is not a standard position code. Use codes like QB, WR, or MLB so depth charts and stats stay aligned.`
+      : canEdit && !positionDraft
+        ? "Add a standard position (e.g. QB, WR, CB) for formations and stat views."
+        : null
+
+  const readOnlyBox = "min-h-[2.5rem] rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]"
+
+  const simpleFields: { key: keyof PlayerProfile; label: string }[] = [
     { key: "firstName", label: "First name" },
     { key: "lastName", label: "Last name" },
     { key: "preferredName", label: "Preferred name / Nickname" },
     { key: "jerseyNumber", label: "Jersey number" },
-    { key: "position", label: "Position" },
     { key: "secondaryPosition", label: "Secondary position" },
-    { key: "graduationYear", label: "Class / Graduation year" },
-    { key: "height", label: "Height" },
-    { key: "weight", label: "Weight (lbs)" },
-    { key: "dateOfBirth", label: "Date of birth" },
     { key: "school", label: "School" },
     { key: "parentGuardianContact", label: "Parent/Guardian contact" },
     { key: "playerEmail", label: "Player email" },
     { key: "playerPhone", label: "Player phone" },
     { key: "address", label: "Address" },
-    { key: "emergencyContact", label: "Emergency contact" },
-    { key: "medicalNotes", label: "Medical notes / Alerts" },
   ]
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
-        {fields.map(({ key, label }) => (
+        {simpleFields.map(({ key, label }) => (
           <div key={key} className="space-y-2">
             <Label className="text-[#64748B]">{label}</Label>
             {canEdit ? (
-              key === "dateOfBirth" ? (
-                <DatePicker
-                  id={`profile-dob-${playerId}`}
-                  label=""
-                  value={dateOfBirthValue}
-                  onChange={(d) =>
-                    setEditDraft((p) => ({ ...p, dateOfBirth: d ? dateToYmd(d) : null }))
-                  }
-                  placeholder="Select date of birth"
-                  maxDate={new Date()}
-                  allowClear
-                />
-              ) : key === "weight" || key === "jerseyNumber" || key === "graduationYear" ? (
+              key === "jerseyNumber" ? (
                 <Input
                   type="number"
                   value={value(key) != null ? String(value(key)) : ""}
@@ -1097,7 +1191,7 @@ function InfoTab({
                 />
               )
             ) : (
-              <p className="min-h-[2.5rem] rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">
+              <p className={readOnlyBox}>
                 {(profile as unknown as Record<string, unknown>)[key as string] != null && (profile as unknown as Record<string, unknown>)[key as string] !== ""
                   ? String((profile as unknown as Record<string, unknown>)[key as string])
                   : "—"}
@@ -1105,8 +1199,176 @@ function InfoTab({
             )}
           </div>
         ))}
+
+        <div className="space-y-2 sm:col-span-2">
+          <Label className="text-[#64748B]">Position</Label>
+          {canEdit ? (
+            <Input
+              value={String(value("position") ?? "")}
+              onChange={(e) => setEditDraft((p) => ({ ...p, position: e.target.value || null }))}
+              placeholder="e.g. QB, WR1, MLB"
+            />
+          ) : (
+            <p className={readOnlyBox}>{profile.position ?? "—"}</p>
+          )}
+          {positionWarning && <p className="text-xs text-amber-800">{positionWarning}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[#64748B]">Class</Label>
+          {canEdit ? (
+            <select
+              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+              value={value("schoolGrade") != null && value("schoolGrade") !== "" ? String(value("schoolGrade")) : ""}
+              onChange={(e) =>
+                setEditDraft((p) => ({
+                  ...p,
+                  schoolGrade: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+            >
+              {CLASS_SELECT_OPTIONS.map((o) => (
+                <option key={o.value || "empty"} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className={readOnlyBox}>{schoolGradeToLabel(profile.schoolGrade ?? null)}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[#64748B]">Graduation year</Label>
+          {canEdit ? (
+            <select
+              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+              value={value("graduationYear") != null && value("graduationYear") !== "" ? String(value("graduationYear")) : ""}
+              onChange={(e) =>
+                setEditDraft((p) => ({
+                  ...p,
+                  graduationYear: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+            >
+              <option value="">—</option>
+              {gradYearOptions.map((y) => (
+                <option key={y} value={String(y)}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className={readOnlyBox}>{profile.graduationYear ?? "—"}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[#64748B]">Height</Label>
+          {canEdit ? (
+            <select
+              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+              value={(() => {
+                const h = String(value("height") ?? "")
+                if (!h) return ""
+                return HEIGHT_SELECT_OPTIONS.includes(h) ? h : "__current__"
+              })()}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === "__current__") return
+                setEditDraft((p) => ({ ...p, height: v || null }))
+              }}
+            >
+              <option value="">—</option>
+              {(() => {
+                const h = String(value("height") ?? "")
+                const showCurrent = h && !HEIGHT_SELECT_OPTIONS.includes(h)
+                return (
+                  <>
+                    {showCurrent && (
+                      <option value="__current__">{h} (current)</option>
+                    )}
+                    {HEIGHT_SELECT_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </>
+                )
+              })()}
+            </select>
+          ) : (
+            <p className={readOnlyBox}>{profile.height ?? "—"}</p>
+          )}
+          {canEdit && profile.height && !HEIGHT_SELECT_OPTIONS.includes(String(profile.height)) && (
+            <p className="text-xs text-amber-800">Current height is not in the preset list; choose a value to update, or leave unchanged until custom heights are supported.</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[#64748B]">Weight (lbs)</Label>
+          {canEdit ? (
+            <select
+              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+              value={(() => {
+                const w = value("weight")
+                if (w == null || w === "") return ""
+                const n = Number(w)
+                return WEIGHT_SELECT_OPTIONS.includes(n) ? String(n) : "__current__"
+              })()}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === "__current__") return
+                setEditDraft((p) => ({
+                  ...p,
+                  weight: v ? Number(v) : null,
+                }))
+              }}
+            >
+              <option value="">—</option>
+              {(() => {
+                const w = value("weight")
+                const n = w != null && w !== "" ? Number(w) : NaN
+                const showCurrent = Number.isFinite(n) && !WEIGHT_SELECT_OPTIONS.includes(n)
+                return (
+                  <>
+                    {showCurrent && (
+                      <option value="__current__">{n} lbs (current)</option>
+                    )}
+                    {WEIGHT_SELECT_OPTIONS.map((opt) => (
+                      <option key={opt} value={String(opt)}>
+                        {opt} lbs
+                      </option>
+                    ))}
+                  </>
+                )
+              })()}
+            </select>
+          ) : (
+            <p className={readOnlyBox}>{profile.weight != null ? `${profile.weight} lbs` : "—"}</p>
+          )}
+          {canEdit && profile.weight != null && !WEIGHT_SELECT_OPTIONS.includes(Number(profile.weight)) && (
+            <p className="text-xs text-amber-800">Current weight is not in the preset list; pick the nearest value to update the stored weight.</p>
+          )}
+        </div>
+
+        <div className="space-y-2 sm:col-span-2">
+          <Label className="text-[#64748B]">Date of birth</Label>
+          {canEdit ? (
+            <DatePicker
+              id={`profile-dob-${playerId}`}
+              label=""
+              value={dateOfBirthValue}
+              onChange={(d) => setEditDraft((p) => ({ ...p, dateOfBirth: d ? dateToYmd(d) : null }))}
+              placeholder="Select date of birth"
+              maxDate={new Date()}
+              allowClear
+            />
+          ) : (
+            <p className={readOnlyBox}>{profile.dateOfBirth ?? "—"}</p>
+          )}
+        </div>
       </div>
-      {/* Guardian linkage: show linked guardians when data exists */}
       <LinkedGuardiansSection playerId={playerId} teamId={teamId} />
     </div>
   )
@@ -1120,18 +1382,12 @@ function StatsTab({
   teamId,
   profile,
   canManageWeeklyStats,
-  editDraft,
-  setEditDraft,
-  value,
   onProfileRefetch,
 }: {
   playerId: string
   teamId: string
   profile: PlayerProfile
   canManageWeeklyStats: boolean
-  editDraft: Partial<PlayerProfile>
-  setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
-  value: (k: keyof PlayerProfile) => unknown
   onProfileRefetch: () => void
 }) {
   const [seasonTotalsMode, setSeasonTotalsMode] = useState<"overview" | "all">("overview")
@@ -1202,28 +1458,10 @@ function StatsTab({
 
   return (
     <div className="space-y-8">
-      {derivedSummaryCards.length > 0 && (
-        <div>
-          <Label className="text-[#0F172A] font-medium">Key rates</Label>
-          <p className="mt-1 text-xs text-[#64748B]">Derived from season totals (read-only).</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {derivedSummaryCards.map((c, i) => (
-              <div
-                key={`${c.label}-${i}`}
-                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-sm"
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">{c.label}</p>
-                <p className="mt-1 text-xl font-semibold tabular-nums text-[#0F172A]">{c.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div>
-        <Label className="text-[#0F172A] font-medium">Season totals</Label>
+        <Label className="text-[#0F172A] font-medium">Season summary</Label>
         <p className="mt-1 text-xs text-[#64748B]">
-          Aggregated from weekly / game stat lines (and shown on All Stats). Standard fields are not edited here.
+          Read-only totals from Stats / Analytics (weekly and game lines). Totals are not edited on this tab.
         </p>
         {positionViewGroup === "OL" && seasonTotalsMode === "overview" && (
           <p className="mt-2 text-xs text-[#64748B]">
@@ -1274,13 +1512,29 @@ function StatsTab({
           <div className="mt-3 rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 text-center">
             <p className="text-sm text-[#64748B]">No season totals yet.</p>
             <p className="mt-1 text-xs text-[#94A3B8]">
-              {canManageWeeklyStats
-                ? "Add a weekly or game stat line below to populate totals."
-                : "Totals appear after coaches add weekly / game stat entries."}
+              Totals populate when stat lines exist in your team&apos;s Stats / Analytics workflow.
             </p>
           </div>
         )}
       </div>
+
+      {derivedSummaryCards.length > 0 && (
+        <div className="border-t border-[#E5E7EB] pt-8">
+          <Label className="text-[#0F172A] font-medium">Key rates</Label>
+          <p className="mt-1 text-xs text-[#64748B]">Derived from season totals (read-only).</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {derivedSummaryCards.map((c, i) => (
+              <div
+                key={`${c.label}-${i}`}
+                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-sm"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">{c.label}</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-[#0F172A]">{c.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="border-t border-[#E5E7EB] pt-8">
         <PlayerProfileWeeklyStatsPanel
@@ -1293,23 +1547,7 @@ function StatsTab({
         />
       </div>
 
-      {canManageWeeklyStats && (
-        <>
-          <div className="border-t border-[#E5E7EB] pt-8">
-            <PlayerProfilePracticeMetricsForm profile={profile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
-          </div>
-          <div className="border-t border-[#E5E7EB] pt-6">
-            <Label className="text-[#64748B]">Coach notes on performance</Label>
-            <textarea
-              className="mt-2 min-h-[100px] w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#0F172A]"
-              value={String(value("coachNotes") ?? "")}
-              onChange={(e) => setEditDraft((p) => ({ ...p, coachNotes: e.target.value || null }))}
-              placeholder="Notes on performance..."
-            />
-          </div>
-        </>
-      )}
-      {!canManageWeeklyStats && profile.coachNotes && (
+      {profile.coachNotes && (
         <div className="space-y-2 border-t border-[#E5E7EB] pt-8">
           <Label className="text-[#64748B]">Coach notes</Label>
           <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
@@ -2018,6 +2256,178 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
   )
 }
 
+type InjuryListRow = {
+  id: string
+  player_id: string
+  injury_reason: string
+  injury_date: string
+  expected_return_date: string | null
+  actual_return_date: string | null
+  status: string
+  notes: string | null
+  severity: string | null
+}
+
+function HealthTab({
+  playerId,
+  teamId,
+  profile,
+  canEditMedical,
+  setEditDraft,
+  value,
+}: {
+  playerId: string
+  teamId: string
+  profile: PlayerProfile
+  canEditMedical: boolean
+  setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
+  value: (k: keyof PlayerProfile) => unknown
+}) {
+  const [injuries, setInjuries] = useState<InjuryListRow[]>([])
+  const [injLoading, setInjLoading] = useState(true)
+  const [injuriesForbidden, setInjuriesForbidden] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setInjLoading(true)
+    setInjuriesForbidden(false)
+    fetch(`/api/health/injuries?teamId=${encodeURIComponent(teamId)}`)
+      .then((res) => {
+        if (res.status === 403) {
+          if (!cancelled) setInjuriesForbidden(true)
+          return { injuries: [] }
+        }
+        return res.ok ? res.json() : { injuries: [] }
+      })
+      .then((data: { injuries?: InjuryListRow[] }) => {
+        if (cancelled) return
+        const all = Array.isArray(data?.injuries) ? data.injuries : []
+        setInjuries(all.filter((i) => i.player_id === playerId))
+      })
+      .catch(() => {
+        if (!cancelled) setInjuries([])
+      })
+      .finally(() => {
+        if (!cancelled) setInjLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, playerId])
+
+  const statusDisplay = getProfileStatusDisplay(profile)
+  const medicalCanEdit = canEditMedical
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Status & eligibility</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[#64748B]">Player status:</span>
+          <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${statusDisplay.chipClass}`}>{statusDisplay.label}</span>
+          <span className="text-xs text-[#64748B] ml-2">Eligibility:</span>
+          <span className="text-xs font-medium text-[#0F172A]">{profile.eligibilityStatus?.trim() || "—"}</span>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-[#64748B]">Injury report / history</Label>
+        <p className="text-xs text-[#94A3B8]">Recorded injuries for this player (read-only here). Injury add flow is planned next.</p>
+        {injLoading ? (
+          <div className="flex justify-center py-6">
+            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+          </div>
+        ) : injuriesForbidden ? (
+          <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 text-center text-sm text-[#64748B]">
+            Injury history is visible to coaching staff with roster access.
+          </div>
+        ) : injuries.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-6 text-center text-sm text-[#64748B]">
+            No injury records on file.
+          </div>
+        ) : (
+          <ul className="divide-y divide-[#E5E7EB] rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
+            {injuries.map((inj) => (
+              <li key={inj.id} className="px-3 py-2.5 text-sm">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-medium text-[#0F172A]">{inj.injury_reason}</span>
+                  <span className="text-xs text-[#94A3B8]">{new Date(inj.injury_date).toLocaleDateString()}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[#64748B]">
+                  <span>Status: {inj.status}</span>
+                  {inj.severity ? <span>Severity: {inj.severity}</span> : null}
+                  {inj.expected_return_date ? (
+                    <span>Expected return: {new Date(inj.expected_return_date).toLocaleDateString()}</span>
+                  ) : null}
+                  {inj.actual_return_date ? (
+                    <span>Returned: {new Date(inj.actual_return_date).toLocaleDateString()}</span>
+                  ) : null}
+                </div>
+                {inj.notes?.trim() ? <p className="mt-1.5 whitespace-pre-wrap text-xs text-[#475569]">{inj.notes}</p> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-[#64748B]">Medical alerts</Label>
+        {medicalCanEdit ? (
+          <textarea
+            className="min-h-[72px] w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#0F172A]"
+            value={String(value("medicalAlerts") ?? "")}
+            onChange={(e) => setEditDraft((p) => ({ ...p, medicalAlerts: e.target.value || null }))}
+            placeholder="Short alerts for staff…"
+          />
+        ) : (
+          <p className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">{profile.medicalAlerts?.trim() || "—"}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-[#64748B]">Medical notes</Label>
+        {medicalCanEdit ? (
+          <textarea
+            className="min-h-[100px] w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#0F172A]"
+            value={String(value("medicalNotes") ?? "")}
+            onChange={(e) => setEditDraft((p) => ({ ...p, medicalNotes: e.target.value || null }))}
+            placeholder="Medical notes…"
+          />
+        ) : (
+          <p className="whitespace-pre-wrap rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">{profile.medicalNotes?.trim() || "—"}</p>
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label className="text-[#64748B]">Emergency contact</Label>
+          {medicalCanEdit ? (
+            <Input
+              value={String(value("emergencyContact") ?? "")}
+              onChange={(e) => setEditDraft((p) => ({ ...p, emergencyContact: e.target.value || null }))}
+              placeholder="Name / phone"
+            />
+          ) : (
+            <p className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">{profile.emergencyContact?.trim() || "—"}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label className="text-[#64748B]">Relationship to player</Label>
+          {medicalCanEdit ? (
+            <Input
+              value={String(value("emergencyContactRelationship") ?? "")}
+              onChange={(e) => setEditDraft((p) => ({ ...p, emergencyContactRelationship: e.target.value || null }))}
+              placeholder="e.g. Mother"
+            />
+          ) : (
+            <p className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">{profile.emergencyContactRelationship?.trim() || "—"}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ACTIVITY_LABELS: Record<string, string> = {
   photo_changed: "Profile photo updated",
   photo_removed: "Profile photo removed",
@@ -2056,7 +2466,7 @@ type ActivityItem = {
 }
 
 const ACTIVITY_TYPE_OPTIONS = [
-  { value: "", label: "All activity" },
+  { value: "", label: "All events" },
   { value: "profile_updated", label: "Profile updated" },
   { value: "stats_updated", label: "Stats updated" },
   { value: "photo_changed", label: "Photo changed" },
@@ -2067,7 +2477,7 @@ const ACTIVITY_TYPE_OPTIONS = [
   { value: "equipment_unassigned", label: "Equipment unassigned" },
 ]
 
-function ActivityTab({ playerId, teamId }: { playerId: string; teamId: string }) {
+function HistoryTab({ playerId, teamId }: { playerId: string; teamId: string }) {
   const [items, setItems] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
   const [actionTypeFilter, setActionTypeFilter] = useState<string>("")
@@ -2095,9 +2505,9 @@ function ActivityTab({ playerId, teamId }: { playerId: string; teamId: string })
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="activity-type-filter" className="text-sm text-[#64748B]">Filter:</label>
+          <label htmlFor="history-type-filter" className="text-sm text-[#64748B]">Filter:</label>
           <select
-            id="activity-type-filter"
+            id="history-type-filter"
             value={actionTypeFilter}
             onChange={(e) => setActionTypeFilter(e.target.value)}
             className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
@@ -2109,9 +2519,9 @@ function ActivityTab({ playerId, teamId }: { playerId: string; teamId: string })
         </div>
         <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] p-8 text-center">
           <History className="mx-auto h-10 w-10 text-[#94A3B8]" />
-          <p className="mt-3 text-sm text-[#64748B]">No activity yet.</p>
+          <p className="mt-3 text-sm text-[#64748B]">No history yet.</p>
           <p className="mt-1 text-xs text-[#94A3B8]">
-            {actionTypeFilter ? "No matching activity for this filter." : "Photo, profile, document, and equipment changes will appear here."}
+            {actionTypeFilter ? "No matching events for this filter." : "Photo, profile, document, and equipment changes will appear here."}
           </p>
         </div>
       </div>
@@ -2121,11 +2531,11 @@ function ActivityTab({ playerId, teamId }: { playerId: string; teamId: string })
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-[#64748B]">Recent changes to this profile.</p>
+        <p className="text-sm text-[#64748B]">Recent changes to this profile (history).</p>
         <div className="flex items-center gap-2">
-          <label htmlFor="activity-type-filter-filled" className="text-sm text-[#64748B]">Filter:</label>
+          <label htmlFor="history-type-filter-filled" className="text-sm text-[#64748B]">Filter:</label>
           <select
-            id="activity-type-filter-filled"
+            id="history-type-filter-filled"
             value={actionTypeFilter}
             onChange={(e) => setActionTypeFilter(e.target.value)}
             className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
@@ -2157,58 +2567,6 @@ function ActivityTab({ playerId, teamId }: { playerId: string; teamId: string })
           </li>
         ))}
       </ul>
-    </div>
-  )
-}
-
-function NotesTab({
-  profile,
-  canEdit,
-  editDraft,
-  setEditDraft,
-  value,
-}: {
-  profile: PlayerProfile
-  canEdit: boolean
-  editDraft: Partial<PlayerProfile>
-  setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
-  value: (k: keyof PlayerProfile) => unknown
-}) {
-  const notesText = profile.notes ?? profile.profileNotes ?? ""
-  const hasNotes = !!notesText.trim()
-  const hasTags = Array.isArray(profile.tags) && profile.tags.length > 0
-
-  return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label className="text-[#64748B]">Notes</Label>
-        {canEdit ? (
-          <textarea
-            className="min-h-[120px] w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#0F172A]"
-            value={String(value("notes") ?? value("profileNotes") ?? "")}
-            onChange={(e) => setEditDraft((p) => ({ ...p, notes: e.target.value || null, profileNotes: e.target.value || null }))}
-            placeholder="General notes..."
-          />
-        ) : hasNotes ? (
-          <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
-            <p className="whitespace-pre-wrap break-words text-sm text-[#0F172A]">{notesText}</p>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] p-6 text-center">
-            <p className="text-sm text-[#64748B]">No notes yet.</p>
-          </div>
-        )}
-      </div>
-      {hasTags && (
-        <div className="space-y-2">
-          <Label className="text-[#64748B]">Tags</Label>
-          <div className="flex flex-wrap gap-2">
-            {profile.tags!.map((t) => (
-              <span key={t} className="rounded-full bg-[#E2E8F0] px-3 py-1 text-xs text-[#475569]">{t}</span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -11,6 +11,8 @@ export interface PlayerProfileBasic {
   position?: string | null
   secondaryPosition?: string | null
   graduationYear?: number | null
+  /** Academic class as grade 9–12 (Freshman–Senior); distinct from graduation year */
+  schoolGrade?: number | null
   height?: string | null
   weight?: number | null
   dateOfBirth?: string | null
@@ -23,7 +25,11 @@ export interface PlayerProfileBasic {
   smsTransactionalOptIn?: boolean
   address?: string | null
   emergencyContact?: string | null
+  /** Relationship to player (e.g. Mother) — shown on Health tab */
+  emergencyContactRelationship?: string | null
   medicalNotes?: string | null
+  /** Short alerts separate from longer medical notes */
+  medicalAlerts?: string | null
 }
 
 export interface PlayerProfileTeam {
@@ -108,12 +114,15 @@ export interface PlayerProfileUpdateBody {
   position?: string | null
   secondaryPosition?: string | null
   graduationYear?: number | null
+  schoolGrade?: number | null
   height?: string | null
   weight?: number | null
   dateOfBirth?: string | null
   school?: string | null
   parentGuardianContact?: string | null
   medicalNotes?: string | null
+  medicalAlerts?: string | null
+  emergencyContactRelationship?: string | null
   activeStatus?: string
   /** Injury / availability (coach) */
   healthStatus?: "active" | "injured" | "unavailable"

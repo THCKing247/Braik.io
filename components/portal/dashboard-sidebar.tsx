@@ -38,7 +38,11 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
     userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
       ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
       : "/dashboard"
-  const quickActions = useMemo(() => getQuickActionsForRole(userRole), [userRole])
+  const videoNav = shell?.payload?.videoClips?.navVisible
+  const quickActions = useMemo(
+    () => getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav }),
+    [userRole, videoNav]
+  )
   const showCoachB = userRole && canUseCoachB(userRole as Role)
   const coachCopy = useCoachBRotatingCopy()
 

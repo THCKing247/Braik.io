@@ -5,6 +5,7 @@ import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
 import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
+import { isPublicSignupAllowed } from "@/lib/config/public-signup"
 
 type SignupPayload = {
   fullName?: string
@@ -51,6 +52,17 @@ export const runtime = "nodejs"
 
 export async function POST(request: Request) {
   try {
+    if (!isPublicSignupAllowed()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Self-serve signup is disabled. Use the link from your invitation, or contact Braik to request access.",
+        },
+        { status: 403 }
+      )
+    }
+
     if (!isSupabaseServerConfigured()) {
       return NextResponse.json({ success: false, error: "Server auth is not configured" }, { status: 500 })
     }

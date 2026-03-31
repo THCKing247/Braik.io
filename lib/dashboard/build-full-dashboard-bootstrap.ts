@@ -115,7 +115,7 @@ export function getCachedLightFullDashboardBootstrap(
   access: ResolvedTeamAccess
 ): Promise<FullDashboardBootstrapPayload> {
   return lightweightCached(
-    ["dashboard-bootstrap-light-v2", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-light-v3", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [tagTeamDashboardBootstrap(teamId)],

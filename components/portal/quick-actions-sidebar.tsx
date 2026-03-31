@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { getQuickActionsForRole } from "@/config/quickActions"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { cn } from "@/lib/utils"
 
 export function QuickActionsSidebar() {
@@ -13,8 +14,8 @@ export function QuickActionsSidebar() {
   const pathname = usePathname()
   const userRole = identity.roleUpper || undefined
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
-  
-  const quickActions = getQuickActionsForRole(userRole)
+  const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
+  const quickActions = getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav })
 
   const ToolbarItem = ({ 
     href, 

@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -51,13 +51,11 @@ export function InviteAcceptance({ invite }: { invite: Invite }) {
       setError("")
 
       try {
-        // Create account
-        const signupResponse = await fetch("/api/auth/signup", {
+        const signupResponse = await fetch(`/api/invites/${invite.id}/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name,
-            email: invite.email,
             password,
           }),
         })
@@ -65,15 +63,6 @@ export function InviteAcceptance({ invite }: { invite: Invite }) {
         if (!signupResponse.ok) {
           const data = await signupResponse.json()
           throw new Error(data.error || "Failed to create account")
-        }
-
-        // Accept invite
-        const acceptResponse = await fetch(`/api/invites/${invite.id}/accept`, {
-          method: "POST",
-        })
-
-        if (!acceptResponse.ok) {
-          throw new Error("Failed to accept invite")
         }
 
         // Auto login

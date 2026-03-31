@@ -150,7 +150,7 @@ export function SiteHeader() {
         <div className="px-4 py-6 border-t border-[#E5E7EB] space-y-3">
           <Link href={getPublicJoinHref()} className="block">
             <Button className="w-full font-athletic uppercase tracking-wide" size="lg">
-              {isWaitlistMode() ? "Join the Waitlist" : "Get Started"}
+              {isWaitlistMode() ? "Join the Waitlist" : "Request access"}
             </Button>
           </Link>
           <Link href="/login" className="block">

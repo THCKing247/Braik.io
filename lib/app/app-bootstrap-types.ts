@@ -24,6 +24,17 @@ export type AppBootstrapTeam = {
   logoUrl: string | null
 }
 
+/** Game Video / Clips gating for nav + gated routes (org/team flags + user permissions). */
+export type AppBootstrapVideoClips = {
+  productEnabled: boolean
+  navVisible: boolean
+  canViewVideo: boolean
+  canUploadVideo: boolean
+  canCreateClips: boolean
+  canShareClips: boolean
+  canDeleteVideo: boolean
+}
+
 /** Lightweight shell payload — no roster, calendar rows, messages, etc. */
 export type AppBootstrapPayload = {
   user: AppBootstrapUser
@@ -34,6 +45,7 @@ export type AppBootstrapPayload = {
   engagement: {
     counts: HintCounts | null
   }
+  videoClips: AppBootstrapVideoClips
   /** ISO timestamp when payload was built (client debugging). */
   generatedAt: string
 }

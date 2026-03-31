@@ -8,7 +8,13 @@ import {
 } from "@/lib/auth/roles"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 import { loadEngagementHintCounts } from "@/lib/engagement/dashboard-hints-data"
-import type { AppBootstrapPayload, AppBootstrapTeamFlags } from "@/lib/app/app-bootstrap-types"
+import type { AppBootstrapPayload, AppBootstrapTeamFlags, AppBootstrapVideoClips } from "@/lib/app/app-bootstrap-types"
+import {
+  effectiveVideoClipsProductEnabled,
+  loadTeamOrgVideoFlags,
+  loadUserVideoPermissions,
+  resolveVideoClipsNavVisible,
+} from "@/lib/video/resolve-video-clips-access"
 
 const ENGAGEMENT_ROLES = new Set(["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"])
 
@@ -24,10 +30,12 @@ export async function buildAppBootstrapPayloadLite(input: {
 }): Promise<AppBootstrapPayload> {
   const supabase = getSupabaseServer()
 
-  const [profileRes, teamRes, unread] = await Promise.all([
+  const [profileRes, teamRes, unread, videoFlags, videoPerms] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
     supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
     getUnreadNotificationCount(input.userId, input.teamId),
+    loadTeamOrgVideoFlags(supabase, input.teamId),
+    loadUserVideoPermissions(supabase, input.userId),
   ])
 
   const fullName = (profileRes.data as { full_name?: string | null } | null)?.full_name?.trim() ?? null
@@ -39,6 +47,23 @@ export async function buildAppBootstrapPayloadLite(input: {
   }
 
   const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
+
+  const productEnabled = effectiveVideoClipsProductEnabled({
+    teamVideoClipsEnabled: videoFlags.teamVideoClipsEnabled,
+    organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
+  })
+  const videoClips: AppBootstrapVideoClips = {
+    productEnabled,
+    navVisible: resolveVideoClipsNavVisible({
+      productEnabled,
+      canViewVideo: videoPerms.can_view_video,
+    }),
+    canViewVideo: videoPerms.can_view_video,
+    canUploadVideo: videoPerms.can_upload_video,
+    canCreateClips: videoPerms.can_create_clips,
+    canShareClips: videoPerms.can_share_clips,
+    canDeleteVideo: videoPerms.can_delete_video,
+  }
 
   return {
     user: {
@@ -57,6 +82,7 @@ export async function buildAppBootstrapPayloadLite(input: {
     flags: flagsFromMembership(input.membership),
     unreadNotifications: unread,
     engagement: { counts: null },
+    videoClips,
     generatedAt: new Date().toISOString(),
   }
 }
@@ -85,11 +111,13 @@ export async function buildAppBootstrapPayload(input: {
   const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
   const loadHints = ENGAGEMENT_ROLES.has(roleUpper)
 
-  const [profileRes, teamRes, unread, hintCounts] = await Promise.all([
+  const [profileRes, teamRes, unread, hintCounts, videoFlags, videoPerms] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
     supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
     getUnreadNotificationCount(input.userId, input.teamId),
     loadHints ? loadEngagementHintCounts(input.teamId) : Promise.resolve(null),
+    loadTeamOrgVideoFlags(supabase, input.teamId),
+    loadUserVideoPermissions(supabase, input.userId),
   ])
 
   const fullName = (profileRes.data as { full_name?: string | null } | null)?.full_name?.trim() ?? null
@@ -98,6 +126,23 @@ export async function buildAppBootstrapPayload(input: {
   const tr = teamRes.data as { id?: string; name?: string | null; logo_url?: string | null } | null
   if (!tr?.id) {
     throw new Error("TEAM_NOT_FOUND")
+  }
+
+  const productEnabled = effectiveVideoClipsProductEnabled({
+    teamVideoClipsEnabled: videoFlags.teamVideoClipsEnabled,
+    organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
+  })
+  const videoClips: AppBootstrapVideoClips = {
+    productEnabled,
+    navVisible: resolveVideoClipsNavVisible({
+      productEnabled,
+      canViewVideo: videoPerms.can_view_video,
+    }),
+    canViewVideo: videoPerms.can_view_video,
+    canUploadVideo: videoPerms.can_upload_video,
+    canCreateClips: videoPerms.can_create_clips,
+    canShareClips: videoPerms.can_share_clips,
+    canDeleteVideo: videoPerms.can_delete_video,
   }
 
   return {
@@ -117,6 +162,7 @@ export async function buildAppBootstrapPayload(input: {
     flags: flagsFromMembership(input.membership),
     unreadNotifications: unread,
     engagement: { counts: hintCounts },
+    videoClips,
     generatedAt: new Date().toISOString(),
   }
 }

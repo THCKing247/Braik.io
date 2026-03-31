@@ -13,6 +13,7 @@ import {
   LifeBuoy,
   Dumbbell,
   GraduationCap,
+  Video,
 } from "lucide-react"
 import { LucideIcon } from "lucide-react"
 
@@ -22,6 +23,8 @@ export interface QuickAction {
   label: string
   icon: LucideIcon
   roles: string[]
+  /** When set, item is shown only if Game Video / Clips nav is enabled for this user/team. */
+  requiresVideoClipsNav?: boolean
 }
 
 // Quick Actions: Main navigation items in left sidebar
@@ -68,6 +71,14 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: "Documents",
     icon: FileText,
     roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT"],
+  },
+  {
+    id: "game-video",
+    href: "/dashboard/game-video",
+    label: "Game Video / Clips",
+    icon: Video,
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT", "ATHLETIC_DIRECTOR", "SCHOOL_ADMIN"],
+    requiresVideoClipsNav: true,
   },
   {
     id: "playbooks",
@@ -127,9 +138,16 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
 ]
 
-export function getQuickActionsForRole(role: string | undefined): QuickAction[] {
+export function getQuickActionsForRole(
+  role: string | undefined,
+  opts?: { videoClipsNavVisible?: boolean }
+): QuickAction[] {
   if (!role) return []
-  return QUICK_ACTIONS.filter((action) => action.roles.includes(role))
+  return QUICK_ACTIONS.filter((action) => {
+    if (!action.roles.includes(role)) return false
+    if (action.requiresVideoClipsNav && !opts?.videoClipsNavVisible) return false
+    return true
+  })
 }
 
 /** Routes covered by mobile bottom tabs — omit from phone sheet to avoid duplication. */

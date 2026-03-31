@@ -27,7 +27,7 @@ type Shard = {
 
 const ANIMATION_MS = 520
 
-const defaultHeroLabel = isWaitlistMode() ? "Join the waitlist" : "Braik into your season"
+const defaultHeroLabel = isWaitlistMode() ? "Join the waitlist" : "Request access"
 
 export function HeroShatterCta({
   className = "",

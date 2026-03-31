@@ -124,7 +124,7 @@ export function TeamPriceCalculator() {
 
   const sportForSignup =
     sport === "Track & Field" ? "track" : sport === "Cross Country" ? "other" : sport.toLowerCase()
-  const headCoachSignupHref = `/signup/role?role=head-coach&sport=${encodeURIComponent(sportForSignup)}&varsity=${clampedVarsity}&jv=${hasJv ? clampedJv : 0}&freshman=${hasFreshman ? clampedFreshman : 0}&coaches=${clampedCoaches}`
+  const headCoachSignupHref = "/request-access"
   const calculatorCta = getPricingCalculatorCta({
     planChoice,
     headCoachHref: headCoachSignupHref,

@@ -11,6 +11,7 @@ import { headCoachSignupTeamLevels } from "@/lib/onboarding/head-coach-team-leve
 import { logTeamMembersAudit, setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
 import { claimPlayerInviteForUser } from "@/lib/player-invite-claim"
+import { isPublicSignupAllowed } from "@/lib/config/public-signup"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 
@@ -137,6 +138,16 @@ export async function POST(request: Request) {
   let createdAuthUserId: string | null = null
 
   try {
+    if (!isPublicSignupAllowed()) {
+      return NextResponse.json(
+        {
+          error:
+            "Self-serve signup is disabled. Use the link from your invitation, or contact Braik to request access.",
+        },
+        { status: 403 }
+      )
+    }
+
     const body = (await request.json()) as RawSignupBody
     const { fullName, programName, email, password, role, phone, sport, programType, programCode, joinToken, smsOptIn } =
       parseSignupPayload(body)

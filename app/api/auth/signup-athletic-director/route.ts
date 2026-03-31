@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
+import { isPublicSignupAllowed } from "@/lib/config/public-signup"
 
 type ADSignupBody = {
   firstName?: string
@@ -37,6 +38,16 @@ function slugFromName(name: string): string {
 
 export async function POST(request: Request) {
   let createdAuthUserId: string | null = null
+
+  if (!isPublicSignupAllowed()) {
+    return NextResponse.json(
+      {
+        error:
+          "Self-serve signup is disabled. Contact Braik to request access for your school or district.",
+      },
+      { status: 403 }
+    )
+  }
 
   let body: ADSignupBody
   try {

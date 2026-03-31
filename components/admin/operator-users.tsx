@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
 import { getUserRoleLabel, USER_ROLE_VALUES, USER_ROLE_LABELS } from "@/lib/auth/user-roles"
+import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
 
 interface UserRow {
   id: string
@@ -24,8 +25,6 @@ function chipClass(status: string): string {
   if (value.includes("deactiv")) return "bg-[#000000]/20 text-[#e5e7eb] border-[#000000]/40"
   return "bg-white/10 text-white/80 border-white/20"
 }
-
-const ALLOWED_STATUSES = ["active", "suspended", "deactivated", "DISABLED"] as const
 
 export function OperatorUsers({ users }: { users: UserRow[] }) {
   const router = useRouter()
@@ -102,7 +101,13 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Account Management</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/admin/provisioning"
+              className="rounded bg-cyan-600/30 px-3 py-1 text-xs font-medium text-cyan-100 hover:bg-cyan-600/50"
+            >
+              Provisioning (orgs / teams / invites)
+            </Link>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -289,15 +294,50 @@ function EditUserModal({
   const [name, setName] = useState(user.name ?? "")
   const [email, setEmail] = useState(user.email)
   const [role, setRole] = useState(user.role.trim().toLowerCase().replace(/-/g, "_"))
-  const [status, setStatus] = useState(
-    ["active", "suspended", "deactivated", "DISABLED"].includes(user.status.toLowerCase())
-      ? user.status
-      : user.status.toLowerCase().includes("suspend")
-        ? "suspended"
-        : "active"
-  )
+  const [status, setStatus] = useState(user.status)
+  const [video, setVideo] = useState({
+    can_view_video: false,
+    can_upload_video: false,
+    can_create_clips: false,
+    can_share_clips: false,
+    can_delete_video: false,
+  })
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/admin/users/${user.id}`, { credentials: "include" })
+        const data = await res.json()
+        if (cancelled || !res.ok) return
+        const vp = data.videoPermissions as
+          | {
+              can_view_video?: boolean
+              can_upload_video?: boolean
+              can_create_clips?: boolean
+              can_share_clips?: boolean
+              can_delete_video?: boolean
+            }
+          | null
+        if (vp) {
+          setVideo({
+            can_view_video: Boolean(vp.can_view_video),
+            can_upload_video: Boolean(vp.can_upload_video),
+            can_create_clips: Boolean(vp.can_create_clips),
+            can_share_clips: Boolean(vp.can_share_clips),
+            can_delete_video: Boolean(vp.can_delete_video),
+          })
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user.id])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -312,6 +352,7 @@ function EditUserModal({
           email: email.trim().toLowerCase(),
           role: role,
           status: status,
+          videoPermissions: video,
         }),
       })
       const data = await res.json()
@@ -367,12 +408,35 @@ function EditUserModal({
               value={status}
               onChange={(e) => setStatus(e.target.value)}
             >
-              {ALLOWED_STATUSES.map((s) => (
+              {ACCOUNT_STATUS_VALUES.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+        <div className="rounded border border-white/10 bg-black/20 p-3">
+          <p className="mb-2 text-xs font-medium text-white/80">Game Video / Clips</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                ["can_view_video", "View video"],
+                ["can_upload_video", "Upload video"],
+                ["can_create_clips", "Create clips"],
+                ["can_share_clips", "Share clips"],
+                ["can_delete_video", "Delete video"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-xs text-white/80">
+                <input
+                  type="checkbox"
+                  checked={video[key]}
+                  onChange={(e) => setVideo((prev) => ({ ...prev, [key]: e.target.checked }))}
+                />
+                {label}
+              </label>
+            ))}
           </div>
         </div>
         {error ? <p className="text-xs text-red-400">{error}</p> : null}

@@ -33,6 +33,14 @@ export function middleware(request: NextRequest): NextResponse {
     return finish(NextResponse.redirect(u))
   }
 
+  /** Public self-serve signup is retired — send users to Request Access. */
+  if (pathname === "/signup" || pathname.startsWith("/signup/")) {
+    const u = request.nextUrl.clone()
+    u.pathname = "/request-access"
+    u.search = ""
+    return finish(NextResponse.redirect(u))
+  }
+
   if (pathname.startsWith("/api/dev/")) {
     if (process.env.NODE_ENV === "production") {
       const expectedSeedKey = process.env.SEED_KEY
@@ -105,5 +113,5 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/api/dev/:path*"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/api/dev/:path*", "/signup", "/signup/:path*"],
 }

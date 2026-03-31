@@ -1,10 +1,9 @@
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 
-/** Primary marketing path for “join” CTAs (hero, header, footer). */
-export function getPublicJoinHref(options?: { hero?: boolean }): string {
+/** Primary marketing path for “join” CTAs (hero, header, footer). Self-serve signup is disabled. */
+export function getPublicJoinHref(_options?: { hero?: boolean }): string {
   if (isWaitlistMode()) return "/waitlist"
-  if (options?.hero) return "/signup/role?fromHero=1"
-  return "/signup/role"
+  return "/request-access"
 }
 
 export function getPricingCalculatorCta(args: {
@@ -15,11 +14,11 @@ export function getPricingCalculatorCta(args: {
     return { href: "/waitlist", label: "Join the waitlist" }
   }
   if (args.planChoice === "athletic_director") {
-    return { href: "/signup/athletic-director", label: "Start Athletic Director setup" }
+    return { href: "/request-access", label: "Request access" }
   }
-  return { href: args.headCoachHref, label: "Start your program" }
+  return { href: "/request-access", label: "Request access" }
 }
 
 export function getAthleticDirectorMarketingHref(): string {
-  return isWaitlistMode() ? "/waitlist" : "/signup/athletic-director"
+  return isWaitlistMode() ? "/waitlist" : "/request-access"
 }

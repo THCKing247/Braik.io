@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { USER_ROLE_VALUES, type UserRole } from "@/lib/auth/user-roles"
+import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
 
 type PatchBody = {
   name?: string
@@ -10,7 +11,16 @@ type PatchBody = {
   status?: string
   aiTier?: string
   aiAutoRechargeEnabled?: boolean
+  videoPermissions?: {
+    can_view_video?: boolean
+    can_upload_video?: boolean
+    can_create_clips?: boolean
+    can_share_clips?: boolean
+    can_delete_video?: boolean
+  }
 }
+
+const STATUS_ALLOW = new Set(ACCOUNT_STATUS_VALUES.map((s) => s.toLowerCase()))
 
 export async function GET(
   _request: NextRequest,
@@ -33,7 +43,19 @@ export async function GET(
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 })
   }
-  return NextResponse.json(user)
+
+  const { data: videoPerms } = await supabase
+    .from("user_video_permissions")
+    .select(
+      "can_view_video, can_upload_video, can_create_clips, can_share_clips, can_delete_video"
+    )
+    .eq("user_id", userId)
+    .maybeSingle()
+
+  return NextResponse.json({
+    ...user,
+    videoPermissions: videoPerms ?? null,
+  })
 }
 
 export async function PATCH(
@@ -54,8 +76,11 @@ export async function PATCH(
   const update: Record<string, unknown> = {}
   if (typeof body.name === "string") update.name = body.name.trim() || null
   if (typeof body.email === "string") update.email = body.email.trim().toLowerCase()
-  if (typeof body.status === "string" && ["active", "DISABLED", "suspended", "deactivated"].includes(body.status.toLowerCase())) {
-    update.status = body.status
+  if (typeof body.status === "string") {
+    const st = body.status.trim()
+    if (STATUS_ALLOW.has(st.toLowerCase())) {
+      update.status = st
+    }
   }
   if (typeof body.role === "string") {
     const role = body.role.trim().toLowerCase().replace(/-/g, "_")
@@ -66,11 +91,41 @@ export async function PATCH(
   if (typeof body.aiTier === "string") update.ai_tier = body.aiTier
   if (typeof body.aiAutoRechargeEnabled === "boolean") update.ai_auto_recharge_enabled = body.aiAutoRechargeEnabled
 
-  if (Object.keys(update).length === 0) {
-    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
+  const supabase = getSupabaseServer()
+
+  if (body.videoPermissions && typeof body.videoPermissions === "object") {
+    const v = body.videoPermissions
+    const { error: vErr } = await supabase.from("user_video_permissions").upsert(
+      {
+        user_id: userId,
+        can_view_video: v.can_view_video === true,
+        can_upload_video: v.can_upload_video === true,
+        can_create_clips: v.can_create_clips === true,
+        can_share_clips: v.can_share_clips === true,
+        can_delete_video: v.can_delete_video === true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    )
+    if (vErr) {
+      return NextResponse.json({ error: vErr.message }, { status: 500 })
+    }
   }
 
-  const supabase = getSupabaseServer()
+  if (Object.keys(update).length === 0) {
+    if (!body.videoPermissions) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
+    }
+    const { data: videoPerms } = await supabase
+      .from("user_video_permissions")
+      .select(
+        "can_view_video, can_upload_video, can_create_clips, can_share_clips, can_delete_video"
+      )
+      .eq("user_id", userId)
+      .maybeSingle()
+    return NextResponse.json({ updated: true, videoPermissions: videoPerms ?? null })
+  }
+
   const { data, error } = await supabase
     .from("users")
     .update(update)

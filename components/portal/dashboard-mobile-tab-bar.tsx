@@ -38,8 +38,10 @@ const tabs = [
   },
 ] as const
 
-function pathMatchesMoreArea(pathname: string, role: string | undefined): boolean {
-  const secondary = getQuickActionsForRole(role).filter((a) => !isPrimaryMobileTabPath(a.href))
+function pathMatchesMoreArea(pathname: string, role: string | undefined, videoClipsNavVisible?: boolean): boolean {
+  const secondary = getQuickActionsForRole(role, { videoClipsNavVisible }).filter(
+    (a) => !isPrimaryMobileTabPath(a.href)
+  )
   return secondary.some(
     (a) => pathname === a.href || (a.href !== "/dashboard" && pathname.startsWith(a.href))
   )
@@ -51,7 +53,9 @@ export function DashboardMobileTabBar() {
   const searchParams = useSearchParams()
   const portal = usePortalTeam()
   const identity = useDashboardShellIdentity()
-  const shellUnread = useAppBootstrapOptional()?.effectiveUnreadNotifications ?? 0
+  const bootstrap = useAppBootstrapOptional()
+  const shellUnread = bootstrap?.effectiveUnreadNotifications ?? 0
+  const videoClipsNavVisible = bootstrap?.payload?.videoClips?.navVisible
   const { openMoreSheet, moreSheetOpen } = useMobileDashboardNav()
   const contextTeamId =
     searchParams.get("teamId") || portal?.currentTeamId || portal?.teamIds?.[0] || ""
@@ -60,8 +64,8 @@ export function DashboardMobileTabBar() {
       ? `/dashboard?teamId=${encodeURIComponent(contextTeamId)}`
       : "/dashboard"
   const moreRouteActive = useMemo(
-    () => pathMatchesMoreArea(pathname, identity.roleUpper),
-    [pathname, identity.roleUpper]
+    () => pathMatchesMoreArea(pathname, identity.roleUpper, videoClipsNavVisible),
+    [pathname, identity.roleUpper, videoClipsNavVisible]
   )
 
   /** Immersive play editor: full-bleed field, no tab bar */

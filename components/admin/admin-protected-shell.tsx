@@ -69,6 +69,12 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
             <Link href="/admin/teams" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               Teams
             </Link>
+            <Link
+              href="/admin/provisioning"
+              className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white"
+            >
+              Provisioning
+            </Link>
             <Link href="/admin/billing" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               Billing
             </Link>

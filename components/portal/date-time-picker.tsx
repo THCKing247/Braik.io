@@ -64,6 +64,7 @@ function MiniCalendarGrid({
   minDate,
   maxDate,
   layout = "withTime",
+  monthYearNav = false,
 }: {
   month: Date
   setMonth: (d: Date) => void
@@ -72,6 +73,8 @@ function MiniCalendarGrid({
   minDate?: Date | null
   maxDate?: Date | null
   layout?: "withTime" | "solo"
+  /** Month + year dropdowns (e.g. date of birth) — avoids month-by-month clicking. */
+  monthYearNav?: boolean
 }) {
   const monthStart = startOfMonth(month)
   const monthEnd = endOfMonth(month)
@@ -81,44 +84,93 @@ function MiniCalendarGrid({
   const minDay = minDate ? startOfDay(minDate) : null
   const maxDay = maxDate ? startOfDay(maxDate) : null
 
+  const yearOptions = React.useMemo(() => {
+    const hi = maxDate ? maxDate.getFullYear() : new Date().getFullYear()
+    const lo = minDate ? minDate.getFullYear() : hi - 120
+    const arr: number[] = []
+    for (let y = hi; y >= lo; y--) arr.push(y)
+    return arr
+  }, [minDate, maxDate])
+
   return (
     <div
       className={cn(
-        "p-3",
+        "p-3 flex flex-col min-h-0",
         layout === "withTime" && "border-b sm:border-b-0 sm:border-r border-border"
       )}
     >
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-lg"
-          onClick={() => setMonth(subMonths(month, 1))}
-          aria-label="Previous month"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-sm font-semibold min-w-[120px] text-center text-foreground">
-          {format(month, "MMMM yyyy")}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-lg"
-          onClick={() => setMonth(addMonths(month, 1))}
-          aria-label="Next month"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-medium mb-1 text-muted-foreground">
+      {monthYearNav ? (
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-2 shrink-0">
+          <label className="sr-only" htmlFor="mini-cal-month">
+            Month
+          </label>
+          <select
+            id="mini-cal-month"
+            className="h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground max-w-[11rem]"
+            value={month.getMonth()}
+            onChange={(e) => {
+              const m = Number(e.target.value)
+              setMonth(startOfMonth(new Date(month.getFullYear(), m, 1)))
+            }}
+          >
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i} value={i}>
+                {format(new Date(2000, i, 1), "MMMM")}
+              </option>
+            ))}
+          </select>
+          <label className="sr-only" htmlFor="mini-cal-year">
+            Year
+          </label>
+          <select
+            id="mini-cal-year"
+            className="h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground w-[5.5rem]"
+            value={month.getFullYear()}
+            onChange={(e) => {
+              const y = Number(e.target.value)
+              setMonth(startOfMonth(new Date(y, month.getMonth(), 1)))
+            }}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg shrink-0"
+            onClick={() => setMonth(subMonths(month, 1))}
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-semibold min-w-[120px] text-center text-foreground">
+            {format(month, "MMMM yyyy")}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg shrink-0"
+            onClick={() => setMonth(addMonths(month, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-medium mb-1 text-muted-foreground shrink-0">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className="grid grid-cols-7 gap-0.5 min-h-0">
         {days.map((day) => {
           const sameMonth = isSameMonth(day, month)
           const selected = isSameDay(day, draftDate)
@@ -161,6 +213,8 @@ export interface DatePickerProps {
   id?: string
   /** Show Clear to set null (optional dates) */
   allowClear?: boolean
+  /** Month/year dropdowns for fast navigation (date of birth, etc.). */
+  birthdateNav?: boolean
 }
 
 /** Date only — same mini calendar as DateTimePicker */
@@ -174,6 +228,7 @@ export function DatePicker({
   className,
   id,
   allowClear,
+  birthdateNav,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
   const [draftDate, setDraftDate] = React.useState<Date>(() => value ?? new Date())
@@ -226,10 +281,16 @@ export function DatePicker({
         </PopoverTrigger>
         <PopoverContent
           align="start"
+          side="bottom"
           sideOffset={6}
+          avoidCollisions
+          collisionPadding={12}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
-          className="w-auto max-w-[95vw] p-0 overflow-hidden border border-border bg-card shadow-lg z-[100]"
+          className={cn(
+            "w-auto max-w-[min(95vw,320px)] p-0 overflow-hidden border border-border bg-card shadow-lg z-[100]",
+            birthdateNav && "max-h-[min(85vh,400px)]"
+          )}
           onKeyDown={handleKeyDown}
         >
           <MiniCalendarGrid
@@ -240,6 +301,7 @@ export function DatePicker({
             minDate={minDate}
             maxDate={maxDate}
             layout="solo"
+            monthYearNav={birthdateNav}
           />
           <div className="flex flex-wrap justify-end gap-2 p-3 border-t border-border">
             {allowClear && value && (

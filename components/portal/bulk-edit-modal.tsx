@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X } from "lucide-react"
 
 interface BulkEditModalProps {
   open: boolean
@@ -13,17 +12,24 @@ interface BulkEditModalProps {
   equipmentType: string
   itemCount: number
   assignedCount?: number
+  /** First line’s bucket — used as default for optional bucket change. */
+  defaultInventoryBucket?: string
   onSave: (data: {
     condition?: string
     status?: string
     notes?: string
     quantity?: number
+    inventoryBucket?: string
+    /** Sets both equipment type and category for every line in the group. */
+    equipmentType?: string
+    costPerUnit?: number | null
   }) => Promise<void>
   loading?: boolean
 }
 
 const CONDITIONS = ["EXCELLENT", "GOOD", "FAIR", "NEEDS_REPAIR", "REPLACE"] as const
 const AVAILABILITY_STATUSES = ["AVAILABLE", "ASSIGNED", "MISSING", "NEEDS_REPLACEMENT", "DAMAGED"] as const
+const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 
 export function BulkEditModal({
   open,
@@ -31,6 +37,7 @@ export function BulkEditModal({
   equipmentType,
   itemCount,
   assignedCount = 0,
+  defaultInventoryBucket,
   onSave,
   loading = false,
 }: BulkEditModalProps) {
@@ -39,6 +46,9 @@ export function BulkEditModal({
   const [status, setStatus] = useState<typeof AVAILABILITY_STATUSES[number] | "">("")
   const [notes, setNotes] = useState("")
   const [quantity, setQuantity] = useState<string>("")
+  const [inventoryBucket, setInventoryBucket] = useState<typeof INVENTORY_BUCKETS[number] | "">("")
+  const [equipmentTypeDraft, setEquipmentTypeDraft] = useState("")
+  const [costPerUnit, setCostPerUnit] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,11 +74,27 @@ export function BulkEditModal({
     }
 
     try {
+      let cost: number | null | undefined = undefined
+      if (costPerUnit.trim() !== "") {
+        const n = parseFloat(costPerUnit)
+        if (Number.isNaN(n) || n < 0) {
+          alert("Unit price must be a valid number ≥ 0")
+          return
+        }
+        cost = n
+      }
+
       await onSave({
         condition: condition || undefined,
         status: status || undefined,
         notes: notes.trim() || undefined,
         quantity: quantity !== "" ? parseInt(quantity, 10) : undefined,
+        inventoryBucket: inventoryBucket || undefined,
+        equipmentType:
+          equipmentTypeDraft.trim() && equipmentTypeDraft.trim() !== equipmentType
+            ? equipmentTypeDraft.trim()
+            : undefined,
+        costPerUnit: cost !== undefined ? cost : undefined,
       })
       onClose()
     } catch (error) {
@@ -82,12 +108,28 @@ export function BulkEditModal({
       setStatus("")
       setNotes("")
       setQuantity("")
+      setInventoryBucket("")
+      setEquipmentTypeDraft("")
+      setCostPerUnit("")
       onClose()
     }
   }
 
+  useEffect(() => {
+    if (open) {
+      setEquipmentTypeDraft(equipmentType)
+      const b = defaultInventoryBucket?.trim()
+      setInventoryBucket(
+        b && INVENTORY_BUCKETS.includes(b as (typeof INVENTORY_BUCKETS)[number])
+          ? (b as (typeof INVENTORY_BUCKETS)[number])
+          : ""
+      )
+      setCostPerUnit("")
+    }
+  }, [open, equipmentType, defaultInventoryBucket])
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) handleClose() }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">
@@ -179,6 +221,74 @@ export function BulkEditModal({
             <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
               Leave empty to keep current notes, or enter new notes to replace all existing notes
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bulk-inventory-bucket" style={{ color: "rgb(var(--text))" }}>
+              Inventory category (optional)
+            </Label>
+            <select
+              id="bulk-inventory-bucket"
+              value={inventoryBucket}
+              onChange={(e) =>
+                setInventoryBucket(e.target.value as typeof INVENTORY_BUCKETS[number] | "")
+              }
+              className="w-full px-3 py-2 border rounded-md"
+              style={{
+                backgroundColor: "#FFFFFF",
+                borderColor: "rgb(var(--border))",
+                color: "rgb(var(--text))",
+              }}
+            >
+              <option value="">Keep current</option>
+              {INVENTORY_BUCKETS.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bulk-equipment-type" style={{ color: "rgb(var(--text))" }}>
+              Equipment type / category label (optional)
+            </Label>
+            <Input
+              id="bulk-equipment-type"
+              value={equipmentTypeDraft}
+              onChange={(e) => setEquipmentTypeDraft(e.target.value)}
+              placeholder={equipmentType}
+              className="w-full"
+              style={{
+                backgroundColor: "#FFFFFF",
+                borderColor: "rgb(var(--border))",
+                color: "rgb(var(--text))",
+              }}
+            />
+            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+              Change only if you want every line in this group to use a new type label; leave as-is otherwise.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bulk-cost-per-unit" style={{ color: "rgb(var(--text))" }}>
+              Unit price — all lines (optional)
+            </Label>
+            <Input
+              id="bulk-cost-per-unit"
+              type="number"
+              min={0}
+              step="0.01"
+              value={costPerUnit}
+              onChange={(e) => setCostPerUnit(e.target.value)}
+              placeholder="e.g. 24.99"
+              className="w-full"
+              style={{
+                backgroundColor: "#FFFFFF",
+                borderColor: "rgb(var(--border))",
+                color: "rgb(var(--text))",
+              }}
+            />
           </div>
 
           {/* Quantity Adjustment */}

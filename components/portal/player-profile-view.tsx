@@ -26,6 +26,7 @@ import {
   getStatsViewForPosition,
 } from "@/lib/stats-position-views"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
+import { PortalUnderlineTabs } from "./portal-underline-tabs"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 import { startOfDay } from "date-fns"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
@@ -566,24 +567,12 @@ export function PlayerProfileView({
       </Card>
 
       {/* Tabs: scroll on mobile, clear hierarchy */}
-      <div className="border-b border-[#E5E7EB] -mx-2 px-2 sm:mx-0 sm:px-0">
-        <nav className="flex gap-1 overflow-x-auto pb-px scrollbar-thin" aria-label="Profile sections">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors rounded-t ${
-                activeTab === tab.id
-                  ? "border-[#0B2A5B] text-[#0F172A] bg-[#F8FAFC]"
-                  : "border-transparent text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC]/50"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
+      <PortalUnderlineTabs
+        tabs={TABS.map((tab) => ({ id: tab.id, label: tab.label }))}
+        value={activeTab}
+        onValueChange={(id) => setActiveTab(id as TabId)}
+        ariaLabel="Profile sections"
+      />
 
       {/* Tab content */}
       <Card>
@@ -1420,7 +1409,9 @@ function InfoTab({
               value={dateOfBirthValue}
               onChange={(d) => setEditDraft((p) => ({ ...p, dateOfBirth: d ? dateToYmd(d) : null }))}
               placeholder="Select date of birth"
+              minDate={new Date(new Date().getFullYear() - 120, 0, 1)}
               maxDate={new Date()}
+              birthdateNav
               allowClear
             />
           ) : (
@@ -1624,7 +1615,27 @@ type InventoryItem = {
   name: string
   quantityAvailable: number
   assignedToPlayerId: string | null
+  status?: string
+  condition?: string
+  size?: string | null
+  /** Aligns with team inventory buckets (Gear, Uniforms, …). */
+  inventoryBucket?: string
   assignedPlayer?: { id: string; firstName: string; lastName: string } | null
+}
+
+function getInventoryTypeKey(i: InventoryItem): string {
+  const b = i.inventoryBucket?.trim()
+  if (b) return b
+  const c = (i.category ?? "").trim()
+  return c || "Uncategorized"
+}
+
+function isAssignableInventoryItem(i: InventoryItem): boolean {
+  if (i.assignedToPlayerId) return false
+  if ((i.quantityAvailable ?? 0) <= 0) return false
+  const st = (i.status ?? "").toUpperCase()
+  if (st === "RETIRED" || st === "DISPOSED" || st === "LOST" || st === "DAMAGED_BEYOND_USE") return false
+  return true
 }
 
 function EquipmentTab({
@@ -1652,8 +1663,8 @@ function EquipmentTab({
   const [inventoryLoading, setInventoryLoading] = useState(false)
   const [assignItemId, setAssignItemId] = useState<string | null>(null)
   const [assignModalOpen, setAssignModalOpen] = useState(false)
-  const [assignStep, setAssignStep] = useState<1 | 2>(1)
-  const [assignCategory, setAssignCategory] = useState<string | null>(null)
+  const [assignCategory, setAssignCategory] = useState("")
+  const [assignSelectedItemId, setAssignSelectedItemId] = useState("")
   const [equipmentError, setEquipmentError] = useState<string | null>(null)
   const [equipmentActivity, setEquipmentActivity] = useState<{ id: string; actionType: string; metadata: Record<string, unknown>; createdAt: string }[]>([])
   const [damageDraft, setDamageDraft] = useState<Record<string, string>>({})
@@ -1681,30 +1692,31 @@ function EquipmentTab({
       .finally(() => setInventoryLoading(false))
   }, [canEdit, teamId])
 
-  const availableToAssign = inventoryList.filter((i) => !i.assignedToPlayerId)
+  const availableToAssign = useMemo(
+    () => inventoryList.filter(isAssignableInventoryItem),
+    [inventoryList]
+  )
   const assignedToThisPlayer = inventoryList.filter((i) => i.assignedToPlayerId === playerId)
 
   const categoryOptions = useMemo(() => {
     const set = new Set<string>()
     for (const i of availableToAssign) {
-      const c = (i.category ?? "").trim() || "Uncategorized"
-      set.add(c)
+      set.add(getInventoryTypeKey(i))
     }
     return [...set].sort((a, b) => a.localeCompare(b))
   }, [availableToAssign])
 
   const itemsInCategory = useMemo(() => {
-    if (!assignCategory) return []
-    return availableToAssign.filter((i) => {
-      const c = (i.category ?? "").trim() || "Uncategorized"
-      return c === assignCategory
-    })
+    if (!assignCategory.trim()) return []
+    return availableToAssign
+      .filter((i) => getInventoryTypeKey(i) === assignCategory)
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [availableToAssign, assignCategory])
 
   const openAssignModal = () => {
     setEquipmentError(null)
-    setAssignStep(1)
-    setAssignCategory(null)
+    setAssignCategory("")
+    setAssignSelectedItemId("")
     setAssignModalOpen(true)
   }
 
@@ -1726,8 +1738,8 @@ function EquipmentTab({
         prev.map((i) => (i.id === itemId ? { ...i, assignedToPlayerId: playerId } : i))
       )
       setAssignModalOpen(false)
-      setAssignStep(1)
-      setAssignCategory(null)
+      setAssignCategory("")
+      setAssignSelectedItemId("")
     } catch (err) {
       setEquipmentError(err instanceof Error ? err.message : "Assign failed")
     } finally {
@@ -1774,65 +1786,78 @@ function EquipmentTab({
               <span className="ml-2">Assign equipment…</span>
             </Button>
           </div>
-          <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
+          <Dialog
+            open={assignModalOpen}
+            onOpenChange={(o) => {
+              setAssignModalOpen(o)
+              if (!o) {
+                setAssignCategory("")
+                setAssignSelectedItemId("")
+              }
+            }}
+          >
             <DialogContent className="md:max-w-md">
               <DialogHeader>
                 <DialogTitle className="text-[#0F172A]">Assign equipment</DialogTitle>
                 <DialogDescription>
-                  {assignStep === 1 ? "Choose an equipment type, then pick a specific item." : `Items in ${assignCategory ?? ""}`}
+                  Choose the inventory type (same classifications as team inventory), then pick an unassigned, available line item.
                 </DialogDescription>
               </DialogHeader>
-              {assignStep === 1 ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-[#64748B]">Step 1 — Equipment type</p>
-                  <ul className="max-h-[50vh] space-y-1 overflow-y-auto">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[#64748B] text-sm">Step 1 — Type / category</Label>
+                  <select
+                    className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+                    value={assignCategory}
+                    onChange={(e) => {
+                      setAssignCategory(e.target.value)
+                      setAssignSelectedItemId("")
+                    }}
+                    aria-label="Equipment type or category"
+                  >
+                    <option value="">Select type…</option>
                     {categoryOptions.map((cat) => (
-                      <li key={cat}>
-                        <button
-                          type="button"
-                          className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-left text-sm text-[#0F172A] hover:bg-[#F8FAFC]"
-                          onClick={() => {
-                            setAssignCategory(cat)
-                            setAssignStep(2)
-                          }}
-                        >
-                          {cat}
-                        </button>
-                      </li>
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
                     ))}
-                  </ul>
+                  </select>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-sm text-[#64748B]">Step 2 — Select item</p>
-                  <Button type="button" variant="ghost" size="sm" className="mb-2 -ml-2 text-[#64748B]" onClick={() => setAssignStep(1)}>
-                    ← Back to types
-                  </Button>
-                  <ul className="max-h-[50vh] space-y-1 overflow-y-auto">
+                <div className="space-y-1.5">
+                  <Label className="text-[#64748B] text-sm">Step 2 — Item</Label>
+                  <select
+                    className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] disabled:opacity-60"
+                    value={assignSelectedItemId}
+                    onChange={(e) => setAssignSelectedItemId(e.target.value)}
+                    disabled={!assignCategory.trim() || itemsInCategory.length === 0}
+                    aria-label="Specific inventory item"
+                  >
+                    <option value="">
+                      {!assignCategory.trim() ? "Select a type first…" : itemsInCategory.length === 0 ? "No items in this type" : "Select item…"}
+                    </option>
                     {itemsInCategory.map((i) => (
-                      <li key={i.id}>
-                        <button
-                          type="button"
-                          disabled={!!assignItemId}
-                          className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-left text-sm hover:bg-[#F8FAFC] disabled:opacity-50"
-                          onClick={() => void handleAssign(i.id)}
-                        >
-                          <span className="font-medium text-[#0F172A]">{i.name}</span>
-                          <span className="ml-2 text-xs text-[#64748B]">
-                            {[i.condition, i.status].filter(Boolean).join(" · ") || "—"}
-                          </span>
-                          {assignItemId === i.id && (
-                            <Loader2 className="ml-2 inline h-4 w-4 animate-spin align-middle" />
-                          )}
-                        </button>
-                      </li>
+                      <option key={i.id} value={i.id}>
+                        {i.name}
+                        {i.condition ? ` — ${i.condition}` : ""}
+                        {i.size ? ` (${i.size})` : ""}
+                      </option>
                     ))}
-                  </ul>
+                  </select>
+                  {assignCategory && itemsInCategory.length === 0 && (
+                    <p className="text-xs text-amber-800">No assignable items in this category right now.</p>
+                  )}
                 </div>
-              )}
-              <DialogFooter>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
                 <Button type="button" variant="outline" onClick={() => setAssignModalOpen(false)}>
                   Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => assignSelectedItemId && void handleAssign(assignSelectedItemId)}
+                  disabled={!assignSelectedItemId || !!assignItemId}
+                >
+                  {assignItemId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Assign to player"}
                 </Button>
               </DialogFooter>
             </DialogContent>

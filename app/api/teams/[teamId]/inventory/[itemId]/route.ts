@@ -118,6 +118,15 @@ export async function PATCH(
       updateData.damage_reported_at = null
       updateData.damage_reported_by_player_id = null
     }
+    if (body.equipmentType !== undefined) {
+      const et =
+        typeof body.equipmentType === "string" ? body.equipmentType.trim() : ""
+      updateData.equipment_type = et || null
+    }
+    if (body.category !== undefined) {
+      const cat = typeof body.category === "string" ? body.category.trim() : ""
+      updateData.category = cat || ""
+    }
 
     const { data: updatedItem, error: updateError } = await supabase
       .from("inventory_items")

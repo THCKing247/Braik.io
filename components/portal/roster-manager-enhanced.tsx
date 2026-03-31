@@ -40,11 +40,11 @@ import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
 import { AddFollowUpModal } from "./add-follow-up-modal"
+import { PortalUnderlineTabs } from "./portal-underline-tabs"
 import { usePlaybookToast } from "./playbook-toast"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
-import { cn } from "@/lib/utils"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
 const ROSTER_BILLING_WARNING =
@@ -1443,15 +1443,6 @@ export function RosterManagerEnhanced({
         : "rounded-t-lg border-b-[3px] border-transparent text-foreground/70 hover:bg-muted/50 hover:text-foreground lg:border-transparent lg:hover:bg-muted/30"
     }`
 
-  /** Matches Player Profile tab styling (`player-profile-view.tsx` nav). */
-  const readinessProfileTabBtn = (active: boolean) =>
-    cn(
-      "whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors rounded-t",
-      active
-        ? "border-[#0B2A5B] text-[#0F172A] bg-[#F8FAFC]"
-        : "border-transparent text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC]/50"
-    )
-
   if (rosterBootstrapPending) {
     return (
       <div className="w-full min-w-0 max-w-full overflow-x-hidden">
@@ -1896,48 +1887,39 @@ export function RosterManagerEnhanced({
                 </Card>
               </div>
 
-              {/* Readiness sections — same tab pattern as Player Profile (underline + light active tint, page background) */}
-              <div className="border-b border-[#E5E7EB] -mx-2 px-2 sm:mx-0 sm:px-0">
-                <nav
-                  className="flex gap-1 overflow-x-auto pb-px scrollbar-thin"
-                  aria-label="Readiness sections"
-                  role="tablist"
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    id="readiness-tab-attention"
-                    aria-controls="readiness-panel-attention"
-                    aria-selected={readinessSubTab === "attention"}
-                    onClick={() => setReadinessSubTab("attention")}
-                    className={readinessProfileTabBtn(readinessSubTab === "attention")}
-                  >
-                    Needs Attention
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    id="readiness-tab-checklist"
-                    aria-controls="readiness-panel-checklist"
-                    aria-selected={readinessSubTab === "checklist"}
-                    onClick={() => setReadinessSubTab("checklist")}
-                    className={readinessProfileTabBtn(readinessSubTab === "checklist")}
-                  >
-                    Roster Checklist
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    id="readiness-tab-activity"
-                    aria-controls="readiness-panel-activity"
-                    aria-selected={readinessSubTab === "activity"}
-                    onClick={() => setReadinessSubTab("activity")}
-                    className={readinessProfileTabBtn(readinessSubTab === "activity")}
-                  >
-                    Recent Team Activity
-                  </button>
-                </nav>
-              </div>
+              {/* Readiness sections — same tab pattern as Player Profile (`PortalUnderlineTabs`) */}
+              <PortalUnderlineTabs
+                tabs={[
+                  {
+                    id: "attention",
+                    label: "Needs Attention",
+                    tabId: "readiness-tab-attention",
+                    panelId: "readiness-panel-attention",
+                  },
+                  {
+                    id: "checklist",
+                    label: (
+                      <span className="inline-flex items-center gap-2">
+                        <ClipboardCheck className="h-4 w-4 shrink-0" />
+                        Roster Checklist
+                      </span>
+                    ),
+                    tabId: "readiness-tab-checklist",
+                    panelId: "readiness-panel-checklist",
+                  },
+                  {
+                    id: "activity",
+                    label: "Recent Team Activity",
+                    tabId: "readiness-tab-activity",
+                    panelId: "readiness-panel-activity",
+                  },
+                ]}
+                value={readinessSubTab}
+                onValueChange={(id) =>
+                  setReadinessSubTab(id as "attention" | "checklist" | "activity")
+                }
+                ariaLabel="Readiness sections"
+              />
 
               {readinessSubTab === "attention" && (
                 <Card

@@ -9,6 +9,7 @@ import { InventoryIcon } from "./inventory-icon"
 import { EditItemModal } from "./edit-item-modal"
 import { AddItemModal } from "./add-item-modal"
 import { BulkEditModal } from "./bulk-edit-modal"
+import { PortalUnderlineTabs, type PortalUnderlineTab } from "./portal-underline-tabs"
 
 interface InventoryItem {
   id: string
@@ -51,44 +52,143 @@ function lineInvestment(item: InventoryItem): number {
   return unit * qty
 }
 
+type ExpenseGroupRow = {
+  key: string
+  bucket: string
+  typeKey: string
+  items: InventoryItem[]
+  totalQty: number
+  totalLine: number
+  uniformUnit: number | null
+}
+
+function buildCompositeGroups(inv: InventoryItem[]): ExpenseGroupRow[] {
+  const m = new Map<string, ExpenseGroupRow>()
+  for (const i of inv) {
+    const bucket = i.inventoryBucket || "Gear"
+    const typeKey = i.equipmentType || i.category || "Other"
+    const key = `${bucket}||${typeKey}`
+    if (!m.has(key)) {
+      m.set(key, { key, bucket, typeKey, items: [], totalQty: 0, totalLine: 0, uniformUnit: null })
+    }
+    m.get(key)!.items.push(i)
+  }
+  for (const g of m.values()) {
+    g.totalQty = g.items.reduce((s, x) => s + (x.quantityTotal ?? 0), 0)
+    g.totalLine = g.items.reduce((s, x) => s + lineInvestment(x), 0)
+    const units = g.items.map((x) => x.costPerUnit).filter((u) => u != null && !Number.isNaN(u as number)) as number[]
+    g.uniformUnit = units.length === 0 ? null : units.every((u) => u === units[0]) ? units[0] : null
+  }
+  return [...m.values()].sort((a, b) => {
+    const c = a.bucket.localeCompare(b.bucket)
+    if (c !== 0) return c
+    return a.typeKey.localeCompare(b.typeKey)
+  })
+}
+
+function buildTypeOnlyGroups(inv: InventoryItem[]): ExpenseGroupRow[] {
+  const m = new Map<string, ExpenseGroupRow>()
+  for (const i of inv) {
+    const typeKey = i.equipmentType || i.category || "Other"
+    const key = `t||${typeKey}`
+    if (!m.has(key)) {
+      m.set(key, { key, bucket: "", typeKey, items: [], totalQty: 0, totalLine: 0, uniformUnit: null })
+    }
+    m.get(key)!.items.push(i)
+  }
+  for (const g of m.values()) {
+    g.totalQty = g.items.reduce((s, x) => s + (x.quantityTotal ?? 0), 0)
+    g.totalLine = g.items.reduce((s, x) => s + lineInvestment(x), 0)
+    const units = g.items.map((x) => x.costPerUnit).filter((u) => u != null && !Number.isNaN(u as number)) as number[]
+    g.uniformUnit = units.length === 0 ? null : units.every((u) => u === units[0]) ? units[0] : null
+  }
+  return [...m.values()].sort((a, b) => a.typeKey.localeCompare(b.typeKey))
+}
+
+function ExpenseGroupUnitCell({
+  groupKey,
+  uniformUnit,
+  canEdit,
+  disabled,
+  onSave,
+}: {
+  groupKey: string
+  uniformUnit: number | null
+  canEdit: boolean
+  disabled: boolean
+  onSave: (cost: number) => Promise<void>
+}) {
+  const [draft, setDraft] = useState("")
+  useEffect(() => {
+    if (uniformUnit != null && !Number.isNaN(uniformUnit)) setDraft(String(uniformUnit))
+    else setDraft("")
+  }, [uniformUnit, groupKey])
+
+  if (!canEdit) {
+    return (
+      <span className="text-right block">
+        {uniformUnit != null ? formatMoney(uniformUnit) : <span style={{ color: "rgb(var(--muted))" }}>Mixed / —</span>}
+      </span>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Input
+        type="number"
+        min={0}
+        step="0.01"
+        className="h-8 max-w-[7rem] text-right text-sm"
+        disabled={disabled}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={async () => {
+          const n = parseFloat(draft)
+          if (Number.isNaN(n) || n < 0) return
+          await onSave(n)
+        }}
+        aria-label="Unit price"
+      />
+    </div>
+  )
+}
+
 function InventoryExpenseLedger({
   items,
   expenseBreakdown,
   onBreakdownChange,
+  canEdit,
+  onBulkSetCost,
 }: {
   items: InventoryItem[]
   expenseBreakdown: "all" | "category" | "type"
   onBreakdownChange: (v: "all" | "category" | "type") => void
+  canEdit: boolean
+  onBulkSetCost: (itemIds: string[], costPerUnit: number) => Promise<void>
 }) {
-  const rows = useMemo(() => {
-    return items.map((i) => ({
-      ...i,
-      bucket: i.inventoryBucket || "Gear",
-      type: i.equipmentType || i.category || "Other",
-      line: lineInvestment(i),
-      unit: i.costPerUnit,
-    }))
-  }, [items])
+  const [savingKey, setSavingKey] = useState<string | null>(null)
 
-  const total = useMemo(() => rows.reduce((s, r) => s + r.line, 0), [rows])
-  const byCategory = useMemo(() => {
+  const compositeGroups = useMemo(() => buildCompositeGroups(items), [items])
+  const typeGroups = useMemo(() => buildTypeOnlyGroups(items), [items])
+
+  const total = useMemo(() => items.reduce((s, i) => s + lineInvestment(i), 0), [items])
+
+  const byCategoryTotals = useMemo(() => {
     const m = new Map<string, number>()
-    rows.forEach((r) => m.set(r.bucket, (m.get(r.bucket) || 0) + r.line))
+    for (const i of items) {
+      const b = i.inventoryBucket || "Gear"
+      m.set(b, (m.get(b) || 0) + lineInvestment(i))
+    }
     return m
-  }, [rows])
-  const byType = useMemo(() => {
-    const m = new Map<string, number>()
-    rows.forEach((r) => m.set(r.type, (m.get(r.type) || 0) + r.line))
-    return m
-  }, [rows])
+  }, [items])
 
   const largestCategory = useMemo((): { name: string; v: number } | null => {
     let best: { name: string; v: number } | null = null
-    byCategory.forEach((v: number, name: string) => {
+    byCategoryTotals.forEach((v: number, name: string) => {
       if (!best || v > best.v) best = { name, v }
     })
     return best
-  }, [byCategory])
+  }, [byCategoryTotals])
 
   const recentCost = useMemo(() => {
     return [...items]
@@ -98,6 +198,23 @@ function InventoryExpenseLedger({
   }, [items])
 
   const itemsWithoutCost = items.filter((i) => i.costPerUnit == null || Number.isNaN(i.costPerUnit)).length
+
+  const expenseBreakdownTabs: PortalUnderlineTab[] = [
+    { id: "all", label: "All" },
+    { id: "category", label: "By category" },
+    { id: "type", label: "By item type" },
+  ]
+
+  const saveUnit = async (g: ExpenseGroupRow, cost: number) => {
+    const ids = g.items.map((i) => i.id)
+    if (ids.length === 0) return
+    setSavingKey(g.key)
+    try {
+      await onBulkSetCost(ids, cost)
+    } finally {
+      setSavingKey(null)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto inventory-modal-scroll p-1">
@@ -142,114 +259,117 @@ function InventoryExpenseLedger({
         </Card>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            { id: "all" as const, label: "All" },
-            { id: "category" as const, label: "By category" },
-            { id: "type" as const, label: "By item type" },
-          ]
-        ).map((seg) => (
-          <Button
-            key={seg.id}
-            type="button"
-            size="sm"
-            variant={expenseBreakdown === seg.id ? "default" : "outline"}
-            onClick={() => onBreakdownChange(seg.id)}
-            style={
-              expenseBreakdown === seg.id
-                ? { backgroundColor: "rgb(var(--accent))", color: "white" }
-                : { borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }
-            }
-          >
-            {seg.label}
-          </Button>
-        ))}
-      </div>
+      <PortalUnderlineTabs
+        compact
+        tabs={expenseBreakdownTabs}
+        value={expenseBreakdown}
+        onValueChange={(id) => onBreakdownChange(id as "all" | "category" | "type")}
+        ariaLabel="Expense breakdown"
+        className="lg:max-w-4xl"
+      />
 
       <Card className="border flex-1 min-h-0" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
         <CardContent className="p-0">
           {expenseBreakdown === "all" && (
             <div className="divide-y" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold bg-[rgb(var(--platinum))]" style={{ color: "rgb(var(--muted))" }}>
-                <span className="col-span-3">Item</span>
                 <span className="col-span-2">Category</span>
-                <span className="col-span-2">Type</span>
-                <span className="col-span-1 text-right">Qty</span>
+                <span className="col-span-3">Equipment type</span>
+                <span className="col-span-2 text-right">Qty</span>
                 <span className="col-span-2 text-right">$/unit</span>
-                <span className="col-span-2 text-right">Total</span>
+                <span className="col-span-3 text-right">Total</span>
               </div>
-              {rows.map((r) => (
+              {compositeGroups.map((g) => (
                 <div
-                  key={r.id}
+                  key={g.key}
                   className="grid grid-cols-12 gap-2 px-4 py-3 text-sm items-center"
                   style={{ color: "rgb(var(--text))" }}
                 >
-                  <span className="col-span-3 font-medium truncate">{r.name}</span>
-                  <span className="col-span-2 truncate">{r.bucket}</span>
-                  <span className="col-span-2 truncate">{r.type}</span>
-                  <span className="col-span-1 text-right">{r.quantityTotal ?? 0}</span>
-                  <span className="col-span-2 text-right">
-                    {r.unit != null ? formatMoney(r.unit) : "—"}
+                  <span className="col-span-2 truncate">{g.bucket}</span>
+                  <span className="col-span-3 font-medium truncate">{g.typeKey}</span>
+                  <span className="col-span-2 text-right">{g.totalQty}</span>
+                  <span className="col-span-2">
+                    <ExpenseGroupUnitCell
+                      groupKey={g.key}
+                      uniformUnit={g.uniformUnit}
+                      canEdit={canEdit}
+                      disabled={savingKey === g.key}
+                      onSave={(cost) => saveUnit(g, cost)}
+                    />
                   </span>
-                  <span className="col-span-2 text-right font-medium">{formatMoney(r.line)}</span>
+                  <span className="col-span-3 text-right font-medium">{formatMoney(g.totalLine)}</span>
                 </div>
               ))}
             </div>
           )}
           {expenseBreakdown === "category" && (
-            <div className="space-y-4 p-4">
+            <div className="space-y-6 p-4">
               {INVENTORY_BUCKETS.map((bucket) => {
-                const bucketRows = rows.filter((r) => r.bucket === bucket)
-                const sub = bucketRows.reduce((s, r) => s + r.line, 0)
-                if (bucketRows.length === 0) return null
+                const inBucket = items.filter((i) => (i.inventoryBucket || "Gear") === bucket)
+                if (inBucket.length === 0) return null
+                const sub = inBucket.reduce((s, i) => s + lineInvestment(i), 0)
+                const inner = buildCompositeGroups(inBucket)
                 return (
                   <div key={bucket}>
                     <div className="flex justify-between items-baseline mb-2">
                       <h4 className="font-semibold" style={{ color: "rgb(var(--text))" }}>{bucket}</h4>
                       <span className="text-sm font-medium" style={{ color: "rgb(var(--accent))" }}>{formatMoney(sub)}</span>
                     </div>
-                    <ul className="rounded-lg border divide-y text-sm" style={{ borderColor: "rgb(var(--border))" }}>
-                      {bucketRows.map((r) => (
-                        <li key={r.id} className="flex justify-between gap-2 px-3 py-2">
-                          <span className="truncate">{r.name}</span>
-                          <span className="shrink-0">{formatMoney(r.line)}</span>
-                        </li>
+                    <div className="rounded-lg border divide-y text-sm" style={{ borderColor: "rgb(var(--border))" }}>
+                      {inner.map((g) => (
+                        <div
+                          key={g.key}
+                          className="grid grid-cols-12 gap-2 px-3 py-2 items-center"
+                          style={{ color: "rgb(var(--text))" }}
+                        >
+                          <span className="col-span-4 font-medium truncate">{g.typeKey}</span>
+                          <span className="col-span-2 text-right">{g.totalQty}</span>
+                          <span className="col-span-3">
+                            <ExpenseGroupUnitCell
+                              groupKey={g.key}
+                              uniformUnit={g.uniformUnit}
+                              canEdit={canEdit}
+                              disabled={savingKey === g.key}
+                              onSave={(cost) => saveUnit(g, cost)}
+                            />
+                          </span>
+                          <span className="col-span-3 text-right font-medium">{formatMoney(g.totalLine)}</span>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )
               })}
             </div>
           )}
           {expenseBreakdown === "type" && (
-            <div className="space-y-4 p-4">
-              {Array.from(byType.entries())
-                .sort((a, b) => a[0].localeCompare(b[0]))
-                .map(([typeName, subTotal]) => {
-                  const typeRows = rows.filter((r) => r.type === typeName)
-                  return (
-                    <div key={typeName}>
-                      <div className="flex justify-between items-baseline mb-2">
-                        <h4 className="font-semibold" style={{ color: "rgb(var(--text))" }}>{typeName}</h4>
-                        <span className="text-sm font-medium" style={{ color: "rgb(var(--accent))" }}>{formatMoney(subTotal)}</span>
-                      </div>
-                      <ul className="rounded-lg border divide-y text-sm" style={{ borderColor: "rgb(var(--border))" }}>
-                        {typeRows.map((r) => (
-                          <li key={r.id} className="flex justify-between gap-2 px-3 py-2">
-                            <span className="truncate">
-                              {r.name}{" "}
-                              <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                                ×{r.quantityTotal ?? 0}
-                              </span>
-                            </span>
-                            <span className="shrink-0">{formatMoney(r.line)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })}
+            <div className="divide-y" style={{ borderColor: "rgb(var(--border))" }}>
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold bg-[rgb(var(--platinum))]" style={{ color: "rgb(var(--muted))" }}>
+                <span className="col-span-4">Equipment type</span>
+                <span className="col-span-2 text-right">Qty</span>
+                <span className="col-span-3 text-right">$/unit</span>
+                <span className="col-span-3 text-right">Total</span>
+              </div>
+              {typeGroups.map((g) => (
+                <div
+                  key={g.key}
+                  className="grid grid-cols-12 gap-2 px-4 py-3 text-sm items-center"
+                  style={{ color: "rgb(var(--text))" }}
+                >
+                  <span className="col-span-4 font-medium truncate">{g.typeKey}</span>
+                  <span className="col-span-2 text-right">{g.totalQty}</span>
+                  <span className="col-span-3">
+                    <ExpenseGroupUnitCell
+                      groupKey={g.key}
+                      uniformUnit={g.uniformUnit}
+                      canEdit={canEdit}
+                      disabled={savingKey === g.key}
+                      onSave={(cost) => saveUnit(g, cost)}
+                    />
+                  </span>
+                  <span className="col-span-3 text-right font-medium">{formatMoney(g.totalLine)}</span>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
@@ -310,7 +430,11 @@ interface InventoryTabbedLayoutProps {
     status?: string
     notes?: string
     quantity?: number
+    inventoryBucket?: string
+    equipmentType?: string
+    costPerUnit?: number | null
   }) => Promise<void>
+  onBulkSetCostForItems: (itemIds: string[], costPerUnit: number) => Promise<void>
   onAssignItem: (itemId: string, playerId: string | null) => Promise<void>
   onReturnItem: (itemId: string) => Promise<void>
   onDeleteGroup: (equipmentType: string) => Promise<void>
@@ -326,6 +450,7 @@ export function InventoryTabbedLayout({
   onAddItem,
   onUpdateItem,
   onUpdateAllItems,
+  onBulkSetCostForItems,
   onAssignItem,
   onReturnItem,
   onDeleteGroup,
@@ -362,7 +487,7 @@ export function InventoryTabbedLayout({
   const [returningItemId, setReturningItemId] = useState<string | null>(null)
   const [bucketFilter, setBucketFilter] = useState<BucketFilter>("All")
   const [mainView, setMainView] = useState<"items" | "expenses">("items")
-  const [expenseBreakdown, setExpenseBreakdown] = useState<"all" | "category" | "type">("all")
+  const [expenseBreakdown, setExpenseBreakdown] = useState<"all" | "category" | "type">("type")
 
   const bucketFilteredItems = useMemo(() => {
     if (bucketFilter === "All") return items
@@ -386,10 +511,8 @@ export function InventoryTabbedLayout({
   useEffect(() => {
     const keys = Object.keys(groupedItems).sort()
     if (keys.length === 0) return
-    if (!activeTab || !keys.includes(activeTab)) {
-      setActiveTab(keys[0])
-    }
-  }, [groupedItems, activeTab])
+    setActiveTab((prev) => (prev && keys.includes(prev) ? prev : keys[0]))
+  }, [groupedItems])
 
   // Filter items based on search
   const filteredItems = useMemo(() => {
@@ -599,39 +722,10 @@ export function InventoryTabbedLayout({
     return { color: "rgb(var(--text))" }
   }
 
-  const mainViewToggleEl = (
-    <div className="flex items-center gap-2 text-sm shrink-0" role="tablist" aria-label="Inventory view">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={mainView === "items"}
-        onClick={() => setMainView("items")}
-        className="bg-transparent border-0 p-0 cursor-pointer transition-colors"
-        style={{
-          color: mainView === "items" ? "rgb(var(--accent))" : "rgb(var(--muted))",
-          fontWeight: mainView === "items" ? 600 : 500,
-        }}
-      >
-        Items
-      </button>
-      <span className="select-none" style={{ color: "rgb(var(--muted))" }} aria-hidden>
-        |
-      </span>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={mainView === "expenses"}
-        onClick={() => setMainView("expenses")}
-        className="bg-transparent border-0 p-0 cursor-pointer transition-colors"
-        style={{
-          color: mainView === "expenses" ? "rgb(var(--accent))" : "rgb(var(--muted))",
-          fontWeight: mainView === "expenses" ? 600 : 500,
-        }}
-      >
-        Expenses
-      </button>
-    </div>
-  )
+  const bucketTabs: PortalUnderlineTab[] = [
+    { id: "All", label: "All" },
+    ...INVENTORY_BUCKETS.map((b) => ({ id: b, label: b })),
+  ]
 
   if (items.length === 0) {
     return (
@@ -651,74 +745,72 @@ export function InventoryTabbedLayout({
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
+      <PortalUnderlineTabs
+        tabs={[
+          { id: "items", label: "Items" },
+          { id: "expenses", label: "Expenses" },
+        ]}
+        value={mainView}
+        onValueChange={(id) => setMainView(id as "items" | "expenses")}
+        ariaLabel="Inventory Items or Expenses"
+      />
+
       {mainView === "expenses" ? (
         <>
-          {mainViewToggleEl}
+          <PortalUnderlineTabs
+            compact
+            tabs={bucketTabs}
+            value={bucketFilter}
+            onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+            ariaLabel="Inventory category filter"
+          />
           <InventoryExpenseLedger
             items={bucketFilteredItems}
             expenseBreakdown={expenseBreakdown}
             onBreakdownChange={setExpenseBreakdown}
+            canEdit={permissions.canEdit}
+            onBulkSetCost={onBulkSetCostForItems}
           />
         </>
       ) : equipmentTypes.length === 0 ? (
-        <div className="text-center py-10 rounded-lg border" style={{ borderColor: "rgb(var(--border))" }}>
-          <p className="text-muted-foreground mb-3">No items match this category filter.</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => setBucketFilter("All")}>
-            Show all items
-          </Button>
+        <div className="flex flex-col gap-3">
+          <PortalUnderlineTabs
+            compact
+            tabs={bucketTabs}
+            value={bucketFilter}
+            onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+            ariaLabel="Inventory category filter"
+          />
+          <div className="text-center py-10 rounded-lg border" style={{ borderColor: "rgb(var(--border))" }}>
+            <p className="text-muted-foreground mb-3">No items match this category filter.</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => setBucketFilter("All")}>
+              Show all items
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          <div className="hidden lg:block lg:max-w-5xl">
+            <PortalUnderlineTabs
+              compact
+              tabs={bucketTabs}
+              value={bucketFilter}
+              onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+              ariaLabel="Inventory category filter"
+            />
+          </div>
           <div className="flex flex-1 min-h-0 gap-4 overflow-hidden">
       {/* Left Sidebar - item types */}
       <div className="w-64 flex-shrink-0 border-r" style={{ borderColor: "rgb(var(--border))" }}>
         <div className="p-4 border-b" style={{ borderColor: "rgb(var(--border))" }}>
-          <div className="mb-3">{mainViewToggleEl}</div>
-          <div className="flex flex-col gap-2 mb-3">
-            <div className="grid grid-cols-2 gap-2">
-              {INVENTORY_BUCKETS.slice(0, 2).map((b) => {
-                const active = bucketFilter === b
-                return (
-                  <button
-                    key={b}
-                    type="button"
-                    onClick={() => setBucketFilter(b)}
-                    className="rounded-full border px-3 py-1.5 text-sm transition-colors truncate"
-                    style={{
-                      borderColor: active ? "rgb(var(--accent))" : "rgb(var(--border))",
-                      backgroundColor: active ? "rgb(var(--accent))" : "#FFFFFF",
-                      color: active ? "white" : "rgb(var(--text))",
-                      fontWeight: active ? 600 : 400,
-                    }}
-                    title={b}
-                  >
-                    {b}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {INVENTORY_BUCKETS.slice(2).map((b) => {
-                const active = bucketFilter === b
-                return (
-                  <button
-                    key={b}
-                    type="button"
-                    onClick={() => setBucketFilter(b)}
-                    className="rounded-full border px-2 py-1.5 text-sm transition-colors truncate"
-                    style={{
-                      borderColor: active ? "rgb(var(--accent))" : "rgb(var(--border))",
-                      backgroundColor: active ? "rgb(var(--accent))" : "#FFFFFF",
-                      color: active ? "white" : "rgb(var(--text))",
-                      fontWeight: active ? 600 : 400,
-                    }}
-                    title={b}
-                  >
-                    {b}
-                  </button>
-                )
-              })}
-            </div>
+          <div className="mb-3 lg:hidden">
+            <PortalUnderlineTabs
+              compact
+              tabs={bucketTabs}
+              value={bucketFilter}
+              onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+              ariaLabel="Inventory category filter"
+            />
           </div>
           {permissions.canCreate && (
             <Button
@@ -1197,7 +1289,8 @@ export function InventoryTabbedLayout({
           onClose={() => setShowBulkEditModal(false)}
           equipmentType={activeTab}
           itemCount={groupedItems[activeTab]?.length || 0}
-          assignedCount={groupedItems[activeTab]?.filter(item => item.assignedToPlayerId).length || 0}
+          assignedCount={groupedItems[activeTab]?.filter((item) => item.assignedToPlayerId).length || 0}
+          defaultInventoryBucket={groupedItems[activeTab]?.[0]?.inventoryBucket || "Gear"}
           onSave={async (data) => {
             await onUpdateAllItems(activeTab, data)
             setShowBulkEditModal(false)

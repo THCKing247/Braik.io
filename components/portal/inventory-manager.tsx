@@ -271,11 +271,44 @@ export function InventoryManager({
     }
   }
 
+  const handleBulkSetCostForItems = async (itemIds: string[], costPerUnit: number) => {
+    setLoading(true)
+    try {
+      await Promise.all(
+        itemIds.map((id) =>
+          fetch(`/api/teams/${teamId}/inventory/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ costPerUnit }),
+          }).then(async (res) => {
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}))
+              throw new Error(err.error || "Failed to update unit price")
+            }
+          })
+        )
+      )
+      const res = await fetch(`/api/teams/${teamId}/inventory`)
+      if (res.ok) {
+        const data = await res.json()
+        setItems(data.items || [])
+      }
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Error updating unit price")
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleUpdateAllItems = async (equipmentType: string, data: {
     condition?: string
     status?: string
     notes?: string
     quantity?: number
+    inventoryBucket?: string
+    equipmentType?: string
+    costPerUnit?: number | null
   }) => {
     setLoading(true)
     try {
@@ -381,6 +414,43 @@ export function InventoryManager({
         )
       }
 
+      if (data.inventoryBucket) {
+        await Promise.all(
+          itemsToUpdate.map((item: InventoryItem) =>
+            fetch(`/api/teams/${teamId}/inventory/${item.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ inventoryBucket: data.inventoryBucket }),
+            })
+          )
+        )
+      }
+
+      if (data.equipmentType?.trim()) {
+        const v = data.equipmentType.trim()
+        await Promise.all(
+          itemsToUpdate.map((item: InventoryItem) =>
+            fetch(`/api/teams/${teamId}/inventory/${item.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ equipmentType: v, category: v }),
+            })
+          )
+        )
+      }
+
+      if (data.costPerUnit !== undefined) {
+        await Promise.all(
+          itemsToUpdate.map((item: InventoryItem) =>
+            fetch(`/api/teams/${teamId}/inventory/${item.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ costPerUnit: data.costPerUnit }),
+            })
+          )
+        )
+      }
+
       // Final reload to get all updates
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
@@ -404,6 +474,7 @@ export function InventoryManager({
       onAddItem={handleAddItem}
       onUpdateItem={handleUpdateItem}
       onUpdateAllItems={handleUpdateAllItems}
+      onBulkSetCostForItems={handleBulkSetCostForItems}
       onAssignItem={handleAssignItem}
       onReturnItem={handleReturnItem}
       onDeleteGroup={handleDeleteGroup}

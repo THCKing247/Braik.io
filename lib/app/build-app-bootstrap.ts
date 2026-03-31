@@ -51,6 +51,7 @@ export async function buildAppBootstrapPayloadLite(input: {
   const productEnabled = effectiveVideoClipsProductEnabled({
     teamVideoClipsEnabled: videoFlags.teamVideoClipsEnabled,
     organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
+    athleticDepartmentVideoClipsEnabled: videoFlags.athleticDepartmentVideoClipsEnabled,
   })
   const videoClips: AppBootstrapVideoClips = {
     productEnabled,
@@ -131,6 +132,7 @@ export async function buildAppBootstrapPayload(input: {
   const productEnabled = effectiveVideoClipsProductEnabled({
     teamVideoClipsEnabled: videoFlags.teamVideoClipsEnabled,
     organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
+    athleticDepartmentVideoClipsEnabled: videoFlags.athleticDepartmentVideoClipsEnabled,
   })
   const videoClips: AppBootstrapVideoClips = {
     productEnabled,

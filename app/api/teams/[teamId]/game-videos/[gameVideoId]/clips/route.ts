@@ -32,6 +32,7 @@ export async function GET(
     const productEnabled = effectiveVideoClipsProductEnabled({
       teamVideoClipsEnabled: flags.teamVideoClipsEnabled,
       organizationVideoClipsEnabled: flags.organizationVideoClipsEnabled,
+      athleticDepartmentVideoClipsEnabled: flags.athleticDepartmentVideoClipsEnabled,
     })
     if (!productEnabled || !perms.can_view_video) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })

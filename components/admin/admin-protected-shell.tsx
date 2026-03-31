@@ -70,6 +70,12 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
               Teams
             </Link>
             <Link
+              href="/admin/athletic-departments"
+              className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white"
+            >
+              Athletic Departments
+            </Link>
+            <Link
               href="/admin/provisioning"
               className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white"
             >

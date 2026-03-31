@@ -17,14 +17,18 @@ const defaultPerms: UserVideoPermissionsRow = {
 }
 
 /**
- * Org + team must allow the product; user needs at least can_view_video for nav + page shell.
+ * Athletic department (when linked) + org + team must allow the product; user needs at least can_view_video for nav + page shell.
+ * If no AD is linked, the AD gate is skipped (null).
  */
 export function effectiveVideoClipsProductEnabled(args: {
   teamVideoClipsEnabled: boolean
   organizationVideoClipsEnabled: boolean | null
+  athleticDepartmentVideoClipsEnabled?: boolean | null
 }): boolean {
+  const adOk =
+    args.athleticDepartmentVideoClipsEnabled == null ? true : args.athleticDepartmentVideoClipsEnabled
   const orgOk = args.organizationVideoClipsEnabled == null ? true : args.organizationVideoClipsEnabled
-  return Boolean(orgOk && args.teamVideoClipsEnabled)
+  return Boolean(adOk && orgOk && args.teamVideoClipsEnabled)
 }
 
 export function resolveVideoClipsNavVisible(args: {
@@ -58,43 +62,73 @@ export async function loadUserVideoPermissions(
 export async function loadTeamOrgVideoFlags(
   supabase: SupabaseClient,
   teamId: string
-): Promise<{ teamVideoClipsEnabled: boolean; organizationVideoClipsEnabled: boolean | null }> {
+): Promise<{
+  teamVideoClipsEnabled: boolean
+  organizationVideoClipsEnabled: boolean | null
+  athleticDepartmentVideoClipsEnabled: boolean | null
+}> {
   const { data: team } = await supabase
     .from("teams")
-    .select("id, video_clips_enabled, program_id")
+    .select("id, video_clips_enabled, program_id, athletic_department_id")
     .eq("id", teamId)
     .maybeSingle()
 
   if (!team) {
-    return { teamVideoClipsEnabled: false, organizationVideoClipsEnabled: null }
+    return {
+      teamVideoClipsEnabled: false,
+      organizationVideoClipsEnabled: null,
+      athleticDepartmentVideoClipsEnabled: null,
+    }
   }
 
   const teamFlag = Boolean((team as { video_clips_enabled?: boolean }).video_clips_enabled)
   const programId = (team as { program_id?: string | null }).program_id
-  if (!programId) {
-    return { teamVideoClipsEnabled: teamFlag, organizationVideoClipsEnabled: null }
+  const teamAdId = (team as { athletic_department_id?: string | null }).athletic_department_id
+
+  let organizationVideoClipsEnabled: boolean | null = null
+  let orgAthleticDepartmentId: string | null = null
+
+  if (programId) {
+    const { data: program } = await supabase
+      .from("programs")
+      .select("organization_id")
+      .eq("id", programId)
+      .maybeSingle()
+
+    const orgId = (program as { organization_id?: string | null } | null)?.organization_id
+    if (orgId) {
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("video_clips_enabled, athletic_department_id")
+        .eq("id", orgId)
+        .maybeSingle()
+
+      if (org) {
+        const raw = (org as { video_clips_enabled?: boolean | null }).video_clips_enabled
+        organizationVideoClipsEnabled = raw == null ? null : Boolean(raw)
+        orgAthleticDepartmentId = (org as { athletic_department_id?: string | null }).athletic_department_id ?? null
+      }
+    }
   }
 
-  const { data: program } = await supabase
-    .from("programs")
-    .select("organization_id")
-    .eq("id", programId)
-    .maybeSingle()
-
-  const orgId = (program as { organization_id?: string | null } | null)?.organization_id
-  if (!orgId) {
-    return { teamVideoClipsEnabled: teamFlag, organizationVideoClipsEnabled: null }
+  const resolvedAdId = teamAdId ?? orgAthleticDepartmentId
+  let athleticDepartmentVideoClipsEnabled: boolean | null = null
+  if (resolvedAdId) {
+    const { data: ad } = await supabase
+      .from("athletic_departments")
+      .select("video_clips_enabled")
+      .eq("id", resolvedAdId)
+      .maybeSingle()
+    if (ad) {
+      athleticDepartmentVideoClipsEnabled = Boolean(
+        (ad as { video_clips_enabled?: boolean }).video_clips_enabled
+      )
+    }
   }
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("video_clips_enabled")
-    .eq("id", orgId)
-    .maybeSingle()
-
-  const orgFlag = (org as { video_clips_enabled?: boolean } | null)?.video_clips_enabled
   return {
     teamVideoClipsEnabled: teamFlag,
-    organizationVideoClipsEnabled: orgFlag == null ? null : Boolean(orgFlag),
+    organizationVideoClipsEnabled,
+    athleticDepartmentVideoClipsEnabled,
   }
 }

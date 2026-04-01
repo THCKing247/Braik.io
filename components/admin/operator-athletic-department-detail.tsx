@@ -355,7 +355,7 @@ export function OperatorAthleticDepartmentDetail({
                   return (
                     <tr key={t.id} className="border-b border-white/5">
                       <td className="py-2 pr-3 font-medium text-white">
-                        <Link href={`/admin/teams?q=${encodeURIComponent(t.name)}`} className="text-cyan-300 underline">
+                        <Link href={`/admin/teams/${t.id}`} className="text-cyan-300 underline">
                           {t.name}
                         </Link>
                       </td>

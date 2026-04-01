@@ -6,6 +6,8 @@ import { useEffect, useState } from "react"
 
 type Phase = "loading" | "ok" | "error"
 
+const ACCESS_CHECK_TIMEOUT_MS = 20_000
+
 export function AdminProtectedShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>("loading")
@@ -13,8 +15,14 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), ACCESS_CHECK_TIMEOUT_MS)
       try {
-        const res = await fetch("/api/admin/access-check", { credentials: "include", cache: "no-store" })
+        const res = await fetch("/api/admin/access-check", {
+          credentials: "include",
+          cache: "no-store",
+          signal: controller.signal,
+        })
         if (res.status === 401) {
           router.replace("/admin/login")
           return
@@ -23,10 +31,30 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
           router.replace("/")
           return
         }
-        if (!res.ok) throw new Error(String(res.status))
+        if (!res.ok) {
+          let detail = String(res.status)
+          try {
+            const body = (await res.json()) as { error?: string; reason?: string }
+            if (body.error) detail = body.error
+            else if (body.reason) detail = body.reason
+          } catch {
+            /* ignore */
+          }
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[admin] access-check failed", res.status, detail)
+          }
+          throw new Error(detail)
+        }
         if (!cancelled) setPhase("ok")
-      } catch {
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError") {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[admin] access-check timed out after", ACCESS_CHECK_TIMEOUT_MS, "ms")
+          }
+        }
         if (!cancelled) setPhase("error")
+      } finally {
+        window.clearTimeout(timeoutId)
       }
     })()
     return () => {

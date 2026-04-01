@@ -31,6 +31,16 @@ export type AthleticDepartmentDetailOverview = {
   organizations: AthleticDepartmentOrganizationVideoRow[]
 }
 
+/** Safe for client after refresh / older payloads missing `organizations`. */
+export function normalizeAthleticDepartmentDetailOverview(
+  overview: AthleticDepartmentDetailOverview
+): AthleticDepartmentDetailOverview {
+  return {
+    ...overview,
+    organizations: Array.isArray(overview.organizations) ? overview.organizations : [],
+  }
+}
+
 export type AthleticDepartmentTeamRow = {
   id: string
   name: string

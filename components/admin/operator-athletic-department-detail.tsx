@@ -3,11 +3,12 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
-import type {
-  AthleticDepartmentDetailOverview,
-  AthleticDepartmentOrganizationVideoRow,
-  AthleticDepartmentTeamRow,
-  AthleticDepartmentUserRow,
+import {
+  normalizeAthleticDepartmentDetailOverview,
+  type AthleticDepartmentDetailOverview,
+  type AthleticDepartmentOrganizationVideoRow,
+  type AthleticDepartmentTeamRow,
+  type AthleticDepartmentUserRow,
 } from "@/lib/admin/athletic-departments-types"
 
 type InitialDetail = {
@@ -31,7 +32,7 @@ export function OperatorAthleticDepartmentDetail({
   initial: InitialDetail
 }) {
   const router = useRouter()
-  const [overview, setOverview] = useState(initial.overview)
+  const [overview, setOverview] = useState(() => normalizeAthleticDepartmentDetailOverview(initial.overview))
   const [teams, setTeams] = useState(initial.teams)
   const [users, setUsers] = useState(initial.users)
   const [userQuery, setUserQuery] = useState("")
@@ -60,7 +61,7 @@ export function OperatorAthleticDepartmentDetail({
     const res = await fetch(`/api/admin/athletic-departments/${adId}`, { credentials: "include", cache: "no-store" })
     const data = (await res.json()) as InitialDetail & { error?: string }
     if (!res.ok) throw new Error(data.error || "Failed to refresh")
-    setOverview(data.overview)
+    setOverview(normalizeAthleticDepartmentDetailOverview(data.overview))
     setTeams(data.teams)
     setUsers(data.users)
     setTeamsAllowedInput(String(data.overview.teamsAllowed))
@@ -258,14 +259,14 @@ export function OperatorAthleticDepartmentDetail({
           can turn on (along with school and team toggles). Organizations listed here are either linked to this athletic
           department or referenced by a team&apos;s program under this school.
         </p>
-        {overview.organizations.length === 0 ? (
+        {(overview.organizations ?? []).length === 0 ? (
           <p className="mt-3 text-sm text-white/55">
             No organizations in scope. Link an organization to this department or assign teams to programs with an
             organization.
           </p>
         ) : (
           <ul className="mt-4 space-y-3" aria-label="Organization video toggles">
-            {overview.organizations.map((org) => (
+            {(overview.organizations ?? []).map((org) => (
               <li
                 key={org.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"

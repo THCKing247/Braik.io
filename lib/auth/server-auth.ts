@@ -127,7 +127,7 @@ async function buildSessionUser(
   let isPlatformOwner = false
   const { data: appUser } = await supabase
     .from("users")
-    .select("role")
+    .select("role, is_platform_owner")
     .eq("id", userId)
     .maybeSingle()
   if (appUser) {

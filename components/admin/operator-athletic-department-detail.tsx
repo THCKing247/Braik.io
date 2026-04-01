@@ -50,6 +50,11 @@ export function OperatorAthleticDepartmentDetail({
     )
   }, [users, userQuery])
 
+  const teamsBlockedByOrgVideo = useMemo(
+    () => teams.filter((t) => t.videoEffectiveBlockReason === "organization"),
+    [teams]
+  )
+
   async function refresh() {
     const res = await fetch(`/api/admin/athletic-departments/${adId}`, { credentials: "include", cache: "no-store" })
     const data = (await res.json()) as InitialDetail & { error?: string }
@@ -231,9 +236,36 @@ export function OperatorAthleticDepartmentDetail({
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
         <h3 className="text-base font-semibold text-white">Teams</h3>
         <p className="mt-1 text-xs text-white/55">
-          Team toggles are disabled when school video is off. Effective video also requires organization and team flags
-          when a program is linked.
+          <span className="font-medium text-white/70">How effective video works:</span> The team portal &quot;Game Video /
+          Clips&quot; tab appears only when every layer that applies is on: school (athletic department) video, then—if
+          the team is linked to a program—<span className="text-white/80">organization</span> video for that program&apos;s
+          org, then team video. Each user also needs video view permission in{" "}
+          <code className="rounded bg-black/40 px-1 text-white/70">user_video_permissions</code>. Turning on school + team
+          is not enough if the team has a program and organization-level video is off.
         </p>
+        {teamsBlockedByOrgVideo.length > 0 && (
+          <div
+            className="mt-4 rounded-lg border border-amber-400/50 bg-amber-500/15 px-4 py-3 text-sm text-amber-50"
+            role="status"
+          >
+            <p className="font-semibold text-amber-100">Video is blocked because organization-level video access is disabled.</p>
+            <p className="mt-2 text-amber-100/90">
+              {teamsBlockedByOrgVideo.length === 1 ? (
+                <>
+                  Team &quot;{teamsBlockedByOrgVideo[0].name}&quot; is linked to a program whose organization has org
+                  video off. Enable video for that organization in provisioning, or unlink the team from the program, so
+                  effective access can turn on.
+                </>
+              ) : (
+                <>
+                  {teamsBlockedByOrgVideo.length} teams are linked to a program whose organization has org video off:{" "}
+                  {teamsBlockedByOrgVideo.map((t) => t.name).join(", ")}. Enable organization video for those programs, or
+                  adjust program links.
+                </>
+              )}
+            </p>
+          </div>
+        )}
         {teams.length === 0 ? (
           <p className="mt-4 text-sm text-white/55">No teams linked to this athletic department.</p>
         ) : (
@@ -249,12 +281,22 @@ export function OperatorAthleticDepartmentDetail({
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Org video</th>
                   <th className="py-2 pr-3">Team video</th>
-                  <th className="py-2 pr-3">Effective</th>
+                  <th className="py-2 pr-3">Effective (portal product)</th>
                 </tr>
               </thead>
               <tbody>
                 {teams.map((t) => {
                   const disabled = !overview.videoFeatureEnabled
+                  const effectiveNote =
+                    t.videoEffectiveEnabled
+                      ? null
+                      : t.videoEffectiveBlockReason === "organization"
+                        ? "Video is blocked because organization-level video access is disabled."
+                        : t.videoEffectiveBlockReason === "school"
+                          ? "Turn on school (AD) video above."
+                          : t.videoEffectiveBlockReason === "team"
+                            ? "Turn on team video for this row."
+                            : null
                   return (
                     <tr key={t.id} className="border-b border-white/5">
                       <td className="py-2 pr-3 font-medium text-white">
@@ -288,7 +330,12 @@ export function OperatorAthleticDepartmentDetail({
                           <span className="text-white/80">{t.videoFeatureEnabled ? "On" : "Off"}</span>
                         </label>
                       </td>
-                      <td className="py-2 pr-3 text-white/85">{t.videoEffectiveEnabled ? "Yes" : "No"}</td>
+                      <td className="max-w-[220px] py-2 pr-3 text-white/85">
+                        <span className="font-medium">{t.videoEffectiveEnabled ? "Yes" : "No"}</span>
+                        {effectiveNote && (
+                          <p className="mt-1 text-xs font-normal leading-snug text-amber-200/90">{effectiveNote}</p>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}

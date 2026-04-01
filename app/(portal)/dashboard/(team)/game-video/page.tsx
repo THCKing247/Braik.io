@@ -20,13 +20,29 @@ function GameVideoBody({ teamId }: { teamId: string }) {
   const vc = useAppBootstrapOptional()?.payload?.videoClips
 
   if (!vc?.navVisible) {
+    const productOff = vc != null && !vc.productEnabled
+    const permissionsOff = vc != null && vc.productEnabled && !vc.canViewVideo
     return (
       <div className="mx-auto max-w-lg rounded-xl border border-border bg-card p-8 text-center shadow-sm">
         <p className="text-lg font-semibold text-foreground">Game Video / Clips is not available</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your program may not have this feature enabled, or your account does not include video access. Contact your
-          administrator if you believe this is a mistake.
-        </p>
+        {productOff && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            This feature is off for your team until school (athletic department), organization (when your team is linked to
+            a program), and team-level video settings all allow it. An administrator can enable organization video or
+            adjust program links if school and team are already on.
+          </p>
+        )}
+        {permissionsOff && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your account does not have video viewing permission. Contact your administrator if you need access.
+          </p>
+        )}
+        {!productOff && !permissionsOff && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            This page could not be loaded yet, or access is restricted. Try refreshing; contact your administrator if the
+            problem continues.
+          </p>
+        )}
       </div>
     )
   }

@@ -272,6 +272,11 @@ export async function loadAthleticDepartmentDetail(
     const pid = (tr as { program_id?: string | null }).program_id
     const orgVid = pid ? orgVideoByProgramId.get(pid) ?? null : null
     const orgOk = orgVid == null ? true : orgVid
+    let videoEffectiveBlockReason: "school" | "organization" | "team" | null = null
+    if (!adVideo) videoEffectiveBlockReason = "school"
+    else if (orgVid === false) videoEffectiveBlockReason = "organization"
+    else if (!teamVid) videoEffectiveBlockReason = "team"
+    const videoEffectiveEnabled = Boolean(adVideo && orgOk && teamVid)
     return {
       id: tr.id,
       name: tr.name ?? "",
@@ -282,7 +287,8 @@ export async function loadAthleticDepartmentDetail(
       teamStatus: tr.team_status ?? "active",
       videoFeatureEnabled: teamVid,
       organizationVideoEnabled: orgVid,
-      videoEffectiveEnabled: Boolean(adVideo && orgOk && teamVid),
+      videoEffectiveEnabled,
+      videoEffectiveBlockReason: videoEffectiveEnabled ? null : videoEffectiveBlockReason,
     }
   })
 

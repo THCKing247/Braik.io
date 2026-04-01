@@ -36,8 +36,10 @@ export type AthleticDepartmentTeamRow = {
   videoFeatureEnabled: boolean
   /** Organization (program) video flag when linked; null if no program/org. */
   organizationVideoEnabled: boolean | null
-  /** School AD ∧ org (if any) ∧ team — matches product gate. */
+  /** School AD ∧ org (if any) ∧ team — matches product gate (portal also needs user video permission). */
   videoEffectiveEnabled: boolean
+  /** First failing gate for effective video (same order as runtime product check). Null when effective or no single gate. */
+  videoEffectiveBlockReason: "school" | "organization" | "team" | null
 }
 
 export type AthleticDepartmentUserRow = {

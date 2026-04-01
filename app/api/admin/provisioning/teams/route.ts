@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { syncHeadCoachVideoViewPermissionForTeam } from "@/lib/video/sync-head-coach-video-permission"
 
 export async function GET() {
   const access = await getAdminAccessForApi()
@@ -90,6 +91,20 @@ export async function POST(request: Request) {
 
   if (teamErr || !team) {
     return NextResponse.json({ error: teamErr?.message ?? "Failed to create team" }, { status: 500 })
+  }
+
+  if (body.video_clips_enabled === true) {
+    const tid = (team as { id: string }).id
+    try {
+      await syncHeadCoachVideoViewPermissionForTeam(supabase, tid)
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[video-perm-sync] after provision team", {
+          teamId: tid,
+          err: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
   }
 
   return NextResponse.json(team)

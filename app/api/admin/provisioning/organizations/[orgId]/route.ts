@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
+import { syncHeadCoachVideoViewForOrganizationTeams } from "@/lib/video/sync-head-coach-video-permission"
 
 export async function PATCH(
   request: NextRequest,
@@ -48,6 +49,19 @@ export async function PATCH(
     targetId: orgId,
     metadata: { video_clips_enabled: body.video_clips_enabled },
   }).catch(() => undefined)
+
+  if (body.video_clips_enabled === true) {
+    try {
+      await syncHeadCoachVideoViewForOrganizationTeams(supabase, orgId)
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[video-perm-sync] after org video enable", {
+          orgId,
+          err: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
+  }
 
   return NextResponse.json({ organization: org })
 }

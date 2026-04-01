@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import type { UserMembership } from "@/lib/auth/rbac"
 import {
@@ -6,6 +7,7 @@ import {
   canPostAnnouncements,
   canViewPayments,
 } from "@/lib/auth/roles"
+import { isHeadCoachRole } from "@/lib/team-staff"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 import { loadEngagementHintCounts } from "@/lib/engagement/dashboard-hints-data"
 import type { AppBootstrapPayload, AppBootstrapTeamFlags, AppBootstrapVideoClips } from "@/lib/app/app-bootstrap-types"
@@ -15,8 +17,66 @@ import {
   loadUserVideoPermissions,
   resolveVideoClipsNavVisible,
 } from "@/lib/video/resolve-video-clips-access"
+import { syncHeadCoachVideoViewPermissionForTeam } from "@/lib/video/sync-head-coach-video-permission"
 
 const ENGAGEMENT_ROLES = new Set(["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"])
+
+async function buildVideoClipsSection(
+  supabase: SupabaseClient,
+  args: {
+    userId: string
+    teamId: string
+    videoFlags: Awaited<ReturnType<typeof loadTeamOrgVideoFlags>>
+    videoPerms: Awaited<ReturnType<typeof loadUserVideoPermissions>>
+  }
+): Promise<AppBootstrapVideoClips> {
+  const productEnabled = effectiveVideoClipsProductEnabled({
+    teamVideoClipsEnabled: args.videoFlags.teamVideoClipsEnabled,
+    organizationVideoClipsEnabled: args.videoFlags.organizationVideoClipsEnabled,
+    athleticDepartmentVideoClipsEnabled: args.videoFlags.athleticDepartmentVideoClipsEnabled,
+  })
+
+  let perms = args.videoPerms
+  if (productEnabled && !perms.can_view_video) {
+    const { data: membership } = await supabase
+      .from("team_members")
+      .select("role")
+      .eq("team_id", args.teamId)
+      .eq("user_id", args.userId)
+      .eq("active", true)
+      .maybeSingle()
+    const role = (membership as { role?: string } | null)?.role
+    if (role && isHeadCoachRole(role)) {
+      try {
+        const syncResult = await syncHeadCoachVideoViewPermissionForTeam(supabase, args.teamId)
+        if (syncResult.ok && syncResult.headCoachUserId === args.userId) {
+          perms = await loadUserVideoPermissions(supabase, args.userId)
+        }
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[video-perm-sync] bootstrap self-heal failed", {
+            teamId: args.teamId,
+            userId: args.userId,
+            err: e instanceof Error ? e.message : String(e),
+          })
+        }
+      }
+    }
+  }
+
+  return {
+    productEnabled,
+    navVisible: resolveVideoClipsNavVisible({
+      productEnabled,
+      canViewVideo: perms.can_view_video,
+    }),
+    canViewVideo: perms.can_view_video,
+    canUploadVideo: perms.can_upload_video,
+    canCreateClips: perms.can_create_clips,
+    canShareClips: perms.can_share_clips,
+    canDeleteVideo: perms.can_delete_video,
+  }
+}
 
 /** Shell for first paint — skips engagement hint counts (hints card fetches `/api/engagement/hints` when needed). */
 export async function buildAppBootstrapPayloadLite(input: {
@@ -48,23 +108,12 @@ export async function buildAppBootstrapPayloadLite(input: {
 
   const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
 
-  const productEnabled = effectiveVideoClipsProductEnabled({
-    teamVideoClipsEnabled: videoFlags.teamVideoClipsEnabled,
-    organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
-    athleticDepartmentVideoClipsEnabled: videoFlags.athleticDepartmentVideoClipsEnabled,
+  const videoClips = await buildVideoClipsSection(supabase, {
+    userId: input.userId,
+    teamId: input.teamId,
+    videoFlags,
+    videoPerms,
   })
-  const videoClips: AppBootstrapVideoClips = {
-    productEnabled,
-    navVisible: resolveVideoClipsNavVisible({
-      productEnabled,
-      canViewVideo: videoPerms.can_view_video,
-    }),
-    canViewVideo: videoPerms.can_view_video,
-    canUploadVideo: videoPerms.can_upload_video,
-    canCreateClips: videoPerms.can_create_clips,
-    canShareClips: videoPerms.can_share_clips,
-    canDeleteVideo: videoPerms.can_delete_video,
-  }
 
   return {
     user: {
@@ -129,23 +178,12 @@ export async function buildAppBootstrapPayload(input: {
     throw new Error("TEAM_NOT_FOUND")
   }
 
-  const productEnabled = effectiveVideoClipsProductEnabled({
-    teamVideoClipsEnabled: videoFlags.teamVideoClipsEnabled,
-    organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
-    athleticDepartmentVideoClipsEnabled: videoFlags.athleticDepartmentVideoClipsEnabled,
+  const videoClips = await buildVideoClipsSection(supabase, {
+    userId: input.userId,
+    teamId: input.teamId,
+    videoFlags,
+    videoPerms,
   })
-  const videoClips: AppBootstrapVideoClips = {
-    productEnabled,
-    navVisible: resolveVideoClipsNavVisible({
-      productEnabled,
-      canViewVideo: videoPerms.can_view_video,
-    }),
-    canViewVideo: videoPerms.can_view_video,
-    canUploadVideo: videoPerms.can_upload_video,
-    canCreateClips: videoPerms.can_create_clips,
-    canShareClips: videoPerms.can_share_clips,
-    canDeleteVideo: videoPerms.can_delete_video,
-  }
 
   return {
     user: {

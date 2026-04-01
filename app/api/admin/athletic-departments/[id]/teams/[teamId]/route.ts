@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
 import { collectTeamIdsForAthleticDepartment } from "@/lib/admin/athletic-departments-scope"
 import type { PatchAthleticDepartmentTeamBody } from "@/lib/admin/athletic-departments-types"
+import { syncHeadCoachVideoViewPermissionForTeam } from "@/lib/video/sync-head-coach-video-permission"
 
 export async function PATCH(
   request: NextRequest,
@@ -73,6 +74,19 @@ export async function PATCH(
     targetId: teamId,
     metadata: { athleticDepartmentId, patch },
   }).catch(() => undefined)
+
+  if (body.video_clips_enabled === true) {
+    try {
+      await syncHeadCoachVideoViewPermissionForTeam(supabase, teamId)
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[video-perm-sync] after team video enable", {
+          teamId,
+          err: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
+  }
 
   return NextResponse.json({ team })
 }

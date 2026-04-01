@@ -26,6 +26,11 @@ type PortalUnderlineTabsProps = {
   navClassName?: string
   /** Tighter padding for secondary bars (e.g. filter row). */
   compact?: boolean
+  /**
+   * Stronger active tab (thicker underline, semibold) — e.g. Inventory Items / Expenses.
+   * Keeps the same underline pattern as the rest of the portal, more pronounced.
+   */
+  emphasized?: boolean
 }
 
 /**
@@ -40,8 +45,10 @@ export function PortalUnderlineTabs({
   className,
   navClassName,
   compact = false,
+  emphasized = false,
 }: PortalUnderlineTabsProps) {
   const tabBtn = compact ? tabButtonClassCompact : tabButtonClassNormal
+  const activeStrong = emphasized && !compact
   return (
     <div className={cn("border-b border-[#E5E7EB] -mx-2 px-2 sm:mx-0 sm:px-0", className)}>
       <nav
@@ -62,8 +69,11 @@ export function PortalUnderlineTabs({
               onClick={() => onValueChange(tab.id)}
               className={cn(
                 tabBtn,
+                activeStrong && "px-4 py-3.5",
                 active
-                  ? "border-[#0B2A5B] text-[#0F172A] bg-[#F8FAFC]"
+                  ? activeStrong
+                    ? "border-b-[3px] border-[#0B2A5B] font-semibold text-[#0F172A] bg-[#EFF6FF] shadow-sm"
+                    : "border-[#0B2A5B] text-[#0F172A] bg-[#F8FAFC]"
                   : "border-transparent text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC]/50"
               )}
             >

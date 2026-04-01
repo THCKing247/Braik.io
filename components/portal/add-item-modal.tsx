@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,12 @@ interface Player {
 interface AddItemModalProps {
   open: boolean
   onClose: () => void
+  /** When set (e.g. user is on a category filter tab), bucket is initialized to this value. */
+  initialInventoryBucket?: string
+  /** When true, category matches the active inventory filter tab and cannot be changed here. */
+  lockInventoryBucket?: boolean
+  /** Active item-type tab — preselects preset or custom equipment name when the modal opens. */
+  initialEquipmentTypeLabel?: string
   onSubmit: (data: {
     equipmentType: string
     customEquipmentName?: string
@@ -59,6 +65,9 @@ const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "F
 export function AddItemModal({
   open,
   onClose,
+  initialInventoryBucket,
+  lockInventoryBucket = false,
+  initialEquipmentTypeLabel,
   onSubmit,
   players,
   loading = false,
@@ -74,6 +83,31 @@ export function AddItemModal({
   const [inventoryBucket, setInventoryBucket] = useState<string>(INVENTORY_BUCKETS[0])
   const [costPerUnit, setCostPerUnit] = useState("")
   const [itemCode, setItemCode] = useState("")
+
+  useEffect(() => {
+    if (!open) return
+    const raw = initialInventoryBucket?.trim()
+    if (raw && INVENTORY_BUCKETS.includes(raw as (typeof INVENTORY_BUCKETS)[number])) {
+      setInventoryBucket(raw)
+    }
+    const typeLabel = initialEquipmentTypeLabel?.trim()
+    if (typeLabel) {
+      const presetMatch = (EQUIPMENT_PRESETS as readonly string[]).find((p) => p === typeLabel)
+      if (presetMatch) {
+        setEquipmentType("preset")
+        setSelectedPreset(presetMatch)
+        setCustomEquipmentName("")
+      } else {
+        setEquipmentType("custom")
+        setCustomEquipmentName(typeLabel)
+        setSelectedPreset("")
+      }
+    } else {
+      setEquipmentType("preset")
+      setSelectedPreset("")
+      setCustomEquipmentName("")
+    }
+  }, [open, initialInventoryBucket, initialEquipmentTypeLabel])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -244,7 +278,8 @@ export function AddItemModal({
               id="inventoryBucket"
               value={inventoryBucket}
               onChange={(e) => setInventoryBucket(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
+              disabled={lockInventoryBucket}
+              className="w-full px-3 py-2 border rounded-md disabled:opacity-70 disabled:cursor-not-allowed"
               style={{
                 backgroundColor: "#FFFFFF",
                 borderColor: "rgb(var(--border))",
@@ -258,7 +293,9 @@ export function AddItemModal({
               ))}
             </select>
             <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-              Used for filters and expense rollups (Gear, Uniforms, etc.)
+              {lockInventoryBucket
+                ? "Category is set from the inventory filter tab you used to add this item."
+                : "Used for filters and expense rollups (Gear, Uniforms, etc.)"}
             </p>
           </div>
 

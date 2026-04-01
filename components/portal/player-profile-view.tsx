@@ -1623,11 +1623,15 @@ type InventoryItem = {
   assignedPlayer?: { id: string; firstName: string; lastName: string } | null
 }
 
-function getInventoryTypeKey(i: InventoryItem): string {
-  const b = i.inventoryBucket?.trim()
-  if (b) return b
-  const c = (i.category ?? "").trim()
-  return c || "Uncategorized"
+function normalizeInventoryBucket(i: InventoryItem): string {
+  const raw = i.inventoryBucket?.trim()
+  if (raw) return raw
+  return "Gear"
+}
+
+function equipmentTypeLabel(i: InventoryItem): string {
+  const t = (i.equipmentType || i.category || "").trim()
+  return t || "Other"
 }
 
 function isAssignableInventoryItem(i: InventoryItem): boolean {
@@ -1663,7 +1667,8 @@ function EquipmentTab({
   const [inventoryLoading, setInventoryLoading] = useState(false)
   const [assignItemId, setAssignItemId] = useState<string | null>(null)
   const [assignModalOpen, setAssignModalOpen] = useState(false)
-  const [assignCategory, setAssignCategory] = useState("")
+  const [assignBucket, setAssignBucket] = useState("")
+  const [assignEquipmentType, setAssignEquipmentType] = useState("")
   const [assignSelectedItemId, setAssignSelectedItemId] = useState("")
   const [equipmentError, setEquipmentError] = useState<string | null>(null)
   const [equipmentActivity, setEquipmentActivity] = useState<{ id: string; actionType: string; metadata: Record<string, unknown>; createdAt: string }[]>([])
@@ -1698,24 +1703,40 @@ function EquipmentTab({
   )
   const assignedToThisPlayer = inventoryList.filter((i) => i.assignedToPlayerId === playerId)
 
-  const categoryOptions = useMemo(() => {
+  const assignBucketOptions = useMemo(() => {
     const set = new Set<string>()
     for (const i of availableToAssign) {
-      set.add(getInventoryTypeKey(i))
+      set.add(normalizeInventoryBucket(i))
     }
     return [...set].sort((a, b) => a.localeCompare(b))
   }, [availableToAssign])
 
-  const itemsInCategory = useMemo(() => {
-    if (!assignCategory.trim()) return []
+  const assignTypeOptionsInBucket = useMemo(() => {
+    if (!assignBucket.trim()) return []
+    const set = new Set<string>()
+    for (const i of availableToAssign) {
+      if (normalizeInventoryBucket(i) === assignBucket) {
+        set.add(equipmentTypeLabel(i))
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [availableToAssign, assignBucket])
+
+  const itemsForAssignSelection = useMemo(() => {
+    if (!assignBucket.trim() || !assignEquipmentType.trim()) return []
     return availableToAssign
-      .filter((i) => getInventoryTypeKey(i) === assignCategory)
+      .filter(
+        (i) =>
+          normalizeInventoryBucket(i) === assignBucket &&
+          equipmentTypeLabel(i) === assignEquipmentType
+      )
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [availableToAssign, assignCategory])
+  }, [availableToAssign, assignBucket, assignEquipmentType])
 
   const openAssignModal = () => {
     setEquipmentError(null)
-    setAssignCategory("")
+    setAssignBucket("")
+    setAssignEquipmentType("")
     setAssignSelectedItemId("")
     setAssignModalOpen(true)
   }
@@ -1738,7 +1759,8 @@ function EquipmentTab({
         prev.map((i) => (i.id === itemId ? { ...i, assignedToPlayerId: playerId } : i))
       )
       setAssignModalOpen(false)
-      setAssignCategory("")
+      setAssignBucket("")
+      setAssignEquipmentType("")
       setAssignSelectedItemId("")
     } catch (err) {
       setEquipmentError(err instanceof Error ? err.message : "Assign failed")
@@ -1791,7 +1813,8 @@ function EquipmentTab({
             onOpenChange={(o) => {
               setAssignModalOpen(o)
               if (!o) {
-                setAssignCategory("")
+                setAssignBucket("")
+                setAssignEquipmentType("")
                 setAssignSelectedItemId("")
               }
             }}
@@ -1800,42 +1823,77 @@ function EquipmentTab({
               <DialogHeader>
                 <DialogTitle className="text-[#0F172A]">Assign equipment</DialogTitle>
                 <DialogDescription>
-                  Choose the inventory type (same classifications as team inventory), then pick an unassigned, available line item.
+                  Pick inventory category, then equipment type, then a specific available line item (same rules as team inventory).
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label className="text-[#64748B] text-sm">Step 1 — Type / category</Label>
+                  <Label className="text-[#64748B] text-sm">Step 1 — Inventory category</Label>
                   <select
                     className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
-                    value={assignCategory}
+                    value={assignBucket}
                     onChange={(e) => {
-                      setAssignCategory(e.target.value)
+                      setAssignBucket(e.target.value)
+                      setAssignEquipmentType("")
                       setAssignSelectedItemId("")
                     }}
-                    aria-label="Equipment type or category"
+                    aria-label="Inventory category"
                   >
-                    <option value="">Select type…</option>
-                    {categoryOptions.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
+                    <option value="">Select category…</option>
+                    {assignBucketOptions.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[#64748B] text-sm">Step 2 — Item</Label>
+                  <Label className="text-[#64748B] text-sm">Step 2 — Equipment type</Label>
+                  <select
+                    className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] disabled:opacity-60"
+                    value={assignEquipmentType}
+                    onChange={(e) => {
+                      setAssignEquipmentType(e.target.value)
+                      setAssignSelectedItemId("")
+                    }}
+                    disabled={!assignBucket.trim() || assignTypeOptionsInBucket.length === 0}
+                    aria-label="Equipment type within category"
+                  >
+                    <option value="">
+                      {!assignBucket.trim()
+                        ? "Select a category first…"
+                        : assignTypeOptionsInBucket.length === 0
+                          ? "No types in this category"
+                          : "Select equipment type…"}
+                    </option>
+                    {assignTypeOptionsInBucket.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[#64748B] text-sm">Step 3 — Specific item</Label>
                   <select
                     className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A] disabled:opacity-60"
                     value={assignSelectedItemId}
                     onChange={(e) => setAssignSelectedItemId(e.target.value)}
-                    disabled={!assignCategory.trim() || itemsInCategory.length === 0}
+                    disabled={
+                      !assignBucket.trim() ||
+                      !assignEquipmentType.trim() ||
+                      itemsForAssignSelection.length === 0
+                    }
                     aria-label="Specific inventory item"
                   >
                     <option value="">
-                      {!assignCategory.trim() ? "Select a type first…" : itemsInCategory.length === 0 ? "No items in this type" : "Select item…"}
+                      {!assignEquipmentType.trim()
+                        ? "Select equipment type first…"
+                        : itemsForAssignSelection.length === 0
+                          ? "No matching items"
+                          : "Select item…"}
                     </option>
-                    {itemsInCategory.map((i) => (
+                    {itemsForAssignSelection.map((i) => (
                       <option key={i.id} value={i.id}>
                         {i.name}
                         {i.condition ? ` — ${i.condition}` : ""}
@@ -1843,8 +1901,8 @@ function EquipmentTab({
                       </option>
                     ))}
                   </select>
-                  {assignCategory && itemsInCategory.length === 0 && (
-                    <p className="text-xs text-amber-800">No assignable items in this category right now.</p>
+                  {assignEquipmentType && itemsForAssignSelection.length === 0 && (
+                    <p className="text-xs text-amber-800">No assignable items for this category and type right now.</p>
                   )}
                 </div>
               </div>

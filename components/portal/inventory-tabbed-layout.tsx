@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Edit, Trash2, Printer, Search, LayoutGrid, List } from "lucide-react"
+import { Edit, Trash2, Printer, Search, LayoutGrid, List, Plus } from "lucide-react"
 import { InventoryIcon } from "./inventory-icon"
 import { EditItemModal } from "./edit-item-modal"
 import { AddItemModal } from "./add-item-modal"
@@ -536,6 +536,36 @@ export function InventoryTabbedLayout({
     })
   }, [activeTab, groupedItems, searchQuery])
 
+  /** When browsing with bucket "All", group the main list by inventory category for clearer scanning. */
+  const displayItemSections = useMemo(() => {
+    if (bucketFilter !== "All") {
+      return [{ bucketLabel: null as string | null, items: filteredItems }]
+    }
+    const order = [...INVENTORY_BUCKETS]
+    const map = new Map<string, InventoryItem[]>()
+    for (const item of filteredItems) {
+      const b = item.inventoryBucket || "Gear"
+      if (!map.has(b)) map.set(b, [])
+      map.get(b)!.push(item)
+    }
+    const sections: { bucketLabel: string; items: InventoryItem[] }[] = []
+    const used = new Set<string>()
+    for (const b of order) {
+      const arr = map.get(b)
+      if (arr?.length) {
+        sections.push({ bucketLabel: b, items: arr })
+        used.add(b)
+      }
+    }
+    for (const b of [...map.keys()].sort()) {
+      if (!used.has(b)) {
+        const arr = map.get(b)
+        if (arr?.length) sections.push({ bucketLabel: b, items: arr })
+      }
+    }
+    return sections
+  }, [bucketFilter, filteredItems])
+
   // Calculate stats for active tab
   const tabStats = useMemo(() => {
     if (!activeTab) return { total: 0, available: 0, assigned: 0, needsAttention: 0 }
@@ -746,6 +776,7 @@ export function InventoryTabbedLayout({
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
       <PortalUnderlineTabs
+        emphasized
         tabs={[
           { id: "items", label: "Items" },
           { id: "expenses", label: "Expenses" },
@@ -812,16 +843,6 @@ export function InventoryTabbedLayout({
               ariaLabel="Inventory category filter"
             />
           </div>
-          {permissions.canCreate && (
-            <Button
-              onClick={() => setShowAddModal(true)}
-              className="w-full"
-              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-              size="sm"
-            >
-              + Add Equipment
-            </Button>
-          )}
         </div>
         <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
           {equipmentTypes.map((equipmentType) => {
@@ -865,6 +886,19 @@ export function InventoryTabbedLayout({
                   </h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {permissions.canCreate && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 shrink-0 gap-1 border-2 px-2.5"
+                      style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                      title="Add equipment"
+                      onClick={() => setShowAddModal(true)}
+                    >
+                      <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                      <span className="text-xs font-medium">Add</span>
+                    </Button>
+                  )}
                   {permissions.canEdit && (
                     <>
                       <Button
@@ -980,8 +1014,21 @@ export function InventoryTabbedLayout({
                   </p>
                 </div>
               ) : viewMode === "card" ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredItems.map((item) => {
+                <div className="space-y-8">
+                  {displayItemSections.map(({ bucketLabel, items: sectionItems }) => (
+                    <div key={bucketLabel ?? "single-type"}>
+                      {bucketLabel && (
+                        <div className="mb-3 border-b pb-2" style={{ borderColor: "rgb(var(--border))" }}>
+                          <p
+                            className="text-xs font-semibold uppercase tracking-wider"
+                            style={{ color: "rgb(var(--muted))" }}
+                          >
+                            {bucketLabel}
+                          </p>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sectionItems.map((item) => {
                     const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
                     return (
                       <Card
@@ -1113,10 +1160,26 @@ export function InventoryTabbedLayout({
                       </Card>
                     )
                   })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {filteredItems.map((item) => {
+                <div className="space-y-8">
+                  {displayItemSections.map(({ bucketLabel, items: sectionItems }) => (
+                    <div key={`list-${bucketLabel ?? "single-type"}`}>
+                      {bucketLabel && (
+                        <div className="mb-2 border-b pb-2" style={{ borderColor: "rgb(var(--border))" }}>
+                          <p
+                            className="text-xs font-semibold uppercase tracking-wider"
+                            style={{ color: "rgb(var(--muted))" }}
+                          >
+                            {bucketLabel}
+                          </p>
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                  {sectionItems.map((item) => {
                     const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
                     return (
                       <Card
@@ -1247,6 +1310,9 @@ export function InventoryTabbedLayout({
                       </Card>
                     )
                   })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -1262,6 +1328,9 @@ export function InventoryTabbedLayout({
         <AddItemModal
           open={showAddModal}
           onClose={() => setShowAddModal(false)}
+          initialInventoryBucket={bucketFilter !== "All" ? bucketFilter : undefined}
+          lockInventoryBucket={bucketFilter !== "All"}
+          initialEquipmentTypeLabel={activeTab ?? undefined}
           onSubmit={onAddItem}
           players={players}
           loading={loading}

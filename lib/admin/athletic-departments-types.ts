@@ -12,6 +12,12 @@ export type AthleticDepartmentListRow = {
   status: string
 }
 
+export type AthleticDepartmentOrganizationVideoRow = {
+  id: string
+  name: string
+  videoClipsEnabled: boolean
+}
+
 export type AthleticDepartmentDetailOverview = {
   id: string
   schoolName: string
@@ -21,7 +27,8 @@ export type AthleticDepartmentDetailOverview = {
   videoFeatureEnabled: boolean
   activeTeamCount: number
   assistantCoachUsageCount: number
-  organizationNames: string[]
+  /** Orgs linked to this AD and/or referenced by teams’ programs (for org-level video toggles). */
+  organizations: AthleticDepartmentOrganizationVideoRow[]
 }
 
 export type AthleticDepartmentTeamRow = {

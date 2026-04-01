@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import type {
   AthleticDepartmentDetailOverview,
+  AthleticDepartmentOrganizationVideoRow,
   AthleticDepartmentTeamRow,
   AthleticDepartmentUserRow,
 } from "@/lib/admin/athletic-departments-types"
@@ -125,6 +126,26 @@ export function OperatorAthleticDepartmentDetail({
     }
   }
 
+  async function toggleOrgVideo(org: AthleticDepartmentOrganizationVideoRow, next: boolean) {
+    setErr(null)
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/provisioning/organizations/${encodeURIComponent(org.id)}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_clips_enabled: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Update failed")
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Update failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function toggleTeamVideo(team: AthleticDepartmentTeamRow, next: boolean) {
     if (next && !overview.videoFeatureEnabled) {
       setErr("Turn on school-level video before enabling team video.")
@@ -168,9 +189,6 @@ export function OperatorAthleticDepartmentDetail({
 
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-5">
         <h2 className="text-lg font-semibold text-white">{overview.schoolName}</h2>
-        {overview.organizationNames.length > 0 && (
-          <p className="mt-1 text-sm text-white/65">Organizations: {overview.organizationNames.join(", ")}</p>
-        )}
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
             <dt className="text-xs uppercase tracking-wide text-white/50">Teams usage</dt>
@@ -231,6 +249,42 @@ export function OperatorAthleticDepartmentDetail({
             Lowering caps below current usage requires confirmation. Team video stays off when school video is off.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+        <h3 className="text-base font-semibold text-white">Organization video</h3>
+        <p className="mt-1 text-xs text-white/55">
+          When a team is on a program, the program&apos;s organization must allow video before the team portal Video tab
+          can turn on (along with school and team toggles). Organizations listed here are either linked to this athletic
+          department or referenced by a team&apos;s program under this school.
+        </p>
+        {overview.organizations.length === 0 ? (
+          <p className="mt-3 text-sm text-white/55">
+            No organizations in scope. Link an organization to this department or assign teams to programs with an
+            organization.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3" aria-label="Organization video toggles">
+            {overview.organizations.map((org) => (
+              <li
+                key={org.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+              >
+                <span className="text-sm font-medium text-white">{org.name}</span>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={org.videoClipsEnabled}
+                    disabled={saving}
+                    onChange={(e) => toggleOrgVideo(org, e.target.checked)}
+                    className="h-4 w-4 rounded border-white/30"
+                  />
+                  <span className="text-white/80">Organization video enabled</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
 import { AdminTeamStatusForm } from "@/components/admin/admin-team-status-form"
 
@@ -26,9 +26,25 @@ function statusChip(value: string): string {
   return "bg-white/10 text-white/80 border-white/20"
 }
 
-export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filterUserId?: string | null }) {
-  const [query, setQuery] = useState("")
+export function OperatorTeams({
+  teams,
+  filterUserId,
+  serverSearchQuery,
+  fetchError,
+}: {
+  teams: TeamRow[]
+  filterUserId?: string | null
+  /** URL `q` applied on the server (case-insensitive partial match on team name / org). */
+  serverSearchQuery?: string
+  /** Set when the server could not load teams (shows instead of a silent empty list). */
+  fetchError?: string | null
+}) {
+  const [query, setQuery] = useState(() => serverSearchQuery ?? "")
   const [modalOpen, setModalOpen] = useState(false)
+
+  useEffect(() => {
+    setQuery(serverSearchQuery ?? "")
+  }, [serverSearchQuery])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -40,6 +56,17 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
 
   return (
     <div className="space-y-4">
+      {fetchError && (
+        <div className="rounded-xl border border-red-400/40 bg-red-500/15 p-4 text-sm text-red-100">
+          <p className="font-semibold">Could not load teams</p>
+          <p className="mt-1 text-red-100/90">{fetchError}</p>
+        </div>
+      )}
+      {serverSearchQuery && !fetchError && (
+        <div className="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-white/80">
+          Server filter (from URL): <span className="font-medium text-white">{serverSearchQuery}</span>
+        </div>
+      )}
       {filterUserId && (
         <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-3">
           <p className="text-sm text-cyan-100">
@@ -74,27 +101,48 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
           <p className="text-xs text-emerald-100/70">Active Teams</p>
-          <p className="text-2xl font-semibold text-emerald-100">{teams.filter((t) => t.teamStatus === "active").length}</p>
+          <p className="text-2xl font-semibold text-emerald-100">
+            {fetchError ? "—" : teams.filter((t) => t.teamStatus === "active").length}
+          </p>
         </div>
         <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3">
           <p className="text-xs text-red-100/70">Suspended Teams</p>
-          <p className="text-2xl font-semibold text-red-100">{teams.filter((t) => t.teamStatus === "suspended").length}</p>
+          <p className="text-2xl font-semibold text-red-100">
+            {fetchError ? "—" : teams.filter((t) => t.teamStatus === "suspended").length}
+          </p>
         </div>
         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-3">
           <p className="text-xs text-orange-100/70">Past Due / Grace</p>
           <p className="text-2xl font-semibold text-orange-100">
-            {teams.filter((t) => ["past_due", "grace_period"].includes(t.subscriptionStatus)).length}
+            {fetchError
+              ? "—"
+              : teams.filter((t) => ["past_due", "grace_period"].includes(t.subscriptionStatus)).length}
           </p>
         </div>
         <div className="rounded-xl border border-purple-400/30 bg-purple-500/10 p-3">
           <p className="text-xs text-purple-100/70">Cancelled/Terminated</p>
           <p className="text-2xl font-semibold text-purple-100">
-            {teams.filter((t) => ["cancelled", "terminated"].includes(t.teamStatus) || ["cancelled", "terminated"].includes(t.subscriptionStatus)).length}
+            {fetchError
+              ? "—"
+              : teams.filter(
+                  (t) =>
+                    ["cancelled", "terminated"].includes(t.teamStatus) ||
+                    ["cancelled", "terminated"].includes(t.subscriptionStatus)
+                ).length}
           </p>
         </div>
       </div>
 
       <div className="space-y-3">
+        {!fetchError && filtered.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-[#18181c] p-6 text-center text-sm text-white/60">
+            {teams.length === 0
+              ? serverSearchQuery || filterUserId
+                ? "No teams match this filter."
+                : "No teams found."
+              : "No teams match the local filter above."}
+          </div>
+        )}
         {filtered.map((team) => (
           <div key={team.id} className="rounded-xl border border-white/10 bg-[#18181c] p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">

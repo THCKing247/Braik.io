@@ -188,18 +188,18 @@ export function OperatorAthleticDepartmentDetail({
         <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">{err}</div>
       )}
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-5">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-5">
         <h2 className="text-lg font-semibold text-white">{overview.schoolName}</h2>
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <div className="rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2">
             <dt className="text-xs uppercase tracking-wide text-white/50">Teams usage</dt>
             <dd className="mt-1 text-sm font-medium text-white">{usageTeams}</dd>
           </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <div className="rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2">
             <dt className="text-xs uppercase tracking-wide text-white/50">Assistant coaches</dt>
             <dd className="mt-1 text-sm font-medium text-white">{usageAssist}</dd>
           </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <div className="rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2">
             <dt className="text-xs uppercase tracking-wide text-white/50">School video (master)</dt>
             <dd className="mt-1 text-sm font-medium text-white">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
           </div>
@@ -215,7 +215,7 @@ export function OperatorAthleticDepartmentDetail({
                 min={0}
                 value={teamsAllowedInput}
                 onChange={(e) => setTeamsAllowedInput(e.target.value)}
-                className="w-28 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-white"
+                className="w-28 rounded border border-white/15 bg-admin-input px-2 py-1.5 text-white"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
@@ -225,7 +225,7 @@ export function OperatorAthleticDepartmentDetail({
                 min={0}
                 value={assistantsAllowedInput}
                 onChange={(e) => setAssistantsAllowedInput(e.target.value)}
-                className="w-28 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-white"
+                className="w-28 rounded border border-white/15 bg-admin-input px-2 py-1.5 text-white"
               />
             </label>
             <label className="flex items-center gap-2 text-sm">
@@ -252,7 +252,7 @@ export function OperatorAthleticDepartmentDetail({
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <h3 className="text-base font-semibold text-white">Organization video</h3>
         <p className="mt-1 text-xs text-white/55">
           When a team is on a program, the program&apos;s organization must allow video before the team portal Video tab
@@ -269,7 +269,7 @@ export function OperatorAthleticDepartmentDetail({
             {(overview.organizations ?? []).map((org) => (
               <li
                 key={org.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2"
               >
                 <span className="text-sm font-medium text-white">{org.name}</span>
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -288,14 +288,14 @@ export function OperatorAthleticDepartmentDetail({
         )}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <h3 className="text-base font-semibold text-white">Teams</h3>
         <p className="mt-1 text-xs text-white/55">
           <span className="font-medium text-white/70">How effective video works:</span> The team portal &quot;Game Video /
           Clips&quot; tab appears only when every layer that applies is on: school (athletic department) video, then—if
           the team is linked to a program—<span className="text-white/80">organization</span> video for that program&apos;s
           org, then team video. Each user also needs video view permission in{" "}
-          <code className="rounded bg-black/40 px-1 text-white/70">user_video_permissions</code>. Turning on school + team
+          <code className="rounded bg-admin-input px-1 text-white/70">user_video_permissions</code>. Turning on school + team
           is not enough if the team has a program and organization-level video is off.
         </p>
         {teamsBlockedByOrgVideo.length > 0 && (
@@ -400,14 +400,14 @@ export function OperatorAthleticDepartmentDetail({
         )}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-base font-semibold text-white">Users</h3>
           <input
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder="Search users…"
-            className="rounded border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+            className="rounded border border-white/15 bg-admin-input px-3 py-1.5 text-sm"
           />
         </div>
         {filteredUsers.length === 0 ? (

@@ -4,10 +4,10 @@ export default function AdminTeamDetailLoading() {
       <div className="h-8 w-48 rounded bg-white/10" />
       <div className="h-4 w-72 rounded bg-white/10" />
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="h-40 rounded-xl border border-white/10 bg-white/5" />
-        <div className="h-40 rounded-xl border border-white/10 bg-white/5" />
+        <div className="h-40 rounded-xl border border-white/[0.08] bg-admin-card" />
+        <div className="h-40 rounded-xl border border-white/[0.08] bg-admin-card" />
       </div>
-      <div className="h-32 rounded-xl border border-white/10 bg-white/5" />
+      <div className="h-32 rounded-xl border border-white/[0.08] bg-admin-card" />
     </div>
   )
 }

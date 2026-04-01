@@ -22,7 +22,7 @@ function statusChip(value: string): string {
   if (normalized === "active") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
   if (normalized === "suspended" || normalized === "terminated") return "bg-red-500/20 text-red-200 border-red-400/40"
   if (normalized === "grace_period" || normalized === "past_due") return "bg-orange-500/20 text-orange-200 border-orange-400/40"
-  if (normalized === "cancelled") return "bg-[#000000]/20 text-[#e5e7eb] border-[#000000]/40"
+  if (normalized === "cancelled") return "border-white/[0.1] bg-admin-nested text-zinc-300"
   return "bg-white/10 text-white/80 border-white/20"
 }
 
@@ -81,7 +81,7 @@ export function OperatorTeams({
           </p>
         </div>
       )}
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Teams Management</h2>
           <div className="flex gap-2">
@@ -89,7 +89,7 @@ export function OperatorTeams({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Local filter"
-              className="rounded border border-white/15 bg-black/30 px-2 py-1 text-xs"
+              className="rounded border border-white/15 bg-admin-input px-2 py-1 text-xs"
             />
             <button onClick={() => setModalOpen(true)} className="rounded bg-white/10 px-3 py-1 text-xs">
               Open Drill-down
@@ -135,7 +135,7 @@ export function OperatorTeams({
 
       <div className="space-y-3">
         {!fetchError && filtered.length === 0 && (
-          <div className="rounded-xl border border-white/10 bg-[#18181c] p-6 text-center text-sm text-white/60">
+          <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-6 text-center text-sm text-white/60">
             {teams.length === 0
               ? serverSearchQuery || filterUserId
                 ? "No teams match this filter."
@@ -144,7 +144,7 @@ export function OperatorTeams({
           </div>
         )}
         {filtered.map((team) => (
-          <div key={team.id} className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+          <div key={team.id} className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold">{team.name}</h3>
@@ -175,8 +175,8 @@ export function OperatorTeams({
       >
         <div className="space-y-2">
           <div className="grid gap-2 md:grid-cols-4">
-            <input className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs" placeholder="Search" />
-            <select className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs">
+            <input className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs" placeholder="Search" />
+            <select className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs">
               <option>Bulk action</option>
               <option>Suspend selected</option>
               <option>Restore selected</option>
@@ -184,7 +184,7 @@ export function OperatorTeams({
             <button className="rounded bg-white/10 px-2 py-1 text-xs">Apply</button>
             <button className="rounded bg-white/10 px-2 py-1 text-xs">Export CSV</button>
           </div>
-          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/10">
+          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/[0.08]">
             <table className="w-full text-left text-xs">
               <thead className="bg-white/10">
                 <tr>

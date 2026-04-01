@@ -39,7 +39,7 @@ export function AdminTicketStatusForm({
   return (
     <div className="flex items-center gap-2">
       <select
-        className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+        className="rounded border border-white/[0.1] bg-admin-input px-2 py-1 text-xs"
         value={status}
         onChange={(event) => setStatus(event.target.value)}
       >

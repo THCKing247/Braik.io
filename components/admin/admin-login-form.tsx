@@ -67,19 +67,19 @@ export function AdminLoginForm() {
   }
 
   return (
-    <div className="w-full rounded-xl border border-white/10 bg-white/5 p-8 shadow-xl backdrop-blur-sm">
+    <div className="w-full rounded-xl border border-white/[0.08] bg-admin-card p-8 shadow-admin-card backdrop-blur-sm">
       <div className="mb-6 flex items-center justify-center gap-2 text-cyan-400">
         <Shield className="h-6 w-6" aria-hidden />
-        <h2 className="text-xl font-semibold uppercase tracking-wide text-white">
+        <h2 className="text-xl font-semibold uppercase tracking-wide text-zinc-50">
           Admin portal
         </h2>
       </div>
-      <p className="mb-6 text-center text-sm text-white/70">
+      <p className="mb-6 text-center text-sm text-zinc-400">
         Sign in with your platform owner or admin account
       </p>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="admin-email" className="text-sm font-medium text-white/90">
+          <Label htmlFor="admin-email" className="text-sm font-medium text-zinc-300">
             Email
           </Label>
           <Input
@@ -89,11 +89,11 @@ export function AdminLoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="admin@example.com"
-            className="border-white/20 bg-white/10 text-white placeholder:text-white/50 focus-visible:ring-cyan-500"
+            className="border-white/[0.1] bg-admin-input text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-cyan-500"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="admin-password" className="text-sm font-medium text-white/90">
+          <Label htmlFor="admin-password" className="text-sm font-medium text-zinc-300">
             Password
           </Label>
           <div className="relative">
@@ -104,12 +104,12 @@ export function AdminLoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="••••••••"
-              className="border-white/20 bg-white/10 pr-10 text-white placeholder:text-white/50 focus-visible:ring-cyan-500"
+              className="border-white/[0.1] bg-admin-input pr-10 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-cyan-500"
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute inset-y-0 right-0 flex items-center px-3 text-white/50 hover:text-white/80"
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500 hover:text-zinc-300"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -133,7 +133,7 @@ export function AdminLoginForm() {
           {loading ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-      <p className="mt-5 text-center text-xs text-white/50">
+      <p className="mt-5 text-center text-xs text-zinc-500">
         Not an admin?{" "}
         <a href="/login" className="text-cyan-400 hover:underline">
           Go to main sign in

@@ -93,7 +93,7 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <h3 className="text-lg font-semibold">System Config (Versioned)</h3>
         <p className="mt-1 text-xs text-white/70">
           Every update appends a new row with incremented version. Previous rows are preserved.
@@ -103,13 +103,13 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
           <input
             value={key}
             onChange={(event) => setKey(event.target.value)}
-            className="rounded border border-white/15 bg-black/30 px-3 py-2 text-sm"
+            className="rounded border border-white/15 bg-admin-input px-3 py-2 text-sm"
             placeholder="Config key"
           />
           <select
             value={scope}
             onChange={(event) => setScope(event.target.value as Scope)}
-            className="rounded border border-white/15 bg-black/30 px-3 py-2 text-sm"
+            className="rounded border border-white/15 bg-admin-input px-3 py-2 text-sm"
           >
             <option value="future_only">future_only</option>
             <option value="all">all</option>
@@ -125,7 +125,7 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
         </div>
 
         {scope === "selective" ? (
-          <div className="mt-3 rounded border border-white/10 bg-black/25 p-3">
+          <div className="mt-3 rounded border border-white/[0.08] bg-admin-nested p-3">
             <p className="mb-2 text-xs text-white/70">Selective team rollout</p>
             <div className="grid max-h-36 gap-2 overflow-y-auto md:grid-cols-2">
               {teams.map((team) => (
@@ -141,16 +141,16 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
         <textarea
           value={jsonValue}
           onChange={(event) => setJsonValue(event.target.value)}
-          className="mt-3 min-h-[220px] w-full rounded border border-white/15 bg-black/30 px-3 py-2 font-mono text-xs"
+          className="mt-3 min-h-[220px] w-full rounded border border-white/15 bg-admin-input px-3 py-2 font-mono text-xs"
         />
         {status ? <p className="mt-2 text-xs text-white/75">{status}</p> : null}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <h3 className="text-lg font-semibold">Latest by Key</h3>
         <div className="mt-3 space-y-2">
           {latestByKey.map((row) => (
-            <div key={row.id} className="rounded border border-white/10 bg-black/25 p-2 text-xs">
+            <div key={row.id} className="rounded border border-white/[0.08] bg-admin-nested p-2 text-xs">
               <p className="font-semibold">
                 {row.key} (v{row.version}) - {row.applied_scope}
               </p>

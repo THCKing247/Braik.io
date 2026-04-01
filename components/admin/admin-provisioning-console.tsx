@@ -13,14 +13,14 @@ type TeamRow = {
   video_clips_enabled: boolean
 }
 
-/** Shared form styles — matches dark admin console, consistent input/select height */
-const labelCls = "block text-xs font-medium uppercase tracking-wide text-white/55"
+/** Shared form styles — layered admin grays (see tailwind `admin.*` colors) */
+const labelCls = "block text-xs font-medium uppercase tracking-wide text-zinc-400"
 const controlCls =
-  "mt-1.5 block w-full h-10 rounded-md border border-white/15 bg-black/45 px-3 text-sm text-white shadow-sm outline-none transition placeholder:text-white/30 focus:border-cyan-500/45 focus:ring-2 focus:ring-cyan-500/20"
-const selectCls = `${controlCls} cursor-pointer pr-9 [&>option]:bg-[#1a1a1f] [&>option]:text-white`
-const checkRowCls = "flex items-start gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white/85 md:col-span-2"
-const cardCls =
-  "rounded-xl border border-white/10 bg-[#141418] shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] shadow-black/30"
+  "mt-1.5 block w-full h-10 rounded-md border border-white/[0.1] bg-admin-input px-3 text-sm text-zinc-100 shadow-sm outline-none transition placeholder:text-zinc-500 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
+const selectCls = `${controlCls} cursor-pointer pr-9 [&>option]:bg-admin-input [&>option]:text-zinc-100`
+const checkRowCls =
+  "flex items-start gap-3 rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2.5 text-sm text-zinc-300 md:col-span-2"
+const cardCls = "rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card"
 const primaryBtnCls =
   "inline-flex h-10 w-full items-center justify-center rounded-md bg-cyan-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400/80 sm:w-auto sm:min-w-[11rem]"
 const inviteBtnCls =
@@ -167,15 +167,15 @@ export function AdminProvisioningConsole() {
 
   return (
     <div className="space-y-10">
-      <p className="text-sm leading-relaxed text-white/65">
+      <p className="text-sm leading-relaxed text-zinc-400">
         Create organizations and teams, then invite users. Invites use Supabase email with a secure link to set a
         password — no temporary passwords are sent in plain text.
       </p>
 
       <section className={cardCls}>
-        <div className="border-b border-white/10 px-5 py-4 md:px-6 md:py-5">
-          <h2 className="text-base font-semibold tracking-tight text-white">Create organization</h2>
-          <p className="mt-1.5 text-xs leading-relaxed text-white/45">
+        <div className="border-b border-white/[0.08] px-5 py-4 md:px-6 md:py-5">
+          <h2 className="text-base font-semibold tracking-tight text-zinc-50">Create organization</h2>
+          <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
             Add a new organization record. Slug is optional; enable video at the org level when programs should allow
             clips.
           </p>
@@ -196,7 +196,7 @@ export function AdminProvisioningConsole() {
           </div>
           <div>
             <label className={labelCls} htmlFor="prov-org-slug">
-              Slug <span className="font-normal normal-case text-white/40">(optional)</span>
+              Slug <span className="font-normal normal-case text-zinc-500">(optional)</span>
             </label>
             <input
               id="prov-org-slug"
@@ -210,17 +210,17 @@ export function AdminProvisioningConsole() {
             <input
               id="prov-org-video"
               type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/25 bg-black/50 text-cyan-600 focus:ring-cyan-500/40"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-admin-input text-cyan-500 focus:ring-cyan-500/40"
               checked={orgVideo}
               onChange={(e) => setOrgVideo(e.target.checked)}
             />
             <span>
-              <span className="font-medium text-white/90">video_clips_enabled</span>
-              <span className="mt-0.5 block text-xs font-normal text-white/45">Applies to this organization.</span>
+              <span className="font-medium text-zinc-200">video_clips_enabled</span>
+              <span className="mt-0.5 block text-xs font-normal text-zinc-500">Applies to this organization.</span>
             </span>
           </label>
           <div className="flex flex-col gap-3 pt-1 md:col-span-2 md:flex-row md:items-center md:justify-between md:pt-0">
-            <span className="hidden text-xs text-white/35 md:inline">Creates org + optional slug.</span>
+            <span className="hidden text-xs text-zinc-500 md:inline">Creates org + optional slug.</span>
             <button type="submit" className={primaryBtnCls}>
               Create organization
             </button>
@@ -230,9 +230,9 @@ export function AdminProvisioningConsole() {
       </section>
 
       <section className={cardCls}>
-        <div className="border-b border-white/10 px-5 py-4 md:px-6 md:py-5">
-          <h2 className="text-base font-semibold tracking-tight text-white">Create team</h2>
-          <p className="mt-1.5 text-xs leading-relaxed text-white/45">
+        <div className="border-b border-white/[0.08] px-5 py-4 md:px-6 md:py-5">
+          <h2 className="text-base font-semibold tracking-tight text-zinc-50">Create team</h2>
+          <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
             Creates a program under the selected organization, then the team. Program name defaults to the team name if
             left blank.
           </p>
@@ -291,19 +291,19 @@ export function AdminProvisioningConsole() {
               onChange={(e) => setTeamProgramName(e.target.value)}
               placeholder="Defaults to team name"
             />
-            <p className="mt-1.5 text-xs text-white/40">Optional — used when the program label should differ from the team.</p>
+            <p className="mt-1.5 text-xs text-zinc-500">Optional — used when the program label should differ from the team.</p>
           </div>
           <label className={checkRowCls} htmlFor="prov-team-video">
             <input
               id="prov-team-video"
               type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/25 bg-black/50 text-cyan-600 focus:ring-cyan-500/40"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-admin-input text-cyan-500 focus:ring-cyan-500/40"
               checked={teamVideo}
               onChange={(e) => setTeamVideo(e.target.checked)}
             />
             <span>
-              <span className="font-medium text-white/90">video_clips_enabled</span>
-              <span className="mt-0.5 block text-xs font-normal text-white/45">Team-level toggle; org must allow video when linked via program.</span>
+              <span className="font-medium text-zinc-200">video_clips_enabled</span>
+              <span className="mt-0.5 block text-xs font-normal text-zinc-500">Team-level toggle; org must allow video when linked via program.</span>
             </span>
           </label>
           <div className="flex flex-col gap-3 pt-1 md:col-span-2 md:flex-row md:items-center md:justify-end md:pt-0">
@@ -316,9 +316,9 @@ export function AdminProvisioningConsole() {
       </section>
 
       <section className={cardCls}>
-        <div className="border-b border-white/10 px-5 py-4 md:px-6 md:py-5">
-          <h2 className="text-base font-semibold tracking-tight text-white">Invite user</h2>
-          <p className="mt-1.5 text-xs leading-relaxed text-white/45">
+        <div className="border-b border-white/[0.08] px-5 py-4 md:px-6 md:py-5">
+          <h2 className="text-base font-semibold tracking-tight text-zinc-50">Invite user</h2>
+          <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
             Sends a Supabase invite email. TODO: confirm Auth email templates use your app URL in the dashboard.
           </p>
         </div>
@@ -387,7 +387,7 @@ export function AdminProvisioningConsole() {
             </div>
             <div>
               <label className={labelCls} htmlFor="prov-invite-team">
-                Team <span className="font-normal normal-case text-white/40">(optional)</span>
+                Team <span className="font-normal normal-case text-zinc-500">(optional)</span>
               </label>
               <select
                 id="prov-invite-team"
@@ -405,7 +405,7 @@ export function AdminProvisioningConsole() {
             </div>
             <div>
               <label className={labelCls} htmlFor="prov-invite-org">
-                Organization <span className="font-normal normal-case text-white/40">(optional)</span>
+                Organization <span className="font-normal normal-case text-zinc-500">(optional)</span>
               </label>
               <select
                 id="prov-invite-org"
@@ -420,7 +420,7 @@ export function AdminProvisioningConsole() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1.5 text-xs text-white/40">For records when no team is selected.</p>
+              <p className="mt-1.5 text-xs text-zinc-500">For records when no team is selected.</p>
             </div>
           </div>
 
@@ -428,20 +428,20 @@ export function AdminProvisioningConsole() {
             <input
               id="prov-invite-video"
               type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/25 bg-black/50 text-violet-500 focus:ring-violet-500/40"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-admin-input text-violet-400 focus:ring-violet-500/40"
               checked={inviteVideo}
               onChange={(e) => setInviteVideo(e.target.checked)}
             />
             <span>
-              <span className="font-medium text-white/90">Game Video / Clips</span>
-              <span className="mt-0.5 block text-xs font-normal text-white/45">
+              <span className="font-medium text-zinc-200">Game Video / Clips</span>
+              <span className="mt-0.5 block text-xs font-normal text-zinc-500">
                 Sets view, upload, create, and share. Refine per user in Accounts.
               </span>
             </span>
           </label>
 
-          <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-white/40">Invite link is delivered by email; user sets their own password.</p>
+          <div className="mt-8 flex flex-col gap-3 border-t border-white/[0.08] pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-zinc-500">Invite link is delivered by email; user sets their own password.</p>
             <button type="submit" className={inviteBtnCls}>
               Send invite
             </button>

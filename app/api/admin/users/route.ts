@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { listSupabaseAuthUsers } from "@/lib/supabase/supabase-admin"
+import { organizationNameFromProgramsEmbed } from "@/lib/teams/team-organization-name"
 
 export async function GET(request: Request) {
   try {
@@ -48,17 +49,32 @@ export async function GET(request: Request) {
           .eq("id", u.id)
           .maybeSingle()
         const teamIds = profile?.team_id ? [profile.team_id] : []
-        const teams =
-          teamIds.length > 0
-            ? await supabase.from("teams").select("id, name, org").in("id", teamIds)
-            : { data: [] }
-        const memberships = profile?.team_id
+        type TeamMembershipRow = { id: string; name: string; programs?: unknown }
+        let teamRows: TeamMembershipRow[] = []
+        if (teamIds.length > 0) {
+          const withOrg = await supabase
+            .from("teams")
+            .select("id, name, programs(organizations(name))")
+            .in("id", teamIds)
+          if (withOrg.error) {
+            console.warn("[admin/users] teams embed failed:", withOrg.error.message)
+            const plain = await supabase.from("teams").select("id, name").in("id", teamIds)
+            teamRows = (plain.data ?? []) as TeamMembershipRow[]
+          } else {
+            teamRows = (withOrg.data ?? []) as TeamMembershipRow[]
+          }
+        }
+        const tid = profile?.team_id ?? null
+        const rowForTeam = tid ? teamRows.find((t) => t.id === tid) : undefined
+        const memberships = tid
           ? [
               {
-                role: profile.role ?? "player",
-                teamId: profile.team_id,
-                teamName: (teams.data ?? []).find((t) => t.id === profile.team_id)?.name,
-                organizationName: (teams.data ?? []).find((t) => t.id === profile.team_id)?.org,
+                role: profile?.role ?? "player",
+                teamId: tid,
+                teamName: rowForTeam?.name,
+                organizationName: rowForTeam
+                  ? organizationNameFromProgramsEmbed(rowForTeam.programs)
+                  : undefined,
               },
             ]
           : []

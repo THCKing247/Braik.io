@@ -5,7 +5,13 @@ import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
 import { USER_ROLE_LABELS, USER_ROLE_VALUES } from "@/lib/auth/user-roles"
 
 type OrgRow = { id: string; name: string; slug: string | null; video_clips_enabled: boolean }
-type TeamRow = { id: string; name: string; org: string | null; program_id: string | null; video_clips_enabled: boolean }
+type TeamRow = {
+  id: string
+  name: string
+  organizationName: string | null
+  program_id: string | null
+  video_clips_enabled: boolean
+}
 
 export function AdminProvisioningConsole() {
   const [orgs, setOrgs] = useState<OrgRow[]>([])
@@ -89,7 +95,7 @@ export function AdminProvisioningConsole() {
     }
     setTeamMsg(`Created team ${data.name}`)
     setTeamName("")
-    setTeams((prev) => [{ ...data, org: data.org ?? null }, ...prev])
+    setTeams((prev) => [data as TeamRow, ...prev])
   }
 
   async function submitInvite(e: React.FormEvent) {

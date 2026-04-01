@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseProjectUrl } from "@/src/lib/supabase-project-env"
 import { isAssistantCoachRole, isHeadCoachRole, pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
+import { displayOrganizationName } from "@/lib/teams/team-organization-name"
 
 /** Escape `%`, `_`, and `\` for use inside PostgREST `ilike` patterns (SQL LIKE semantics). */
 export function escapeIlikePatternFragment(raw: string): string {
@@ -31,24 +32,27 @@ function redactedSupabaseHost(): string {
 
 const DEBUG = process.env.BRAIK_DEBUG_ADMIN_TEAMS === "1"
 
-const TEAMS_SELECT_FULL =
-  "id, name, plan_tier, subscription_status, team_status, org, created_at"
-const TEAMS_SELECT_MINIMAL = "id, name, org, created_at"
+/** programs → organizations(name); optional embed (left join). */
+const TEAMS_SELECT_WITH_ORG_EMBED =
+  "id, name, plan_tier, subscription_status, team_status, program_id, created_at, programs(organizations(name))"
+const TEAMS_SELECT_NO_EMBED =
+  "id, name, plan_tier, subscription_status, team_status, program_id, created_at"
+const TEAMS_SELECT_MINIMAL = "id, name, program_id, created_at"
 
-/** Shape returned from `teams` select (avoids Supabase generic inference noise). */
 type TeamsTableListRow = {
   id: string
   name: string
   plan_tier?: string | null
   subscription_status?: string | null
   team_status?: string | null
-  org?: string | null
+  program_id?: string | null
   created_at?: string | null
+  programs?: unknown
 }
 
 /**
  * Super Admin teams list: service-role client, no org scoping.
- * Fetches teams first; staff names are joined afterward (no inner join on teams).
+ * Organization label comes from programs → organizations, not teams.org.
  */
 export async function fetchSuperAdminTeamsList(
   supabase: SupabaseClient,
@@ -59,10 +63,11 @@ export async function fetchSuperAdminTeamsList(
   const filterUserId = opts.filterUserId?.trim() || null
 
   if (DEBUG) {
-    console.info("[admin/teams][debug]", {
+    console.info("[admin/teams][debug] inputs", {
       q: q || null,
       filterUserId,
       supabaseHost: redactedSupabaseHost(),
+      limit,
     })
   }
 
@@ -83,7 +88,7 @@ export async function fetchSuperAdminTeamsList(
     }
   }
 
-  async function runTeamsSelect(selectList: string) {
+  function buildTeamsQuery(selectList: string) {
     let req = supabase
       .from("teams")
       .select(selectList)
@@ -92,51 +97,41 @@ export async function fetchSuperAdminTeamsList(
     if (teamIds) req = req.in("id", teamIds)
     if (q) {
       const esc = escapeIlikePatternFragment(q)
-      req = req.or(`name.ilike.%${esc}%,org.ilike.%${esc}%`)
+      req = req.ilike("name", `%${esc}%`)
     }
     return req
   }
 
-  async function runTeamsNameOnlyIlike(selectList: string) {
-    const esc = escapeIlikePatternFragment(q)
-    let req = supabase
-      .from("teams")
-      .select(selectList)
-      .order("created_at", { ascending: false })
-      .limit(limit)
-    if (teamIds) req = req.in("id", teamIds)
-    req = req.ilike("name", `%${esc}%`)
-    return req
-  }
+  const cascade = [TEAMS_SELECT_WITH_ORG_EMBED, TEAMS_SELECT_NO_EMBED, TEAMS_SELECT_MINIMAL] as const
+  let rows: unknown[] | null = null
+  let lastError: { message: string } | null = null
+  let usedSelect: string | null = null
 
-  let { data: rows, error: teamsErr } = await runTeamsSelect(TEAMS_SELECT_FULL)
-
-  if (teamsErr) {
-    console.warn("[admin/teams] teams query failed (full select):", teamsErr.message)
-    const retry = await runTeamsSelect(TEAMS_SELECT_MINIMAL)
-    rows = retry.data
-    teamsErr = retry.error
-    if (teamsErr) {
-      console.warn("[admin/teams] teams query failed (minimal + or):", teamsErr.message)
-      if (q) {
-        const third = await runTeamsNameOnlyIlike(TEAMS_SELECT_MINIMAL)
-        rows = third.data
-        teamsErr = third.error
-        if (teamsErr) {
-          console.warn("[admin/teams] teams query failed (name ilike only):", teamsErr.message)
-          return { teams: [], error: teamsErr.message }
-        }
-      } else {
-        return { teams: [], error: teamsErr.message }
-      }
+  for (const selectList of cascade) {
+    const { data, error } = await buildTeamsQuery(selectList)
+    if (error) {
+      console.warn(`[admin/teams] teams query failed [${selectList.slice(0, 48)}…]:`, error.message)
+      lastError = error
+      continue
     }
+    rows = data ?? []
+    usedSelect = selectList
+    break
   }
 
-  const teamRows = (rows ?? []) as unknown as TeamsTableListRow[]
+  if (rows === null) {
+    const msg = lastError?.message ?? "Unknown error loading teams"
+    return { teams: [], error: msg }
+  }
+
   if (DEBUG) {
-    console.info("[admin/teams][debug]", { teamsReturned: teamRows.length })
+    console.info("[admin/teams][debug] result", {
+      teamsReturned: rows.length,
+      usedSelectPrefix: usedSelect?.slice(0, 80) ?? null,
+    })
   }
 
+  const teamRows = rows as unknown as TeamsTableListRow[]
   const teamIdList = teamRows.map((t) => t.id)
 
   const { data: staffRows, error: staffErr } =
@@ -195,7 +190,7 @@ export async function fetchSuperAdminTeamsList(
       planTier: row.plan_tier ?? null,
       subscriptionStatus: row.subscription_status ?? "active",
       teamStatus: row.team_status ?? "active",
-      organization: { name: row.org?.trim() || row.name || "" },
+      organization: { name: displayOrganizationName(row) },
       players: [],
       headCoachName,
       coachStaffCount,

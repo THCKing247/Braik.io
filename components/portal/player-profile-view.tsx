@@ -1618,6 +1618,7 @@ type InventoryItem = {
   status?: string
   condition?: string
   size?: string | null
+  equipmentType?: string | null
   /** Aligns with team inventory buckets (Gear, Uniforms, …). */
   inventoryBucket?: string
   assignedPlayer?: { id: string; firstName: string; lastName: string } | null

@@ -21,7 +21,9 @@ export async function fetchTeamGamesForRange(
     startDate,
     endDate,
   })
-  const res = await fetch(`/api/stats/games?${params.toString()}`)
+  const res = await fetch(`/api/stats/games?${params.toString()}`, {
+    cache: "no-store",
+  })
   if (!res.ok) {
     throw new Error(`games ${res.status}`)
   }

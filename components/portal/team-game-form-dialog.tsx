@@ -44,7 +44,7 @@ export function TeamGameFormDialog({
   open: boolean
   onOpenChange: (o: boolean) => void
   game: TeamGameRow | null
-  onSaved: () => void
+  onSaved?: (meta?: { gameId?: string | null }) => void | Promise<void>
   /** Hint when adding a game (e.g. last scheduled opponent). */
   suggestedOpponent?: string
 }) {
@@ -204,7 +204,7 @@ export function TeamGameFormDialog({
         showToast("Game updated.", "success")
       }
       onOpenChange(false)
-      onSaved()
+      void onSaved?.({ gameId: game?.id ?? null })
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Save failed", "error")
     } finally {
@@ -224,7 +224,7 @@ export function TeamGameFormDialog({
       showToast("Game removed.", "success")
       setDeleteOpen(false)
       onOpenChange(false)
-      onSaved()
+      void onSaved?.({ gameId: game?.id ?? null })
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Delete failed", "error")
     } finally {

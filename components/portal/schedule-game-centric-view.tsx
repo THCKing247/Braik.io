@@ -31,6 +31,7 @@ import {
 } from "@/lib/team-schedule-games"
 import { hasAnyQuarterSet } from "@/lib/games-quarter-scoring"
 import { cn } from "@/lib/utils"
+import type { TeamTrendsSnapshot } from "@/lib/schedule-team-trends"
 import { computeTeamTrends } from "@/lib/schedule-team-trends"
 import { ScheduleTeamTrendsStrip } from "@/components/portal/schedule-team-trends-strip"
 import { ScheduleGameDetailTabs } from "@/components/portal/schedule-game-detail-tabs"
@@ -100,6 +101,9 @@ export function ScheduleGameCentricView({
   canEdit,
   onRefresh,
   onEditGame,
+  recordBeforeMap,
+  teamTrends: teamTrendsProp,
+  surface = "schedule",
 }: {
   teamId: string
   teamName: string
@@ -107,6 +111,11 @@ export function ScheduleGameCentricView({
   canEdit: boolean
   onRefresh: () => void
   onEditGame: (g: TeamGameRow) => void
+  /** Full-season cumulative record when `games` is a filtered tab list */
+  recordBeforeMap?: Map<string, WinLossRecord>
+  /** Trends from the full merged game list (both tabs) */
+  teamTrends?: TeamTrendsSnapshot
+  surface?: "schedule" | "results"
 }) {
   const { showToast } = usePlaybookToast()
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -120,10 +129,20 @@ export function ScheduleGameCentricView({
   const [bulkOppInput, setBulkOppInput] = useState("")
   const [bulkSaving, setBulkSaving] = useState(false)
 
-  const recordBefore = useMemo(() => buildCumulativeRecordBeforeMap(games), [games])
+  const recordBefore = useMemo(() => {
+    if (recordBeforeMap) return recordBeforeMap
+    return buildCumulativeRecordBeforeMap(games)
+  }, [recordBeforeMap, games])
   const allGameIds = useMemo(() => games.map((g) => g.id), [games])
-  const weekGroups = useMemo(() => groupGamesByScheduleWeek(games), [games])
-  const teamTrends = useMemo(() => computeTeamTrends(games), [games])
+  const weekGroups = useMemo(() => {
+    const wg = groupGamesByScheduleWeek(games)
+    if (surface !== "results") return wg
+    return [...wg].reverse().map((w) => ({ ...w, games: [...w.games].reverse() }))
+  }, [games, surface])
+  const teamTrends = useMemo(
+    () => teamTrendsProp ?? computeTeamTrends(games),
+    [teamTrendsProp, games]
+  )
 
   const formatRec = (r: WinLossRecord) => formatRecordLine(r)
 
@@ -284,11 +303,161 @@ export function ScheduleGameCentricView({
     setQDraft(next)
   }, [expandedId, games])
 
+  const resultLabel = (game: TeamGameRow, eff: { team: number | null; opponent: number | null }) => {
+    if (inferScheduleStatus(game) !== "completed") return "—"
+    const o = deriveGameOutcome({ ...game, teamScore: eff.team, opponentScore: eff.opponent })
+    if (o === "win") return "W"
+    if (o === "loss") return "L"
+    if (o === "tie") return "T"
+    return "—"
+  }
+
+  const haLabel = (game: TeamGameRow) => {
+    const ha = inferHomeAway(game.location)
+    if (ha === "home") return "Home"
+    if (ha === "away") return "Away"
+    return "—"
+  }
+
+  const scrollToGameCard = (gameId: string) => {
+    requestAnimationFrame(() => {
+      document.getElementById(`schedule-game-card-${gameId}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+    })
+  }
+
   return (
     <div className="space-y-8">
-      {games.length > 0 ? <ScheduleTeamTrendsStrip trends={teamTrends} /> : null}
+      {surface === "results" && games.length > 0 ? <ScheduleTeamTrendsStrip trends={teamTrends} /> : null}
 
-      {canEdit && games.length > 0 ? (
+      {surface === "results" && games.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-medium md:hidden" style={{ color: "rgb(var(--muted))" }}>
+            Scroll horizontally for full columns.
+          </p>
+          <div
+            className="overflow-x-auto rounded-xl border shadow-sm"
+            style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+          >
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b" style={{ borderColor: "rgb(var(--border))" }}>
+                <th className="px-3 py-2.5 font-semibold md:px-4" style={{ color: "rgb(var(--text))" }}>
+                  Opponent
+                </th>
+                <th className="px-3 py-2.5 font-semibold md:px-4" style={{ color: "rgb(var(--text))" }}>
+                  Date
+                </th>
+                <th className="px-3 py-2.5 font-semibold md:px-4" style={{ color: "rgb(var(--text))" }}>
+                  H/A
+                </th>
+                <th className="px-3 py-2.5 font-semibold tabular-nums md:px-4" style={{ color: "rgb(var(--text))" }}>
+                  Us
+                </th>
+                <th className="px-3 py-2.5 font-semibold tabular-nums md:px-4" style={{ color: "rgb(var(--text))" }}>
+                  Opp
+                </th>
+                <th className="px-3 py-2.5 font-semibold md:px-4" style={{ color: "rgb(var(--text))" }}>
+                  Result
+                </th>
+                {canEdit ? (
+                  <th className="px-3 py-2.5 font-semibold md:px-4" style={{ color: "rgb(var(--text))" }}>
+                    Actions
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {games.map((g) => {
+                const eff = effectiveTotalsFromGame(g)
+                const opp = g.opponent?.trim() || "TBD"
+                const d = new Date(g.gameDate)
+                const dateShort = Number.isFinite(d.getTime()) ? format(d, "MMM d, yyyy") : "—"
+                const completed = inferScheduleStatus(g) === "completed"
+                return (
+                  <tr key={`tbl-${g.id}`} className="border-b last:border-0" style={{ borderColor: "rgb(var(--border))" }}>
+                    <td className="px-3 py-2.5 font-medium md:px-4" style={{ color: "rgb(var(--text))" }}>
+                      {opp}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums md:px-4" style={{ color: "rgb(var(--text2))" }}>
+                      {dateShort}
+                    </td>
+                    <td className="px-3 py-2.5 md:px-4" style={{ color: "rgb(var(--text2))" }}>
+                      {haLabel(g)}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums font-semibold md:px-4" style={{ color: "rgb(var(--text))" }}>
+                      {eff.team ?? "—"}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums font-semibold md:px-4" style={{ color: "rgb(var(--text))" }}>
+                      {eff.opponent ?? "—"}
+                    </td>
+                    <td className="px-3 py-2.5 md:px-4">
+                      <span className="inline-flex min-w-[1.5rem] font-bold tabular-nums">{resultLabel(g, eff)}</span>
+                    </td>
+                    {canEdit ? (
+                      <td className="px-3 py-2 md:px-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          {!completed ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8"
+                              onClick={() => {
+                                setExpandedId(g.id)
+                                setScoreEditId(g.id)
+                                setScoreDraft({
+                                  team: eff.team != null ? String(eff.team) : "",
+                                  opp: eff.opponent != null ? String(eff.opponent) : "",
+                                })
+                                scrollToGameCard(g.id)
+                              }}
+                            >
+                              Record final score
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8"
+                              onClick={() => {
+                                setExpandedId(g.id)
+                                setScoreEditId(g.id)
+                                setScoreDraft({
+                                  team: eff.team != null ? String(eff.team) : "",
+                                  opp: eff.opponent != null ? String(eff.opponent) : "",
+                                })
+                                scrollToGameCard(g.id)
+                              }}
+                            >
+                              Edit result
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 gap-1"
+                            onClick={() => {
+                              setExpandedId(g.id)
+                              onEditGame(g)
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Details
+                          </Button>
+                        </div>
+                      </td>
+                    ) : null}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      ) : null}
+
+      {canEdit && games.length > 0 && surface === "results" ? (
         <div
           className="hidden lg:flex lg:flex-wrap lg:items-center lg:justify-between lg:gap-3 lg:rounded-xl lg:border lg:px-4 lg:py-3"
           style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
@@ -402,12 +571,13 @@ export function ScheduleGameCentricView({
               return (
                 <div
                   key={g.id}
+                  id={`schedule-game-card-${g.id}`}
                   className="rounded-xl border px-3 py-3 shadow-sm md:px-4 md:py-4"
                   style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                     <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
-                      {canEdit ? (
+                      {canEdit && surface === "results" ? (
                         <div
                           className="hidden shrink-0 items-center gap-2 lg:flex"
                           onClick={(e) => e.stopPropagation()}

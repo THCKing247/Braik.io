@@ -217,6 +217,39 @@ export function parseGameDateMs(iso: string): number {
   return Number.isFinite(t) ? t : 0
 }
 
+/** No usable game date (TBD / placeholder) — stays on the Game Schedule tab. */
+export function isUnscheduledGameDate(game: TeamGameRow): boolean {
+  const ms = parseGameDateMs(game.gameDate)
+  return !Number.isFinite(ms) || ms === 0
+}
+
+/**
+ * Games that belong on the Game Results tab: finalized scores/outcome, or any past dated game
+ * (including those still needing a recorded result).
+ */
+export function isGameInResultsTab(game: TeamGameRow, nowMs: number = Date.now()): boolean {
+  if (inferScheduleStatus(game) === "completed") return true
+  if (isUnscheduledGameDate(game)) return false
+  const ms = parseGameDateMs(game.gameDate)
+  const dayStart = startOfDay(new Date(nowMs)).getTime()
+  return ms < dayStart
+}
+
+export function partitionGamesForScheduleTabs(
+  games: TeamGameRow[],
+  nowMs: number = Date.now()
+): { scheduleGames: TeamGameRow[]; resultsGames: TeamGameRow[] } {
+  const schedule: TeamGameRow[] = []
+  const results: TeamGameRow[] = []
+  for (const g of games) {
+    if (isGameInResultsTab(g, nowMs)) results.push(g)
+    else schedule.push(g)
+  }
+  schedule.sort((a, b) => parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate))
+  results.sort((a, b) => parseGameDateMs(b.gameDate) - parseGameDateMs(a.gameDate))
+  return { scheduleGames: schedule, resultsGames: results }
+}
+
 /**
  * Soonest game at or after "now" (with a 1-minute grace) that counts as upcoming.
  */

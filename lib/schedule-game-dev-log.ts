@@ -1,5 +1,11 @@
 import type { TeamGameRow } from "@/lib/team-schedule-games"
-import { isResultsTabGame, isScheduleTabGame } from "@/lib/team-schedule-games"
+import {
+  effectiveTotalsFromGame,
+  inferScheduleStatus,
+  isResultsTabGame,
+  isScheduleTabGame,
+  normalizeStoredResult,
+} from "@/lib/team-schedule-games"
 
 /** Client-only dev logging for schedule/score saves (no-op in production). */
 export function logScheduleGameDev(
@@ -39,4 +45,43 @@ export function logScheduleGameDev(
         }
       : null,
   })
+}
+
+/**
+ * Dev-only: per-game classification for Schedule vs Results tabs (why a row is in/out of Results).
+ * No-op in production.
+ */
+export function logScheduleGamesPartitionDebug(games: TeamGameRow[], label = "merged-games"): void {
+  if (process.env.NODE_ENV === "production") return
+  const gamesOut = games.map((g) => {
+    const eff = effectiveTotalsFromGame(g)
+    const norm = normalizeStoredResult(g.result)
+    const status = inferScheduleStatus(g)
+    const inResults = isResultsTabGame(g)
+    const inSchedule = isScheduleTabGame(g)
+    let whyResults: string
+    if (inResults) {
+      if (eff.team != null && eff.opponent != null) whyResults = "completed: both effective scores"
+      else if (norm) whyResults = `completed: result → ${norm}`
+      else whyResults = "completed (unexpected branch)"
+    } else {
+      whyResults = `schedule/other: inferScheduleStatus=${status}`
+    }
+    return {
+      id: g.id,
+      opponent: g.opponent,
+      gameDate: g.gameDate,
+      rawResult: g.result,
+      teamScore: g.teamScore,
+      opponentScore: g.opponentScore,
+      effectiveTotals: eff,
+      normalizedResult: norm,
+      inferScheduleStatus: status,
+      isResultsTabGame: inResults,
+      isScheduleTabGame: inSchedule,
+      whyResults,
+    }
+  })
+  // eslint-disable-next-line no-console -- intentional dev diagnostics
+  console.debug(`[schedule-games-partition] ${label}`, { count: games.length, games: gamesOut })
 }

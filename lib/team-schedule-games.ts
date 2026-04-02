@@ -8,7 +8,7 @@ import {
   teamOpponentTotalsFromQuarters,
 } from "@/lib/games-quarter-scoring"
 
-function normalizeStoredResult(result?: string | null): "win" | "loss" | "tie" | null {
+export function normalizeStoredResult(result?: string | null): "win" | "loss" | "tie" | null {
   const r = (result || "").toLowerCase().trim()
   if (r === "win" || r === "w") return "win"
   if (r === "loss" || r === "l") return "loss"
@@ -107,8 +107,8 @@ export function inferScheduleStatus(game: TeamGameRow): GameScheduleStatus {
   if (POSTPONED_RE.test(notes)) return "postponed"
   const eff = effectiveTotalsFromGame(game)
   if (eff.team != null && eff.opponent != null) return "completed"
-  const r = (game.result || "").toLowerCase()
-  if (r === "win" || r === "loss" || r === "tie") return "completed"
+  /** DB/import may store W/L/T or single-letter codes — keep in sync with `normalizeStoredResult`. */
+  if (normalizeStoredResult(game.result)) return "completed"
   return "scheduled"
 }
 
@@ -252,9 +252,8 @@ export function isUnscheduledGameDate(game: TeamGameRow): boolean {
 }
 
 /**
- * **Game Results** tab: games with a recorded final outcome (scores and/or W–L–T per `inferScheduleStatus`).
- * Everything else (including past games still needing a score, postponed, cancelled) stays on **Game Schedule**
- * so every game is always in exactly one tab with no “disappeared” edge cases from date/result mismatches.
+ * **Game Results** tab: finalized games (`inferScheduleStatus === "completed"`).
+ * Includes both final scores and normalized W/L/T (including single-letter codes from imports).
  */
 export function isResultsTabGame(game: TeamGameRow, _nowMs?: number): boolean {
   return inferScheduleStatus(game) === "completed"
@@ -264,6 +263,10 @@ export function isResultsTabGame(game: TeamGameRow, _nowMs?: number): boolean {
 export function isScheduleTabGame(game: TeamGameRow, nowMs?: number): boolean {
   return !isResultsTabGame(game, nowMs)
 }
+
+/** Alias for schedule/results docs and filters. */
+export const isGameInResults = isResultsTabGame
+export const isGameInSchedule = isScheduleTabGame
 
 export type SchedulePagePartition = { scheduleGames: TeamGameRow[]; resultsGames: TeamGameRow[] }
 

@@ -19,7 +19,7 @@ import {
 } from "@/lib/team-schedule-games"
 import { computeTeamTrends } from "@/lib/schedule-team-trends"
 import { mergeTeamGameRangeQueryResults } from "@/lib/schedule-team-games-merge"
-import { logScheduleGameDev } from "@/lib/schedule-game-dev-log"
+import { logScheduleGameDev, logScheduleGamesPartitionDebug } from "@/lib/schedule-game-dev-log"
 import { cn } from "@/lib/utils"
 import { ListOrdered, Plus, Upload, Download } from "lucide-react"
 import { emitTeamGamesChanged, TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
@@ -126,6 +126,10 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const games = useMemo(() => mergeTeamGameRangeQueryResults(rangeQueries), [rangeQueries])
 
   const partition = useMemo(() => partitionGamesForScheduleTabs(games), [games])
+
+  useEffect(() => {
+    logScheduleGamesPartitionDebug(games)
+  }, [games])
 
   useEffect(() => {
     assertSchedulePagePartitionCoversAll(games, partition)

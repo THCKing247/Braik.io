@@ -25,8 +25,10 @@ import { ListOrdered, Plus, Upload, Download } from "lucide-react"
 import { emitTeamGamesChanged, TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 import {
   fetchTeamGamesForRange,
+  invalidateTeamGamesQueries,
   SCHEDULE_TEAM_GAMES_STALE_MS,
   teamGamesQueryKey,
+  teamGamesQueryKeyPrefix,
 } from "@/lib/stats/fetch-team-games-client"
 import { getScheduleGamesWindows } from "@/lib/stats/schedule-games-windows"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
@@ -139,14 +141,14 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const teamTrendsFull = useMemo(() => computeTeamTrends(games), [games])
 
   const refreshGames = useCallback(async () => {
-    await queryClient.refetchQueries({ queryKey: ["games", teamId] })
+    await invalidateTeamGamesQueries(queryClient, teamId)
   }, [queryClient, teamId])
 
   useEffect(() => {
     const handler = (ev: Event) => {
       const ce = ev as CustomEvent<{ teamId?: string }>
       if (ce.detail?.teamId === teamId) {
-        void queryClient.refetchQueries({ queryKey: ["games", teamId] })
+        void invalidateTeamGamesQueries(queryClient, teamId)
       }
     }
     window.addEventListener(TEAM_GAMES_CHANGED_EVENT, handler as EventListener)
@@ -172,7 +174,9 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   /** After games data is refreshed, move the active tab if this game belongs on the other list. */
   const routeScheduleTabForGame = useCallback(
     (gameId: string) => {
-      const tuples = queryClient.getQueriesData<{ games?: TeamGameRow[] }>({ queryKey: ["games", teamId] })
+      const tuples = queryClient.getQueriesData<{ games?: TeamGameRow[] }>({
+        queryKey: [...teamGamesQueryKeyPrefix(teamId)],
+      })
       const merged = mergeTeamGameRangeQueryResults(tuples.map(([, d]) => ({ data: d })))
       const row = merged.find((g) => g.id === gameId)
       if (!row) {

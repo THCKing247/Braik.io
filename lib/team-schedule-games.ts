@@ -16,6 +16,22 @@ export function normalizeStoredResult(result?: string | null): "win" | "loss" | 
   return null
 }
 
+/** Coerce DB/JSON score fields (number, string, empty, odd types) to integer or null for classification. */
+export function parseGameNumericField(v: unknown): number | null {
+  if (v == null) return null
+  if (typeof v === "string") {
+    const s = v.trim()
+    if (s === "") return null
+    const n = Number(s)
+    return Number.isFinite(n) ? Math.trunc(n) : null
+  }
+  if (typeof v === "number") {
+    return Number.isFinite(v) ? Math.trunc(v) : null
+  }
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.trunc(n) : null
+}
+
 export type TeamGameRow = {
   id: string
   opponent: string
@@ -96,11 +112,23 @@ export function effectiveTotalsFromGame(game: TeamGameRow): { team: number | nul
     )
   if (hasQ) return { team: teamScore, opponent: opponentScore }
   return {
-    team: game.teamScore != null ? Math.trunc(Number(game.teamScore)) : null,
-    opponent: game.opponentScore != null ? Math.trunc(Number(game.opponentScore)) : null,
+    team: parseGameNumericField(game.teamScore),
+    opponent: parseGameNumericField(game.opponentScore),
   }
 }
 
+/**
+ * Derives tab/status for a game row (not a DB enum).
+ *
+ * **completed** when any of:
+ * - Notes do not imply cancelled/postponed, AND
+ * - Both effective team and opponent totals are finite integers (from `team_score`/`opponent_score`,
+ *   or from quarter sums mapped by home/away), OR
+ * - `result` normalizes to win/loss/tie (`normalizeStoredResult`: win/w, loss/l, tie/t and case variants).
+ *
+ * Empty string, `undefined`, non-numeric strings, and `NaN` for scores are treated as missing (null),
+ * so a lone score or invalid string does not complete the game.
+ */
 export function inferScheduleStatus(game: TeamGameRow): GameScheduleStatus {
   const notes = game.notes?.trim() ?? ""
   if (CANCELLED_RE.test(notes)) return "cancelled"

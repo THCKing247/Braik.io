@@ -162,8 +162,13 @@ export function ScheduleGameCentricView({
 
   const patchScores = useCallback(
     async (gameId: string, teamScore: number | null, opponentScore: number | null) => {
+      if (teamScore == null || opponentScore == null) {
+        showToast("Enter both team and opponent scores (use 0 if needed).", "error")
+        return
+      }
       const gameBefore = games.find((x) => x.id === gameId)
-      const payload = { teamScore, opponentScore }
+      /** Omit null keys so PATCH merge does not clear the other side when JSON had `null`. */
+      const payload: Record<string, number> = { teamScore, opponentScore }
       logScheduleGameDev("patchScores:before", { gameBefore, payload })
       setSavingId(gameId)
       try {

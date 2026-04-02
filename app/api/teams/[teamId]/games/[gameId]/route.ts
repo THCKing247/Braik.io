@@ -10,6 +10,7 @@ import { mergeGameScoringPatch, type GamesDbRow } from "@/lib/games-api-scoring"
 import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
 import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
 import { GAMES_SCHEDULE_SELECT } from "@/lib/stats/cached-stats-games"
+import { inferScheduleStatus } from "@/lib/team-schedule-games"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -175,6 +176,19 @@ export async function PATCH(
     revalidateTeamGamesAndDashboard(teamId)
 
     const game = updatedRow ? mapDbGameRowToTeamGameRow(updatedRow as Record<string, unknown>) : undefined
+    if (process.env.NODE_ENV !== "production" && game) {
+      // eslint-disable-next-line no-console -- dev-only save pipeline trace
+      console.debug("[PATCH game] saved row → UI mapping", {
+        gameId,
+        patchKeys: Object.keys(patch),
+        mapped: {
+          teamScore: game.teamScore,
+          opponentScore: game.opponentScore,
+          result: game.result,
+          inferScheduleStatus: inferScheduleStatus(game),
+        },
+      })
+    }
     return NextResponse.json({ success: true, game })
   } catch (err) {
     if (err instanceof MembershipLookupError) {

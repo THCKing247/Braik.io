@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -17,9 +17,11 @@ import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import {
   type TeamGameRow,
   inferHomeAway,
+  inferScheduleStatus,
   locationDetailForEdit,
   buildLocationFromHomeAway,
 } from "@/lib/team-schedule-games"
+import { cn } from "@/lib/utils"
 
 type HomeAway = "home" | "away" | "tbd"
 
@@ -71,6 +73,12 @@ export function TeamGameFormDialog({
   const [q3_away, setQ3_away] = useState("")
   const [q4_away, setQ4_away] = useState("")
 
+  const isCreate = !game
+  const showResultsSection = useMemo(
+    () => Boolean(game && inferScheduleStatus(game) === "completed"),
+    [game]
+  )
+
   useEffect(() => {
     if (!open) return
     if (!game) {
@@ -118,25 +126,35 @@ export function TeamGameFormDialog({
     setQ4_away(qv(game.q4_away))
   }, [open, game])
 
-  const handleSubmit = async () => {
+  const buildSchedulePayload = () => {
     const opp = opponent.trim()
     if (!opp || !kickoff) {
-      showToast("Opponent and date/time are required.", "error")
-      return
+      return null
     }
     const location = buildLocationFromHomeAway(homeAway, locationDetail, opp)
-
-    const qPayload = (s: string) => (s.trim() === "" ? null : Number(s))
-    const payload = {
+    return {
       opponent: opp,
       gameDate: kickoff.toISOString(),
       location,
       gameType,
       conferenceGame,
+      notes: notes.trim() || null,
+    }
+  }
+
+  const handleSubmit = async () => {
+    const schedule = buildSchedulePayload()
+    if (!schedule) {
+      showToast("Opponent and date/time are required.", "error")
+      return
+    }
+
+    const qPayload = (s: string) => (s.trim() === "" ? null : Number(s))
+    const fullPayload = {
+      ...schedule,
       result: result || null,
       teamScore: teamScore.trim() === "" ? null : Number(teamScore),
       opponentScore: opponentScore.trim() === "" ? null : Number(opponentScore),
-      notes: notes.trim() || null,
       confirmedByCoach,
       q1_home: qPayload(q1_home),
       q2_home: qPayload(q2_home),
@@ -148,33 +166,36 @@ export function TeamGameFormDialog({
       q4_away: qPayload(q4_away),
     }
 
-    if (payload.teamScore !== null && Number.isNaN(payload.teamScore)) {
-      showToast("Team score must be a number.", "error")
-      return
-    }
-    if (payload.opponentScore !== null && Number.isNaN(payload.opponentScore)) {
-      showToast("Opponent score must be a number.", "error")
-      return
+    if (showResultsSection) {
+      if (fullPayload.teamScore !== null && Number.isNaN(fullPayload.teamScore)) {
+        showToast("Team score must be a number.", "error")
+        return
+      }
+      if (fullPayload.opponentScore !== null && Number.isNaN(fullPayload.opponentScore)) {
+        showToast("Opponent score must be a number.", "error")
+        return
+      }
     }
 
     setSaving(true)
     try {
-      if (!game) {
+      if (isCreate) {
         const res = await fetch(`/api/teams/${teamId}/games`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(schedule),
         })
         if (!res.ok) {
           const j = await res.json().catch(() => ({}))
           throw new Error((j as { error?: string }).error || "Failed to create game")
         }
         showToast("Game added.", "success")
-      } else {
+      } else if (game) {
+        const body = showResultsSection ? fullPayload : schedule
         const res = await fetch(`/api/teams/${teamId}/games/${game.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(body),
         })
         if (!res.ok) {
           const j = await res.json().catch(() => ({}))
@@ -211,209 +232,275 @@ export function TeamGameFormDialog({
     }
   }
 
+  const title = isCreate ? "Add game" : "Edit game"
+  const description = isCreate
+    ? "Schedule a game for your team. Record scores later under Game Results after the game is played."
+    : showResultsSection
+      ? "Update schedule details and final score for this completed game."
+      : "Update when and where this game is played."
+
+  const selectClass =
+    "flex h-11 w-full rounded-lg border border-border bg-background px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{game ? "Edit game" : "Add game"}</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="tg-opponent">Opponent</Label>
-              <Input
-                id="tg-opponent"
-                value={opponent}
-                onChange={(e) => setOpponent(e.target.value)}
-                placeholder={
-                  !game && suggestedOpponent?.trim()
-                    ? `e.g. ${suggestedOpponent.trim()}`
-                    : "e.g. Central High"
-                }
-              />
-            </div>
-
-            <DateTimePicker
-              id="tg-kickoff"
-              label="Kickoff"
-              value={kickoff}
-              onChange={setKickoff}
-            />
-
-            <div className="space-y-2">
-              <Label htmlFor="tg-ha">Home / Away</Label>
-              <select
-                id="tg-ha"
-                value={homeAway}
-                onChange={(e) => setHomeAway(e.target.value as HomeAway)}
-                className="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
-              >
-                <option value="tbd">Not specified</option>
-                <option value="home">Home</option>
-                <option value="away">Away</option>
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Stored in the location field (e.g. &quot;Home&quot; or &quot;@ opponent&quot;). Add a venue below if you like.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tg-loc">Venue / location detail</Label>
-              <Input
-                id="tg-loc"
-                value={locationDetail}
-                onChange={(e) => setLocationDetail(e.target.value)}
-                placeholder="Stadium name or city"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tg-type">Game type</Label>
-              <select
-                id="tg-type"
-                value={gameType}
-                onChange={(e) => setGameType(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
-              >
-                <option value="regular">Regular</option>
-                <option value="playoff">Playoff</option>
-                <option value="scrimmage">Scrimmage</option>
-                <option value="tournament">Tournament</option>
-              </select>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={conferenceGame}
-                onChange={(e) => setConferenceGame(e.target.checked)}
-                className="h-4 w-4 accent-primary"
-              />
-              Conference game
-            </label>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="tg-res">Result</Label>
-                <select
-                  id="tg-res"
-                  value={result}
-                  onChange={(e) => setResult(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
-                >
-                  <option value="">— Not set —</option>
-                  <option value="win">Win</option>
-                  <option value="loss">Loss</option>
-                  <option value="tie">Tie</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="tg-ts">Team score</Label>
-                <Input
-                  id="tg-ts"
-                  inputMode="numeric"
-                  value={teamScore}
-                  onChange={(e) => setTeamScore(e.target.value)}
-                  placeholder="—"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tg-os">Opponent score</Label>
-                <Input
-                  id="tg-os"
-                  inputMode="numeric"
-                  value={opponentScore}
-                  onChange={(e) => setOpponentScore(e.target.value)}
-                  placeholder="—"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Quarter breakdown (optional, venue home/away)</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div className="space-y-1">
-                  <Label className="text-xs">H Q1</Label>
-                  <Input inputMode="numeric" value={q1_home} onChange={(e) => setQ1_home(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">H Q2</Label>
-                  <Input inputMode="numeric" value={q2_home} onChange={(e) => setQ2_home(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">H Q3</Label>
-                  <Input inputMode="numeric" value={q3_home} onChange={(e) => setQ3_home(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">H Q4</Label>
-                  <Input inputMode="numeric" value={q4_home} onChange={(e) => setQ4_home(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">A Q1</Label>
-                  <Input inputMode="numeric" value={q1_away} onChange={(e) => setQ1_away(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">A Q2</Label>
-                  <Input inputMode="numeric" value={q2_away} onChange={(e) => setQ2_away(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">A Q3</Label>
-                  <Input inputMode="numeric" value={q3_away} onChange={(e) => setQ3_away(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">A Q4</Label>
-                  <Input inputMode="numeric" value={q4_away} onChange={(e) => setQ4_away(e.target.value)} className="h-9" />
-                </div>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                If set, final scores follow the sum of quarters (mapped by home/away). Otherwise use team/opponent totals above.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tg-notes">Notes</Label>
-              <textarea
-                id="tg-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                placeholder="Postponement, injuries, etc."
-              />
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={confirmedByCoach}
-                onChange={(e) => setConfirmedByCoach(e.target.checked)}
-                className="h-4 w-4 accent-primary"
-              />
-              Mark result as confirmed
-            </label>
+        <DialogContent
+          className={cn(
+            "flex max-h-[min(92dvh,880px)] w-[calc(100vw-1.25rem)] max-w-4xl flex-col overflow-hidden p-0",
+            "md:mx-4 md:max-w-4xl md:rounded-2xl"
+          )}
+        >
+          <div className="shrink-0 border-b px-6 pb-4 pt-2 md:pt-4" style={{ borderColor: "rgb(var(--border))" }}>
+            <DialogTitle className="text-2xl font-semibold tracking-tight">{title}</DialogTitle>
+            <DialogDescription className="mt-2 text-base leading-snug">{description}</DialogDescription>
           </div>
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-            {game ? (
-              <Button type="button" variant="destructive" className="w-full sm:w-auto" onClick={() => setDeleteOpen(true)}>
-                Delete game
-              </Button>
-            ) : (
-              <span />
-            )}
-            <div className="flex w-full gap-2 sm:w-auto">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="button" className="flex-1" disabled={saving} onClick={() => void handleSubmit()}>
-                {saving ? "Saving…" : game ? "Save" : "Add game"}
-              </Button>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+            <div className="space-y-8">
+              <section className="space-y-5">
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "rgb(var(--muted))" }}>
+                  Game details
+                </h3>
+                <div className="grid gap-5 lg:grid-cols-2 lg:gap-x-8 lg:gap-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="tg-opponent" className="text-sm font-medium">
+                      Opponent
+                    </Label>
+                    <Input
+                      id="tg-opponent"
+                      className="h-11 rounded-lg"
+                      value={opponent}
+                      onChange={(e) => setOpponent(e.target.value)}
+                      placeholder={
+                        isCreate && suggestedOpponent?.trim()
+                          ? `e.g. ${suggestedOpponent.trim()}`
+                          : "e.g. Central High"
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <DateTimePicker id="tg-kickoff" label="Date & time" value={kickoff} onChange={setKickoff} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tg-ha" className="text-sm font-medium">
+                      Home / Away
+                    </Label>
+                    <select
+                      id="tg-ha"
+                      value={homeAway}
+                      onChange={(e) => setHomeAway(e.target.value as HomeAway)}
+                      className={selectClass}
+                    >
+                      <option value="tbd">Not specified</option>
+                      <option value="home">Home</option>
+                      <option value="away">Away</option>
+                    </select>
+                    <p className="text-xs leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
+                      We store this in the location field (e.g. &quot;Home&quot; or &quot;@ opponent&quot;). Add a venue
+                      below if you like.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tg-type" className="text-sm font-medium">
+                      Game type
+                    </Label>
+                    <select
+                      id="tg-type"
+                      value={gameType}
+                      onChange={(e) => setGameType(e.target.value)}
+                      className={selectClass}
+                    >
+                      <option value="regular">Regular</option>
+                      <option value="playoff">Playoff</option>
+                      <option value="scrimmage">Scrimmage</option>
+                      <option value="tournament">Tournament</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label htmlFor="tg-loc" className="text-sm font-medium">
+                      Venue / location detail
+                    </Label>
+                    <Input
+                      id="tg-loc"
+                      className="h-11 rounded-lg"
+                      value={locationDetail}
+                      onChange={(e) => setLocationDetail(e.target.value)}
+                      placeholder="Stadium name or city"
+                    />
+                  </div>
+
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 lg:col-span-2",
+                      "transition-colors hover:bg-muted/40"
+                    )}
+                    style={{ borderColor: "rgb(var(--border))" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={conferenceGame}
+                      onChange={(e) => setConferenceGame(e.target.checked)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    <span className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                      Conference game
+                    </span>
+                  </label>
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <Label htmlFor="tg-notes" className="text-sm font-medium">
+                  Notes
+                </Label>
+                <textarea
+                  id="tg-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="Logistics, weather, or other schedule notes — not for final scores."
+                />
+              </section>
+
+              {showResultsSection ? (
+                <section
+                  className="space-y-5 rounded-xl border p-5 md:p-6"
+                  style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
+                >
+                  <div>
+                    <h3 className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+                      Final score & breakdown
+                    </h3>
+                    <p className="mt-1 text-xs leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
+                      For new games, add scores under <span className="font-medium">Game Results</span> on the schedule
+                      page. This section appears for completed games when you need to correct an outcome here.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-5 sm:grid-cols-2 lg:gap-x-8">
+                    <div className="space-y-2">
+                      <Label htmlFor="tg-res" className="text-sm font-medium">
+                        Result
+                      </Label>
+                      <select
+                        id="tg-res"
+                        value={result}
+                        onChange={(e) => setResult(e.target.value)}
+                        className={selectClass}
+                      >
+                        <option value="">— Not set —</option>
+                        <option value="win">Win</option>
+                        <option value="loss">Loss</option>
+                        <option value="tie">Tie</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 lg:gap-8">
+                    <div className="space-y-2">
+                      <Label htmlFor="tg-ts" className="text-sm font-medium">
+                        Team score
+                      </Label>
+                      <Input
+                        id="tg-ts"
+                        className="h-11 rounded-lg"
+                        inputMode="numeric"
+                        value={teamScore}
+                        onChange={(e) => setTeamScore(e.target.value)}
+                        placeholder="—"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tg-os" className="text-sm font-medium">
+                        Opponent score
+                      </Label>
+                      <Input
+                        id="tg-os"
+                        className="h-11 rounded-lg"
+                        inputMode="numeric"
+                        value={opponentScore}
+                        onChange={(e) => setOpponentScore(e.target.value)}
+                        placeholder="—"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                      Quarter breakdown (optional, venue home/away)
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
+                      {(
+                        [
+                          ["H Q1", q1_home, setQ1_home],
+                          ["H Q2", q2_home, setQ2_home],
+                          ["H Q3", q3_home, setQ3_home],
+                          ["H Q4", q4_home, setQ4_home],
+                          ["A Q1", q1_away, setQ1_away],
+                          ["A Q2", q2_away, setQ2_away],
+                          ["A Q3", q3_away, setQ3_away],
+                          ["A Q4", q4_away, setQ4_away],
+                        ] as const
+                      ).map(([label, val, setVal]) => (
+                        <div key={label} className="space-y-1.5">
+                          <Label className="text-xs font-medium">{label}</Label>
+                          <Input
+                            inputMode="numeric"
+                            value={val}
+                            onChange={(e) => setVal(e.target.value)}
+                            className="h-10 rounded-lg"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
+                      If set, final scores follow the sum of quarters (mapped by home/away). Otherwise use team and
+                      opponent totals above.
+                    </p>
+                  </div>
+
+                  <label className="flex cursor-pointer items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={confirmedByCoach}
+                      onChange={(e) => setConfirmedByCoach(e.target.checked)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    Mark result as confirmed
+                  </label>
+                </section>
+              ) : null}
             </div>
-          </DialogFooter>
+          </div>
+
+          <div
+            className="shrink-0 border-t px-6 py-4"
+            style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+          >
+            <DialogFooter className="mt-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              {game ? (
+                <Button type="button" variant="destructive" className="w-full sm:w-auto" onClick={() => setDeleteOpen(true)}>
+                  Delete game
+                </Button>
+              ) : (
+                <span className="hidden sm:block sm:flex-1" />
+              )}
+              <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" className="h-11 min-w-[100px] px-6" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" className="h-11 min-w-[120px] px-6" disabled={saving} onClick={() => void handleSubmit()}>
+                  {saving ? "Saving…" : game ? "Save changes" : "Add game"}
+                </Button>
+              </div>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

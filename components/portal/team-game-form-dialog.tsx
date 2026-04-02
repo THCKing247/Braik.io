@@ -22,6 +22,11 @@ import {
   buildLocationFromHomeAway,
 } from "@/lib/team-schedule-games"
 import { buildCompletedGameResultPatchBody } from "@/lib/team-game-result-patch-body"
+import {
+  FINAL_SCORE_PAIR_MESSAGE,
+  hasAnyFinalScoreInput,
+  hasCompleteFinalScorePair,
+} from "@/lib/game-final-score-validation"
 import { logScheduleGameDev } from "@/lib/schedule-game-dev-log"
 import { cn } from "@/lib/utils"
 
@@ -171,6 +176,12 @@ export function TeamGameFormDialog({
       if (!game) return
 
       if (showResultsSection) {
+        const tsTrim = teamScore.trim()
+        const osTrim = opponentScore.trim()
+        if (hasAnyFinalScoreInput(tsTrim, osTrim) && !hasCompleteFinalScorePair(tsTrim, osTrim)) {
+          showToast(FINAL_SCORE_PAIR_MESSAGE, "error")
+          return
+        }
         const resultBody = buildCompletedGameResultPatchBody({
           result,
           teamScore,
@@ -186,15 +197,13 @@ export function TeamGameFormDialog({
           q3_away,
           q4_away,
         })
-        const ts = resultBody.teamScore as number | null
-        const os = resultBody.opponentScore as number | null
-        if (ts != null && Number.isNaN(ts)) {
-          showToast("Team score must be a number.", "error")
-          return
-        }
-        if (os != null && Number.isNaN(os)) {
-          showToast("Opponent score must be a number.", "error")
-          return
+        if ("teamScore" in resultBody && "opponentScore" in resultBody) {
+          const ts = resultBody.teamScore as number
+          const os = resultBody.opponentScore as number
+          if (Number.isNaN(ts) || Number.isNaN(os)) {
+            showToast("Scores must be valid numbers.", "error")
+            return
+          }
         }
 
         logScheduleGameDev("TeamGameFormDialog:result-patch:before", { gameBefore: game, payload: resultBody })

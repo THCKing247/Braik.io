@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { WEEKLY_ENTRY_GAME_TYPES, WEEKLY_ENTRY_GAME_RESULTS } from "@/lib/stats-weekly-game-meta"
+import { FINAL_SCORE_PAIR_MESSAGE } from "@/lib/game-final-score-validation"
 import { cn } from "@/lib/utils"
 
 export interface BulkEditWeeklyStatsDialogProps {
@@ -94,21 +95,25 @@ export function BulkEditWeeklyStatsDialog({
     if (ven) updates.venue = ven
     const res = result.trim().toLowerCase()
     if (res) updates.result = res
-    const ts = teamScore.trim()
-    if (ts) {
-      const n = Number(ts)
-      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+    const tsTrim = teamScore.trim()
+    const osTrim = opponentScore.trim()
+    if (tsTrim !== "" && osTrim === "") {
+      return { ok: false, message: FINAL_SCORE_PAIR_MESSAGE }
+    }
+    if (osTrim !== "" && tsTrim === "") {
+      return { ok: false, message: FINAL_SCORE_PAIR_MESSAGE }
+    }
+    if (tsTrim !== "" && osTrim !== "") {
+      const tn = Number(tsTrim)
+      const on = Number(osTrim)
+      if (!Number.isFinite(tn) || !Number.isInteger(tn) || tn < 0) {
         return { ok: false, message: "Team score must be a non-negative whole number." }
       }
-      updates.team_score = n
-    }
-    const os = opponentScore.trim()
-    if (os) {
-      const n = Number(os)
-      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+      if (!Number.isFinite(on) || !Number.isInteger(on) || on < 0) {
         return { ok: false, message: "Opponent score must be a non-negative whole number." }
       }
-      updates.opponent_score = n
+      updates.team_score = tn
+      updates.opponent_score = on
     }
     const nt = notes.trim()
     if (nt) updates.notes = nt

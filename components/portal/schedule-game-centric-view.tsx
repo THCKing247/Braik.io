@@ -36,6 +36,7 @@ import { computeTeamTrends } from "@/lib/schedule-team-trends"
 import { ScheduleTeamTrendsStrip } from "@/components/portal/schedule-team-trends-strip"
 import { ScheduleGameDetailTabs } from "@/components/portal/schedule-game-detail-tabs"
 import { logScheduleGameDev } from "@/lib/schedule-game-dev-log"
+import { FINAL_SCORE_PAIR_MESSAGE } from "@/lib/game-final-score-validation"
 
 function WlBadge({ kind }: { kind: "W" | "L" | "T" | "—" }) {
   if (kind === "—") {
@@ -163,7 +164,7 @@ export function ScheduleGameCentricView({
   const patchScores = useCallback(
     async (gameId: string, teamScore: number | null, opponentScore: number | null) => {
       if (teamScore == null || opponentScore == null) {
-        showToast("Enter both team and opponent scores (use 0 if needed).", "error")
+        showToast(FINAL_SCORE_PAIR_MESSAGE, "error")
         return
       }
       const gameBefore = games.find((x) => x.id === gameId)
@@ -181,7 +182,7 @@ export function ScheduleGameCentricView({
           const j = await res.json().catch(() => ({}))
           throw new Error((j as { error?: string }).error || "Update failed")
         }
-        showToast("Scores updated.", "success")
+        showToast("Final score saved.", "success")
         emitTeamGamesChanged(teamId)
         await Promise.resolve(onRefresh())
         onScoreSaved?.(gameId)
@@ -254,16 +255,16 @@ export function ScheduleGameCentricView({
       showToast("Select at least one game.", "error")
       return
     }
-    const ts =
-      bulkTeamInput.trim() === "" ? null : Number(bulkTeamInput)
-    const os =
-      bulkOppInput.trim() === "" ? null : Number(bulkOppInput)
-    if (ts != null && Number.isNaN(ts)) {
-      showToast("Enter a valid team score.", "error")
+    const tsT = bulkTeamInput.trim()
+    const osT = bulkOppInput.trim()
+    if (tsT === "" || osT === "") {
+      showToast(FINAL_SCORE_PAIR_MESSAGE, "error")
       return
     }
-    if (os != null && Number.isNaN(os)) {
-      showToast("Enter a valid opponent score.", "error")
+    const ts = Number(bulkTeamInput)
+    const os = Number(bulkOppInput)
+    if (Number.isNaN(ts) || Number.isNaN(os)) {
+      showToast("Scores must be valid numbers.", "error")
       return
     }
     setBulkSaving(true)
@@ -273,8 +274,8 @@ export function ScheduleGameCentricView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           gameIds: ids,
-          teamScore: ts,
-          opponentScore: os,
+          teamScore: Math.trunc(ts),
+          opponentScore: Math.trunc(os),
         }),
       })
       if (!res.ok) {
@@ -653,14 +654,16 @@ export function ScheduleGameCentricView({
                               size="sm"
                               disabled={savingId === g.id}
                               onClick={() => {
-                                const ts = scoreDraft?.team.trim() === "" ? null : Number(scoreDraft?.team)
-                                const os = scoreDraft?.opp.trim() === "" ? null : Number(scoreDraft?.opp)
-                                if (ts != null && Number.isNaN(ts)) {
-                                  showToast("Enter a valid team score.", "error")
+                                const tStr = scoreDraft?.team.trim() ?? ""
+                                const oStr = scoreDraft?.opp.trim() ?? ""
+                                if (tStr === "" || oStr === "") {
+                                  showToast(FINAL_SCORE_PAIR_MESSAGE, "error")
                                   return
                                 }
-                                if (os != null && Number.isNaN(os)) {
-                                  showToast("Enter a valid opponent score.", "error")
+                                const ts = Number(tStr)
+                                const os = Number(oStr)
+                                if (Number.isNaN(ts) || Number.isNaN(os)) {
+                                  showToast("Scores must be valid numbers.", "error")
                                   return
                                 }
                                 void patchScores(g.id, ts, os)

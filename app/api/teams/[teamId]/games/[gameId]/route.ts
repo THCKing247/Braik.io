@@ -36,6 +36,8 @@ type PatchBody = {
   q4_away?: number | null
   /** Clear with null to use automatic Player of the Game from stats. */
   potgOverridePlayerId?: string | null
+  /** When true, clears final scores, quarters, and result (explicit reset). */
+  clearFinalScores?: boolean
 }
 
 export async function PATCH(
@@ -101,7 +103,7 @@ export async function PATCH(
     if (body.conferenceGame !== undefined) {
       patch.conference_game = Boolean(body.conferenceGame)
     }
-    if (body.result !== undefined) {
+    if (body.clearFinalScores !== true && body.result !== undefined) {
       const r = body.result?.trim().toLowerCase() ?? ""
       patch.result = r && RESULTS.has(r) ? r : null
     }

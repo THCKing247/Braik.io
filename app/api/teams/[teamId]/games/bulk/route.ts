@@ -44,11 +44,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
       return NextResponse.json({ error: "Too many games (max 80)" }, { status: 400 })
     }
 
-    const hasScore =
-      Object.prototype.hasOwnProperty.call(body ?? {}, "teamScore") ||
-      Object.prototype.hasOwnProperty.call(body ?? {}, "opponentScore")
-    if (!hasScore) {
-      return NextResponse.json({ error: "teamScore and/or opponentScore is required" }, { status: 400 })
+    const tsRaw = body?.teamScore
+    const osRaw = body?.opponentScore
+    const hasTeam = Object.prototype.hasOwnProperty.call(body ?? {}, "teamScore")
+    const hasOpp = Object.prototype.hasOwnProperty.call(body ?? {}, "opponentScore")
+    if (!hasTeam || !hasOpp) {
+      return NextResponse.json(
+        { error: "Both teamScore and opponentScore are required for bulk updates." },
+        { status: 400 }
+      )
+    }
+    if (tsRaw === null || osRaw === null) {
+      return NextResponse.json(
+        { error: "Both teamScore and opponentScore must be numbers (use 0 if needed)." },
+        { status: 400 }
+      )
+    }
+    const tsNum = typeof tsRaw === "number" ? tsRaw : Number(tsRaw)
+    const osNum = typeof osRaw === "number" ? osRaw : Number(osRaw)
+    if (!Number.isFinite(tsNum) || !Number.isFinite(osNum)) {
+      return NextResponse.json({ error: "teamScore and opponentScore must be valid numbers." }, { status: 400 })
     }
 
     const supabase = getSupabaseServer()
@@ -75,8 +90,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
     }
 
     const patchBody = {
-      teamScore: body?.teamScore,
-      opponentScore: body?.opponentScore,
+      teamScore: Math.trunc(tsNum),
+      opponentScore: Math.trunc(osNum),
     } as Record<string, unknown>
 
     let updated = 0

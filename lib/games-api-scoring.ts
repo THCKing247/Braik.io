@@ -6,7 +6,7 @@ import {
   type GameQuarters,
 } from "@/lib/games-quarter-scoring"
 
-const Q_KEYS: (keyof GameQuarters)[] = [
+export const GAME_QUARTER_KEYS: (keyof GameQuarters)[] = [
   "q1_home",
   "q2_home",
   "q3_home",
@@ -17,8 +17,10 @@ const Q_KEYS: (keyof GameQuarters)[] = [
   "q4_away",
 ]
 
+const Q_KEYS = GAME_QUARTER_KEYS
+
 export function patchBodyHasQuarterKeys(body: object): boolean {
-  return Q_KEYS.some((k) => Object.prototype.hasOwnProperty.call(body, k))
+  return GAME_QUARTER_KEYS.some((k) => Object.prototype.hasOwnProperty.call(body, k))
 }
 
 export type GamesDbRow = GameQuarters & {
@@ -29,22 +31,40 @@ export type GamesDbRow = GameQuarters & {
 
 function parseScoreField(v: unknown): number | null {
   if (v === null || v === undefined) return null
+  if (typeof v === "string" && v.trim() === "") return null
   if (typeof v === "number" && !Number.isNaN(v)) return Math.trunc(v)
   const n = Number(v)
   return Number.isFinite(n) ? Math.trunc(n) : null
 }
 
 /**
- * Scoring-related columns for PATCH `games` from JSON body + existing row.
- * - Quarter keys in body: merge quarter values; if any quarter non-null, totals = sum (venue → team).
- * - Else if teamScore/opponentScore in body: set totals and clear all quarter columns.
+ * JSON `null` for `teamScore` / `opponentScore` means **leave existing DB value** (no wipe).
+ * Omitted keys also leave values unchanged.
+ * Use `clearFinalScores: true` to intentionally clear totals, quarters, and computed merge result.
+ *
+ * Quarter keys: explicit `null` still clears that quarter cell (venue row).
  */
 export function mergeGameScoringPatch(body: Record<string, unknown>, existing: GamesDbRow): Record<string, unknown> {
+  if (body.clearFinalScores === true) {
+    const out: Record<string, unknown> = {}
+    for (const k of Q_KEYS) {
+      out[k] = null
+    }
+    out.team_score = null
+    out.opponent_score = null
+    out.result = null
+    return out
+  }
+
+  const wantsTeamScore =
+    Object.prototype.hasOwnProperty.call(body, "teamScore") && body.teamScore !== null
+  const wantsOppScore =
+    Object.prototype.hasOwnProperty.call(body, "opponentScore") && body.opponentScore !== null
+
   const hasQk = patchBodyHasQuarterKeys(body)
-  const hasScores =
-    Object.prototype.hasOwnProperty.call(body, "teamScore") ||
-    Object.prototype.hasOwnProperty.call(body, "opponentScore")
-  if (!hasQk && !hasScores) return {}
+  const hasScoreInputs = wantsTeamScore || wantsOppScore
+
+  if (!hasQk && !hasScoreInputs) return {}
 
   const out: Record<string, unknown> = {}
   const nextQ: GameQuarters = {
@@ -72,18 +92,18 @@ export function mergeGameScoringPatch(body: Record<string, unknown>, existing: G
       out.team_score = teamScore
       out.opponent_score = opponentScore
     } else {
-      if (Object.prototype.hasOwnProperty.call(body, "teamScore")) out.team_score = parseScoreField(body.teamScore)
-      if (Object.prototype.hasOwnProperty.call(body, "opponentScore")) out.opponent_score = parseScoreField(body.opponentScore)
+      if (wantsTeamScore) out.team_score = parseScoreField(body.teamScore)
+      if (wantsOppScore) out.opponent_score = parseScoreField(body.opponentScore)
     }
-  } else if (
-    Object.prototype.hasOwnProperty.call(body, "teamScore") ||
-    Object.prototype.hasOwnProperty.call(body, "opponentScore")
-  ) {
-    for (const k of Q_KEYS) {
-      out[k] = null
+  } else if (hasScoreInputs) {
+    const fullTotalsReplace = wantsTeamScore && wantsOppScore
+    if (fullTotalsReplace) {
+      for (const k of Q_KEYS) {
+        out[k] = null
+      }
     }
-    if (Object.prototype.hasOwnProperty.call(body, "teamScore")) out.team_score = parseScoreField(body.teamScore)
-    if (Object.prototype.hasOwnProperty.call(body, "opponentScore")) out.opponent_score = parseScoreField(body.opponentScore)
+    if (wantsTeamScore) out.team_score = parseScoreField(body.teamScore)
+    if (wantsOppScore) out.opponent_score = parseScoreField(body.opponentScore)
   }
 
   const ts =

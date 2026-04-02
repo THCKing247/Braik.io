@@ -140,6 +140,13 @@ function buildDbPatch(updates: UpdatesBody | null | undefined):
     patch.opponent_score = p.value
   }
 
+  if (("team_score" in updates) !== ("opponent_score" in updates)) {
+    return {
+      ok: false,
+      error: "team_score and opponent_score must be provided together (or omit both).",
+    }
+  }
+
   if ("notes" in updates) {
     if (updates.notes === null) patch.notes = null
     else if (typeof updates.notes === "string") {

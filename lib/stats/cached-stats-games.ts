@@ -20,7 +20,8 @@ export type StatsGamesLoadOpts = {
  * Columns required for schedule UI (scores, quarters, status, season grouping, CSV export).
  * `game_date` is the persisted kickoff time. `seasons(year)` is one FK hop for seasonYear.
  */
-const GAMES_SCHEDULE_SELECT =
+/** Single-game fetch + PATCH return shape (schedule UI + season year). */
+export const GAMES_SCHEDULE_SELECT =
   "id, opponent, game_date, location, game_type, result, notes, conference_game, team_score, opponent_score, confirmed_by_coach, season_id, seasons(year), q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
 
 async function loadStatsGamesForTeam(teamId: string, opts: StatsGamesLoadOpts = {}): Promise<StatsGamesApiPayload> {

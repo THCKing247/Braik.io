@@ -8,6 +8,8 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { mergeGameScoringPatch, type GamesDbRow } from "@/lib/games-api-scoring"
 import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
+import { GAMES_SCHEDULE_SELECT } from "@/lib/stats/cached-stats-games"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -155,7 +157,14 @@ export async function PATCH(
       }
     }
 
-    const { error } = await supabase.from("games").update(patch).eq("id", gameId).eq("team_id", teamId)
+    const { data: updatedRow, error } = await supabase
+      .from("games")
+      .update(patch)
+      .eq("id", gameId)
+      .eq("team_id", teamId)
+      .select(GAMES_SCHEDULE_SELECT)
+      .maybeSingle()
+
     if (error) {
       console.error("[PATCH game]", error)
       return NextResponse.json({ error: "Failed to update game" }, { status: 500 })
@@ -165,7 +174,8 @@ export async function PATCH(
     revalidatePath("/dashboard/schedule")
     revalidateTeamGamesAndDashboard(teamId)
 
-    return NextResponse.json({ success: true })
+    const game = updatedRow ? mapDbGameRowToTeamGameRow(updatedRow as Record<string, unknown>) : undefined
+    return NextResponse.json({ success: true, game })
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })

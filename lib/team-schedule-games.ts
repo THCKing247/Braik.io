@@ -252,18 +252,12 @@ export function isUnscheduledGameDate(game: TeamGameRow): boolean {
 }
 
 /**
- * True when the game should appear under **Game Results**:
- * - Finalized outcome (`inferScheduleStatus` completed), OR
- * - A dated game whose kickoff is **before today** (local) — includes past games still needing a score.
- *
- * Unscheduled / invalid dates stay on the schedule tab until a real date exists.
+ * **Game Results** tab: games with a recorded final outcome (scores and/or W–L–T per `inferScheduleStatus`).
+ * Everything else (including past games still needing a score, postponed, cancelled) stays on **Game Schedule**
+ * so every game is always in exactly one tab with no “disappeared” edge cases from date/result mismatches.
  */
-export function isResultsTabGame(game: TeamGameRow, nowMs: number = Date.now()): boolean {
-  if (inferScheduleStatus(game) === "completed") return true
-  if (isUnscheduledGameDate(game)) return false
-  const ms = parseGameDateMs(game.gameDate)
-  const dayStart = startOfDay(new Date(nowMs)).getTime()
-  return ms < dayStart
+export function isResultsTabGame(game: TeamGameRow, _nowMs?: number): boolean {
+  return inferScheduleStatus(game) === "completed"
 }
 
 /** Complement of {@link isResultsTabGame} — every game with an id is in exactly one tab. */

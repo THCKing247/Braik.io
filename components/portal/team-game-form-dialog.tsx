@@ -21,6 +21,8 @@ import {
   locationDetailForEdit,
   buildLocationFromHomeAway,
 } from "@/lib/team-schedule-games"
+import { buildCompletedGameResultPatchBody } from "@/lib/team-game-result-patch-body"
+import { logScheduleGameDev } from "@/lib/schedule-game-dev-log"
 import { cn } from "@/lib/utils"
 
 type HomeAway = "home" | "away" | "tbd"
@@ -104,7 +106,8 @@ export function TeamGameFormDialog({
       return
     }
     setOpponent(game.opponent || "")
-    setKickoff(new Date(game.gameDate))
+    const parsedKickoff = new Date(game.gameDate)
+    setKickoff(Number.isFinite(parsedKickoff.getTime()) ? parsedKickoff : null)
     const ha = inferHomeAway(game.location)
     setHomeAway(ha === "home" ? "home" : ha === "away" ? "away" : "tbd")
     setLocationDetail(locationDetailForEdit(game.location, ha))
@@ -128,9 +131,8 @@ export function TeamGameFormDialog({
 
   const buildSchedulePayload = () => {
     const opp = opponent.trim()
-    if (!opp || !kickoff) {
-      return null
-    }
+    if (!opp) return null
+    if (!kickoff || !Number.isFinite(kickoff.getTime())) return null
     const location = buildLocationFromHomeAway(homeAway, locationDetail, opp)
     return {
       opponent: opp,
@@ -143,43 +145,14 @@ export function TeamGameFormDialog({
   }
 
   const handleSubmit = async () => {
-    const schedule = buildSchedulePayload()
-    if (!schedule) {
-      showToast("Opponent and date/time are required.", "error")
-      return
-    }
-
-    const qPayload = (s: string) => (s.trim() === "" ? null : Number(s))
-    const fullPayload = {
-      ...schedule,
-      result: result || null,
-      teamScore: teamScore.trim() === "" ? null : Number(teamScore),
-      opponentScore: opponentScore.trim() === "" ? null : Number(opponentScore),
-      confirmedByCoach,
-      q1_home: qPayload(q1_home),
-      q2_home: qPayload(q2_home),
-      q3_home: qPayload(q3_home),
-      q4_home: qPayload(q4_home),
-      q1_away: qPayload(q1_away),
-      q2_away: qPayload(q2_away),
-      q3_away: qPayload(q3_away),
-      q4_away: qPayload(q4_away),
-    }
-
-    if (showResultsSection) {
-      if (fullPayload.teamScore !== null && Number.isNaN(fullPayload.teamScore)) {
-        showToast("Team score must be a number.", "error")
-        return
-      }
-      if (fullPayload.opponentScore !== null && Number.isNaN(fullPayload.opponentScore)) {
-        showToast("Opponent score must be a number.", "error")
-        return
-      }
-    }
-
     setSaving(true)
     try {
       if (isCreate) {
+        const schedule = buildSchedulePayload()
+        if (!schedule) {
+          showToast("Opponent and date/time are required.", "error")
+          return
+        }
         const res = await fetch(`/api/teams/${teamId}/games`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -190,21 +163,116 @@ export function TeamGameFormDialog({
           throw new Error((j as { error?: string }).error || "Failed to create game")
         }
         showToast("Game added.", "success")
-      } else if (game) {
-        const body = showResultsSection ? fullPayload : schedule
+        onOpenChange(false)
+        void onSaved?.({ gameId: null })
+        return
+      }
+
+      if (!game) return
+
+      if (showResultsSection) {
+        const resultBody = buildCompletedGameResultPatchBody({
+          result,
+          teamScore,
+          opponentScore,
+          notes,
+          confirmedByCoach,
+          q1_home,
+          q2_home,
+          q3_home,
+          q4_home,
+          q1_away,
+          q2_away,
+          q3_away,
+          q4_away,
+        })
+        const ts = resultBody.teamScore as number | null
+        const os = resultBody.opponentScore as number | null
+        if (ts != null && Number.isNaN(ts)) {
+          showToast("Team score must be a number.", "error")
+          return
+        }
+        if (os != null && Number.isNaN(os)) {
+          showToast("Opponent score must be a number.", "error")
+          return
+        }
+
+        logScheduleGameDev("TeamGameFormDialog:result-patch:before", { gameBefore: game, payload: resultBody })
+
         const res = await fetch(`/api/teams/${teamId}/games/${game.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify(resultBody),
         })
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}))
-          throw new Error((j as { error?: string }).error || "Failed to update game")
+        const j = (await res.json().catch(() => ({}))) as {
+          success?: boolean
+          game?: TeamGameRow
+          error?: string
         }
-        showToast("Game updated.", "success")
+        if (!res.ok) {
+          throw new Error(j.error || "Failed to update game")
+        }
+        logScheduleGameDev("TeamGameFormDialog:result-patch:after", {
+          gameBefore: game,
+          payload: resultBody,
+          gameAfter: j.game,
+        })
+
+        const scheduleFollowUp = buildSchedulePayload()
+        if (scheduleFollowUp) {
+          const notesA = (scheduleFollowUp.notes ?? "").trim()
+          const notesB = (game.notes ?? "").trim()
+          const scheduleDirty =
+            scheduleFollowUp.opponent !== game.opponent ||
+            scheduleFollowUp.gameDate !== game.gameDate ||
+            scheduleFollowUp.location !== (game.location ?? null) ||
+            scheduleFollowUp.gameType !== (game.gameType || "regular").toLowerCase() ||
+            scheduleFollowUp.conferenceGame !== Boolean(game.conferenceGame) ||
+            notesA !== notesB
+          if (scheduleDirty) {
+            logScheduleGameDev("TeamGameFormDialog:schedule-follow-up", {
+              gameBefore: game,
+              payload: scheduleFollowUp,
+            })
+            const res2 = await fetch(`/api/teams/${teamId}/games/${game.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(scheduleFollowUp),
+            })
+            const j2 = (await res2.json().catch(() => ({}))) as { error?: string }
+            if (!res2.ok) {
+              throw new Error(j2.error || "Failed to update schedule details")
+            }
+          }
+        }
+
+        showToast("Game result saved.", "success")
+        onOpenChange(false)
+        void onSaved?.({ gameId: game.id })
+        return
       }
+
+      const schedule = buildSchedulePayload()
+      if (!schedule) {
+        showToast("Opponent and date/time are required.", "error")
+        return
+      }
+
+      logScheduleGameDev("TeamGameFormDialog:schedule-patch", { gameBefore: game, payload: schedule })
+
+      const res = await fetch(`/api/teams/${teamId}/games/${game.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(schedule),
+      })
+      const j = (await res.json().catch(() => ({}))) as { success?: boolean; game?: TeamGameRow; error?: string }
+      if (!res.ok) {
+        throw new Error(j.error || "Failed to update game")
+      }
+      logScheduleGameDev("TeamGameFormDialog:schedule-patch:after", { gameBefore: game, gameAfter: j.game })
+      showToast("Game updated.", "success")
       onOpenChange(false)
-      void onSaved?.({ gameId: game?.id ?? null })
+      void onSaved?.({ gameId: game.id })
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Save failed", "error")
     } finally {

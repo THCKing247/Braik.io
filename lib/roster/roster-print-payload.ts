@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { organizationNameFromProgramsEmbed } from "@/lib/teams/team-organization-name"
 
 export const DEFAULT_ROSTER_TEMPLATE = {
   header: {
@@ -82,11 +83,22 @@ export async function buildRosterPrintPayload(
   let teamName = "Team"
   let teamOrg: string | null = null
   try {
-    const { data: display } = await supabase.from("teams").select("name, org").eq("id", teamId).maybeSingle()
-    if (display) {
-      const d = display as { name?: string | null; org?: string | null }
+    const { data: display, error: displayErr } = await supabase
+      .from("teams")
+      .select("name, programs(organizations(name))")
+      .eq("id", teamId)
+      .maybeSingle()
+    if (displayErr) {
+      console.warn("[roster-print] team display embed failed:", displayErr.message)
+      const { data: fallback } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()
+      if (fallback && typeof (fallback as { name?: string }).name === "string") {
+        const n = (fallback as { name: string }).name.trim()
+        if (n) teamName = n
+      }
+    } else if (display) {
+      const d = display as { name?: string | null; programs?: unknown }
       if (d.name != null && d.name !== "") teamName = d.name
-      if (d.org != null && d.org !== "") teamOrg = d.org
+      teamOrg = organizationNameFromProgramsEmbed(d.programs)
     }
   } catch {
     /* ignore */

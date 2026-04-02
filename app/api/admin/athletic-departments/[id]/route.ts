@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin/athletic-departments-scope"
 import { loadAthleticDepartmentDetail } from "@/lib/admin/athletic-departments-data"
 import type { PatchAthleticDepartmentBody } from "@/lib/admin/athletic-departments-types"
+import { syncHeadCoachVideoViewPermissionForTeam } from "@/lib/video/sync-head-coach-video-permission"
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const access = await getAdminAccessForApi()
@@ -124,6 +125,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     targetId: id,
     metadata: { patch, previous: existing },
   }).catch(() => undefined)
+
+  if (typeof body.video_clips_enabled === "boolean" && body.video_clips_enabled === true) {
+    for (const tid of teamIds) {
+      try {
+        await syncHeadCoachVideoViewPermissionForTeam(supabase, tid)
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[video-perm-sync] after school video enable", {
+            athleticDepartmentId: id,
+            teamId: tid,
+            err: e instanceof Error ? e.message : String(e),
+          })
+        }
+      }
+    }
+  }
 
   return NextResponse.json({ athleticDepartment: updated })
 }

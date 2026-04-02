@@ -59,16 +59,16 @@ export function AdminTeamDetailActions({
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-4 text-sm">
+    <div className="space-y-4 rounded-xl border border-white/[0.08] bg-admin-nested p-4 text-sm text-zinc-200">
       <div className="grid gap-2 md:grid-cols-2">
-        <input className="rounded border border-white/20 bg-black/20 px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="rounded-md border border-white/[0.1] bg-admin-input px-3 py-2 text-zinc-100" value={name} onChange={(e) => setName(e.target.value)} />
         <input
           type="number"
-          className="rounded border border-white/20 bg-black/20 px-3 py-2"
+          className="rounded-md border border-white/[0.1] bg-admin-input px-3 py-2 text-zinc-100"
           value={baseAiCredits}
           onChange={(e) => setBaseAiCredits(Number(e.target.value))}
         />
-        <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={subscriptionStatus} onChange={(e) => setSubscriptionStatus(e.target.value)}>
+        <select className="rounded-md border border-white/[0.1] bg-admin-input px-3 py-2 text-zinc-100" value={subscriptionStatus} onChange={(e) => setSubscriptionStatus(e.target.value)}>
           <option value="active">active</option>
           <option value="past_due">past_due</option>
           <option value="grace_period">grace_period</option>
@@ -76,17 +76,17 @@ export function AdminTeamDetailActions({
           <option value="cancelled">cancelled</option>
           <option value="terminated">terminated</option>
         </select>
-        <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={teamStatus} onChange={(e) => setTeamStatus(e.target.value)}>
+        <select className="rounded-md border border-white/[0.1] bg-admin-input px-3 py-2 text-zinc-100" value={teamStatus} onChange={(e) => setTeamStatus(e.target.value)}>
           <option value="active">active</option>
           <option value="suspended">suspended</option>
           <option value="cancelled">cancelled</option>
           <option value="terminated">terminated</option>
         </select>
-        <div className="flex items-center gap-2 rounded border border-white/20 bg-black/20 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-md border border-white/[0.1] bg-admin-input px-3 py-2">
           <input type="checkbox" checked={aiEnabled} onChange={(e) => setAiEnabled(e.target.checked)} />
           AI enabled
         </div>
-        <div className="flex items-center gap-2 rounded border border-white/20 bg-black/20 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-md border border-white/[0.1] bg-admin-input px-3 py-2">
           <input type="checkbox" checked={aiDisabledByPlatform} onChange={(e) => setAiDisabledByPlatform(e.target.checked)} />
           Disable AI by platform
         </div>
@@ -95,12 +95,12 @@ export function AdminTeamDetailActions({
         <button onClick={saveTeam} className="rounded bg-cyan-500 px-3 py-2 text-xs font-semibold text-black">
           Save Team
         </button>
-        <button onClick={saveAiSettings} className="rounded bg-white/10 px-3 py-2 text-xs">
+        <button onClick={saveAiSettings} className="rounded bg-white/[0.08] px-3 py-2 text-xs text-zinc-200 hover:bg-white/[0.12]">
           Save AI Settings
         </button>
       </div>
-      <p className="text-xs text-white/70">Current AI usage this cycle: {team.aiUsageThisCycle}</p>
-      {result ? <p className="text-xs text-white/70">{result}</p> : null}
+      <p className="text-xs text-zinc-500">Current AI usage this cycle: {team.aiUsageThisCycle}</p>
+      {result ? <p className="text-xs text-zinc-400">{result}</p> : null}
     </div>
   )
 }

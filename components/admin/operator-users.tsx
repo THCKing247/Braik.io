@@ -22,7 +22,7 @@ function chipClass(status: string): string {
   const value = status.toLowerCase()
   if (value.includes("active")) return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
   if (value.includes("suspend")) return "bg-red-500/20 text-red-200 border-red-400/40"
-  if (value.includes("deactiv")) return "bg-[#000000]/20 text-[#e5e7eb] border-[#000000]/40"
+  if (value.includes("deactiv")) return "border-white/[0.1] bg-admin-nested text-zinc-300"
   return "bg-white/10 text-white/80 border-white/20"
 }
 
@@ -98,7 +98,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Account Management</h2>
           <div className="flex flex-wrap gap-2">
@@ -112,7 +112,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Local filter"
-              className="rounded border border-white/15 bg-black/30 px-2 py-1 text-xs"
+              className="rounded border border-white/15 bg-admin-input px-2 py-1 text-xs"
             />
             <button onClick={() => setModalOpen(true)} className="rounded bg-white/10 px-3 py-1 text-xs">
               Open Drill-down
@@ -146,7 +146,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#18181c]">
+      <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card">
         <table className="w-full text-left text-sm">
           <thead className="bg-white/5 text-white/70">
             <tr>
@@ -247,8 +247,8 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
       >
         <div className="space-y-2">
           <div className="grid gap-2 md:grid-cols-4">
-            <input className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs" placeholder="Search" />
-            <select className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs">
+            <input className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs" placeholder="Search" />
+            <select className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs">
               <option>Bulk action</option>
               <option>Suspend selected</option>
               <option>Restore selected</option>
@@ -256,7 +256,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
             <button className="rounded bg-white/10 px-2 py-1 text-xs">Apply</button>
             <button className="rounded bg-white/10 px-2 py-1 text-xs">Export CSV</button>
           </div>
-          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/10">
+          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/[0.08]">
             <table className="w-full text-left text-xs">
               <thead className="bg-white/10">
                 <tr>
@@ -372,7 +372,7 @@ function EditUserModal({
           <div>
             <label className="mb-1 block text-xs text-white/70">Name</label>
             <input
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              className="w-full rounded border border-white/[0.1] bg-admin-input px-3 py-2 text-sm"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -381,7 +381,7 @@ function EditUserModal({
             <label className="mb-1 block text-xs text-white/70">Email</label>
             <input
               type="email"
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              className="w-full rounded border border-white/[0.1] bg-admin-input px-3 py-2 text-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -390,7 +390,7 @@ function EditUserModal({
           <div>
             <label className="mb-1 block text-xs text-white/70">Role</label>
             <select
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              className="w-full rounded border border-white/[0.1] bg-admin-input px-3 py-2 text-sm"
               value={role}
               onChange={(e) => setRole(e.target.value)}
             >
@@ -404,7 +404,7 @@ function EditUserModal({
           <div>
             <label className="mb-1 block text-xs text-white/70">Status</label>
             <select
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              className="w-full rounded border border-white/[0.1] bg-admin-input px-3 py-2 text-sm"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
             >
@@ -416,7 +416,7 @@ function EditUserModal({
             </select>
           </div>
         </div>
-        <div className="rounded border border-white/10 bg-black/20 p-3">
+        <div className="rounded border border-white/[0.08] bg-admin-nested p-3">
           <p className="mb-2 text-xs font-medium text-white/80">Game Video / Clips</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {(

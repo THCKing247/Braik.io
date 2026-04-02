@@ -12,6 +12,12 @@ export type AthleticDepartmentListRow = {
   status: string
 }
 
+export type AthleticDepartmentOrganizationVideoRow = {
+  id: string
+  name: string
+  videoClipsEnabled: boolean
+}
+
 export type AthleticDepartmentDetailOverview = {
   id: string
   schoolName: string
@@ -21,7 +27,18 @@ export type AthleticDepartmentDetailOverview = {
   videoFeatureEnabled: boolean
   activeTeamCount: number
   assistantCoachUsageCount: number
-  organizationNames: string[]
+  /** Orgs linked to this AD and/or referenced by teams’ programs (for org-level video toggles). */
+  organizations: AthleticDepartmentOrganizationVideoRow[]
+}
+
+/** Safe for client after refresh / older payloads missing `organizations`. */
+export function normalizeAthleticDepartmentDetailOverview(
+  overview: AthleticDepartmentDetailOverview
+): AthleticDepartmentDetailOverview {
+  return {
+    ...overview,
+    organizations: Array.isArray(overview.organizations) ? overview.organizations : [],
+  }
 }
 
 export type AthleticDepartmentTeamRow = {
@@ -36,8 +53,10 @@ export type AthleticDepartmentTeamRow = {
   videoFeatureEnabled: boolean
   /** Organization (program) video flag when linked; null if no program/org. */
   organizationVideoEnabled: boolean | null
-  /** School AD ∧ org (if any) ∧ team — matches product gate. */
+  /** School AD ∧ org (if any) ∧ team — matches product gate (portal also needs user video permission). */
   videoEffectiveEnabled: boolean
+  /** First failing gate for effective video (same order as runtime product check). Null when effective or no single gate. */
+  videoEffectiveBlockReason: "school" | "organization" | "team" | null
 }
 
 export type AthleticDepartmentUserRow = {

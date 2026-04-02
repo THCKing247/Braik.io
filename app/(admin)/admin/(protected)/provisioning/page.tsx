@@ -2,11 +2,13 @@ import { AdminProvisioningConsole } from "@/components/admin/admin-provisioning-
 
 export default function AdminProvisioningPage() {
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Provisioning</h1>
-        <p className="text-sm text-white/60">Organizations, teams, and user invites (admin-created accounts only).</p>
-      </div>
+    <div className="mx-auto w-full max-w-3xl px-0 pb-10 pt-2">
+      <header className="mb-10 border-b border-white/[0.08] pb-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Provisioning</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+          Organizations, teams, and user invites (admin-created accounts only).
+        </p>
+      </header>
       <AdminProvisioningConsole />
     </div>
   )

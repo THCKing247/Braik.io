@@ -23,7 +23,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Athletic Departments / Schools</h2>
@@ -36,19 +36,19 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by school, org, status…"
-            className="min-w-[200px] rounded border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+            className="min-w-[200px] rounded border border-white/15 bg-admin-input px-3 py-1.5 text-sm"
           />
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/20 bg-[#111113] p-10 text-center text-sm text-white/60">
+        <div className="rounded-xl border border-dashed border-white/20 bg-admin-nested p-10 text-center text-sm text-white/60">
           {initialRows.length === 0
             ? "No athletic departments found. Provisioning may create schools and departments."
             : "No rows match your search."}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#18181c]">
+        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card">
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-white/50">
               <tr>
@@ -78,7 +78,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
                       className={
                         row.videoFeatureEnabled
                           ? "rounded border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-100"
-                          : "rounded border border-white/15 bg-black/30 px-2 py-0.5 text-white/60"
+                          : "rounded border border-white/15 bg-admin-input px-2 py-0.5 text-white/60"
                       }
                     >
                       {row.videoFeatureEnabled ? "On" : "Off"}

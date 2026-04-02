@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
 import { AdminTeamStatusForm } from "@/components/admin/admin-team-status-form"
 
@@ -22,13 +22,29 @@ function statusChip(value: string): string {
   if (normalized === "active") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
   if (normalized === "suspended" || normalized === "terminated") return "bg-red-500/20 text-red-200 border-red-400/40"
   if (normalized === "grace_period" || normalized === "past_due") return "bg-orange-500/20 text-orange-200 border-orange-400/40"
-  if (normalized === "cancelled") return "bg-[#000000]/20 text-[#e5e7eb] border-[#000000]/40"
+  if (normalized === "cancelled") return "border-white/[0.1] bg-admin-nested text-zinc-300"
   return "bg-white/10 text-white/80 border-white/20"
 }
 
-export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filterUserId?: string | null }) {
-  const [query, setQuery] = useState("")
+export function OperatorTeams({
+  teams,
+  filterUserId,
+  serverSearchQuery,
+  fetchError,
+}: {
+  teams: TeamRow[]
+  filterUserId?: string | null
+  /** URL `q` applied on the server (case-insensitive partial match on team name / org). */
+  serverSearchQuery?: string
+  /** Set when the server could not load teams (shows instead of a silent empty list). */
+  fetchError?: string | null
+}) {
+  const [query, setQuery] = useState(() => serverSearchQuery ?? "")
   const [modalOpen, setModalOpen] = useState(false)
+
+  useEffect(() => {
+    setQuery(serverSearchQuery ?? "")
+  }, [serverSearchQuery])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -40,6 +56,17 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
 
   return (
     <div className="space-y-4">
+      {fetchError && (
+        <div className="rounded-xl border border-red-400/40 bg-red-500/15 p-4 text-sm text-red-100">
+          <p className="font-semibold">Could not load teams</p>
+          <p className="mt-1 text-red-100/90">{fetchError}</p>
+        </div>
+      )}
+      {serverSearchQuery && !fetchError && (
+        <div className="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-white/80">
+          Server filter (from URL): <span className="font-medium text-white">{serverSearchQuery}</span>
+        </div>
+      )}
       {filterUserId && (
         <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-3">
           <p className="text-sm text-cyan-100">
@@ -54,7 +81,7 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
           </p>
         </div>
       )}
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Teams Management</h2>
           <div className="flex gap-2">
@@ -62,7 +89,7 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Local filter"
-              className="rounded border border-white/15 bg-black/30 px-2 py-1 text-xs"
+              className="rounded border border-white/15 bg-admin-input px-2 py-1 text-xs"
             />
             <button onClick={() => setModalOpen(true)} className="rounded bg-white/10 px-3 py-1 text-xs">
               Open Drill-down
@@ -74,29 +101,50 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
           <p className="text-xs text-emerald-100/70">Active Teams</p>
-          <p className="text-2xl font-semibold text-emerald-100">{teams.filter((t) => t.teamStatus === "active").length}</p>
+          <p className="text-2xl font-semibold text-emerald-100">
+            {fetchError ? "—" : teams.filter((t) => t.teamStatus === "active").length}
+          </p>
         </div>
         <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3">
           <p className="text-xs text-red-100/70">Suspended Teams</p>
-          <p className="text-2xl font-semibold text-red-100">{teams.filter((t) => t.teamStatus === "suspended").length}</p>
+          <p className="text-2xl font-semibold text-red-100">
+            {fetchError ? "—" : teams.filter((t) => t.teamStatus === "suspended").length}
+          </p>
         </div>
         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-3">
           <p className="text-xs text-orange-100/70">Past Due / Grace</p>
           <p className="text-2xl font-semibold text-orange-100">
-            {teams.filter((t) => ["past_due", "grace_period"].includes(t.subscriptionStatus)).length}
+            {fetchError
+              ? "—"
+              : teams.filter((t) => ["past_due", "grace_period"].includes(t.subscriptionStatus)).length}
           </p>
         </div>
         <div className="rounded-xl border border-purple-400/30 bg-purple-500/10 p-3">
           <p className="text-xs text-purple-100/70">Cancelled/Terminated</p>
           <p className="text-2xl font-semibold text-purple-100">
-            {teams.filter((t) => ["cancelled", "terminated"].includes(t.teamStatus) || ["cancelled", "terminated"].includes(t.subscriptionStatus)).length}
+            {fetchError
+              ? "—"
+              : teams.filter(
+                  (t) =>
+                    ["cancelled", "terminated"].includes(t.teamStatus) ||
+                    ["cancelled", "terminated"].includes(t.subscriptionStatus)
+                ).length}
           </p>
         </div>
       </div>
 
       <div className="space-y-3">
+        {!fetchError && filtered.length === 0 && (
+          <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-6 text-center text-sm text-white/60">
+            {teams.length === 0
+              ? serverSearchQuery || filterUserId
+                ? "No teams match this filter."
+                : "No teams found."
+              : "No teams match the local filter above."}
+          </div>
+        )}
         {filtered.map((team) => (
-          <div key={team.id} className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+          <div key={team.id} className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold">{team.name}</h3>
@@ -127,8 +175,8 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
       >
         <div className="space-y-2">
           <div className="grid gap-2 md:grid-cols-4">
-            <input className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs" placeholder="Search" />
-            <select className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs">
+            <input className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs" placeholder="Search" />
+            <select className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs">
               <option>Bulk action</option>
               <option>Suspend selected</option>
               <option>Restore selected</option>
@@ -136,7 +184,7 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
             <button className="rounded bg-white/10 px-2 py-1 text-xs">Apply</button>
             <button className="rounded bg-white/10 px-2 py-1 text-xs">Export CSV</button>
           </div>
-          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/10">
+          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/[0.08]">
             <table className="w-full text-left text-xs">
               <thead className="bg-white/10">
                 <tr>

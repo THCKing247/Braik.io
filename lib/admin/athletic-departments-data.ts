@@ -12,6 +12,7 @@ import {
 import type {
   AthleticDepartmentDetailOverview,
   AthleticDepartmentListRow,
+  AthleticDepartmentOrganizationVideoRow,
   AthleticDepartmentTeamRow,
   AthleticDepartmentUserRow,
 } from "@/lib/admin/athletic-departments-types"
@@ -179,14 +180,6 @@ export async function loadAthleticDepartmentDetail(
   const { data: school } = await supabase.from("schools").select("name").eq("id", schoolId).maybeSingle()
   const schoolName = (school as { name?: string } | null)?.name ?? "(unknown school)"
 
-  const { data: orgs } = await supabase
-    .from("organizations")
-    .select("name")
-    .eq("athletic_department_id", athleticDepartmentId)
-  const organizationNames = (orgs ?? [])
-    .map((o) => (o as { name?: string }).name?.trim())
-    .filter((n): n is string => Boolean(n))
-
   const teamIds = await collectTeamIdsForAthleticDepartment(supabase, athleticDepartmentId)
   const activeTeamCount = await countActiveTeams(teamIds, supabase)
   const assistantCoachUsageCount = await countAssistantCoachesOnTeams(supabase, teamIds)
@@ -217,6 +210,7 @@ export async function loadAthleticDepartmentDetail(
     ),
   ]
   const orgVideoByProgramId = new Map<string, boolean | null>()
+  const orgIdsFromTeamPrograms = new Set<string>()
   if (programIds.length > 0) {
     const { data: programs } = await supabase.from("programs").select("id, organization_id").in("id", programIds)
     const orgIds = [
@@ -226,6 +220,7 @@ export async function loadAthleticDepartmentDetail(
           .filter((x): x is string => typeof x === "string" && x.length > 0)
       ),
     ]
+    for (const oid of orgIds) orgIdsFromTeamPrograms.add(oid)
     const orgVideoByOrgId = new Map<string, boolean>()
     if (orgIds.length > 0) {
       const { data: orgRows } = await supabase
@@ -272,6 +267,11 @@ export async function loadAthleticDepartmentDetail(
     const pid = (tr as { program_id?: string | null }).program_id
     const orgVid = pid ? orgVideoByProgramId.get(pid) ?? null : null
     const orgOk = orgVid == null ? true : orgVid
+    let videoEffectiveBlockReason: "school" | "organization" | "team" | null = null
+    if (!adVideo) videoEffectiveBlockReason = "school"
+    else if (orgVid === false) videoEffectiveBlockReason = "organization"
+    else if (!teamVid) videoEffectiveBlockReason = "team"
+    const videoEffectiveEnabled = Boolean(adVideo && orgOk && teamVid)
     return {
       id: tr.id,
       name: tr.name ?? "",
@@ -282,11 +282,42 @@ export async function loadAthleticDepartmentDetail(
       teamStatus: tr.team_status ?? "active",
       videoFeatureEnabled: teamVid,
       organizationVideoEnabled: orgVid,
-      videoEffectiveEnabled: Boolean(adVideo && orgOk && teamVid),
+      videoEffectiveEnabled,
+      videoEffectiveBlockReason: videoEffectiveEnabled ? null : videoEffectiveBlockReason,
     }
   })
 
   teams.sort((a, b) => a.name.localeCompare(b.name))
+
+  const { data: orgsLinkedToAd } = await supabase
+    .from("organizations")
+    .select("id")
+    .eq("athletic_department_id", athleticDepartmentId)
+  const allOrgIds = new Set<string>()
+  for (const o of orgsLinkedToAd ?? []) {
+    allOrgIds.add((o as { id: string }).id)
+  }
+  for (const oid of orgIdsFromTeamPrograms) {
+    allOrgIds.add(oid)
+  }
+
+  let organizations: AthleticDepartmentOrganizationVideoRow[] = []
+  if (allOrgIds.size > 0) {
+    const { data: orgRowsFull } = await supabase
+      .from("organizations")
+      .select("id, name, video_clips_enabled")
+      .in("id", [...allOrgIds])
+    organizations = (orgRowsFull ?? [])
+      .map((o) => {
+        const r = o as { id: string; name?: string | null; video_clips_enabled?: boolean | null }
+        return {
+          id: r.id,
+          name: r.name?.trim() || "(unnamed)",
+          videoClipsEnabled: Boolean(r.video_clips_enabled),
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }
 
   const userIds = await collectAssociatedUserIdsForAthleticDepartment(supabase, athleticDepartmentId, teamIds)
   const userIdList = [...userIds]
@@ -360,7 +391,7 @@ export async function loadAthleticDepartmentDetail(
     videoFeatureEnabled: adVideo,
     activeTeamCount,
     assistantCoachUsageCount,
-    organizationNames,
+    organizations,
   }
 
   return { overview, teams, users }

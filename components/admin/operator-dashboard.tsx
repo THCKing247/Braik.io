@@ -36,7 +36,7 @@ interface Props {
 const colorMap = {
   red: "border-red-400/40 bg-red-500/10 text-red-100",
   orange: "border-orange-400/40 bg-orange-500/10 text-orange-100",
-  yellow: "border-[#000000]/40 bg-[#000000]/10 text-[#e5e7eb]",
+  yellow: "border-white/[0.12] bg-admin-nested text-zinc-300",
   green: "border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
   blue: "border-sky-400/40 bg-sky-500/10 text-sky-100",
   purple: "border-purple-400/40 bg-purple-500/10 text-purple-100",
@@ -79,9 +79,9 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
           <p className="text-xs text-orange-100/80">Grace Period Teams</p>
           <p className="text-xl font-semibold text-orange-100">{metrics.gracePeriodTeams}</p>
         </button>
-        <button onClick={() => setOpenModal("ai-near-limit")} className="rounded border border-[#000000]/30 bg-[#000000]/10 px-3 py-3 text-left">
-          <p className="text-xs text-[#e5e7eb]/80">AI Near Limit</p>
-          <p className="text-xl font-semibold text-[#e5e7eb]">0</p>
+        <button onClick={() => setOpenModal("ai-near-limit")} className="rounded border border-white/[0.1] bg-admin-nested px-3 py-3 text-left">
+          <p className="text-xs text-zinc-400">AI Near Limit</p>
+          <p className="text-xl font-semibold text-zinc-200">0</p>
         </button>
         <button onClick={() => setOpenModal("refunds")} className="rounded border border-sky-500/30 bg-sky-500/10 px-3 py-3 text-left">
           <p className="text-xs text-sky-100/80">Pending Refunds</p>
@@ -119,7 +119,7 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
             <p className="text-xs opacity-80">{card.label}</p>
             <p className="mt-1 text-2xl font-semibold">{card.value}</p>
             <p className="mt-1 text-[11px] opacity-75">Trend: placeholder +2.4%</p>
-            <div className="mt-2 h-6 w-full rounded bg-black/25">
+            <div className="mt-2 h-6 w-full rounded bg-admin-nested">
               <div className="h-6 rounded bg-white/25" style={{ width: `${Math.min(100, Math.max(20, card.value % 100))}%` }} />
             </div>
           </button>
@@ -128,9 +128,9 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
 
       <div className="grid w-full gap-3 md:grid-cols-2">
         {["User Growth", "Team Growth", "Revenue Trend (placeholder)", "Suspension Trend"].map((title) => (
-          <div key={title} className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+          <div key={title} className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
             <p className="text-sm font-semibold">{title}</p>
-            <div className="mt-3 h-40 rounded bg-black/30 p-3">
+            <div className="mt-3 h-40 rounded bg-admin-input p-3">
               <div className="flex h-full items-end gap-2">
                 {[16, 24, 34, 28, 40, 48, 42, 52, 46, 60].map((h, idx) => (
                   <div key={idx} className="w-full rounded-t bg-sky-400/60" style={{ height: `${h}%` }} />
@@ -163,7 +163,7 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
               { label: "Subscriptions past_due*", value: metrics.productHealth.subscriptionsPastDue },
               { label: "Reminder queue pending", value: metrics.productHealth.remindersPending },
             ].map((c) => (
-              <div key={c.label} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+              <div key={c.label} className="rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2">
                 <p className="text-[11px] text-white/60">{c.label}</p>
                 <p className="text-xl font-semibold text-white">{c.value}</p>
               </div>
@@ -207,7 +207,7 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
                 <li className="text-white/50">No feedback yet.</li>
               ) : (
                 metrics.productHealth.recentFeedback.map((f) => (
-                  <li key={f.id} className="rounded border border-white/10 bg-black/20 p-2">
+                  <li key={f.id} className="rounded border border-white/[0.08] bg-admin-nested p-2">
                     <span className="font-semibold text-white/90">{f.category}</span> ·{" "}
                     {new Date(f.createdAt).toLocaleString()}
                     <div className="mt-1 text-white/70">{f.preview || "—"}</div>
@@ -219,11 +219,11 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <h3 className="text-lg font-semibold">Recent Audit Entries</h3>
         <div className="mt-3 space-y-2">
           {metrics.recentAuditEntries.map((entry) => (
-            <div key={entry.id} className="rounded border border-white/10 bg-black/25 p-2 text-xs leading-relaxed">
+            <div key={entry.id} className="rounded border border-white/[0.08] bg-admin-nested p-2 text-xs leading-relaxed">
               <div className="font-medium text-white/95">
                 {entry.action} · {entry.actorEmail}
               </div>
@@ -255,10 +255,10 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs"
+              className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs"
               placeholder="Search"
             />
-            <select value={action} onChange={(event) => setAction(event.target.value)} className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs">
+            <select value={action} onChange={(event) => setAction(event.target.value)} className="rounded border border-white/[0.08] bg-admin-input px-2 py-1 text-xs">
               <option value="">Action</option>
               <option value="bulk_suspend">bulk_suspend</option>
               <option value="bulk_restore">bulk_restore</option>
@@ -267,7 +267,7 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
             <button className="rounded bg-white/10 px-3 py-1 text-xs">Export CSV (stub)</button>
           </div>
 
-          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/10">
+          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/[0.08]">
             <table className="w-full text-left text-xs">
               <thead className="bg-white/10">
                 <tr>

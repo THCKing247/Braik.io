@@ -10,7 +10,14 @@ import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { ScheduleGameListSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { type TeamGameRow, parseGameDateMs } from "@/lib/team-schedule-games"
+import {
+  type TeamGameRow,
+  buildCumulativeRecordBeforeMap,
+  parseGameDateMs,
+  partitionGamesForScheduleTabs,
+} from "@/lib/team-schedule-games"
+import { computeTeamTrends } from "@/lib/schedule-team-trends"
+import { cn } from "@/lib/utils"
 import { ListOrdered, Plus, Upload, Download } from "lucide-react"
 import { emitTeamGamesChanged, TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 import {
@@ -54,7 +61,7 @@ function mergeScheduleGamesFromQueries(results: { data?: { games?: TeamGameRow[]
   return [...map.values()].sort((a, b) => parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate))
 }
 
-function downloadScheduleCsv(games: TeamGameRow[]) {
+function downloadScheduleCsv(games: TeamGameRow[], filenameSuffix: string) {
   const header = "opponent,game_date,location,game_type,conference_game,notes"
   const lines = games.map((g) => {
     const d = new Date(g.gameDate)
@@ -70,7 +77,7 @@ function downloadScheduleCsv(games: TeamGameRow[]) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `game-schedule-${format(new Date(), "yyyy-MM-dd")}.csv`
+  a.download = `game-schedule-${filenameSuffix}-${format(new Date(), "yyyy-MM-dd")}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -85,6 +92,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<TeamGameRow | null>(null)
+  const [scheduleTab, setScheduleTab] = useState<"schedule" | "results">("schedule")
 
   const rangeQueries = useQueries({
     queries: [
@@ -159,6 +167,15 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
 
   const orderedGames = games
 
+  const { scheduleGames, resultsGames } = useMemo(
+    () => partitionGamesForScheduleTabs(orderedGames),
+    [orderedGames]
+  )
+
+  const recordBeforeFull = useMemo(() => buildCumulativeRecordBeforeMap(orderedGames), [orderedGames])
+
+  const teamTrendsFull = useMemo(() => computeTeamTrends(orderedGames), [orderedGames])
+
   const openAdd = () => {
     setEditing(null)
     setFormOpen(true)
@@ -184,12 +201,52 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
         </p>
         {canEdit && (
           <p className="mt-2 text-sm font-medium" style={{ color: "rgb(var(--text2))" }}>
-            Manage your team&apos;s games here — add games, import a CSV, or edit results.
+            Use Game Schedule for upcoming games and imports; use Game Results for scores and outcomes.
           </p>
         )}
       </div>
 
-      {canEdit && (
+      <div
+        className="flex w-full max-w-lg rounded-xl border p-1 shadow-sm"
+        style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
+        role="tablist"
+        aria-label="Schedule and results"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="schedule-tab-schedule"
+          aria-selected={scheduleTab === "schedule"}
+          aria-controls="schedule-panel-schedule"
+          className={cn(
+            "min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold transition-colors",
+            scheduleTab === "schedule"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-background/80"
+          )}
+          onClick={() => setScheduleTab("schedule")}
+        >
+          Game Schedule
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="schedule-tab-results"
+          aria-selected={scheduleTab === "results"}
+          aria-controls="schedule-panel-results"
+          className={cn(
+            "min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold transition-colors",
+            scheduleTab === "results"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-background/80"
+          )}
+          onClick={() => setScheduleTab("results")}
+        >
+          Game Results
+        </button>
+      </div>
+
+      {canEdit && scheduleTab === "schedule" && (
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" className="gap-1.5" onClick={openAdd}>
             <Plus className="h-4 w-4" aria-hidden />
@@ -204,8 +261,8 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
             size="sm"
             variant="outline"
             className="gap-1.5"
-            disabled={orderedGames.length === 0}
-            onClick={() => downloadScheduleCsv(orderedGames)}
+            disabled={scheduleGames.length === 0}
+            onClick={() => downloadScheduleCsv(scheduleGames, "upcoming")}
           >
             <Download className="h-4 w-4" aria-hidden />
             Export CSV
@@ -216,11 +273,14 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
       <Card
         className="overflow-hidden border-0 shadow-sm ring-1 ring-black/[0.05] md:border md:ring-0"
         style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+        id={scheduleTab === "schedule" ? "schedule-panel-schedule" : "schedule-panel-results"}
+        role="tabpanel"
+        aria-labelledby={scheduleTab === "schedule" ? "schedule-tab-schedule" : "schedule-tab-results"}
       >
         <CardHeader className="flex flex-row items-center gap-2 px-4 pb-2 pt-4 md:px-6">
           <ListOrdered className="h-5 w-5 shrink-0" style={{ color: "rgb(var(--accent))" }} aria-hidden />
           <CardTitle className="text-base font-semibold md:text-lg" style={{ color: "rgb(var(--text))" }}>
-            Game schedule
+            {scheduleTab === "schedule" ? "Game schedule" : "Game results"}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 pb-4 md:px-6 md:pb-6">
@@ -233,36 +293,83 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
             </div>
           ) : gamesLoading ? (
             <ScheduleGameListSkeleton rows={8} />
-          ) : orderedGames.length === 0 ? (
+          ) : scheduleTab === "schedule" ? (
+            orderedGames.length === 0 ? (
+              <div className="px-4 py-10 text-center md:px-0">
+                <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                  No games scheduled yet.
+                </p>
+                {canEdit ? (
+                  <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+                    <Button type="button" size="sm" onClick={openAdd}>
+                      <Plus className="h-4 w-4 mr-2" aria-hidden />
+                      Add your first game
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                      <Upload className="h-4 w-4 mr-2" aria-hidden />
+                      Upload schedule (CSV)
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+                    Your coaches will post games here when they&apos;re ready.
+                  </p>
+                )}
+              </div>
+            ) : scheduleGames.length === 0 ? (
+              <div className="px-4 py-10 text-center md:px-0">
+                <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                  No upcoming games on the calendar.
+                </p>
+                <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+                  Past games and scores are under Game Results.
+                </p>
+                {canEdit ? (
+                  <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+                    <Button type="button" size="sm" onClick={openAdd}>
+                      <Plus className="h-4 w-4 mr-2" aria-hidden />
+                      Add game
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                      <Upload className="h-4 w-4 mr-2" aria-hidden />
+                      Upload schedule (CSV)
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <ScheduleGameCentricView
+                teamId={teamId}
+                teamName={teamName}
+                games={scheduleGames}
+                canEdit={canEdit}
+                onRefresh={refreshGames}
+                onEditGame={(g) => openEdit(g)}
+                recordBeforeMap={recordBeforeFull}
+                teamTrends={teamTrendsFull}
+                surface="schedule"
+              />
+            )
+          ) : resultsGames.length === 0 ? (
             <div className="px-4 py-10 text-center md:px-0">
               <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
-                No games scheduled yet.
+                No game results recorded yet.
               </p>
-              {canEdit ? (
-                <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
-                  <Button type="button" size="sm" onClick={openAdd}>
-                    <Plus className="h-4 w-4 mr-2" aria-hidden />
-                    Add your first game
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-                    <Upload className="h-4 w-4 mr-2" aria-hidden />
-                    Upload schedule (CSV)
-                  </Button>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
-                  Your coaches will post games here when they&apos;re ready.
-                </p>
-              )}
+              <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+                When games are finished, record final scores here.
+              </p>
             </div>
           ) : (
             <ScheduleGameCentricView
               teamId={teamId}
               teamName={teamName}
-              games={orderedGames}
+              games={resultsGames}
               canEdit={canEdit}
               onRefresh={refreshGames}
               onEditGame={(g) => openEdit(g)}
+              recordBeforeMap={recordBeforeFull}
+              teamTrends={teamTrendsFull}
+              surface="results"
             />
           )}
         </CardContent>
@@ -275,9 +382,11 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
         game={editing}
         onSaved={onSaved}
         suggestedOpponent={
-          !editing && orderedGames.length > 0
-            ? orderedGames[orderedGames.length - 1]?.opponent?.trim()
-            : undefined
+          !editing && scheduleGames.length > 0
+            ? scheduleGames[scheduleGames.length - 1]?.opponent?.trim()
+            : !editing && orderedGames.length > 0
+              ? orderedGames[orderedGames.length - 1]?.opponent?.trim()
+              : undefined
         }
       />
 

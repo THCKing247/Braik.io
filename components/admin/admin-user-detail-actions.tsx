@@ -107,25 +107,25 @@ export function AdminUserDetailActions({
   return (
     <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-4 text-sm">
       <div className="grid gap-2 md:grid-cols-2">
-        <input className="rounded border border-white/20 bg-black/20 px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className="rounded border border-white/20 bg-black/20 px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={role} onChange={(e) => setRole(e.target.value)}>
+        <input className="rounded border border-white/[0.1] bg-admin-input px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="rounded border border-white/[0.1] bg-admin-input px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <select className="rounded border border-white/[0.1] bg-admin-input px-3 py-2" value={role} onChange={(e) => setRole(e.target.value)}>
           {USER_ROLE_VALUES.map((r) => (
             <option key={r} value={r}>
               {USER_ROLE_LABELS[r]}
             </option>
           ))}
         </select>
-        <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select className="rounded border border-white/[0.1] bg-admin-input px-3 py-2" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="ACTIVE">ACTIVE</option>
           <option value="SUSPENDED">SUSPENDED</option>
           <option value="DEACTIVATED">DEACTIVATED</option>
         </select>
-        <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={aiTier} onChange={(e) => setAiTier(e.target.value)}>
+        <select className="rounded border border-white/[0.1] bg-admin-input px-3 py-2" value={aiTier} onChange={(e) => setAiTier(e.target.value)}>
           <option value="BASIC">BASIC</option>
           <option value="PRO">PRO</option>
         </select>
-        <label className="flex items-center gap-2 rounded border border-white/20 bg-black/20 px-3 py-2">
+        <label className="flex items-center gap-2 rounded border border-white/[0.1] bg-admin-input px-3 py-2">
           <input
             type="checkbox"
             checked={aiAutoRechargeEnabled}
@@ -153,7 +153,7 @@ export function AdminUserDetailActions({
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="number"
-          className="w-28 rounded border border-white/20 bg-black/20 px-3 py-2"
+          className="w-28 rounded border border-white/[0.1] bg-admin-input px-3 py-2"
           value={creditDelta}
           onChange={(e) => setCreditDelta(Number(e.target.value))}
         />

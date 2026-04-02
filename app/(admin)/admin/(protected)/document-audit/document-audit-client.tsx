@@ -56,12 +56,12 @@ export function DocumentAuditClient() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs text-white/70">
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Action
           <select
             value={action}
             onChange={(e) => setAction(e.target.value)}
-            className="rounded border border-white/20 bg-[#18181B] px-3 py-2 text-sm text-white"
+            className="rounded-md border border-white/[0.1] bg-admin-input px-3 py-2 text-sm text-zinc-100 [&>option]:bg-admin-input"
           >
             <option value="">All</option>
             <option value="upload">upload</option>
@@ -72,13 +72,13 @@ export function DocumentAuditClient() {
             <option value="bulk_export">bulk_export</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-white/70">
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Team ID
           <input
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
             placeholder="optional filter"
-            className="w-72 rounded border border-white/20 bg-[#18181B] px-3 py-2 text-sm text-white placeholder:text-white/30"
+            className="w-72 rounded-md border border-white/[0.1] bg-admin-input px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500"
           />
         </label>
         <button
@@ -90,13 +90,13 @@ export function DocumentAuditClient() {
         </button>
       </div>
 
-      {loading && <p className="text-sm text-white/60">Loading…</p>}
+      {loading && <p className="text-sm text-zinc-400">Loading…</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {!loading && !error && (
-        <div className="overflow-x-auto rounded border border-white/10">
-          <table className="min-w-full text-left text-sm text-white/90">
-            <thead className="bg-white/5 text-xs uppercase text-white/50">
+        <div className="overflow-x-auto rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card">
+          <table className="min-w-full text-left text-sm text-zinc-200">
+            <thead className="bg-admin-nested text-xs uppercase text-zinc-500">
               <tr>
                 <th className="px-3 py-2">Time</th>
                 <th className="px-3 py-2">Actor</th>
@@ -110,8 +110,8 @@ export function DocumentAuditClient() {
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-t border-white/10">
-                  <td className="whitespace-nowrap px-3 py-2 text-white/80">
+                <tr key={e.id} className="border-t border-white/[0.08]">
+                  <td className="whitespace-nowrap px-3 py-2 text-zinc-300">
                     {new Date(e.createdAt).toLocaleString()}
                   </td>
                   <td className="max-w-[140px] truncate px-3 py-2" title={e.actorProfileId}>
@@ -124,7 +124,7 @@ export function DocumentAuditClient() {
                   </td>
                   <td className="px-3 py-2">{e.accessMethod ?? "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{e.ipAddress ?? "—"}</td>
-                  <td className="max-w-xs truncate px-3 py-2 font-mono text-xs text-white/60" title={JSON.stringify(e.metadata)}>
+                  <td className="max-w-xs truncate px-3 py-2 font-mono text-xs text-zinc-500" title={JSON.stringify(e.metadata)}>
                     {JSON.stringify(e.metadata)}
                   </td>
                 </tr>
@@ -132,7 +132,7 @@ export function DocumentAuditClient() {
             </tbody>
           </table>
           {entries.length === 0 && (
-            <p className="p-6 text-center text-sm text-white/50">No entries match filters.</p>
+            <p className="p-6 text-center text-sm text-zinc-500">No entries match filters.</p>
           )}
         </div>
       )}

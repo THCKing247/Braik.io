@@ -3,10 +3,12 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
-import type {
-  AthleticDepartmentDetailOverview,
-  AthleticDepartmentTeamRow,
-  AthleticDepartmentUserRow,
+import {
+  normalizeAthleticDepartmentDetailOverview,
+  type AthleticDepartmentDetailOverview,
+  type AthleticDepartmentOrganizationVideoRow,
+  type AthleticDepartmentTeamRow,
+  type AthleticDepartmentUserRow,
 } from "@/lib/admin/athletic-departments-types"
 
 type InitialDetail = {
@@ -30,7 +32,7 @@ export function OperatorAthleticDepartmentDetail({
   initial: InitialDetail
 }) {
   const router = useRouter()
-  const [overview, setOverview] = useState(initial.overview)
+  const [overview, setOverview] = useState(() => normalizeAthleticDepartmentDetailOverview(initial.overview))
   const [teams, setTeams] = useState(initial.teams)
   const [users, setUsers] = useState(initial.users)
   const [userQuery, setUserQuery] = useState("")
@@ -50,11 +52,16 @@ export function OperatorAthleticDepartmentDetail({
     )
   }, [users, userQuery])
 
+  const teamsBlockedByOrgVideo = useMemo(
+    () => teams.filter((t) => t.videoEffectiveBlockReason === "organization"),
+    [teams]
+  )
+
   async function refresh() {
     const res = await fetch(`/api/admin/athletic-departments/${adId}`, { credentials: "include", cache: "no-store" })
     const data = (await res.json()) as InitialDetail & { error?: string }
     if (!res.ok) throw new Error(data.error || "Failed to refresh")
-    setOverview(data.overview)
+    setOverview(normalizeAthleticDepartmentDetailOverview(data.overview))
     setTeams(data.teams)
     setUsers(data.users)
     setTeamsAllowedInput(String(data.overview.teamsAllowed))
@@ -120,6 +127,26 @@ export function OperatorAthleticDepartmentDetail({
     }
   }
 
+  async function toggleOrgVideo(org: AthleticDepartmentOrganizationVideoRow, next: boolean) {
+    setErr(null)
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/provisioning/organizations/${encodeURIComponent(org.id)}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_clips_enabled: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Update failed")
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Update failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function toggleTeamVideo(team: AthleticDepartmentTeamRow, next: boolean) {
     if (next && !overview.videoFeatureEnabled) {
       setErr("Turn on school-level video before enabling team video.")
@@ -161,21 +188,18 @@ export function OperatorAthleticDepartmentDetail({
         <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">{err}</div>
       )}
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-5">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-5">
         <h2 className="text-lg font-semibold text-white">{overview.schoolName}</h2>
-        {overview.organizationNames.length > 0 && (
-          <p className="mt-1 text-sm text-white/65">Organizations: {overview.organizationNames.join(", ")}</p>
-        )}
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <div className="rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2">
             <dt className="text-xs uppercase tracking-wide text-white/50">Teams usage</dt>
             <dd className="mt-1 text-sm font-medium text-white">{usageTeams}</dd>
           </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <div className="rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2">
             <dt className="text-xs uppercase tracking-wide text-white/50">Assistant coaches</dt>
             <dd className="mt-1 text-sm font-medium text-white">{usageAssist}</dd>
           </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <div className="rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2">
             <dt className="text-xs uppercase tracking-wide text-white/50">School video (master)</dt>
             <dd className="mt-1 text-sm font-medium text-white">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
           </div>
@@ -191,7 +215,7 @@ export function OperatorAthleticDepartmentDetail({
                 min={0}
                 value={teamsAllowedInput}
                 onChange={(e) => setTeamsAllowedInput(e.target.value)}
-                className="w-28 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-white"
+                className="w-28 rounded border border-white/15 bg-admin-input px-2 py-1.5 text-white"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
@@ -201,7 +225,7 @@ export function OperatorAthleticDepartmentDetail({
                 min={0}
                 value={assistantsAllowedInput}
                 onChange={(e) => setAssistantsAllowedInput(e.target.value)}
-                className="w-28 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-white"
+                className="w-28 rounded border border-white/15 bg-admin-input px-2 py-1.5 text-white"
               />
             </label>
             <label className="flex items-center gap-2 text-sm">
@@ -228,12 +252,75 @@ export function OperatorAthleticDepartmentDetail({
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
+        <h3 className="text-base font-semibold text-white">Organization video</h3>
+        <p className="mt-1 text-xs text-white/55">
+          When a team is on a program, the program&apos;s organization must allow video before the team portal Video tab
+          can turn on (along with school and team toggles). Organizations listed here are either linked to this athletic
+          department or referenced by a team&apos;s program under this school.
+        </p>
+        {(overview.organizations ?? []).length === 0 ? (
+          <p className="mt-3 text-sm text-white/55">
+            No organizations in scope. Link an organization to this department or assign teams to programs with an
+            organization.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3" aria-label="Organization video toggles">
+            {(overview.organizations ?? []).map((org) => (
+              <li
+                key={org.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-admin-nested px-3 py-2"
+              >
+                <span className="text-sm font-medium text-white">{org.name}</span>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={org.videoClipsEnabled}
+                    disabled={saving}
+                    onChange={(e) => toggleOrgVideo(org, e.target.checked)}
+                    className="h-4 w-4 rounded border-white/30"
+                  />
+                  <span className="text-white/80">Organization video enabled</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <h3 className="text-base font-semibold text-white">Teams</h3>
         <p className="mt-1 text-xs text-white/55">
-          Team toggles are disabled when school video is off. Effective video also requires organization and team flags
-          when a program is linked.
+          <span className="font-medium text-white/70">How effective video works:</span> The team portal &quot;Game Video /
+          Clips&quot; tab appears only when every layer that applies is on: school (athletic department) video, then—if
+          the team is linked to a program—<span className="text-white/80">organization</span> video for that program&apos;s
+          org, then team video. Each user also needs video view permission in{" "}
+          <code className="rounded bg-admin-input px-1 text-white/70">user_video_permissions</code>. Turning on school + team
+          is not enough if the team has a program and organization-level video is off.
         </p>
+        {teamsBlockedByOrgVideo.length > 0 && (
+          <div
+            className="mt-4 rounded-lg border border-amber-400/50 bg-amber-500/15 px-4 py-3 text-sm text-amber-50"
+            role="status"
+          >
+            <p className="font-semibold text-amber-100">Video is blocked because organization-level video access is disabled.</p>
+            <p className="mt-2 text-amber-100/90">
+              {teamsBlockedByOrgVideo.length === 1 ? (
+                <>
+                  Team &quot;{teamsBlockedByOrgVideo[0].name}&quot; is linked to a program whose organization has org
+                  video off. Enable video for that organization in provisioning, or unlink the team from the program, so
+                  effective access can turn on.
+                </>
+              ) : (
+                <>
+                  {teamsBlockedByOrgVideo.length} teams are linked to a program whose organization has org video off:{" "}
+                  {teamsBlockedByOrgVideo.map((t) => t.name).join(", ")}. Enable organization video for those programs, or
+                  adjust program links.
+                </>
+              )}
+            </p>
+          </div>
+        )}
         {teams.length === 0 ? (
           <p className="mt-4 text-sm text-white/55">No teams linked to this athletic department.</p>
         ) : (
@@ -249,16 +336,26 @@ export function OperatorAthleticDepartmentDetail({
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Org video</th>
                   <th className="py-2 pr-3">Team video</th>
-                  <th className="py-2 pr-3">Effective</th>
+                  <th className="py-2 pr-3">Effective (portal product)</th>
                 </tr>
               </thead>
               <tbody>
                 {teams.map((t) => {
                   const disabled = !overview.videoFeatureEnabled
+                  const effectiveNote =
+                    t.videoEffectiveEnabled
+                      ? null
+                      : t.videoEffectiveBlockReason === "organization"
+                        ? "Video is blocked because organization-level video access is disabled."
+                        : t.videoEffectiveBlockReason === "school"
+                          ? "Turn on school (AD) video above."
+                          : t.videoEffectiveBlockReason === "team"
+                            ? "Turn on team video for this row."
+                            : null
                   return (
                     <tr key={t.id} className="border-b border-white/5">
                       <td className="py-2 pr-3 font-medium text-white">
-                        <Link href={`/admin/teams?q=${encodeURIComponent(t.name)}`} className="text-cyan-300 underline">
+                        <Link href={`/admin/teams/${t.id}`} className="text-cyan-300 underline">
                           {t.name}
                         </Link>
                       </td>
@@ -288,7 +385,12 @@ export function OperatorAthleticDepartmentDetail({
                           <span className="text-white/80">{t.videoFeatureEnabled ? "On" : "Off"}</span>
                         </label>
                       </td>
-                      <td className="py-2 pr-3 text-white/85">{t.videoEffectiveEnabled ? "Yes" : "No"}</td>
+                      <td className="max-w-[220px] py-2 pr-3 text-white/85">
+                        <span className="font-medium">{t.videoEffectiveEnabled ? "Yes" : "No"}</span>
+                        {effectiveNote && (
+                          <p className="mt-1 text-xs font-normal leading-snug text-amber-200/90">{effectiveNote}</p>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -298,14 +400,14 @@ export function OperatorAthleticDepartmentDetail({
         )}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className="rounded-xl border border-white/[0.08] bg-admin-card shadow-admin-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-base font-semibold text-white">Users</h3>
           <input
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder="Search users…"
-            className="rounded border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+            className="rounded border border-white/15 bg-admin-input px-3 py-1.5 text-sm"
           />
         </div>
         {filteredUsers.length === 0 ? (

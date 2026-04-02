@@ -34,7 +34,7 @@ export function AdminTicketMessageForm({ ticketId }: { ticketId: string }) {
   return (
     <form className="mt-2 flex gap-2" onSubmit={onSubmit}>
       <input
-        className="w-full rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+        className="w-full rounded border border-white/[0.1] bg-admin-input px-2 py-1 text-xs"
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         placeholder="Reply to Head Coach"

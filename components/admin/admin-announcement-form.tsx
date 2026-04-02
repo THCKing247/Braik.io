@@ -45,7 +45,7 @@ export function AdminAnnouncementForm() {
   return (
     <form className="space-y-3" onSubmit={onSubmit}>
       <textarea
-        className="min-h-[120px] w-full rounded border border-white/20 bg-black/20 px-3 py-2 text-sm"
+        className="min-h-[120px] w-full rounded border border-white/[0.1] bg-admin-input px-3 py-2 text-sm"
         value={content}
         onChange={(event) => setContent(event.target.value)}
         placeholder="Announcement content for Head Coaches"
@@ -53,25 +53,25 @@ export function AdminAnnouncementForm() {
       />
       <div className="grid gap-2 md:grid-cols-4">
         <input
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className="rounded border border-white/[0.1] bg-admin-input px-2 py-1 text-xs"
           placeholder="Plan tier (optional)"
           value={planTier}
           onChange={(event) => setPlanTier(event.target.value)}
         />
         <input
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className="rounded border border-white/[0.1] bg-admin-input px-2 py-1 text-xs"
           placeholder="Region (optional)"
           value={region}
           onChange={(event) => setRegion(event.target.value)}
         />
         <input
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className="rounded border border-white/[0.1] bg-admin-input px-2 py-1 text-xs"
           placeholder="Sport (optional)"
           value={sport}
           onChange={(event) => setSport(event.target.value)}
         />
         <select
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className="rounded border border-white/[0.1] bg-admin-input px-2 py-1 text-xs"
           value={teamStatus}
           onChange={(event) => setTeamStatus(event.target.value)}
         >

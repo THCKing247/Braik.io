@@ -5,7 +5,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useAdPortalDepartmentLink } from "@/components/portal/ad-portal-link-context"
-import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
 
@@ -29,7 +28,7 @@ const navBarStyle = {
 }
 
 /**
- * &lt; lg: simple bar — centered logo, theme. Overflow nav is bottom "More" sheet.
+ * &lt; lg: simple bar — centered logo. Overflow nav is bottom "More" sheet.
  * lg+: desktop header with team switcher and Admin.
  */
 const departmentNavLinkClass = cn(
@@ -107,7 +106,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               </div>
             </Link>
           </div>
-          <div className="flex items-center justify-end gap-1 [&_button]:h-10 [&_button]:w-10">
+          <div className="flex items-center justify-end gap-1">
             {showDepartmentNavLink && adDepartmentHref && (
               <Link
                 href={adDepartmentHref}
@@ -120,7 +119,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 Department
               </Link>
             )}
-            <ThemeToggle />
           </div>
         </div>
       </nav>
@@ -187,7 +185,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 Admin
               </Link>
             )}
-            <ThemeToggle />
           </div>
         </div>
       </nav>

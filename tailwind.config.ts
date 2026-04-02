@@ -73,6 +73,14 @@ const config = {
         meta: {
           DEFAULT: "rgb(var(--muted))",
         },
+        /** Braik Super Admin — layered grays (page → card → input → nested) */
+        admin: {
+          page: "#0f1115",
+          card: "#151922",
+          input: "#1b2130",
+          sidebar: "#0c0e14",
+          nested: "#12151c",
+        },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
@@ -88,6 +96,9 @@ const config = {
       boxShadow: {
         card: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
         "card-dark": "0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2)",
+        /** Super Admin console: depth without heavy drop shadow */
+        "admin-card":
+          "0 2px 10px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04)",
       },
       keyframes: {
         "accordion-down": {

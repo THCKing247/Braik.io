@@ -61,6 +61,25 @@ export function mergeGameScoringPatch(body: Record<string, unknown>, existing: G
   const wantsOppScore =
     Object.prototype.hasOwnProperty.call(body, "opponentScore") && body.opponentScore !== null
 
+  /**
+   * Coach entered both finals (e.g. modal sends score fields + quarter keys). Persist those finals and
+   * clear venue quarters so old breakdown cannot overwrite the new totals in DB or on next fetch.
+   */
+  if (wantsTeamScore && wantsOppScore) {
+    const out: Record<string, unknown> = {}
+    for (const k of Q_KEYS) {
+      out[k] = null
+    }
+    out.team_score = parseScoreField(body.teamScore)
+    out.opponent_score = parseScoreField(body.opponentScore)
+    const ts = out.team_score as number | null
+    const os = out.opponent_score as number | null
+    if (ts != null && os != null && Number.isFinite(ts) && Number.isFinite(os)) {
+      out.result = resultFromScores(Math.trunc(ts), Math.trunc(os))
+    }
+    return out
+  }
+
   const hasQk = patchBodyHasQuarterKeys(body)
   const hasScoreInputs = wantsTeamScore || wantsOppScore
 

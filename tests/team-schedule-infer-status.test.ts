@@ -3,6 +3,7 @@
  * Run: npx tsx tests/team-schedule-infer-status.test.ts
  */
 import {
+  effectiveTotalsFromGame,
   inferScheduleStatus,
   parseGameNumericField,
   type TeamGameRow,
@@ -47,6 +48,18 @@ function run() {
   assert(inferScheduleStatus(baseRow({ result: "win" })) === "completed", "result only")
   assert(inferScheduleStatus(baseRow({ result: "W" })) === "completed", "W")
   assert(inferScheduleStatus(baseRow({ teamScore: 7, opponentScore: null })) === "scheduled", "one score null")
+
+  const eff = effectiveTotalsFromGame(
+    baseRow({
+      teamScore: 30,
+      opponentScore: 20,
+      q1_home: 7,
+      q2_home: 7,
+      q1_away: 10,
+      q2_away: 11,
+    })
+  )
+  assert(eff.team === 30 && eff.opponent === 20, "persisted finals win over quarter sums when both set")
 
   console.log("All inferScheduleStatus tests passed.")
 }

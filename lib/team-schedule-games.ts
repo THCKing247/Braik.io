@@ -102,19 +102,31 @@ export function getQuartersFromGame(game: TeamGameRow): GameQuarters {
   }
 }
 
-/** If quarter lines exist, totals should match their sum (team mapped by home/away). */
+/**
+ * Display / classification totals for a game row.
+ *
+ * **Precedence**
+ * 1. If both `teamScore` and `opponentScore` are present (parsed as finite ints), use them — these are the
+ *    persisted finals and win over quarter lines (avoids “reverted” UI when finals and breakdown disagree).
+ * 2. Else if any quarter cell is set, derive team/opp from venue quarter sums (`teamOpponentTotalsFromQuarters`).
+ * 3. Else use whichever direct totals exist (partial).
+ */
 export function effectiveTotalsFromGame(game: TeamGameRow): { team: number | null; opponent: number | null } {
+  const directTeam = parseGameNumericField(game.teamScore)
+  const directOpp = parseGameNumericField(game.opponentScore)
+  if (directTeam != null && directOpp != null) {
+    return { team: directTeam, opponent: directOpp }
+  }
   const q = getQuartersFromGame(game)
-  const { teamScore, opponentScore } = teamOpponentTotalsFromQuarters(game.location, q)
   const hasQ =
     [q.q1_home, q.q2_home, q.q3_home, q.q4_home, q.q1_away, q.q2_away, q.q3_away, q.q4_away].some(
       (n) => n != null && Number.isFinite(Number(n))
     )
-  if (hasQ) return { team: teamScore, opponent: opponentScore }
-  return {
-    team: parseGameNumericField(game.teamScore),
-    opponent: parseGameNumericField(game.opponentScore),
+  if (hasQ) {
+    const { teamScore, opponentScore } = teamOpponentTotalsFromQuarters(game.location, q)
+    return { team: teamScore, opponent: opponentScore }
   }
+  return { team: directTeam, opponent: directOpp }
 }
 
 /**
@@ -122,8 +134,8 @@ export function effectiveTotalsFromGame(game: TeamGameRow): { team: number | nul
  *
  * **completed** when any of:
  * - Notes do not imply cancelled/postponed, AND
- * - Both effective team and opponent totals are finite integers (from `team_score`/`opponent_score`,
- *   or from quarter sums mapped by home/away), OR
+ * - Both effective team and opponent totals are finite integers (see `effectiveTotalsFromGame`:
+ *   persisted finals win when both set; else quarter sums; else partial), OR
  * - `result` normalizes to win/loss/tie (`normalizeStoredResult`: win/w, loss/l, tie/t and case variants).
  *
  * Empty string, `undefined`, non-numeric strings, and `NaN` for scores are treated as missing (null),

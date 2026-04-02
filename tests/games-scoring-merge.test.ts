@@ -60,6 +60,27 @@ function run() {
   const wlOnly = mergeGameScoringPatch({ result: "win" } as Record<string, unknown>, ex)
   assertEq(Object.keys(wlOnly).length, 0, "result-only does not touch merge (handled in route)")
 
+  // Modal sends both finals + stale quarter keys — finals must win and clear breakdown
+  const exWithQ = { ...baseExisting(), q1_home: 7, q2_home: 7, q1_away: 3, q2_away: 11 }
+  const modalTotalsWin = mergeGameScoringPatch(
+    {
+      teamScore: 30,
+      opponentScore: 20,
+      q1_home: 7,
+      q2_home: 7,
+      q3_home: null,
+      q4_home: null,
+      q1_away: 3,
+      q2_away: 11,
+      q3_away: null,
+      q4_away: null,
+    },
+    exWithQ
+  )
+  assertEq(modalTotalsWin.team_score, 30, "modal: persisted team total")
+  assertEq(modalTotalsWin.opponent_score, 20, "modal: persisted opp total")
+  assertEq(modalTotalsWin.q1_home, null, "modal: quarters cleared after explicit finals")
+
   console.log("All games merge tests passed.")
 }
 

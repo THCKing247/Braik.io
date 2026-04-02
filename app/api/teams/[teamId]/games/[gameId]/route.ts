@@ -10,7 +10,7 @@ import { mergeGameScoringPatch, type GamesDbRow } from "@/lib/games-api-scoring"
 import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
 import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
 import { GAMES_SCHEDULE_SELECT } from "@/lib/stats/cached-stats-games"
-import { inferScheduleStatus } from "@/lib/team-schedule-games"
+import { effectiveTotalsFromGame, inferScheduleStatus } from "@/lib/team-schedule-games"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -182,11 +182,26 @@ export async function PATCH(
       // eslint-disable-next-line no-console -- dev-only save pipeline trace
       console.debug("[PATCH game] saved row → UI mapping", {
         gameId,
+        requestBodyScores: {
+          teamScore: body.teamScore,
+          opponentScore: body.opponentScore,
+          hadQuarterKeys: [
+            "q1_home",
+            "q2_home",
+            "q3_home",
+            "q4_home",
+            "q1_away",
+            "q2_away",
+            "q3_away",
+            "q4_away",
+          ].some((k) => Object.prototype.hasOwnProperty.call(body, k)),
+        },
         patchKeys: Object.keys(patch),
         mapped: {
           teamScore: game.teamScore,
           opponentScore: game.opponentScore,
           result: game.result,
+          effectiveTotals: effectiveTotalsFromGame(game),
           inferScheduleStatus: inferScheduleStatus(game),
         },
       })

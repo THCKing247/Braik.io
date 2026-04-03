@@ -2,6 +2,7 @@ import type { ChatCompletionMessage } from "openai/resources/chat/completions"
 import type { SessionUser } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { executeCreateEventInternal } from "@/lib/braik-ai/executors/create-event-internal"
+import { applyDepthChartUpdates } from "@/lib/braik-ai/executors/move-depth-chart-internal"
 import { createProposal, type ProposalActionType } from "@/lib/braik-ai/action-proposal-store"
 import { requireTeamPermission } from "@/lib/auth/rbac"
 import { checkCoachBActionRateLimit } from "@/lib/braik-ai/coach-b-rate-limit"
@@ -17,6 +18,7 @@ export type ToolHandlerResult =
   | {
       type: "response"
       response: string
+      spokenText?: string
       actionPreview?: { summary: string; items: unknown[]; affectedCount: number }
     }
   | {
@@ -26,7 +28,7 @@ export type ToolHandlerResult =
       actionType: ProposalActionType
       preview: { summary: string; items: unknown[]; affectedCount: number }
     }
-  | { type: "action_executed"; message: string; result?: Record<string, unknown> }
+  | { type: "action_executed"; message: string; result?: Record<string, unknown>; spokenText?: string }
 
 export interface ToolExecutionContext {
   teamId: string
@@ -50,9 +52,20 @@ async function executeCreateEvent(args: unknown, ctx: ToolExecutionContext): Pro
   if (!parsed.success) {
     return { type: "response", response: `Could not create event: invalid fields (${parsed.error.message}).` }
   }
+  console.log("[Coach B] create_event executing (auto)", {
+    teamId: ctx.teamId,
+    title: parsed.data.title,
+    start_iso: parsed.data.start_iso,
+    inputSource: ctx.inputSource,
+  })
   const res = await executeCreateEventInternal(parsed.data, { teamId: ctx.teamId, sessionUser: ctx.sessionUser })
   if (res.type === "response") return res
-  return { type: "action_executed", message: res.message, result: res.result }
+  return {
+    type: "action_executed",
+    message: res.message,
+    result: res.result,
+    spokenText: res.spokenText,
+  }
 }
 
 export async function processCoachBToolMessage(
@@ -88,33 +101,6 @@ export async function processCoachBToolMessage(
   }
 
   if (name === "create_event") {
-    const mustConfirm = ctx.inputSource === "voice"
-    if (mustConfirm) {
-      const parsedEvent = createEventToolSchema.safeParse(rawArgs)
-      if (!parsedEvent.success) {
-        return { type: "response", response: "I need clearer date/time and title to schedule that." }
-      }
-      const stored = await createProposal({
-        teamId: ctx.teamId,
-        userId: ctx.sessionUser.id,
-        actionType: "create_event",
-        payload: parsedEvent.data,
-        preview: {
-          summary: `Create event: ${parsedEvent.data.title}`,
-          items: [parsedEvent.data],
-          affectedCount: 1,
-        },
-        inputSource: ctx.inputSource,
-        idempotencyKey: null,
-      })
-      return {
-        type: "action_proposal",
-        proposalId: stored.id,
-        actionType: "create_event",
-        message: `You're about to create calendar event "${parsedEvent.data.title}". Do you want me to create it? Reply with yes, send it, or confirm — or use Confirm below.`,
-        preview: stored.preview,
-      }
-    }
     return executeCreateEvent(rawArgs, ctx)
   }
 
@@ -135,36 +121,28 @@ export async function processCoachBToolMessage(
     if (!playerId) {
       return { type: "response", response: "Could not find that jersey number on your roster for this team." }
     }
-    const updates = [
-      {
-        unit: parsed.data.unit,
-        position: parsed.data.position,
-        string: parsed.data.string,
-        playerId,
-        formation: null as string | null,
-        specialTeamType: null as string | null,
-      },
-    ]
-    const p = await createProposal({
+    const applied = await applyDepthChartUpdates({
       teamId: ctx.teamId,
-      userId: ctx.sessionUser.id,
-      actionType: "move_player_depth_chart",
-      payload: { teamId: ctx.teamId, updates },
-      preview: {
-        summary: `Move player to ${parsed.data.unit} ${parsed.data.position} string ${parsed.data.string}`,
-        items: updates,
-        affectedCount: 1,
-      },
-      inputSource: ctx.inputSource,
-      idempotencyKey: null,
+      updates: [
+        {
+          unit: parsed.data.unit,
+          position: parsed.data.position,
+          string: parsed.data.string,
+          playerId,
+          formation: null,
+          specialTeamType: null,
+        },
+      ],
     })
+    if (!applied.ok) {
+      return { type: "response", response: applied.message }
+    }
+    const slot = `${parsed.data.unit} ${parsed.data.position}, string ${parsed.data.string}`
     return {
-      type: "action_proposal",
-      proposalId: p.id,
-      actionType: "move_player_depth_chart",
-      message:
-        "You're about to update the depth chart for that player. Do you want me to apply this change? Reply yes, send it, or confirm — or use Confirm below.",
-      preview: p.preview,
+      type: "action_executed",
+      message: `Depth chart updated — ${slot}.\n\nWant me to message the staff?`,
+      result: { rows: applied.rows },
+      spokenText: `Done — he's on ${slot}. Want me to tell the staff?`,
     }
   }
 

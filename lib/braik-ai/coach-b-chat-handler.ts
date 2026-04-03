@@ -16,9 +16,23 @@ import { resolveVoiceModeFromInput } from "@/lib/braik-ai/resolve-voice-mode"
 import { resolveCoachBVoiceProfile } from "@/lib/braik-ai/resolve-coach-b-voice-profile"
 import type { CoachBVoiceRequestFields } from "@/lib/braik-ai/coach-b-voice-request"
 import { resolvePendingConfirmationTurn } from "@/lib/braik-ai/pending-action-resolver"
+import { deriveDefaultSpokenText } from "@/lib/braik-ai/coach-b-spoken-text"
+import {
+  isLikelyCalendarSchedulingRequest,
+  isLooseCalendarSchedulingHint,
+} from "@/lib/braik-ai/scheduling-intent"
+
+const SCHEDULING_FORCE_SUFFIX = `\n\n[Scheduling] The user is putting a dated item on the team calendar (practice, workout, meeting, etc.). Call create_event with title, start_iso, end_iso, event_type, and location when given. Parse times from their message into ISO 8601. Do not use send_notification or send_team_message for this turn. After the event is saved, the app confirms; you may briefly offer to notify players or parents as a follow-up only.`
 
 export type CoachBChatResult =
-  | { type: "response"; response: string; usage?: undefined; usageStatus?: undefined; clearActiveProposal?: boolean }
+  | {
+      type: "response"
+      response: string
+      spokenText?: string
+      usage?: undefined
+      usageStatus?: undefined
+      clearActiveProposal?: boolean
+    }
   | {
       type: "action_proposal"
       message: string
@@ -26,12 +40,13 @@ export type CoachBChatResult =
       actionType: string
       preview?: { summary: string; items: unknown[]; affectedCount: number }
     }
-  | { type: "action_executed"; response: string; result?: Record<string, unknown> }
+  | { type: "action_executed"; response: string; result?: Record<string, unknown>; spokenText?: string }
   | { type: "error"; message: string; status?: number }
 
 function mapToolResult(t: ToolHandlerResult): CoachBChatResult {
   if (t.type === "response") {
-    return { type: "response", response: t.response }
+    const st = t.spokenText ?? deriveDefaultSpokenText(t.response)
+    return { type: "response", response: t.response, spokenText: st }
   }
   if (t.type === "action_proposal") {
     return {
@@ -42,7 +57,8 @@ function mapToolResult(t: ToolHandlerResult): CoachBChatResult {
       preview: t.preview,
     }
   }
-  return { type: "action_executed", response: t.message, result: t.result }
+  const st = t.spokenText ?? deriveDefaultSpokenText(t.message)
+  return { type: "action_executed", response: t.message, result: t.result, spokenText: st }
 }
 
 export interface RunCoachBChatParams {
@@ -179,13 +195,23 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
         type: "action_executed",
         response: pendingTurn.response,
         result: pendingTurn.result,
+        spokenText: deriveDefaultSpokenText(pendingTurn.response),
       }
     }
     if (pendingTurn.kind === "failed") {
-      return { type: "response", response: pendingTurn.response }
+      return {
+        type: "response",
+        response: pendingTurn.response,
+        spokenText: deriveDefaultSpokenText(pendingTurn.response),
+      }
     }
     if (pendingTurn.kind === "cancelled") {
-      return { type: "response", response: pendingTurn.response, clearActiveProposal: true }
+      return {
+        type: "response",
+        response: pendingTurn.response,
+        clearActiveProposal: true,
+        spokenText: deriveDefaultSpokenText(pendingTurn.response),
+      }
     }
   }
 
@@ -244,14 +270,39 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
   const useTools = Boolean(params.enableActionTools && teamId)
   if (useTools) {
     try {
-      const toolMessages = buildCoachBToolMessages(prompt.instructions, prompt.input)
-      const { message: assistantMsg } = await runCoachBToolCompletion(toolMessages)
+      const schedulingIntent = isLikelyCalendarSchedulingRequest(message)
+      const toolMessages = buildCoachBToolMessages(
+        schedulingIntent ? `${prompt.instructions}${SCHEDULING_FORCE_SUFFIX}` : prompt.instructions,
+        prompt.input
+      )
+      let { message: assistantMsg } = await runCoachBToolCompletion(
+        toolMessages,
+        schedulingIntent ? { forceToolName: "create_event" } : undefined
+      )
       const toolCtx = {
         teamId: teamId!,
         sessionUser: params.sessionUser,
         inputSource,
       }
-      const handled = await processCoachBToolMessage(assistantMsg, toolCtx)
+      let handled = await processCoachBToolMessage(assistantMsg, toolCtx)
+
+      if (
+        !schedulingIntent &&
+        handled?.type === "action_proposal" &&
+        (handled.actionType === "send_notification" || handled.actionType === "send_team_message") &&
+        isLooseCalendarSchedulingHint(message)
+      ) {
+        console.warn("[Coach B] retrying with forced create_event after notify proposal", { teamId })
+        const toolMessagesRetry = buildCoachBToolMessages(
+          `${prompt.instructions}${SCHEDULING_FORCE_SUFFIX}`,
+          prompt.input
+        )
+        const { message: assistantMsgRetry } = await runCoachBToolCompletion(toolMessagesRetry, {
+          forceToolName: "create_event",
+        })
+        assistantMsg = assistantMsgRetry
+        handled = await processCoachBToolMessage(assistantMsgRetry, toolCtx)
+      }
       if (handled) {
         const emptyTextResponse = handled.type === "response" && !handled.response.trim()
         if (!emptyTextResponse) {
@@ -275,7 +326,8 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
           role: viewerRoleLabel ?? null,
           metadata: { domain: context.domain, intent: context.intent },
         })
-        return { type: "response", response: assistantMsg.content.trim() }
+        const r = assistantMsg.content.trim()
+        return { type: "response", response: r, spokenText: deriveDefaultSpokenText(r) }
       }
     } catch (e) {
       console.warn("[runCoachBChat] tool path failed, falling back to text-only", e)
@@ -292,7 +344,7 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
       role: viewerRoleLabel ?? null,
       metadata: { domain: context.domain, intent: context.intent },
     })
-    return { type: "response", response: text }
+    return { type: "response", response: text, spokenText: deriveDefaultSpokenText(text) }
   } catch (err) {
     const details = err instanceof Error ? err.message : String(err)
     console.error("[runCoachBChat] OpenAI failed", details)

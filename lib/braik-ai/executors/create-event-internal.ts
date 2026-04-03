@@ -23,7 +23,12 @@ export async function executeCreateEventInternal(
   a: CreateEventToolArgs,
   ctx: { teamId: string; sessionUser: SessionUser }
 ): Promise<
-  | { type: "action_executed"; message: string; result: { eventId: string; title: string } }
+  | {
+      type: "action_executed"
+      message: string
+      spokenText: string
+      result: { eventId: string; title: string }
+    }
   | { type: "response"; response: string }
 > {
   let start: Date
@@ -138,9 +143,28 @@ export async function executeCreateEventInternal(
   revalidateTeamCalendar(ctx.teamId)
   revalidateTeamDashboardBootstrap(ctx.teamId)
 
+  const timeShort = start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  const dateShort = start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
+  const loc = a.location?.trim()
+  const place = loc ? ` at ${loc}` : ""
+
+  const message = `Added "${a.title}" to the calendar for ${dateShort} at ${timeShort}${place}.\n\nWant me to notify players or parents too?`
+
+  const spokenText = `It's on the calendar for ${timeShort}${place}. Want me to notify players or parents?`
+
+  console.log("[Coach B create_event] success + follow-up offered", {
+    teamId: ctx.teamId,
+    eventId: event.id,
+    title: a.title,
+    requestedAction: "create_event",
+    executedAction: "events.insert",
+    followUp: "notify_players_or_parents",
+  })
+
   return {
     type: "action_executed",
-    message: `Created event "${a.title}" on ${start.toLocaleString()}.`,
+    message,
+    spokenText,
     result: { eventId: event.id, title: a.title },
   }
 }

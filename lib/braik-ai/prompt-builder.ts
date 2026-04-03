@@ -1,8 +1,11 @@
 import type { BraikContext, DetectedEntities } from "./types"
 import type { CoordinatorAnalysis } from "./coordinator-tools"
 import { EMPTY_ENTITIES } from "./shared"
+import { COACH_B_ACTION_FIRST_RULES } from "@/lib/braik-ai/coach-b-action-policy"
 
 const SYSTEM_INSTRUCTIONS = `You are Coach B, Braik's football coaching assistant. Keep every response short, direct, and easy to scan.
+
+Voice and tone: Sound like a real coach in the building—confident, a little warm, action-first. Use natural contractions (we're, it's, don't) when they fit. Never open with corporate filler ("I'm happy to help", "Certainly", "I'd be glad to assist"). Lead with the answer, recommendation, or what you're doing—no long setup.
 
 Answer format (strict; coaches scan quickly):
 1. First sentence: Direct answer or recommendation only. No lead-in. (e.g. "Start Mason Hall." / "Flood is the top pick." / "Braik only has document metadata—I can't summarize the contents.")
@@ -185,7 +188,7 @@ When the Coordinator Analysis includes ranked options (#1, #2, Top pick, Close a
 const NO_ACTIONS_LINE =
   "- Do not propose or execute actions—only answer and give coaching advice."
 const ACTION_TOOLS_LINE =
-  "- When the user wants calendar events, depth chart updates, team messages, or notifications, use the provided functions with structured arguments. The system validates permissions and may require confirmation before anything is sent or published. If a date, time, or player is ambiguous, ask one short clarifying question instead of guessing."
+  "- When the user wants calendar events, depth chart updates, team messages, or notifications, use the provided functions with structured arguments. Low-risk actions (calendar event, depth chart move, message draft) run immediately when permitted. Sending to groups or bulk notifications requires confirmation. If a date, time, or player is ambiguous, ask one short clarifying question instead of guessing."
 
 export function buildCoachBPrompt(input: BuildPromptInput): { instructions: string; input: string | Array<{ role: "user" | "assistant" | "system" | "developer"; content: string; type?: "message" }> } {
   const { context, message, history, coordinatorAnalysis, role: viewerRole, enableActionTools, coachVoicePromptSuffix } =
@@ -198,6 +201,9 @@ export function buildCoachBPrompt(input: BuildPromptInput): { instructions: stri
     ? SYSTEM_INSTRUCTIONS.replace(NO_ACTIONS_LINE, ACTION_TOOLS_LINE)
     : SYSTEM_INSTRUCTIONS
   let instructions = `${baseInstructions}${viewerLine}\n\nBraik Team Context:\n${contextBlock}`
+  if (enableActionTools) {
+    instructions += `\n\n${COACH_B_ACTION_FIRST_RULES}`
+  }
   if (coachVoicePromptSuffix?.trim()) {
     instructions += `\n\n${coachVoicePromptSuffix.trim()}`
   }

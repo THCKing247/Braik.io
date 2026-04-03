@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       type: "action_executed",
       response: result.response,
       result: result.result,
+      ...(result.spokenText ? { spokenText: result.spokenText } : {}),
     })
   }
 
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       response: result.response,
       type: "response",
+      ...(result.spokenText ? { spokenText: result.spokenText } : {}),
       ...(result.clearActiveProposal ? { clearActiveProposal: true } : {}),
     })
   }

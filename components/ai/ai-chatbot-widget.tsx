@@ -24,6 +24,8 @@ interface Message {
   id: string
   role: "user" | "assistant"
   content: string
+  /** Short line for TTS when Voice Mode is on (server-generated or derived). */
+  spokenText?: string
   timestamp: Date
   /** Voice transcript user bubble */
   source?: "voice_transcript"
@@ -205,7 +207,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     async (
       messageId: string,
       content: string,
-      opts?: { actionType?: string; source?: "autoplay" | "manual" }
+      opts?: { actionType?: string; source?: "autoplay" | "manual"; spokenText?: string }
     ) => {
       if (!voiceSettingsHydrated) return
       if (opts?.source === "autoplay" && !voiceSettings.voiceModeEnabled) return
@@ -222,7 +224,10 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         coachBAudioRef.current?.pause()
         coachBAudioRef.current = null
 
-        const payload = deriveSpokenPayload(content, { sidelineMode: voiceSettings.sidelineMode })
+        const spoken = opts?.spokenText?.trim()
+        const payload = spoken
+          ? { text: content, spokenSummary: spoken }
+          : deriveSpokenPayload(content, { sidelineMode: voiceSettings.sidelineMode })
         const coachVoice = buildCoachVoiceFields({
           pathname,
           isPlayEditorRoute,
@@ -318,7 +323,11 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     if (last.role !== "assistant" || last.type === "error") return
     if (lastAutoplayScheduledIdRef.current === last.id) return
     lastAutoplayScheduledIdRef.current = last.id
-    void playAssistantTts(last.id, last.content, { actionType: last.actionType, source: "autoplay" })
+    void playAssistantTts(last.id, last.content, {
+      actionType: last.actionType,
+      source: "autoplay",
+      spokenText: last.spokenText,
+    })
   }, [messages, voiceSettingsHydrated, voiceSettings.voiceModeEnabled, playAssistantTts])
 
   useEffect(() => {
@@ -394,6 +403,9 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: (typeof data.response === "string" && data.response) || "Action completed.",
+        ...(typeof data.spokenText === "string" && data.spokenText.trim()
+          ? { spokenText: data.spokenText.trim() }
+          : {}),
         timestamp: new Date(),
         type: "action_executed",
       }
@@ -416,6 +428,9 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       role: "assistant",
       content:
         (typeof data.response === "string" && data.response) || "I'm sorry, I couldn't process that request.",
+      ...(typeof data.spokenText === "string" && data.spokenText.trim()
+        ? { spokenText: data.spokenText.trim() }
+        : {}),
       timestamp: new Date(),
       type: (t as Message["type"]) || "response",
       usage: data.usage as Message["usage"],
@@ -975,6 +990,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                                 void playAssistantTts(message.id, message.content, {
                                   actionType: message.actionType,
                                   source: "manual",
+                                  spokenText: message.spokenText,
                                 })
                               }
                               disabled={ttsLoadingId === message.id || !voiceSettingsHydrated}

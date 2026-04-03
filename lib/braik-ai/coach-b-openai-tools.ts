@@ -9,7 +9,7 @@ export const COACH_B_TOOLS: ChatCompletionTool[] = [
     function: {
       name: "create_event",
       description:
-        "Create a single calendar event for the team. Use ISO 8601 for start_iso and end_iso. Prefer practice/game/meeting when clear.",
+        "PRIMARY for scheduling: practice, workout, meeting, game, or anything 'on the calendar' with a time and optional location. Use ISO 8601 for start_iso and end_iso (same day if only time given). Set event_type to practice when they say practice. Include location when they name a field or place. Do NOT use send_notification or send_team_message to substitute for this—create the calendar row first.",
       parameters: {
         type: "object",
         properties: {
@@ -64,7 +64,7 @@ export const COACH_B_TOOLS: ChatCompletionTool[] = [
     function: {
       name: "send_team_message",
       description:
-        "Post a team-facing announcement-style message (requires confirmation before execution in most cases).",
+        "Post an announcement-style message to team/parents/staff (requires confirmation). NOT a substitute for scheduling a practice with a time—use create_event for calendar items first.",
       parameters: {
         type: "object",
         properties: {
@@ -81,7 +81,7 @@ export const COACH_B_TOOLS: ChatCompletionTool[] = [
     function: {
       name: "send_notification",
       description:
-        "Create a team announcement and optionally trigger push-style notification flags (requires confirmation).",
+        "Broadcast announcement / notify many people (requires confirmation). NOT for putting a dated practice or event on the calendar—use create_event first for that.",
       parameters: {
         type: "object",
         properties: {
@@ -112,19 +112,34 @@ export function buildCoachBToolMessages(
   return [{ role: "system", content: instructions }, ...dialogue]
 }
 
-export async function runCoachBToolCompletion(messages: ChatCompletionMessageParam[]): Promise<{
+export type CoachBToolCompletionOptions = {
+  /** When set, the API must return a call to this tool (e.g. create_event for scheduling). */
+  forceToolName?: "create_event"
+}
+
+export async function runCoachBToolCompletion(
+  messages: ChatCompletionMessageParam[],
+  options?: CoachBToolCompletionOptions
+): Promise<{
   message: import("openai/resources/chat/completions").ChatCompletionMessage
 }> {
   const client = getOpenAIClient()
   if (!client) {
     throw new Error("OPENAI_API_KEY is not configured")
   }
-  console.log("[OpenAI] Using tools model:", OPENAI_TOOLS_MODEL)
+  const tool_choice =
+    options?.forceToolName === "create_event"
+      ? ({ type: "function" as const, function: { name: "create_event" } })
+      : ("auto" as const)
+
+  console.log("[OpenAI] Using tools model:", OPENAI_TOOLS_MODEL, {
+    tool_choice: options?.forceToolName ? `force:${options.forceToolName}` : "auto",
+  })
   const completion = await client.chat.completions.create({
     model: OPENAI_TOOLS_MODEL,
     messages,
     tools: COACH_B_TOOLS,
-    tool_choice: "auto",
+    tool_choice,
     temperature: 0.2,
   })
   const choice = completion.choices[0]

@@ -5,6 +5,7 @@ import { requireAuth, requireTeamPermission } from "@/lib/auth/rbac"
 import { getProposal, markExecuted } from "@/lib/braik-ai/action-proposal-store"
 import { createEventToolSchema, sendNotificationSchema, sendTeamMessageSchema } from "@/lib/braik-ai/coach-b-tools-schemas"
 import { executeCreateEventInternal } from "@/lib/braik-ai/executors/create-event-internal"
+import { applyDepthChartUpdates } from "@/lib/braik-ai/executors/move-depth-chart-internal"
 import { createTeamCalendarEventThroughApi } from "@/lib/calendar/coach-b-create-event-through-api"
 function mapAnnouncementAudience(aud: string): "all" | "staff" | "players" | "parents" {
   if (aud === "team" || aud === "players") return "players"
@@ -99,63 +100,22 @@ export async function executeStoredProposal(
       if (!payload?.updates?.length) {
         return { success: false, message: "Invalid depth chart payload." }
       }
-      const supabase = getSupabaseServer()
       const teamId = proposal.teamId
-      const updates = payload.updates
-      type Row = {
-        team_id: string
-        unit: string
-        position: string
-        string: number
-        player_id: string | null
-        formation: string | null
-        special_team_type: string | null
-      }
-      const entriesToInsert: Row[] = []
-      const seen = new Set<string>()
-      for (const u of updates) {
-        const stringNum = typeof u.string === "number" ? u.string : parseInt(String(u.string), 10)
-        if (Number.isNaN(stringNum) || stringNum < 1) continue
-        const unit = String(u.unit ?? "").trim()
-        const position = String(u.position ?? "").trim()
-        const key = `${unit}:${position}:${stringNum}`
-        if (!unit || !position || seen.has(key)) continue
-        seen.add(key)
-        entriesToInsert.push({
-          team_id: teamId,
-          unit,
-          position,
-          string: stringNum,
-          player_id: u.playerId && String(u.playerId).trim() ? String(u.playerId) : null,
-          formation: u.formation != null && String(u.formation).trim() !== "" ? String(u.formation).trim() : null,
-          special_team_type:
-            u.specialTeamType != null && String(u.specialTeamType).trim() !== ""
-              ? String(u.specialTeamType).trim()
-              : null,
-        })
-      }
-      if (entriesToInsert.length === 0) {
-        return { success: false, message: "No valid depth chart rows." }
-      }
-      for (const row of entriesToInsert) {
-        const { error: deleteError } = await supabase
-          .from("depth_chart_entries")
-          .delete()
-          .eq("team_id", teamId)
-          .eq("unit", row.unit)
-          .eq("position", row.position)
-        if (deleteError) {
-          console.error("[Coach B depth chart] delete", deleteError)
-        }
-      }
-      const { error: insertError } = await supabase.from("depth_chart_entries").insert(entriesToInsert)
-      if (insertError) {
-        console.error("[Coach B depth chart] insert", insertError)
-        return { success: false, message: "Failed to update depth chart." }
+      const mapped = payload.updates.map((u) => ({
+        unit: String(u.unit ?? ""),
+        position: String(u.position ?? ""),
+        string: typeof u.string === "number" ? u.string : parseInt(String(u.string), 10),
+        playerId: u.playerId && String(u.playerId).trim() ? String(u.playerId) : null,
+        formation: u.formation != null ? String(u.formation) : null,
+        specialTeamType: u.specialTeamType != null ? String(u.specialTeamType) : null,
+      }))
+      const applied = await applyDepthChartUpdates({ teamId, updates: mapped })
+      if (!applied.ok) {
+        return { success: false, message: applied.message }
       }
       await markExecuted(proposalId)
-      console.log("[Coach B] move_player_depth_chart execution succeeded", { proposalId, rows: entriesToInsert.length })
-      return { success: true, message: "Depth chart updated.", executed: { rows: entriesToInsert.length } }
+      console.log("[Coach B] move_player_depth_chart execution succeeded", { proposalId, rows: applied.rows })
+      return { success: true, message: "Depth chart updated.", executed: { rows: applied.rows } }
     }
 
     if (proposal.actionType === "send_team_message") {

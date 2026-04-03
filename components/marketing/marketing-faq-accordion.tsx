@@ -22,8 +22,8 @@ export function MarketingFaqAccordion({
           <div
             key={item.id}
             className={cn(
-              "rounded-xl border border-[#E5E7EB] bg-white overflow-hidden transition-shadow",
-              open && "shadow-md"
+              "rounded-xl border border-slate-200/90 bg-white overflow-hidden transition-all",
+              open && "border-[#3B82F6]/40 shadow-md ring-1 ring-[#3B82F6]/10"
             )}
           >
             <button
@@ -49,7 +49,7 @@ export function MarketingFaqAccordion({
               )}
             >
               <div className="overflow-hidden">
-                <div className="space-y-3 border-t border-[#E5E7EB] pb-4 px-5 pt-3 text-[#212529]/85 leading-relaxed text-sm">
+                <div className="space-y-3 border-t border-slate-100 pb-4 px-5 pt-3 text-[#212529]/85 leading-relaxed text-sm">
                   <p>{item.answer}</p>
                   {item.learnMoreHref && item.learnMoreLabel ? (
                     <p>

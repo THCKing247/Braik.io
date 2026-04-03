@@ -1,17 +1,15 @@
 "use client"
 
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import {
   marketingSectionShell,
   SectionHeading,
   MarketingCard,
   BulletList,
 } from "@/components/marketing/marketing-layout"
+import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta"
 import { MarketingFaq, type MarketingFaqItem } from "@/components/marketing/marketing-faq"
 import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
-import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 
 const shell = marketingSectionShell
 
@@ -248,48 +246,14 @@ export function WhyBraikMarketingSections() {
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="relative py-16 md:py-24 bg-[#0F172A] overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none opacity-40" aria-hidden>
-          <div className="absolute top-0 right-0 h-96 w-96 rounded-full bg-[#3B82F6]/20 blur-3xl" />
-          <div className="absolute bottom-0 left-0 h-64 w-64 rounded-full bg-[#60A5FA]/15 blur-3xl" />
-        </div>
-        <div className={`${shell} max-w-3xl text-center relative z-10`}>
-          <h2 className="text-3xl md:text-4xl font-athletic font-bold text-white uppercase tracking-tight mb-4">
-            See how Braik fits your program
-          </h2>
-          <p className="text-lg text-slate-300 leading-relaxed mb-10">
-            If you want a simpler way to manage communication, scheduling, rosters, and staff workflows, Braik can help.
-          </p>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4">
-            <Button
-              asChild
-              size="lg"
-              className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-athletic uppercase tracking-wide min-h-[52px] px-8 shadow-lg shadow-[#3B82F6]/25"
-            >
-              <Link
-                href={joinHref}
-                onClick={() => trackMarketingEvent("clicked_cta", { cta: "why_braik_join_waitlist" })}
-              >
-                {primaryCtaLabel}
-              </Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="border-2 border-white/30 bg-white/5 text-white hover:bg-white/10 hover:border-white/50 font-athletic uppercase tracking-wide min-h-[52px] px-8"
-            >
-              <Link
-                href="/#request-demo"
-                onClick={() => trackMarketingEvent("clicked_cta", { cta: "why_braik_book_demo" })}
-              >
-                Book a Demo
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
+      <MarketingFinalCta
+        title="See how Braik fits your program"
+        description="If you want a simpler way to manage communication, scheduling, rosters, and staff workflows, Braik can help."
+        primaryHref={joinHref}
+        primaryLabel={primaryCtaLabel}
+        primaryAnalyticsCta="why_braik_join_waitlist"
+        secondaryAnalyticsCta="why_braik_book_demo"
+      />
     </>
   )
 }

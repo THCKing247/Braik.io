@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
+import { MarketingHeroBlobs } from "@/components/marketing/marketing-page"
 
 export default function FeaturesPage() {
   const [visibleFeatures, setVisibleFeatures] = useState<Set<number>>(new Set())
@@ -100,10 +101,7 @@ export default function FeaturesPage() {
       
       {/* Features */}
       <section className="relative overflow-hidden bg-gradient-to-b from-[#F8FAFC] via-white to-white py-14 md:py-20">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/10 blur-3xl" />
-          <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#60A5FA]/10 blur-3xl" />
-        </div>
+        <MarketingHeroBlobs />
 
         <div className="relative z-10 max-w-6xl mx-auto px-6">
           <h2 className="text-4xl md:text-5xl font-athletic font-bold text-center mb-12 text-[#212529] uppercase tracking-tight">

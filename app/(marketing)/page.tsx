@@ -13,6 +13,8 @@ import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
 import { MarketingFaqAccordion } from "@/components/marketing/marketing-faq-accordion"
 import { MARKETING_FAQ_ENTRIES } from "@/lib/marketing/faq-content"
+import { MarketingCard } from "@/components/marketing/marketing-layout"
+import { marketingSectionPadding } from "@/components/marketing/marketing-page"
 
 export default function Home() {
   const pricingSectionRef = useRef<HTMLElement | null>(null)
@@ -141,7 +143,7 @@ export default function Home() {
       <SectionDivider variant="thick" className="opacity-20" />
 
       {/* Coach Reality Validation */}
-      <section className="relative py-40 bg-[#1a1d21]">
+      <section className={`relative bg-[#0F172A] ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
@@ -170,7 +172,7 @@ export default function Home() {
       <SectionDivider variant="offset" className="opacity-15" />
 
       {/* Reframing Braik */}
-      <section className="relative py-40 bg-white">
+      <section className={`relative bg-white ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-6xl mx-auto">
             <ScrollReveal>
@@ -211,7 +213,7 @@ export default function Home() {
       <SectionDivider variant="asymmetric" className="opacity-15" />
 
       {/* Built for Real Program Constraints */}
-      <section ref={pricingSectionRef} className="relative py-40 bg-[#F9FAFB]">
+      <section ref={pricingSectionRef} className={`relative bg-[#F9FAFB] ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
@@ -245,7 +247,7 @@ export default function Home() {
       <SectionDivider variant="thick" className="opacity-20" />
 
       {/* Varsity & JV Program Structure */}
-      <section className="relative py-40 bg-[#1a1d21]">
+      <section className={`relative bg-[#0F172A] ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
@@ -277,86 +279,62 @@ export default function Home() {
       <SectionDivider variant="offset" className="opacity-15" />
 
       {/* High-Level Capabilities */}
-      <section className="relative py-40 bg-white">
+      <section className={`relative bg-white ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto">
             <ScrollReveal>
-              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-20">
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-10 md:mb-14">
                 Core operational areas
               </h2>
             </ScrollReveal>
-            
-            <div className="grid md:grid-cols-2 gap-8">
+
+            <div className="grid md:grid-cols-2 gap-6">
               <ScrollReveal delay={0} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
-                    Communication
-                  </h3>
-                  <p className="text-lg text-[#495057] leading-relaxed">
+                <MarketingCard title="Communication" className="h-full">
+                  <p>
                     Targeted messaging and announcements that keep everyone informed without overwhelming anyone. The right people see the right information, automatically.
                   </p>
-                </div>
+                </MarketingCard>
               </ScrollReveal>
-              
+
               <ScrollReveal delay={50} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
-                    Scheduling
-                  </h3>
-                  <p className="text-lg text-[#495057] leading-relaxed">
+                <MarketingCard title="Scheduling" className="h-full">
+                  <p>
                     Calendar management with RSVPs and event coordination. Everyone sees what they need to see, when they need to see it.
                   </p>
-                </div>
+                </MarketingCard>
               </ScrollReveal>
-              
+
               <ScrollReveal delay={100} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
-                    Payments
-                  </h3>
-                  <p className="text-lg text-[#495057] leading-relaxed">
-                    Season-based dues collection and coach-collected payments with clear tracking and accountability. Know who's paid, who hasn't, and what's outstanding.
+                <MarketingCard title="Payments" className="h-full">
+                  <p>
+                    Season-based dues collection and coach-collected payments with clear tracking and accountability. Know who&apos;s paid, who hasn&apos;t, and what&apos;s outstanding.
                   </p>
-                </div>
+                </MarketingCard>
               </ScrollReveal>
-              
+
               <ScrollReveal delay={150} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
-                    Documents
-                  </h3>
-                  <p className="text-lg text-[#495057] leading-relaxed">
+                <MarketingCard title="Documents" className="h-full">
+                  <p>
                     Centralized playbooks, installs, and program resources. Organized by unit and position, with acknowledgement tracking for important materials.
                   </p>
-                </div>
+                </MarketingCard>
               </ScrollReveal>
-              
+
               <ScrollReveal delay={200} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
-                    Inventory
-                  </h3>
-                  <p className="text-lg text-[#495057] leading-relaxed">
-                    Equipment tracking and assignment for team-issued gear. Know what you have, where it is, and who's responsible for it.
+                <MarketingCard title="Inventory" className="h-full">
+                  <p>
+                    Equipment tracking and assignment for team-issued gear. Know what you have, where it is, and who&apos;s responsible for it.
                   </p>
-                </div>
+                </MarketingCard>
               </ScrollReveal>
-              
+
               <ScrollReveal delay={250} className="h-full">
-                <div className="h-full p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                  <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#212529] uppercase tracking-wide">
-                    Roster Management
-                  </h3>
-                  <p className="text-lg text-[#495057] leading-relaxed">
+                <MarketingCard title="Roster Management" className="h-full">
+                  <p>
                     Player tracking, position management, and depth charts. Everything organized the way your program actually operates.
                   </p>
-                </div>
+                </MarketingCard>
               </ScrollReveal>
             </div>
           </div>
@@ -367,11 +345,11 @@ export default function Home() {
       <SectionDivider variant="asymmetric" className="opacity-15" />
 
       {/* Role-Based Value */}
-      <section className="relative py-32 bg-white">
+      <section className={`relative bg-white ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-6xl mx-auto">
             <ScrollReveal>
-              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-14">
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-10 md:mb-14">
                 What you get by role
               </h2>
             </ScrollReveal>
@@ -395,13 +373,9 @@ export default function Home() {
                 },
               ].map((item, index) => (
                 <ScrollReveal key={item.role} delay={index * 50} className="h-full">
-                  <div className="h-full p-8 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                    <h3 className="text-2xl font-athletic font-semibold mb-3 text-[#212529] uppercase tracking-wide">
-                      {item.role}
-                    </h3>
-                    <p className="text-[#495057] leading-relaxed">{item.details}</p>
-                  </div>
+                  <MarketingCard title={item.role} className="h-full">
+                    <p>{item.details}</p>
+                  </MarketingCard>
                 </ScrollReveal>
               ))}
             </div>
@@ -410,7 +384,7 @@ export default function Home() {
       </section>
 
       {/* AI & Coach B */}
-      <section className="relative py-40 bg-[#F9FAFB]">
+      <section className={`relative bg-[#F9FAFB] ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-6xl mx-auto">
             <ScrollReveal>
@@ -456,16 +430,12 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="flex justify-center md:justify-end md:ml-8 w-full">
-                  <div className="w-full max-w-md p-10 rounded-[14px] relative overflow-hidden border border-[#E8EAED] bg-gradient-to-br from-[#FAFAFA] to-[#F0F1F3] shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                    <p className="text-[#212529] text-2xl font-athletic font-semibold uppercase tracking-wide mb-3">
-                      Judgment first
-                    </p>
-                    <p className="text-[#495057] text-base leading-relaxed">
+                  <MarketingCard title="Judgment first" className="w-full max-w-md">
+                    <p>
                       Coach B accelerates prep and communication; it does not replace coordinators or override game decisions. Metered
                       usage keeps costs predictable as your program grows.
                     </p>
-                  </div>
+                  </MarketingCard>
                 </div>
               </div>
             </ScrollReveal>
@@ -477,7 +447,7 @@ export default function Home() {
       <SectionDivider variant="thick" className="opacity-20" />
 
       {/* FAQ */}
-      <section id="faq" className="relative py-24 bg-white">
+      <section id="faq" className={`relative bg-white ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
@@ -510,7 +480,7 @@ export default function Home() {
       <SectionDivider variant="asymmetric" className="opacity-15" />
 
       {/* Final CTA */}
-      <section className="relative py-40 bg-[#1a1d21]">
+      <section className={`relative bg-[#0F172A] ${marketingSectionPadding}`}>
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
             <ScrollReveal>
@@ -540,7 +510,10 @@ export default function Home() {
       </section>
 
       {/* Request Demo */}
-      <section id="request-demo" className="relative py-32 bg-[#111827]">
+      <section
+        id="request-demo"
+        className={`relative border-t border-white/10 bg-[#0F172A] ${marketingSectionPadding}`}
+      >
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>

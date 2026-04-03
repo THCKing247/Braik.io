@@ -120,7 +120,6 @@ export function useCoachBVoiceSettings(teamId: string) {
   return {
     settings,
     hydrated,
-    persist,
     setPersonalityId,
     setSidelineMode,
     setVoiceRepliesEnabled,

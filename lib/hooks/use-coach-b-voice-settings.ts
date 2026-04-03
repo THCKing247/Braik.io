@@ -10,8 +10,18 @@ const STORAGE_KEY = "braik.coachB.voiceSettings.v1"
 export type CoachBVoiceLocalSettings = {
   personalityId: CoachPersonalityId
   sidelineMode: boolean
-  /** Master switch for spoken playback (TTS play + auto-speak). */
+  /**
+   * Voice Mode: when true, new assistant messages automatically request TTS and play.
+   * When false, no autoplay; the speaker button still works for manual playback.
+   */
+  voiceModeEnabled: boolean
+  /**
+   * @deprecated Kept for localStorage backward compatibility; mirrors `voiceModeEnabled` on save.
+   */
   voiceRepliesEnabled: boolean
+  /**
+   * @deprecated Kept for localStorage backward compatibility; mirrors `voiceModeEnabled` on save.
+   */
   autoPlayResponses: boolean
   memory: CoachBVoicePreferenceMemory
 }
@@ -19,9 +29,16 @@ export type CoachBVoiceLocalSettings = {
 const DEFAULT_LOCAL: CoachBVoiceLocalSettings = {
   personalityId: DEFAULT_COACH_PERSONALITY_ID,
   sidelineMode: false,
+  voiceModeEnabled: true,
   voiceRepliesEnabled: true,
-  autoPlayResponses: false,
+  autoPlayResponses: true,
   memory: {},
+}
+
+function migrateVoiceMode(p: Partial<CoachBVoiceLocalSettings> & Record<string, unknown>): boolean {
+  if (typeof p.voiceModeEnabled === "boolean") return p.voiceModeEnabled
+  if (typeof p.autoPlayResponses === "boolean") return p.autoPlayResponses
+  return false
 }
 
 function readStored(): CoachBVoiceLocalSettings {
@@ -29,7 +46,8 @@ function readStored(): CoachBVoiceLocalSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_LOCAL
-    const p = JSON.parse(raw) as Partial<CoachBVoiceLocalSettings>
+    const p = JSON.parse(raw) as Partial<CoachBVoiceLocalSettings> & Record<string, unknown>
+    const voiceModeEnabled = migrateVoiceMode(p)
     return {
       personalityId:
         p.personalityId === "balanced_head_coach" ||
@@ -39,8 +57,9 @@ function readStored(): CoachBVoiceLocalSettings {
           ? p.personalityId
           : DEFAULT_COACH_PERSONALITY_ID,
       sidelineMode: Boolean(p.sidelineMode),
+      voiceModeEnabled,
       voiceRepliesEnabled: p.voiceRepliesEnabled !== false,
-      autoPlayResponses: Boolean(p.autoPlayResponses),
+      autoPlayResponses: voiceModeEnabled,
       memory: p.memory && typeof p.memory === "object" ? { ...p.memory } : {},
     }
   } catch {
@@ -89,24 +108,13 @@ export function useCoachBVoiceSettings(teamId: string) {
     })
   }, [])
 
-  const setVoiceRepliesEnabled = useCallback((voiceRepliesEnabled: boolean) => {
-    setSettings((prev) => {
-      const next = { ...prev, voiceRepliesEnabled }
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
-  }, [])
-
-  const setAutoPlayResponses = useCallback((autoPlayResponses: boolean) => {
+  const setVoiceModeEnabled = useCallback((voiceModeEnabled: boolean) => {
     setSettings((prev) => {
       const next: CoachBVoiceLocalSettings = {
         ...prev,
-        autoPlayResponses,
-        memory: { ...prev.memory, autoPlayResponses },
+        voiceModeEnabled,
+        autoPlayResponses: voiceModeEnabled,
+        memory: { ...prev.memory, autoPlayResponses: voiceModeEnabled },
       }
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
@@ -122,7 +130,6 @@ export function useCoachBVoiceSettings(teamId: string) {
     hydrated,
     setPersonalityId,
     setSidelineMode,
-    setVoiceRepliesEnabled,
-    setAutoPlayResponses,
+    setVoiceModeEnabled,
   }
 }

@@ -133,8 +133,12 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const router = useRouter()
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
   const [feedbackVoted, setFeedbackVoted] = useState<Set<string>>(() => new Set())
-  const { settings: voiceSettings, hydrated: voiceSettingsHydrated, setPersonalityId, setSidelineMode, setVoiceRepliesEnabled, setAutoPlayResponses } =
+  const { settings: voiceSettings, hydrated: voiceSettingsHydrated, setPersonalityId, setSidelineMode, setVoiceModeEnabled } =
     useCoachBVoiceSettings(teamId)
+  /** Bumps when a new TTS request starts; stale fetches discard audio. */
+  const ttsSessionRef = useRef(0)
+  /** Prevents duplicate autoplay (e.g. React Strict Mode double effect) for the same message id. */
+  const lastAutoplayScheduledIdRef = useRef<string | null>(null)
   const [voicePhase, setVoicePhase] = useState<"idle" | "arming" | "recording" | "processing">("idle")
   /** True while pointer is down but left the mic button (release will cancel). */
   const [voiceDragCancel, setVoiceDragCancel] = useState(false)
@@ -198,13 +202,26 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   }, [messages])
 
   const playAssistantTts = useCallback(
-    async (messageId: string, content: string, opts?: { actionType?: string }) => {
-      if (!voiceSettingsHydrated || !voiceSettings.voiceRepliesEnabled) return
+    async (
+      messageId: string,
+      content: string,
+      opts?: { actionType?: string; source?: "autoplay" | "manual" }
+    ) => {
+      if (!voiceSettingsHydrated) return
+      if (opts?.source === "autoplay" && !voiceSettings.voiceModeEnabled) return
+
+      const mySession = ++ttsSessionRef.current
       setTtsError(null)
       setTtsLoadingId(messageId)
+
+      const revokeIfStale = (url: string | null) => {
+        if (url) URL.revokeObjectURL(url)
+      }
+
       try {
         coachBAudioRef.current?.pause()
         coachBAudioRef.current = null
+
         const payload = deriveSpokenPayload(content, { sidelineMode: voiceSettings.sidelineMode })
         const coachVoice = buildCoachVoiceFields({
           pathname,
@@ -229,32 +246,65 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
             coachVoice,
           }),
         })
+
+        if (mySession !== ttsSessionRef.current) return
+
         if (!res.ok) {
           const errBody = await res.text().catch(() => "")
           console.warn("[Coach B TTS] request failed", res.status, errBody)
-          setTtsError("Couldn't play audio. Tap play to try again.")
+          setTtsError("Couldn't load audio. Tap the speaker to try again.")
           return
         }
+
         const blob = await res.blob()
+        if (mySession !== ttsSessionRef.current) return
+
         const url = URL.createObjectURL(blob)
+        if (mySession !== ttsSessionRef.current) {
+          revokeIfStale(url)
+          return
+        }
+
         const audio = new Audio(url)
+        if (voiceSettings.sidelineMode) {
+          audio.playbackRate = 1.12
+        }
         coachBAudioRef.current = audio
         audio.onended = () => {
-          URL.revokeObjectURL(url)
+          revokeIfStale(url)
           if (coachBAudioRef.current === audio) coachBAudioRef.current = null
         }
-        await audio.play()
+
+        try {
+          await audio.play()
+        } catch (playErr: unknown) {
+          revokeIfStale(url)
+          coachBAudioRef.current = null
+          const name = playErr && typeof playErr === "object" && "name" in playErr ? (playErr as { name?: string }).name : ""
+          if (name === "NotAllowedError" || name === "NotSupportedError") {
+            if (opts?.source === "autoplay") {
+              setTtsError("Autoplay was blocked by the browser. Tap the speaker to listen.")
+            } else {
+              setTtsError("Playback was blocked. Try again or check browser permissions.")
+            }
+            return
+          }
+          console.warn("[Coach B TTS] playback error", playErr)
+          setTtsError("Couldn't play audio. Tap the speaker to try again.")
+        }
       } catch (e) {
-        console.warn("[Coach B TTS] playback error", e)
-        setTtsError("Couldn't play audio.")
+        if (mySession === ttsSessionRef.current) {
+          console.warn("[Coach B TTS] error", e)
+          setTtsError("Couldn't play audio. Tap the speaker to try again.")
+        }
       } finally {
-        setTtsLoadingId(null)
+        setTtsLoadingId((id) => (id === messageId ? null : id))
       }
     },
     [teamId, pathname, isPlayEditorRoute, voiceSettings, voiceSettingsHydrated]
   )
 
-  /** Auto-play TTS only when a new assistant message is appended (not when toggling Voice output on). */
+  /** Voice Mode: auto-request TTS when a new assistant message is appended (not when toggling settings). */
   useEffect(() => {
     const len = messages.length
     if (len === 0) {
@@ -263,11 +313,13 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
     const grew = len > prevMessagesLenRef.current
     prevMessagesLenRef.current = len
-    if (!grew || !voiceSettingsHydrated || !voiceSettings.voiceRepliesEnabled || !voiceSettings.autoPlayResponses) return
+    if (!grew || !voiceSettingsHydrated || !voiceSettings.voiceModeEnabled) return
     const last = messages[len - 1]
     if (last.role !== "assistant" || last.type === "error") return
-    void playAssistantTts(last.id, last.content, { actionType: last.actionType })
-  }, [messages, voiceSettingsHydrated, voiceSettings.voiceRepliesEnabled, voiceSettings.autoPlayResponses, playAssistantTts])
+    if (lastAutoplayScheduledIdRef.current === last.id) return
+    lastAutoplayScheduledIdRef.current = last.id
+    void playAssistantTts(last.id, last.content, { actionType: last.actionType, source: "autoplay" })
+  }, [messages, voiceSettingsHydrated, voiceSettings.voiceModeEnabled, playAssistantTts])
 
   useEffect(() => {
     return () => {
@@ -911,13 +963,14 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                           <p className="text-[10px] uppercase tracking-wide opacity-80 mb-1">Voice transcript</p>
                         )}
                         <p className="text-sm">{message.content}</p>
-                        {message.role === "assistant" && message.type !== "error" && voiceSettings.voiceRepliesEnabled && (
+                        {message.role === "assistant" && message.type !== "error" && (
                           <div className="mt-2 flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() =>
                                 void playAssistantTts(message.id, message.content, {
                                   actionType: message.actionType,
+                                  source: "manual",
                                 })
                               }
                               disabled={ttsLoadingId === message.id || !voiceSettingsHydrated}
@@ -1029,27 +1082,22 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                 <details className="mb-2 rounded-md border border-gray-200 bg-gray-50/80 px-2 py-1.5 text-xs text-gray-700">
                   <summary className="cursor-pointer select-none font-medium text-gray-800">Coach and voice</summary>
                   <div className="mt-2 flex flex-col gap-2 pb-1">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={voiceSettings.voiceRepliesEnabled}
-                        onChange={(e) => {
-                          setVoiceRepliesEnabled(e.target.checked)
-                          setTtsError(null)
-                        }}
-                        className="rounded border-gray-300"
-                      />
-                      Voice replies (read aloud)
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={voiceSettings.autoPlayResponses}
-                        onChange={(e) => setAutoPlayResponses(e.target.checked)}
-                        disabled={!voiceSettings.voiceRepliesEnabled}
-                        className="rounded border-gray-300 disabled:opacity-50"
-                      />
-                      Auto-play new responses
+                    <label className="flex flex-col gap-0.5 cursor-pointer select-none">
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={voiceSettings.voiceModeEnabled}
+                          onChange={(e) => {
+                            setVoiceModeEnabled(e.target.checked)
+                            setTtsError(null)
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="font-medium text-gray-800">Voice Mode</span>
+                      </span>
+                      <span className="pl-6 text-[11px] text-gray-500 leading-snug">
+                        When on, new replies speak automatically. Turn off to read only; tap the speaker anytime to listen.
+                      </span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input

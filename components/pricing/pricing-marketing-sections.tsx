@@ -1,93 +1,17 @@
 "use client"
 
-import type { ReactNode } from "react"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { PricingFaq } from "@/components/pricing/pricing-faq"
+import {
+  marketingSectionShell as sectionShell,
+  SectionHeading,
+  PriceCard,
+  BulletList,
+} from "@/components/marketing/marketing-layout"
 import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
-
-const sectionShell = "container mx-auto px-4 relative z-10"
-
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-  className,
-}: {
-  eyebrow?: string
-  title: string
-  description?: string
-  className?: string
-}) {
-  return (
-    <div className={cn("max-w-3xl mb-10 md:mb-12", className)}>
-      {eyebrow ? (
-        <p className="text-sm font-semibold uppercase tracking-wider text-[#3B82F6] mb-2">{eyebrow}</p>
-      ) : null}
-      <h2 className="text-2xl md:text-3xl lg:text-4xl font-athletic font-bold text-[#212529] uppercase tracking-tight mb-3">
-        {title}
-      </h2>
-      {description ? <p className="text-base md:text-lg text-[#212529]/80 leading-relaxed">{description}</p> : null}
-    </div>
-  )
-}
-
-function PriceCard({
-  title,
-  price,
-  children,
-  className,
-  badge,
-  footerNote,
-}: {
-  title: string
-  price: string
-  children: ReactNode
-  className?: string
-  badge?: string
-  footerNote?: string
-}) {
-  return (
-    <div
-      className={cn(
-        "relative rounded-2xl border border-slate-200/90 bg-white p-6 md:p-8 shadow-sm transition-all duration-200",
-        "hover:shadow-md hover:border-[#3B82F6]/30",
-        badge && "pt-8 md:pt-9",
-        className
-      )}
-    >
-      {badge ? (
-        <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-[#3B82F6] px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-sm">
-          {badge}
-        </span>
-      ) : null}
-      <h3 className="text-lg md:text-xl font-athletic font-semibold text-[#212529] uppercase tracking-wide mb-2 pr-2">
-        {title}
-      </h3>
-      <p className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-6">{price}</p>
-      <div className="text-[#212529]/85 space-y-4 text-sm md:text-base leading-relaxed">{children}</div>
-      {footerNote ? <p className="mt-4 text-xs text-[#64748B] leading-relaxed">{footerNote}</p> : null}
-    </div>
-  )
-}
-
-function BulletList({ items }: { items: string[] }) {
-  return (
-    <ul className="space-y-2">
-      {items.map((item) => (
-        <li key={item} className="flex gap-2">
-          <span className="text-[#3B82F6] font-bold shrink-0" aria-hidden>
-            ✓
-          </span>
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 export function PricingMarketingSections() {
   const requestHref = getPublicJoinHref()
@@ -287,17 +211,25 @@ export function PricingMarketingSections() {
               description="Braik brings everything your program needs into one platform — from roster management and communication to playbooks, video, and AI-powered coaching tools."
               className="text-center mx-auto"
             />
-            <div className="mt-2 md:mt-4">
-              <BulletList
-                items={[
-                  "Roster management",
-                  "Playbooks",
-                  "Team communication",
-                  "AI coaching support",
-                  "Video and game clips",
-                ]}
-              />
-            </div>
+            <ul
+              className="mt-2 md:mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 max-w-2xl mx-auto list-none p-0 text-left"
+              role="list"
+            >
+              {[
+                "Roster management",
+                "Playbooks",
+                "Team communication",
+                "AI coaching support",
+                "Video and game clips",
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-2 min-w-0">
+                  <span className="text-[#3B82F6] font-bold shrink-0 leading-none" aria-hidden>
+                    ✓
+                  </span>
+                  <span className="text-[#212529]">{item}</span>
+                </li>
+              ))}
+            </ul>
             <p className="mt-10 text-center text-base md:text-lg text-[#212529]/90 font-medium leading-relaxed">
               Everything your team needs, all in one place.
             </p>

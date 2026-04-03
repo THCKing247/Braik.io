@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useRef, useState } from "react"
 import { SiteHeader } from "@/components/marketing/site-header"
@@ -99,39 +99,36 @@ export default function FeaturesPage() {
       <SiteHeader />
       
       {/* Features */}
-      <section className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#F8FAFC] via-white to-white">
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#F8FAFC] via-white to-white py-14 md:py-20">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/10 blur-3xl" />
           <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#60A5FA]/10 blur-3xl" />
         </div>
-        
-        <div className="container mx-auto px-4 py-20 relative z-10">
-          <h2 className="text-4xl md:text-5xl font-athletic font-bold text-center mb-16 text-[#212529] uppercase tracking-tight">
+
+        <div className="relative z-10 max-w-6xl mx-auto px-6">
+          <h2 className="text-4xl md:text-5xl font-athletic font-bold text-center mb-12 text-[#212529] uppercase tracking-tight">
             Everything your team needs
           </h2>
-          <div className="max-w-5xl mx-auto space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature, index) => (
               <div
                 key={index}
                 ref={(el) => {
                   featureRefs.current[index] = el
                 }}
-                className={`p-10 rounded-[14px] relative overflow-hidden transition-all duration-1000 ease-out ${
-                  visibleFeatures.has(index)
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-6"
+                className={`bg-neutral-900 rounded-2xl p-6 shadow-md border border-white/5 transition-all duration-700 ease-out hover:shadow-lg hover:-translate-y-0.5 ${
+                  visibleFeatures.has(index) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                 }`}
-                style={{
-                  backgroundColor: "rgba(28, 28, 28, 0.9)",
-                  backdropFilter: "blur(6px)",
-                  boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-                }}
               >
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#3B82F6]" />
-                <h3 className="text-2xl font-athletic font-semibold mb-4 text-[#FFFFFF] uppercase">
-                  {feature.emoji} {feature.title}
-                </h3>
-                <p className="text-lg text-[#FFFFFF] leading-relaxed">{feature.description}</p>
+                <div className="max-w-sm flex flex-col gap-3">
+                  <div className="flex items-center gap-2 font-semibold text-white font-athletic uppercase tracking-wide text-base">
+                    <span aria-hidden className="text-lg leading-none shrink-0">
+                      {feature.emoji}
+                    </span>
+                    <span>{feature.title}</span>
+                  </div>
+                  <p className="text-sm text-gray-300 leading-relaxed">{feature.description}</p>
+                </div>
               </div>
             ))}
           </div>

@@ -278,111 +278,29 @@ export function PricingMarketingSections() {
         </div>
       </section>
 
-      {/* Example pricing */}
-      <section id="example-pricing" className="scroll-mt-24 py-14 md:py-20 bg-gradient-to-b from-white via-[#F8FAFC]/50 to-white">
+      {/* Why Braik */}
+      <section id="why-braik" className="scroll-mt-24 py-14 md:py-20 bg-gradient-to-b from-[#F8FAFC]/80 to-white">
         <div className={sectionShell}>
-          <SectionHeading
-            title="Example pricing"
-            description="Here’s what a few common setups can look like."
-          />
-          <div className="grid gap-6 md:grid-cols-3 max-w-6xl mx-auto">
-            {[
-              {
-                title: "Varsity team",
-                lines: ["Base platform: $250", "40 athletes: $400", "Onboarding: $300–$500"],
-                total: "Estimated total: $950–$1,150 first year",
-              },
-              {
-                title: "Varsity + JV",
-                lines: [
-                  "Varsity base: $250",
-                  "Varsity athletes: $400",
-                  "JV team base: $100",
-                  "JV athletes: $350",
-                  "Onboarding: $300–$500",
-                ],
-                total: "Estimated total: $1,400–$1,600 first year",
-              },
-              {
-                title: "Varsity team + Pro video",
-                lines: [
-                  "Base platform: $250",
-                  "40 athletes: $400",
-                  "Pro video: $300",
-                  "Onboarding: $300–$500",
-                ],
-                total: "Estimated total: $1,250–$1,450 first year",
-              },
-            ].map((ex) => (
-              <div
-                key={ex.title}
-                className="rounded-2xl border border-slate-200/90 bg-white p-6 md:p-8 shadow-sm transition-all duration-200 hover:shadow-md hover:border-[#3B82F6]/25"
-              >
-                <h3 className="text-lg font-athletic font-semibold text-[#212529] uppercase tracking-wide mb-4">
-                  {ex.title}
-                </h3>
-                <ul className="space-y-2 text-sm md:text-base text-[#212529]/85 mb-6">
-                  {ex.lines.map((line) => (
-                    <li key={line} className="flex gap-2">
-                      <span className="text-slate-300 shrink-0">—</span>
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-                <div className="pt-4 border-t border-slate-100">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B] mb-1">Total</p>
-                  <p className="text-lg font-bold text-[#0F172A]">{ex.total}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Discounts + Why Braik */}
-      <section id="discounts" className="scroll-mt-24 py-14 md:py-20 bg-white">
-        <div className={sectionShell}>
-          <div className="max-w-5xl mx-auto grid gap-10 lg:grid-cols-2 lg:gap-14 items-start">
-            <div className="rounded-2xl border border-slate-200/90 bg-[#F8FAFC]/50 p-8 md:p-10 shadow-sm">
-              <h2 className="text-xl md:text-2xl font-athletic font-bold text-[#212529] uppercase tracking-tight mb-6">
-                Available discounts
-              </h2>
-              <ul className="space-y-3 text-[#212529]/90">
-                <li className="flex gap-2">
-                  <span className="text-[#3B82F6] font-bold">✓</span>
-                  Referral discount: -$50
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-[#3B82F6] font-bold">✓</span>
-                  Multi-team discount: -$50
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-[#3B82F6] font-bold">✓</span>
-                  Custom pricing available for larger programs
-                </li>
-              </ul>
+          <div className="max-w-3xl mx-auto">
+            <SectionHeading
+              title="Why Braik"
+              description="Braik brings everything your program needs into one platform — from roster management and communication to playbooks, video, and AI-powered coaching tools."
+              className="text-center mx-auto"
+            />
+            <div className="mt-2 md:mt-4">
+              <BulletList
+                items={[
+                  "Roster management",
+                  "Playbooks",
+                  "Team communication",
+                  "AI coaching support",
+                  "Video and game clips",
+                ]}
+              />
             </div>
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-8 md:p-10 shadow-sm">
-              <h2 className="text-xl md:text-2xl font-athletic font-bold text-[#212529] uppercase tracking-tight mb-4">
-                Why Braik
-              </h2>
-              <p className="text-[#212529]/85 leading-relaxed mb-6">
-                Hudl charges for video. Braik gives you video plus your entire team operating system.
-              </p>
-              <ul className="space-y-2 mb-6">
-                {["Rosters", "Playbooks", "Team communication", "AI coaching support", "Video and game clips"].map(
-                  (item) => (
-                    <li key={item} className="flex gap-2 text-[#212529]">
-                      <span className="text-[#3B82F6] font-bold shrink-0">✓</span>
-                      {item}
-                    </li>
-                  )
-                )}
-              </ul>
-              <p className="text-sm text-[#64748B] leading-relaxed border-t border-slate-100 pt-6">
-                Instead of paying for multiple disconnected tools, Braik brings everything into one place.
-              </p>
-            </div>
+            <p className="mt-10 text-center text-base md:text-lg text-[#212529]/90 font-medium leading-relaxed">
+              Everything your team needs, all in one place.
+            </p>
           </div>
         </div>
       </section>

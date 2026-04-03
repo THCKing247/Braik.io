@@ -8,6 +8,7 @@ import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
 import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-bar"
 import { MobilePortalShell } from "@/components/mobile/mobile-portal-shell"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
+import { CalendarEventsInvalidateBridge } from "@/components/calendar/calendar-events-invalidate-bridge"
 import { DashboardEngagementHints } from "@/components/portal/dashboard-engagement-hints"
 import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
@@ -163,6 +164,7 @@ export function DashboardLayoutClient({
             </div>
 
             <AIWidgetWrapper />
+            <CalendarEventsInvalidateBridge />
             <DashboardMobileTabBar />
           </div>
         </PlaybookToastProvider>

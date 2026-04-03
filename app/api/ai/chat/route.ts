@@ -80,11 +80,27 @@ export async function POST(req: Request) {
   }
 
   if (result.type === "action_executed") {
+    const ev =
+      result.result &&
+      typeof result.result === "object" &&
+      result.result !== null &&
+      "eventId" in result.result &&
+      typeof (result.result as { eventId: unknown }).eventId === "string"
+        ? (result.result as { eventId: string }).eventId
+        : null
+    const calendarRefreshTeamId = ev && teamId ? teamId : undefined
+    if (calendarRefreshTeamId) {
+      console.log("[POST /api/ai/chat] calendar event created — client should refresh", {
+        teamId: calendarRefreshTeamId,
+        eventId: ev,
+      })
+    }
     return NextResponse.json({
       type: "action_executed",
       response: result.response,
       result: result.result,
       ...(result.spokenText ? { spokenText: result.spokenText } : {}),
+      ...(calendarRefreshTeamId ? { calendarRefreshTeamId } : {}),
     })
   }
 

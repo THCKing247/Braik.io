@@ -25,6 +25,9 @@ import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 
 export const CALENDAR_EVENTS_STALE_MS = 5 * 60 * 1000
 
+/** Dispatched on `window` when Coach B (or other flows) create/update calendar data; listeners invalidate React Query + dashboard refetch. */
+export const BRAIK_CALENDAR_EVENTS_CHANGED_EVENT = "braik:calendar-events-changed" as const
+
 export type CalendarFetchView = "day" | "week" | "month" | "year" | "agenda"
 
 export type CalendarVisibleRangePayload = {

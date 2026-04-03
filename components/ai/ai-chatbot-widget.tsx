@@ -19,6 +19,7 @@ import { getCoachBNavigationHref, navigationActionLabel } from "@/lib/braik-ai/c
 import { useCoachBVoiceSettings } from "@/lib/hooks/use-coach-b-voice-settings"
 import { COACH_PERSONALITIES, type CoachPersonalityId } from "@/lib/config/coach-personalities"
 import type { CoachBVoiceRequestFields } from "@/lib/braik-ai/coach-b-voice-request"
+import { BRAIK_CALENDAR_EVENTS_CHANGED_EVENT } from "@/lib/calendar/calendar-events-client"
 
 interface Message {
   id: string
@@ -225,8 +226,9 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         coachBAudioRef.current = null
 
         const spoken = opts?.spokenText?.trim()
+        /** Voice: synthesize from short line only — avoids long UI text in TTS and cuts latency. */
         const payload = spoken
-          ? { text: content, spokenSummary: spoken }
+          ? { text: spoken, spokenSummary: spoken }
           : deriveSpokenPayload(content, { sidelineMode: voiceSettings.sidelineMode })
         const coachVoice = buildCoachVoiceFields({
           pathname,
@@ -383,6 +385,17 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
 
   const applyCoachBResponse = (data: Record<string, unknown>) => {
     const t = data.type
+    const bumpAutoplayAndSpeak = (msg: Message) => {
+      const st = msg.spokenText?.trim()
+      if (!voiceSettingsHydrated || !voiceSettings.voiceModeEnabled || !st) return
+      lastAutoplayScheduledIdRef.current = msg.id
+      void playAssistantTts(msg.id, msg.content, {
+        source: "autoplay",
+        spokenText: st,
+        actionType: msg.actionType,
+      })
+    }
+
     if (t === "action_proposal") {
       const proposalMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -408,7 +421,16 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
           : {}),
         timestamp: new Date(),
         type: "action_executed",
+        actionType:
+          data.result && typeof data.result === "object" && data.result !== null && "eventId" in data.result
+            ? "create_event"
+            : undefined,
       }
+      const calTid = typeof data.calendarRefreshTeamId === "string" ? data.calendarRefreshTeamId.trim() : ""
+      if (calTid) {
+        window.dispatchEvent(new CustomEvent(BRAIK_CALENDAR_EVENTS_CHANGED_EVENT, { detail: { teamId: calTid } }))
+      }
+      bumpAutoplayAndSpeak(assistantMessage)
       setMessages((prev) => [...prev, assistantMessage])
       return
     }
@@ -436,6 +458,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       usage: data.usage as Message["usage"],
       usageStatus: data.usageStatus as Message["usageStatus"],
     }
+    bumpAutoplayAndSpeak(assistantMessage)
     setMessages((prev) => [...prev, assistantMessage])
     if (data.clearActiveProposal === true) setActiveProposalId(null)
   }

@@ -52,10 +52,15 @@ async function executeCreateEvent(args: unknown, ctx: ToolExecutionContext): Pro
   if (!parsed.success) {
     return { type: "response", response: `Could not create event: invalid fields (${parsed.error.message}).` }
   }
-  console.log("[Coach B] create_event executing (auto)", {
+  console.log("[Coach B] create_event tool — parsed payload (auto-execute)", {
     teamId: ctx.teamId,
+    userId: ctx.sessionUser.id,
     title: parsed.data.title,
     start_iso: parsed.data.start_iso,
+    end_iso: parsed.data.end_iso,
+    event_type: parsed.data.event_type,
+    location: parsed.data.location ?? null,
+    audience: parsed.data.audience ?? null,
     inputSource: ctx.inputSource,
   })
   const res = await executeCreateEventInternal(parsed.data, { teamId: ctx.teamId, sessionUser: ctx.sessionUser })

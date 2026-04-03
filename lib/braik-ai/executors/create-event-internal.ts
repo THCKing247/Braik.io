@@ -51,6 +51,18 @@ export async function executeCreateEventInternal(
   }
   const eventType = eventTypeMap[a.event_type] ?? "CUSTOM"
 
+  console.log("[Coach B create_event] execution start", {
+    teamId: ctx.teamId,
+    userId: ctx.sessionUser.id,
+    title: a.title,
+    start_iso: a.start_iso,
+    end_iso: a.end_iso,
+    event_type: a.event_type,
+    resolved_event_type: eventType,
+    location: a.location ?? null,
+    audience: a.audience ?? "team",
+  })
+
   try {
     await requireTeamPermission(ctx.teamId, "post_announcements", ctx.sessionUser)
     await requireTeamOperationAccess(ctx.teamId, "write")
@@ -96,14 +108,28 @@ export async function executeCreateEventInternal(
     .single()
 
   if (error || !event) {
-    console.error("[Coach B create_event] insert failed", error)
-    return { type: "response", response: "Could not create the calendar event. Please try again from the calendar." }
+    console.error("[Coach B create_event] DB insert failed — not claiming success", {
+      teamId: ctx.teamId,
+      title: a.title,
+      pg: error?.message ?? error,
+      code: error?.code,
+    })
+    return {
+      type: "response",
+      response:
+        "The calendar save failed on the server—nothing was added. Check permissions or try again from the calendar page.",
+    }
   }
 
-  console.log("[Coach B create_event] events row inserted", {
+  const row = event as { id: string; start?: string; end?: string }
+  console.log("[Coach B create_event] DB OK — events row persisted", {
     teamId: ctx.teamId,
-    eventId: event.id,
+    eventId: row.id,
     title: a.title,
+    dbStart: row.start ?? start.toISOString(),
+    dbEnd: row.end ?? end.toISOString(),
+    event_type: eventType,
+    visibility,
   })
 
   try {
@@ -150,7 +176,8 @@ export async function executeCreateEventInternal(
 
   const message = `Added "${a.title}" to the calendar for ${dateShort} at ${timeShort}${place}.\n\nWant me to notify players or parents too?`
 
-  const spokenText = `It's on the calendar for ${timeShort}${place}. Want me to notify players or parents?`
+  /** One short sentence for TTS; full details stay in `message` for the chat UI. */
+  const spokenText = `It's on the calendar — ${a.title}, ${dateShort} at ${timeShort}${place}.`
 
   console.log("[Coach B create_event] success + follow-up offered", {
     teamId: ctx.teamId,

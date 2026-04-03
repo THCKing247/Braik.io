@@ -19,7 +19,7 @@ import {
 } from "date-fns"
 import { CreateEventOverlay, type CreateEventCreatedPayload } from "@/components/portal/create-event-overlay"
 import type { DashboardBootstrapCalendarEvent } from "@/lib/dashboard/dashboard-bootstrap-types"
-import { calendarEventsUrl } from "@/lib/calendar/calendar-events-client"
+import { BRAIK_CALENDAR_EVENTS_CHANGED_EVENT, calendarEventsUrl } from "@/lib/calendar/calendar-events-client"
 
 type DashboardCalendarEvent = {
   id: string
@@ -100,7 +100,9 @@ export function DashboardCalendar({
   const [createKey, setCreateKey] = useState(0)
   const [createRange, setCreateRange] = useState<{ start: Date; end: Date } | null>(null)
 
-  const refetchEventsSilently = useCallback(() => {
+  /** After Coach B (or other tools) insert rows, bootstrap snapshot is stale — drop it so month navigation refetches API. */
+  const invalidateBootstrapAndRefetch = useCallback(() => {
+    bootstrapEventsRef.current = null
     const { from, to } = dashboardCalendarGridRangeIso(currentMonth)
     fetch(calendarEventsUrl(teamId, from, to))
       .then((res) => (res.ok ? res.json() : []))
@@ -122,6 +124,19 @@ export function DashboardCalendar({
       })
       .catch(() => {})
   }, [teamId, currentMonth])
+
+  useEffect(() => {
+    const onExternal = (ev: Event) => {
+      const tid = (ev as CustomEvent<{ teamId?: string }>).detail?.teamId
+      if (typeof tid !== "string" || tid.trim() !== teamId.trim()) return
+      if (process.env.NODE_ENV === "development") {
+        console.log("[DashboardCalendar] external calendar refresh", { teamId: tid })
+      }
+      invalidateBootstrapAndRefetch()
+    }
+    window.addEventListener(BRAIK_CALENDAR_EVENTS_CHANGED_EVENT, onExternal)
+    return () => window.removeEventListener(BRAIK_CALENDAR_EVENTS_CHANGED_EVENT, onExternal)
+  }, [teamId, invalidateBootstrapAndRefetch])
 
   const mapPayloadToRow = useCallback((p: CreateEventCreatedPayload): DashboardCalendarEvent => {
     const t = (p.type || "CUSTOM").toUpperCase()
@@ -182,9 +197,9 @@ export function DashboardCalendar({
           prev.map((e) => (e.id === p.replacesTempId ? mapPayloadToRow(p) : e))
         )
       }
-      refetchEventsSilently()
+      invalidateBootstrapAndRefetch()
     },
-    [mapPayloadToRow, refetchEventsSilently]
+    [mapPayloadToRow, invalidateBootstrapAndRefetch]
   )
 
   useEffect(() => {

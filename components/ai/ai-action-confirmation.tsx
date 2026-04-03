@@ -66,11 +66,14 @@ export function AIActionConfirmation({
     setError(null)
 
     try {
+      const idempotencyKey =
+        typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
       const response = await fetch("/api/ai/confirm-action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           proposalId: proposal.id,
+          idempotencyKey,
         }),
       })
 
@@ -130,12 +133,16 @@ export function AIActionConfirmation({
   const getActionTypeLabel = (actionType: string) => {
     const labels: Record<string, string> = {
       create_parent_announcement: "Create Parent Announcement",
+      create_event: "Create Calendar Event",
       modify_roster: "Modify Roster",
       add_player: "Add Player",
       remove_player: "Remove Player",
       update_player: "Update Player",
       bulk_create_events: "Bulk Create Events",
       modify_depth_chart: "Modify Depth Chart",
+      move_player_depth_chart: "Move Player (Depth Chart)",
+      send_team_message: "Post Team Message",
+      send_notification: "Post Announcement / Notification",
     }
     return labels[actionType] || actionType
   }

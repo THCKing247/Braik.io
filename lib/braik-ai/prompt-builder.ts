@@ -141,6 +141,8 @@ export interface BuildPromptInput {
   role?: string
   /** Optional pre-analysis from runCoordinatorTool; included as Coordinator Analysis section. */
   coordinatorAnalysis?: CoordinatorAnalysis | null
+  /** When true, allow tool-calling instructions instead of “no actions” (same context and coordinator rules). */
+  enableActionTools?: boolean
 }
 
 function formatCoordinatorAnalysis(analysis: CoordinatorAnalysis): string {
@@ -178,13 +180,21 @@ When the Coordinator Analysis includes ranked options (#1, #2, Top pick, Close a
 /**
  * Build system + Braik context + optional Coordinator Analysis + conversation for OpenAI.
  */
+const NO_ACTIONS_LINE =
+  "- Do not propose or execute actions—only answer and give coaching advice."
+const ACTION_TOOLS_LINE =
+  "- When the user wants calendar events, depth chart updates, team messages, or notifications, use the provided functions with structured arguments. The system validates permissions and may require confirmation before anything is sent or published. If a date, time, or player is ambiguous, ask one short clarifying question instead of guessing."
+
 export function buildCoachBPrompt(input: BuildPromptInput): { instructions: string; input: string | Array<{ role: "user" | "assistant" | "system" | "developer"; content: string; type?: "message" }> } {
-  const { context, message, history, coordinatorAnalysis, role: viewerRole } = input
+  const { context, message, history, coordinatorAnalysis, role: viewerRole, enableActionTools } = input
   const contextBlock = formatContextBlock(context)
   const viewerLine = viewerRole
     ? `\n\nViewer: Braik user role is ${viewerRole} (coach or program administrator). Do not assume they are a player or parent. Keep answers appropriate for staff.`
     : ""
-  let instructions = `${SYSTEM_INSTRUCTIONS}${viewerLine}\n\nBraik Team Context:\n${contextBlock}`
+  const baseInstructions = enableActionTools
+    ? SYSTEM_INSTRUCTIONS.replace(NO_ACTIONS_LINE, ACTION_TOOLS_LINE)
+    : SYSTEM_INSTRUCTIONS
+  let instructions = `${baseInstructions}${viewerLine}\n\nBraik Team Context:\n${contextBlock}`
 
   if (coordinatorAnalysis?.result) {
     instructions += "\n\n--- " + formatCoordinatorAnalysis(coordinatorAnalysis)

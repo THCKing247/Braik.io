@@ -78,10 +78,17 @@ export async function POST(request: Request) {
 
   console.log("[POST /api/ai/confirm-action]", { proposalId, userId: session.user.id, idempotencyKey })
 
-  const exec = await executeStoredProposal(proposalId, { idempotencyKey })
+  const exec = await executeStoredProposal(proposalId, { idempotencyKey, incomingRequest: request })
   if (!exec.success) {
+    console.warn("[POST /api/ai/confirm-action] execution failed", { proposalId, message: exec.message })
     return NextResponse.json({ success: false, message: exec.message ?? "Failed" }, { status: 400 })
   }
+
+  console.log("[POST /api/ai/confirm-action] execution success", {
+    proposalId,
+    message: exec.message,
+    executed: exec.executed,
+  })
 
   return NextResponse.json({
     success: true,

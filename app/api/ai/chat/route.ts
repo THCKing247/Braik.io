@@ -49,6 +49,7 @@ export async function POST(req: Request) {
     confirmProposalId: body.confirmProposalId ?? null,
     idempotencyKey: body.idempotencyKey ?? null,
     enableActionTools,
+    incomingRequest: req,
   })
 
   if (result.type === "error") {

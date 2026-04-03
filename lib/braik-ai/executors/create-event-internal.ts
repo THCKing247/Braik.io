@@ -91,9 +91,15 @@ export async function executeCreateEventInternal(
     .single()
 
   if (error || !event) {
-    console.error("[Coach B create_event]", error)
+    console.error("[Coach B create_event] insert failed", error)
     return { type: "response", response: "Could not create the calendar event. Please try again from the calendar." }
   }
+
+  console.log("[Coach B create_event] events row inserted", {
+    teamId: ctx.teamId,
+    eventId: event.id,
+    title: a.title,
+  })
 
   try {
     const { writeAuditLog } = await import("@/lib/audit/write-audit-log")

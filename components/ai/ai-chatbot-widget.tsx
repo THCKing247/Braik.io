@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { usePathname } from "next/navigation"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { MessageSquare, X, Send, Upload, Sparkles, File, AlertTriangle, Mic, Loader2 } from "lucide-react"
+import { MessageSquare, X, Send, Upload, Sparkles, File, AlertTriangle, Mic, Loader2, Volume2 } from "lucide-react"
 import { AIActionConfirmation } from "@/components/ai/ai-action-confirmation"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { cn } from "@/lib/utils"
@@ -43,6 +43,24 @@ interface AIChatbotWidgetProps {
   primaryColor?: string
 }
 
+/** Above this length, send a short spokenSummary so playback stays concise (full text stays in chat). */
+const TTS_LONG_THRESHOLD = 900
+
+function deriveSpokenPayload(full: string): { text: string; spokenSummary?: string } {
+  const t = full.trim()
+  if (t.length <= TTS_LONG_THRESHOLD) return { text: t }
+  const firstBlock = t.split(/\n\n+/)[0]?.trim() || t.slice(0, 500)
+  const clip = firstBlock.length > 750 ? `${firstBlock.slice(0, 750)}…` : firstBlock
+  return {
+    text: t,
+    spokenSummary: `${clip} More detail is in the chat message.`,
+  }
+}
+
+/** Discard very short press-and-hold clips (noise / accidental tap). */
+const MIN_VOICE_MS = 450
+const MIN_VOICE_BYTES = 800
+
 export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: AIChatbotWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
@@ -56,13 +74,34 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const coachCopy = useCoachBRotatingCopy()
   const coachB = useCoachB()
   const pathname = usePathname()
+  const router = useRouter()
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
   const [feedbackVoted, setFeedbackVoted] = useState<Set<string>>(() => new Set())
-  const [voiceMode, setVoiceMode] = useState(false)
-  const [voicePhase, setVoicePhase] = useState<"idle" | "recording" | "processing">("idle")
+  /** Auto-request TTS and play when new assistant messages arrive */
+  const [autoSpeakMode, setAutoSpeakMode] = useState(false)
+  const [voicePhase, setVoicePhase] = useState<"idle" | "arming" | "recording" | "processing">("idle")
+  /** True while pointer is down but left the mic button (release will cancel). */
+  const [voiceDragCancel, setVoiceDragCancel] = useState(false)
+  /** Short-lived status: canceled clip, too short, permission, etc. */
+  const [voiceInputHint, setVoiceInputHint] = useState<string | null>(null)
+  const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
+  const micAbortControllerRef = useRef<AbortController | null>(null)
+  const isMicPressingRef = useRef(false)
+  const micCancelDragRef = useRef(false)
+  const recordingStartedAtRef = useRef<number>(0)
+  const micGlobalCleanupRef = useRef<(() => void) | null>(null)
+  const voiceHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioChunksRef = useRef<BlobPart[]>([])
   const lastRequestIdempotencyRef = useRef<string | null>(null)
+  const coachBAudioRef = useRef<HTMLAudioElement | null>(null)
+  const prevMessagesLenRef = useRef(0)
+  const [ttsError, setTtsError] = useState<string | null>(null)
+  const voicePhaseRef = useRef(voicePhase)
+  useEffect(() => {
+    voicePhaseRef.current = voicePhase
+  }, [voicePhase])
 
   // When dashboard sidebar is shown (desktop), register open so "Ask Coach B" in sidebar opens this widget; hide floating button.
   useEffect(() => {
@@ -101,6 +140,70 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  const playAssistantTts = useCallback(
+    async (messageId: string, content: string) => {
+      setTtsError(null)
+      setTtsLoadingId(messageId)
+      try {
+        coachBAudioRef.current?.pause()
+        coachBAudioRef.current = null
+        const payload = deriveSpokenPayload(content)
+        const res = await fetch("/api/ai/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teamId,
+            text: payload.text,
+            ...(payload.spokenSummary ? { spokenSummary: payload.spokenSummary } : {}),
+          }),
+        })
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => "")
+          console.warn("[Coach B TTS] request failed", res.status, errBody)
+          setTtsError("Couldn't play audio. Tap play to try again.")
+          return
+        }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        coachBAudioRef.current = audio
+        audio.onended = () => {
+          URL.revokeObjectURL(url)
+          if (coachBAudioRef.current === audio) coachBAudioRef.current = null
+        }
+        await audio.play()
+      } catch (e) {
+        console.warn("[Coach B TTS] playback error", e)
+        setTtsError("Couldn't play audio.")
+      } finally {
+        setTtsLoadingId(null)
+      }
+    },
+    [teamId]
+  )
+
+  /** Auto-play TTS only when a new assistant message is appended (not when toggling Voice output on). */
+  useEffect(() => {
+    const len = messages.length
+    if (len === 0) {
+      prevMessagesLenRef.current = 0
+      return
+    }
+    const grew = len > prevMessagesLenRef.current
+    prevMessagesLenRef.current = len
+    if (!grew || !autoSpeakMode) return
+    const last = messages[len - 1]
+    if (last.role !== "assistant" || last.type === "error") return
+    void playAssistantTts(last.id, last.content)
+  }, [messages, autoSpeakMode, playAssistantTts])
+
+  useEffect(() => {
+    return () => {
+      coachBAudioRef.current?.pause()
+      coachBAudioRef.current = null
+    }
+  }, [])
 
   const CONFIRM_RE = /^(yes|yeah|yep|send it|confirm|go ahead|do it)\b/i
 
@@ -243,24 +346,6 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
   }
 
-  const stopMediaRecorder = () => {
-    const mr = mediaRecorderRef.current
-    if (mr && mr.state !== "inactive") {
-      try {
-        mr.stop()
-      } catch {
-        /* ignore */
-      }
-    }
-    mediaRecorderRef.current = null
-  }
-
-  useEffect(() => {
-    return () => {
-      stopMediaRecorder()
-    }
-  }, [])
-
   const sendVoiceBlob = async (blob: Blob) => {
     const priorMessages = messages
     setVoicePhase("processing")
@@ -366,26 +451,88 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
   }
 
-  const toggleRecording = async () => {
-    if (voicePhase === "processing" || loading || uploading) return
-    if (voicePhase === "recording") {
-      const mr = mediaRecorderRef.current
-      if (mr && mr.state !== "inactive") {
+  const flashVoiceHint = useCallback((msg: string) => {
+    if (voiceHintTimeoutRef.current) clearTimeout(voiceHintTimeoutRef.current)
+    setVoiceInputHint(msg)
+    voiceHintTimeoutRef.current = setTimeout(() => {
+      setVoiceInputHint(null)
+      voiceHintTimeoutRef.current = null
+    }, 4500)
+  }, [])
+
+  const endMicPress = useCallback(() => {
+    if (!isMicPressingRef.current) return
+    isMicPressingRef.current = false
+    setVoiceDragCancel(false)
+    micGlobalCleanupRef.current?.()
+    micGlobalCleanupRef.current = null
+
+    micAbortControllerRef.current?.abort()
+    micAbortControllerRef.current = null
+
+    const mr = mediaRecorderRef.current
+    if (mr) {
+      if (mr.state === "recording") {
         try {
           mr.stop()
         } catch {
-          /* ignore */
+          /* onstop may still run */
         }
+      } else {
+        micStreamRef.current?.getTracks().forEach((t) => t.stop())
+        micStreamRef.current = null
+        mediaRecorderRef.current = null
+        setVoicePhase("idle")
       }
-      return
+    } else {
+      micStreamRef.current?.getTracks().forEach((t) => t.stop())
+      micStreamRef.current = null
+      setVoicePhase("idle")
     }
+  }, [])
+
+  const attachGlobalPointerEnd = useCallback(() => {
+    const onEnd = () => {
+      endMicPress()
+    }
+    window.addEventListener("pointerup", onEnd, true)
+    window.addEventListener("pointercancel", onEnd, true)
+    micGlobalCleanupRef.current = () => {
+      window.removeEventListener("pointerup", onEnd, true)
+      window.removeEventListener("pointercancel", onEnd, true)
+    }
+  }, [endMicPress])
+
+  const startMicRecording = async () => {
+    if (loading || uploading) return
+    micAbortControllerRef.current?.abort()
+    const ac = new AbortController()
+    micAbortControllerRef.current = ac
+    setVoicePhase("arming")
+    setVoiceInputHint(null)
+
+    let mimeType = "audio/webm"
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        signal: ac.signal,
+      } as MediaStreamConstraints & { signal: AbortSignal })
+      micStreamRef.current = stream
+
+      if (!isMicPressingRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        micStreamRef.current = null
+        setVoicePhase("idle")
+        return
+      }
+
+      mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
           ? "audio/webm"
           : "audio/mp4"
+
       const mr = new MediaRecorder(stream, { mimeType })
       audioChunksRef.current = []
       mr.ondataavailable = (e) => {
@@ -393,31 +540,94 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       }
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop())
+        micStreamRef.current = null
+        mediaRecorderRef.current = null
         const parts = audioChunksRef.current
         audioChunksRef.current = []
-        if (parts.length === 0) {
+        const blob = new Blob(parts, { type: mr.mimeType || mimeType })
+        const durationMs = Date.now() - recordingStartedAtRef.current
+
+        if (micCancelDragRef.current) {
+          micCancelDragRef.current = false
+          setVoiceDragCancel(false)
           setVoicePhase("idle")
+          flashVoiceHint("Recording canceled.")
           return
         }
-        const blob = new Blob(parts, { type: mr.mimeType || mimeType })
+        if (durationMs < MIN_VOICE_MS || blob.size < MIN_VOICE_BYTES) {
+          setVoicePhase("idle")
+          flashVoiceHint("Too short — hold the mic a bit longer.")
+          return
+        }
         void sendVoiceBlob(blob)
       }
-      mr.start(200)
+
+      if (!isMicPressingRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        micStreamRef.current = null
+        setVoicePhase("idle")
+        return
+      }
+
+      recordingStartedAtRef.current = Date.now()
+      mr.start(100)
       mediaRecorderRef.current = mr
       setVoicePhase("recording")
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          role: "assistant",
-          content: "Microphone permission is required for voice input.",
-          timestamp: new Date(),
-          type: "error",
-        },
-      ])
+    } catch (e: unknown) {
+      micStreamRef.current = null
+      mediaRecorderRef.current = null
+      setVoicePhase("idle")
+      const err = e as { name?: string }
+      if (err.name === "AbortError") return
+      const msg =
+        err.name === "NotAllowedError"
+          ? "Microphone permission is required for voice input."
+          : "Microphone unavailable. Check your device settings."
+      flashVoiceHint(msg)
     }
   }
+
+  const handleMicPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return
+    if (isMicPressingRef.current) return
+    if (loading || uploading || voicePhaseRef.current === "processing") return
+    if (voicePhaseRef.current === "arming" || voicePhaseRef.current === "recording") return
+    e.preventDefault()
+    isMicPressingRef.current = true
+    micCancelDragRef.current = false
+    setVoiceDragCancel(false)
+    attachGlobalPointerEnd()
+    void startMicRecording()
+  }
+
+  const handleMicPointerLeave = () => {
+    if (!isMicPressingRef.current) return
+    micCancelDragRef.current = true
+    setVoiceDragCancel(true)
+  }
+
+  const handleMicPointerEnter = () => {
+    if (!isMicPressingRef.current) return
+    micCancelDragRef.current = false
+    setVoiceDragCancel(false)
+  }
+
+  useEffect(() => {
+    return () => {
+      micAbortControllerRef.current?.abort()
+      micGlobalCleanupRef.current?.()
+      const mr = mediaRecorderRef.current
+      if (mr && mr.state === "recording") {
+        try {
+          mr.stop()
+        } catch {
+          /* ignore */
+        }
+      }
+      micStreamRef.current?.getTracks().forEach((t) => t.stop())
+      if (voiceHintTimeoutRef.current) clearTimeout(voiceHintTimeoutRef.current)
+    }
+  }, [])
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -580,6 +790,24 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                           <p className="text-[10px] uppercase tracking-wide opacity-80 mb-1">Voice transcript</p>
                         )}
                         <p className="text-sm">{message.content}</p>
+                        {message.role === "assistant" && message.type !== "error" && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void playAssistantTts(message.id, message.content)}
+                              disabled={ttsLoadingId === message.id}
+                              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-gray-50 p-1.5 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                              title="Play aloud"
+                              aria-label="Play message aloud"
+                            >
+                              {ttsLoadingId === message.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                              ) : (
+                                <Volume2 className="h-4 w-4" aria-hidden />
+                              )}
+                            </button>
+                          </div>
+                        )}
                         {message.usage && (
                           <p className="text-xs mt-2 text-gray-500">
                             Tokens: {message.usage.tokensUsed} (weighted) • {message.usage.rawTokens} raw
@@ -627,13 +855,13 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                         <AIActionConfirmation
                           proposalId={message.proposalId}
                           teamId={teamId}
-                          onConfirmed={() => {
+                          onConfirmed={(detail) => {
                             setActiveProposalId(null)
-                            // Add success message
+                            router.refresh()
                             const successMessage: Message = {
                               id: Date.now().toString(),
                               role: "assistant",
-                              content: "Action confirmed and executed successfully!",
+                              content: detail.message,
                               timestamp: new Date(),
                               type: "action_executed",
                             }
@@ -673,23 +901,49 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
 
               {/* Input area: pinned to bottom */}
               <div className="shrink-0 relative border-t border-[#dbe3f0] p-4 bg-white">
-                {canUseAdvancedActions && (
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={voiceMode}
-                        onChange={(e) => setVoiceMode(e.target.checked)}
-                        className="rounded border-gray-300"
-                      />
-                      Voice input (microphone)
-                    </label>
-                    {voiceMode && (
-                      <span className="text-[10px] text-gray-500">
-                        {voicePhase === "recording" ? "Recording… tap again to stop" : voicePhase === "processing" ? "Processing…" : ""}
-                      </span>
-                    )}
-                  </div>
+                <div className="flex flex-col gap-2 mb-2">
+                  <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoSpeakMode}
+                      onChange={(e) => {
+                        setAutoSpeakMode(e.target.checked)
+                        setTtsError(null)
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    Speak responses automatically (voice output)
+                  </label>
+                  {canUseAdvancedActions && (
+                    <div className="flex items-center gap-2 text-[10px] text-gray-600 min-h-[1.25rem]">
+                      {voicePhase === "processing" && (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#0B2A5B]" aria-hidden />
+                          <span>Transcribing…</span>
+                        </>
+                      )}
+                      {voicePhase === "arming" && (
+                        <span className="text-gray-500">Starting microphone…</span>
+                      )}
+                      {voicePhase === "recording" && !voiceDragCancel && (
+                        <span className="font-medium text-red-600">Recording…</span>
+                      )}
+                      {voicePhase === "recording" && voiceDragCancel && (
+                        <span className="font-medium text-amber-700">Release to cancel</span>
+                      )}
+                      {voicePhase === "idle" && <span className="text-gray-400">Hold the mic to speak</span>}
+                    </div>
+                  )}
+                </div>
+                {voiceInputHint && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2" role="status">
+                    {voiceInputHint}
+                  </p>
+                )}
+                {ttsError && (
+                  <p className="text-xs text-red-600 mb-2" role="status">
+                    {ttsError}
+                  </p>
                 )}
                 <div className="flex gap-2 mb-2">
                   <Input
@@ -697,7 +951,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Type your message..."
-                    disabled={loading || uploading || voicePhase === "recording"}
+                    disabled={loading || uploading || voicePhase === "recording" || voicePhase === "arming"}
                     className="flex-1"
                   />
                   {canUseAdvancedActions && (
@@ -714,7 +968,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                         variant="outline"
                         size="sm"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={loading || uploading || voicePhase === "recording"}
+                        disabled={loading || uploading || voicePhase === "recording" || voicePhase === "arming"}
                         title="Upload file (Excel, CSV, PDF, Image)"
                         className="rounded-lg border-2"
                         style={{ borderColor: "#0B2A5B", color: "#0B2A5B" }}
@@ -723,30 +977,42 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                       </Button>
                     </>
                   )}
-                  {canUseAdvancedActions && voiceMode && (
-                    <Button
+                  {canUseAdvancedActions && (
+                    <button
                       type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void toggleRecording()}
+                      onPointerDown={handleMicPointerDown}
+                      onPointerLeave={handleMicPointerLeave}
+                      onPointerEnter={handleMicPointerEnter}
                       disabled={loading || uploading || voicePhase === "processing"}
-                      title={voicePhase === "recording" ? "Stop recording" : "Start recording"}
                       className={cn(
-                        "rounded-lg border-2",
-                        voicePhase === "recording" ? "border-red-600 text-red-600 bg-red-50" : ""
+                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 transition-colors",
+                        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B2A5B]",
+                        voicePhase === "recording"
+                          ? "border-red-600 bg-red-50 text-red-600 shadow-inner ring-2 ring-red-200"
+                          : voicePhase === "arming"
+                            ? "border-[#0B2A5B] bg-blue-50 text-[#0B2A5B]"
+                            : "border-[#0B2A5B] text-[#0B2A5B] hover:bg-blue-50/80 active:bg-blue-100"
                       )}
-                      style={voicePhase !== "recording" ? { borderColor: "#0B2A5B", color: "#0B2A5B" } : undefined}
+                      style={{ touchAction: "none", userSelect: "none" }}
+                      title="Hold to talk"
+                      aria-label="Hold to record a voice message"
                     >
                       {voicePhase === "processing" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                       ) : (
-                        <Mic className="h-4 w-4" />
+                        <Mic className="h-4 w-4" aria-hidden />
                       )}
-                    </Button>
+                    </button>
                   )}
                   <Button
                     onClick={handleSend}
-                    disabled={loading || uploading || !input.trim() || voicePhase === "recording"}
+                    disabled={
+                      loading ||
+                      uploading ||
+                      !input.trim() ||
+                      voicePhase === "recording" ||
+                      voicePhase === "arming"
+                    }
                     size="sm"
                     className="rounded-lg"
                   >
@@ -755,8 +1021,8 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                 </div>
                 <p className="text-xs text-gray-500">
                   {canUseAdvancedActions
-                    ? "Press Enter to send • Enable voice input for the mic • Upload files when OpenAI is configured"
-                    : "Press Enter to send • Answers use Braik team context when available"}
+                    ? "Press Enter to send • Hold the mic to dictate • Voice output plays replies • Upload when OpenAI is configured"
+                    : "Press Enter to send • Voice output plays Coach B replies • Answers use Braik team context when available"}
                 </p>
               </div>
             </CardContent>

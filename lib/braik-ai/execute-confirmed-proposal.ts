@@ -5,6 +5,7 @@ import { requireAuth, requireTeamPermission } from "@/lib/auth/rbac"
 import { getProposal, markExecuted } from "@/lib/braik-ai/action-proposal-store"
 import { createEventToolSchema, sendNotificationSchema, sendTeamMessageSchema } from "@/lib/braik-ai/coach-b-tools-schemas"
 import { executeCreateEventInternal } from "@/lib/braik-ai/executors/create-event-internal"
+import { createTeamCalendarEventThroughApi } from "@/lib/calendar/coach-b-create-event-through-api"
 function mapAnnouncementAudience(aud: string): "all" | "staff" | "players" | "parents" {
   if (aud === "team" || aud === "players") return "players"
   if (aud === "parents") return "parents"
@@ -15,7 +16,7 @@ function mapAnnouncementAudience(aud: string): "all" | "staff" | "players" | "pa
 
 export async function executeStoredProposal(
   proposalId: string,
-  opts: { idempotencyKey?: string | null }
+  opts: { idempotencyKey?: string | null; incomingRequest?: Request | null }
 ): Promise<{ success: boolean; message?: string; executed?: Record<string, unknown> }> {
   const user = await requireAuth()
   const proposal = getProposal(proposalId)
@@ -33,19 +34,45 @@ export async function executeStoredProposal(
     role: user.role,
   }
 
-  console.log("[Coach B] confirm proposal", {
+  console.log("[Coach B] confirm proposal triggered", {
     proposalId,
     actionType: proposal.actionType,
     teamId: proposal.teamId,
     idempotencyKey: opts.idempotencyKey ?? null,
+    hasIncomingRequest: Boolean(opts.incomingRequest),
   })
 
   try {
     if (proposal.actionType === "create_event") {
       const parsed = createEventToolSchema.safeParse(proposal.payload)
       if (!parsed.success) {
+        console.warn("[Coach B] create_event invalid payload", parsed.error.flatten())
         return { success: false, message: "Invalid stored event payload." }
       }
+
+      console.log("[Coach B] create_event tool args", {
+        proposalId,
+        title: parsed.data.title,
+        start_iso: parsed.data.start_iso,
+        end_iso: parsed.data.end_iso,
+        event_type: parsed.data.event_type,
+        audience: parsed.data.audience,
+      })
+
+      if (opts.incomingRequest) {
+        const api = await createTeamCalendarEventThroughApi(proposal.teamId, parsed.data, opts.incomingRequest)
+        if (!api.ok) {
+          return { success: false, message: api.message }
+        }
+        markExecuted(proposalId)
+        return {
+          success: true,
+          message: `Created event "${parsed.data.title}".`,
+          executed: { eventId: api.event.id, title: parsed.data.title },
+        }
+      }
+
+      console.log("[Coach B] create_event fallback: executeCreateEventInternal (no Request context)")
       const res = await executeCreateEventInternal(parsed.data, {
         teamId: proposal.teamId,
         sessionUser,

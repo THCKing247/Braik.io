@@ -55,6 +55,8 @@ export interface RunCoachBChatParams {
   idempotencyKey?: string | null
   /** When true, attempt OpenAI tool calling before fallback chat */
   enableActionTools?: boolean
+  /** Forwarded to proposal execution so create_event can call the calendar API with the user’s cookies. */
+  incomingRequest?: Request | null
 }
 
 /**
@@ -107,10 +109,17 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
   if (params.confirmProposalId?.trim() && CONFIRM_RE.test(message)) {
     const pid = params.confirmProposalId.trim()
     console.log("[Coach B] confirmation phrase for proposal", { proposalId: pid, userId: params.sessionUser.id })
-    const exec = await executeStoredProposal(pid, { idempotencyKey: params.idempotencyKey })
+    const exec = await executeStoredProposal(pid, {
+      idempotencyKey: params.idempotencyKey,
+      incomingRequest: params.incomingRequest ?? null,
+    })
     if (!exec.success) {
       return { type: "response", response: exec.message ?? "Could not complete that action." }
     }
+    console.log("[Coach B] proposal executed after confirmation phrase", {
+      proposalId: pid,
+      executed: exec.executed,
+    })
     return { type: "action_executed", response: exec.message ?? "Action completed.", result: exec.executed }
   }
 

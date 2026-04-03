@@ -25,7 +25,8 @@ interface ActionProposal {
 interface AIActionConfirmationProps {
   proposalId: string
   teamId: string
-  onConfirmed?: () => void
+  /** Called only after the server reports success; includes the server message when available. */
+  onConfirmed?: (detail: { message: string }) => void
   onRejected?: () => void
 }
 
@@ -77,17 +78,23 @@ export function AIActionConfirmation({
         }),
       })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.message || "Failed to confirm action")
+      const data = (await response.json().catch(() => ({}))) as {
+        success?: boolean
+        message?: string
       }
 
-      const data = await response.json()
-      if (data.success) {
-        onConfirmed?.()
-      } else {
-        throw new Error(data.message || "Action confirmation failed")
+      if (!response.ok) {
+        throw new Error(typeof data.message === "string" ? data.message : "Failed to confirm action")
       }
+
+      if (!data.success) {
+        throw new Error(typeof data.message === "string" ? data.message : "Action confirmation failed")
+      }
+
+      console.log("[Coach B] confirm-action success", { proposalId: proposal.id, message: data.message })
+      onConfirmed?.({
+        message: typeof data.message === "string" ? data.message : "Action completed.",
+      })
     } catch (err: any) {
       setError(err.message || "Failed to confirm action")
     } finally {

@@ -87,5 +87,13 @@ export async function POST(req: Request) {
     })
   }
 
-  return NextResponse.json({ response: result.response, type: "response" })
+  if (result.type === "response") {
+    return NextResponse.json({
+      response: result.response,
+      type: "response",
+      ...(result.clearActiveProposal ? { clearActiveProposal: true } : {}),
+    })
+  }
+
+  return NextResponse.json({ error: "Unexpected result" }, { status: 500 })
 }

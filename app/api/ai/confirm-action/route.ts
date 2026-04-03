@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "proposalId is required" }, { status: 400 })
   }
 
-  const proposal = getProposal(proposalId)
+  const proposal = await getProposal(proposalId)
   if (!proposal) {
     return NextResponse.json({ error: "Proposal not found or expired" }, { status: 404 })
   }

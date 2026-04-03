@@ -94,7 +94,7 @@ export async function processCoachBToolMessage(
       if (!parsedEvent.success) {
         return { type: "response", response: "I need clearer date/time and title to schedule that." }
       }
-      const stored = createProposal({
+      const stored = await createProposal({
         teamId: ctx.teamId,
         userId: ctx.sessionUser.id,
         actionType: "create_event",
@@ -145,7 +145,7 @@ export async function processCoachBToolMessage(
         specialTeamType: null as string | null,
       },
     ]
-    const p = createProposal({
+    const p = await createProposal({
       teamId: ctx.teamId,
       userId: ctx.sessionUser.id,
       actionType: "move_player_depth_chart",
@@ -186,7 +186,7 @@ export async function processCoachBToolMessage(
       if (!parsed.success) {
         return { type: "response", response: "I need a title, body, and audience to draft that message." }
       }
-      const p = createProposal({
+      const p = await createProposal({
         teamId: ctx.teamId,
         userId: ctx.sessionUser.id,
         actionType: "send_team_message",
@@ -218,7 +218,7 @@ export async function processCoachBToolMessage(
     if (!parsed.success) {
       return { type: "response", response: "I need title, body, and audience for that notification." }
     }
-    const p = createProposal({
+    const p = await createProposal({
       teamId: ctx.teamId,
       userId: ctx.sessionUser.id,
       actionType: "send_notification",

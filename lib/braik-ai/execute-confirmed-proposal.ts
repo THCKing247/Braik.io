@@ -19,8 +19,9 @@ export async function executeStoredProposal(
   opts: { idempotencyKey?: string | null; incomingRequest?: Request | null }
 ): Promise<{ success: boolean; message?: string; executed?: Record<string, unknown> }> {
   const user = await requireAuth()
-  const proposal = getProposal(proposalId)
+  const proposal = await getProposal(proposalId)
   if (!proposal || proposal.status !== "pending") {
+    console.warn("[Coach B] executeStoredProposal: no pending proposal", { proposalId, userId: user.id })
     return { success: false, message: "Proposal not found or already handled." }
   }
   if (proposal.userId !== user.id) {
@@ -34,7 +35,7 @@ export async function executeStoredProposal(
     role: user.role,
   }
 
-  console.log("[Coach B] confirm proposal triggered", {
+  console.log("[Coach B] confirm proposal triggered — execution starting", {
     proposalId,
     actionType: proposal.actionType,
     teamId: proposal.teamId,
@@ -62,9 +63,11 @@ export async function executeStoredProposal(
       if (opts.incomingRequest) {
         const api = await createTeamCalendarEventThroughApi(proposal.teamId, parsed.data, opts.incomingRequest)
         if (!api.ok) {
+          console.error("[Coach B] create_event calendar API failed", { proposalId, message: api.message })
           return { success: false, message: api.message }
         }
-        markExecuted(proposalId)
+        await markExecuted(proposalId)
+        console.log("[Coach B] create_event execution succeeded", { proposalId, eventId: api.event.id })
         return {
           success: true,
           message: `Created event "${parsed.data.title}".`,
@@ -78,9 +81,10 @@ export async function executeStoredProposal(
         sessionUser,
       })
       if (res.type === "response") {
+        console.error("[Coach B] create_event internal failed", { proposalId, response: res.response })
         return { success: false, message: res.response }
       }
-      markExecuted(proposalId)
+      await markExecuted(proposalId)
       return { success: true, message: res.message, executed: res.result }
     }
 
@@ -149,7 +153,8 @@ export async function executeStoredProposal(
         console.error("[Coach B depth chart] insert", insertError)
         return { success: false, message: "Failed to update depth chart." }
       }
-      markExecuted(proposalId)
+      await markExecuted(proposalId)
+      console.log("[Coach B] move_player_depth_chart execution succeeded", { proposalId, rows: entriesToInsert.length })
       return { success: true, message: "Depth chart updated.", executed: { rows: entriesToInsert.length } }
     }
 
@@ -194,7 +199,8 @@ export async function executeStoredProposal(
         console.error("[Coach B send_team_message]", error)
         return { success: false, message: "Failed to post message." }
       }
-      markExecuted(proposalId)
+      await markExecuted(proposalId)
+      console.log("[Coach B] send_team_message execution succeeded", { proposalId, announcementId: inserted.id })
       const { revalidateTeamAnnouncements, revalidateTeamEngagementHints } = await import(
         "@/lib/cache/lightweight-get-cache"
       )
@@ -243,7 +249,8 @@ export async function executeStoredProposal(
         console.error("[Coach B send_notification]", error)
         return { success: false, message: "Failed to post announcement." }
       }
-      markExecuted(proposalId)
+      await markExecuted(proposalId)
+      console.log("[Coach B] send_notification execution succeeded", { proposalId, announcementId: inserted.id })
       const { revalidateTeamAnnouncements, revalidateTeamEngagementHints } = await import(
         "@/lib/cache/lightweight-get-cache"
       )

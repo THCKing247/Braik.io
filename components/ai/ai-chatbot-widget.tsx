@@ -329,6 +329,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   }, [])
 
   const CONFIRM_RE = /^(yes|yeah|yep|sure|ok|okay|send it|confirm|go ahead|do it)\b/i
+  const REJECT_RE = /^(no|nope|nah|cancel|stop|never mind|don'?t|skip)\b/i
 
   /** Same Coach B pipeline as typed chat; used after voice transcription. */
   const callCoachBChat = async (opts: {
@@ -421,6 +422,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       usageStatus: data.usageStatus as Message["usageStatus"],
     }
     setMessages((prev) => [...prev, assistantMessage])
+    if (data.clearActiveProposal === true) setActiveProposalId(null)
   }
 
   const handleSend = async () => {
@@ -428,7 +430,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
 
     const outgoing = input.trim()
     const confirmProposalId =
-      activeProposalId && CONFIRM_RE.test(outgoing) ? activeProposalId : undefined
+      activeProposalId && (CONFIRM_RE.test(outgoing) || REJECT_RE.test(outgoing)) ? activeProposalId : undefined
     const historyForApi = messages.map((m) => ({ role: m.role, content: m.content }))
 
     const userMessage: Message = {
@@ -570,7 +572,9 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
 
       const historyForApi = priorMessages.map((m) => ({ role: m.role, content: m.content }))
       const confirmProposalId =
-        activeProposalId && CONFIRM_RE.test(transcript) ? activeProposalId : undefined
+        activeProposalId && (CONFIRM_RE.test(transcript) || REJECT_RE.test(transcript))
+          ? activeProposalId
+          : undefined
 
       const voiceCommand =
         classification.intentType === "chat"

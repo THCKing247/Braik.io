@@ -5,7 +5,6 @@ import { buildCoachBPrompt, createGenericContext } from "@/lib/braik-ai/prompt-b
 import { sendCoachBPrompt, isOpenAIConfigured } from "@/lib/braik-ai/openai-client"
 import { buildCoachBToolMessages, runCoachBToolCompletion } from "@/lib/braik-ai/coach-b-openai-tools"
 import { processCoachBToolMessage, type ToolHandlerResult } from "@/lib/braik-ai/coach-b-tool-execution"
-import { executeStoredProposal } from "@/lib/braik-ai/execute-confirmed-proposal"
 import type { SessionUser } from "@/lib/auth/server-auth"
 import { MembershipLookupError, profileRoleToNormalizedRole } from "@/lib/auth/rbac"
 import { requireTeamAccess } from "@/lib/auth/rbac"
@@ -16,11 +15,10 @@ import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { resolveVoiceModeFromInput } from "@/lib/braik-ai/resolve-voice-mode"
 import { resolveCoachBVoiceProfile } from "@/lib/braik-ai/resolve-coach-b-voice-profile"
 import type { CoachBVoiceRequestFields } from "@/lib/braik-ai/coach-b-voice-request"
-
-const CONFIRM_RE = /^(yes|yeah|yep|sure|ok|okay|send it|confirm|go ahead|do it)\b/i
+import { resolvePendingConfirmationTurn } from "@/lib/braik-ai/pending-action-resolver"
 
 export type CoachBChatResult =
-  | { type: "response"; response: string; usage?: undefined; usageStatus?: undefined }
+  | { type: "response"; response: string; usage?: undefined; usageStatus?: undefined; clearActiveProposal?: boolean }
   | {
       type: "action_proposal"
       message: string
@@ -167,21 +165,28 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
 
   const inputSource = params.inputSource ?? "text"
 
-  if (params.confirmProposalId?.trim() && CONFIRM_RE.test(message)) {
-    const pid = params.confirmProposalId.trim()
-    console.log("[Coach B] confirmation phrase for proposal", { proposalId: pid, userId: params.sessionUser.id })
-    const exec = await executeStoredProposal(pid, {
-      idempotencyKey: params.idempotencyKey,
-      incomingRequest: params.incomingRequest ?? null,
-    })
-    if (!exec.success) {
-      return { type: "response", response: exec.message ?? "Could not complete that action." }
+  const pendingTurn = await resolvePendingConfirmationTurn({
+    message,
+    teamId,
+    sessionUserId: params.sessionUser.id,
+    confirmProposalId: params.confirmProposalId,
+    idempotencyKey: params.idempotencyKey,
+    incomingRequest: params.incomingRequest ?? null,
+  })
+  if (pendingTurn.handled) {
+    if (pendingTurn.kind === "executed") {
+      return {
+        type: "action_executed",
+        response: pendingTurn.response,
+        result: pendingTurn.result,
+      }
     }
-    console.log("[Coach B] proposal executed after confirmation phrase", {
-      proposalId: pid,
-      executed: exec.executed,
-    })
-    return { type: "action_executed", response: exec.message ?? "Action completed.", result: exec.executed }
+    if (pendingTurn.kind === "failed") {
+      return { type: "response", response: pendingTurn.response }
+    }
+    if (pendingTurn.kind === "cancelled") {
+      return { type: "response", response: pendingTurn.response, clearActiveProposal: true }
+    }
   }
 
   const history = Array.isArray(params.conversationHistory) ? params.conversationHistory : []

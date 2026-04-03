@@ -1,5 +1,7 @@
 import OpenAI from "openai"
 
+export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4"
+
 let client: OpenAI | null = null
 
 function getClient(): OpenAI | null {
@@ -12,15 +14,16 @@ function getClient(): OpenAI | null {
 
 /**
  * Send the Coach B prompt to OpenAI and return the response text.
- * Uses responses.create with gpt-4.1-mini. Throws on missing key or API failure.
+ * Uses responses.create with OPENAI_MODEL (default gpt-5.4). Throws on missing key or API failure.
  */
 export async function sendCoachBPrompt(instructions: string, input: string | Array<{ role: "user" | "assistant" | "system" | "developer"; content: string; type?: "message" }>): Promise<string> {
   const c = getClient()
   if (!c) {
     throw new Error("OPENAI_API_KEY is not configured")
   }
+  console.log("[OpenAI] Using model:", OPENAI_MODEL)
   const response = await c.responses.create({
-    model: "gpt-4.1-mini",
+    model: OPENAI_MODEL,
     instructions,
     input,
   })

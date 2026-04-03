@@ -231,7 +231,7 @@ export default function Home() {
                   </p>
                   <p className="text-center pt-2">
                     <Link href="/pricing" className="text-[#2563EB] font-semibold hover:underline">
-                      View full pricing and calculator →
+                      View full pricing →
                     </Link>
                   </p>
                 </div>
@@ -486,7 +486,7 @@ export default function Home() {
               </h2>
               <p className="text-center text-[#495057] mb-10">
                 Quick answers with links when there&apos;s more detail on another page — including{" "}
-                <Link href="/pricing#how-much-braik-costs" className="text-[#2563EB] font-medium hover:underline">
+                <Link href="/pricing#core-platform" className="text-[#2563EB] font-medium hover:underline">
                   how Braik is priced
                 </Link>
                 .

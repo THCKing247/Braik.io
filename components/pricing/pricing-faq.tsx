@@ -1,45 +1,49 @@
 "use client"
 
-import Link from "next/link"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
-const FAQ_ITEMS = [
+type FaqItem = {
+  q: string
+  a: ReactNode
+}
+
+const FAQ_ITEMS: FaqItem[] = [
   {
-    q: "How much does Braik cost?",
-    a: "Plans are annual: Head Coach (varsity + optional JV/Freshman add-ons and roster-based spots) or Athletic Director (flat department-wide). Use the calculator on this page for an estimate. Player accounts are included.",
-    linkHref: "#how-much-braik-costs",
-    linkLabel: "Jump to plan details",
+    q: "What determines the price?",
+    a: (
+      <div className="space-y-3">
+        <p>Your pricing depends on:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>Number of players</li>
+          <li>Number of teams</li>
+          <li>Whether you add video</li>
+          <li>Onboarding scope</li>
+        </ul>
+      </div>
+    ),
   },
   {
-    q: "Is Braik billed monthly or annually?",
-    a: "Braik is billed annually. The Head Coach plan and Athletic Director plan are both paid once per year by the program or athletic department, which simplifies budgeting and aligns with typical planning cycles.",
+    q: "Is onboarding required?",
+    a: "No, but it’s recommended for a faster and smoother setup.",
   },
   {
-    q: "Who pays for Braik—the coach or the players?",
-    a: "The head coach or program pays for the Head Coach plan; the athletic department pays for the Athletic Director plan. Player accounts are included in the plan—players do not pay for their own accounts.",
+    q: "Is onboarding a one-time fee?",
+    a: "Yes. Onboarding is only charged once.",
   },
   {
-    q: "How many assistant coaches are included?",
-    a: "Head Coach plan: 3 assistants are included for varsity only. If you add a JV team, you get 1 more free assistant (4 total). If you add Freshman as well, you get 5 free assistants. Any assistants beyond that are $10 each. Athletic Director plan includes unlimited assistants.",
+    q: "Are assistant coaches extra?",
+    a: "Additional coach access is low-cost at $25 per coach.",
   },
   {
-    q: "What happens if our roster grows?",
-    a: "On the Head Coach plan, roster spots are billed at $10 each per team level. At renewal, your cost will reflect your current roster counts. On the Athletic Director plan, roster size does not affect the flat $6,500 fee.",
+    q: "Can we start with just one team?",
+    a: "Yes. Many programs start with varsity and add more teams later.",
   },
   {
-    q: "Does the minimum roster size depend on the sport?",
-    a: "Yes. Each sport has a minimum varsity roster size (e.g., Football 40, Basketball 10, Soccer 14). The calculator uses these minimums so your estimate matches how Braik will bill your program.",
+    q: "Do you offer enterprise pricing?",
+    a: "Yes. We offer custom pricing for schools, departments, and larger rollouts.",
   },
-  {
-    q: "What is included in the Athletic Director plan?",
-    a: "The Athletic Director plan ($6,500/year) includes unlimited teams, unlimited roster spots, unlimited assistant coaches, the athletic director portal, organization and team management, and head coach invite codes—all under one annual payment from the athletic department.",
-  },
-  {
-    q: "Can we start with Head Coach and upgrade to Athletic Director later?",
-    a: "Yes. Many schools start with a Head Coach plan for one program and later move to the Athletic Director plan when they want one platform across every sport and centralized visibility.",
-  },
-] as const
+]
 
 export function PricingFaq() {
   const [openIndex, setOpenIndex] = useState<number | null>(0)
@@ -48,11 +52,9 @@ export function PricingFaq() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="text-center mb-10">
         <h2 className="text-2xl md:text-3xl font-athletic font-bold text-[#212529] uppercase tracking-tight mb-2">
-          Pricing FAQ
+          Frequently asked questions
         </h2>
-        <p className="text-[#212529]/80">
-          Common questions about Braik pricing and billing.
-        </p>
+        <p className="text-[#212529]/80">Straight answers about Braik pricing and setup.</p>
       </div>
 
       <div className="space-y-2">
@@ -60,14 +62,15 @@ export function PricingFaq() {
           <div
             key={item.q}
             className={cn(
-              "rounded-xl border-2 border-[#e5e7eb] bg-white overflow-hidden transition-all",
-              openIndex === i && "border-[#3B82F6]/40 shadow-md"
+              "rounded-xl border border-slate-200/90 bg-white overflow-hidden transition-all",
+              openIndex === i && "border-[#3B82F6]/40 shadow-md ring-1 ring-[#3B82F6]/10"
             )}
           >
             <button
               type="button"
               onClick={() => setOpenIndex(openIndex === i ? null : i)}
               className="w-full flex items-center justify-between gap-4 py-4 px-5 text-left"
+              aria-expanded={openIndex === i}
             >
               <span className="font-semibold text-[#212529]">{item.q}</span>
               <span
@@ -75,6 +78,7 @@ export function PricingFaq() {
                   "text-[#3B82F6] text-xl font-bold transition-transform shrink-0",
                   openIndex === i && "rotate-45"
                 )}
+                aria-hidden
               >
                 +
               </span>
@@ -86,15 +90,8 @@ export function PricingFaq() {
               )}
             >
               <div className="overflow-hidden">
-                <div className="pb-4 px-5 pt-0 text-[#212529]/85 leading-relaxed border-t border-[#e5e7eb] space-y-2">
-                  <p>{item.a}</p>
-                  {"linkHref" in item && item.linkHref && item.linkLabel ? (
-                    <p>
-                      <Link href={item.linkHref} className="font-medium text-[#2563EB] hover:underline">
-                        {item.linkLabel}
-                      </Link>
-                    </p>
-                  ) : null}
+                <div className="pb-4 px-5 pt-0 text-[#212529]/85 leading-relaxed border-t border-slate-100">
+                  <div className="pt-3 [&_p]:mb-0">{item.a}</div>
                 </div>
               </div>
             </div>

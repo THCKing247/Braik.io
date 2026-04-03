@@ -20,8 +20,8 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
     id: "cost",
     question: "How much does Braik cost?",
     answer:
-      "Braik uses annual program pricing (Head Coach plan or Athletic Director plan). Player accounts are included—players do not pay for their own logins. Use the calculator on the pricing page for a tailored estimate.",
-    learnMoreHref: "/pricing#how-much-braik-costs",
+      "Braik uses annual program pricing based on teams, roster size, optional video add-ons, and onboarding. Player accounts are included—players do not pay for their own logins. See the pricing page for line items and example totals.",
+    learnMoreHref: "/pricing#core-platform",
     learnMoreLabel: "View pricing details",
   },
   {

@@ -85,7 +85,7 @@ export default function AboutPage() {
               </p>
               <p className="text-sm text-[#6c757d]">
                 Questions about cost? Start with{" "}
-                <Link href="/pricing#how-much-braik-costs" className="text-[#2563EB] font-medium hover:underline">
+                <Link href="/pricing#core-platform" className="text-[#2563EB] font-medium hover:underline">
                   pricing
                 </Link>{" "}
                 or the{" "}

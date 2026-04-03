@@ -4,13 +4,28 @@ import { requireTeamAccess } from "@/lib/auth/rbac"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { isOpenAIConfigured } from "@/lib/braik-ai/openai-client"
 import { synthesizeCoachSpeech, COACH_B_TTS_MAX_INPUT_CHARS } from "@/lib/braik-ai/coach-b-tts"
+import { resolveVoiceModeFromInput, type VoiceContext } from "@/lib/braik-ai/resolve-voice-mode"
+import { buildCoachBTtsInstructions } from "@/lib/config/voice-modes"
+import { VOICE_CONFIG } from "@/lib/config/voice"
+import { parseCoachBVoiceRequest } from "@/lib/braik-ai/coach-b-voice-request"
+import { resolveCoachBVoiceProfile } from "@/lib/braik-ai/resolve-coach-b-voice-profile"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+function parseVoiceContext(raw: unknown): VoiceContext | undefined {
+  if (!raw || typeof raw !== "object") return undefined
+  const o = raw as Record<string, unknown>
+  const page = typeof o.page === "string" ? o.page.trim().slice(0, 128) : undefined
+  const action = typeof o.action === "string" ? o.action.trim().slice(0, 128) : undefined
+  const intent = typeof o.intent === "string" ? o.intent.trim().slice(0, 128) : undefined
+  if (!page && !action && !intent) return undefined
+  return { ...(page ? { page } : {}), ...(action ? { action } : {}), ...(intent ? { intent } : {}) }
+}
+
 /**
  * POST /api/ai/tts
- * Body: { text?: string, spokenSummary?: string, teamId?: string, voice?: string }
+ * Body: { text?, spokenSummary?, teamId?, context?: { page?, action?, intent? }, coachVoice?: { ... } }
  * Returns raw audio (audio/mpeg). Use spokenSummary for concise playback when text is long.
  */
 export async function POST(req: Request) {
@@ -27,7 +42,8 @@ export async function POST(req: Request) {
     text?: string
     spokenSummary?: string
     teamId?: string
-    voice?: string
+    context?: unknown
+    coachVoice?: unknown
   }
   try {
     body = await req.json()
@@ -65,16 +81,63 @@ export async function POST(req: Request) {
       ? `${speakSource.slice(0, COACH_B_TTS_MAX_INPUT_CHARS - 1)}…`
       : speakSource
 
+  const voiceCtx = parseVoiceContext(body.context)
+  const cv = parseCoachBVoiceRequest(body.coachVoice)
+  const mode = resolveVoiceModeFromInput({
+    page: cv?.page ?? voiceCtx?.page,
+    action: cv?.action ?? voiceCtx?.action,
+    intent: cv?.intent ?? voiceCtx?.intent,
+    isLiveGame: cv?.isLiveGame,
+    isPractice: cv?.isPractice,
+    isMessaging: cv?.isMessaging,
+    isSidelineModeEnabled: cv?.sidelineMode,
+    manualModeOverride: cv?.voiceModeOverride ?? null,
+  })
+
+  const profile = resolveCoachBVoiceProfile({
+    userPreferences: cv?.userVoiceMemory ?? null,
+    teamPreferences: cv?.teamVoiceMemory ?? null,
+    selectedPersonality: cv?.personalityId ?? null,
+    personalityOverride: cv?.personalityOverride ?? null,
+    selectedMode: mode,
+    currentContext: {
+      page: cv?.page ?? voiceCtx?.page,
+      action: cv?.action ?? voiceCtx?.action,
+      intent: cv?.intent ?? voiceCtx?.intent,
+      isMessagingSurface: cv?.isMessaging,
+      isOffensePlayQuestion:
+        cv?.voiceCommand?.intentType === "recommendation" ||
+        cv?.intent === "game_strategy" ||
+        cv?.page === "playbooks",
+    },
+  })
+
+  const instructions = buildCoachBTtsInstructions({
+    profile: {
+      effectiveMode: profile.effectiveMode,
+      toneInstructions: profile.toneInstructions,
+    },
+  })
+
+  const modelUsed = process.env.OPENAI_TTS_MODEL ?? VOICE_CONFIG.model
   console.log("[POST /api/ai/tts]", {
+    event: "coach_b_tts_generation",
     userId: session.user.id,
-    teamId: teamId || null,
+    teamId,
+    model: modelUsed,
+    voice: VOICE_CONFIG.voice,
+    voiceMode: mode,
+    personality: profile.personality,
+    sidelineMode: Boolean(cv?.sidelineMode),
+    voiceContext: voiceCtx ?? null,
     usingSummary: Boolean(summary),
     charCount: speakText.length,
+    instructionsChars: instructions.length,
   })
 
   const result = await synthesizeCoachSpeech({
     text: speakText,
-    voice: typeof body.voice === "string" ? body.voice : undefined,
+    instructions,
   })
 
   if ("error" in result) {

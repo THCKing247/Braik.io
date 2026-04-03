@@ -13,8 +13,11 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { resolveVoiceModeFromInput } from "@/lib/braik-ai/resolve-voice-mode"
+import { resolveCoachBVoiceProfile } from "@/lib/braik-ai/resolve-coach-b-voice-profile"
+import type { CoachBVoiceRequestFields } from "@/lib/braik-ai/coach-b-voice-request"
 
-const CONFIRM_RE = /^(yes|yeah|yep|send it|confirm|go ahead|do it)\b/i
+const CONFIRM_RE = /^(yes|yeah|yep|sure|ok|okay|send it|confirm|go ahead|do it)\b/i
 
 export type CoachBChatResult =
   | { type: "response"; response: string; usage?: undefined; usageStatus?: undefined }
@@ -57,6 +60,64 @@ export interface RunCoachBChatParams {
   enableActionTools?: boolean
   /** Forwarded to proposal execution so create_event can call the calendar API with the user’s cookies. */
   incomingRequest?: Request | null
+  /** Coach B Voice OS: personality, sideline, memory, voice command metadata. */
+  coachVoice?: CoachBVoiceRequestFields | null
+}
+
+function buildCoachVoicePromptSuffix(cv: CoachBVoiceRequestFields | null | undefined): string | null {
+  if (!cv) return null
+  const mode = resolveVoiceModeFromInput({
+    page: cv.page,
+    action: cv.action,
+    intent: cv.intent,
+    isLiveGame: cv.isLiveGame,
+    isPractice: cv.isPractice,
+    isMessaging: cv.isMessaging,
+    isSidelineModeEnabled: cv.sidelineMode,
+    manualModeOverride: cv.voiceModeOverride ?? null,
+  })
+  const profile = resolveCoachBVoiceProfile({
+    userPreferences: cv.userVoiceMemory ?? null,
+    teamPreferences: cv.teamVoiceMemory ?? null,
+    selectedPersonality: cv.personalityId ?? null,
+    personalityOverride: cv.personalityOverride ?? null,
+    selectedMode: mode,
+    currentContext: {
+      page: cv.page,
+      action: cv.action,
+      intent: cv.intent,
+      isMessagingSurface: cv.isMessaging,
+      isOffensePlayQuestion:
+        cv.voiceCommand?.intentType === "recommendation" ||
+        cv.intent === "game_strategy" ||
+        cv.page === "playbooks",
+    },
+  })
+
+  console.log("[Coach B Voice]", {
+    personality: profile.personality,
+    personalityLabel: profile.personalityLabel,
+    voiceMode: mode,
+    sidelineMode: Boolean(cv.sidelineMode),
+    voiceCommandIntent: cv.voiceCommand?.intentType ?? null,
+    voiceCommandAction: cv.voiceCommand?.actionName ?? null,
+  })
+
+  const parts: string[] = [
+    "--- Coach B voice profile (delivery) ---",
+    profile.textResponseRules,
+  ]
+  if (cv.sidelineMode) {
+    parts.push(
+      "Sideline mode: Keep the answer to one short sentence for the main point unless the user explicitly asks for more detail.",
+    )
+  }
+  if (cv.voiceCommand?.intentType === "recommendation") {
+    parts.push(
+      "Voice intent: tactical recommendation — state the call or read first, then at most one or two short football reasons.",
+    )
+  }
+  return parts.join("\n")
 }
 
 /**
@@ -150,6 +211,7 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
   }
 
   const coordinatorAnalysis = runCoordinatorTool(context, message)
+  const coachVoicePromptSuffix = buildCoachVoicePromptSuffix(params.coachVoice ?? null)
   const prompt = buildCoachBPrompt({
     context,
     message,
@@ -157,6 +219,7 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
     coordinatorAnalysis,
     role: viewerRoleLabel,
     enableActionTools: Boolean(params.enableActionTools && teamId),
+    coachVoicePromptSuffix,
   })
 
   trackProductEventServer({

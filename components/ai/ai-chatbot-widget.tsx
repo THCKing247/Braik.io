@@ -13,6 +13,12 @@ import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { MobileFab } from "@/components/mobile/mobile-fab"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
+import { inferPageFromPathname } from "@/lib/braik-ai/resolve-voice-mode"
+import { classifyVoiceCommand } from "@/lib/braik-ai/voice-command-classifier"
+import { getCoachBNavigationHref, navigationActionLabel } from "@/lib/braik-ai/coach-b-voice-navigation"
+import { useCoachBVoiceSettings } from "@/lib/hooks/use-coach-b-voice-settings"
+import { COACH_PERSONALITIES, type CoachPersonalityId } from "@/lib/config/coach-personalities"
+import type { CoachBVoiceRequestFields } from "@/lib/braik-ai/coach-b-voice-request"
 
 interface Message {
   id: string
@@ -43,17 +49,67 @@ interface AIChatbotWidgetProps {
   primaryColor?: string
 }
 
-/** Above this length, send a short spokenSummary so playback stays concise (full text stays in chat). */
-const TTS_LONG_THRESHOLD = 900
+/** Above this length, send spokenSummary: 1–2 sentences for voice; full text stays in chat only. */
+const TTS_SUMMARY_ABOVE_CHARS = 320
+const TTS_SPOKEN_SUMMARY_MAX_CHARS = 380
 
-function deriveSpokenPayload(full: string): { text: string; spokenSummary?: string } {
+function takeFirstSentences(text: string, maxSentences: number): string {
+  const normalized = text.replace(/\s+/g, " ").trim()
+  const split = normalized.split(/(?<=[.!?])\s+/)
+  const parts = split.length ? split : [normalized]
+  const joined = parts
+    .filter(Boolean)
+    .slice(0, maxSentences)
+    .join(" ")
+    .trim()
+  return joined || normalized.slice(0, TTS_SPOKEN_SUMMARY_MAX_CHARS)
+}
+
+function deriveSpokenPayload(
+  full: string,
+  opts?: { sidelineMode?: boolean }
+): { text: string; spokenSummary?: string } {
   const t = full.trim()
-  if (t.length <= TTS_LONG_THRESHOLD) return { text: t }
-  const firstBlock = t.split(/\n\n+/)[0]?.trim() || t.slice(0, 500)
-  const clip = firstBlock.length > 750 ? `${firstBlock.slice(0, 750)}…` : firstBlock
+  const sideline = Boolean(opts?.sidelineMode)
+  const threshold = sideline ? 120 : TTS_SUMMARY_ABOVE_CHARS
+  const maxSummaryChars = sideline ? 220 : TTS_SPOKEN_SUMMARY_MAX_CHARS
+  if (t.length <= threshold && !sideline) return { text: t }
+  if (sideline && t.length <= maxSummaryChars) return { text: t }
+
+  let summary = takeFirstSentences(t, sideline ? 1 : 2)
+  if (summary.length > maxSummaryChars) {
+    summary = `${summary.slice(0, maxSummaryChars - 1)}…`
+  }
+  if (!sideline && summary.length >= t.length * 0.95) {
+    const cut = t.slice(0, 280).trimEnd()
+    const lastSpace = cut.lastIndexOf(" ")
+    summary = `${(lastSpace > 200 ? cut.slice(0, lastSpace) : cut)}…`
+  }
+
   return {
     text: t,
-    spokenSummary: `${clip} More detail is in the chat message.`,
+    spokenSummary: `${summary} Full answer is in the chat.`,
+  }
+}
+
+function buildCoachVoiceFields(args: {
+  pathname: string | null
+  isPlayEditorRoute: boolean
+  personalityId: CoachPersonalityId
+  sidelineMode: boolean
+  memory: CoachBVoiceRequestFields["userVoiceMemory"]
+  voiceCommand?: CoachBVoiceRequestFields["voiceCommand"]
+}): CoachBVoiceRequestFields {
+  const page = inferPageFromPathname(args.pathname)
+  const isMessaging = args.pathname?.toLowerCase().includes("message") ?? false
+  return {
+    page,
+    ...(args.isPlayEditorRoute ? { intent: "game_strategy" as const } : {}),
+    personalityId: args.personalityId,
+    sidelineMode: args.sidelineMode,
+    userVoiceMemory: args.memory ?? undefined,
+    isMessaging,
+    ...(args.voiceCommand ? { voiceCommand: args.voiceCommand } : {}),
   }
 }
 
@@ -77,8 +133,8 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const router = useRouter()
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
   const [feedbackVoted, setFeedbackVoted] = useState<Set<string>>(() => new Set())
-  /** Auto-request TTS and play when new assistant messages arrive */
-  const [autoSpeakMode, setAutoSpeakMode] = useState(false)
+  const { settings: voiceSettings, hydrated: voiceSettingsHydrated, setPersonalityId, setSidelineMode, setVoiceRepliesEnabled, setAutoPlayResponses } =
+    useCoachBVoiceSettings(teamId)
   const [voicePhase, setVoicePhase] = useState<"idle" | "arming" | "recording" | "processing">("idle")
   /** True while pointer is down but left the mic button (release will cancel). */
   const [voiceDragCancel, setVoiceDragCancel] = useState(false)
@@ -142,13 +198,26 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   }, [messages])
 
   const playAssistantTts = useCallback(
-    async (messageId: string, content: string) => {
+    async (messageId: string, content: string, opts?: { actionType?: string }) => {
+      if (!voiceSettingsHydrated || !voiceSettings.voiceRepliesEnabled) return
       setTtsError(null)
       setTtsLoadingId(messageId)
       try {
         coachBAudioRef.current?.pause()
         coachBAudioRef.current = null
-        const payload = deriveSpokenPayload(content)
+        const payload = deriveSpokenPayload(content, { sidelineMode: voiceSettings.sidelineMode })
+        const coachVoice = buildCoachVoiceFields({
+          pathname,
+          isPlayEditorRoute,
+          personalityId: voiceSettings.personalityId,
+          sidelineMode: voiceSettings.sidelineMode,
+          memory: voiceSettings.memory,
+        })
+        const context = {
+          page: inferPageFromPathname(pathname),
+          ...(opts?.actionType ? { action: opts.actionType } : {}),
+          ...(isPlayEditorRoute ? { intent: "game_strategy" as const } : {}),
+        }
         const res = await fetch("/api/ai/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -156,6 +225,8 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
             teamId,
             text: payload.text,
             ...(payload.spokenSummary ? { spokenSummary: payload.spokenSummary } : {}),
+            context,
+            coachVoice,
           }),
         })
         if (!res.ok) {
@@ -180,7 +251,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         setTtsLoadingId(null)
       }
     },
-    [teamId]
+    [teamId, pathname, isPlayEditorRoute, voiceSettings, voiceSettingsHydrated]
   )
 
   /** Auto-play TTS only when a new assistant message is appended (not when toggling Voice output on). */
@@ -192,11 +263,11 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
     const grew = len > prevMessagesLenRef.current
     prevMessagesLenRef.current = len
-    if (!grew || !autoSpeakMode) return
+    if (!grew || !voiceSettingsHydrated || !voiceSettings.voiceRepliesEnabled || !voiceSettings.autoPlayResponses) return
     const last = messages[len - 1]
     if (last.role !== "assistant" || last.type === "error") return
-    void playAssistantTts(last.id, last.content)
-  }, [messages, autoSpeakMode, playAssistantTts])
+    void playAssistantTts(last.id, last.content, { actionType: last.actionType })
+  }, [messages, voiceSettingsHydrated, voiceSettings.voiceRepliesEnabled, voiceSettings.autoPlayResponses, playAssistantTts])
 
   useEffect(() => {
     return () => {
@@ -205,7 +276,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     }
   }, [])
 
-  const CONFIRM_RE = /^(yes|yeah|yep|send it|confirm|go ahead|do it)\b/i
+  const CONFIRM_RE = /^(yes|yeah|yep|sure|ok|okay|send it|confirm|go ahead|do it)\b/i
 
   /** Same Coach B pipeline as typed chat; used after voice transcription. */
   const callCoachBChat = async (opts: {
@@ -213,10 +284,20 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
     conversationHistory: Array<{ role: string; content: string }>
     inputSource: "text" | "voice"
     confirmProposalId?: string
+    voiceCommand?: CoachBVoiceRequestFields["voiceCommand"]
   }) => {
     const idempotencyKey =
       typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
     lastRequestIdempotencyRef.current = idempotencyKey
+
+    const coachVoice = buildCoachVoiceFields({
+      pathname,
+      isPlayEditorRoute,
+      personalityId: voiceSettings.personalityId,
+      sidelineMode: voiceSettings.sidelineMode,
+      memory: voiceSettings.memory,
+      voiceCommand: opts.voiceCommand,
+    })
 
     const response = await fetch("/api/ai/chat", {
       method: "POST",
@@ -230,6 +311,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         confirmProposalId: opts.confirmProposalId,
         idempotencyKey,
         enableActionTools: true,
+        coachVoice,
       }),
     })
 
@@ -397,6 +479,14 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         return
       }
 
+      const classification = classifyVoiceCommand(transcript, { pathname: pathname ?? undefined, teamId })
+      console.log("[Coach B Voice OS] transcript", {
+        charCount: transcript.length,
+        intentType: classification.intentType,
+        actionName: classification.actionName ?? null,
+        confidence: classification.confidence,
+      })
+
       const userMessage: Message = {
         id: Date.now().toString(),
         role: "user",
@@ -406,15 +496,46 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       }
       setMessages((prev) => [...prev, userMessage])
 
+      if (
+        classification.intentType === "navigation" &&
+        classification.confidence >= 0.65 &&
+        classification.actionName
+      ) {
+        const href = getCoachBNavigationHref(teamId, classification.actionName)
+        if (href) {
+          router.push(href)
+          const ack: Message = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: navigationActionLabel(classification.actionName),
+            timestamp: new Date(),
+            type: "response",
+          }
+          setMessages((prev) => [...prev, ack])
+          return
+        }
+      }
+
       const historyForApi = priorMessages.map((m) => ({ role: m.role, content: m.content }))
       const confirmProposalId =
         activeProposalId && CONFIRM_RE.test(transcript) ? activeProposalId : undefined
+
+      const voiceCommand =
+        classification.intentType === "chat"
+          ? undefined
+          : {
+              intentType: classification.intentType,
+              actionName: classification.actionName,
+              confidence: classification.confidence,
+              requiresConfirmation: classification.requiresConfirmation,
+            }
 
       const { ok, data } = await callCoachBChat({
         message: transcript,
         conversationHistory: historyForApi,
         inputSource: "voice",
         confirmProposalId,
+        voiceCommand,
       })
 
       if (!ok) {
@@ -790,12 +911,16 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                           <p className="text-[10px] uppercase tracking-wide opacity-80 mb-1">Voice transcript</p>
                         )}
                         <p className="text-sm">{message.content}</p>
-                        {message.role === "assistant" && message.type !== "error" && (
+                        {message.role === "assistant" && message.type !== "error" && voiceSettings.voiceRepliesEnabled && (
                           <div className="mt-2 flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => void playAssistantTts(message.id, message.content)}
-                              disabled={ttsLoadingId === message.id}
+                              onClick={() =>
+                                void playAssistantTts(message.id, message.content, {
+                                  actionType: message.actionType,
+                                })
+                              }
+                              disabled={ttsLoadingId === message.id || !voiceSettingsHydrated}
                               className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-gray-50 p-1.5 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                               title="Play aloud"
                               aria-label="Play message aloud"
@@ -901,19 +1026,57 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
 
               {/* Input area: pinned to bottom */}
               <div className="shrink-0 relative border-t border-[#dbe3f0] p-4 bg-white">
+                <details className="mb-2 rounded-md border border-gray-200 bg-gray-50/80 px-2 py-1.5 text-xs text-gray-700">
+                  <summary className="cursor-pointer select-none font-medium text-gray-800">Coach and voice</summary>
+                  <div className="mt-2 flex flex-col gap-2 pb-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={voiceSettings.voiceRepliesEnabled}
+                        onChange={(e) => {
+                          setVoiceRepliesEnabled(e.target.checked)
+                          setTtsError(null)
+                        }}
+                        className="rounded border-gray-300"
+                      />
+                      Voice replies (read aloud)
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={voiceSettings.autoPlayResponses}
+                        onChange={(e) => setAutoPlayResponses(e.target.checked)}
+                        disabled={!voiceSettings.voiceRepliesEnabled}
+                        className="rounded border-gray-300 disabled:opacity-50"
+                      />
+                      Auto-play new responses
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={voiceSettings.sidelineMode}
+                        onChange={(e) => setSidelineMode(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      Sideline mode (short answers, faster voice)
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] text-gray-600">Coach style</span>
+                      <select
+                        value={voiceSettings.personalityId}
+                        onChange={(e) => setPersonalityId(e.target.value as CoachPersonalityId)}
+                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                      >
+                        {(Object.keys(COACH_PERSONALITIES) as CoachPersonalityId[]).map((id) => (
+                          <option key={id} value={id}>
+                            {COACH_PERSONALITIES[id].label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </details>
                 <div className="flex flex-col gap-2 mb-2">
-                  <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={autoSpeakMode}
-                      onChange={(e) => {
-                        setAutoSpeakMode(e.target.checked)
-                        setTtsError(null)
-                      }}
-                      className="rounded border-gray-300"
-                    />
-                    Speak responses automatically (voice output)
-                  </label>
                   {canUseAdvancedActions && (
                     <div className="flex items-center gap-2 text-[10px] text-gray-600 min-h-[1.25rem]">
                       {voicePhase === "processing" && (
@@ -985,8 +1148,10 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                       onPointerEnter={handleMicPointerEnter}
                       disabled={loading || uploading || voicePhase === "processing"}
                       className={cn(
-                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 transition-colors",
+                        "inline-flex shrink-0 items-center justify-center rounded-lg border-2 transition-colors",
+                        voiceSettings.sidelineMode ? "h-12 w-12 lg:h-14 lg:w-14" : "h-9 w-9",
                         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B2A5B]",
+                        voicePhase === "processing" && "ring-2 ring-amber-400 ring-offset-1",
                         voicePhase === "recording"
                           ? "border-red-600 bg-red-50 text-red-600 shadow-inner ring-2 ring-red-200"
                           : voicePhase === "arming"
@@ -998,9 +1163,9 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                       aria-label="Hold to record a voice message"
                     >
                       {voicePhase === "processing" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        <Loader2 className={voiceSettings.sidelineMode ? "h-6 w-6 animate-spin" : "h-4 w-4 animate-spin"} aria-hidden />
                       ) : (
-                        <Mic className="h-4 w-4" aria-hidden />
+                        <Mic className={voiceSettings.sidelineMode ? "h-6 w-6" : "h-4 w-4"} aria-hidden />
                       )}
                     </button>
                   )}

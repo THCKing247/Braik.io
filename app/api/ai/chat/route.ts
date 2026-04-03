@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { runCoachBChat } from "@/lib/braik-ai/coach-b-chat-handler"
 import { isOpenAIConfigured } from "@/lib/braik-ai/openai-client"
+import { parseCoachBVoiceRequest } from "@/lib/braik-ai/coach-b-voice-request"
 
 export async function POST(req: Request) {
   if (!isOpenAIConfigured()) {
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
     confirmProposalId?: string | null
     idempotencyKey?: string | null
     enableActionTools?: boolean
+    coachVoice?: unknown
   }
   try {
     body = await req.json()
@@ -39,6 +41,15 @@ export async function POST(req: Request) {
   const teamId = typeof body?.teamId === "string" && body.teamId.trim() ? body.teamId.trim() : undefined
   const inputSource = body.inputSource === "voice" ? "voice" : "text"
   const enableActionTools = body.enableActionTools !== false
+  const coachVoice = parseCoachBVoiceRequest(body.coachVoice)
+
+  if (coachVoice?.voiceCommand) {
+    console.log("[POST /api/ai/chat] voice command meta", {
+      intentType: coachVoice.voiceCommand.intentType,
+      actionName: coachVoice.voiceCommand.actionName ?? null,
+      confidence: coachVoice.voiceCommand.confidence ?? null,
+    })
+  }
 
   const result = await runCoachBChat({
     message,
@@ -50,6 +61,7 @@ export async function POST(req: Request) {
     idempotencyKey: body.idempotencyKey ?? null,
     enableActionTools,
     incomingRequest: req,
+    coachVoice: coachVoice ?? null,
   })
 
   if (result.type === "error") {

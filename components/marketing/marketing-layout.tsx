@@ -36,6 +36,7 @@ export function MarketingCard({
   footerNote,
   subtitle,
   className,
+  variant = "light",
 }: {
   title: string
   children: ReactNode
@@ -43,12 +44,23 @@ export function MarketingCard({
   footerNote?: string
   subtitle?: string
   className?: string
+  /** `dark` = glass panel on navy/blue gradient sections (landing). */
+  variant?: "light" | "dark"
 }) {
+  const isDark = variant === "dark"
   return (
     <div
       className={cn(
-        "relative rounded-2xl border border-slate-200/90 bg-white p-6 md:p-8 shadow-sm transition-all duration-200",
-        "hover:shadow-md hover:border-[#3B82F6]/30",
+        "relative rounded-xl border p-6 md:p-8 transition-all duration-300",
+        isDark
+          ? [
+              "border-white/15 bg-white/[0.06] backdrop-blur-md shadow-xl shadow-black/25",
+              "hover:border-blue-400/25 hover:bg-white/[0.09] hover:shadow-2xl hover:shadow-blue-950/40 hover:-translate-y-0.5",
+            ]
+          : [
+              "border-slate-200/90 bg-white shadow-sm",
+              "hover:shadow-lg hover:border-[#3B82F6]/35 hover:-translate-y-0.5",
+            ],
         badge && "pt-8 md:pt-9",
         className
       )}
@@ -60,15 +72,27 @@ export function MarketingCard({
       ) : null}
       <h3
         className={cn(
-          "text-lg md:text-xl font-athletic font-semibold text-[#212529] uppercase tracking-wide pr-2",
-          subtitle ? "mb-2" : "mb-4"
+          "text-lg md:text-xl font-athletic font-semibold uppercase tracking-wide pr-2",
+          subtitle ? "mb-2" : "mb-4",
+          isDark ? "text-white" : "text-[#212529]"
         )}
       >
         {title}
       </h3>
-      {subtitle ? <p className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-6">{subtitle}</p> : null}
-      <div className="text-[#212529]/85 space-y-4 text-sm md:text-base leading-relaxed">{children}</div>
-      {footerNote ? <p className="mt-4 text-xs text-[#64748B] leading-relaxed">{footerNote}</p> : null}
+      {subtitle ? (
+        <p className={cn("text-2xl md:text-3xl font-bold mb-6", isDark ? "text-white" : "text-[#0F172A]")}>{subtitle}</p>
+      ) : null}
+      <div
+        className={cn(
+          "space-y-4 text-sm md:text-base leading-relaxed",
+          isDark ? "text-slate-200/95" : "text-[#212529]/85"
+        )}
+      >
+        {children}
+      </div>
+      {footerNote ? (
+        <p className={cn("mt-4 text-xs leading-relaxed", isDark ? "text-slate-400" : "text-[#64748B]")}>{footerNote}</p>
+      ) : null}
     </div>
   )
 }

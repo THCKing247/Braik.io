@@ -1,4 +1,5 @@
 import { executeStoredProposal } from "@/lib/braik-ai/execute-confirmed-proposal"
+import type { SchedulingResolutionContext } from "@/lib/braik-ai/resolve-scheduling-slots"
 import {
   findLatestPendingProposalForUserTeam,
   getProposal,
@@ -31,8 +32,10 @@ export async function resolvePendingConfirmationTurn(params: {
   confirmProposalId: string | null | undefined
   idempotencyKey: string | null | undefined
   incomingRequest: Request | null
+  schedulingContext?: SchedulingResolutionContext | null
 }): Promise<PendingConfirmationResolved> {
-  const { message, teamId, sessionUserId, confirmProposalId, idempotencyKey, incomingRequest } = params
+  const { message, teamId, sessionUserId, confirmProposalId, idempotencyKey, incomingRequest, schedulingContext } =
+    params
   const trimmed = message.trim()
 
   let proposalId = typeof confirmProposalId === "string" ? confirmProposalId.trim() : ""
@@ -98,7 +101,11 @@ export async function resolvePendingConfirmationTurn(params: {
     teamId: pending.teamId,
   })
 
-  const exec = await executeStoredProposal(proposalId, { idempotencyKey, incomingRequest })
+  const exec = await executeStoredProposal(proposalId, {
+    idempotencyKey,
+    incomingRequest,
+    schedulingContext: schedulingContext ?? null,
+  })
 
   if (!exec.success) {
     console.error("[Coach B pending resolver] execution failed", {

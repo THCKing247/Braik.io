@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { runCoachBChat } from "@/lib/braik-ai/coach-b-chat-handler"
 import { isOpenAIConfigured } from "@/lib/braik-ai/openai-client"
 import { parseCoachBVoiceRequest } from "@/lib/braik-ai/coach-b-voice-request"
+import { parseClientSchedulingContext } from "@/lib/braik-ai/resolve-scheduling-slots"
 
 export async function POST(req: Request) {
   if (!isOpenAIConfigured()) {
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
     idempotencyKey?: string | null
     enableActionTools?: boolean
     coachVoice?: unknown
+    schedulingContext?: unknown
   }
   try {
     body = await req.json()
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
   const inputSource = body.inputSource === "voice" ? "voice" : "text"
   const enableActionTools = body.enableActionTools !== false
   const coachVoice = parseCoachBVoiceRequest(body.coachVoice)
+  const schedulingContext = parseClientSchedulingContext(body.schedulingContext)
 
   if (coachVoice?.voiceCommand) {
     console.log("[POST /api/ai/chat] voice command meta", {
@@ -62,6 +65,7 @@ export async function POST(req: Request) {
     enableActionTools,
     incomingRequest: req,
     coachVoice: coachVoice ?? null,
+    schedulingContext: schedulingContext ?? null,
   })
 
   if (result.type === "error") {

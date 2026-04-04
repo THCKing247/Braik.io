@@ -9,18 +9,28 @@ export const COACH_B_TOOLS: ChatCompletionTool[] = [
     function: {
       name: "create_event",
       description:
-        "PRIMARY for scheduling: practice, workout, meeting, game, or anything 'on the calendar' with a time and optional location. Use ISO 8601 for start_iso and end_iso (same day if only time given). Set event_type to practice when they say practice. Include location when they name a field or place. Do NOT use send_notification or send_team_message to substitute for this—create the calendar row first.",
+        "PRIMARY for scheduling: practice, workout, meeting, game, or anything on the team calendar with a time and optional location. Extract RAW fields only — do NOT compute final calendar dates or ISO timestamps. Put the day in relativeDateText (e.g. tomorrow, today, Friday) and/or explicitDateText when they give a calendar date. Put the clock time in timeText (e.g. 6 pm). Never invent or guess resolved dates for the user-visible schedule. Set event_type to practice when they say practice. Include location when they name a field or place. Do NOT use send_notification or send_team_message instead of this tool.",
       parameters: {
         type: "object",
         properties: {
           title: { type: "string" },
-          start_iso: { type: "string", description: "Start time ISO 8601" },
-          end_iso: { type: "string", description: "End time ISO 8601" },
           event_type: { type: "string", enum: ["practice", "game", "meeting", "other"] },
+          relativeDateText: {
+            type: "string",
+            description:
+              "Raw words for the day if not an explicit calendar date: e.g. tomorrow, today, tonight, Friday. Leave empty if explicitDateText is set.",
+          },
+          explicitDateText: {
+            type: "string",
+            description:
+              "Raw date phrase if given (April 5, 4/5/2026, 2026-04-05). Leave empty if relativeDateText is enough.",
+          },
+          timeText: { type: "string", description: "Raw time phrase: e.g. 6 pm, 6:30 pm, 18:00" },
           location: { type: "string" },
           audience: { type: "string", enum: ["team", "parents", "staff", "all"] },
+          durationMinutes: { type: "number", description: "Optional length in minutes; app defaults by event type if omitted." },
         },
-        required: ["title", "start_iso", "end_iso", "event_type"],
+        required: ["title", "event_type", "timeText"],
       },
     },
   },

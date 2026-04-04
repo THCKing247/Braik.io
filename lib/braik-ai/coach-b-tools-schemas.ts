@@ -1,6 +1,27 @@
 import { z } from "zod"
 
-export const createEventToolSchema = z.object({
+/**
+ * Model/tool output for create_event: raw scheduling fields only.
+ * The app resolves relative phrases (tomorrow, Friday) and times using the user's local date + IANA zone.
+ */
+export const createEventSlotsSchema = z.object({
+  title: z.string().min(1).max(500),
+  event_type: z.enum(["practice", "game", "meeting", "other"]),
+  location: z.string().max(500).optional().nullable(),
+  audience: z.enum(["team", "parents", "staff", "all"]).optional(),
+  /** e.g. "tomorrow", "today", "Friday" — resolved in code, not by the model as a final timestamp */
+  relativeDateText: z.string().max(200).optional().nullable(),
+  /** e.g. "April 5", "4/5/2026", "2026-04-05" — optional if relativeDateText is enough */
+  explicitDateText: z.string().max(200).optional().nullable(),
+  /** e.g. "6 pm", "18:00" */
+  timeText: z.string().min(1).max(120),
+  durationMinutes: z.number().int().min(15).max(24 * 60).optional().nullable(),
+})
+
+export type CreateEventSlots = z.infer<typeof createEventSlotsSchema>
+
+/** After resolution / legacy stored payloads: concrete instants for DB + calendar API. */
+export const createEventResolvedSchema = z.object({
   title: z.string().min(1).max(500),
   start_iso: z.string().min(1),
   end_iso: z.string().min(1),
@@ -8,6 +29,13 @@ export const createEventToolSchema = z.object({
   location: z.string().max(500).optional().nullable(),
   audience: z.enum(["team", "parents", "staff", "all"]).optional(),
 })
+
+/** @deprecated use createEventResolvedSchema — alias kept for calendar + executor imports */
+export const createEventToolSchema = createEventResolvedSchema
+
+export type CreateEventResolvedArgs = z.infer<typeof createEventResolvedSchema>
+/** Resolved create_event args (ISO instants). Same as CreateEventResolvedArgs. */
+export type CreateEventToolArgs = CreateEventResolvedArgs
 
 export const movePlayerDepthChartSchema = z.object({
   jersey_number: z.number().int().positive().optional(),
@@ -35,7 +63,6 @@ export const sendNotificationSchema = z.object({
   send_push: z.boolean().optional(),
 })
 
-export type CreateEventToolArgs = z.infer<typeof createEventToolSchema>
 export type MovePlayerDepthChartArgs = z.infer<typeof movePlayerDepthChartSchema>
 export type DraftTeamMessageArgs = z.infer<typeof draftTeamMessageSchema>
 export type SendTeamMessageArgs = z.infer<typeof sendTeamMessageSchema>

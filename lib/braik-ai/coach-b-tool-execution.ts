@@ -7,12 +7,17 @@ import { createProposal, type ProposalActionType } from "@/lib/braik-ai/action-p
 import { requireTeamPermission } from "@/lib/auth/rbac"
 import { checkCoachBActionRateLimit } from "@/lib/braik-ai/coach-b-rate-limit"
 import {
-  createEventToolSchema,
+  createEventSlotsSchema,
   draftTeamMessageSchema,
   movePlayerDepthChartSchema,
   sendNotificationSchema,
   sendTeamMessageSchema,
 } from "@/lib/braik-ai/coach-b-tools-schemas"
+import {
+  defaultSchedulingResolutionContext,
+  resolveCreateEventSlots,
+  type SchedulingResolutionContext,
+} from "@/lib/braik-ai/resolve-scheduling-slots"
 
 export type ToolHandlerResult =
   | {
@@ -34,6 +39,8 @@ export interface ToolExecutionContext {
   teamId: string
   sessionUser: SessionUser
   inputSource: "text" | "voice"
+  /** Client local calendar anchor + IANA zone for resolving “tomorrow”, etc. */
+  schedulingContext?: SchedulingResolutionContext
 }
 
 async function resolvePlayerIdForTeam(teamId: string, jerseyNumber: number): Promise<string | null> {
@@ -48,23 +55,47 @@ async function resolvePlayerIdForTeam(teamId: string, jerseyNumber: number): Pro
 }
 
 async function executeCreateEvent(args: unknown, ctx: ToolExecutionContext): Promise<ToolHandlerResult> {
-  const parsed = createEventToolSchema.safeParse(args)
+  const parsed = createEventSlotsSchema.safeParse(args)
   if (!parsed.success) {
     return { type: "response", response: `Could not create event: invalid fields (${parsed.error.message}).` }
   }
-  console.log("[Coach B] create_event tool — parsed payload (auto-execute)", {
+  const sched = ctx.schedulingContext ?? defaultSchedulingResolutionContext()
+  console.log("[Coach B] create_event selected — raw slots (model)", {
     teamId: ctx.teamId,
     userId: ctx.sessionUser.id,
-    title: parsed.data.title,
-    start_iso: parsed.data.start_iso,
-    end_iso: parsed.data.end_iso,
-    event_type: parsed.data.event_type,
-    location: parsed.data.location ?? null,
-    audience: parsed.data.audience ?? null,
     inputSource: ctx.inputSource,
+    slots: parsed.data,
+    schedulingAnchor: sched,
   })
-  const res = await executeCreateEventInternal(parsed.data, { teamId: ctx.teamId, sessionUser: ctx.sessionUser })
-  if (res.type === "response") return res
+  const resolved = resolveCreateEventSlots(parsed.data, sched)
+  if ("error" in resolved) {
+    return {
+      type: "response",
+      response: resolved.error,
+      spokenText: resolved.error,
+    }
+  }
+  console.log("[Coach B] create_event — resolved payload for insert", {
+    teamId: ctx.teamId,
+    start_iso: resolved.resolved.start_iso,
+    end_iso: resolved.resolved.end_iso,
+    title: resolved.resolved.title,
+    event_type: resolved.resolved.event_type,
+  })
+  const res = await executeCreateEventInternal(resolved.resolved, {
+    teamId: ctx.teamId,
+    sessionUser: ctx.sessionUser,
+    inputSource: ctx.inputSource,
+    schedulingDisplay: { timeZone: sched.timeZone, anchorLocalDate: sched.localDate },
+  })
+  if (res.type === "response") {
+    console.error("[Coach B] create_event execution failed (no row)", { teamId: ctx.teamId, message: res.response })
+    return res
+  }
+  console.log("[Coach B] create_event execution succeeded", {
+    teamId: ctx.teamId,
+    eventId: res.result.eventId,
+  })
   return {
     type: "action_executed",
     message: res.message,

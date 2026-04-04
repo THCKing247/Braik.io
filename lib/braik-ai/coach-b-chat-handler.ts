@@ -21,8 +21,9 @@ import {
   isLikelyCalendarSchedulingRequest,
   isLooseCalendarSchedulingHint,
 } from "@/lib/braik-ai/scheduling-intent"
+import type { SchedulingResolutionContext } from "@/lib/braik-ai/resolve-scheduling-slots"
 
-const SCHEDULING_FORCE_SUFFIX = `\n\n[Scheduling] The user is putting a dated item on the team calendar (practice, workout, meeting, etc.). Call create_event with title, start_iso, end_iso, event_type, and location when given. Parse times from their message into ISO 8601. Do not use send_notification or send_team_message for this turn. After the event is saved, the app confirms; you may briefly offer to notify players or parents as a follow-up only.`
+const SCHEDULING_FORCE_SUFFIX = `\n\n[Scheduling] The user is putting a dated item on the team calendar (practice, workout, meeting, etc.). Call create_event with title, event_type, timeText, relativeDateText and/or explicitDateText, and location when given. Do NOT output ISO timestamps or final calendar dates—the app resolves “today”, “tomorrow”, and times in the user’s time zone. Do not use send_notification or send_team_message for this turn. Do not claim the event is saved until the tool runs; after success, you may briefly offer to notify players or parents as a follow-up only.`
 
 export type CoachBChatResult =
   | {
@@ -81,6 +82,8 @@ export interface RunCoachBChatParams {
   enableActionTools?: boolean
   /** Forwarded to proposal execution so create_event can call the calendar API with the user’s cookies. */
   incomingRequest?: Request | null
+  /** Client IANA zone + local YYYY-MM-DD so “tomorrow” and times resolve like the device calendar. */
+  schedulingContext?: SchedulingResolutionContext | null
   /** Coach B Voice OS: personality, sideline, memory, voice command metadata. */
   coachVoice?: CoachBVoiceRequestFields | null
 }
@@ -203,6 +206,7 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
     confirmProposalId: params.confirmProposalId,
     idempotencyKey: params.idempotencyKey,
     incomingRequest: params.incomingRequest ?? null,
+    schedulingContext: params.schedulingContext ?? null,
   })
   if (pendingTurn.handled) {
     if (pendingTurn.kind === "executed") {
@@ -298,6 +302,7 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
         teamId: teamId!,
         sessionUser: params.sessionUser,
         inputSource,
+        schedulingContext: params.schedulingContext ?? undefined,
       }
       let handled = await processCoachBToolMessage(assistantMsg, toolCtx)
 

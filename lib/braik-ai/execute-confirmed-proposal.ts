@@ -3,7 +3,12 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireAuth, requireTeamPermission } from "@/lib/auth/rbac"
 import { getProposal, markExecuted } from "@/lib/braik-ai/action-proposal-store"
-import { createEventToolSchema, sendNotificationSchema, sendTeamMessageSchema } from "@/lib/braik-ai/coach-b-tools-schemas"
+import { sendNotificationSchema, sendTeamMessageSchema } from "@/lib/braik-ai/coach-b-tools-schemas"
+import {
+  defaultSchedulingResolutionContext,
+  schedulingPayloadToResolvedArgs,
+  type SchedulingResolutionContext,
+} from "@/lib/braik-ai/resolve-scheduling-slots"
 import { executeCreateEventInternal } from "@/lib/braik-ai/executors/create-event-internal"
 import { applyDepthChartUpdates } from "@/lib/braik-ai/executors/move-depth-chart-internal"
 import { createTeamCalendarEventThroughApi } from "@/lib/calendar/coach-b-create-event-through-api"
@@ -17,7 +22,11 @@ function mapAnnouncementAudience(aud: string): "all" | "staff" | "players" | "pa
 
 export async function executeStoredProposal(
   proposalId: string,
-  opts: { idempotencyKey?: string | null; incomingRequest?: Request | null }
+  opts: {
+    idempotencyKey?: string | null
+    incomingRequest?: Request | null
+    schedulingContext?: SchedulingResolutionContext | null
+  }
 ): Promise<{ success: boolean; message?: string; executed?: Record<string, unknown> }> {
   const user = await requireAuth()
   const proposal = await getProposal(proposalId)
@@ -46,23 +55,24 @@ export async function executeStoredProposal(
 
   try {
     if (proposal.actionType === "create_event") {
-      const parsed = createEventToolSchema.safeParse(proposal.payload)
-      if (!parsed.success) {
-        console.warn("[Coach B] create_event invalid payload", parsed.error.flatten())
-        return { success: false, message: "Invalid stored event payload." }
+      const schedCtx = opts.schedulingContext ?? defaultSchedulingResolutionContext()
+      const parsed = schedulingPayloadToResolvedArgs(proposal.payload, schedCtx)
+      if (!parsed.ok) {
+        console.warn("[Coach B] create_event invalid or unresolvable payload", { proposalId })
+        return { success: false, message: parsed.error }
       }
 
-      console.log("[Coach B] create_event tool args", {
+      console.log("[Coach B] create_event confirm — resolved args", {
         proposalId,
-        title: parsed.data.title,
-        start_iso: parsed.data.start_iso,
-        end_iso: parsed.data.end_iso,
-        event_type: parsed.data.event_type,
-        audience: parsed.data.audience,
+        title: parsed.resolved.title,
+        start_iso: parsed.resolved.start_iso,
+        end_iso: parsed.resolved.end_iso,
+        event_type: parsed.resolved.event_type,
+        audience: parsed.resolved.audience,
       })
 
       if (opts.incomingRequest) {
-        const api = await createTeamCalendarEventThroughApi(proposal.teamId, parsed.data, opts.incomingRequest)
+        const api = await createTeamCalendarEventThroughApi(proposal.teamId, parsed.resolved, opts.incomingRequest)
         if (!api.ok) {
           console.error("[Coach B] create_event calendar API failed", { proposalId, message: api.message })
           return { success: false, message: api.message }
@@ -71,15 +81,17 @@ export async function executeStoredProposal(
         console.log("[Coach B] create_event execution succeeded", { proposalId, eventId: api.event.id })
         return {
           success: true,
-          message: `Created event "${parsed.data.title}".`,
-          executed: { eventId: api.event.id, title: parsed.data.title },
+          message: `Created event "${parsed.resolved.title}".`,
+          executed: { eventId: api.event.id, title: parsed.resolved.title },
         }
       }
 
       console.log("[Coach B] create_event fallback: executeCreateEventInternal (no Request context)")
-      const res = await executeCreateEventInternal(parsed.data, {
+      const res = await executeCreateEventInternal(parsed.resolved, {
         teamId: proposal.teamId,
         sessionUser,
+        inputSource: "text",
+        schedulingDisplay: { timeZone: schedCtx.timeZone, anchorLocalDate: schedCtx.localDate },
       })
       if (res.type === "response") {
         console.error("[Coach B] create_event internal failed", { proposalId, response: res.response })

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getProposal } from "@/lib/braik-ai/action-proposal-store"
 import { executeStoredProposal } from "@/lib/braik-ai/execute-confirmed-proposal"
+import { parseClientSchedulingContext } from "@/lib/braik-ai/resolve-scheduling-slots"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export const dynamic = "force-dynamic"
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  let body: { proposalId?: string; idempotencyKey?: string | null }
+  let body: { proposalId?: string; idempotencyKey?: string | null; schedulingContext?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -75,10 +76,15 @@ export async function POST(request: Request) {
   }
 
   const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : null
+  const schedulingContext = parseClientSchedulingContext(body.schedulingContext)
 
   console.log("[POST /api/ai/confirm-action]", { proposalId, userId: session.user.id, idempotencyKey })
 
-  const exec = await executeStoredProposal(proposalId, { idempotencyKey, incomingRequest: request })
+  const exec = await executeStoredProposal(proposalId, {
+    idempotencyKey,
+    incomingRequest: request,
+    schedulingContext: schedulingContext ?? null,
+  })
   if (!exec.success) {
     console.warn("[POST /api/ai/confirm-action] execution failed", { proposalId, message: exec.message })
     return NextResponse.json({ success: false, message: exec.message ?? "Failed" }, { status: 400 })

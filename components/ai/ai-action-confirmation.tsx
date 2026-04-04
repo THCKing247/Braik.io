@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { getClientSchedulingContext } from "@/lib/calendar/client-scheduling-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react"
 
@@ -75,6 +76,7 @@ export function AIActionConfirmation({
         body: JSON.stringify({
           proposalId: proposal.id,
           idempotencyKey,
+          schedulingContext: getClientSchedulingContext(),
         }),
       })
 

@@ -7,7 +7,9 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { createNotifications } from "@/lib/utils/notifications"
 import { logEventAction } from "@/lib/audit/structured-logger"
 import { revalidateTeamCalendar, revalidateTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
+import { formatInTimeZone } from "date-fns-tz"
 import type { CreateEventToolArgs } from "@/lib/braik-ai/coach-b-tools-schemas"
+import { addDaysToYmd } from "@/lib/braik-ai/resolve-scheduling-slots"
 
 function visibilityFromAudience(aud: string | undefined): string {
   const visibilityMap: Record<string, string> = {
@@ -19,9 +21,46 @@ function visibilityFromAudience(aud: string | undefined): string {
   return visibilityMap[aud ?? "team"] ?? "TEAM"
 }
 
+function buildCreateEventCopy(args: {
+  title: string
+  start: Date
+  location: string | null | undefined
+  timeZone: string
+  anchorYmd: string
+  inputSource: "text" | "voice"
+}): { message: string; spokenText: string } {
+  const { title, start, location, timeZone, anchorYmd, inputSource } = args
+  const place = location?.trim() ? ` at ${location.trim()}` : ""
+  const ymd = formatInTimeZone(start, timeZone, "yyyy-MM-dd")
+  let dayPhrase: string
+  if (ymd === anchorYmd) dayPhrase = "today"
+  else if (ymd === addDaysToYmd(anchorYmd, 1)) dayPhrase = "tomorrow"
+  else dayPhrase = formatInTimeZone(start, timeZone, "EEEE, MMM d")
+
+  const timeSpoken = formatInTimeZone(start, timeZone, "h:mm a")
+  const timeUi = formatInTimeZone(start, timeZone, "h:mm a")
+  const dateUi = formatInTimeZone(start, timeZone, "EEE, MMM d")
+
+  const message = `Added "${title}" to the calendar for ${dateUi} at ${timeUi}${place}.\n\nWant me to notify players or parents too?`
+
+  if (inputSource === "voice") {
+    const spokenText = `Done. ${title} — ${dayPhrase} at ${timeSpoken}${place}. Want me to notify players or parents?`
+    return { message, spokenText }
+  }
+
+  const spokenText = `Done. ${title} is on the calendar (${dayPhrase} at ${timeSpoken}${place}). Want notifications?`
+  return { message, spokenText }
+}
+
 export async function executeCreateEventInternal(
   a: CreateEventToolArgs,
-  ctx: { teamId: string; sessionUser: SessionUser }
+  ctx: {
+    teamId: string
+    sessionUser: SessionUser
+    inputSource?: "text" | "voice"
+    /** Used for user-facing dates and voice lines (must match scheduling resolution). */
+    schedulingDisplay?: { timeZone: string; anchorLocalDate: string }
+  }
 ): Promise<
   | {
       type: "action_executed"
@@ -169,15 +208,19 @@ export async function executeCreateEventInternal(
   revalidateTeamCalendar(ctx.teamId)
   revalidateTeamDashboardBootstrap(ctx.teamId)
 
-  const timeShort = start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-  const dateShort = start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
-  const loc = a.location?.trim()
-  const place = loc ? ` at ${loc}` : ""
+  const tz = ctx.schedulingDisplay?.timeZone ?? "UTC"
+  const anchorYmd =
+    ctx.schedulingDisplay?.anchorLocalDate ??
+    formatInTimeZone(start, tz, "yyyy-MM-dd")
 
-  const message = `Added "${a.title}" to the calendar for ${dateShort} at ${timeShort}${place}.\n\nWant me to notify players or parents too?`
-
-  /** One short sentence for TTS; full details stay in `message` for the chat UI. */
-  const spokenText = `It's on the calendar — ${a.title}, ${dateShort} at ${timeShort}${place}.`
+  const { message, spokenText } = buildCreateEventCopy({
+    title: a.title,
+    start,
+    location: a.location,
+    timeZone: tz,
+    anchorYmd,
+    inputSource: ctx.inputSource ?? "text",
+  })
 
   console.log("[Coach B create_event] success + follow-up offered", {
     teamId: ctx.teamId,

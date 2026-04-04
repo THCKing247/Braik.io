@@ -53,48 +53,53 @@ export default function Home() {
     <div className="hidden min-h-screen bg-white lg:block">
       <SiteHeader />
 
-      {/* Hero Identity Section */}
-      <section className="relative min-h-[90vh] flex items-center bg-gradient-to-b from-[#F8FAFC] via-white to-white overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#3B82F6]/10 blur-3xl" />
-          <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#60A5FA]/10 blur-3xl" />
-        </div>
-        <div className="container relative mx-auto px-4 py-24 md:py-32">
+      {/* Hero Identity Section — full-viewport photo + gradient overlay (desktop lg+) */}
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden text-white">
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: "url('/images/fog-field.png')" }}
+          aria-hidden
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-black/40"
+          aria-hidden
+        />
+        <div className="container relative z-10 mx-auto px-4 py-20 md:py-28 lg:py-32">
           <div className="max-w-4xl mx-auto text-center space-y-12">
             <ScrollReveal>
               <div className="space-y-7">
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-[1.08]">
+                <h1 className="text-5xl md:text-6xl lg:text-7xl font-athletic font-bold text-white uppercase tracking-tight leading-[1.08] drop-shadow-sm">
                   Braik the busywork.
                   <br />
-                  <span className="text-[#3B82F6]">Run the team.</span>
+                  <span className="text-[#93C5FD]">Run the team.</span>
                 </h1>
-                <p className="text-lg md:text-xl text-[#495057] font-medium max-w-2xl mx-auto leading-relaxed">
+                <p className="text-lg md:text-xl text-white/90 font-medium max-w-2xl mx-auto leading-relaxed">
                   Your AI Operations Coach for Every Season.
                   <br />
-                  <span className="font-semibold text-[#495057]">Braik the Chaos.</span>
+                  <span className="font-semibold text-white">Braik the Chaos.</span>
                 </p>
                 <div className="flex flex-wrap justify-center gap-3 pt-2">
                   {heroValuePills.map((pill) => (
                     <span
                       key={pill}
-                      className="inline-flex items-center rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-4 py-2 text-sm font-medium text-[#1E3A8A]"
+                      className="inline-flex items-center rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white/95 backdrop-blur-sm"
                     >
                       {pill}
                     </span>
                   ))}
                 </div>
-                <p className="text-sm text-[#6c757d] max-w-xl mx-auto leading-relaxed">
-                  <span className="font-semibold text-[#495057]">Football-first today</span> — Braik is built around how football
+                <p className="text-sm text-white/75 max-w-xl mx-auto leading-relaxed">
+                  <span className="font-semibold text-white/90">Football-first today</span> — Braik is built around how football
                   programs operate. Additional sports may follow as the platform matures.
                 </p>
               </div>
             </ScrollReveal>
-            
+
             <ScrollReveal delay={100}>
               <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
                 <HeroShatterCta
                   size="lg"
-                  className="text-base px-10 py-6 w-full sm:w-auto"
+                  className="text-base px-10 py-6 w-full sm:w-auto shadow-lg shadow-black/20"
                   onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_hero" })}
                 />
                 <Link
@@ -104,7 +109,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     variant="outline"
-                    className="text-base px-10 py-6 w-full sm:w-auto border-slate-300 text-slate-800 hover:bg-slate-50"
+                    className="text-base px-10 py-6 w-full sm:w-auto border-white/50 bg-white/5 text-white backdrop-blur-sm hover:bg-white/15 hover:text-white"
                   >
                     View pricing
                   </Button>
@@ -116,20 +121,20 @@ export default function Home() {
                   <Button
                     size="lg"
                     variant="ghost"
-                    className="text-base px-10 py-6 w-full sm:w-auto text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    className="text-base px-10 py-6 w-full sm:w-auto text-white/90 hover:text-white hover:bg-white/10"
                   >
                     Request demo
                   </Button>
                 </Link>
               </div>
             </ScrollReveal>
-            
+
             {/* Returning User Login - Visually De-emphasized */}
             <ScrollReveal delay={200}>
-              <div className="pt-16 border-t border-[#E5E7EB]">
-                <p className="text-sm text-[#6c757d] font-medium">
+              <div className="pt-16 border-t border-white/20">
+                <p className="text-sm text-white/70 font-medium">
                   Returning to Braik?{" "}
-                  <Link href="/login" className="text-[#3B82F6] hover:underline">
+                  <Link href="/login" className="text-[#93C5FD] hover:text-white hover:underline">
                     Sign in here
                   </Link>
                 </p>

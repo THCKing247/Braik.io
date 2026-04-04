@@ -4,6 +4,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { landingCtaPrimaryOrange } from "@/lib/marketing/landing-visual-theme"
+import { cn } from "@/lib/utils"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 
 export function LeadCaptureForm() {
@@ -67,7 +69,7 @@ export function LeadCaptureForm() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Your full name"
             required
-            className="bg-white text-[#212529]"
+            className="bg-white text-[#212529] focus-visible:ring-[#FF6A00]/40"
           />
         </div>
         <div className="space-y-2">
@@ -81,7 +83,7 @@ export function LeadCaptureForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@school.edu"
             required
-            className="bg-white text-[#212529]"
+            className="bg-white text-[#212529] focus-visible:ring-[#FF6A00]/40"
           />
         </div>
       </div>
@@ -96,7 +98,7 @@ export function LeadCaptureForm() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="(555) 555-5555"
-            className="bg-white text-[#212529]"
+            className="bg-white text-[#212529] focus-visible:ring-[#FF6A00]/40"
           />
         </div>
         <div className="space-y-2">
@@ -108,7 +110,7 @@ export function LeadCaptureForm() {
             value={school}
             onChange={(e) => setSchool(e.target.value)}
             placeholder="Example High School"
-            className="bg-white text-[#212529]"
+            className="bg-white text-[#212529] focus-visible:ring-[#FF6A00]/40"
           />
         </div>
       </div>
@@ -121,7 +123,7 @@ export function LeadCaptureForm() {
           id="lead-role"
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          className="w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+          className="w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#FF6A00]/45"
         >
           <option>Head Coach</option>
           <option>Assistant Coach</option>
@@ -139,7 +141,7 @@ export function LeadCaptureForm() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Tell us what your program needs most."
-          className="min-h-[120px] w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+          className="min-h-[120px] w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#FF6A00]/45"
         />
       </div>
 
@@ -152,7 +154,14 @@ export function LeadCaptureForm() {
         </p>
       )}
 
-      <Button type="submit" disabled={status === "loading"} className="w-full md:w-auto">
+      <Button
+        type="submit"
+        disabled={status === "loading"}
+        className={cn(
+          landingCtaPrimaryOrange,
+          "w-full normal-case focus-visible:ring-offset-2 focus-visible:ring-offset-white md:w-auto disabled:pointer-events-none disabled:opacity-55"
+        )}
+      >
         {status === "loading" ? "Sending..." : "Request demo"}
       </Button>
     </form>

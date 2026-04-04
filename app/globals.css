@@ -337,4 +337,61 @@
   .mobile-textarea {
     @apply min-h-[110px] py-3;
   }
+
+  /* Braik marketing landing — hero scan line (HUD / AI analysis, very subtle) */
+  .landing-hero-scan {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+  }
+  .landing-hero-scan__bar {
+    position: absolute;
+    left: -8%;
+    width: 116%;
+    height: 150px;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      rgba(255, 106, 0, 0.06),
+      rgba(255, 106, 0, 0.1),
+      rgba(255, 106, 0, 0.05),
+      transparent
+    );
+    filter: blur(10px);
+    animation: landing-hero-scan-move 6s linear infinite;
+    will-change: transform, opacity;
+  }
+  @media (max-width: 1279px) {
+    .landing-hero-scan__bar {
+      height: 110px;
+      animation-duration: 8s;
+      opacity: 0.75;
+      filter: blur(12px);
+    }
+  }
+  @keyframes landing-hero-scan-move {
+    0% {
+      transform: translateY(-20%);
+      opacity: 0.18;
+    }
+    50% {
+      opacity: 0.32;
+    }
+    100% {
+      transform: translateY(120%);
+      opacity: 0.18;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .landing-hero-scan__bar {
+      animation: none !important;
+      opacity: 0 !important;
+    }
+    .landing-hero-particle {
+      animation: none !important;
+      opacity: 0.35;
+    }
+  }
 }

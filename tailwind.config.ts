@@ -98,28 +98,10 @@ const config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        /** Braik landing hero — sparse particle drift (GPU-friendly transforms only) */
-        "landing-particle-drift-a": {
-          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
-          "33%": { transform: "translate(12px, -18px) scale(1.04)" },
-          "66%": { transform: "translate(-8px, 10px) scale(0.96)" },
-        },
-        "landing-particle-drift-b": {
-          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
-          "25%": { transform: "translate(-14px, 8px) scale(1.06)" },
-          "75%": { transform: "translate(10px, -12px) scale(0.94)" },
-        },
-        "landing-particle-drift-c": {
-          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
-          "50%": { transform: "translate(6px, 14px) scale(1.03)" },
-        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "landing-particle-drift-a": "landing-particle-drift-a 16s ease-in-out infinite",
-        "landing-particle-drift-b": "landing-particle-drift-b 18s ease-in-out infinite",
-        "landing-particle-drift-c": "landing-particle-drift-c 14s ease-in-out infinite",
       },
     },
   },

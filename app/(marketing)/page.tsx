@@ -12,7 +12,6 @@ import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
 import { MarketingFaqAccordion } from "@/components/marketing/marketing-faq-accordion"
 import { MARKETING_FAQ_ENTRIES } from "@/lib/marketing/faq-content"
 import { MarketingCard } from "@/components/marketing/marketing-layout"
-import { LandingHeroAtmosphere } from "@/components/marketing/landing-hero-atmosphere"
 import { LandingHudOverlay } from "@/components/marketing/landing-hud-overlay"
 import {
   landingAccentText,
@@ -90,9 +89,8 @@ export default function Home() {
           aria-hidden
         />
         <LandingHudOverlay className="z-[4]" />
-        <LandingHeroAtmosphere />
         <div
-          className="pointer-events-none absolute -top-24 left-1/2 z-[6] h-48 w-[85%] max-w-4xl -translate-x-1/2 rounded-full bg-[#FF6A00]/12 blur-[90px]"
+          className="pointer-events-none absolute -top-24 left-1/2 z-[5] h-48 w-[85%] max-w-4xl -translate-x-1/2 rounded-full bg-[#FF6A00]/12 blur-[90px]"
           aria-hidden
         />
         <div className={`${landingContainerWide} relative z-10 flex flex-1 flex-col justify-center py-20 md:py-28 lg:py-32`}>
@@ -157,7 +155,7 @@ export default function Home() {
             </ScrollReveal>
 
             <ScrollReveal delay={200}>
-              <div className="border-t border-[#FF6A00]/20 pt-14">
+              <div className="border-t border-white/15 pt-14">
                 <p className="text-sm font-medium text-slate-400">
                   Returning to Braik?{" "}
                   <Link

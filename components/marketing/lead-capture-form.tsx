@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -58,7 +58,9 @@ export function LeadCaptureForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="lead-name" className="text-white">Name *</Label>
+          <Label htmlFor="lead-name" className="text-gray-900">
+            Name *
+          </Label>
           <Input
             id="lead-name"
             value={name}
@@ -69,7 +71,9 @@ export function LeadCaptureForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="lead-email" className="text-white">Email *</Label>
+          <Label htmlFor="lead-email" className="text-gray-900">
+            Email *
+          </Label>
           <Input
             id="lead-email"
             type="email"
@@ -84,7 +88,9 @@ export function LeadCaptureForm() {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="lead-phone" className="text-white">Phone</Label>
+          <Label htmlFor="lead-phone" className="text-gray-900">
+            Phone
+          </Label>
           <Input
             id="lead-phone"
             value={phone}
@@ -94,7 +100,9 @@ export function LeadCaptureForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="lead-school" className="text-white">School / Program</Label>
+          <Label htmlFor="lead-school" className="text-gray-900">
+            School / Program
+          </Label>
           <Input
             id="lead-school"
             value={school}
@@ -106,7 +114,9 @@ export function LeadCaptureForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lead-role" className="text-white">Primary Role</Label>
+        <Label htmlFor="lead-role" className="text-gray-900">
+          Primary Role
+        </Label>
         <select
           id="lead-role"
           value={role}
@@ -121,7 +131,9 @@ export function LeadCaptureForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lead-message" className="text-white">Message</Label>
+        <Label htmlFor="lead-message" className="text-gray-900">
+          Message
+        </Label>
         <textarea
           id="lead-message"
           value={message}
@@ -132,10 +144,12 @@ export function LeadCaptureForm() {
       </div>
 
       {status === "success" && (
-        <p className="text-sm text-green-300">Thanks - your request is in. We will reach out soon.</p>
+        <p className="text-sm text-green-700">Thanks - your request is in. We will reach out soon.</p>
       )}
       {status === "error" && (
-        <p className="text-sm text-red-300" role="alert">{error}</p>
+        <p className="text-sm text-red-600" role="alert">
+          {error}
+        </p>
       )}
 
       <Button type="submit" disabled={status === "loading"} className="w-full md:w-auto">

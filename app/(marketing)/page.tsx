@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { ScrollReveal } from "@/components/marketing/scroll-reveal"
-import { SectionDivider } from "@/components/marketing/section-divider"
 import { HeroShatterCta } from "@/components/marketing/hero-shatter-cta"
 import { LeadCaptureForm } from "@/components/marketing/lead-capture-form"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
@@ -14,7 +13,13 @@ import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
 import { MarketingFaqAccordion } from "@/components/marketing/marketing-faq-accordion"
 import { MARKETING_FAQ_ENTRIES } from "@/lib/marketing/faq-content"
 import { MarketingCard } from "@/components/marketing/marketing-layout"
-import { marketingSectionPadding } from "@/components/marketing/marketing-page"
+
+/** Alternating landing rhythm: consistent vertical padding, full-width bands. */
+const sectionY = "py-20 md:py-24"
+/** Blue (brand) section — content column */
+const blueBand = `w-full bg-blue-600 text-white ${sectionY}`
+/** White section — shell is `relative` for optional future full-bleed imagery */
+const whiteBand = `relative w-full bg-white text-gray-900 ${sectionY}`
 
 export default function Home() {
   const pricingSectionRef = useRef<HTMLElement | null>(null)
@@ -64,7 +69,7 @@ export default function Home() {
           className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-black/40"
           aria-hidden
         />
-        <div className="container relative z-10 mx-auto px-4 py-20 md:py-28 lg:py-32">
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-20 md:py-28 lg:py-32">
           <div className="max-w-4xl mx-auto text-center space-y-12">
             <ScrollReveal>
               <div className="space-y-7">
@@ -144,19 +149,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="thick" className="opacity-20" />
-
-      {/* Coach Reality Validation */}
-      <section className={`relative bg-[#0F172A] ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
+      {/* Coach Reality Validation — blue */}
+      <section className={blueBand}>
+        <div className="mx-auto max-w-6xl px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
               <div className="space-y-8">
                 <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center leading-tight">
                   Coaches today are expected to do far more than coach.
                 </h2>
-                <div className="space-y-6 text-lg text-[#E5E7EB] leading-relaxed pt-8">
+                <div className="space-y-6 text-lg text-blue-50 leading-relaxed pt-8">
                   <p>
                     They manage rosters, schedules, payments, communication, documents, parents, assistants, and increasingly complex software—often with limited staff and even less time.
                   </p>
@@ -173,13 +175,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="offset" className="opacity-15" />
-
-      {/* Reframing Braik */}
-      <section className={`relative bg-white ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto">
+      {/* Reframing Braik — white (future: optional bg image + overlay in this section) */}
+      <section className={whiteBand}>
+        {/* Future: absolute inset-0 bg-cover bg-center bg-no-repeat + overlay e.g. bg-black/30 */}
+        <div className="relative z-10 mx-auto max-w-6xl px-4">
             <ScrollReveal>
               <div className="grid md:grid-cols-2 gap-12 items-center">
                 {/* Image on the left */}
@@ -193,11 +192,11 @@ export default function Home() {
                 </div>
                 {/* Content on the right */}
                 <div className="space-y-8 order-1 md:order-2">
-                  <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-tight">
+                  <h2 className="text-4xl md:text-5xl font-athletic font-bold text-gray-900 uppercase tracking-tight leading-tight">
                     One system. Less stress.
                   </h2>
-                  <div className="space-y-6 text-lg text-[#495057] leading-relaxed pt-8">
-                    <p className="text-xl font-medium text-[#212529]">
+                  <div className="space-y-6 text-lg text-gray-700 leading-relaxed pt-8">
+                    <p className="text-xl font-medium text-gray-900">
                       Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
                     </p>
                     <p>
@@ -210,23 +209,19 @@ export default function Home() {
                 </div>
               </div>
             </ScrollReveal>
-          </div>
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="asymmetric" className="opacity-15" />
-
-      {/* Built for Real Program Constraints */}
-      <section ref={pricingSectionRef} className={`relative bg-[#F9FAFB] ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
+      {/* Built for Real Program Constraints — blue */}
+      <section ref={pricingSectionRef} className={blueBand}>
+        <div className="mx-auto max-w-6xl px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
               <div className="space-y-8">
-                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center leading-tight">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center leading-tight">
                   Built for real program constraints
                 </h2>
-                <div className="space-y-6 text-lg text-[#495057] leading-relaxed pt-8">
+                <div className="space-y-6 text-lg text-blue-50 leading-relaxed pt-8">
                   <p>
                     Braik was designed with a clear reality in mind: coaching staffs are limited, budgets are tight, and expectations remain high.
                   </p>
@@ -237,7 +232,7 @@ export default function Home() {
                     Braik is billed per season, aligned with team dues and seasonal planning. It's budgetable, intentional, and built for programs that need structure without complexity.
                   </p>
                   <p className="text-center pt-2">
-                    <Link href="/pricing" className="text-[#2563EB] font-semibold hover:underline">
+                    <Link href="/pricing" className="text-white font-semibold underline decoration-blue-200/80 underline-offset-4 hover:text-blue-100">
                       View full pricing →
                     </Link>
                   </p>
@@ -248,19 +243,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="thick" className="opacity-20" />
-
-      {/* Varsity & JV Program Structure */}
-      <section className={`relative bg-[#0F172A] ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
+      {/* Varsity & JV Program Structure — white */}
+      <section className={whiteBand}>
+        <div className="relative z-10 mx-auto max-w-6xl px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
               <div className="space-y-8">
-                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center leading-tight">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-gray-900 uppercase tracking-tight text-center leading-tight">
                   Built for entire programs — Varsity and JV
                 </h2>
-                <div className="space-y-6 text-lg text-[#E5E7EB] leading-relaxed pt-8">
+                <div className="space-y-6 text-lg text-gray-700 leading-relaxed pt-8">
                   <p>
                     Most athletic programs don't operate as a single roster. Varsity and JV teams often share resources, staff, and schedules—but are forced into separate systems or duplicate subscriptions.
                   </p>
@@ -280,15 +272,12 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="offset" className="opacity-15" />
-
-      {/* High-Level Capabilities */}
-      <section className={`relative bg-white ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
+      {/* High-Level Capabilities — blue */}
+      <section className={blueBand}>
+        <div className="mx-auto max-w-6xl px-4">
           <div className="max-w-5xl mx-auto">
             <ScrollReveal>
-              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-10 md:mb-14">
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center mb-10 md:mb-14">
                 Core operational areas
               </h2>
             </ScrollReveal>
@@ -346,15 +335,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="asymmetric" className="opacity-15" />
-
-      {/* Role-Based Value */}
-      <section className={`relative bg-white ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto">
+      {/* Role-Based Value — white */}
+      <section className={whiteBand}>
+        <div className="relative z-10 mx-auto max-w-6xl px-4">
             <ScrollReveal>
-              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-10 md:mb-14">
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-gray-900 uppercase tracking-tight text-center mb-10 md:mb-14">
                 What you get by role
               </h2>
             </ScrollReveal>
@@ -384,51 +369,49 @@ export default function Home() {
                 </ScrollReveal>
               ))}
             </div>
-          </div>
         </div>
       </section>
 
-      {/* AI & Coach B */}
-      <section className={`relative bg-[#F9FAFB] ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto">
+      {/* AI & Coach B — blue (text left / card right on md+) */}
+      <section className={blueBand}>
+        <div className="mx-auto max-w-6xl px-4">
             <ScrollReveal>
               <div className="grid md:grid-cols-2 gap-12 items-center">
                 <div className="space-y-8">
-                  <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight leading-tight">
+                  <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight leading-tight">
                     AI that stays inside the huddle
                   </h2>
-                  <p className="text-lg text-[#495057] leading-relaxed">
+                  <p className="text-lg text-blue-50 leading-relaxed">
                     Coach B is Braik&apos;s AI layer for football programs: it reasons over the same roster, schedule, playbook, and
                     health context your staff already maintains—so answers stay grounded in your team, not generic internet noise.
                   </p>
-                  <ul className="space-y-4 text-[#495057] text-base leading-relaxed list-none pl-0">
+                  <ul className="space-y-4 text-blue-50 text-base leading-relaxed list-none pl-0">
                     <li className="flex gap-3">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" aria-hidden />
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-200" aria-hidden />
                       <span>
-                        <strong className="text-[#212529]">Program operations</strong> — drafting announcements, summarizing threads,
+                        <strong className="text-white">Program operations</strong> — drafting announcements, summarizing threads,
                         and surfacing follow-ups so head coaches spend less time in the inbox.
                       </span>
                     </li>
                     <li className="flex gap-3">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" aria-hidden />
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-200" aria-hidden />
                       <span>
-                        <strong className="text-[#212529]">Football playbook context</strong> — lookups and suggestions respect your
+                        <strong className="text-white">Football playbook context</strong> — lookups and suggestions respect your
                         installs, formations, and tags. Route ideas can include coaching-depth hints; you always edit the final play on
                         the canvas.
                       </span>
                     </li>
                     <li className="flex gap-3">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#3B82F6]" aria-hidden />
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-200" aria-hidden />
                       <span>
-                        <strong className="text-[#212529]">Staff guardrails</strong> — head coaches keep primary AI access; assistants
+                        <strong className="text-white">Staff guardrails</strong> — head coaches keep primary AI access; assistants
                         are tiered with program controls. Nothing ships to players without your review.
                       </span>
                     </li>
                   </ul>
-                  <p className="text-sm text-[#6c757d]">
+                  <p className="text-sm text-blue-100/90">
                     See how we talk about AI safety and transparency in the{" "}
-                    <Link href="/ai-transparency" className="text-[#2563EB] font-medium hover:underline">
+                    <Link href="/ai-transparency" className="text-white font-medium underline underline-offset-4 hover:text-blue-100">
                       AI transparency
                     </Link>{" "}
                     page.
@@ -444,22 +427,18 @@ export default function Home() {
                 </div>
               </div>
             </ScrollReveal>
-          </div>
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="thick" className="opacity-20" />
-
-      {/* FAQ */}
-      <section id="faq" className={`relative bg-white ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
+      {/* FAQ — white */}
+      <section id="faq" className={whiteBand}>
+        <div className="relative z-10 mx-auto max-w-6xl px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
-              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-[#212529] uppercase tracking-tight text-center mb-4">
+              <h2 className="text-4xl md:text-5xl font-athletic font-bold text-gray-900 uppercase tracking-tight text-center mb-4">
                 Frequently asked questions
               </h2>
-              <p className="text-center text-[#495057] mb-10">
+              <p className="text-center text-gray-700 mb-10">
                 Quick answers with links when there&apos;s more detail on another page — including{" "}
                 <Link href="/pricing#core-platform" className="text-[#2563EB] font-medium hover:underline">
                   how Braik is priced
@@ -481,19 +460,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section Divider */}
-      <SectionDivider variant="asymmetric" className="opacity-15" />
-
-      {/* Final CTA */}
-      <section className={`relative bg-[#0F172A] ${marketingSectionPadding}`}>
-        <div className="container mx-auto px-4">
+      {/* Final CTA — blue */}
+      <section className={blueBand}>
+        <div className="mx-auto max-w-6xl px-4">
           <div className="max-w-3xl mx-auto text-center">
             <ScrollReveal>
               <div className="space-y-10">
                 <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight leading-tight">
                   See if Braik fits your program
                 </h2>
-                <div className="space-y-6 text-lg text-[#E5E7EB] leading-relaxed pt-4">
+                <div className="space-y-6 text-lg text-blue-50 leading-relaxed pt-4">
                   <p>
                     Braik was built to support coaches who are stretched thin, giving them the tools—and the help—they need to run their programs without sacrificing focus, organization, or time with their team.
                   </p>
@@ -514,19 +490,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Request Demo */}
-      <section
-        id="request-demo"
-        className={`relative border-t border-white/10 bg-[#0F172A] ${marketingSectionPadding}`}
-      >
-        <div className="container mx-auto px-4">
+      {/* Request Demo — white (form + future optional imagery in section shell) */}
+      <section id="request-demo" className={whiteBand}>
+        <div className="relative z-10 mx-auto max-w-6xl px-4">
           <div className="max-w-3xl mx-auto">
             <ScrollReveal>
               <div className="space-y-6">
-                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-white uppercase tracking-tight text-center">
+                <h2 className="text-4xl md:text-5xl font-athletic font-bold text-gray-900 uppercase tracking-tight text-center">
                   Request a demo
                 </h2>
-                <p className="text-center text-[#E5E7EB] text-lg">
+                <p className="text-center text-gray-700 text-lg">
                   Share your program details and we will follow up with a tailored Braik walkthrough.
                 </p>
                 <LeadCaptureForm />

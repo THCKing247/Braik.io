@@ -19,8 +19,8 @@ import {
 } from "@/lib/teams/cached-team-calendar-events"
 import { revalidateTeamCalendar, revalidateTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
 
-const CALENDAR_EVENTS_CACHE_CONTROL =
-  "private, max-age=0, s-maxage=60, stale-while-revalidate=300"
+/** Avoid edge/CDN serving a stale list right after Coach B or UI creates an event. */
+const CALENDAR_EVENTS_CACHE_CONTROL = "private, no-cache, no-store, must-revalidate"
 
 /**
  * GET /api/teams/[teamId]/calendar/events?from=<ISO>&to=<ISO>

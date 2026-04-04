@@ -43,6 +43,13 @@ export type CoachBChatResult =
   | { type: "action_executed"; response: string; result?: Record<string, unknown>; spokenText?: string }
   | { type: "error"; message: string; status?: number }
 
+/** create_event success must include this for calendar UX and invalidation. */
+function toolResultEventId(h: ToolHandlerResult): string | null {
+  if (h.type !== "action_executed" || !h.result || typeof h.result !== "object") return null
+  const id = (h.result as { eventId?: unknown }).eventId
+  return typeof id === "string" && id.length > 0 ? id : null
+}
+
 function mapToolResult(t: ToolHandlerResult): CoachBChatResult {
   if (t.type === "response") {
     const st = t.spokenText ?? deriveDefaultSpokenText(t.response)
@@ -146,6 +153,14 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
   const message = params.message.trim()
   if (!message) {
     return { type: "error", message: "message must be a non-empty string", status: 400 }
+  }
+
+  if (isLikelyCalendarSchedulingRequest(message) && !(params.teamId?.trim())) {
+    return {
+      type: "response",
+      response: "Open Coach B from a team dashboard so I can save events to the right calendar.",
+      spokenText: "Pick your team first, then ask me to add the practice.",
+    }
   }
 
   const teamId = params.teamId?.trim() || undefined
@@ -303,19 +318,84 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
         assistantMsg = assistantMsgRetry
         handled = await processCoachBToolMessage(assistantMsgRetry, toolCtx)
       }
-      if (handled) {
-        const emptyTextResponse = handled.type === "response" && !handled.response.trim()
-        if (!emptyTextResponse) {
-          trackProductEventServer({
-            eventName: BRAIK_EVENTS.coach_b.response_completed,
-            eventCategory: "coach_b",
-            userId: params.sessionUser.id,
-            teamId: teamId ?? null,
-            role: viewerRoleLabel ?? null,
-            metadata: { domain: context.domain, intent: context.intent, coach_b_tools: true },
-          })
-          return mapToolResult(handled)
+
+      const emptyTextResponse = handled && handled.type === "response" && !handled.response.trim()
+
+      if (schedulingIntent) {
+        const tc = assistantMsg.tool_calls
+        const firstName =
+          tc?.[0]?.type === "function" ? (tc[0] as { function?: { name?: string } }).function?.name : null
+        console.log("[runCoachBChat] scheduling execution trace", {
+          teamId,
+          toolCallCount: tc?.length ?? 0,
+          firstToolName: firstName ?? null,
+          handledType: handled?.type ?? null,
+          persistedEventId: handled ? toolResultEventId(handled) : null,
+          note: "create runs inside POST /api/ai/chat (no separate browser create request)",
+        })
+
+        if (handled && !emptyTextResponse) {
+          if (handled.type === "action_executed") {
+            const evId = toolResultEventId(handled)
+            if (!evId) {
+              console.error("[runCoachBChat] scheduling: action_executed without eventId — not claiming success", {
+                teamId,
+                handled,
+              })
+              return {
+                type: "response",
+                response:
+                  "The calendar didn't confirm the new event. Please try again or add it from the calendar.",
+                spokenText: "Couldn't confirm that on the calendar.",
+              }
+            }
+            console.log("[runCoachBChat] scheduling: create_event verified", { teamId, eventId: evId })
+            trackProductEventServer({
+              eventName: BRAIK_EVENTS.coach_b.response_completed,
+              eventCategory: "coach_b",
+              userId: params.sessionUser.id,
+              teamId: teamId ?? null,
+              role: viewerRoleLabel ?? null,
+              metadata: { domain: context.domain, intent: context.intent, coach_b_tools: true },
+            })
+            return mapToolResult(handled)
+          }
+          if (handled.type === "response" || handled.type === "action_proposal") {
+            trackProductEventServer({
+              eventName: BRAIK_EVENTS.coach_b.response_completed,
+              eventCategory: "coach_b",
+              userId: params.sessionUser.id,
+              teamId: teamId ?? null,
+              role: viewerRoleLabel ?? null,
+              metadata: { domain: context.domain, intent: context.intent, coach_b_tools: true },
+            })
+            return mapToolResult(handled)
+          }
         }
+
+        console.warn("[runCoachBChat] scheduling: no persisted event — refusing assistant text fallback", {
+          teamId,
+          hasHandled: Boolean(handled),
+          hadAssistantCopy: Boolean(assistantMsg.content?.trim()),
+        })
+        return {
+          type: "response",
+          response:
+            "I couldn't save that to the team calendar. Please try again or add the event from the calendar page.",
+          spokenText: "I couldn't save that to the calendar.",
+        }
+      }
+
+      if (handled && !emptyTextResponse) {
+        trackProductEventServer({
+          eventName: BRAIK_EVENTS.coach_b.response_completed,
+          eventCategory: "coach_b",
+          userId: params.sessionUser.id,
+          teamId: teamId ?? null,
+          role: viewerRoleLabel ?? null,
+          metadata: { domain: context.domain, intent: context.intent, coach_b_tools: true },
+        })
+        return mapToolResult(handled)
       }
       if (assistantMsg.content?.trim()) {
         trackProductEventServer({
@@ -330,7 +410,15 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
         return { type: "response", response: r, spokenText: deriveDefaultSpokenText(r) }
       }
     } catch (e) {
-      console.warn("[runCoachBChat] tool path failed, falling back to text-only", e)
+      console.warn("[runCoachBChat] tool path failed", e)
+      if (isLikelyCalendarSchedulingRequest(message)) {
+        return {
+          type: "response",
+          response:
+            "Something went wrong saving to the calendar. Please try again or add the event from the calendar page.",
+          spokenText: "Couldn't save that to the calendar.",
+        }
+      }
     }
   }
 

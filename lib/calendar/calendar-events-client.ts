@@ -62,10 +62,15 @@ export async function fetchCalendarEventsJson(
 ): Promise<TeamCalendarEventApiRow[]> {
   const res = await fetchWithTimeout(calendarEventsUrl(teamId, fromIso, toIso), {
     credentials: "same-origin",
+    cache: "no-store",
   })
   if (!res.ok) throw new Error(`calendar events ${res.status}`)
   const data = (await res.json()) as unknown
-  return Array.isArray(data) ? (data as TeamCalendarEventApiRow[]) : []
+  const rows = Array.isArray(data) ? (data as TeamCalendarEventApiRow[]) : []
+  if (process.env.NODE_ENV === "development") {
+    console.log("[calendar-events] GET parsed", { teamId, count: rows.length, fromIso, toIso })
+  }
+  return rows
 }
 
 function mapBootstrapRowsToApiShape(

@@ -104,7 +104,7 @@ export function DashboardCalendar({
   const invalidateBootstrapAndRefetch = useCallback(() => {
     bootstrapEventsRef.current = null
     const { from, to } = dashboardCalendarGridRangeIso(currentMonth)
-    fetch(calendarEventsUrl(teamId, from, to))
+    fetch(calendarEventsUrl(teamId, from, to), { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : []))
       .then((data: unknown) => {
         if (Array.isArray(data)) {
@@ -253,7 +253,7 @@ export function DashboardCalendar({
 
     setLoading(true)
     const { from, to } = dashboardCalendarGridRangeIso(currentMonth)
-    fetch(calendarEventsUrl(teamId, from, to))
+    fetch(calendarEventsUrl(teamId, from, to), { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : []))
       .then((data: unknown) => {
         if (!cancelled && Array.isArray(data)) {

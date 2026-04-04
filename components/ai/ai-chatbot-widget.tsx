@@ -26,6 +26,7 @@ import {
   toCalendarRangeIso,
 } from "@/lib/calendar/calendar-events-client"
 import { getClientSchedulingContext } from "@/lib/calendar/client-scheduling-context"
+import { resolveCoachBVoiceClientMessage } from "@/lib/braik-ai/coach-b-voice-api"
 
 interface Message {
   id: string
@@ -559,12 +560,15 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       const voiceRes = await fetch("/api/ai/voice", {
         method: "POST",
         body: formData,
+        signal:
+          typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+            ? AbortSignal.timeout(28000)
+            : undefined,
       })
       const voiceData = (await voiceRes.json().catch(() => ({}))) as Record<string, unknown>
 
       if (!voiceRes.ok) {
-        const errText =
-          typeof voiceData.error === "string" ? voiceData.error : "Transcription or auth failed. Please try again."
+        const errText = resolveCoachBVoiceClientMessage(voiceRes.status, voiceData)
         setMessages((prev) => [
           ...prev,
           {
@@ -675,13 +679,19 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
       }
 
       applyCoachBResponse(data)
-    } catch {
+    } catch (voiceErr) {
+      const isAbort =
+        voiceErr instanceof DOMException
+          ? voiceErr.name === "AbortError" || voiceErr.name === "TimeoutError"
+          : voiceErr instanceof Error && voiceErr.name === "AbortError"
       setMessages((prev) => [
         ...prev,
         {
-          id: (Date.now() + 2).toString(),
+          id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: "Voice processing failed. Please try again.",
+          content: isAbort
+            ? resolveCoachBVoiceClientMessage(504, {})
+            : "Voice processing failed. Please try again.",
           timestamp: new Date(),
           type: "error",
         },

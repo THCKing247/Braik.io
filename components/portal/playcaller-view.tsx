@@ -48,6 +48,7 @@ import { getAnimatedPlayerPosition } from "@/lib/utils/play-animation"
 import { usePlayAnimation, SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/hooks/use-play-animation"
 import type { PlayRecord, PlayCanvasData, RoutePoint, BlockEndPoint, FormationRecord } from "@/types/playbook"
 import { type InkSample, smoothPresenterStroke } from "@/lib/utils/freehand-route"
+import { cn } from "@/lib/utils"
 
 type PresenterTool = "none" | "marker" | "icon"
 type InkTool = "pen" | "highlighter" | "line" | "arrow" | "icon"
@@ -93,6 +94,14 @@ const YARD_START = 15
 const YARD_END = 50
 const VIEWBOX_W = 800
 const VIEWBOX_H = 600
+
+/** Bottom presenter dock on the field — dark glass bar */
+const PRESENTER_DOCK_PANEL =
+  "rounded-[18px] border border-white/[0.08] bg-[rgba(7,15,32,0.88)] backdrop-blur-[10px] shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+const PRESENTER_CTRL_BTN =
+  "border-transparent bg-white/10 text-white shadow-none hover:bg-white/18 focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(7,15,32)] transition-colors duration-150 disabled:bg-white/[0.05] disabled:text-white/35 disabled:opacity-100"
+const PRESENTER_PLAY_BTN =
+  "border-transparent bg-emerald-500 text-white shadow-[0_4px_20px_rgba(16,185,129,0.45)] hover:bg-emerald-400 hover:shadow-[0_6px_28px_rgba(16,185,129,0.55)] hover:scale-[1.04] active:scale-[0.98] transition-all duration-150 focus-visible:ring-2 focus-visible:ring-emerald-300/90 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(7,15,32)]"
 
 /** Position groups for highlight-by-group. Label/code maps to one of these. */
 const PLAYER_GROUP_OPTIONS = [
@@ -823,7 +832,9 @@ export function PlaycallerView({
   }
 
   return (
-    <div className={`flex flex-col bg-slate-900 ${embedded ? "absolute inset-0 z-0" : "fixed inset-0 z-50"}`}>
+    <div
+      className={`relative flex flex-col bg-slate-900 ${embedded ? "absolute inset-0 z-0" : "fixed inset-0 z-50"}`}
+    >
       {!embedded && isLg && (
         <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center gap-2 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(5.5rem,env(safe-area-inset-right))] bg-slate-950/92 backdrop-blur-xl border-b border-slate-800/80">
           <Button variant="secondary" size="sm" onClick={onClose} className="shadow-lg border-slate-700 bg-slate-800 text-slate-100">
@@ -1486,21 +1497,26 @@ export function PlaycallerView({
       </div>
 
       <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[25] h-[min(42vh,260px)] bg-gradient-to-t from-[rgba(4,10,22,0.72)] via-[rgba(4,10,22,0.2)] to-transparent"
+      />
+
+      <div
         data-presenter-dock
         className={
           compactUi
-            ? `fixed left-0 right-0 bottom-0 z-40 flex flex-col gap-1.5 px-2 sm:px-3 pt-1.5 max-w-[100vw] overflow-x-hidden bg-gradient-to-t from-slate-950 from-80% via-slate-950/98 to-transparent backdrop-blur-xl border-t border-slate-800/90 ${
+            ? `fixed left-0 right-0 bottom-0 z-40 flex flex-col gap-2 px-2 sm:px-3 pt-2 max-w-[100vw] overflow-x-hidden ${
                 presentationImmersive
                   ? "pb-[calc(2.25rem+env(safe-area-inset-bottom,0px))]"
                   : "pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]"
               }`
             : fullscreen
-              ? "fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pr-[max(3rem,env(safe-area-inset-right))]"
-              : "absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 w-full max-w-3xl px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
+              ? "fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2.5 w-full max-w-3xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pr-[max(3rem,env(safe-area-inset-right))]"
+              : "absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2.5 w-full max-w-3xl px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
         }
       >
         {!compactUi && (
-          <div className="w-full max-w-lg mx-auto flex flex-col gap-1.5" data-timeline>
+          <div className="w-full max-w-lg mx-auto flex flex-col gap-2" data-timeline>
             <div
               ref={timelineRef}
               role="slider"
@@ -1509,7 +1525,7 @@ export function PlaycallerView({
               aria-valuemax={1}
               aria-valuenow={animationProgress}
               tabIndex={0}
-              className="relative h-4 sm:h-5 w-full rounded-full bg-slate-800/95 cursor-pointer touch-none flex items-center overflow-visible ring-1 ring-slate-700/80"
+              className="relative h-4 sm:h-5 w-full cursor-pointer touch-none flex items-center overflow-visible rounded-full bg-white/[0.16] ring-1 ring-white/[0.12] shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgba(7,15,32,0.92)]"
               onPointerDown={handleTimelinePointerDown}
               onPointerMove={handleTimelinePointerMove}
               onPointerUp={handleTimelinePointerUp}
@@ -1517,11 +1533,11 @@ export function PlaycallerView({
               onPointerCancel={handleTimelinePointerUp}
             >
               <div
-                className="h-full rounded-full bg-emerald-600/90 transition-none pointer-events-none"
+                className="h-full rounded-full bg-emerald-500 transition-none pointer-events-none shadow-[0_0_12px_rgba(16,185,129,0.35)]"
                 style={{ width: `${animationProgress * 100}%` }}
               />
               <div
-                className="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-emerald-700 shadow-md -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+                className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-400 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] pointer-events-none"
                 style={{ left: `${animationProgress * 100}%` }}
               />
             </div>
@@ -1529,72 +1545,127 @@ export function PlaycallerView({
         )}
         {compactUi && (
           <div
-            className="h-1.5 w-full max-w-md mx-auto rounded-full bg-slate-800 pointer-events-none shrink-0"
+            className="h-1.5 w-full max-w-md mx-auto shrink-0 rounded-full bg-white/[0.16] pointer-events-none ring-1 ring-white/[0.08]"
             aria-hidden
             title="Open settings to scrub timeline"
           >
             <div
-              className="h-full rounded-full bg-emerald-600/70 transition-[width] duration-150"
+              className="h-full rounded-full bg-emerald-500 transition-[width] duration-150 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
               style={{ width: `${animationProgress * 100}%` }}
             />
           </div>
         )}
         {compactUi ? (
           <>
-            <div className="flex flex-nowrap items-center justify-center gap-1 mx-auto rounded-2xl px-1.5 py-1 shadow-lg border border-slate-700/70 bg-slate-900/98 backdrop-blur-md max-w-full overflow-x-auto">
+            <div
+              className={cn(
+                PRESENTER_DOCK_PANEL,
+                "mx-auto flex max-w-full flex-nowrap items-center justify-center gap-1.5 overflow-x-auto px-2.5 py-2"
+              )}
+            >
               {plays.length > 1 && (
-                <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goPrev} disabled={currentIndex <= 0} title="Previous play">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(PRESENTER_CTRL_BTN, "h-11 w-11 shrink-0 rounded-xl")}
+                  onClick={goPrev}
+                  disabled={currentIndex <= 0}
+                  title="Previous play"
+                >
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
               )}
               {isAnimationPlaying ? (
-                <Button size="icon" className="h-12 w-12 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPause} title="Pause">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(PRESENTER_PLAY_BTN, "h-12 w-12 shrink-0 rounded-full")}
+                  onClick={animationPause}
+                  title="Pause"
+                >
                   <Pause className="h-6 w-6" />
                 </Button>
               ) : (
-                <Button size="icon" className="h-12 w-12 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPlay} title="Play">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(PRESENTER_PLAY_BTN, "h-12 w-12 shrink-0 rounded-full")}
+                  onClick={animationPlay}
+                  title="Play"
+                >
                   <Play className="h-6 w-6 ml-0.5" />
                 </Button>
               )}
               <select
                 value={animationSpeed}
                 onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
-                className="h-10 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 px-2 text-xs font-bold min-w-[52px] shrink-0"
+                className="h-10 min-w-[52px] shrink-0 rounded-xl border border-white/15 bg-white/10 px-2.5 text-xs font-bold text-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] focus:outline-none focus:ring-2 focus:ring-emerald-400/55 focus:ring-offset-2 focus:ring-offset-[rgb(7,15,32)]"
                 title="Speed"
               >
                 {SPEED_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
+                  <option key={s} value={s} className="bg-[rgb(7,15,32)] text-white">
                     {s}x
                   </option>
                 ))}
               </select>
               <Button
-                variant={annotateOn ? "default" : "ghost"}
+                variant="ghost"
                 size="icon"
-                className={`h-11 w-11 shrink-0 rounded-xl ${annotateOn ? "bg-amber-500 hover:bg-amber-400 text-slate-900" : "text-slate-200 hover:bg-slate-800"}`}
+                className={cn(
+                  "h-11 w-11 shrink-0 rounded-xl border-transparent transition-colors duration-150",
+                  annotateOn
+                    ? "bg-amber-500 text-slate-900 shadow-md shadow-amber-500/30 hover:bg-amber-400 focus-visible:ring-2 focus-visible:ring-amber-300/90 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(7,15,32)]"
+                    : PRESENTER_CTRL_BTN
+                )}
                 onClick={() => setAnnotateOn((a) => !a)}
                 title="Draw / annotate"
               >
                 <Pencil className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800 disabled:opacity-40" onClick={undoLastInk} disabled={inkUndoStack.length === 0} title="Undo stroke">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(PRESENTER_CTRL_BTN, "h-11 w-11 shrink-0 rounded-xl")}
+                onClick={undoLastInk}
+                disabled={inkUndoStack.length === 0}
+                title="Undo stroke"
+              >
                 <Undo2 className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={clearDrawings} title="Clear annotations">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(PRESENTER_CTRL_BTN, "h-11 w-11 shrink-0 rounded-xl")}
+                onClick={clearDrawings}
+                title="Clear annotations"
+              >
                 <Eraser className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800 ring-1 ring-slate-600" onClick={() => setMoreSheetOpen(true)} title="Settings & timeline">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(PRESENTER_CTRL_BTN, "h-11 w-11 shrink-0 rounded-xl ring-1 ring-white/12")}
+                onClick={() => setMoreSheetOpen(true)}
+                title="Settings & timeline"
+              >
                 <Settings className="h-5 w-5" />
               </Button>
               {plays.length > 1 && (
-                <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goNext} disabled={currentIndex >= plays.length - 1} title="Next play">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(PRESENTER_CTRL_BTN, "h-11 w-11 shrink-0 rounded-xl")}
+                  onClick={goNext}
+                  disabled={currentIndex >= plays.length - 1}
+                  title="Next play"
+                >
                   <ChevronRight className="h-5 w-5" />
                 </Button>
               )}
             </div>
             {annotateOn && (
               <div className="flex flex-nowrap items-center justify-center gap-0.5 overflow-x-auto pb-0.5">
-                <div className="flex rounded-xl border border-slate-600 overflow-hidden bg-slate-800/90 shrink-0">
+                <div className="flex shrink-0 overflow-hidden rounded-xl border border-white/10 bg-[rgba(7,15,32,0.92)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md">
                   {(
                     [
                       { id: "pen" as const, Icon: Pencil },
@@ -1608,7 +1679,7 @@ export function PlaycallerView({
                       key={id}
                       type="button"
                       onClick={() => setInkTool(id)}
-                      className={`p-2.5 ${inkTool === id ? "bg-amber-500/30 text-amber-200" : "text-slate-400"}`}
+                      className={`p-2.5 transition-colors ${inkTool === id ? "bg-amber-500/35 text-amber-100" : "text-white/45 hover:bg-white/10 hover:text-white/80"}`}
                       title={id}
                     >
                       <Icon className="h-5 w-5" />
@@ -1620,70 +1691,148 @@ export function PlaycallerView({
           </>
         ) : (
           <div
-            className={`flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5 mx-auto rounded-2xl px-2 py-1.5 shadow-lg border border-slate-700/60 bg-slate-900/95 backdrop-blur-md`}
+            className={cn(
+              PRESENTER_DOCK_PANEL,
+              "mx-auto flex flex-nowrap items-center justify-center gap-1.5 px-3 py-2 sm:gap-2"
+            )}
           >
             {plays.length > 1 && (
-              <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goPrev} disabled={currentIndex <= 0} title="Previous play">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(PRESENTER_CTRL_BTN, "h-10 w-10 shrink-0 rounded-xl sm:h-9 sm:w-9")}
+                onClick={goPrev}
+                disabled={currentIndex <= 0}
+                title="Previous play"
+              >
                 <ChevronLeft className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepToStart} title="Start">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(PRESENTER_CTRL_BTN, "h-10 w-10 shrink-0 rounded-xl sm:h-9 sm:w-9")}
+              onClick={animationStepToStart}
+              title="Start"
+            >
               <SkipBack className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepBackward} title="Step back">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(PRESENTER_CTRL_BTN, "h-10 w-10 shrink-0 rounded-xl sm:h-9 sm:w-9")}
+              onClick={animationStepBackward}
+              title="Step back"
+            >
               <ChevronsLeft className="h-4 w-4" />
             </Button>
             {isAnimationPlaying ? (
-              <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPause} title="Pause">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(PRESENTER_PLAY_BTN, "h-11 w-11 shrink-0 rounded-full sm:h-10 sm:w-10")}
+                onClick={animationPause}
+                title="Pause"
+              >
                 <Pause className="h-5 w-5" />
               </Button>
             ) : (
-              <Button size="icon" className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" onClick={animationPlay} title="Play">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(PRESENTER_PLAY_BTN, "h-11 w-11 shrink-0 rounded-full sm:h-10 sm:w-10")}
+                onClick={animationPlay}
+                title="Play"
+              >
                 <Play className="h-5 w-5 ml-0.5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationStepForward} title="Step forward">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(PRESENTER_CTRL_BTN, "h-10 w-10 shrink-0 rounded-xl sm:h-9 sm:w-9")}
+              onClick={animationStepForward}
+              title="Step forward"
+            >
               <ChevronsRight className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={animationRestart} title="Replay">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(PRESENTER_CTRL_BTN, "h-10 w-10 shrink-0 rounded-xl sm:h-9 sm:w-9")}
+              onClick={animationRestart}
+              title="Replay"
+            >
               <RotateCcw className="h-4 w-4" />
             </Button>
             <select
               value={animationSpeed}
               onChange={(e) => setAnimationSpeed(Number(e.target.value) as PlaybackSpeed)}
-              className="h-9 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 px-2 text-xs font-semibold min-w-[52px] shrink-0"
+              className="h-9 min-w-[52px] shrink-0 rounded-xl border border-white/15 bg-white/10 px-2.5 text-xs font-semibold text-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] focus:outline-none focus:ring-2 focus:ring-emerald-400/55 focus:ring-offset-2 focus:ring-offset-[rgb(7,15,32)]"
               title="Speed"
             >
               {SPEED_OPTIONS.map((s) => (
-                <option key={s} value={s}>
+                <option key={s} value={s} className="bg-[rgb(7,15,32)] text-white">
                   {s}x
                 </option>
               ))}
             </select>
             <Button
-              variant={annotateOn ? "default" : "ghost"}
+              variant="ghost"
               size="icon"
-              className={`h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl ${annotateOn ? "bg-amber-500 hover:bg-amber-400 text-slate-900" : "text-slate-200 hover:bg-slate-800"}`}
+              className={cn(
+                "h-10 w-10 shrink-0 rounded-xl border-transparent transition-colors duration-150 sm:h-9 sm:w-9",
+                annotateOn
+                  ? "bg-amber-500 text-slate-900 shadow-md shadow-amber-500/25 hover:bg-amber-400 focus-visible:ring-2 focus-visible:ring-amber-300/90 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(7,15,32)]"
+                  : PRESENTER_CTRL_BTN
+              )}
               onClick={() => setAnnotateOn((a) => !a)}
               title="Annotate"
             >
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button variant={animationLoop ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setAnimationLoop(!animationLoop)} title="Loop">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                PRESENTER_CTRL_BTN,
+                "h-9 w-9 rounded-xl",
+                animationLoop && "bg-emerald-500/25 text-emerald-100 ring-1 ring-emerald-400/40 hover:bg-emerald-500/35"
+              )}
+              onClick={() => setAnimationLoop(!animationLoop)}
+              title="Loop"
+            >
               <Repeat className="h-4 w-4" />
             </Button>
-            <Button variant={showRoutes ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-xl text-slate-200" onClick={() => setShowRoutes((v) => !v)} title="Routes">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                PRESENTER_CTRL_BTN,
+                "h-9 w-9 rounded-xl",
+                showRoutes && "bg-emerald-500/25 text-emerald-100 ring-1 ring-emerald-400/40 hover:bg-emerald-500/35"
+              )}
+              onClick={() => setShowRoutes((v) => !v)}
+              title="Routes"
+            >
               <Route className="h-4 w-4" />
             </Button>
             {plays.length > 1 && (
-              <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 rounded-xl text-slate-200 hover:bg-slate-800" onClick={goNext} disabled={currentIndex >= plays.length - 1} title="Next play">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(PRESENTER_CTRL_BTN, "h-10 w-10 shrink-0 rounded-xl sm:h-9 sm:w-9")}
+                onClick={goNext}
+                disabled={currentIndex >= plays.length - 1}
+                title="Next play"
+              >
                 <ChevronRight className="h-5 w-5" />
               </Button>
             )}
           </div>
         )}
         {isLg && !compactUi && (
-          <p className="text-[11px] text-slate-500 text-center">
+          <p className="text-[11px] text-center text-white/45 drop-shadow-sm">
             {animationState} · {animationSpeed}x{animationLoop ? " · loop" : ""} · routes {showRoutes ? "on" : "off"}
           </p>
         )}
@@ -1691,7 +1840,7 @@ export function PlaycallerView({
 
       {isLg && (
         <div
-          className={`pointer-events-none absolute left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl border border-slate-800/80 bg-slate-950/75 backdrop-blur-sm ${
+          className={`pointer-events-none absolute left-1/2 z-[28] -translate-x-1/2 px-4 py-2 rounded-xl border border-slate-800/80 bg-slate-950/75 backdrop-blur-sm ${
             embedded && fullscreen ? "bottom-28" : "bottom-24"
           } max-w-[90vw]`}
         >

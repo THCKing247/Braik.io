@@ -55,11 +55,11 @@ export function MarketingCard({
         isDark
           ? [
               "border-white/15 bg-white/[0.06] backdrop-blur-md shadow-xl shadow-black/25",
-              "hover:border-[#FF6A00]/35 hover:bg-white/[0.09] hover:shadow-2xl hover:shadow-[0_12px_40px_rgba(255,106,0,0.12)] hover:-translate-y-0.5",
+              "hover:border-blue-400/25 hover:bg-white/[0.09] hover:shadow-2xl hover:shadow-blue-950/40 hover:-translate-y-0.5",
             ]
           : [
               "border-slate-200/90 bg-white shadow-sm",
-              "hover:-translate-y-0.5 hover:border-[#FF6A00]/28 hover:shadow-lg hover:shadow-orange-500/5",
+              "hover:shadow-lg hover:border-[#3B82F6]/35 hover:-translate-y-0.5",
             ],
         badge && "pt-8 md:pt-9",
         className

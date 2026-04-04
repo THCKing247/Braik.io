@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useRef } from "react"
+import { Button } from "@/components/ui/button"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { ScrollReveal } from "@/components/marketing/scroll-reveal"
@@ -12,25 +13,25 @@ import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
 import { MarketingFaqAccordion } from "@/components/marketing/marketing-faq-accordion"
 import { MARKETING_FAQ_ENTRIES } from "@/lib/marketing/faq-content"
 import { MarketingCard } from "@/components/marketing/marketing-layout"
-import { LandingHudOverlay } from "@/components/marketing/landing-hud-overlay"
 import {
-  landingAccentText,
   landingBodyDark,
   landingBodyLight,
   landingContainer,
   landingContainerWide,
-  landingCtaJoinNavy,
-  landingCtaPricingOutline,
-  landingCtaPrimaryOrange,
   landingDarkSection,
   landingFinalCtaSection,
   landingH2Dark,
   landingH2Light,
   landingLightSection,
   landingLinkOnDark,
-  landingLinkOnLight,
 } from "@/lib/marketing/landing-visual-theme"
-import { cn } from "@/lib/utils"
+
+const heroPrimaryCta =
+  "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
+const heroOutlineBtn =
+  "text-base px-10 py-6 w-full sm:w-auto border-white/45 bg-white/[0.07] text-white backdrop-blur-md shadow-lg shadow-black/25 transition-all duration-200 hover:scale-[1.02] hover:bg-white/18 hover:border-white/60 hover:text-white"
+const heroDemoBtn =
+  "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm !bg-orange-500 !text-white border border-orange-400/50 shadow-[0_8px_28px_rgba(234,88,12,0.42)] transition-all duration-200 hover:scale-[1.02] hover:!bg-orange-400 hover:border-orange-300/55 hover:shadow-[0_12px_36px_rgba(251,146,60,0.48)] focus-visible:ring-orange-400"
 
 export default function Home() {
   const pricingSectionRef = useRef<HTMLElement | null>(null)
@@ -69,99 +70,93 @@ export default function Home() {
     <div className="hidden min-h-screen bg-white lg:block">
       <SiteHeader />
 
-      {/* Hero — field photo, HUD overlay, navy wash, orange-accent CTAs (desktop lg+) */}
+      {/* Hero — game-day intro: field photo, layered gradients, centered hierarchy (desktop lg+) */}
       <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden text-white">
         <div
-          className="absolute inset-0 z-0 scale-[1.03] bg-cover bg-center bg-no-repeat md:scale-105"
+          className="absolute inset-0 scale-[1.03] bg-cover bg-center bg-no-repeat md:scale-105"
           style={{ backgroundImage: "url('/images/fog-field.png')" }}
           aria-hidden
         />
         <div
-          className="absolute inset-0 z-[1] bg-gradient-to-b from-[rgba(10,10,20,0.88)] via-slate-950/78 to-[#05080f]/95"
+          className="absolute inset-0 bg-gradient-to-b from-black/80 via-slate-950/70 to-[#0a1628]/92"
           aria-hidden
         />
         <div
-          className="absolute inset-0 z-[2] bg-gradient-to-tr from-blue-600/20 via-transparent to-blue-950/15"
+          className="absolute inset-0 bg-gradient-to-tr from-blue-600/25 via-transparent to-blue-900/10"
           aria-hidden
         />
         <div
-          className="absolute inset-0 z-[3] bg-[radial-gradient(ellipse_120%_85%_at_50%_100%,rgba(5,8,15,0.94),transparent_55%)]"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_120%_85%_at_50%_100%,rgba(15,23,42,0.92),transparent_55%)]"
           aria-hidden
         />
-        <LandingHudOverlay className="z-[4]" />
         <div
-          className="pointer-events-none absolute -top-24 left-1/2 z-[5] h-48 w-[85%] max-w-4xl -translate-x-1/2 rounded-full bg-[#FF6A00]/12 blur-[90px]"
+          className="pointer-events-none absolute -top-24 left-1/2 h-48 w-[85%] max-w-4xl -translate-x-1/2 rounded-full bg-blue-500/20 blur-[80px]"
           aria-hidden
         />
-        <div className={`${landingContainerWide} relative z-10 flex flex-1 flex-col justify-center py-20 md:py-28 lg:py-32`}>
+        <div className={`${landingContainerWide} flex flex-1 flex-col justify-center py-20 md:py-28 lg:py-32`}>
           <div className="mx-auto max-w-4xl space-y-12 text-center">
             <ScrollReveal>
               <div className="space-y-7">
                 <h1 className="font-athletic text-5xl font-bold uppercase leading-[0.98] tracking-[-0.02em] text-white drop-shadow-[0_4px_36px_rgba(0,0,0,0.55)] sm:text-6xl md:text-7xl lg:text-8xl">
-                  <span className={landingAccentText}>Braik</span> the busywork.
+                  Braik the busywork.
                   <br />
-                  <span className="inline-block bg-gradient-to-r from-[#FF9A4D] via-white to-blue-200/90 bg-clip-text pb-0.5 text-transparent drop-shadow-[0_2px_28px_rgba(255,106,0,0.35)]">
+                  <span className="inline-block bg-gradient-to-r from-blue-200 via-white to-blue-100 bg-clip-text pb-0.5 text-transparent drop-shadow-[0_2px_24px_rgba(59,130,246,0.45)]">
                     Run the team.
                   </span>
                 </h1>
-                <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-white/90 md:text-xl">
-                  Your <span className={landingAccentText}>AI</span> Operations Coach for Every Season.
+                <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-white/92 md:text-xl">
+                  Your AI Operations Coach for Every Season.
                   <br />
-                  <span className="font-semibold text-white drop-shadow-sm">
-                    <span className={landingAccentText}>Braik</span> the Chaos.
-                  </span>
+                  <span className="font-semibold text-white drop-shadow-sm">Braik the Chaos.</span>
                 </p>
                 <div className="flex flex-wrap justify-center gap-3 pt-2">
                   {heroValuePills.map((pill) => (
                     <span
                       key={pill}
-                      className="inline-flex items-center rounded-full border border-white/20 bg-white/[0.06] px-4 py-2 text-sm font-medium text-white/95 shadow-lg shadow-black/25 ring-1 ring-[#FF6A00]/20 backdrop-blur-md"
+                      className="inline-flex items-center rounded-full border border-white/25 bg-white/[0.08] px-4 py-2 text-sm font-medium text-white/95 shadow-lg shadow-black/20 ring-1 ring-white/15 backdrop-blur-md"
                     >
                       {pill}
                     </span>
                   ))}
                 </div>
-                <p className="mx-auto max-w-xl text-sm leading-relaxed text-slate-300/95">
-                  <span className={landingAccentText}>Football-first</span> today —{" "}
-                  <span className={landingAccentText}>Braik</span> is built around how{" "}
-                  <span className={landingAccentText}>football</span> programs operate. Additional sports may follow as the platform
-                  matures.
+                <p className="mx-auto max-w-xl text-sm leading-relaxed text-white/78">
+                  <span className="font-semibold text-white/92">Football-first today</span> — Braik is built around how football
+                  programs operate. Additional sports may follow as the platform matures.
                 </p>
               </div>
             </ScrollReveal>
 
             <ScrollReveal delay={100}>
-              <div className="flex flex-col items-center justify-center gap-4 sm:flex-row sm:flex-wrap">
-                <Link
-                  href="/#request-demo"
-                  className={cn(landingCtaPrimaryOrange, "w-full sm:w-auto text-center")}
-                  onClick={() => trackMarketingEvent("clicked_cta", { cta: "request_demo_hero" })}
-                >
-                  Request demo
-                </Link>
+              <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <HeroShatterCta
                   size="lg"
-                  className={landingCtaJoinNavy}
+                  className={heroPrimaryCta}
                   onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_hero" })}
                 />
                 <Link
                   href="/pricing"
-                  className={cn(landingCtaPricingOutline, "w-full sm:w-auto text-center")}
                   onClick={() => trackMarketingEvent("clicked_cta", { cta: "view_pricing_hero" })}
                 >
-                  View pricing
+                  <Button size="lg" variant="outline" className={heroOutlineBtn}>
+                    View pricing
+                  </Button>
+                </Link>
+                <Link
+                  href="/#request-demo"
+                  onClick={() => trackMarketingEvent("clicked_cta", { cta: "request_demo_hero" })}
+                >
+                  <Button size="lg" variant="default" className={heroDemoBtn}>
+                    Request demo
+                  </Button>
                 </Link>
               </div>
             </ScrollReveal>
 
             <ScrollReveal delay={200}>
-              <div className="border-t border-white/15 pt-14">
-                <p className="text-sm font-medium text-slate-400">
+              <div className="border-t border-white/20 pt-14">
+                <p className="text-sm font-medium text-white/72">
                   Returning to Braik?{" "}
-                  <Link
-                    href="/login"
-                    className="font-semibold text-[#FF9A4D] underline decoration-[#FF6A00]/50 underline-offset-4 transition hover:text-white hover:decoration-white"
-                  >
+                  <Link href="/login" className="font-semibold text-blue-200 underline decoration-blue-300/60 underline-offset-4 transition hover:text-white hover:decoration-white">
                     Sign in here
                   </Link>
                 </p>
@@ -173,7 +168,6 @@ export default function Home() {
 
       {/* Coach Reality Validation — dark / momentum */}
       <section className={landingDarkSection}>
-        <LandingHudOverlay className="z-[1]" />
         <div className={landingContainer}>
           <div className="mx-auto max-w-3xl">
             <ScrollReveal>
@@ -189,7 +183,7 @@ export default function Home() {
                     Most programs are forced to stitch together multiple tools for scheduling, communication, payments, and team coordination. The result is fragmented communication, duplicated work, confusion for parents and players, and added stress for coaches.
                   </p>
                   <p className="text-xl font-semibold text-white md:text-2xl">
-                    <span className={landingAccentText}>Braik</span> exists to change that.
+                    Braik exists to change that.
                   </p>
                 </div>
               </div>
@@ -219,13 +213,10 @@ export default function Home() {
                       Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
                     </p>
                     <p>
-                      Instead of juggling spreadsheets, group texts, payment platforms, and document folders,{" "}
-                      <span className={landingAccentText}>Braik</span> brings everything into one system—designed around the head
-                      coach's workflow.
+                      Instead of juggling spreadsheets, group texts, payment platforms, and document folders, Braik brings everything into one system—designed around the head coach's workflow.
                     </p>
                     <p>
-                      <span className={landingAccentText}>Braik</span> steps in as a unified system and support layer, helping
-                      programs operate smoothly while allowing coaches to focus on coaching.
+                      Braik steps in as a unified system and support layer, helping programs operate smoothly while allowing coaches to focus on coaching.
                     </p>
                   </div>
                 </div>
@@ -236,7 +227,6 @@ export default function Home() {
 
       {/* Built for Real Program Constraints — dark */}
       <section ref={pricingSectionRef} className={landingDarkSection}>
-        <LandingHudOverlay className="z-[1]" />
         <div className={landingContainer}>
           <div className="mx-auto max-w-3xl">
             <ScrollReveal>
@@ -295,7 +285,6 @@ export default function Home() {
 
       {/* High-Level Capabilities — dark */}
       <section className={landingDarkSection}>
-        <LandingHudOverlay className="z-[1]" />
         <div className={landingContainer}>
           <div className="mx-auto max-w-5xl">
             <ScrollReveal>
@@ -392,35 +381,25 @@ export default function Home() {
 
       {/* AI & Coach B — dark (text left / card right on md+) */}
       <section className={landingDarkSection}>
-        <LandingHudOverlay className="z-[1]" />
         <div className={landingContainer}>
             <ScrollReveal>
               <div className="grid items-center gap-12 md:grid-cols-2">
                 <div className="space-y-8">
-                  <h2 className={landingH2Dark}>
-                    <span className={landingAccentText}>AI</span> that stays inside the huddle
-                  </h2>
+                  <h2 className={landingH2Dark}>AI that stays inside the huddle</h2>
                   <p className={landingBodyDark}>
-                    Coach B is <span className={landingAccentText}>Braik</span>&apos;s AI layer for{" "}
-                    <span className={landingAccentText}>football</span> programs: it reasons over the same roster, schedule, playbook,
-                    and health context your staff already maintains—so answers stay grounded in your team, not generic internet noise.
+                    Coach B is Braik&apos;s AI layer for football programs: it reasons over the same roster, schedule, playbook, and
+                    health context your staff already maintains—so answers stay grounded in your team, not generic internet noise.
                   </p>
                   <ul className="list-none space-y-4 pl-0 text-base leading-relaxed text-slate-200/95">
                     <li className="flex gap-3">
-                      <span
-                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF6A00] shadow-[0_0_10px_rgba(255,106,0,0.55)]"
-                        aria-hidden
-                      />
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
                       <span>
                         <strong className="text-white">Program operations</strong> — drafting announcements, summarizing threads,
                         and surfacing follow-ups so head coaches spend less time in the inbox.
                       </span>
                     </li>
                     <li className="flex gap-3">
-                      <span
-                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF6A00] shadow-[0_0_10px_rgba(255,106,0,0.55)]"
-                        aria-hidden
-                      />
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
                       <span>
                         <strong className="text-white">Football playbook context</strong> — lookups and suggestions respect your
                         installs, formations, and tags. Route ideas can include coaching-depth hints; you always edit the final play on
@@ -428,10 +407,7 @@ export default function Home() {
                       </span>
                     </li>
                     <li className="flex gap-3">
-                      <span
-                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#60a5fa]/90 shadow-[0_0_8px_rgba(96,165,250,0.45)]"
-                        aria-hidden
-                      />
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
                       <span>
                         <strong className="text-white">Staff guardrails</strong> — head coaches keep primary AI access; assistants
                         are tiered with program controls. Nothing ships to players without your review.
@@ -467,19 +443,19 @@ export default function Home() {
               <h2 className={`${landingH2Light} mb-4 text-center`}>Frequently asked questions</h2>
               <p className={`mb-10 text-center ${landingBodyLight}`}>
                 Quick answers with links when there&apos;s more detail on another page — including{" "}
-                <Link href="/pricing#core-platform" className={landingLinkOnLight}>
+                <Link href="/pricing#core-platform" className="text-[#2563EB] font-medium hover:underline">
                   how Braik is priced
                 </Link>
                 .
               </p>
             </ScrollReveal>
             <MarketingFaqAccordion entries={MARKETING_FAQ_ENTRIES} />
-            <p className="text-center mt-10 text-sm text-slate-500">
-              <Link href="/faq" className={landingLinkOnLight}>
+            <p className="text-center mt-10 text-sm text-[#6c757d]">
+              <Link href="/faq" className="font-medium text-[#2563EB] hover:underline">
                 View all FAQs
               </Link>{" "}
               ·{" "}
-              <Link href="/pricing" className={landingLinkOnLight}>
+              <Link href="/pricing" className="font-medium text-[#2563EB] hover:underline">
                 Pricing
               </Link>
             </p>
@@ -489,36 +465,23 @@ export default function Home() {
 
       {/* Final CTA — bold conversion band */}
       <section className={landingFinalCtaSection}>
-        <LandingHudOverlay className="z-[1]" />
         <div className={landingContainer}>
           <div className="mx-auto max-w-3xl text-center">
             <ScrollReveal>
               <div className="space-y-10">
-                <h2 className={`${landingH2Dark} text-balance`}>
-                  See if <span className={landingAccentText}>Braik</span> fits your program
-                </h2>
+                <h2 className={`${landingH2Dark} text-balance`}>See if Braik fits your program</h2>
                 <div className={`space-y-6 pt-2 ${landingBodyDark}`}>
                   <p>
-                    <span className={landingAccentText}>Braik</span> was built to support coaches who are stretched thin, giving them
-                    the tools—and the help—they need to run their programs without sacrificing focus, organization, or time with their
-                    team.
+                    Braik was built to support coaches who are stretched thin, giving them the tools—and the help—they need to run their programs without sacrificing focus, organization, or time with their team.
                   </p>
                   <p>
-                    If you're running a program where organization, communication, and accountability matter—but time and staffing
-                    are limited—<span className={landingAccentText}>Braik</span> is built for you.
+                    If you're running a program where organization, communication, and accountability matter—but time and staffing are limited—Braik is built for you.
                   </p>
                 </div>
-                <div className="flex flex-col items-center justify-center gap-4 pt-4 sm:flex-row sm:flex-wrap">
-                  <Link
-                    href="/#request-demo"
-                    className={cn(landingCtaPrimaryOrange, "w-full sm:w-auto text-center")}
-                    onClick={() => trackMarketingEvent("clicked_cta", { cta: "request_demo_final" })}
-                  >
-                    Request a demo
-                  </Link>
+                <div className="pt-6">
                   <HeroShatterCta
                     size="lg"
-                    className={landingCtaJoinNavy}
+                    className={heroPrimaryCta}
                     onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_final" })}
                   />
                 </div>

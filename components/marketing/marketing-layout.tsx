@@ -58,7 +58,7 @@ export function MarketingCard({
               "hover:border-blue-400/25 hover:bg-white/[0.09] hover:shadow-2xl hover:shadow-blue-950/40 hover:-translate-y-0.5",
             ]
           : [
-              "border-slate-200/90 bg-white shadow-sm",
+              "border-slate-200/90 bg-white text-slate-700 shadow-sm",
               "hover:shadow-lg hover:border-[#3B82F6]/35 hover:-translate-y-0.5",
             ],
         badge && "pt-8 md:pt-9",
@@ -74,7 +74,7 @@ export function MarketingCard({
         className={cn(
           "font-athletic text-lg font-semibold uppercase tracking-wide md:text-xl pr-2",
           subtitle ? "mb-2" : "mb-4",
-          isDark ? "text-white" : "text-slate-900"
+          isDark ? "text-white" : "text-slate-900 font-semibold"
         )}
       >
         {title}

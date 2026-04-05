@@ -16,20 +16,22 @@ import { SectionSplit } from "@/components/marketing/section-split"
 import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
 import {
   landingBodyDark,
-  landingBodyLight,
   landingContainer,
   landingContainerSplit,
   landingContainerWide,
   landingDarkSection,
   landingFinalCtaSection,
   landingH2Dark,
-  landingH2Light,
   landingLightSection,
   landingLinkOnDark,
-  landingListDark,
-  landingNoteDark,
-  landingSubheadLight,
 } from "@/lib/marketing/landing-visual-theme"
+
+/** Light marketing sections: explicit text colors (no reliance on inherited tokens). */
+const lightSectionH2 =
+  "normal-case font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl"
+const lightSectionLead =
+  "text-base font-semibold leading-relaxed text-slate-800 md:text-lg"
+const lightSectionBody = "text-base leading-relaxed text-slate-800 md:text-lg"
 
 const heroPrimaryCta =
   "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
@@ -211,15 +213,15 @@ export default function Home() {
                 />
               </div>
               <div className="order-1 min-w-0 space-y-8 md:order-2">
-                <h2 className={landingH2Light}>One system. Less stress.</h2>
+                <h2 className={lightSectionH2}>One system. Less stress.</h2>
                 <div className="space-y-6 pt-2">
-                  <p className={landingSubheadLight}>
+                  <p className={lightSectionLead}>
                     Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
                   </p>
-                  <p className={landingBodyLight}>
+                  <p className={lightSectionBody}>
                     Instead of juggling spreadsheets, group texts, payment platforms, and document folders, Braik brings everything into one system—designed around the head coach's workflow.
                   </p>
-                  <p className={landingBodyLight}>
+                  <p className={lightSectionBody}>
                     Braik steps in as a unified system and support layer, helping programs operate smoothly while allowing coaches to focus on coaching.
                   </p>
                 </div>
@@ -264,18 +266,18 @@ export default function Home() {
           <ScrollReveal>
             <SectionSplit>
               <div className="min-w-0 space-y-8">
-                <h2 className={landingH2Light}>Built for entire programs — Varsity and JV</h2>
+                <h2 className={lightSectionH2}>Built for entire programs — Varsity and JV</h2>
                 <div className="space-y-6 pt-2">
-                  <p className={landingBodyLight}>
+                  <p className={lightSectionBody}>
                     Most athletic programs don't operate as a single roster. Varsity and JV teams often share resources, staff, and schedules—but are forced into separate systems or duplicate subscriptions.
                   </p>
-                  <p className={landingBodyLight}>
+                  <p className={lightSectionBody}>
                     Braik was built to reflect how programs actually function. Varsity and JV teams are managed under one program, giving coaches a unified system without sacrificing team-level autonomy.
                   </p>
-                  <p className={landingBodyLight}>
+                  <p className={lightSectionBody}>
                     Varsity Head Coaches manage the full program and can create and configure JV teams, assign JV Head Coaches, and maintain program-level oversight. JV Head Coaches have full authority over their own team dashboards, schedules, communication, and players, but cannot access or override Varsity teams or program-level settings.
                   </p>
-                  <p className={landingBodyLight}>
+                  <p className={lightSectionBody}>
                     This structure keeps programs unified while respecting clear lines of responsibility and authority.
                   </p>
                 </div>
@@ -358,8 +360,8 @@ export default function Home() {
                 <ImagePlaceholder />
               </div>
               <div className="order-1 min-w-0 space-y-6 md:order-2">
-                <h2 className={landingH2Light}>What you get by role</h2>
-                <p className={landingBodyLight}>
+                <h2 className={lightSectionH2}>What you get by role</h2>
+                <p className={lightSectionBody}>
                   Head coaches, assistants, players, and parents each get a clear, scoped experience.
                 </p>
               </div>
@@ -386,7 +388,7 @@ export default function Home() {
             ].map((item, index) => (
               <ScrollReveal key={item.role} delay={index * 50} className="h-full">
                 <MarketingCard title={item.role} className="h-full">
-                  <p>{item.details}</p>
+                  <p className="text-slate-700">{item.details}</p>
                 </MarketingCard>
               </ScrollReveal>
             ))}
@@ -401,35 +403,35 @@ export default function Home() {
               <div className="grid items-center gap-12 md:grid-cols-2">
                 <div className="space-y-8">
                   <h2 className={landingH2Dark}>AI that stays inside the huddle</h2>
-                  <p className={landingBodyDark}>
+                  <p className="text-lg leading-relaxed text-slate-50 md:text-xl">
                     Coach B is Braik&apos;s AI layer for football programs: it reasons over the same roster, schedule, playbook, and
                     health context your staff already maintains—so answers stay grounded in your team, not generic internet noise.
                   </p>
-                  <ul className={`list-none space-y-4 pl-0 ${landingListDark}`}>
+                  <ul className="list-none space-y-4 pl-0 text-base leading-relaxed text-slate-50 md:text-lg">
                     <li className="flex gap-3">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
-                      <span>
-                        <strong className="text-white">Program operations</strong> — drafting announcements, summarizing threads,
+                      <span className="text-slate-50">
+                        <strong className="font-semibold text-white">Program operations</strong> — drafting announcements, summarizing threads,
                         and surfacing follow-ups so head coaches spend less time in the inbox.
                       </span>
                     </li>
                     <li className="flex gap-3">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
-                      <span>
-                        <strong className="text-white">Football playbook context</strong> — lookups and suggestions respect your
+                      <span className="text-slate-50">
+                        <strong className="font-semibold text-white">Football playbook context</strong> — lookups and suggestions respect your
                         installs, formations, and tags. Route ideas can include coaching-depth hints; you always edit the final play on
                         the canvas.
                       </span>
                     </li>
                     <li className="flex gap-3">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
-                      <span>
-                        <strong className="text-white">Staff guardrails</strong> — head coaches keep primary AI access; assistants
+                      <span className="text-slate-50">
+                        <strong className="font-semibold text-white">Staff guardrails</strong> — head coaches keep primary AI access; assistants
                         are tiered with program controls. Nothing ships to players without your review.
                       </span>
                     </li>
                   </ul>
-                  <p className={landingNoteDark}>
+                  <p className="text-sm leading-relaxed text-slate-200">
                     See how we talk about AI safety and transparency in the{" "}
                     <Link href="/ai-transparency" className={landingLinkOnDark}>
                       AI transparency
@@ -489,8 +491,8 @@ export default function Home() {
                 <ImagePlaceholder aspect="video" />
               </div>
               <div className="order-1 min-w-0 space-y-6 md:order-2">
-                <h2 className={landingH2Light}>Request a demo</h2>
-                <p className={landingBodyLight}>
+                <h2 className={lightSectionH2}>Request a demo</h2>
+                <p className={lightSectionBody}>
                   Share your program details and we will follow up with a tailored Braik walkthrough.
                 </p>
                 <LeadCaptureForm />

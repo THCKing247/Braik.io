@@ -46,7 +46,7 @@ export const landingSubheadLight =
   "text-base font-semibold leading-relaxed text-slate-800 md:text-lg"
 
 /** Body copy on light sections. */
-export const landingBodyLight = "text-base leading-relaxed text-slate-700 md:text-lg"
+export const landingBodyLight = "text-base leading-relaxed text-slate-800 md:text-lg"
 
 /** Supporting / secondary copy on light sections (never below slate-500 for helpers). */
 export const landingSupportingLight = "text-sm leading-relaxed text-slate-600 md:text-base"

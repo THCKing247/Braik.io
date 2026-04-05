@@ -233,7 +233,7 @@ export function SiteFooter() {
             <p className="text-[#212529] text-sm">
               &copy; {new Date().getFullYear()} Braik. All rights reserved.
             </p>
-            <p className="text-[#6c757d] text-sm mt-2 flex items-center justify-center gap-2">
+            <p className="mt-2 flex items-center justify-center gap-2 text-sm text-slate-600">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] text-xs font-bold" title="Apex">
                 A
               </span>

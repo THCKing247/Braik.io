@@ -34,7 +34,7 @@ export function MarketingFinalCta({
       </div>
       <div className={`${marketingSectionShell} max-w-3xl text-center relative z-10`}>
         <h2 className="text-3xl md:text-4xl font-athletic font-bold text-white uppercase tracking-tight mb-4">{title}</h2>
-        <p className="text-lg text-slate-300 leading-relaxed mb-10">{description}</p>
+        <p className="text-lg leading-relaxed text-slate-100 mb-10">{description}</p>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4">
           <Button
             asChild

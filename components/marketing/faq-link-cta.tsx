@@ -6,12 +6,7 @@ import { ScrollReveal } from "@/components/marketing/scroll-reveal"
 import { ImagePlaceholder } from "@/components/marketing/image-placeholder"
 import { SectionSplit } from "@/components/marketing/section-split"
 import { PageCTA } from "@/components/marketing/page-cta"
-import {
-  landingBodyLight,
-  landingContainerSplit,
-  landingH2Light,
-} from "@/lib/marketing/landing-visual-theme"
-import { cn } from "@/lib/utils"
+import { landingContainerSplit } from "@/lib/marketing/landing-visual-theme"
 
 export type FAQLinkCTAProps = {
   id?: string
@@ -22,8 +17,10 @@ export type FAQLinkCTAProps = {
 export function FAQLinkCTA({ id = "faq-cta", imagePosition = "right", className }: FAQLinkCTAProps) {
   const copy = (
     <div className="min-w-0 space-y-6">
-      <h2 className={landingH2Light}>Have questions?</h2>
-      <p className={landingBodyLight}>
+      <h2 className="normal-case font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl">
+        Have questions?
+      </h2>
+      <p className="text-base leading-relaxed text-slate-800 md:text-lg">
         Find answers about pricing, setup, access, and more on our FAQ page.
       </p>
       <Button

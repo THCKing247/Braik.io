@@ -39,10 +39,8 @@ export function ScrollReveal({ children, delay = 0, className = "" }: ScrollReve
   return (
     <div
       ref={ref}
-      className={`transition-all duration-300 ease-out ${
-        isVisible
-          ? "opacity-100 translate-y-0"
-          : "opacity-0 translate-y-4"
+      className={`transition-transform duration-300 ease-out will-change-transform ${
+        isVisible ? "translate-y-0" : "translate-y-4"
       } ${className}`}
     >
       {children}

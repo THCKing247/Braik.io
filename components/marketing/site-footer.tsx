@@ -325,7 +325,7 @@ export function SiteFooter() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white hover:bg-[#2563EB]"
+                  className="rounded-md bg-[#3B82F6] px-4 py-2 text-sm font-medium text-slate-50 hover:bg-[#2563EB]"
                 >
                   Send Message
                 </button>

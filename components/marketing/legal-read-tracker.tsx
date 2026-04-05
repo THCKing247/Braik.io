@@ -56,11 +56,11 @@ export function LegalReadTracker({ storageKey, policyVersion }: LegalReadTracker
           type="button"
           disabled={!isEligible || isComplete}
           onClick={markReviewed}
-          className="rounded-md bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2563EB]"
+          className="rounded-md bg-[#3B82F6] px-4 py-2 text-sm font-medium text-slate-50 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2563EB]"
         >
           {isComplete ? "Reviewed" : "Mark as reviewed"}
         </button>
-        <p className="text-sm text-white/80">{helperText}</p>
+        <p className="text-sm text-slate-300">{helperText}</p>
       </div>
     </div>
   )

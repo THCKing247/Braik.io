@@ -26,7 +26,7 @@ export function FAQLinkCTA({ id = "faq-cta", imagePosition = "right", className 
       <Button
         asChild
         size="lg"
-        className="bg-[#2563EB] font-semibold text-white shadow-md hover:bg-[#1d4ed8]"
+        className="bg-[#2563EB] font-semibold text-slate-50 shadow-md hover:bg-[#1d4ed8]"
       >
         <Link href="/faq">View FAQ</Link>
       </Button>

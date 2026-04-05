@@ -40,7 +40,7 @@ export default function TermsPage() {
               </p>
               <p>
                 You agree to follow the{" "}
-                <Link href="/acceptable-use" className="text-[#60A5FA] underline hover:text-white">
+                <Link href="/acceptable-use" className="text-[#60A5FA] underline hover:text-slate-100">
                   Acceptable Use Policy
                 </Link>
                 , which describes prohibited and restricted uses of the Platform.
@@ -244,11 +244,11 @@ export default function TermsPage() {
               <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">15. Contact</h2>
               <p>
                 Questions about these Terms or the Braik service:{" "}
-                <a href="mailto:support@braik.io" className="text-[#60A5FA] underline hover:text-white">
+                <a href="mailto:support@braik.io" className="text-[#60A5FA] underline hover:text-slate-100">
                   support@braik.io
                 </a>
               </p>
-              <p className="text-sm text-white/80">Company: Apex Technical Solutions Group LLC</p>
+              <p className="text-sm text-slate-300">Company: Apex Technical Solutions Group LLC</p>
             </div>
 
             <LegalReadTracker

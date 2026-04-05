@@ -253,7 +253,7 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
             className={`rounded-xl border p-3.5 text-sm font-medium leading-relaxed ${
               isApp
                 ? "border-red-200/80 bg-red-50 text-red-900"
-                : "border-[#EF4444] bg-[#EF4444] text-white"
+                : "border-[#EF4444] bg-[#EF4444] text-slate-50"
             }`}
             role="alert"
             aria-live="polite"

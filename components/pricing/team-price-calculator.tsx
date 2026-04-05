@@ -184,7 +184,7 @@ export function TeamPriceCalculator() {
               href={calculatorCta.href}
               className={cn(
                 "block w-full text-center rounded-xl py-4 text-base font-semibold transition-all",
-                "bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-lg shadow-[#3B82F6]/25 hover:shadow-[#3B82F6]/30"
+                "bg-[#3B82F6] text-slate-50 hover:bg-[#2563EB] shadow-lg shadow-[#3B82F6]/25 hover:shadow-[#3B82F6]/30"
               )}
             >
               {calculatorCta.label}
@@ -203,7 +203,7 @@ export function TeamPriceCalculator() {
                     onClick={() => applyPreset(preset)}
                     className={cn(
                       "px-4 py-2 rounded-full text-sm font-medium transition-all",
-                      "bg-slate-100 text-slate-700 hover:bg-[#3B82F6] hover:text-white"
+                      "bg-slate-100 text-slate-700 hover:bg-[#3B82F6] hover:text-slate-50"
                     )}
                   >
                     {preset.name}
@@ -397,7 +397,7 @@ export function TeamPriceCalculator() {
               href={calculatorCta.href}
               className={cn(
                 "block w-full text-center rounded-xl py-4 text-base font-semibold transition-all",
-                "bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-lg shadow-[#3B82F6]/25 hover:shadow-[#3B82F6]/30"
+                "bg-[#3B82F6] text-slate-50 hover:bg-[#2563EB] shadow-lg shadow-[#3B82F6]/25 hover:shadow-[#3B82F6]/30"
               )}
             >
               {calculatorCta.label}

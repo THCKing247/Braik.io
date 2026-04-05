@@ -36,7 +36,7 @@ const sectionVariants = {
   white: "bg-white",
   muted: "bg-[#F9FAFB]",
   gradient: "bg-gradient-to-b from-[#F8FAFC]/80 to-white",
-  dark: "bg-[#0F172A] text-white",
+  dark: "bg-[#0F172A] text-slate-100",
 } as const
 
 export function MarketingPageSection({
@@ -143,7 +143,7 @@ export function MarketingLegalDocument({ children, className }: { children: Reac
       className={cn(
         "relative max-w-4xl mx-auto overflow-hidden rounded-2xl border border-white/10 bg-neutral-900 p-8 md:p-10 text-[#E5E7EB] shadow-md",
         "space-y-6 leading-relaxed",
-        "[&_a]:text-[#93C5FD] [&_a]:underline [&_a:hover]:text-white",
+        "[&_a]:text-[#93C5FD] [&_a]:underline [&_a:hover]:text-slate-100",
         "[&_h2]:text-xl [&_h2]:font-athletic [&_h2]:font-semibold [&_h2]:uppercase [&_h2]:tracking-wide [&_h2]:text-[#3B82F6]",
         "[&_ul]:list-disc [&_ul]:list-inside [&_ul]:space-y-1",
         className

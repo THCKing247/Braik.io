@@ -171,7 +171,7 @@ export function FeaturesMarketingSections() {
             <Button
               asChild
               size="lg"
-              className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-athletic uppercase tracking-wide min-h-[52px] px-8 shadow-lg shadow-[#3B82F6]/25"
+              className="bg-[#3B82F6] hover:bg-[#2563EB] text-slate-50 font-athletic uppercase tracking-wide min-h-[52px] px-8 shadow-lg shadow-[#3B82F6]/25"
             >
               <Link
                 href={joinHref}

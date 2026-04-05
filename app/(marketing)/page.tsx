@@ -19,12 +19,28 @@ import {
   landingContainer,
   landingContainerSplit,
   landingContainerWide,
-  landingDarkSection,
-  landingFinalCtaSection,
-  landingH2Dark,
   landingLightSection,
-  landingLinkOnDark,
 } from "@/lib/marketing/landing-visual-theme"
+
+/** Dark bands — class strings inlined here (not from theme) so home uses only slate-based text utilities. */
+const landingDarkSection =
+  "relative w-full overflow-hidden py-24 md:py-28 lg:py-32 text-slate-100 " +
+  "bg-gradient-to-br from-slate-950 via-[#0a1628] to-blue-950 " +
+  "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_100%_55%_at_50%_-10%,rgba(59,130,246,0.14),transparent_55%)] " +
+  "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-white/10 after:to-transparent"
+
+const landingFinalCtaSection =
+  "relative w-full overflow-hidden py-28 md:py-32 lg:py-36 text-slate-100 " +
+  "bg-gradient-to-br from-[#020617] via-blue-950 to-[#143d6b] " +
+  "ring-1 ring-white/10 ring-inset " +
+  "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_95%_55%_at_50%_-5%,rgba(59,130,246,0.2),transparent_58%)] " +
+  "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-blue-400/25 after:to-transparent"
+
+const landingH2Dark =
+  "text-4xl sm:text-5xl md:text-6xl font-athletic font-bold text-slate-100 tracking-tight leading-[1.05]"
+
+const landingLinkOnDark =
+  "font-semibold text-slate-100 underline decoration-blue-300/70 underline-offset-4 transition hover:text-blue-100 hover:decoration-blue-200"
 
 /** Light sections: explicit slate scale on every band (headings/body/support). */
 const lightSectionH2 =
@@ -37,11 +53,11 @@ const lightSectionColumn =
   "min-w-0 text-slate-700 [&_h2]:text-slate-900 [&_h3]:text-slate-900 [&_h3]:font-semibold [&_p]:text-slate-700 [&_li]:text-slate-700 [&_strong]:text-slate-900"
 
 const heroPrimaryCta =
-  "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
+  "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm text-slate-50 shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
 const heroOutlineBtn =
-  "text-base px-10 py-6 w-full sm:w-auto border-white/45 bg-white/[0.07] text-white backdrop-blur-md shadow-lg shadow-black/25 transition-all duration-200 hover:scale-[1.02] hover:bg-white/18 hover:border-white/60 hover:text-white"
+  "text-base px-10 py-6 w-full sm:w-auto border-white/45 bg-white/[0.07] text-slate-100 backdrop-blur-md shadow-lg shadow-black/25 transition-all duration-200 hover:scale-[1.02] hover:bg-white/18 hover:border-white/60 hover:text-slate-50"
 const heroDemoBtn =
-  "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm !bg-orange-500 !text-white border border-orange-400/50 shadow-[0_8px_28px_rgba(234,88,12,0.42)] transition-all duration-200 hover:scale-[1.02] hover:!bg-orange-400 hover:border-orange-300/55 hover:shadow-[0_12px_36px_rgba(251,146,60,0.48)] focus-visible:ring-orange-400"
+  "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm !bg-orange-500 !text-slate-50 border border-orange-400/50 shadow-[0_8px_28px_rgba(234,88,12,0.42)] transition-all duration-200 hover:scale-[1.02] hover:!bg-orange-400 hover:border-orange-300/55 hover:shadow-[0_12px_36px_rgba(251,146,60,0.48)] focus-visible:ring-orange-400"
 
 export default function Home() {
   const pricingSectionRef = useRef<HTMLElement | null>(null)
@@ -81,7 +97,7 @@ export default function Home() {
       <SiteHeader />
 
       {/* Hero — game-day intro: field photo, layered gradients, centered hierarchy (desktop lg+) */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden text-white">
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden text-slate-100">
         <div
           className="absolute inset-0 scale-[1.03] bg-cover bg-center bg-no-repeat md:scale-105"
           style={{ backgroundImage: "url('/images/fog-field.png')" }}
@@ -107,30 +123,30 @@ export default function Home() {
           <div className="mx-auto max-w-4xl space-y-12 text-center">
             <ScrollReveal>
               <div className="space-y-7">
-                <h1 className="font-athletic text-5xl font-bold uppercase leading-[0.98] tracking-[-0.02em] text-white drop-shadow-[0_4px_36px_rgba(0,0,0,0.55)] sm:text-6xl md:text-7xl lg:text-8xl">
+                <h1 className="font-athletic text-5xl font-bold uppercase leading-[0.98] tracking-[-0.02em] text-slate-100 drop-shadow-[0_4px_36px_rgba(0,0,0,0.55)] sm:text-6xl md:text-7xl lg:text-8xl">
                   Braik the busywork.
                   <br />
                   <span className="inline-block bg-gradient-to-r from-blue-200 via-white to-blue-100 bg-clip-text pb-0.5 text-transparent drop-shadow-[0_2px_24px_rgba(59,130,246,0.45)]">
                     Run the team.
                   </span>
                 </h1>
-                <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-white/92 md:text-xl">
+                <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-slate-200 md:text-xl">
                   Your AI Operations Coach for Every Season.
                   <br />
-                  <span className="font-semibold text-white drop-shadow-sm">Braik the Chaos.</span>
+                  <span className="font-semibold text-slate-100 drop-shadow-sm">Braik the Chaos.</span>
                 </p>
                 <div className="flex flex-wrap justify-center gap-3 pt-2">
                   {heroValuePills.map((pill) => (
                     <span
                       key={pill}
-                      className="inline-flex items-center rounded-full border border-white/25 bg-white/[0.08] px-4 py-2 text-sm font-medium text-white/95 shadow-lg shadow-black/20 ring-1 ring-white/15 backdrop-blur-md"
+                      className="inline-flex items-center rounded-full border border-white/25 bg-white/[0.08] px-4 py-2 text-sm font-medium text-slate-100 shadow-lg shadow-black/20 ring-1 ring-white/15 backdrop-blur-md"
                     >
                       {pill}
                     </span>
                   ))}
                 </div>
-                <p className="mx-auto max-w-xl text-sm leading-relaxed text-white/78">
-                  <span className="font-semibold text-white/92">Football-first today</span> — Braik is built around how football
+                <p className="mx-auto max-w-xl text-sm leading-relaxed text-slate-300">
+                  <span className="font-semibold text-slate-200">Football-first today</span> — Braik is built around how football
                   programs operate. Additional sports may follow as the platform matures.
                 </p>
               </div>
@@ -164,9 +180,9 @@ export default function Home() {
 
             <ScrollReveal delay={200}>
               <div className="border-t border-white/20 pt-14">
-                <p className="text-sm font-medium text-white/72">
+                <p className="text-sm font-medium text-slate-300">
                   Returning to Braik?{" "}
-                  <Link href="/login" className="font-semibold text-blue-200 underline decoration-blue-300/60 underline-offset-4 transition hover:text-white hover:decoration-white">
+                  <Link href="/login" className="font-semibold text-blue-200 underline decoration-blue-300/60 underline-offset-4 transition hover:text-slate-100 hover:decoration-slate-200">
                     Sign in here
                   </Link>
                 </p>
@@ -414,14 +430,14 @@ export default function Home() {
                     <li className="flex gap-3">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
                       <span className="text-slate-50">
-                        <strong className="font-semibold text-white">Program operations</strong> — drafting announcements, summarizing threads,
+                        <strong className="font-semibold text-slate-100">Program operations</strong> — drafting announcements, summarizing threads,
                         and surfacing follow-ups so head coaches spend less time in the inbox.
                       </span>
                     </li>
                     <li className="flex gap-3">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
                       <span className="text-slate-50">
-                        <strong className="font-semibold text-white">Football playbook context</strong> — lookups and suggestions respect your
+                        <strong className="font-semibold text-slate-100">Football playbook context</strong> — lookups and suggestions respect your
                         installs, formations, and tags. Route ideas can include coaching-depth hints; you always edit the final play on
                         the canvas.
                       </span>
@@ -429,7 +445,7 @@ export default function Home() {
                     <li className="flex gap-3">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
                       <span className="text-slate-50">
-                        <strong className="font-semibold text-white">Staff guardrails</strong> — head coaches keep primary AI access; assistants
+                        <strong className="font-semibold text-slate-100">Staff guardrails</strong> — head coaches keep primary AI access; assistants
                         are tiered with program controls. Nothing ships to players without your review.
                       </span>
                     </li>

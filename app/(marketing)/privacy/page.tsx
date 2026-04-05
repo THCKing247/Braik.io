@@ -90,7 +90,7 @@ export default function PrivacyPage() {
               </p>
               <p>
                 For full terms that apply when you opt in, see the{" "}
-                <Link href="/terms" className="text-[#60A5FA] underline hover:text-white">
+                <Link href="/terms" className="text-[#60A5FA] underline hover:text-slate-100">
                   Terms of Service
                 </Link>
                 .
@@ -154,7 +154,7 @@ export default function PrivacyPage() {
               </ul>
               <p>
                 Contact Braik:{" "}
-                <a href="mailto:support@braik.io" className="text-[#60A5FA] underline hover:text-white">
+                <a href="mailto:support@braik.io" className="text-[#60A5FA] underline hover:text-slate-100">
                   support@braik.io
                 </a>
               </p>

@@ -67,7 +67,7 @@ export function MarketingCard({
       )}
     >
       {badge ? (
-        <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-[#3B82F6] px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-sm">
+        <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-[#3B82F6] px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-50 shadow-sm">
           {badge}
         </span>
       ) : null}
@@ -75,13 +75,13 @@ export function MarketingCard({
         className={cn(
           "font-athletic text-lg font-semibold uppercase tracking-wide md:text-xl pr-2",
           subtitle ? "mb-2" : "mb-4",
-          isDark ? "text-white" : "text-slate-900 font-semibold"
+          isDark ? "text-slate-100" : "text-slate-900 font-semibold"
         )}
       >
         {title}
       </h3>
       {subtitle ? (
-        <p className={cn("mb-6 text-2xl font-bold md:text-3xl", isDark ? "text-white" : "text-slate-900")}>{subtitle}</p>
+        <p className={cn("mb-6 text-2xl font-bold md:text-3xl", isDark ? "text-slate-100" : "text-slate-900")}>{subtitle}</p>
       ) : null}
       <div
         className={cn(

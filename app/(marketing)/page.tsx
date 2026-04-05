@@ -196,32 +196,31 @@ export default function Home() {
       <section className={landingLightSection}>
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-slate-50/80 to-white" aria-hidden />
         <div className={landingContainer}>
-            <ScrollReveal>
-              <div className="grid items-center gap-12 md:grid-cols-2">
-                <div className="order-2 flex justify-center md:order-1 md:justify-start">
-                  <img
-                    src="/diagram-hero-page-1.png"
-                    alt="Braik system diagram"
-                    className="h-auto max-w-full object-contain drop-shadow-xl"
-                    style={{ maxHeight: "1500px", width: "auto" }}
-                  />
-                </div>
-                <div className="order-1 space-y-8 md:order-2">
-                  <h2 className={landingH2Light}>One system. Less stress.</h2>
-                  <div className={`space-y-6 pt-2 ${landingBodyLight}`}>
-                    <p className="text-xl font-semibold text-slate-900 md:text-2xl">
-                      Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
-                    </p>
-                    <p>
-                      Instead of juggling spreadsheets, group texts, payment platforms, and document folders, Braik brings everything into one system—designed around the head coach's workflow.
-                    </p>
-                    <p>
-                      Braik steps in as a unified system and support layer, helping programs operate smoothly while allowing coaches to focus on coaching.
-                    </p>
-                  </div>
+          <ScrollReveal>
+            <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2">
+              <div className="flex min-w-0 justify-center">
+                <img
+                  src="/images/devices-preview.png"
+                  alt="Braik app across devices"
+                  className="h-auto w-full max-w-xl rounded-2xl object-contain shadow-2xl"
+                />
+              </div>
+              <div className="min-w-0 space-y-8 text-gray-900">
+                <h2 className="font-bold text-2xl text-gray-900 md:text-3xl">One system. Less stress.</h2>
+                <div className="space-y-6 pt-2">
+                  <p className="text-lg font-semibold leading-relaxed text-gray-900">
+                    Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
+                  </p>
+                  <p className="text-lg leading-relaxed text-gray-900">
+                    Instead of juggling spreadsheets, group texts, payment platforms, and document folders, Braik brings everything into one system—designed around the head coach's workflow.
+                  </p>
+                  <p className="text-lg leading-relaxed text-gray-900">
+                    Braik steps in as a unified system and support layer, helping programs operate smoothly while allowing coaches to focus on coaching.
+                  </p>
                 </div>
               </div>
-            </ScrollReveal>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
 

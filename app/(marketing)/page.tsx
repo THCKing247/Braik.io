@@ -13,10 +13,12 @@ import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
 import { MarketingFaqAccordion } from "@/components/marketing/marketing-faq-accordion"
 import { MARKETING_FAQ_ENTRIES } from "@/lib/marketing/faq-content"
 import { MarketingCard } from "@/components/marketing/marketing-layout"
+import { SectionImagePlaceholder } from "@/components/marketing/section-image-placeholder"
 import {
   landingBodyDark,
   landingBodyLight,
   landingContainer,
+  landingContainerSplit,
   landingContainerWide,
   landingDarkSection,
   landingFinalCtaSection,
@@ -192,29 +194,29 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Reframing Braik — light / clarity (future: optional absolute bg image + overlay) */}
+      {/* Reframing Braik — light / clarity; device mockup (image left on desktop, text first on mobile) */}
       <section className={landingLightSection}>
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-slate-50/80 to-white" aria-hidden />
-        <div className={landingContainer}>
+        <div className={landingContainerSplit}>
           <ScrollReveal>
-            <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2">
-              <div className="flex min-w-0 justify-center">
+            <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-12">
+              <div className="order-2 flex min-w-0 justify-center md:order-1 md:justify-start">
                 <img
-                  src="/images/devices-preview.png"
+                  src="/images/devices-transparent.png"
                   alt="Braik app across devices"
-                  className="h-auto w-full max-w-xl rounded-2xl object-contain shadow-2xl"
+                  className="h-auto w-full max-w-2xl object-contain drop-shadow-2xl"
                 />
               </div>
-              <div className="min-w-0 space-y-8 text-gray-900">
-                <h2 className="font-bold text-2xl text-gray-900 md:text-3xl">One system. Less stress.</h2>
+              <div className="order-1 min-w-0 space-y-8 md:order-2">
+                <h2 className={landingH2Light}>One system. Less stress.</h2>
                 <div className="space-y-6 pt-2">
-                  <p className="text-lg font-semibold leading-relaxed text-gray-900">
+                  <p className={`font-semibold ${landingBodyLight}`}>
                     Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
                   </p>
-                  <p className="text-lg leading-relaxed text-gray-900">
+                  <p className={landingBodyLight}>
                     Instead of juggling spreadsheets, group texts, payment platforms, and document folders, Braik brings everything into one system—designed around the head coach's workflow.
                   </p>
-                  <p className="text-lg leading-relaxed text-gray-900">
+                  <p className={landingBodyLight}>
                     Braik steps in as a unified system and support layer, helping programs operate smoothly while allowing coaches to focus on coaching.
                   </p>
                 </div>
@@ -253,32 +255,33 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Varsity & JV Program Structure — light */}
+      {/* Varsity & JV Program Structure — light (text left / placeholder right on desktop) */}
       <section className={landingLightSection}>
-        <div className={landingContainer}>
-          <div className="mx-auto max-w-3xl">
-            <ScrollReveal>
-              <div className="space-y-10">
-                <h2 className={`${landingH2Light} text-center`}>
-                  Built for entire programs — Varsity and JV
-                </h2>
-                <div className={`space-y-6 pt-4 ${landingBodyLight}`}>
-                  <p>
+        <div className={landingContainerSplit}>
+          <ScrollReveal>
+            <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-12">
+              <div className="min-w-0 space-y-8">
+                <h2 className={landingH2Light}>Built for entire programs — Varsity and JV</h2>
+                <div className="space-y-6 pt-2">
+                  <p className={landingBodyLight}>
                     Most athletic programs don't operate as a single roster. Varsity and JV teams often share resources, staff, and schedules—but are forced into separate systems or duplicate subscriptions.
                   </p>
-                  <p>
+                  <p className={landingBodyLight}>
                     Braik was built to reflect how programs actually function. Varsity and JV teams are managed under one program, giving coaches a unified system without sacrificing team-level autonomy.
                   </p>
-                  <p>
+                  <p className={landingBodyLight}>
                     Varsity Head Coaches manage the full program and can create and configure JV teams, assign JV Head Coaches, and maintain program-level oversight. JV Head Coaches have full authority over their own team dashboards, schedules, communication, and players, but cannot access or override Varsity teams or program-level settings.
                   </p>
-                  <p>
+                  <p className={landingBodyLight}>
                     This structure keeps programs unified while respecting clear lines of responsibility and authority.
                   </p>
                 </div>
               </div>
-            </ScrollReveal>
-          </div>
+              <div className="min-w-0">
+                <SectionImagePlaceholder />
+              </div>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
 
@@ -345,11 +348,11 @@ export default function Home() {
 
       {/* Role-Based Value — light */}
       <section className={landingLightSection}>
-        <div className={landingContainer}>
+        <div className={landingContainerSplit}>
             <ScrollReveal>
               <h2 className={`${landingH2Light} mb-12 text-center md:mb-16`}>What you get by role</h2>
             </ScrollReveal>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid gap-6 md:grid-cols-2">
               {[
                 {
                   role: "Head Coach",
@@ -434,27 +437,27 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FAQ — light */}
+      {/* FAQ — light (full-width within container for scanability) */}
       <section id="faq" className={landingLightSection}>
-        <div className={landingContainer}>
-          <div className="mx-auto max-w-3xl">
+        <div className={landingContainerSplit}>
+          <div className="mx-auto w-full max-w-3xl">
             <ScrollReveal>
               <h2 className={`${landingH2Light} mb-4 text-center`}>Frequently asked questions</h2>
               <p className={`mb-10 text-center ${landingBodyLight}`}>
                 Quick answers with links when there&apos;s more detail on another page — including{" "}
-                <Link href="/pricing#core-platform" className="text-[#2563EB] font-medium hover:underline">
+                <Link href="/pricing#core-platform" className="font-medium text-blue-700 underline decoration-blue-700/30 underline-offset-4 hover:text-blue-800 hover:decoration-blue-800/50">
                   how Braik is priced
                 </Link>
                 .
               </p>
             </ScrollReveal>
             <MarketingFaqAccordion entries={MARKETING_FAQ_ENTRIES} />
-            <p className="text-center mt-10 text-sm text-[#6c757d]">
-              <Link href="/faq" className="font-medium text-[#2563EB] hover:underline">
+            <p className="mt-10 text-center text-sm text-gray-700">
+              <Link href="/faq" className="font-medium text-blue-700 hover:text-blue-800 hover:underline">
                 View all FAQs
               </Link>{" "}
               ·{" "}
-              <Link href="/pricing" className="font-medium text-[#2563EB] hover:underline">
+              <Link href="/pricing" className="font-medium text-blue-700 hover:text-blue-800 hover:underline">
                 Pricing
               </Link>
             </p>
@@ -490,20 +493,23 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Request Demo — light */}
+      {/* Request Demo — light (form + copy right / placeholder left on desktop; form first on mobile) */}
       <section id="request-demo" className={landingLightSection}>
-        <div className={landingContainer}>
-          <div className="mx-auto max-w-3xl">
-            <ScrollReveal>
-              <div className="space-y-6">
-                <h2 className={`${landingH2Light} text-center`}>Request a demo</h2>
-                <p className={`text-center ${landingBodyLight}`}>
+        <div className={landingContainerSplit}>
+          <ScrollReveal>
+            <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-12">
+              <div className="order-2 min-w-0 md:order-1">
+                <SectionImagePlaceholder aspect="video" />
+              </div>
+              <div className="order-1 min-w-0 space-y-6 md:order-2">
+                <h2 className={landingH2Light}>Request a demo</h2>
+                <p className={landingBodyLight}>
                   Share your program details and we will follow up with a tailored Braik walkthrough.
                 </p>
                 <LeadCaptureForm />
               </div>
-            </ScrollReveal>
-          </div>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
 

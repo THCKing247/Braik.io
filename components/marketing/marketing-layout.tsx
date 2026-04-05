@@ -74,24 +74,24 @@ export function MarketingCard({
         className={cn(
           "text-lg md:text-xl font-athletic font-semibold uppercase tracking-wide pr-2",
           subtitle ? "mb-2" : "mb-4",
-          isDark ? "text-white" : "text-[#212529]"
+          isDark ? "text-white" : "text-gray-900"
         )}
       >
         {title}
       </h3>
       {subtitle ? (
-        <p className={cn("text-2xl md:text-3xl font-bold mb-6", isDark ? "text-white" : "text-[#0F172A]")}>{subtitle}</p>
+        <p className={cn("text-2xl md:text-3xl font-bold mb-6", isDark ? "text-white" : "text-gray-900")}>{subtitle}</p>
       ) : null}
       <div
         className={cn(
-          "space-y-4 text-sm md:text-base leading-relaxed",
-          isDark ? "text-slate-200/95" : "text-[#212529]/85"
+          "space-y-4 text-sm leading-relaxed md:text-base",
+          isDark ? "text-slate-200/95" : "text-gray-800"
         )}
       >
         {children}
       </div>
       {footerNote ? (
-        <p className={cn("mt-4 text-xs leading-relaxed", isDark ? "text-slate-400" : "text-[#64748B]")}>{footerNote}</p>
+        <p className={cn("mt-4 text-xs leading-relaxed", isDark ? "text-slate-400" : "text-gray-700")}>{footerNote}</p>
       ) : null}
     </div>
   )

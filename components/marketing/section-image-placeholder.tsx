@@ -1,0 +1,29 @@
+import { cn } from "@/lib/utils"
+
+type SectionImagePlaceholderProps = {
+  /** Default 4:3; use `video` for wider placeholders. */
+  aspect?: "4/3" | "video"
+  className?: string
+}
+
+export function SectionImagePlaceholder({
+  aspect = "4/3",
+  className,
+}: SectionImagePlaceholderProps) {
+  const aspectClass = aspect === "video" ? "aspect-video" : "aspect-[4/3]"
+
+  return (
+    <div
+      className={cn(
+        "flex w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-100 shadow-md",
+        aspectClass,
+        className
+      )}
+    >
+      <div className="px-4 text-center">
+        <p className="text-sm font-semibold text-slate-700">Image Placeholder</p>
+        <p className="mt-1 text-xs text-slate-600">Replace with product screenshot or photo</p>
+      </div>
+    </div>
+  )
+}

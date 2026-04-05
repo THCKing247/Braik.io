@@ -11,7 +11,7 @@ export const landingDarkSection =
 
 /** Crisp light bands — ready for optional absolute bg image + overlay layers. */
 export const landingLightSection =
-  "relative w-full overflow-hidden bg-white text-slate-900 py-24 md:py-28 lg:py-32 " +
+  "relative w-full overflow-hidden bg-white text-gray-900 py-20 md:py-24 " +
   "shadow-[inset_0_1px_0_0_rgba(148,163,184,0.12)] " +
   "before:pointer-events-none before:absolute before:inset-0 before:z-0 before:bg-[repeating-linear-gradient(90deg,transparent,transparent_3.25rem,rgba(15,23,42,0.035)_3.25rem,rgba(15,23,42,0.035)_calc(3.25rem+1px))]"
 
@@ -27,7 +27,11 @@ export const landingFinalCtaSection =
 export const landingContainer = "relative z-10 mx-auto w-full max-w-6xl px-4 sm:px-6"
 
 /** Wider hero / full-bleed moments. */
-export const landingContainerWide = "relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6"
+export const landingContainerWide = "relative z-10 mx-auto w-full max-w-7xl px-6 md:px-8 lg:px-10"
+
+/** Split content + image columns on marketing home (readable line length + placeholders). */
+export const landingContainerSplit =
+  "relative z-10 mx-auto w-full max-w-7xl px-6 md:px-8 lg:px-10"
 
 /** Section headings — dark bands: commanding, athletic. */
 export const landingH2Dark =
@@ -35,13 +39,13 @@ export const landingH2Dark =
 
 /** Section headings — light bands. */
 export const landingH2Light =
-  "text-4xl sm:text-5xl md:text-6xl font-athletic font-bold text-slate-900 tracking-tight leading-[1.05]"
+  "font-athletic text-2xl font-bold tracking-tight text-gray-900 md:text-4xl"
 
 /** Body copy on dark sections. */
 export const landingBodyDark = "text-lg md:text-xl text-slate-200/95 leading-relaxed"
 
 /** Body copy on light sections. */
-export const landingBodyLight = "text-lg md:text-xl text-slate-600 leading-relaxed"
+export const landingBodyLight = "text-base leading-relaxed text-gray-800 md:text-lg"
 
 /** Primary text link on dark gradient. */
 export const landingLinkOnDark =

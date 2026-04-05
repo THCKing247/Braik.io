@@ -32,7 +32,7 @@ export function MarketingFaqAccordion({
               className="flex w-full items-center justify-between gap-4 py-4 px-5 text-left"
               aria-expanded={open}
             >
-              <span className="font-semibold text-[#212529]">{item.question}</span>
+              <span className="font-semibold text-gray-900">{item.question}</span>
               <span
                 className={cn(
                   "text-[#3B82F6] text-xl font-bold transition-transform shrink-0",
@@ -49,7 +49,7 @@ export function MarketingFaqAccordion({
               )}
             >
               <div className="overflow-hidden">
-                <div className="space-y-3 border-t border-slate-100 pb-4 px-5 pt-3 text-[#212529]/85 leading-relaxed text-sm">
+                <div className="space-y-3 border-t border-slate-100 px-5 pb-4 pt-3 text-sm leading-relaxed text-gray-800">
                   <p>{item.answer}</p>
                   {item.learnMoreHref && item.learnMoreLabel ? (
                     <p>

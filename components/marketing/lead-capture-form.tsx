@@ -56,9 +56,9 @@ export function LeadCaptureForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="lead-name" className="text-gray-900">
+          <Label htmlFor="lead-name" className="text-sm font-medium text-gray-900">
             Name *
           </Label>
           <Input
@@ -67,11 +67,11 @@ export function LeadCaptureForm() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Your full name"
             required
-            className="bg-white text-[#212529]"
+            className="border-slate-300 bg-white text-gray-900 placeholder:text-gray-600"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="lead-email" className="text-gray-900">
+          <Label htmlFor="lead-email" className="text-sm font-medium text-gray-900">
             Email *
           </Label>
           <Input
@@ -81,14 +81,14 @@ export function LeadCaptureForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@school.edu"
             required
-            className="bg-white text-[#212529]"
+            className="border-slate-300 bg-white text-gray-900 placeholder:text-gray-600"
           />
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="lead-phone" className="text-gray-900">
+          <Label htmlFor="lead-phone" className="text-sm font-medium text-gray-900">
             Phone
           </Label>
           <Input
@@ -96,11 +96,11 @@ export function LeadCaptureForm() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="(555) 555-5555"
-            className="bg-white text-[#212529]"
+            className="border-slate-300 bg-white text-gray-900 placeholder:text-gray-600"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="lead-school" className="text-gray-900">
+          <Label htmlFor="lead-school" className="text-sm font-medium text-gray-900">
             School / Program
           </Label>
           <Input
@@ -108,20 +108,20 @@ export function LeadCaptureForm() {
             value={school}
             onChange={(e) => setSchool(e.target.value)}
             placeholder="Example High School"
-            className="bg-white text-[#212529]"
+            className="border-slate-300 bg-white text-gray-900 placeholder:text-gray-600"
           />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lead-role" className="text-gray-900">
+        <Label htmlFor="lead-role" className="text-sm font-medium text-gray-900">
           Primary Role
         </Label>
         <select
           id="lead-role"
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          className="w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
         >
           <option>Head Coach</option>
           <option>Assistant Coach</option>
@@ -131,7 +131,7 @@ export function LeadCaptureForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lead-message" className="text-gray-900">
+        <Label htmlFor="lead-message" className="text-sm font-medium text-gray-900">
           Message
         </Label>
         <textarea
@@ -139,7 +139,7 @@ export function LeadCaptureForm() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Tell us what your program needs most."
-          className="min-h-[120px] w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#212529] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+          className="min-h-[120px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
         />
       </div>
 

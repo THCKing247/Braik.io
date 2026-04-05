@@ -26,6 +26,9 @@ import {
   landingH2Light,
   landingLightSection,
   landingLinkOnDark,
+  landingListDark,
+  landingNoteDark,
+  landingSubheadLight,
 } from "@/lib/marketing/landing-visual-theme"
 
 const heroPrimaryCta =
@@ -210,7 +213,7 @@ export default function Home() {
               <div className="order-1 min-w-0 space-y-8 md:order-2">
                 <h2 className={landingH2Light}>One system. Less stress.</h2>
                 <div className="space-y-6 pt-2">
-                  <p className={`font-semibold ${landingBodyLight}`}>
+                  <p className={landingSubheadLight}>
                     Most coaches don't need more apps. They need fewer responsibilities pulling them away from what matters.
                   </p>
                   <p className={landingBodyLight}>
@@ -402,7 +405,7 @@ export default function Home() {
                     Coach B is Braik&apos;s AI layer for football programs: it reasons over the same roster, schedule, playbook, and
                     health context your staff already maintains—so answers stay grounded in your team, not generic internet noise.
                   </p>
-                  <ul className="list-none space-y-4 pl-0 text-base leading-relaxed text-slate-200/95">
+                  <ul className={`list-none space-y-4 pl-0 ${landingListDark}`}>
                     <li className="flex gap-3">
                       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)]" aria-hidden />
                       <span>
@@ -426,7 +429,7 @@ export default function Home() {
                       </span>
                     </li>
                   </ul>
-                  <p className="text-sm text-slate-300/95">
+                  <p className={landingNoteDark}>
                     See how we talk about AI safety and transparency in the{" "}
                     <Link href="/ai-transparency" className={landingLinkOnDark}>
                       AI transparency

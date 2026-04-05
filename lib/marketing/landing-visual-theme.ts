@@ -11,7 +11,7 @@ export const landingDarkSection =
 
 /** Crisp light bands — ready for optional absolute bg image + overlay layers. */
 export const landingLightSection =
-  "relative w-full overflow-hidden bg-white text-gray-900 py-20 md:py-24 " +
+  "relative w-full overflow-hidden bg-white text-slate-900 py-20 md:py-24 " +
   "shadow-[inset_0_1px_0_0_rgba(148,163,184,0.12)] " +
   "before:pointer-events-none before:absolute before:inset-0 before:z-0 before:bg-[repeating-linear-gradient(90deg,transparent,transparent_3.25rem,rgba(15,23,42,0.035)_3.25rem,rgba(15,23,42,0.035)_calc(3.25rem+1px))]"
 
@@ -37,15 +37,28 @@ export const landingContainerSplit =
 export const landingH2Dark =
   "text-4xl sm:text-5xl md:text-6xl font-athletic font-bold text-white tracking-tight leading-[1.05]"
 
-/** Section headings — light bands. */
+/** Section headings — light bands (WCAG-friendly on white / off-white). */
 export const landingH2Light =
-  "font-athletic text-2xl font-bold tracking-tight text-gray-900 md:text-4xl"
+  "font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl"
 
-/** Body copy on dark sections. */
-export const landingBodyDark = "text-lg md:text-xl text-slate-200/95 leading-relaxed"
+/** Subhead / lead sentence on light sections. */
+export const landingSubheadLight =
+  "text-base font-semibold leading-relaxed text-slate-800 md:text-lg"
 
 /** Body copy on light sections. */
-export const landingBodyLight = "text-base leading-relaxed text-gray-800 md:text-lg"
+export const landingBodyLight = "text-base leading-relaxed text-slate-700 md:text-lg"
+
+/** Supporting / secondary copy on light sections (never below slate-500 for helpers). */
+export const landingSupportingLight = "text-sm leading-relaxed text-slate-600 md:text-base"
+
+/** Body copy on dark sections. */
+export const landingBodyDark = "text-lg leading-relaxed text-slate-100 md:text-xl"
+
+/** Smaller note line on dark sections (still readable on navy). */
+export const landingNoteDark = "text-sm leading-relaxed text-slate-200"
+
+/** Body copy on dark sections — list items and dense copy. */
+export const landingListDark = "text-base leading-relaxed text-slate-100 md:text-lg"
 
 /** Primary text link on dark gradient. */
 export const landingLinkOnDark =

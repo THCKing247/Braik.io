@@ -12,6 +12,7 @@
     "lint": "next lint",
     "seed:users": "tsx scripts/seed-users.ts",
     "verify:separation": "tsx scripts/verify-separation.ts",
+    "optimize:images": "tsx scripts/optimize-landing-images.ts",
     "test:coords": "tsx tests/playbook-canvas-coords.test.ts",
     "test:draft": "tsx tests/playbook-draft.test.ts",
     "test:freehand": "tsx tests/freehand-route.test.ts",

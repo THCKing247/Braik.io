@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ import { MarketingCard } from "@/components/marketing/marketing-layout"
 import { ImagePlaceholder } from "@/components/marketing/image-placeholder"
 import { SectionSplit } from "@/components/marketing/section-split"
 import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
+import { landingDevicesHero } from "@/lib/marketing/landing-images"
 import {
   landingBodyDark,
   landingContainer,
@@ -226,9 +228,13 @@ export default function Home() {
             <SectionSplit>
               <div className="order-2 flex min-w-0 justify-center md:order-1 md:justify-start">
                 <div className="w-full max-w-4xl">
-                  <img
-                    src="/images/devices-transparent.png"
+                  <Image
+                    src={landingDevicesHero.webp}
                     alt="Braik devices"
+                    width={landingDevicesHero.width}
+                    height={landingDevicesHero.height}
+                    sizes="(max-width: 896px) 100vw, 896px"
+                    quality={85}
                     className="h-auto w-full object-contain scale-105 md:scale-110 drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
                   />
                 </div>

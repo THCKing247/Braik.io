@@ -20,7 +20,7 @@ export function LogoWatermark({ position = "top-right", className = "" }: LogoWa
       style={{ zIndex: 1 }}
     >
       <Image
-        src="/braik-logo.png"
+        src="/braik-logo.webp"
         alt=""
         width={800}
         height={400}

@@ -75,7 +75,7 @@ export function AdNav({
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href={homeHref} className="flex items-center gap-2">
-              <Image src="/braik-logo.png" alt="Braik" width={120} height={32} className="h-8 w-auto" />
+              <Image src="/braik-logo.webp" alt="Braik" width={480} height={320} className="h-8 w-auto" sizes="120px" />
               <span className="text-sm font-semibold text-[#6B7280] hidden sm:inline">Athletic Director</span>
             </Link>
             <div className="hidden md:flex gap-1">

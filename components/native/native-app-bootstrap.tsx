@@ -133,7 +133,7 @@ export function NativeAppBootstrap() {
         <div className="relative z-10 flex flex-col items-center gap-4">
           <div className="flex h-12 w-[168px] items-center justify-center">
             <img
-              src="/braik-logo.png"
+              src="/braik-logo.webp"
               alt="Braik"
               className="h-auto w-full max-h-11 object-contain brightness-0 invert"
             />
@@ -166,7 +166,7 @@ export function NativeAppBootstrap() {
       <div className="relative z-10 flex flex-col items-center gap-4">
         <div className="flex h-12 w-[168px] items-center justify-center">
           <img
-            src="/braik-logo.png"
+            src="/braik-logo.webp"
             alt="Braik"
             className="h-auto w-full max-h-11 object-contain brightness-0 invert"
           />

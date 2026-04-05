@@ -97,7 +97,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             >
               <div className="flex h-9 items-center overflow-hidden sm:h-10 md:h-11">
                 <Image
-                  src="/braik-logo.png"
+                  src="/braik-logo.webp"
                   alt="Braik"
                   width={720}
                   height={360}
@@ -140,7 +140,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             >
               <div className="flex h-10 max-w-[min(200px,calc(100vw-22rem))] items-center overflow-hidden md:h-11 lg:h-12">
                 <Image
-                  src="/braik-logo.png"
+                  src="/braik-logo.webp"
                   alt="Braik Logo"
                   width={720}
                   height={360}

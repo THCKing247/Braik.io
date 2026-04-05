@@ -34,7 +34,7 @@ export function MobileAppEntryLoading({ message = "Loading…" }: { message?: st
       <header className="relative z-10 flex shrink-0 flex-col items-center px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-4">
         <div className="flex h-11 w-[148px] items-center justify-center">
           <img
-            src="/braik-logo.png"
+            src="/braik-logo.webp"
             alt="Braik"
             className="h-auto w-full max-h-10 object-contain brightness-0 invert"
           />
@@ -72,7 +72,7 @@ export function MobileAppLoginScreen() {
       <header className="relative z-10 flex shrink-0 flex-col items-center px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-2">
         <div className="flex h-11 w-[160px] items-center justify-center">
           <img
-            src="/braik-logo.png"
+            src="/braik-logo.webp"
             alt="Braik"
             className="h-auto w-full max-h-10 object-contain brightness-0 invert"
           />

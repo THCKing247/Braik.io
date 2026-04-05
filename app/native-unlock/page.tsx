@@ -134,7 +134,7 @@ export default function NativeUnlockPage() {
         <div className="flex flex-col items-center space-y-3 text-center">
           <div className="flex h-12 w-[168px] items-center justify-center">
             <img
-              src="/braik-logo.png"
+              src="/braik-logo.webp"
               alt="Braik"
               className="h-auto w-full max-h-11 object-contain brightness-0 invert"
             />

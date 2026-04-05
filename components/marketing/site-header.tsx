@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 import { getPublicJoinHref } from "@/lib/marketing/join-cta"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 const navLinks = [
   { href: "/features", label: "Features", desktopOnly: false },
@@ -50,9 +52,14 @@ export function SiteHeader() {
             aria-label="Braik - Return to home page"
           >
             <div className="h-12 w-[200px] flex items-center overflow-hidden">
-              <img
-                src="/braik-logo.png"
+              <Image
+                src={braikLogo.webp}
                 alt="Braik"
+                width={braikLogo.width}
+                height={braikLogo.height}
+                sizes="200px"
+                quality={90}
+                priority
                 className="w-full h-auto block object-contain object-left"
               />
             </div>

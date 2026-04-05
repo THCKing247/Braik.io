@@ -6,6 +6,7 @@ import { type FormEvent, useEffect, useState } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 import { getPublicJoinHref } from "@/lib/marketing/join-cta"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 export function SiteFooter() {
   const { data: session } = useSession()
@@ -104,11 +105,13 @@ export function SiteFooter() {
           <div>
             <div className="flex items-center mb-4">
               <div className="h-10 md:h-12 lg:h-16 w-auto overflow-hidden flex items-center">
-                <Image 
-                  src="/braik-logo.png" 
-                  alt="Braik Logo" 
-                  width={720} 
-                  height={360} 
+                <Image
+                  src={braikLogo.webp}
+                  alt="Braik Logo"
+                  width={braikLogo.width}
+                  height={braikLogo.height}
+                  sizes="(max-width: 768px) 160px, 200px"
+                  quality={90}
                   className="h-[140%] w-auto object-contain object-center -my-[20%] cursor-default"
                 />
               </div>

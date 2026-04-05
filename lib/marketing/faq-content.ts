@@ -42,7 +42,7 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
     id: "guided-setup-included",
     question: "Is guided setup included?",
     answer:
-      "Yes. Guided setup and onboarding—roster import, coach walkthrough, and ongoing support as you get started—are included with every Braik plan.",
+      "Yes. Every plan includes onboarding support, with flexible options from self-guided setup to team and full program configuration. Additional setup is available on request.",
     learnMoreHref: "/pricing#onboarding",
     learnMoreLabel: "Guided setup & onboarding",
   },

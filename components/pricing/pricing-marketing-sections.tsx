@@ -6,8 +6,8 @@ import {
   SectionHeading,
   PriceCard,
   BulletList,
+  MarketingCard,
 } from "@/components/marketing/marketing-layout"
-import { cn } from "@/lib/utils"
 import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta"
 import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
@@ -90,26 +90,36 @@ export function PricingMarketingSections() {
         <div className={sectionShell}>
           <SectionHeading
             title="Guided Setup & Onboarding"
-            description="We handle the setup so you can focus on coaching."
+            description="We offer flexible onboarding options based on your team or program needs."
           />
-          <div
-            className={cn(
-              "max-w-2xl mx-auto rounded-xl border border-slate-200/90 bg-white p-6 md:p-8 shadow-sm transition-all duration-300",
-              "hover:shadow-lg hover:border-[#3B82F6]/35 hover:-translate-y-0.5",
-              "[&_li]:text-slate-700"
-            )}
-          >
-            <BulletList
-              items={[
-                "Roster import + team setup",
-                "Coach onboarding walkthrough",
-                "Ongoing support as you get started",
-              ]}
-            />
-            <p className="mt-6 pt-6 border-t border-slate-100 text-sm font-medium text-slate-600">
-              Included with every Braik plan
-            </p>
+          <div className="grid gap-6 md:grid-cols-3 max-w-6xl mx-auto">
+            <MarketingCard title="Self-Guided Setup">
+              <BulletList
+                items={["Quick start resources", "Import your roster", "Get up and running fast"]}
+              />
+            </MarketingCard>
+            <MarketingCard title="Team Setup">
+              <BulletList
+                items={[
+                  "Roster import + system setup",
+                  "Coach onboarding walkthrough",
+                  "Best for single teams",
+                ]}
+              />
+            </MarketingCard>
+            <MarketingCard title="Program Setup">
+              <BulletList
+                items={[
+                  "Full program configuration (Varsity, JV, Freshman)",
+                  "Multi-team onboarding support",
+                  "Athletic department alignment",
+                ]}
+              />
+            </MarketingCard>
           </div>
+          <p className="max-w-3xl mx-auto mt-8 md:mt-10 text-center text-sm text-[#64748B] leading-relaxed">
+            All plans include onboarding support. Additional setup options available upon request.
+          </p>
         </div>
       </section>
 

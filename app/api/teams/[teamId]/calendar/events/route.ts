@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server"
-import {
-  getServerSession,
-  getRequestUserLite,
-  applyRefreshedSessionCookies,
-  type SessionUser,
-} from "@/lib/auth/server-auth"
+import { getServerSession, applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser, requireTeamPermission, getUserMembership } from "@/lib/auth/rbac"
 import { requireBillingPermission } from "@/lib/billing/billing-state"
@@ -37,7 +33,7 @@ export async function GET(
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const sessionResult = await getRequestUserLite()
+    const sessionResult = await getRequestAuth()
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

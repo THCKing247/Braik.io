@@ -1,7 +1,7 @@
+"use client"
+
 import { ComingSoon } from "@/components/portal/coming-soon"
 import { FolderOpen } from "lucide-react"
-
-export const dynamic = "force-dynamic"
 
 export default function CollectionsPage() {
   return (

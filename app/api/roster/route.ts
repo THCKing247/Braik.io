@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { getServerSession, getRequestUserLite, applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
+import { getServerSession, applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
 import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
@@ -38,14 +39,14 @@ type PlayerRow = {
  * GET /api/roster?teamId=xxx
  * Returns team roster (players) for RosterManagerEnhanced.
  * `lite=1`: minimal fields only (id, names, jersey, position) — skips injuries, invites, user join; use for pickers (playbook, schedule stats).
- * Lite + full use `getRequestUserLite` (no portal path). POST still uses full session.
+ * Lite + full use `getRequestAuth` (no portal path). POST still uses full session.
  */
 export async function GET(request: Request) {
   const started = performance.now()
   const sink: RoutePerfSink | null = shouldLogRoutePerf() ? [] : null
 
   try {
-    const sessionResult = await routePerf(sink, "auth", () => getRequestUserLite())
+    const sessionResult = await routePerf(sink, "auth", () => getRequestAuth())
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

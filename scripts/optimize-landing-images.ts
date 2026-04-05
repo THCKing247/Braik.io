@@ -82,9 +82,44 @@ async function optimizeLogo() {
   console.log("braik-logo:", { webp: webpPath, png: pngPath, ...outMeta })
 }
 
+/** Home hero — cap width so next/image has a smaller source PNG (also writes WebP alongside for static hosts). */
+async function optimizeFogFieldHero() {
+  const input = join(publicDir, "images/fog-field.png")
+  const pngTmp = join(publicDir, "images/fog-field.opt.tmp.png")
+  const pngPath = join(publicDir, "images/fog-field.png")
+  const webpPath = join(publicDir, "images/fog-field.webp")
+  const meta = await sharp(input).metadata()
+  const w = meta.width ?? 1920
+  const targetW = Math.min(w, 1920)
+  const pipeline = sharp(input).resize({ width: targetW, withoutEnlargement: true })
+
+  await pipeline.clone().webp({ quality: 82, effort: 6 }).toFile(webpPath)
+
+  await pipeline
+    .clone()
+    .png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+      effort: 10,
+    })
+    .toFile(pngTmp)
+
+  try {
+    unlinkSync(pngPath)
+  } catch {
+    /* ignore */
+  }
+  renameSync(pngTmp, pngPath)
+
+  const outMeta = await sharp(pngPath).metadata()
+  console.log("fog-field:", { png: pngPath, webp: webpPath, ...outMeta })
+  console.log("If width/height changed, update lib/marketing/landing-images.ts (landingFogFieldHero).")
+}
+
 async function main() {
   await optimizeDevicesHero()
   await optimizeLogo()
+  await optimizeFogFieldHero()
 }
 
 main().catch((e) => {

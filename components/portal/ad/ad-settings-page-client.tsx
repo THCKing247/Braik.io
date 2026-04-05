@@ -21,7 +21,7 @@ export function AdSettingsPageClient() {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch("/api/ad/pages/settings", { credentials: "include", cache: "no-store" })
+        const res = await fetch("/api/ad/pages/settings", { credentials: "include" })
         if (res.status === 401) {
           router.replace("/login?callbackUrl=/dashboard/ad/settings")
           return

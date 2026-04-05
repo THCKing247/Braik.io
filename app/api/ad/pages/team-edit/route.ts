@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { loadAdTeamEditPayload } from "@/lib/ad/load-ad-team-edit-payload"
 
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const sessionResult = await getRequestUserLite()
+    const sessionResult = await getRequestAuth()
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

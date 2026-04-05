@@ -4,8 +4,8 @@
  * Third phase: depth chart entries only (after deferred-core).
  */
 import { NextResponse } from "next/server"
-import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
-import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
+import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { getRequestAuth, getResolvedTeamAccessForRequest } from "@/lib/auth/request-auth-context"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 import {
@@ -31,16 +31,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const session = await timedBootstrap(timingSink, "auth", () => getRequestUserLite())
+    const session = await timedBootstrap(timingSink, "auth", () => getRequestAuth())
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = session.user.id
 
-    let access: Awaited<ReturnType<typeof resolveTeamAccess>>
+    let access: Awaited<ReturnType<typeof getResolvedTeamAccessForRequest>>
     try {
-      access = await timedBootstrap(timingSink, "membership", () => resolveTeamAccess(teamId, userId))
+      access = await timedBootstrap(timingSink, "membership", () => getResolvedTeamAccessForRequest(teamId))
     } catch (err) {
       if (err instanceof MembershipLookupError) {
         console.error("[GET /api/dashboard/bootstrap-deferred-heavy] membership lookup", err)

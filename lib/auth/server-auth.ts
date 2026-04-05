@@ -9,6 +9,7 @@ import { getSupabaseAnonKey, getSupabaseProjectUrl, isSupabaseServerConfigured }
 import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
 import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
 import { adTeamsFlowPerfLog, shouldLogAdTeamsFlowPerf } from "@/lib/ad/ad-teams-table-perf"
+import { perfLogAuthVerbose } from "@/lib/perf/braik-perf-server"
 
 const AUTH_DEBUG = process.env.DEBUG_AUTH === "true"
 
@@ -57,6 +58,8 @@ export type RequestUserLite = {
   profileRoleDb?: string | null
   profileTeamId?: string | null
   profileSchoolId?: string | null
+  /** From `profiles.full_name` — loaded with the same query as role/team (settings and display). */
+  profileFullName?: string | null
 }
 
 export type RequestUserLiteResult = {
@@ -164,7 +167,7 @@ async function buildSessionUser(
 async function buildSessionUserLite(userId: string, email: string): Promise<RequestUserLite> {
   const supabase = getSupabaseServer()
   const [profileResult, appUserResult] = await Promise.all([
-    supabase.from("profiles").select("role, team_id, school_id").eq("id", userId).maybeSingle(),
+    supabase.from("profiles").select("role, team_id, school_id, full_name").eq("id", userId).maybeSingle(),
     supabase.from("users").select("role, is_platform_owner").eq("id", userId).maybeSingle(),
   ])
   const profile = profileResult.data
@@ -180,6 +183,7 @@ async function buildSessionUserLite(userId: string, email: string): Promise<Requ
     profileRoleDb: profile?.role ?? null,
     profileTeamId: (profile?.team_id as string | null | undefined) ?? null,
     profileSchoolId: (profile?.school_id as string | null | undefined) ?? null,
+    profileFullName: (profile?.full_name as string | null | undefined) ?? null,
   }
 }
 
@@ -187,7 +191,12 @@ async function buildSessionUserLite(userId: string, email: string): Promise<Requ
  * Same cookie/token flow as `getServerSession`, but returns `RequestUserLite` (cheaper DB reads).
  */
 export async function getRequestUserLite(): Promise<RequestUserLiteResult | null> {
+  const tAll = performance.now()
+  const logAuth = (payload: Record<string, unknown>) => {
+    perfLogAuthVerbose("auth.getRequestUserLite", payload)
+  }
   if (!isSupabaseServerConfigured()) {
+    logAuth({ ms: Math.round(performance.now() - tAll), outcome: "no_supabase_config" })
     return null
   }
 
@@ -206,6 +215,12 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
       const tLite = performance.now()
       const user = await buildSessionUserLite(userData.user.id, userData.user.email)
       if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "buildSessionUserLite", performance.now() - tLite)
+      logAuth({
+        ms: Math.round(performance.now() - tAll),
+        outcome: "ok_access_token",
+        userId: user.id,
+        profile_ms: Math.round(performance.now() - tLite),
+      })
       return { user }
     }
     if (AUTH_DEBUG) console.warn("[auth] lite: access token invalid or expired:", error?.message ?? "no user")
@@ -218,6 +233,13 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
       const tLite = performance.now()
       const user = await buildSessionUserLite(refreshed.user.id, refreshed.user.email ?? "")
       if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "buildSessionUserLite", performance.now() - tLite)
+      logAuth({
+        ms: Math.round(performance.now() - tAll),
+        outcome: "ok_refresh_token",
+        userId: user.id,
+        profile_ms: Math.round(performance.now() - tLite),
+        refreshed_session: true,
+      })
       return {
         user,
         refreshedSession: {
@@ -229,6 +251,7 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
     }
   }
 
+  logAuth({ ms: Math.round(performance.now() - tAll), outcome: "no_session" })
   return null
 }
 

@@ -1,8 +1,14 @@
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+
 /**
- * Opt-in route timing for API debugging. Set BRAIK_PERF_DEBUG=1 or run in development.
+ * Opt-in route timing for API debugging.
+ * `BRAIK_PERF=1` | `BRAIK_PERF_DEBUG=1` | development.
  */
 export function shouldLogRoutePerf(): boolean {
-  return process.env.NODE_ENV === "development" || process.env.BRAIK_PERF_DEBUG === "1"
+  return (
+    braikPerfServerEnabled() ||
+    process.env.BRAIK_PERF_DEBUG === "1"
+  )
 }
 
 export type RoutePerfSink = Array<{ label: string; ms: number }>

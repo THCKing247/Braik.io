@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
 
@@ -17,51 +17,49 @@ type OverviewJson = {
   emptyStateTriggered: boolean
 }
 
+const AD_OVERVIEW_QUERY_KEY = ["ad-overview-page"] as const
+
 export function AdOverviewPageClient() {
   const router = useRouter()
-  const [data, setData] = useState<OverviewJson | null>(null)
-  const [error, setError] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch("/api/ad/pages/overview", { credentials: "include", cache: "no-store" })
-        if (res.status === 401) {
-          router.replace("/login?callbackUrl=/dashboard/ad")
-          return
-        }
-        if (res.status === 403) {
-          router.replace("/dashboard")
-          return
-        }
-        if (!res.ok) throw new Error(String(res.status))
-        const json = (await res.json()) as OverviewJson
-        if (cancelled) return
-        if (json.redirectTo) {
-          router.replace(json.redirectTo)
-          return
-        }
-        setData(json)
-      } catch {
-        if (!cancelled) setError(true)
+  const q = useQuery({
+    queryKey: AD_OVERVIEW_QUERY_KEY,
+    queryFn: async () => {
+      const res = await fetch("/api/ad/pages/overview", { credentials: "include" })
+      if (res.status === 401) {
+        router.replace("/login?callbackUrl=/dashboard/ad")
+        throw new Error("Unauthorized")
       }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [router])
+      if (res.status === 403) {
+        router.replace("/dashboard")
+        throw new Error("Forbidden")
+      }
+      if (!res.ok) throw new Error(String(res.status))
+      const json = (await res.json()) as OverviewJson
+      if (json.redirectTo) {
+        router.replace(json.redirectTo)
+      }
+      return json
+    },
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    retry: false,
+  })
 
-  if (error) {
+  if (q.isError) {
     return <p className="text-[#212529]">Could not load overview.</p>
   }
-  if (!data) {
+  if (q.isPending || !q.data) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-8 w-64 rounded bg-[#E5E7EB]" />
         <div className="h-40 rounded-xl bg-[#F3F4F6]" />
       </div>
     )
+  }
+
+  const data = q.data
+  if (data.redirectTo) {
+    return null
   }
 
   const school = data.school

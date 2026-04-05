@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
-import {
-  applyRefreshedSessionCookies,
-  getRequestUserLite,
-  type SessionUser,
-} from "@/lib/auth/server-auth"
+import { applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import {
   isOpenAIConfigured,
   transcribeCoachBAudio,
@@ -73,7 +70,7 @@ export async function POST(req: Request) {
 
   const tAuth0 = Date.now()
   console.log(`${logPrefix} auth start (lite)`)
-  const sessionResult = await getRequestUserLite()
+  const sessionResult = await getRequestAuth()
   console.log(`${logPrefix} auth complete`, { ms: Date.now() - tAuth0, ok: Boolean(sessionResult?.user?.id) })
 
   if (!sessionResult?.user?.id) {

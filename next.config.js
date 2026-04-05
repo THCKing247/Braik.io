@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Tree-shake icon / UI packages so routes only ship icons/components actually used.
+    optimizePackageImports: ["lucide-react"],
+  },
   eslint: {
     // Allow production builds while lint issues are addressed incrementally
     ignoreDuringBuilds: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { unstable_cache } from "next/cache"
-import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getAdPortalAccessForUser, type AdPortalAccess } from "@/lib/ad-portal-access"
 import { adTeamsFlowPerfLog, shouldLogAdTeamsFlowPerf } from "@/lib/ad/ad-teams-table-perf"
@@ -60,8 +61,8 @@ export async function GET() {
   const devLog = shouldLogAdTeamsFlowPerf()
   try {
     const t1 = performance.now()
-    const sessionResult = await getRequestUserLite()
-    if (devLog) adTeamsFlowPerfLog("route", "getRequestUserLite", performance.now() - t1)
+    const sessionResult = await getRequestAuth()
+    if (devLog) adTeamsFlowPerfLog("route", "getRequestAuth", performance.now() - t1)
 
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

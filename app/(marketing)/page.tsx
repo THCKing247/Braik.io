@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useRef } from "react"
@@ -8,14 +9,13 @@ import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { ScrollReveal } from "@/components/marketing/scroll-reveal"
 import { HeroShatterCta } from "@/components/marketing/hero-shatter-cta"
-import { LeadCaptureForm } from "@/components/marketing/lead-capture-form"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
 import { MarketingCard } from "@/components/marketing/marketing-layout"
 import { ImagePlaceholder } from "@/components/marketing/image-placeholder"
 import { SectionSplit } from "@/components/marketing/section-split"
 import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
-import { landingDevicesHero } from "@/lib/marketing/landing-images"
+import { landingDevicesHero, landingFogFieldHero } from "@/lib/marketing/landing-images"
 import {
   landingBodyDark,
   landingContainer,
@@ -23,6 +23,25 @@ import {
   landingContainerWide,
   landingLightSection,
 } from "@/lib/marketing/landing-visual-theme"
+
+/** Below-the-fold / non-LCP: separate chunks to shrink the main home bundle. */
+const LeadCaptureFormLazy = dynamic(
+  () => import("@/components/marketing/lead-capture-form").then((m) => m.LeadCaptureForm),
+  {
+    loading: () => (
+      <div className="min-h-[220px] w-full animate-pulse rounded-xl bg-slate-100/80" aria-hidden />
+    ),
+  }
+)
+
+const FAQLinkCTALazy = dynamic(
+  () => import("@/components/marketing/faq-link-cta").then((m) => m.FAQLinkCTA),
+  {
+    loading: () => (
+      <div className="min-h-[200px] w-full animate-pulse rounded-xl bg-slate-50" aria-hidden />
+    ),
+  }
+)
 
 /** Dark bands — class strings inlined here (not from theme) so home uses only slate-based text utilities. */
 const landingDarkSection =
@@ -100,11 +119,19 @@ export default function Home() {
 
       {/* Hero — game-day intro: field photo, layered gradients, centered hierarchy (desktop lg+) */}
       <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden text-slate-100">
-        <div
-          className="absolute inset-0 scale-[1.03] bg-cover bg-center bg-no-repeat md:scale-105"
-          style={{ backgroundImage: "url('/images/fog-field.png')" }}
-          aria-hidden
-        />
+        <div className="absolute inset-0 scale-[1.03] md:scale-105" aria-hidden>
+          <div className="relative h-full w-full">
+            <Image
+              src={landingFogFieldHero.src}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              quality={80}
+              className="object-cover object-center"
+            />
+          </div>
+        </div>
         <div
           className="absolute inset-0 bg-gradient-to-b from-black/80 via-slate-950/70 to-[#0a1628]/92"
           aria-hidden
@@ -235,6 +262,7 @@ export default function Home() {
                     height={landingDevicesHero.height}
                     sizes="(max-width: 896px) 100vw, 896px"
                     quality={85}
+                    loading="lazy"
                     className="h-auto w-full object-contain scale-105 md:scale-110 drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
                   />
                 </div>
@@ -479,7 +507,7 @@ export default function Home() {
         </div>
       </section>
 
-      <FAQLinkCTA id="faq" imagePosition="right" />
+      <FAQLinkCTALazy id="faq" imagePosition="right" />
 
       {/* Final CTA — bold conversion band */}
       <section className={landingFinalCtaSection}>
@@ -522,7 +550,7 @@ export default function Home() {
                 <p className={lightSectionBody}>
                   Share your program details and we will follow up with a tailored Braik walkthrough.
                 </p>
-                <LeadCaptureForm />
+                <LeadCaptureFormLazy />
               </div>
             </SectionSplit>
           </ScrollReveal>

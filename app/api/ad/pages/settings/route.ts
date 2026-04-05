@@ -1,27 +1,30 @@
 import { NextResponse } from "next/server"
-import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
+import { getCachedAppAdPortalBootstrap } from "@/lib/app/app-bootstrap-cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { buildAppAdPortalBootstrapPayload } from "@/lib/app/build-app-ad-portal-bootstrap"
+import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
 
 export const runtime = "nodejs"
 
 export async function GET() {
   try {
-    const sessionResult = await getRequestUserLite()
+    const sessionResult = await getRequestAuth()
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     const u = sessionResult.user
     const supabase = getSupabaseServer()
 
-    let shell: Awaited<ReturnType<typeof buildAppAdPortalBootstrapPayload>>
+    let shell: AppAdPortalBootstrapPayload
     try {
-      shell = await buildAppAdPortalBootstrapPayload(supabase, {
-        userId: u.id,
-        email: u.email,
-        liteRole: u.role ?? "",
-        isPlatformOwner: u.isPlatformOwner === true,
-      })
+      shell = await getCachedAppAdPortalBootstrap(
+        u.id,
+        u.email,
+        u.role ?? "",
+        u.isPlatformOwner === true,
+        false
+      )
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (msg === "AD_BOOTSTRAP_FORBIDDEN") {
@@ -54,7 +57,14 @@ export async function GET() {
       school = data
     }
 
-    const res = NextResponse.json({ school })
+    const res = NextResponse.json(
+      { school },
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, must-revalidate",
+        },
+      }
+    )
     if (sessionResult.refreshedSession) applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
     return res
   } catch (err) {

@@ -3,8 +3,8 @@
  * Enable in production with AD_TEAMS_TABLE_PERF=1.
  *
  * Stages to compare (server):
- * - `getRequestUserLite` · `auth_getUser` — JWT validation
- * - `getRequestUserLite` · `buildSessionUserLite` — profiles + users (parallel)
+ * - `getRequestAuth` / `getRequestUserLite` · `auth_getUser` — JWT validation
+ * - `buildSessionUserLite` — profiles + users (parallel)
  * - `route` · `parallel_dept_football_ad_access` — one dept read + football + getAdPortalAccess (teams-table)
  * - `route` · `parallel_football_and_ad_access` — legacy label when dept not folded in
  * - `fetchAdPortalVisibleTeams` · `resolve_athletic_director_scope` — org/program linkage (not the teams row scan)

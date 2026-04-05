@@ -13,8 +13,8 @@
  * With DEBUG_BOOTSTRAP_TIMING=1 or NODE_ENV=development, payload cache is skipped so sub-step timings log.
  */
 import { NextResponse } from "next/server"
-import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
-import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
+import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { getRequestAuth, getResolvedTeamAccessForRequest } from "@/lib/auth/request-auth-context"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
 import {
@@ -31,10 +31,13 @@ import {
   type BootstrapTimingSink,
 } from "@/lib/debug/bootstrap-timing"
 import { applyDashboardBootstrapCacheHeaders } from "@/lib/dashboard/dashboard-bootstrap-http"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { applyServerTiming, perfLogServer } from "@/lib/perf/braik-perf-server"
 
 export async function GET(request: Request) {
   const requestStarted = performance.now()
-  const timingSink: BootstrapTimingSink | null = shouldLogBootstrapTiming() ? { steps: [] } : null
+  const timingSink: BootstrapTimingSink | null =
+    shouldLogBootstrapTiming() || braikPerfServerEnabled() ? { steps: [] } : null
 
   try {
     const teamId = new URL(request.url).searchParams.get("teamId")?.trim()
@@ -42,16 +45,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const session = await timedBootstrap(timingSink, "auth", () => getRequestUserLite())
+    const session = await timedBootstrap(timingSink, "auth", () => getRequestAuth())
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = session.user.id
 
-    let access: Awaited<ReturnType<typeof resolveTeamAccess>>
+    let access: Awaited<ReturnType<typeof getResolvedTeamAccessForRequest>>
     try {
-      access = await timedBootstrap(timingSink, "membership", () => resolveTeamAccess(teamId, userId))
+      access = await timedBootstrap(timingSink, "membership", () => getResolvedTeamAccessForRequest(teamId))
     } catch (err) {
       if (err instanceof MembershipLookupError) {
         console.error("[GET /api/dashboard/bootstrap] membership lookup", err)
@@ -108,17 +111,36 @@ export async function GET(request: Request) {
         label: "total_request",
         ms: Math.round(performance.now() - requestStarted),
       })
-      logBootstrapTimingSummary(timingSink, {
-        teamId,
-        userId,
-        payloadCacheEnabled: usePayloadCache,
-      })
+      if (shouldLogBootstrapTiming()) {
+        logBootstrapTimingSummary(timingSink, {
+          teamId,
+          userId,
+          payloadCacheEnabled: usePayloadCache,
+        })
+      }
+      if (braikPerfServerEnabled()) {
+        perfLogServer("api.GET.dashboard.bootstrap", {
+          teamId,
+          userId,
+          payloadCache: usePayloadCache,
+          steps: timingSink.steps,
+        })
+      }
     }
 
     const res = NextResponse.json(payload)
     applyDashboardBootstrapCacheHeaders(res)
     if (session.refreshedSession) {
       applyRefreshedSessionCookies(res, session.refreshedSession)
+    }
+    if (timingSink && braikPerfServerEnabled()) {
+      applyServerTiming(
+        res,
+        timingSink.steps.map((s) => ({
+          name: s.label.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40),
+          dur: s.ms,
+        }))
+      )
     }
     return res
   } catch (err) {

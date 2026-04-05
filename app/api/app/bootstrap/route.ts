@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server"
-import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
-import { resolveTeamAccess } from "@/lib/auth/team-access-resolve"
+import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { getRequestAuth, getResolvedTeamAccessForRequest } from "@/lib/auth/request-auth-context"
 import { buildAppBootstrapPayload } from "@/lib/app/build-app-bootstrap"
 import { buildAppAdPortalBootstrapPayload } from "@/lib/app/build-app-ad-portal-bootstrap"
 import { getCachedAppBootstrap, getCachedAppAdPortalBootstrap } from "@/lib/app/app-bootstrap-cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { applyServerTiming } from "@/lib/perf/braik-perf-server"
 
 export const runtime = "nodejs"
 
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
   const sink: RoutePerfSink | null = shouldLogRoutePerf() ? [] : null
 
   try {
-    const sessionResult = await routePerf(sink, "auth", () => getRequestUserLite())
+    const sessionResult = await routePerf(sink, "auth", () => getRequestAuth())
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -87,6 +89,12 @@ export async function GET(request: Request) {
         if (sessionResult.refreshedSession) {
           applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
         }
+        if (sink && braikPerfServerEnabled()) {
+          applyServerTiming(
+            res,
+            sink.map((s) => ({ name: s.label.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40), dur: s.ms }))
+          )
+        }
         return res
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -103,7 +111,7 @@ export async function GET(request: Request) {
     }
 
     const u = sessionResult.user
-    const access = await routePerf(sink, "membership", () => resolveTeamAccess(teamId, u.id))
+    const access = await routePerf(sink, "membership", () => getResolvedTeamAccessForRequest(teamId))
     if (!access) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
@@ -143,6 +151,12 @@ export async function GET(request: Request) {
     const res = withAppBootstrapCache(NextResponse.json(payload))
     if (sessionResult.refreshedSession) {
       applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+    }
+    if (sink && braikPerfServerEnabled()) {
+      applyServerTiming(
+        res,
+        sink.map((s) => ({ name: s.label.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40), dur: s.ms }))
+      )
     }
     return res
   } catch (err) {

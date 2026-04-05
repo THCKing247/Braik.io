@@ -73,6 +73,7 @@ import {
 } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
+import { useBraikPerfDashboardBootstrapReady, useBraikPerfMount } from "@/lib/perf/braik-perf-client"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -862,6 +863,8 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const queryClient = useQueryClient()
   const bootstrapQueryTeamId = (shell?.teamId?.trim() || tid).trim()
   const dashQ = useDashboardBootstrapQuery(bootstrapQueryTeamId)
+  useBraikPerfDashboardBootstrapReady(bootstrapQueryTeamId, Boolean(dashQ.data?.dashboard))
+  useBraikPerfMount("TeamDashboard", 64)
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
   const [dashNetworkHint, setDashNetworkHint] = useState<string | null>(null)

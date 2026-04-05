@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { getRequestUserLite, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 import { loadAdCoachesBootstrapUncached, loadAdCoachesBootstrapWithMeta } from "@/lib/ad/ad-bootstrap"
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
   const sink: RoutePerfSink | null = shouldLogRoutePerf() ? [] : null
 
   try {
-    const sessionResult = await routePerf(sink, "auth", () => getRequestUserLite())
+    const sessionResult = await routePerf(sink, "auth", () => getRequestAuth())
     if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

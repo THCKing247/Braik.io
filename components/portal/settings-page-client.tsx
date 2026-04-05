@@ -1,7 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { SettingsLayout } from "@/components/portal/settings-layout"
 
 type SettingsTeam = {
@@ -56,44 +57,36 @@ type BundleJson = {
   needsOnboarding: boolean
 }
 
+const SETTINGS_BUNDLE_QUERY_KEY = ["settings-page-bundle"] as const
+
 export function SettingsPageClient() {
   const router = useRouter()
-  const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading")
-  const [bundle, setBundle] = useState<BundleJson | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch("/api/me/settings-page-bundle", { credentials: "include", cache: "no-store" })
-        if (res.status === 401) {
-          router.replace("/login?callbackUrl=/dashboard/settings")
-          return
-        }
-        if (!res.ok) throw new Error(String(res.status))
-        const json = (await res.json()) as BundleJson
-        if (cancelled) return
-        setBundle(json)
-        setPhase("ready")
-      } catch {
-        if (!cancelled) setPhase("error")
+  const q = useQuery({
+    queryKey: SETTINGS_BUNDLE_QUERY_KEY,
+    queryFn: async () => {
+      const res = await fetch("/api/me/settings-page-bundle", { credentials: "include" })
+      if (res.status === 401) {
+        router.replace("/login?callbackUrl=/dashboard/settings")
+        throw new Error("Unauthorized")
       }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [router])
+      if (!res.ok) throw new Error(String(res.status))
+      return (await res.json()) as BundleJson
+    },
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    retry: false,
+  })
 
   useEffect(() => {
-    if (bundle?.needsOnboarding) {
+    if (q.data?.needsOnboarding) {
       router.replace("/onboarding")
     }
-  }, [bundle, router])
+  }, [q.data, router])
 
-  if (phase === "error") {
+  if (q.isError) {
     return <p className="text-muted-foreground">Could not load settings.</p>
   }
-  if (phase !== "ready" || !bundle) {
+  if (q.isPending || !q.data) {
     return (
       <div className="space-y-4 animate-pulse p-6">
         <div className="h-8 w-48 rounded bg-muted" />
@@ -101,6 +94,8 @@ export function SettingsPageClient() {
       </div>
     )
   }
+
+  const bundle = q.data
 
   if (bundle.needsOnboarding) {
     return (

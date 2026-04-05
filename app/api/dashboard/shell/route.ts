@@ -1,10 +1,7 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import {
-  getRequestUserLite,
-  applyRefreshedSessionCookies,
-  type SessionUser,
-} from "@/lib/auth/server-auth"
+import { applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { authTimingServer } from "@/lib/auth/login-flow-timing"
@@ -16,6 +13,8 @@ import {
 } from "@/lib/admin/impersonation"
 import type { DashboardShellPayload } from "@/lib/dashboard/dashboard-shell-payload"
 import { applyDashboardShellCacheHeaders } from "@/lib/dashboard/dashboard-shell-http"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { applyServerTiming, perfLogServer } from "@/lib/perf/braik-perf-server"
 
 export const runtime = "nodejs"
 
@@ -37,9 +36,10 @@ export async function GET(request: Request) {
     authTimingServer("dashboard_shell_request_start")
     const supportToken = getSupportTokenFromRequestCookieHeader(request.headers.get("cookie"))
     const [liteResult, impersonationSession] = await Promise.all([
-      getRequestUserLite(),
+      getRequestAuth(),
       getActiveImpersonationFromToken(supportToken),
     ])
+    const msAuth = Math.round(performance.now() - t0)
 
     if (!liteResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -62,11 +62,19 @@ export async function GET(request: Request) {
 
     const userRole = shellUser.role?.toUpperCase()
 
-    const jsonResponse = (body: DashboardShellPayload) => {
+    const jsonResponse = (body: DashboardShellPayload, timing?: { auth: number; teams?: number }) => {
       const res = NextResponse.json(body)
       applyDashboardShellCacheHeaders(res)
       if (liteResult.refreshedSession) {
         applyRefreshedSessionCookies(res, liteResult.refreshedSession)
+      }
+      if (timing && braikPerfServerEnabled()) {
+        const parts = [{ name: "auth", dur: timing.auth }]
+        if (typeof timing.teams === "number") {
+          parts.push({ name: "teams", dur: timing.teams })
+        }
+        parts.push({ name: "total", dur: Math.round(performance.now() - t0) })
+        applyServerTiming(res, parts)
       }
       return res
     }
@@ -75,22 +83,34 @@ export async function GET(request: Request) {
 
     if (userRole === "ATHLETIC_DIRECTOR") {
       authTimingServer("dashboard_shell_response_ad_delegate", { ms: Math.round(performance.now() - t0) })
-      return jsonResponse({
-        shellMode: "ad-delegate",
-        user: shellUser,
-        impersonation: impersonationSession,
-      })
+      if (braikPerfServerEnabled()) {
+        perfLogServer("api.GET.dashboard.shell", {
+          mode: "ad-delegate",
+          ms_auth: msAuth,
+          ms_total: Math.round(performance.now() - t0),
+        })
+      }
+      return jsonResponse(
+        {
+          shellMode: "ad-delegate",
+          user: shellUser,
+          impersonation: impersonationSession,
+        },
+        { auth: msAuth }
+      )
     }
 
     const effectiveUserId = impersonationSession?.target_user_id ?? shellUser.id
     const isImpersonating = Boolean(impersonationSession)
 
+    const tBeforeTeams = performance.now()
     const teams = await loadDashboardShellTeamsUncached(
       effectiveUserId,
       shellUser.id,
       shellUser.teamId,
       isImpersonating
     )
+    const msTeams = Math.round(performance.now() - tBeforeTeams)
     authTimingServer("dashboard_shell_teams_done", { ms: Math.round(performance.now() - t0), teamCount: teams.length })
 
     const cookieStore = cookies()
@@ -117,16 +137,28 @@ export async function GET(request: Request) {
     const subscriptionPaid = true
 
     authTimingServer("dashboard_shell_response_full", { ms: Math.round(performance.now() - t0) })
-    return jsonResponse({
-      shellMode: "full",
-      user: shellUser,
-      teams,
-      currentTeamId,
-      impersonation: impersonationSession,
-      subscriptionPaid,
-      remainingBalance,
-      currentTeamStatus: currentTeam?.teamStatus,
-    })
+    if (braikPerfServerEnabled()) {
+      perfLogServer("api.GET.dashboard.shell", {
+        mode: "full",
+        ms_auth: msAuth,
+        ms_teams: msTeams,
+        ms_total: Math.round(performance.now() - t0),
+        teamCount: teams.length,
+      })
+    }
+    return jsonResponse(
+      {
+        shellMode: "full",
+        user: shellUser,
+        teams,
+        currentTeamId,
+        impersonation: impersonationSession,
+        subscriptionPaid,
+        remainingBalance,
+        currentTeamStatus: currentTeam?.teamStatus,
+      },
+      { auth: msAuth, teams: msTeams }
+    )
   } catch (err) {
     console.error("[GET /api/dashboard/shell]", err instanceof Error ? err.message : err)
     return NextResponse.json({ error: "Shell temporarily unavailable" }, { status: 503 })

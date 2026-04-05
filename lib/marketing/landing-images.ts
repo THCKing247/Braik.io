@@ -15,3 +15,10 @@ export const braikLogo = {
   width: 480,
   height: 320,
 } as const
+
+/** Home hero background — max dimensions; run `scripts/optimize-landing-images.ts` to resize source PNG. */
+export const landingFogFieldHero = {
+  src: "/images/fog-field.png",
+  width: 1920,
+  height: 1080,
+} as const

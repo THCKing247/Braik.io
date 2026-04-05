@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidateUserTeamMembershipCache } from "@/lib/auth/cached-membership"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission } from "@/lib/auth/rbac"
 
@@ -76,6 +77,8 @@ export async function PATCH(
       console.error("[PATCH staff-status]", upErr)
       return NextResponse.json({ error: "Failed to update staff status" }, { status: 500 })
     }
+
+    revalidateUserTeamMembershipCache(teamId, userId)
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {

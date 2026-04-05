@@ -52,10 +52,21 @@ export async function fetchAdPortalBootstrap(): Promise<AppAdPortalBootstrapPayl
   return payload
 }
 
-export function useAdPortalBootstrapQuery() {
+export type UseAdPortalBootstrapQueryOptions = {
+  /** From RSC layout — hydrates the query so the AD shell does not block on GET `/api/app/bootstrap`. */
+  initialData?: AppAdPortalBootstrapPayload | null
+}
+
+export function useAdPortalBootstrapQuery(opts?: UseAdPortalBootstrapQueryOptions) {
+  const initial = opts?.initialData ?? undefined
+  const generatedAtMs = initial?.generatedAt ? Date.parse(initial.generatedAt) : NaN
+
   return useQuery({
     queryKey: AD_PORTAL_BOOTSTRAP_QUERY_KEY,
     queryFn: () => fetchAdPortalBootstrap(),
+    initialData: initial,
+    initialDataUpdatedAt:
+      initial && !Number.isNaN(generatedAtMs) ? generatedAtMs : initial ? Date.now() : undefined,
     staleTime: AD_PORTAL_BOOTSTRAP_STALE_MS,
     gcTime: 30 * 60 * 1000,
     refetchOnMount: false,

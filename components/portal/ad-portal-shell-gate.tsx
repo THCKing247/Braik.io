@@ -15,12 +15,19 @@ import {
 import { AdAppBootstrapProvider } from "@/components/portal/ad-app-bootstrap-context"
 import { AdNav, AdNavShellSkeleton } from "@/components/portal/ad/ad-nav"
 
-export function AdPortalShellGate({ children }: { children: React.ReactNode }) {
+export function AdPortalShellGate({
+  children,
+  initialBootstrapPayload,
+}: {
+  children: React.ReactNode
+  /** Server-rendered shell (see `loadAdPortalBootstrapForAdLayout`) — avoids a client-only bootstrap waterfall. */
+  initialBootstrapPayload?: AppAdPortalBootstrapPayload | null
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const queryClient = useQueryClient()
   const session = useSession()
-  const q = useAdPortalBootstrapQuery()
+  const q = useAdPortalBootstrapQuery({ initialData: initialBootstrapPayload ?? undefined })
   const pendingSinceRef = useRef<number | null>(null)
   const loggedReadyMs = useRef(false)
 

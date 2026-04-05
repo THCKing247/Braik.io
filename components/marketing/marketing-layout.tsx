@@ -20,7 +20,7 @@ export function SectionHeading({
       {eyebrow ? (
         <p className="text-sm font-semibold uppercase tracking-wider text-[#3B82F6] mb-2">{eyebrow}</p>
       ) : null}
-      <h2 className="mb-3 font-athletic text-2xl font-bold uppercase tracking-tight text-slate-900 md:text-3xl lg:text-4xl">
+      <h2 className="mb-3 font-athletic text-2xl font-bold uppercase tracking-tight !text-slate-900 md:text-3xl lg:text-4xl">
         {title}
       </h2>
       {description ? <p className="text-base leading-relaxed text-slate-700 md:text-lg">{description}</p> : null}
@@ -59,6 +59,7 @@ export function MarketingCard({
             ]
           : [
               "border-slate-200/90 bg-white text-slate-700 shadow-sm",
+              "[&_p]:text-slate-700 [&_li]:text-slate-700 [&_strong]:text-slate-900",
               "hover:shadow-lg hover:border-[#3B82F6]/35 hover:-translate-y-0.5",
             ],
         badge && "pt-8 md:pt-9",
@@ -74,13 +75,13 @@ export function MarketingCard({
         className={cn(
           "font-athletic text-lg font-semibold uppercase tracking-wide md:text-xl pr-2",
           subtitle ? "mb-2" : "mb-4",
-          isDark ? "text-white" : "text-slate-900 font-semibold"
+          isDark ? "text-white" : "!text-slate-900 font-semibold"
         )}
       >
         {title}
       </h3>
       {subtitle ? (
-        <p className={cn("mb-6 text-2xl font-bold md:text-3xl", isDark ? "text-white" : "text-slate-900")}>{subtitle}</p>
+        <p className={cn("mb-6 text-2xl font-bold md:text-3xl", isDark ? "text-white" : "!text-slate-900")}>{subtitle}</p>
       ) : null}
       <div
         className={cn(

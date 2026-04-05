@@ -26,12 +26,15 @@ import {
   landingLinkOnDark,
 } from "@/lib/marketing/landing-visual-theme"
 
-/** Light marketing sections — explicit slate (never inherit `text-white` from dark utilities). */
+/** Light sections: explicit colors only — headings/subheads/body/support (no inheritance from dark bands). */
 const lightSectionH2 =
-  "normal-case font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl"
+  "normal-case font-athletic text-2xl font-bold tracking-tight !text-slate-900 md:text-4xl"
 const lightSectionLead =
-  "text-base font-semibold leading-relaxed text-slate-600 md:text-lg"
+  "text-base font-semibold leading-relaxed text-slate-800 md:text-lg"
 const lightSectionBody = "text-base leading-relaxed text-slate-700 md:text-lg"
+/** Column shell for light bands: forces dark type even if a parent ever carried `text-white`. */
+const lightSectionColumn =
+  "min-w-0 text-slate-700 [&_h2]:!text-slate-900 [&_h3]:!text-slate-900 [&_h3]:font-semibold [&_p]:text-slate-700 [&_li]:text-slate-700 [&_strong]:!text-slate-900"
 
 const heroPrimaryCta =
   "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
@@ -178,18 +181,18 @@ export default function Home() {
         <div className={landingContainer}>
           <div className="mx-auto max-w-3xl">
             <ScrollReveal>
-              <div className="space-y-10 text-slate-700">
-                <h2 className="normal-case text-center font-athletic text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
+              <div className={`space-y-10 text-center ${lightSectionColumn}`}>
+                <h2 className="normal-case font-athletic text-4xl font-bold leading-[1.05] tracking-tight !text-slate-900 sm:text-5xl md:text-6xl">
                   Coaches today are expected to do far more than coach.
                 </h2>
-                <div className="space-y-6 pt-4 text-lg leading-relaxed text-slate-700 md:text-xl">
-                  <p>
+                <div className="space-y-6 pt-4 text-lg leading-relaxed md:text-xl">
+                  <p className="text-slate-700">
                     They manage rosters, schedules, payments, communication, documents, parents, assistants, and increasingly complex software—often with limited staff and even less time.
                   </p>
-                  <p>
+                  <p className="text-slate-700">
                     Most programs are forced to stitch together multiple tools for scheduling, communication, payments, and team coordination. The result is fragmented communication, duplicated work, confusion for parents and players, and added stress for coaches.
                   </p>
-                  <p className="text-xl font-semibold text-slate-900 md:text-2xl">
+                  <p className="text-xl font-semibold text-slate-800 md:text-2xl">
                     Braik exists to change that.
                   </p>
                 </div>
@@ -212,7 +215,7 @@ export default function Home() {
                   className="h-auto w-full max-w-2xl object-contain drop-shadow-2xl"
                 />
               </div>
-              <div className="order-1 min-w-0 space-y-8 md:order-2">
+              <div className={`order-1 min-w-0 space-y-8 md:order-2 ${lightSectionColumn}`}>
                 <h2 className={lightSectionH2}>One system. Less stress.</h2>
                 <div className="space-y-6 pt-2">
                   <p className={lightSectionLead}>
@@ -265,7 +268,7 @@ export default function Home() {
         <div className={landingContainerSplit}>
           <ScrollReveal>
             <SectionSplit>
-              <div className="min-w-0 space-y-8">
+              <div className={`min-w-0 space-y-8 ${lightSectionColumn}`}>
                 <h2 className={lightSectionH2}>Built for entire programs — Varsity and JV</h2>
                 <div className="space-y-6 pt-2">
                   <p className={lightSectionBody}>
@@ -359,7 +362,7 @@ export default function Home() {
               <div className="order-2 min-w-0 md:order-1">
                 <ImagePlaceholder />
               </div>
-              <div className="order-1 min-w-0 space-y-6 md:order-2">
+              <div className={`order-1 min-w-0 space-y-6 md:order-2 ${lightSectionColumn}`}>
                 <h2 className={lightSectionH2}>What you get by role</h2>
                 <p className={lightSectionBody}>
                   Head coaches, assistants, players, and parents each get a clear, scoped experience.
@@ -388,7 +391,7 @@ export default function Home() {
             ].map((item, index) => (
               <ScrollReveal key={item.role} delay={index * 50} className="h-full">
                 <MarketingCard title={item.role} className="h-full">
-                  <p className="text-slate-700">{item.details}</p>
+                  <p className="text-slate-700 leading-relaxed">{item.details}</p>
                 </MarketingCard>
               </ScrollReveal>
             ))}
@@ -490,7 +493,7 @@ export default function Home() {
               <div className="order-2 min-w-0 md:order-1">
                 <ImagePlaceholder aspect="video" />
               </div>
-              <div className="order-1 min-w-0 space-y-6 md:order-2">
+              <div className={`order-1 min-w-0 space-y-6 md:order-2 ${lightSectionColumn}`}>
                 <h2 className={lightSectionH2}>Request a demo</h2>
                 <p className={lightSectionBody}>
                   Share your program details and we will follow up with a tailored Braik walkthrough.

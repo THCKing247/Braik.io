@@ -15,7 +15,7 @@ export function SectionImagePlaceholder({
   return (
     <div
       className={cn(
-        "flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 shadow-md",
+        "flex w-full items-center justify-center rounded-xl border border-slate-200/80 bg-white shadow-md",
         aspectClass,
         className
       )}

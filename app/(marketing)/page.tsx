@@ -225,11 +225,13 @@ export default function Home() {
           <ScrollReveal>
             <SectionSplit>
               <div className="order-2 flex min-w-0 justify-center md:order-1 md:justify-start">
-                <img
-                  src="/images/devices-transparent.png"
-                  alt="Braik app across devices"
-                  className="h-auto w-full max-w-2xl object-contain drop-shadow-2xl"
-                />
+                <div className="w-full max-w-2xl rounded-xl bg-white shadow-md">
+                  <img
+                    src="/images/devices-transparent.png"
+                    alt="Braik app across devices"
+                    className="h-auto w-full object-contain"
+                  />
+                </div>
               </div>
               <div className={`order-1 min-w-0 space-y-8 md:order-2 ${lightSectionColumn}`}>
                 <h2 className={lightSectionH2}>One system. Less stress.</h2>

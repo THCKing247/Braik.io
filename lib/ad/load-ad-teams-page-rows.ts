@@ -3,7 +3,8 @@ import type { AdPortalAccess } from "@/lib/ad-portal-access"
 import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import { adTeamsFlowPerfLog } from "@/lib/ad/ad-teams-table-perf"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
-import { fetchAdVisibleTeamsForAccess, logAdTeamVisibility } from "@/lib/ad-team-scope"
+import { fetchAdUserDisplayNamesMap } from "@/lib/ad/fetch-ad-user-display-names"
+import { fetchAdVisibleTeamsForAccess, logAdTeamVisibility, type AdVisibleTeamRow } from "@/lib/ad-team-scope"
 import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 import {
   canAccessAdPortalRoutes,
@@ -24,10 +25,7 @@ export const AD_TEAMS_TABLE_QUERY_KEY = ["ad-pages", "teams-table"] as const
 /** PostgREST `.in("team_id", …)` chunk size to avoid huge URLs when many teams are visible. */
 const TEAM_IDS_IN_CHUNK = 120
 
-/** Chunk size for `.in("id", …)` on users/profiles when resolving display names. */
-const NAME_USER_IDS_CHUNK = 120
-
-const TEAM_MEMBER_ROLES_FOR_HC = ["head_coach", "assistant_coach"] as const
+const TEAM_MEMBER_ROLE_HEAD_COACH = "head_coach" as const
 
 function formatTeamLevel(level: string | null | undefined): string {
   if (level == null || String(level).trim() === "") return "Varsity"
@@ -142,23 +140,38 @@ export async function loadAdTeamsTableData(
   ]
   const now = new Date().toISOString()
 
+  /** Prefer `teams.head_coach_user_id` (synced) — only query team_members for teams missing it. */
+  const teamIdsNeedingHcFromMembers = teamsData
+    .filter((t) => {
+      const hc = (t as AdVisibleTeamRow).head_coach_user_id
+      return !(typeof hc === "string" && hc.trim().length > 0)
+    })
+    .map((t) => t.id)
+
   const tParallel = performance.now()
   const [staffRowsFlat, inviteRowsFlat, programsRes] = await Promise.all([
     (async () => {
+      if (teamIdsNeedingHcFromMembers.length === 0) {
+        adTeamsFlowPerfLog("loadAdTeamsTableData", "team_members_head_coach_fallback_skipped", 0, {
+          teamCount: teamIds.length,
+          rowCount: 0,
+        })
+        return [] as { team_id: string; user_id: string; role: string; is_primary?: boolean | null }[]
+      }
       const t = performance.now()
-      const rows = await mapIdsInChunks(teamIds, TEAM_IDS_IN_CHUNK, async (chunk) => {
+      const rows = await mapIdsInChunks(teamIdsNeedingHcFromMembers, TEAM_IDS_IN_CHUNK, async (chunk) => {
         const { data } = await supabase
           .from("team_members")
           .select("team_id, user_id, role, is_primary")
           .in("team_id", chunk)
           .eq("active", true)
-          .in("role", [...TEAM_MEMBER_ROLES_FOR_HC])
+          .eq("role", TEAM_MEMBER_ROLE_HEAD_COACH)
         return data ?? []
       })
-      adTeamsFlowPerfLog("loadAdTeamsTableData", "team_members_staff_only", performance.now() - t, {
-        teamCount: teamIds.length,
+      adTeamsFlowPerfLog("loadAdTeamsTableData", "team_members_head_coach_only", performance.now() - t, {
+        teamCount: teamIdsNeedingHcFromMembers.length,
         rowCount: rows.length,
-        chunks: Math.ceil(teamIds.length / TEAM_IDS_IN_CHUNK) || 1,
+        chunks: Math.ceil(teamIdsNeedingHcFromMembers.length / TEAM_IDS_IN_CHUNK) || 1,
       })
       return rows
     })(),
@@ -187,6 +200,7 @@ export async function loadAdTeamsTableData(
   adTeamsFlowPerfLog("loadAdTeamsTableData", "parallel_batch_total", performance.now() - tParallel, {
     staffRows: staffRowsFlat.length,
     inviteRows: inviteRowsFlat.length,
+    hcFallbackTeams: teamIdsNeedingHcFromMembers.length,
   })
 
   const staffByTeam = new Map<string, TeamMemberStaffRow[]>()
@@ -201,66 +215,45 @@ export async function loadAdTeamsTableData(
     staffByTeam.set(tid, list)
   }
 
-  const coachUserIds = new Set<string>()
   const headCoachUserIdByTeam = new Map<string, string | null>()
-  for (const tid of teamIds) {
-    const uid = pickHeadCoachUserId(staffByTeam.get(tid) ?? [])
-    headCoachUserIdByTeam.set(tid, uid)
-    if (uid) coachUserIds.add(uid)
+  for (const t of teamsData) {
+    const row = t as AdVisibleTeamRow
+    const fromTeam = row.head_coach_user_id
+    if (typeof fromTeam === "string" && fromTeam.trim().length > 0) {
+      headCoachUserIdByTeam.set(t.id, fromTeam.trim())
+      continue
+    }
+    const uid = pickHeadCoachUserId(staffByTeam.get(t.id) ?? [])
+    headCoachUserIdByTeam.set(t.id, uid)
   }
 
-  const nameUserIds = [...new Set([...coachUserIds, ...creatorIds])]
+  const nameUserIds = [
+    ...new Set(
+      [...headCoachUserIdByTeam.values(), ...creatorIds].filter(
+        (id): id is string => typeof id === "string" && id.length > 0
+      )
+    ),
+  ]
   const tNamesParallel = performance.now()
-  let usersRowsFlat: { id: string; name?: string | null }[] = []
-  let profilesRowsFlat: { id: string; full_name?: string | null }[] = []
-  if (nameUserIds.length > 0) {
-    const pair = await Promise.all([
-      mapIdsInChunks(nameUserIds, NAME_USER_IDS_CHUNK, async (chunk) => {
-        const { data } = await supabase.from("users").select("id, name").in("id", chunk)
-        return data ?? []
-      }),
-      mapIdsInChunks(nameUserIds, NAME_USER_IDS_CHUNK, async (chunk) => {
-        const { data } = await supabase.from("profiles").select("id, full_name").in("id", chunk)
-        return data ?? []
-      }),
-    ])
-    usersRowsFlat = pair[0]
-    profilesRowsFlat = pair[1]
-  }
+  const displayNameByUserId = await fetchAdUserDisplayNamesMap(supabase, nameUserIds)
   adTeamsFlowPerfLog(
     "loadAdTeamsTableData",
-    "users_and_profiles_names_parallel",
+    "ad_user_display_names_batch",
     performance.now() - tNamesParallel,
     { ids: nameUserIds.length }
   )
 
   const tPostFetch = performance.now()
-  const usersById = new Map<string, { name?: string | null }>()
-  for (const u of usersRowsFlat) {
-    if (u?.id) usersById.set(u.id, u)
-  }
-  const profilesById = new Map<string, { full_name?: string | null }>()
-  for (const p of profilesRowsFlat) {
-    const id = (p as { id: string }).id
-    if (id) profilesById.set(id, p as { full_name?: string | null })
-  }
-
-  const displayNameForUserId = (uid: string): string | null => {
-    const fromUser = usersById.get(uid)?.name?.trim()
-    if (fromUser && fromUser.length > 0) return fromUser
-    const fromProfile = profilesById.get(uid)?.full_name?.trim()
-    return fromProfile && fromProfile.length > 0 ? fromProfile : null
-  }
 
   const creatorNameById = new Map<string, string>()
   for (const uid of creatorIds) {
-    const nm = displayNameForUserId(uid)
+    const nm = displayNameByUserId.get(uid) ?? null
     if (nm) creatorNameById.set(uid, nm)
   }
 
   const headCoachByTeam = new Map<string, string | null>()
   headCoachUserIdByTeam.forEach((userId, teamId) => {
-    headCoachByTeam.set(teamId, userId ? displayNameForUserId(userId) : null)
+    headCoachByTeam.set(teamId, userId ? displayNameByUserId.get(userId) ?? null : null)
   })
 
   const pendingTeamIds = new Set(

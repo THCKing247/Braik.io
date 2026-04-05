@@ -173,6 +173,8 @@ export type AdVisibleTeamRow = {
   team_level: string | null
   created_by: string | null
   gender: string | null
+  /** Canonical HC user when synced; avoids scanning team_members for most teams. */
+  head_coach_user_id?: string | null
 }
 
 export async function fetchAdVisibleTeams(
@@ -286,7 +288,7 @@ export async function fetchAdPortalVisibleTeams(
     const { data, error } = await supabase
       .from("teams")
       .select(
-        "id, name, sport, roster_size, created_at, program_id, team_level, created_by, gender"
+        "id, name, sport, roster_size, created_at, program_id, team_level, created_by, gender, head_coach_user_id"
       )
       .or(orFilter)
       .order("created_at", { ascending: false })

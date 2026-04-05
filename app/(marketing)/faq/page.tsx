@@ -7,7 +7,6 @@ import {
   MarketingHeroShell,
   MarketingPageSection,
   MarketingShell,
-  marketingBodyClass,
   marketingSectionShell,
 } from "@/components/marketing/marketing-page"
 
@@ -17,17 +16,17 @@ export default function FAQPage() {
       <SiteHeader />
 
       <MarketingHeroShell>
-        <div className={`${marketingSectionShell} text-center max-w-3xl mx-auto`}>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-athletic font-bold text-[#212529] uppercase tracking-tight mb-6">
+        <div className={`${marketingSectionShell} mx-auto max-w-3xl text-center`}>
+          <h1 className="mb-6 font-athletic text-4xl font-bold uppercase tracking-tight text-gray-900 md:text-5xl lg:text-6xl">
             FAQ
           </h1>
-          <p className={`${marketingBodyClass} text-[#212529]/85`}>
+          <p className="text-base leading-relaxed text-gray-800 md:text-lg">
             Answers here stay short; we link out to{" "}
-            <Link href="/pricing" className="text-[#2563EB] font-medium hover:underline">
+            <Link href="/pricing" className="font-medium text-blue-700 underline decoration-blue-700/35 underline-offset-4 hover:text-blue-800">
               pricing
             </Link>
             ,{" "}
-            <Link href="/ai-transparency" className="text-[#2563EB] font-medium hover:underline">
+            <Link href="/ai-transparency" className="font-medium text-blue-700 underline decoration-blue-700/35 underline-offset-4 hover:text-blue-800">
               AI transparency
             </Link>
             , and policies when the full detail already lives there.
@@ -37,7 +36,7 @@ export default function FAQPage() {
 
       <MarketingPageSection variant="gradient">
         <MarketingShell>
-          <MarketingFaqAccordion entries={MARKETING_FAQ_ENTRIES} className="max-w-3xl mx-auto" />
+          <MarketingFaqAccordion entries={MARKETING_FAQ_ENTRIES} className="mx-auto max-w-3xl" />
         </MarketingShell>
       </MarketingPageSection>
 

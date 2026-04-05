@@ -15,14 +15,14 @@ export function SectionImagePlaceholder({
   return (
     <div
       className={cn(
-        "flex w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-100 shadow-md",
+        "flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 shadow-md",
         aspectClass,
         className
       )}
     >
       <div className="px-4 text-center">
-        <p className="text-sm font-semibold text-slate-700">Image Placeholder</p>
-        <p className="mt-1 text-xs text-slate-600">Replace with product screenshot or photo</p>
+        <p className="text-sm font-semibold text-gray-700">Image Placeholder</p>
+        <p className="mt-1 text-xs text-gray-600">Replace with product screenshot or photo</p>
       </div>
     </div>
   )

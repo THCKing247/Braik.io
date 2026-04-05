@@ -55,7 +55,7 @@ export function MarketingFaqAccordion({
                     <p>
                       <Link
                         href={item.learnMoreHref}
-                        className="font-medium text-[#2563EB] hover:underline"
+                        className="font-medium text-blue-700 hover:text-blue-800 hover:underline"
                       >
                         {item.learnMoreLabel}
                       </Link>

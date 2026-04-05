@@ -1,6 +1,6 @@
 /**
- * Central FAQ entries for marketing site + pricing cross-links.
- * Prefer linking to detailed pages (pricing, AI transparency) over duplicating long copy.
+ * Single source of truth for marketing FAQ entries (/faq).
+ * Other pages link here instead of duplicating accordions.
  */
 
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
@@ -8,9 +8,8 @@ import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 export type MarketingFaqEntry = {
   id: string
   question: string
-  /** Plain-text / light HTML-free answer for accordions */
+  /** Plain-text answer for accordions */
   answer: string
-  /** Optional "learn more" link */
   learnMoreHref?: string
   learnMoreLabel?: string
 }
@@ -23,6 +22,45 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
       "Braik uses annual program pricing based on teams, roster size, optional video add-ons, and onboarding. Player accounts are included—players do not pay for their own logins. See the pricing page for line items and example totals.",
     learnMoreHref: "/pricing#core-platform",
     learnMoreLabel: "View pricing details",
+  },
+  {
+    id: "price-factors",
+    question: "What determines the price?",
+    answer:
+      "Your pricing depends on the number of players, the number of teams, whether you add video, and onboarding scope.",
+    learnMoreHref: "/pricing#core-platform",
+    learnMoreLabel: "View pricing details",
+  },
+  {
+    id: "onboarding-required",
+    question: "Is onboarding required?",
+    answer: "No, but it is recommended for a faster and smoother setup.",
+    learnMoreHref: "/pricing#onboarding",
+    learnMoreLabel: "Onboarding options",
+  },
+  {
+    id: "onboarding-one-time",
+    question: "Is onboarding a one-time fee?",
+    answer: "Yes. Onboarding is only charged once.",
+    learnMoreHref: "/pricing#onboarding",
+    learnMoreLabel: "Onboarding options",
+  },
+  {
+    id: "assistant-coaches-extra",
+    question: "Are assistant coaches extra?",
+    answer: "Additional coach access is low-cost at $25 per coach.",
+    learnMoreHref: "/pricing#core-platform",
+    learnMoreLabel: "View pricing details",
+  },
+  {
+    id: "start-one-team",
+    question: "Can we start with just one team?",
+    answer: "Yes. Many programs start with varsity and add more teams later.",
+  },
+  {
+    id: "enterprise-pricing",
+    question: "Do you offer enterprise pricing?",
+    answer: "Yes. We offer custom pricing for schools, departments, and larger rollouts.",
   },
   {
     id: "sports",
@@ -62,5 +100,29 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
       "Yes. Programs can run multiple levels (Varsity, JV, and Freshman) under one program structure so staff and families stay aligned without juggling separate apps.",
     learnMoreHref: "/why-braik",
     learnMoreLabel: "Why Braik",
+  },
+  {
+    id: "who-built-for",
+    question: "Who is Braik built for?",
+    answer:
+      "Braik is built for football programs—especially high schools and growing athletic departments—that want one connected system for staff, players, and families without juggling a pile of separate apps.",
+  },
+  {
+    id: "replace-tools",
+    question: "Does Braik replace multiple tools?",
+    answer:
+      "Braik is designed to bring core program operations together—communication, scheduling, rosters, documents, payments, and more—so your staff spends less time switching systems and more time coaching.",
+  },
+  {
+    id: "smaller-staffs",
+    question: "Is Braik built for smaller coaching staffs?",
+    answer:
+      "Yes. Fewer people wearing more hats is the norm. Braik reduces admin overhead and keeps workflows straightforward so small staffs are not buried in software upkeep.",
+  },
+  {
+    id: "grow-over-time",
+    question: "Can programs grow into Braik over time?",
+    answer:
+      "Many teams start focused and add teams, depth, or features as needs change. The platform is built to scale with your program instead of forcing you into a rigid bundle on day one.",
   },
 ]

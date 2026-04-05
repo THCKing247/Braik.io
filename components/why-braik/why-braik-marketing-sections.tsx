@@ -7,34 +7,11 @@ import {
   BulletList,
 } from "@/components/marketing/marketing-layout"
 import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta"
-import { MarketingFaq, type MarketingFaqItem } from "@/components/marketing/marketing-faq"
+import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
 import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 
 const shell = marketingSectionShell
-
-const WHY_BRAIK_FAQ_ITEMS: MarketingFaqItem[] = [
-  {
-    q: "Who is Braik built for?",
-    a: "Braik is built for football programs—especially high schools and growing athletic departments—that want one connected system for staff, players, and families without juggling a pile of separate apps.",
-  },
-  {
-    q: "Can Braik support both varsity and JV?",
-    a: "Yes. Varsity and JV can live under one program with clear roles: varsity leadership keeps program-level visibility while JV coaches run their own team day to day.",
-  },
-  {
-    q: "Does Braik replace multiple tools?",
-    a: "Braik is designed to bring core program operations together—communication, scheduling, rosters, documents, payments, and more—so your staff spends less time switching systems and more time coaching.",
-  },
-  {
-    q: "Is Braik built for smaller coaching staffs?",
-    a: "Yes. Fewer people wearing more hats is the norm. Braik reduces admin overhead and keeps workflows straightforward so small staffs are not buried in software upkeep.",
-  },
-  {
-    q: "Can programs grow into Braik over time?",
-    a: "Many teams start focused and add teams, depth, or features as needs change. The platform is built to scale with your program instead of forcing you into a rigid bundle on day one.",
-  },
-]
 
 export function WhyBraikMarketingSections() {
   const joinHref = getPublicJoinHref()
@@ -235,16 +212,7 @@ export function WhyBraikMarketingSections() {
         </div>
       </section>
 
-      {/* FAQ */}
-      <section id="why-braik-faq" className="scroll-mt-24 py-14 md:py-20 bg-gradient-to-b from-[#F8FAFC]/80 to-white">
-        <div className={shell}>
-          <MarketingFaq
-            title="Frequently asked questions"
-            subtitle="Straight answers about who Braik is for and how programs use it."
-            items={WHY_BRAIK_FAQ_ITEMS}
-          />
-        </div>
-      </section>
+      <FAQLinkCTA id="why-braik-faq" imagePosition="left" />
 
       <MarketingFinalCta
         title="See how Braik fits your program"

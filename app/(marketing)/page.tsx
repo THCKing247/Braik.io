@@ -10,10 +10,10 @@ import { HeroShatterCta } from "@/components/marketing/hero-shatter-cta"
 import { LeadCaptureForm } from "@/components/marketing/lead-capture-form"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 import { MobileRootRedirect } from "@/components/marketing/mobile-root-redirect"
-import { MarketingFaqAccordion } from "@/components/marketing/marketing-faq-accordion"
-import { MARKETING_FAQ_ENTRIES } from "@/lib/marketing/faq-content"
 import { MarketingCard } from "@/components/marketing/marketing-layout"
-import { SectionImagePlaceholder } from "@/components/marketing/section-image-placeholder"
+import { ImagePlaceholder } from "@/components/marketing/image-placeholder"
+import { SectionSplit } from "@/components/marketing/section-split"
+import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
 import {
   landingBodyDark,
   landingBodyLight,
@@ -199,7 +199,7 @@ export default function Home() {
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-slate-50/80 to-white" aria-hidden />
         <div className={landingContainerSplit}>
           <ScrollReveal>
-            <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-12">
+            <SectionSplit>
               <div className="order-2 flex min-w-0 justify-center md:order-1 md:justify-start">
                 <img
                   src="/images/devices-transparent.png"
@@ -221,7 +221,7 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-            </div>
+            </SectionSplit>
           </ScrollReveal>
         </div>
       </section>
@@ -259,7 +259,7 @@ export default function Home() {
       <section className={landingLightSection}>
         <div className={landingContainerSplit}>
           <ScrollReveal>
-            <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-12">
+            <SectionSplit>
               <div className="min-w-0 space-y-8">
                 <h2 className={landingH2Light}>Built for entire programs — Varsity and JV</h2>
                 <div className="space-y-6 pt-2">
@@ -278,9 +278,9 @@ export default function Home() {
                 </div>
               </div>
               <div className="min-w-0">
-                <SectionImagePlaceholder />
+                <ImagePlaceholder />
               </div>
-            </div>
+            </SectionSplit>
           </ScrollReveal>
         </div>
       </section>
@@ -346,38 +346,48 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Role-Based Value — light */}
+      {/* Role-Based Value — light: split intro + card grid */}
       <section className={landingLightSection}>
         <div className={landingContainerSplit}>
-            <ScrollReveal>
-              <h2 className={`${landingH2Light} mb-12 text-center md:mb-16`}>What you get by role</h2>
-            </ScrollReveal>
-            <div className="grid gap-6 md:grid-cols-2">
-              {[
-                {
-                  role: "Head Coach",
-                  details: "Full program oversight, roster and permissions control, collections and operational visibility for Varsity + JV.",
-                },
-                {
-                  role: "Assistant Coach",
-                  details: "Scoped coaching access for schedules, communication, installs, and assigned operational workflows.",
-                },
-                {
-                  role: "Player",
-                  details: "Clear schedule, announcements, documents, and team updates in one place with less confusion.",
-                },
-                {
-                  role: "Parent",
-                  details: "Reliable communication, dues tracking visibility, and the right information without inbox overload.",
-                },
-              ].map((item, index) => (
-                <ScrollReveal key={item.role} delay={index * 50} className="h-full">
-                  <MarketingCard title={item.role} className="h-full">
-                    <p>{item.details}</p>
-                  </MarketingCard>
-                </ScrollReveal>
-              ))}
-            </div>
+          <ScrollReveal>
+            <SectionSplit className="items-start md:items-center">
+              <div className="order-2 min-w-0 md:order-1">
+                <ImagePlaceholder />
+              </div>
+              <div className="order-1 min-w-0 space-y-6 md:order-2">
+                <h2 className={landingH2Light}>What you get by role</h2>
+                <p className={landingBodyLight}>
+                  Head coaches, assistants, players, and parents each get a clear, scoped experience.
+                </p>
+              </div>
+            </SectionSplit>
+          </ScrollReveal>
+          <div className="mt-14 grid gap-6 md:mt-16 md:grid-cols-2">
+            {[
+              {
+                role: "Head Coach",
+                details: "Full program oversight, roster and permissions control, collections and operational visibility for Varsity + JV.",
+              },
+              {
+                role: "Assistant Coach",
+                details: "Scoped coaching access for schedules, communication, installs, and assigned operational workflows.",
+              },
+              {
+                role: "Player",
+                details: "Clear schedule, announcements, documents, and team updates in one place with less confusion.",
+              },
+              {
+                role: "Parent",
+                details: "Reliable communication, dues tracking visibility, and the right information without inbox overload.",
+              },
+            ].map((item, index) => (
+              <ScrollReveal key={item.role} delay={index * 50} className="h-full">
+                <MarketingCard title={item.role} className="h-full">
+                  <p>{item.details}</p>
+                </MarketingCard>
+              </ScrollReveal>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -437,33 +447,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FAQ — light (full-width within container for scanability) */}
-      <section id="faq" className={landingLightSection}>
-        <div className={landingContainerSplit}>
-          <div className="mx-auto w-full max-w-3xl">
-            <ScrollReveal>
-              <h2 className={`${landingH2Light} mb-4 text-center`}>Frequently asked questions</h2>
-              <p className={`mb-10 text-center ${landingBodyLight}`}>
-                Quick answers with links when there&apos;s more detail on another page — including{" "}
-                <Link href="/pricing#core-platform" className="font-medium text-blue-700 underline decoration-blue-700/30 underline-offset-4 hover:text-blue-800 hover:decoration-blue-800/50">
-                  how Braik is priced
-                </Link>
-                .
-              </p>
-            </ScrollReveal>
-            <MarketingFaqAccordion entries={MARKETING_FAQ_ENTRIES} />
-            <p className="mt-10 text-center text-sm text-gray-700">
-              <Link href="/faq" className="font-medium text-blue-700 hover:text-blue-800 hover:underline">
-                View all FAQs
-              </Link>{" "}
-              ·{" "}
-              <Link href="/pricing" className="font-medium text-blue-700 hover:text-blue-800 hover:underline">
-                Pricing
-              </Link>
-            </p>
-          </div>
-        </div>
-      </section>
+      <FAQLinkCTA id="faq" imagePosition="right" />
 
       {/* Final CTA — bold conversion band */}
       <section className={landingFinalCtaSection}>
@@ -497,9 +481,9 @@ export default function Home() {
       <section id="request-demo" className={landingLightSection}>
         <div className={landingContainerSplit}>
           <ScrollReveal>
-            <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-12">
+            <SectionSplit className="items-start">
               <div className="order-2 min-w-0 md:order-1">
-                <SectionImagePlaceholder aspect="video" />
+                <ImagePlaceholder aspect="video" />
               </div>
               <div className="order-1 min-w-0 space-y-6 md:order-2">
                 <h2 className={landingH2Light}>Request a demo</h2>
@@ -508,7 +492,7 @@ export default function Home() {
                 </p>
                 <LeadCaptureForm />
               </div>
-            </div>
+            </SectionSplit>
           </ScrollReveal>
         </div>
       </section>

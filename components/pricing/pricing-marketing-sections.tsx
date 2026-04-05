@@ -1,6 +1,6 @@
 "use client"
 
-import { PricingFaq } from "@/components/pricing/pricing-faq"
+import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
 import {
   marketingSectionShell as sectionShell,
   SectionHeading,
@@ -235,12 +235,7 @@ export function PricingMarketingSections() {
         </div>
       </section>
 
-      {/* FAQ */}
-      <section id="pricing-faq" className="scroll-mt-24 py-14 md:py-20 bg-gradient-to-b from-[#F8FAFC]/80 to-white">
-        <div className={sectionShell}>
-          <PricingFaq />
-        </div>
-      </section>
+      <FAQLinkCTA id="pricing-faq" imagePosition="right" />
 
       <MarketingFinalCta
         title="Ready to simplify your program?"

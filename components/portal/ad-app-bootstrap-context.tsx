@@ -9,13 +9,10 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { usePathname } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
 import {
-  AD_PORTAL_BOOTSTRAP_QUERY_ROOT,
-  adPortalBootstrapIncludeTeamsTable,
-  adPortalBootstrapQueryKey,
+  AD_PORTAL_BOOTSTRAP_QUERY_KEY,
   fetchAdPortalBootstrap,
 } from "@/lib/app/ad-portal-bootstrap-query"
 
@@ -48,7 +45,6 @@ export function AdAppBootstrapProvider({
   initialPayload: AppAdPortalBootstrapPayload
   children: ReactNode
 }) {
-  const pathname = usePathname()
   const queryClient = useQueryClient()
   const [phase, setPhase] = useState<Phase>("ok")
   const [payload, setPayload] = useState<AppAdPortalBootstrapPayload>(initialPayload)
@@ -61,18 +57,17 @@ export function AdAppBootstrapProvider({
   const refetch = useCallback(async () => {
     setPhase("loading")
     try {
-      await queryClient.invalidateQueries({ queryKey: [AD_PORTAL_BOOTSTRAP_QUERY_ROOT] })
-      const includeTeamsTable = adPortalBootstrapIncludeTeamsTable(pathname)
+      await queryClient.invalidateQueries({ queryKey: AD_PORTAL_BOOTSTRAP_QUERY_KEY })
       const data = await queryClient.fetchQuery({
-        queryKey: adPortalBootstrapQueryKey(includeTeamsTable),
-        queryFn: () => fetchAdPortalBootstrap(includeTeamsTable),
+        queryKey: AD_PORTAL_BOOTSTRAP_QUERY_KEY,
+        queryFn: () => fetchAdPortalBootstrap(),
       })
       setPayload(data)
       setPhase("ok")
     } catch {
       setPhase("error")
     }
-  }, [queryClient, pathname])
+  }, [queryClient])
 
   const value = useMemo<AdAppBootstrapContextValue>(
     () => ({ phase, payload, refetch }),

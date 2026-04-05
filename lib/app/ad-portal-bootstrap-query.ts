@@ -1,6 +1,5 @@
 "use client"
 
-import { usePathname } from "next/navigation"
 import { useQuery, type QueryClient } from "@tanstack/react-query"
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
 import { authTimingClient } from "@/lib/auth/login-flow-timing"
@@ -15,32 +14,25 @@ export class AdPortalBootstrapForbiddenError extends Error {
   override name = "AdPortalBootstrapForbiddenError"
 }
 
-/** Root segment for React Query; pair with `includeTeamsTable` boolean. */
+/** Single React Query key for AD portal shell (no embedded teams table — teams load on `/dashboard/ad/teams` via SSR + `/api/ad/pages/teams-table`). */
 export const AD_PORTAL_BOOTSTRAP_QUERY_ROOT = "braik-ad-portal-bootstrap" as const
 
-export function adPortalBootstrapQueryKey(includeTeamsTable: boolean) {
-  return [AD_PORTAL_BOOTSTRAP_QUERY_ROOT, includeTeamsTable] as const
-}
-
-export function adPortalBootstrapIncludeTeamsTable(pathname: string | null | undefined): boolean {
-  return Boolean(pathname?.includes("/dashboard/ad/teams"))
-}
+export const AD_PORTAL_BOOTSTRAP_QUERY_KEY = [AD_PORTAL_BOOTSTRAP_QUERY_ROOT] as const
 
 export const AD_PORTAL_BOOTSTRAP_STALE_MS = 2 * 60 * 1000
 
-export async function fetchAdPortalBootstrap(includeTeamsTable: boolean): Promise<AppAdPortalBootstrapPayload> {
+export async function fetchAdPortalBootstrap(): Promise<AppAdPortalBootstrapPayload> {
   const t0 = typeof performance !== "undefined" ? performance.now() : 0
-  authTimingClient("ad_portal_bootstrap_query_fetch_start", { includeTeamsTable })
-  navPerfDev("ad_portal_bootstrap_fetch_start", { includeTeamsTable })
+  authTimingClient("ad_portal_bootstrap_query_fetch_start", {})
+  navPerfDev("ad_portal_bootstrap_fetch_start", {})
 
-  const q = includeTeamsTable ? "1" : "0"
-  const res = await fetch(`/api/app/bootstrap?portal=ad&includeTeamsTable=${q}`, {
+  const res = await fetch(`/api/app/bootstrap?portal=ad&includeTeamsTable=0`, {
     credentials: "same-origin",
   })
 
   const ms = typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0
-  authTimingClient("ad_portal_bootstrap_query_fetch_done", { ms, status: res.status, includeTeamsTable })
-  navPerfDev("ad_portal_bootstrap_fetch_done", { ms, status: res.status, includeTeamsTable })
+  authTimingClient("ad_portal_bootstrap_query_fetch_done", { ms, status: res.status })
+  navPerfDev("ad_portal_bootstrap_fetch_done", { ms, status: res.status })
 
   if (res.status === 401) {
     throw new AdPortalBootstrapUnauthorizedError("Unauthorized")
@@ -56,18 +48,14 @@ export async function fetchAdPortalBootstrap(includeTeamsTable: boolean): Promis
     ms: typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0,
     teamsSummaryCount: Array.isArray(payload.teamsSummary) ? payload.teamsSummary.length : 0,
     teamsTableCount: Array.isArray(payload.teamsTable) ? payload.teamsTable.length : 0,
-    includeTeamsTable,
   })
   return payload
 }
 
 export function useAdPortalBootstrapQuery() {
-  const pathname = usePathname()
-  const includeTeamsTable = adPortalBootstrapIncludeTeamsTable(pathname)
-
   return useQuery({
-    queryKey: adPortalBootstrapQueryKey(includeTeamsTable),
-    queryFn: () => fetchAdPortalBootstrap(includeTeamsTable),
+    queryKey: AD_PORTAL_BOOTSTRAP_QUERY_KEY,
+    queryFn: () => fetchAdPortalBootstrap(),
     staleTime: AD_PORTAL_BOOTSTRAP_STALE_MS,
     gcTime: 30 * 60 * 1000,
     refetchOnMount: false,
@@ -77,10 +65,10 @@ export function useAdPortalBootstrapQuery() {
   })
 }
 
-/** Clears all AD bootstrap variants (shell-only and with-teams). */
+/** Clears AD portal shell bootstrap cache. */
 export function invalidateAdPortalBootstrap(queryClient: QueryClient): Promise<void> {
   return queryClient
-    .invalidateQueries({ queryKey: [AD_PORTAL_BOOTSTRAP_QUERY_ROOT] })
+    .invalidateQueries({ queryKey: AD_PORTAL_BOOTSTRAP_QUERY_KEY })
     .then(() => undefined)
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
@@ -11,46 +11,34 @@ import {
   fetchAdTeamsTableQuery,
 } from "@/lib/ad/ad-teams-table-query"
 import { adTeamsFlowPerfClient } from "@/lib/ad/ad-teams-table-perf-client"
-import {
-  adPortalBootstrapIncludeTeamsTable,
-  useAdPortalBootstrapQuery,
-} from "@/lib/app/ad-portal-bootstrap-query"
+import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
 
 /**
- * Teams page: shares one React Query subscription with the AD shell for bootstrap+teams when
- * `includeTeamsTable=1`. Falls back to GET /api/ad/pages/teams-table only if bootstrap has no rows.
+ * Teams page: initial rows come from the server component (first paint).
+ * React Query keeps the same cache key as GET /api/ad/pages/teams-table for background refresh.
  */
-export function AdTeamsPageLoader() {
+export function AdTeamsPageLoader({ initialTeams }: { initialTeams: TeamRow[] }) {
   const router = useRouter()
-  const pathname = usePathname()
   const mountT0 = useRef(typeof performance !== "undefined" ? performance.now() : 0)
   const loggedPaint = useRef(false)
   const loggedDataReady = useRef(false)
 
-  const onTeamsRoute = adPortalBootstrapIncludeTeamsTable(pathname)
-  const bootstrapQ = useAdPortalBootstrapQuery()
-
-  const embeddedRows =
-    onTeamsRoute && bootstrapQ.isSuccess && Array.isArray(bootstrapQ.data?.teamsTable)
-      ? bootstrapQ.data!.teamsTable!
-      : null
-
   const teamsQ = useQuery({
     queryKey: AD_TEAMS_TABLE_QUERY_KEY,
     queryFn: ({ signal }) => fetchAdTeamsTableQuery(signal),
+    initialData: initialTeams,
     staleTime: AD_TEAMS_TABLE_STALE_MS,
     gcTime: AD_TEAMS_TABLE_GC_MS,
     placeholderData: (previousData) => previousData,
     retry: 1,
     refetchOnWindowFocus: false,
-    enabled: onTeamsRoute && bootstrapQ.isFetched && embeddedRows === null,
   })
 
-  const teamsData = embeddedRows ?? teamsQ.data
-  const isPending = embeddedRows !== null ? false : teamsQ.isPending
-  const isFetching = embeddedRows !== null ? false : teamsQ.fetchStatus === "fetching"
-  const isError = embeddedRows === null && teamsQ.isError
+  const teamsData = teamsQ.data ?? initialTeams
+  const isError = teamsQ.isError
   const queryError = teamsQ.error
+
+  const isRefreshing = Boolean(teamsData !== undefined && teamsQ.isFetching && !teamsQ.isPending)
 
   useEffect(() => {
     if (loggedPaint.current || typeof window === "undefined") return
@@ -73,41 +61,34 @@ export function AdTeamsPageLoader() {
     adTeamsFlowPerfClient("teams_page_time_to_data_ms", {
       ms: Math.round(performance.now() - mountT0.current),
       rowCount: Array.isArray(teamsData) ? teamsData.length : 0,
-      source: embeddedRows !== null ? "bootstrap" : "teams_table_api",
+      source: "server_initial_and_rq",
     })
-  }, [teamsData, embeddedRows])
+  }, [teamsData])
 
-  if (isError && teamsData === undefined) {
+  useEffect(() => {
+    if (!isError || !queryError) return
     const status = (queryError as Error & { status?: number })?.status
     if (status === 401) {
       router.replace("/login?callbackUrl=/dashboard/ad/teams")
-      return null
+      return
     }
     if (status === 403) {
       router.replace("/dashboard")
+    }
+  }, [isError, queryError, router])
+
+  if (isError && teamsData === undefined) {
+    const status = (queryError as Error & { status?: number })?.status
+    if (status === 401 || status === 403) {
       return null
     }
     return <p className="text-[#212529]">Could not load teams.</p>
   }
 
-  const waitingBootstrap = onTeamsRoute && !bootstrapQ.isFetched
-  const waitingFallbackApi =
-    onTeamsRoute &&
-    bootstrapQ.isFetched &&
-    embeddedRows === null &&
-    (teamsQ.isPending || teamsQ.isFetching) &&
-    teamsData === undefined
-
-  const initialLoading = waitingBootstrap || waitingFallbackApi
-
-  const isRefreshing =
-    (embeddedRows !== null && bootstrapQ.isFetching) ||
-    (embeddedRows === null && teamsData !== undefined && teamsQ.isFetching && !teamsQ.isPending)
-
   return (
     <AdTeamsPageClient
       teams={teamsData ?? []}
-      initialLoading={initialLoading}
+      initialLoading={false}
       isRefreshing={isRefreshing}
     />
   )

@@ -135,7 +135,7 @@ const SKELETON_HEADERS = [
   "Actions",
 ] as const
 
-/** Placeholder rows while `/api/ad/pages/teams-table` loads — matches real columns. */
+/** Placeholder rows for loading states — matches real columns (teams list is normally server-rendered). */
 export function AdTeamsTableSkeleton({ rows = 10 }: { rows?: number }) {
   return (
     <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">

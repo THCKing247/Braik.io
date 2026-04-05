@@ -13,9 +13,9 @@ import {
 
 /**
  * AD teams table architecture:
- * - On `/dashboard/ad/teams`, `GET /api/app/bootstrap?portal=ad&includeTeamsTable=1` embeds rows via
- *   `loadAdTeamsTableData` (single HTTP). This module still powers that loader and the standalone
- *   GET /api/ad/pages/teams-table fallback.
+ * - `/dashboard/ad/teams` loads rows on the server (same as GET /api/ad/pages/teams-table) for first paint;
+ *   React Query uses `/api/ad/pages/teams-table` for background refresh. AD shell bootstrap no longer embeds
+ *   the full teams table (shell-only `includeTeamsTable=0`).
  */
 
 /** React Query key for AD teams table — shared with visibility refresh invalidation. */

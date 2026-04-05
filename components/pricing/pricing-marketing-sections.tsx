@@ -7,6 +7,7 @@ import {
   PriceCard,
   BulletList,
 } from "@/components/marketing/marketing-layout"
+import { cn } from "@/lib/utils"
 import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta"
 import { getPublicJoinHref } from "@/lib/marketing/join-cta"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
@@ -88,42 +89,26 @@ export function PricingMarketingSections() {
       <section id="onboarding" className="scroll-mt-24 py-14 md:py-20 bg-gradient-to-b from-[#F8FAFC]/80 to-white">
         <div className={sectionShell}>
           <SectionHeading
-            title="One-time onboarding"
-            description="We do more than hand you software — we help get your program set up the right way."
+            title="Guided Setup & Onboarding"
+            description="We handle the setup so you can focus on coaching."
           />
-          <div className="grid gap-6 md:grid-cols-3 max-w-6xl mx-auto">
-            <PriceCard title="Small team setup" price="$150–$250 one-time">
-              <p className="font-medium text-[#212529] mb-2">Best for</p>
-              <BulletList items={["Single varsity team", "Smaller programs"]} />
-              <p className="font-medium text-[#212529] mt-4 mb-2">Includes</p>
-              <BulletList items={["Account setup", "Roster import", "Basic onboarding", "Quick walkthrough"]} />
-            </PriceCard>
-            <PriceCard title="School / program setup" price="$300–$500 one-time">
-              <p className="font-medium text-[#212529] mb-2">Best for</p>
-              <BulletList items={["Varsity + JV", "Multi-team programs"]} />
-              <p className="font-medium text-[#212529] mt-4 mb-2">Includes</p>
-              <BulletList
-                items={[
-                  "Multi-team setup",
-                  "Live coach onboarding session",
-                  "Data migration",
-                  "Initial configuration",
-                ]}
-              />
-            </PriceCard>
-            <PriceCard title="Enterprise onboarding" price="$500–$1,500+ one-time">
-              <p className="font-medium text-[#212529] mb-2">Best for</p>
-              <BulletList items={["Athletic departments", "Multi-sport programs", "Multi-school rollouts"]} />
-              <p className="font-medium text-[#212529] mt-4 mb-2">Includes</p>
-              <BulletList
-                items={[
-                  "Full platform rollout",
-                  "Admin / Athletic Director training",
-                  "Priority onboarding",
-                  "Custom setup and configuration",
-                ]}
-              />
-            </PriceCard>
+          <div
+            className={cn(
+              "max-w-2xl mx-auto rounded-xl border border-slate-200/90 bg-white p-6 md:p-8 shadow-sm transition-all duration-300",
+              "hover:shadow-lg hover:border-[#3B82F6]/35 hover:-translate-y-0.5",
+              "[&_li]:text-slate-700"
+            )}
+          >
+            <BulletList
+              items={[
+                "Roster import + team setup",
+                "Coach onboarding walkthrough",
+                "Ongoing support as you get started",
+              ]}
+            />
+            <p className="mt-6 pt-6 border-t border-slate-100 text-sm font-medium text-slate-600">
+              Included with every Braik plan
+            </p>
           </div>
         </div>
       </section>

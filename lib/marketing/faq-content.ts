@@ -19,7 +19,7 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
     id: "cost",
     question: "How much does Braik cost?",
     answer:
-      "Braik uses annual program pricing based on teams, roster size, optional video add-ons, and onboarding. Player accounts are included—players do not pay for their own logins. See the pricing page for line items and example totals.",
+      "Braik uses annual program pricing based on teams, roster size, and optional video add-ons. Guided setup and onboarding are included with every plan. Player accounts are included—players do not pay for their own logins. See the pricing page for line items and example totals.",
     learnMoreHref: "/pricing#core-platform",
     learnMoreLabel: "View pricing details",
   },
@@ -27,7 +27,7 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
     id: "price-factors",
     question: "What determines the price?",
     answer:
-      "Your pricing depends on the number of players, the number of teams, whether you add video, and onboarding scope.",
+      "Your pricing depends on the number of players, the number of teams, and whether you add video.",
     learnMoreHref: "/pricing#core-platform",
     learnMoreLabel: "View pricing details",
   },
@@ -36,14 +36,15 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
     question: "Is onboarding required?",
     answer: "No, but it is recommended for a faster and smoother setup.",
     learnMoreHref: "/pricing#onboarding",
-    learnMoreLabel: "Onboarding options",
+    learnMoreLabel: "Guided setup & onboarding",
   },
   {
-    id: "onboarding-one-time",
-    question: "Is onboarding a one-time fee?",
-    answer: "Yes. Onboarding is only charged once.",
+    id: "guided-setup-included",
+    question: "Is guided setup included?",
+    answer:
+      "Yes. Guided setup and onboarding—roster import, coach walkthrough, and ongoing support as you get started—are included with every Braik plan.",
     learnMoreHref: "/pricing#onboarding",
-    learnMoreLabel: "Onboarding options",
+    learnMoreLabel: "Guided setup & onboarding",
   },
   {
     id: "assistant-coaches-extra",

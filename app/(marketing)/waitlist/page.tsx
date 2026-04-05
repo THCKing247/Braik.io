@@ -28,7 +28,7 @@ export default function WaitlistPage() {
           <MarketingHeroBlobs />
           <div className={`${marketingSectionShell} relative z-10 mx-auto max-w-3xl text-center`}>
             <h1 className={marketingPageTitleClass}>Join the waitlist</h1>
-            <p className="text-lg leading-relaxed text-gray-800 md:text-xl">
+            <p className="text-lg leading-relaxed text-slate-800 md:text-xl">
               Braik is opening in phases. Add your program to the list and we will reach out when early access is available for your
               team.
             </p>
@@ -39,12 +39,12 @@ export default function WaitlistPage() {
           <div className={landingContainerSplit}>
             <SectionSplit className="items-start md:items-center">
               <div className="min-w-0 space-y-6">
-                <h2 className="font-athletic text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">Who it is for</h2>
-                <p className="text-base leading-relaxed text-gray-800 md:text-lg">
+                <h2 className="font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">Who it is for</h2>
+                <p className="text-base leading-relaxed text-slate-800 md:text-lg">
                   High school football programs and staff who want one connected system for operations—scheduling, communication,
                   rosters, and more—without juggling a pile of disconnected tools.
                 </p>
-                <ul className="list-none space-y-3 pl-0 text-sm leading-relaxed text-gray-700 md:text-base" role="list">
+                <ul className="list-none space-y-3 pl-0 text-sm leading-relaxed text-slate-700 md:text-base" role="list">
                   {[
                     "Head coaches and program leaders planning ahead",
                     "Athletic departments evaluating options for football",
@@ -67,12 +67,12 @@ export default function WaitlistPage() {
         <MarketingPageSection variant="gradient" id="waitlist-form" className="scroll-mt-24 py-20 md:py-24">
           <MarketingShell className="max-w-2xl">
             <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-md md:p-10">
-              <h2 className="mb-2 font-athletic text-xl font-bold text-gray-900 md:text-2xl">Request your spot</h2>
-              <p className="mb-8 text-sm leading-relaxed text-gray-700 md:text-base">
+              <h2 className="mb-2 font-athletic text-xl font-bold text-slate-900 md:text-2xl">Request your spot</h2>
+              <p className="mb-8 text-sm leading-relaxed text-slate-700 md:text-base">
                 Tell us who you are and how to reach you. No payment required—this only puts your program on our early-access list.
               </p>
               <WaitlistForm />
-              <p className="mt-8 text-center text-sm text-gray-700">
+              <p className="mt-8 text-center text-sm text-slate-700">
                 Already have an account?{" "}
                 <Link href="/login" className="font-medium text-blue-700 hover:text-blue-800 hover:underline">
                   Log in

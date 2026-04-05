@@ -13,6 +13,7 @@ export const landingDarkSection =
 export const landingLightSection =
   "relative w-full overflow-hidden bg-white text-slate-700 py-20 md:py-24 " +
   "shadow-[inset_0_1px_0_0_rgba(148,163,184,0.12)] " +
+  "[&_h1]:!text-slate-900 [&_h2]:!text-slate-900 [&_h3]:!text-slate-900 [&_p]:!text-slate-700 [&_li]:!text-slate-700 [&_strong]:!text-slate-900 " +
   "before:pointer-events-none before:absolute before:inset-0 before:z-0 before:bg-[repeating-linear-gradient(90deg,transparent,transparent_3.25rem,rgba(15,23,42,0.035)_3.25rem,rgba(15,23,42,0.035)_calc(3.25rem+1px))]"
 
 /** Final conversion band — slightly deeper, stadium-adjacent energy. */

@@ -198,7 +198,7 @@ export function FeaturesMarketingSections() {
             <Link href="/pricing" className="font-medium text-[#2563EB] hover:underline" onClick={() => trackMarketingEvent("clicked_cta", { cta: "features_hero_pricing" })}>
               View pricing
             </Link>
-            <span className="mx-2 text-slate-300" aria-hidden>
+            <span className="mx-2 text-slate-500" aria-hidden>
               ·
             </span>
             <Link href="/why-braik" className="font-medium text-[#2563EB] hover:underline" onClick={() => trackMarketingEvent("clicked_cta", { cta: "features_hero_why_braik" })}>

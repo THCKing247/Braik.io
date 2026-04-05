@@ -26,15 +26,15 @@ import {
   landingLinkOnDark,
 } from "@/lib/marketing/landing-visual-theme"
 
-/** Light sections: explicit colors only — headings/subheads/body/support (no inheritance from dark bands). */
+/** Light sections: explicit slate scale on every band (headings/body/support). */
 const lightSectionH2 =
-  "normal-case font-athletic text-2xl font-bold tracking-tight !text-slate-900 md:text-4xl"
+  "normal-case font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl"
 const lightSectionLead =
   "text-base font-semibold leading-relaxed text-slate-800 md:text-lg"
 const lightSectionBody = "text-base leading-relaxed text-slate-700 md:text-lg"
-/** Column shell for light bands: forces dark type even if a parent ever carried `text-white`. */
+/** Column shell: explicit text on copy containers (section also sets [&_h2]/[&_p] on light bands). */
 const lightSectionColumn =
-  "min-w-0 text-slate-700 [&_h2]:!text-slate-900 [&_h3]:!text-slate-900 [&_h3]:font-semibold [&_p]:text-slate-700 [&_li]:text-slate-700 [&_strong]:!text-slate-900"
+  "min-w-0 text-slate-700 [&_h2]:text-slate-900 [&_h3]:text-slate-900 [&_h3]:font-semibold [&_p]:text-slate-700 [&_li]:text-slate-700 [&_strong]:text-slate-900"
 
 const heroPrimaryCta =
   "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
@@ -182,7 +182,7 @@ export default function Home() {
           <div className="mx-auto max-w-3xl">
             <ScrollReveal>
               <div className={`space-y-10 text-center ${lightSectionColumn}`}>
-                <h2 className="normal-case font-athletic text-4xl font-bold leading-[1.05] tracking-tight !text-slate-900 sm:text-5xl md:text-6xl">
+                <h2 className="normal-case font-athletic text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
                   Coaches today are expected to do far more than coach.
                 </h2>
                 <div className="space-y-6 pt-4 text-lg leading-relaxed md:text-xl">

@@ -17,10 +17,10 @@ export type FAQLinkCTAProps = {
 export function FAQLinkCTA({ id = "faq-cta", imagePosition = "right", className }: FAQLinkCTAProps) {
   const copy = (
     <div className="min-w-0 space-y-6">
-      <h2 className="normal-case font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl">
+      <h2 className="normal-case font-athletic text-2xl font-bold tracking-tight text-black md:text-4xl">
         Have questions?
       </h2>
-      <p className="text-base leading-relaxed text-slate-800 md:text-lg">
+      <p className="text-base leading-relaxed text-black md:text-lg">
         Find answers about pricing, setup, access, and more on our FAQ page.
       </p>
       <Button

@@ -26,12 +26,12 @@ import {
   landingLinkOnDark,
 } from "@/lib/marketing/landing-visual-theme"
 
-/** Light marketing sections: explicit text colors (no reliance on inherited tokens). */
+/** Light marketing sections: black headings and body copy. */
 const lightSectionH2 =
-  "normal-case font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl"
+  "normal-case font-athletic text-2xl font-bold tracking-tight text-black md:text-4xl"
 const lightSectionLead =
-  "text-base font-semibold leading-relaxed text-slate-800 md:text-lg"
-const lightSectionBody = "text-base leading-relaxed text-slate-800 md:text-lg"
+  "text-base font-semibold leading-relaxed text-black md:text-lg"
+const lightSectionBody = "text-base leading-relaxed text-black md:text-lg"
 
 const heroPrimaryCta =
   "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
@@ -388,7 +388,7 @@ export default function Home() {
             ].map((item, index) => (
               <ScrollReveal key={item.role} delay={index * 50} className="h-full">
                 <MarketingCard title={item.role} className="h-full">
-                  <p className="text-slate-700">{item.details}</p>
+                  <p className="text-black">{item.details}</p>
                 </MarketingCard>
               </ScrollReveal>
             ))}

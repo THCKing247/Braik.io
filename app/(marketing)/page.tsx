@@ -225,11 +225,11 @@ export default function Home() {
           <ScrollReveal>
             <SectionSplit>
               <div className="order-2 flex min-w-0 justify-center md:order-1 md:justify-start">
-                <div className="w-full max-w-2xl rounded-xl bg-white shadow-md">
+                <div className="w-full max-w-4xl">
                   <img
                     src="/images/devices-transparent.png"
-                    alt="Braik app across devices"
-                    className="h-auto w-full object-contain"
+                    alt="Braik devices"
+                    className="h-auto w-full object-contain scale-105 md:scale-110 drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
                   />
                 </div>
               </div>

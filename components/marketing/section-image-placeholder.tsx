@@ -21,8 +21,8 @@ export function SectionImagePlaceholder({
       )}
     >
       <div className="px-4 text-center">
-        <p className="text-sm font-semibold text-black">Image Placeholder</p>
-        <p className="mt-1 text-xs text-black">Replace with product screenshot or photo</p>
+        <p className="text-sm font-semibold text-slate-900">Image Placeholder</p>
+        <p className="mt-1 text-xs text-slate-600">Replace with product screenshot or photo</p>
       </div>
     </div>
   )

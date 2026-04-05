@@ -11,7 +11,7 @@ export const landingDarkSection =
 
 /** Crisp light bands — ready for optional absolute bg image + overlay layers. */
 export const landingLightSection =
-  "relative w-full overflow-hidden bg-white text-black py-20 md:py-24 " +
+  "relative w-full overflow-hidden bg-white text-slate-700 py-20 md:py-24 " +
   "shadow-[inset_0_1px_0_0_rgba(148,163,184,0.12)] " +
   "before:pointer-events-none before:absolute before:inset-0 before:z-0 before:bg-[repeating-linear-gradient(90deg,transparent,transparent_3.25rem,rgba(15,23,42,0.035)_3.25rem,rgba(15,23,42,0.035)_calc(3.25rem+1px))]"
 
@@ -39,17 +39,17 @@ export const landingH2Dark =
 
 /** Section headings — light bands (WCAG-friendly on white / off-white). */
 export const landingH2Light =
-  "font-athletic text-2xl font-bold tracking-tight text-black md:text-4xl"
+  "font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl"
 
 /** Subhead / lead sentence on light sections. */
 export const landingSubheadLight =
-  "text-base font-semibold leading-relaxed text-black md:text-lg"
+  "text-base font-semibold leading-relaxed text-slate-600 md:text-lg"
 
 /** Body copy on light sections. */
-export const landingBodyLight = "text-base leading-relaxed text-black md:text-lg"
+export const landingBodyLight = "text-base leading-relaxed text-slate-700 md:text-lg"
 
 /** Supporting / secondary copy on light sections. */
-export const landingSupportingLight = "text-sm leading-relaxed text-black md:text-base"
+export const landingSupportingLight = "text-sm leading-relaxed text-slate-600 md:text-base"
 
 /** Body copy on dark sections. */
 export const landingBodyDark = "text-lg leading-relaxed text-slate-100 md:text-xl"

@@ -67,7 +67,7 @@ export function SiteHeader() {
                 className={`transition-colors font-medium text-sm relative pb-0.5 ${
                   isActive(link.href)
                     ? "text-[#3B82F6] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-[#3B82F6]"
-                    : "text-black hover:text-[#3B82F6]"
+                    : "text-slate-900 hover:text-[#3B82F6]"
                 }`}
               >
                 {link.label}
@@ -90,7 +90,7 @@ export function SiteHeader() {
             <button
               type="button"
               onClick={() => setMobileOpen((prev) => !prev)}
-              className="p-2 rounded-md text-black hover:bg-[#F9FAFB] transition-colors focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+              className="p-2 rounded-md text-slate-900 hover:bg-[#F9FAFB] transition-colors focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
               aria-label={mobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileOpen}
             >
@@ -118,11 +118,11 @@ export function SiteHeader() {
       >
         {/* Drawer header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB]">
-          <span className="font-athletic font-bold text-black uppercase tracking-wide text-lg">Menu</span>
+          <span className="font-athletic font-bold uppercase tracking-wide text-lg text-slate-900">Menu</span>
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="p-1.5 rounded-md text-black hover:bg-[#F9FAFB] transition-colors"
+            className="p-1.5 rounded-md text-slate-900 hover:bg-[#F9FAFB] transition-colors"
             aria-label="Close menu"
           >
             <X size={20} />
@@ -138,7 +138,7 @@ export function SiteHeader() {
               className={`flex items-center px-4 py-3 rounded-lg font-medium text-base transition-colors ${
                 isActive(link.href)
                   ? "bg-[#EFF6FF] text-[#3B82F6]"
-                  : "text-black hover:bg-[#F9FAFB] hover:text-[#3B82F6]"
+                  : "text-slate-900 hover:bg-[#F9FAFB] hover:text-[#3B82F6]"
               }`}
             >
               {link.label}
@@ -154,7 +154,7 @@ export function SiteHeader() {
             </Button>
           </Link>
           <Link href="/login" className="block">
-            <Button variant="outline" className="w-full border-slate-300 text-black hover:bg-slate-50" size="lg">
+            <Button variant="outline" className="w-full border-slate-300 text-slate-900 hover:bg-slate-50" size="lg">
               Sign In
             </Button>
           </Link>

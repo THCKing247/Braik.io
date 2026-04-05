@@ -113,42 +113,42 @@ export function SiteFooter() {
                 />
               </div>
             </div>
-            <p className="text-black text-sm mb-4">
+            <p className="mb-4 text-sm text-slate-700">
               Break the Huddle. Break the Norm.
             </p>
-            <p className="text-black text-sm">
+            <p className="text-sm text-slate-700">
               The sports team operating system for roster, dues, comms, schedule, docs, and AI admin assistant.
             </p>
           </div>
 
           {/* Navigation */}
           <div>
-            <h4 className="text-lg font-athletic font-semibold text-black uppercase tracking-wide mb-4">
+            <h4 className="mb-4 text-lg font-athletic font-semibold uppercase tracking-wide text-slate-900">
               Navigation
             </h4>
             <ul className="space-y-2">
               <li>
-                <Link href="/features" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href="/features" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   Features
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href="/pricing" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   Pricing
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href="/about" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   About
                 </Link>
               </li>
               <li>
-                <Link href="/why-braik" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href="/why-braik" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   Why Braik?
                 </Link>
               </li>
               <li>
-                <Link href="/faq" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href="/faq" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   FAQ
                 </Link>
               </li>
@@ -157,7 +157,7 @@ export function SiteFooter() {
                   href="https://apextsgroup.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-black hover:text-[#3B82F6] transition-colors text-sm"
+                  className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm"
                 >
                   Apex TSG
                 </a>
@@ -167,22 +167,22 @@ export function SiteFooter() {
 
           {/* Account */}
           <div>
-            <h4 className="text-lg font-athletic font-semibold text-black uppercase tracking-wide mb-4">
+            <h4 className="mb-4 text-lg font-athletic font-semibold uppercase tracking-wide text-slate-900">
               Account
             </h4>
             <ul className="space-y-2">
               <li>
-                <Link href="/login" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href="/login" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   Login
                 </Link>
               </li>
               <li>
-                <Link href={getPublicJoinHref()} className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href={getPublicJoinHref()} className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   {isWaitlistMode() ? "Join the Waitlist" : "Sign Up"}
                 </Link>
               </li>
               <li>
-                <Link href="/dashboard" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                <Link href="/dashboard" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                   Dashboard
                 </Link>
               </li>
@@ -191,7 +191,7 @@ export function SiteFooter() {
 
             {/* Support & Legal */}
             <div>
-              <h4 className="text-lg font-athletic font-semibold text-black uppercase tracking-wide mb-4">
+              <h4 className="mb-4 text-lg font-athletic font-semibold uppercase tracking-wide text-slate-900">
                 Support & Legal
               </h4>
               <ul className="space-y-2">
@@ -199,28 +199,28 @@ export function SiteFooter() {
                   <button
                     type="button"
                     onClick={handleOpenSupport}
-                    className="text-black hover:text-[#3B82F6] transition-colors text-sm"
+                    className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm"
                   >
                     Contact Support
                   </button>
                 </li>
                 <li>
-                  <Link href="/privacy" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                  <Link href="/privacy" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                     Privacy Policy
                   </Link>
                 </li>
                 <li>
-                  <Link href="/acceptable-use" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                  <Link href="/acceptable-use" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                     Acceptable Use Policy
                   </Link>
                 </li>
                 <li>
-                  <Link href="/ai-transparency" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                  <Link href="/ai-transparency" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                     AI Transparency
                   </Link>
                 </li>
                 <li>
-                  <Link href="/terms" className="text-black hover:text-[#3B82F6] transition-colors text-sm">
+                  <Link href="/terms" className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
                     Terms of Service
                   </Link>
                 </li>
@@ -230,11 +230,11 @@ export function SiteFooter() {
 
           {/* Copyright */}
           <div className="border-t border-[#E5E7EB] pt-8 text-center">
-            <p className="text-black text-sm">
+            <p className="text-sm text-slate-700">
               &copy; {new Date().getFullYear()} Braik. All rights reserved.
             </p>
-            <p className="mt-2 flex items-center justify-center gap-2 text-sm text-black">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-[#CBD5E1] bg-[#F8FAFC] text-black text-xs font-bold" title="Apex">
+            <p className="mt-2 flex items-center justify-center gap-2 text-sm text-slate-600">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-[#CBD5E1] bg-[#F8FAFC] text-slate-900 text-xs font-bold" title="Apex">
                 A
               </span>
               <span>Powered by Apex TSG</span>
@@ -253,20 +253,20 @@ export function SiteFooter() {
           />
           <div className="relative w-full max-w-lg rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl">
             <div className="mb-4">
-              <h3 className="text-2xl font-athletic font-semibold text-black uppercase tracking-wide">
+              <h3 className="text-2xl font-athletic font-semibold uppercase tracking-wide text-slate-900">
                 Contact Support
               </h3>
-              <p className="mt-2 text-sm text-black">
+              <p className="mt-2 text-sm text-slate-700">
                 Send your issue directly to info@apextsgroup.com.
               </p>
-              <p className="mt-1 text-xs text-black">
+              <p className="mt-1 text-xs text-slate-600">
                 Account holder detected: {isAccountHolder ? "Yes" : "No"}
               </p>
             </div>
 
             <form onSubmit={handleSubmitSupport} className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="support-email" className="text-sm font-medium text-black">
+                <label htmlFor="support-email" className="text-sm font-medium text-slate-900">
                   Email
                 </label>
                 <input
@@ -274,14 +274,14 @@ export function SiteFooter() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-md border border-[#E5E7EB] px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full rounded-md border border-[#E5E7EB] px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
                   placeholder="your.email@example.com"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="support-issue" className="text-sm font-medium text-black">
+                <label htmlFor="support-issue" className="text-sm font-medium text-slate-900">
                   Complaint / Issue
                 </label>
                 <input
@@ -289,21 +289,21 @@ export function SiteFooter() {
                   type="text"
                   value={issue}
                   onChange={(e) => setIssue(e.target.value)}
-                  className="w-full rounded-md border border-[#E5E7EB] px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="w-full rounded-md border border-[#E5E7EB] px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
                   placeholder="Example: Cannot submit roster updates"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="support-description" className="text-sm font-medium text-black">
+                <label htmlFor="support-description" className="text-sm font-medium text-slate-900">
                   Brief Description
                 </label>
                 <textarea
                   id="support-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="min-h-[120px] w-full rounded-md border border-[#E5E7EB] px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+                  className="min-h-[120px] w-full rounded-md border border-[#E5E7EB] px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
                   placeholder="Describe what happened, when it happened, and what you expected."
                   required
                 />
@@ -319,7 +319,7 @@ export function SiteFooter() {
                 <button
                   type="button"
                   onClick={handleCloseSupport}
-                  className="rounded-md border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-black hover:bg-[#F9FAFB]"
+                  className="rounded-md border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-slate-900 hover:bg-[#F9FAFB]"
                 >
                   Cancel
                 </button>

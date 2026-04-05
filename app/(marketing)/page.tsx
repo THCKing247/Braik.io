@@ -26,12 +26,12 @@ import {
   landingLinkOnDark,
 } from "@/lib/marketing/landing-visual-theme"
 
-/** Light marketing sections: black headings and body copy. */
+/** Light marketing sections — explicit slate (never inherit `text-white` from dark utilities). */
 const lightSectionH2 =
-  "normal-case font-athletic text-2xl font-bold tracking-tight text-black md:text-4xl"
+  "normal-case font-athletic text-2xl font-bold tracking-tight text-slate-900 md:text-4xl"
 const lightSectionLead =
-  "text-base font-semibold leading-relaxed text-black md:text-lg"
-const lightSectionBody = "text-base leading-relaxed text-black md:text-lg"
+  "text-base font-semibold leading-relaxed text-slate-600 md:text-lg"
+const lightSectionBody = "text-base leading-relaxed text-slate-700 md:text-lg"
 
 const heroPrimaryCta =
   "text-base px-10 py-6 w-full sm:w-auto font-semibold tracking-wide uppercase text-sm shadow-[0_8px_36px_rgba(37,99,235,0.45)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_44px_rgba(59,130,246,0.55)]"
@@ -178,18 +178,18 @@ export default function Home() {
         <div className={landingContainer}>
           <div className="mx-auto max-w-3xl">
             <ScrollReveal>
-              <div className="space-y-10">
-                <h2 className="normal-case text-center font-athletic text-4xl font-bold leading-[1.05] tracking-tight text-black sm:text-5xl md:text-6xl">
+              <div className="space-y-10 text-slate-700">
+                <h2 className="normal-case text-center font-athletic text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
                   Coaches today are expected to do far more than coach.
                 </h2>
-                <div className="space-y-6 pt-4 text-lg leading-relaxed text-black md:text-xl">
+                <div className="space-y-6 pt-4 text-lg leading-relaxed text-slate-700 md:text-xl">
                   <p>
                     They manage rosters, schedules, payments, communication, documents, parents, assistants, and increasingly complex software—often with limited staff and even less time.
                   </p>
                   <p>
                     Most programs are forced to stitch together multiple tools for scheduling, communication, payments, and team coordination. The result is fragmented communication, duplicated work, confusion for parents and players, and added stress for coaches.
                   </p>
-                  <p className="text-xl font-semibold text-black md:text-2xl">
+                  <p className="text-xl font-semibold text-slate-900 md:text-2xl">
                     Braik exists to change that.
                   </p>
                 </div>
@@ -388,7 +388,7 @@ export default function Home() {
             ].map((item, index) => (
               <ScrollReveal key={item.role} delay={index * 50} className="h-full">
                 <MarketingCard title={item.role} className="h-full">
-                  <p className="text-black">{item.details}</p>
+                  <p className="text-slate-700">{item.details}</p>
                 </MarketingCard>
               </ScrollReveal>
             ))}

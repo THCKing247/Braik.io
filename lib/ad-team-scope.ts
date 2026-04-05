@@ -288,7 +288,7 @@ export async function fetchAdPortalVisibleTeams(
     const { data, error } = await supabase
       .from("teams")
       .select(
-        "id, name, sport, roster_size, created_at, program_id, team_level, created_by, gender, head_coach_user_id"
+        "id, name, sport, roster_size, created_at, program_id, team_level, created_by, gender"
       )
       .or(orFilter)
       .order("created_at", { ascending: false })

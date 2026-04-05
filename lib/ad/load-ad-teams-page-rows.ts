@@ -3,9 +3,11 @@ import type { AdPortalAccess } from "@/lib/ad-portal-access"
 import { getAdPortalAccessForUser } from "@/lib/ad-portal-access"
 import { adTeamsFlowPerfLog } from "@/lib/ad/ad-teams-table-perf"
 import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
-import { fetchAdUserDisplayNamesMap } from "@/lib/ad/fetch-ad-user-display-names"
 import { fetchAdVisibleTeamsForAccess, logAdTeamVisibility, type AdVisibleTeamRow } from "@/lib/ad-team-scope"
-import { pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
+import {
+  isAssistantCoachRole,
+  isHeadCoachRole,
+} from "@/lib/team-staff"
 import {
   canAccessAdPortalRoutes,
   resolveFootballAdAccessState,
@@ -25,7 +27,16 @@ export const AD_TEAMS_TABLE_QUERY_KEY = ["ad-pages", "teams-table"] as const
 /** PostgREST `.in("team_id", …)` chunk size to avoid huge URLs when many teams are visible. */
 const TEAM_IDS_IN_CHUNK = 120
 
-const TEAM_MEMBER_ROLE_HEAD_COACH = "head_coach" as const
+const PROFILE_IDS_CHUNK = 120
+
+const TEAM_MEMBER_ROLES_COACH_DISPLAY = ["head_coach", "assistant_coach"] as const
+
+type TeamMemberCoachRow = {
+  team_id: string
+  user_id: string
+  role: string | null
+  is_primary: boolean | null
+}
 
 function formatTeamLevel(level: string | null | undefined): string {
   if (level == null || String(level).trim() === "") return "Varsity"
@@ -34,6 +45,62 @@ function formatTeamLevel(level: string | null | undefined): string {
   if (l === "jv") return "JV"
   if (l === "freshman") return "Freshman"
   return String(level)
+}
+
+/**
+ * Picks one “display” coach per team from active head_coach / assistant_coach rows.
+ * Prefer rows marked primary; if any primary exists, only those compete. Within the chosen pool,
+ * head_coach wins over assistant_coach; otherwise the first matching assistant is used.
+ */
+function pickPreferredCoachUserId(rows: TeamMemberCoachRow[]): string | null {
+  const coaches = rows.filter(
+    (r) => r.user_id && (isHeadCoachRole(r.role) || isAssistantCoachRole(r.role))
+  )
+  if (coaches.length === 0) return null
+  const primaries = coaches.filter((r) => r.is_primary === true)
+  const pool = primaries.length > 0 ? primaries : coaches
+  const head = pool.find((r) => isHeadCoachRole(r.role))
+  if (head) return head.user_id
+  const asst = pool.find((r) => isAssistantCoachRole(r.role))
+  return asst?.user_id ?? null
+}
+
+async function mapIdsInChunks<T>(
+  ids: string[],
+  chunkSize: number,
+  run: (chunk: string[]) => Promise<T[]>
+): Promise<T[]> {
+  if (ids.length === 0) return []
+  if (ids.length <= chunkSize) return run(ids)
+  const out: T[] = []
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    out.push(...(await run(ids.slice(i, i + chunkSize))))
+  }
+  return out
+}
+
+async function fetchProfilesFullNameMap(
+  supabase: SupabaseClient,
+  userIds: string[]
+): Promise<Map<string, string | null>> {
+  const unique = [...new Set(userIds.filter((id) => typeof id === "string" && id.length > 0))]
+  const out = new Map<string, string | null>()
+  if (unique.length === 0) return out
+
+  const rows = await mapIdsInChunks<{ id: string; full_name: string | null }>(
+    unique,
+    PROFILE_IDS_CHUNK,
+    async (chunk) => {
+      const { data } = await supabase.from("profiles").select("id, full_name").in("id", chunk)
+      return data ?? []
+    }
+  )
+  for (const row of rows) {
+    if (!row?.id) continue
+    const nm = row.full_name?.trim()
+    out.set(row.id, nm && nm.length > 0 ? nm : null)
+  }
+  return out
 }
 
 export type AdTeamsTableAuthUser = {
@@ -49,20 +116,6 @@ export type AdTeamsTableAuthUser = {
    * on the route (shared with football + getAdPortalAccess).
    */
   directorDeptAsUser?: { id: string } | null
-}
-
-async function mapIdsInChunks<T>(
-  ids: string[],
-  chunkSize: number,
-  run: (chunk: string[]) => Promise<T[]>
-): Promise<T[]> {
-  if (ids.length === 0) return []
-  if (ids.length <= chunkSize) return run(ids)
-  const out: T[] = []
-  for (let i = 0; i < ids.length; i += chunkSize) {
-    out.push(...(await run(ids.slice(i, i + chunkSize))))
-  }
-  return out
 }
 
 /**
@@ -126,11 +179,6 @@ export async function loadAdTeamsTableData(
   if (!teamsData?.length) return teams
 
   const teamIds = teamsData.map((t) => t.id)
-  const programIds = [
-    ...new Set(
-      teamsData.map((t) => t.program_id).filter((id): id is string => typeof id === "string" && id.length > 0)
-    ),
-  ]
   const creatorIds = [
     ...new Set(
       teamsData
@@ -140,38 +188,23 @@ export async function loadAdTeamsTableData(
   ]
   const now = new Date().toISOString()
 
-  /** Prefer `teams.head_coach_user_id` (synced) — only query team_members for teams missing it. */
-  const teamIdsNeedingHcFromMembers = teamsData
-    .filter((t) => {
-      const hc = (t as AdVisibleTeamRow).head_coach_user_id
-      return !(typeof hc === "string" && hc.trim().length > 0)
-    })
-    .map((t) => t.id)
-
   const tParallel = performance.now()
-  const [staffRowsFlat, inviteRowsFlat, programsRes] = await Promise.all([
+  const [staffRowsFlat, inviteRowsFlat] = await Promise.all([
     (async () => {
-      if (teamIdsNeedingHcFromMembers.length === 0) {
-        adTeamsFlowPerfLog("loadAdTeamsTableData", "team_members_head_coach_fallback_skipped", 0, {
-          teamCount: teamIds.length,
-          rowCount: 0,
-        })
-        return [] as { team_id: string; user_id: string; role: string; is_primary?: boolean | null }[]
-      }
       const t = performance.now()
-      const rows = await mapIdsInChunks(teamIdsNeedingHcFromMembers, TEAM_IDS_IN_CHUNK, async (chunk) => {
+      const rows = await mapIdsInChunks(teamIds, TEAM_IDS_IN_CHUNK, async (chunk) => {
         const { data } = await supabase
           .from("team_members")
           .select("team_id, user_id, role, is_primary")
           .in("team_id", chunk)
           .eq("active", true)
-          .eq("role", TEAM_MEMBER_ROLE_HEAD_COACH)
-        return data ?? []
+          .in("role", [...TEAM_MEMBER_ROLES_COACH_DISPLAY])
+        return (data ?? []) as TeamMemberCoachRow[]
       })
-      adTeamsFlowPerfLog("loadAdTeamsTableData", "team_members_head_coach_only", performance.now() - t, {
-        teamCount: teamIdsNeedingHcFromMembers.length,
+      adTeamsFlowPerfLog("loadAdTeamsTableData", "team_members_coaches", performance.now() - t, {
+        teamCount: teamIds.length,
         rowCount: rows.length,
-        chunks: Math.ceil(teamIdsNeedingHcFromMembers.length / TEAM_IDS_IN_CHUNK) || 1,
+        chunks: Math.ceil(teamIds.length / TEAM_IDS_IN_CHUNK) || 1,
       })
       return rows
     })(),
@@ -193,38 +226,23 @@ export async function loadAdTeamsTableData(
       })
       return rows
     })(),
-    programIds.length > 0
-      ? supabase.from("programs").select("id, sport").in("id", programIds)
-      : Promise.resolve({ data: [] as { id: string; sport?: string | null }[] }),
   ])
   adTeamsFlowPerfLog("loadAdTeamsTableData", "parallel_batch_total", performance.now() - tParallel, {
     staffRows: staffRowsFlat.length,
     inviteRows: inviteRowsFlat.length,
-    hcFallbackTeams: teamIdsNeedingHcFromMembers.length,
   })
 
-  const staffByTeam = new Map<string, TeamMemberStaffRow[]>()
+  const coachesByTeam = new Map<string, TeamMemberCoachRow[]>()
   for (const row of staffRowsFlat) {
-    const tid = (row as { team_id: string }).team_id
-    const list = staffByTeam.get(tid) ?? []
-    list.push({
-      user_id: (row as { user_id: string }).user_id,
-      role: (row as { role: string }).role,
-      is_primary: (row as { is_primary?: boolean | null }).is_primary,
-    })
-    staffByTeam.set(tid, list)
+    const tid = row.team_id
+    const list = coachesByTeam.get(tid) ?? []
+    list.push(row)
+    coachesByTeam.set(tid, list)
   }
 
   const headCoachUserIdByTeam = new Map<string, string | null>()
   for (const t of teamsData) {
-    const row = t as AdVisibleTeamRow
-    const fromTeam = row.head_coach_user_id
-    if (typeof fromTeam === "string" && fromTeam.trim().length > 0) {
-      headCoachUserIdByTeam.set(t.id, fromTeam.trim())
-      continue
-    }
-    const uid = pickHeadCoachUserId(staffByTeam.get(t.id) ?? [])
-    headCoachUserIdByTeam.set(t.id, uid)
+    headCoachUserIdByTeam.set(t.id, pickPreferredCoachUserId(coachesByTeam.get(t.id) ?? []))
   }
 
   const nameUserIds = [
@@ -234,14 +252,11 @@ export async function loadAdTeamsTableData(
       )
     ),
   ]
-  const tNamesParallel = performance.now()
-  const displayNameByUserId = await fetchAdUserDisplayNamesMap(supabase, nameUserIds)
-  adTeamsFlowPerfLog(
-    "loadAdTeamsTableData",
-    "ad_user_display_names_batch",
-    performance.now() - tNamesParallel,
-    { ids: nameUserIds.length }
-  )
+  const tProfiles = performance.now()
+  const displayNameByUserId = await fetchProfilesFullNameMap(supabase, nameUserIds)
+  adTeamsFlowPerfLog("loadAdTeamsTableData", "profiles_full_names", performance.now() - tProfiles, {
+    ids: nameUserIds.length,
+  })
 
   const tPostFetch = performance.now()
 
@@ -256,30 +271,23 @@ export async function loadAdTeamsTableData(
     headCoachByTeam.set(teamId, userId ? displayNameByUserId.get(userId) ?? null : null)
   })
 
-  const pendingTeamIds = new Set(
-    inviteRowsFlat.map((i) => (i as { team_id: string }).team_id)
-  )
+  const pendingTeamIds = new Set(inviteRowsFlat.map((i) => (i as { team_id: string }).team_id))
 
-  const sportByProgramId = new Map<string, string>()
-  for (const p of programsRes.data ?? []) {
-    if (p?.id) sportByProgramId.set(p.id, (p.sport as string) || "football")
-  }
   adTeamsFlowPerfLog("loadAdTeamsTableData", "js_postfetch_maps", performance.now() - tPostFetch, {
     teamCount: teamIds.length,
   })
 
   const tBuildRows = performance.now()
   for (const t of teamsData) {
+    const row = t as AdVisibleTeamRow
     const headCoachName = headCoachByTeam.get(t.id) ?? null
     const invitePending = pendingTeamIds.has(t.id)
-    const programId = t.program_id as string | null | undefined
-    const sportFromProgram = programId ? sportByProgramId.get(programId) : undefined
     const createdBy = t.created_by ?? null
-    const genderRaw = (t as { gender?: string | null }).gender
+    const genderRaw = row.gender
     teams.push({
       id: t.id,
       name: t.name ?? "",
-      sport: t.sport ?? sportFromProgram ?? null,
+      sport: t.sport ?? null,
       genderLabel: genderRaw?.trim() ? String(genderRaw) : "—",
       levelLabel: formatTeamLevel(t.team_level),
       rosterSize: t.roster_size ?? null,

@@ -9,7 +9,7 @@
  * - `route` · `parallel_football_and_ad_access` — legacy label when dept not folded in
  * - `fetchAdPortalVisibleTeams` · `resolve_athletic_director_scope` — org/program linkage (not the teams row scan)
  * - `fetchAdPortalVisibleTeams` · `teams_query` — PostgREST teams list
- * - `loadAdTeamsTableData` · `team_members_staff_only` / `invites_pending` / `users_and_profiles_names_parallel` / `js_*`
+ * - `loadAdTeamsTableData` · `team_members_coaches` / `invites_pending` / `profiles_full_names` / `js_*`
  *
  * Client (NEXT_PUBLIC_AD_TEAMS_FLOW_PERF=1 or dev): `ad-teams-flow-perf-client` + `authTimingClient` bootstrap markers.
  */

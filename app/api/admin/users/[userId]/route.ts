@@ -7,6 +7,7 @@ import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
 import { requirePermissionForApi } from "@/lib/permissions/platform-permissions"
 import { syncUserPlatformRoleMirror } from "@/lib/permissions/sync-user-platform-role"
 import { isSupabaseSchemaObjectMissingError } from "@/lib/admin/supabase-schema-error"
+import { loadAdminUserProfile } from "@/lib/admin/load-admin-user-profile"
 
 type PatchBody = {
   name?: string
@@ -84,11 +85,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .eq("user_id", userId)
     .maybeSingle()
 
+  const adminProfile = await loadAdminUserProfile(userId)
+
   return NextResponse.json({
     ok: true,
     ...user,
     platformRole,
     videoPermissions: videoPerms ?? null,
+    adminProfile,
   })
 }
 

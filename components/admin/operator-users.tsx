@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
-import { getUserRoleLabel, USER_ROLE_VALUES, USER_ROLE_LABELS } from "@/lib/auth/user-roles"
-import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
+import { AdminUserEditModal, type AdminUserEditRow } from "@/components/admin/admin-user-edit-modal"
+import { getUserRoleLabel } from "@/lib/auth/user-roles"
 import { adminKpiLabel, adminKpiStatCard, adminKpiValue, adminOpsUserStatusChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
@@ -32,10 +32,11 @@ type AdminCaps = {
 export function OperatorUsers({ users }: { users: UserRow[] }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
-  const [modalOpen, setModalOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [caps, setCaps] = useState<AdminCaps | null>(null)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<null | { user: UserRow; kind: "suspend" | "delete" | "restore" }>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -72,8 +73,8 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
   async function handleSuspendOrRestore(user: UserRow) {
     const isSuspended = user.status.toLowerCase().includes("suspend")
     const newStatus = isSuspended ? "active" : "suspended"
-    if (!isSuspended && !window.confirm(`Suspend ${user.email}? They will not be able to sign in.`)) return
     setActionLoading(user.id)
+    setFeedback(null)
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
@@ -83,26 +84,30 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to update")
+      setFeedback(isSuspended ? "User restored." : "User suspended.")
       router.refresh()
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to update user")
+      setFeedback(e instanceof Error ? e.message : "Failed to update user")
     } finally {
       setActionLoading(null)
+      setConfirm(null)
     }
   }
 
   async function handleDelete(user: UserRow) {
-    if (!window.confirm(`Permanently delete ${user.email}? This cannot be undone.`)) return
     setActionLoading(user.id)
+    setFeedback(null)
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE", credentials: "include" })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to delete")
+      setFeedback("User deleted.")
       router.refresh()
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to delete user")
+      setFeedback(e instanceof Error ? e.message : "Failed to delete user")
     } finally {
       setActionLoading(null)
+      setConfirm(null)
     }
   }
 
@@ -121,7 +126,23 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
       window.location.href = redirect
     } catch (e) {
       setActionLoading(null)
-      alert(e instanceof Error ? e.message : "Failed to sign in as user")
+      setFeedback(e instanceof Error ? e.message : "Failed to sign in as user")
+    }
+  }
+
+  function toEditRow(u: UserRow): AdminUserEditRow {
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      status: u.status,
+      createdAt: u.createdAt,
+      lastLoginAt: u.lastLoginAt,
+      memberships: u.memberships,
+      platformRoleId: u.platformRoleId,
+      platformRoleName: u.platformRoleName,
+      platformRoleKey: u.platformRoleKey,
     }
   }
 
@@ -129,7 +150,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
     <div className="space-y-6">
       <AdminPageHeader
         title="Accounts"
-        description="Search, filter, and manage platform users, roles, and team memberships."
+        description="Search and manage platform users (public.users), profiles, and team links."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Link href="/admin/provisioning" className={cn(adminUi.btnPrimarySm, "no-underline")}>
@@ -141,12 +162,15 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
               placeholder="Filter list…"
               className={adminUi.toolbarInput}
             />
-            <button type="button" onClick={() => setModalOpen(true)} className={adminUi.btnSecondarySm}>
-              Drill-down
-            </button>
           </div>
         }
       />
+
+      {feedback ? (
+        <div className={cn(adminUi.noticeMuted, "text-sm")} role="status">
+          {feedback}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className={adminKpiStatCard("sky")}>
@@ -231,7 +255,12 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleSuspendOrRestore(user)}
+                      onClick={() =>
+                        setConfirm({
+                          user,
+                          kind: user.status.toLowerCase().includes("suspend") ? "restore" : "suspend",
+                        })
+                      }
                       disabled={!!actionLoading || (caps !== null && !caps.canManageUsers)}
                       className={cn(adminUi.btnWarningSm, "disabled:opacity-50")}
                     >
@@ -239,7 +268,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(user)}
+                      onClick={() => setConfirm({ user, kind: "delete" })}
                       disabled={!!actionLoading || (caps !== null && !caps.canManageUsers)}
                       className={cn(adminUi.btnDangerSm, "disabled:opacity-50")}
                     >
@@ -269,254 +298,67 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
         </table>
       </div>
 
-      {editUser && (
-        <EditUserModal
-          user={editUser}
+      {editUser ? (
+        <AdminUserEditModal
+          user={toEditRow(editUser)}
           onClose={() => setEditUser(null)}
           onSaved={() => {
             setEditUser(null)
+            setFeedback("Saved.")
             router.refresh()
           }}
         />
-      )}
+      ) : null}
 
       <AdminModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Users Drill-down"
-        summary="Filter/search/action/export operator overlay."
+        open={confirm !== null}
+        title={
+          confirm?.kind === "delete"
+            ? "Delete user?"
+            : confirm?.kind === "suspend"
+              ? "Suspend user?"
+              : "Restore user?"
+        }
+        summary={
+          confirm == null
+            ? ""
+            : confirm.kind === "delete"
+              ? `Permanently delete ${confirm.user.email}? This cannot be undone.`
+              : confirm.kind === "suspend"
+                ? `${confirm.user.email} will not be able to sign in until restored.`
+                : `Restore access for ${confirm.user.email}?`
+        }
+        onClose={() => !actionLoading && setConfirm(null)}
       >
-        <div className="space-y-2">
-          <div className="grid gap-2 md:grid-cols-4">
-            <input className={adminUi.toolbarInput} placeholder="Search" />
-            <select className={adminUi.toolbarInput}>
-              <option>Bulk action</option>
-              <option>Suspend selected</option>
-              <option>Restore selected</option>
-            </select>
-            <button type="button" className={adminUi.btnSecondarySm}>
-              Apply
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" disabled={!!actionLoading} onClick={() => setConfirm(null)} className={adminUi.btnSecondary}>
+            Cancel
+          </button>
+          {confirm?.kind === "delete" ? (
+            <button
+              type="button"
+              disabled={!!actionLoading}
+              onClick={() => {
+                if (confirm) void handleDelete(confirm.user)
+              }}
+              className={adminUi.btnDanger}
+            >
+              {actionLoading ? "…" : "Delete user"}
             </button>
-            <button type="button" className={adminUi.btnSecondarySm}>
-              Export CSV
+          ) : (
+            <button
+              type="button"
+              disabled={!!actionLoading}
+              onClick={() => {
+                if (confirm) void handleSuspendOrRestore(confirm.user)
+              }}
+              className={confirm?.kind === "suspend" ? adminUi.btnWarningSm : adminUi.btnPrimary}
+            >
+              {actionLoading ? "…" : confirm?.kind === "suspend" ? "Suspend" : "Restore"}
             </button>
-          </div>
-          <div className={cn(adminUi.tableWrap, "max-h-[45vh]")}>
-            <table className={cn(adminUi.table, "min-w-0 text-xs")}>
-              <thead className={adminUi.thead}>
-                <tr>
-                  <th className={adminUi.th}>Email</th>
-                  <th className={adminUi.th}>Role</th>
-                  <th className={adminUi.th}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((u) => (
-                  <tr key={u.id} className={adminUi.tbodyRow}>
-                    <td className={adminUi.td}>{u.email}</td>
-                    <td className={adminUi.td}>{u.role}</td>
-                    <td className={adminUi.td}>{u.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          )}
         </div>
       </AdminModal>
     </div>
-  )
-}
-
-function EditUserModal({
-  user,
-  onClose,
-  onSaved,
-}: {
-  user: UserRow
-  onClose: () => void
-  onSaved: () => void
-}) {
-  const [name, setName] = useState(user.name ?? "")
-  const [email, setEmail] = useState(user.email)
-  const [role, setRole] = useState(user.role.trim().toLowerCase().replace(/-/g, "_"))
-  const [platformRoleId, setPlatformRoleId] = useState<string>(user.platformRoleId ?? "")
-  const [platformRoles, setPlatformRoles] = useState<{ id: string; key: string; name: string }[]>([])
-  const [status, setStatus] = useState(user.status)
-  const [video, setVideo] = useState({
-    can_view_video: false,
-    can_upload_video: false,
-    can_create_clips: false,
-    can_share_clips: false,
-    can_delete_video: false,
-  })
-  const [error, setError] = useState("")
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const opt = await fetch("/api/admin/platform-role-options", { credentials: "include", cache: "no-store" })
-        if (opt.ok) {
-          const j = (await opt.json()) as { roles?: { id: string; key: string; name: string }[] }
-          if (!cancelled && j.roles) setPlatformRoles(j.roles)
-        }
-      } catch {
-        /* ignore */
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const res = await fetch(`/api/admin/users/${user.id}`, { credentials: "include" })
-        const data = await res.json()
-        if (cancelled || !res.ok) return
-        const pr = data.platformRole as { id?: string } | null | undefined
-        if (pr?.id) setPlatformRoleId(pr.id)
-        const vp = data.videoPermissions as
-          | {
-              can_view_video?: boolean
-              can_upload_video?: boolean
-              can_create_clips?: boolean
-              can_share_clips?: boolean
-              can_delete_video?: boolean
-            }
-          | null
-        if (vp) {
-          setVideo({
-            can_view_video: Boolean(vp.can_view_video),
-            can_upload_video: Boolean(vp.can_upload_video),
-            can_create_clips: Boolean(vp.can_create_clips),
-            can_share_clips: Boolean(vp.can_share_clips),
-            can_delete_video: Boolean(vp.can_delete_video),
-          })
-        }
-      } catch {
-        /* ignore */
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [user.id])
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError("")
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/admin/users/${user.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim() || null,
-          email: email.trim().toLowerCase(),
-          role: role,
-          status: status,
-          platformRoleId: platformRoleId || null,
-          videoPermissions: video,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok || data.ok === false) throw new Error((data as { error?: string }).error || "Failed to save")
-      onSaved()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <AdminModal open title={`Edit ${user.email}`} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className={adminUi.label}>Name</label>
-            <input className={adminUi.input} value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <label className={adminUi.label}>Email</label>
-            <input
-              type="email"
-              className={adminUi.input}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className={adminUi.label}>App role (legacy)</label>
-            <select className={adminUi.select} value={role} onChange={(e) => setRole(e.target.value)}>
-              {USER_ROLE_VALUES.map((r) => (
-                <option key={r} value={r}>
-                  {USER_ROLE_LABELS[r]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={adminUi.label}>Platform role (permissions)</label>
-            <select className={adminUi.select} value={platformRoleId} onChange={(e) => setPlatformRoleId(e.target.value)}>
-              <option value="">— None —</option>
-              {platformRoles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name} ({r.key})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={adminUi.label}>Status</label>
-            <select className={adminUi.select} value={status} onChange={(e) => setStatus(e.target.value)}>
-              {ACCOUNT_STATUS_VALUES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className={cn(adminUi.panelMuted, "p-3")}>
-          <p className="mb-2 text-xs font-medium text-slate-300">Game Video / Clips</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {(
-              [
-                ["can_view_video", "View video"],
-                ["can_upload_video", "Upload video"],
-                ["can_create_clips", "Create clips"],
-                ["can_share_clips", "Share clips"],
-                ["can_delete_video", "Delete video"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={video[key]}
-                  onChange={(e) => setVideo((prev) => ({ ...prev, [key]: e.target.checked }))}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </div>
-        {error ? <p className="text-xs text-red-400">{error}</p> : null}
-        <div className="flex gap-2">
-          <button type="submit" disabled={saving} className={adminUi.btnPrimary}>
-            {saving ? "Saving…" : "Save"}
-          </button>
-          <button type="button" onClick={onClose} className={adminUi.btnSecondary}>
-            Cancel
-          </button>
-        </div>
-      </form>
-    </AdminModal>
   )
 }

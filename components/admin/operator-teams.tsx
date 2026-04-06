@@ -2,35 +2,37 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { AdminModal } from "@/components/admin/admin-modal"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { AdminTeamStatusForm } from "@/components/admin/admin-team-status-form"
+import type { AdminTeamGroup, AdminTeamRow } from "@/lib/admin/load-admin-teams-grouped"
 import { adminKpiLabel, adminKpiStatCard, adminKpiValue, adminOpsTeamStateChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
-interface TeamRow {
-  id: string
-  name: string
-  planTier: string | null
-  subscriptionStatus: string
-  teamStatus: string
-  organization: { name: string }
-  players: Array<{ id: string }>
-  headCoachName: string | null
-  coachStaffCount: number
-}
-
-export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filterUserId?: string | null }) {
+export function OperatorTeams({
+  groups,
+  filterUserId,
+}: {
+  groups: AdminTeamGroup[]
+  filterUserId?: string | null
+}) {
   const [query, setQuery] = useState("")
-  const [modalOpen, setModalOpen] = useState(false)
 
-  const filtered = useMemo(() => {
+  const allTeams = useMemo(() => groups.flatMap((g) => g.teams), [groups])
+
+  const filteredGroups = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return teams
-    return teams.filter((team) =>
-      `${team.name} ${team.organization.name} ${team.subscriptionStatus} ${team.teamStatus}`.toLowerCase().includes(q)
-    )
-  }, [teams, query])
+    if (!q) return groups
+    return groups
+      .map((g) => ({
+        ...g,
+        teams: g.teams.filter((team) =>
+          `${team.name} ${team.organization.name} ${g.groupTitle} ${team.subscriptionStatus} ${team.teamStatus} ${team.sport ?? ""}`
+            .toLowerCase()
+            .includes(q)
+        ),
+      }))
+      .filter((g) => g.teams.length > 0)
+  }, [groups, query])
 
   return (
     <div className="space-y-6">
@@ -50,113 +52,90 @@ export function OperatorTeams({ teams, filterUserId }: { teams: TeamRow[]; filte
       )}
       <AdminPageHeader
         title="Teams"
-        description="Subscription status, team flags, and staff counts. Open a team for service controls and AI settings."
+        description="All teams from Supabase, grouped by organization, school, or program. Open a team for service controls and AI settings."
         action={
-          <div className="flex flex-wrap gap-2">
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter list…"
-              className={adminUi.toolbarInput}
-            />
-            <button type="button" onClick={() => setModalOpen(true)} className={adminUi.btnSecondarySm}>
-              Drill-down
-            </button>
-          </div>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter list…"
+            className={adminUi.toolbarInput}
+          />
         }
       />
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className={adminKpiStatCard("emerald")}>
           <p className={adminKpiLabel()}>Active teams</p>
-          <p className={adminKpiValue()}>{teams.filter((t) => t.teamStatus === "active").length}</p>
+          <p className={adminKpiValue()}>{allTeams.filter((t) => t.teamStatus === "active").length}</p>
         </div>
         <div className={adminKpiStatCard("red")}>
           <p className={adminKpiLabel()}>Suspended teams</p>
-          <p className={adminKpiValue()}>{teams.filter((t) => t.teamStatus === "suspended").length}</p>
+          <p className={adminKpiValue()}>{allTeams.filter((t) => t.teamStatus === "suspended").length}</p>
         </div>
         <div className={adminKpiStatCard("orange")}>
           <p className={adminKpiLabel()}>Past due / grace</p>
           <p className={adminKpiValue()}>
-            {teams.filter((t) => ["past_due", "grace_period"].includes(t.subscriptionStatus)).length}
+            {allTeams.filter((t) => ["past_due", "grace_period"].includes(t.subscriptionStatus)).length}
           </p>
         </div>
         <div className={adminKpiStatCard("purple")}>
           <p className={adminKpiLabel()}>Cancelled / terminated</p>
           <p className={adminKpiValue()}>
-            {teams.filter((t) => ["cancelled", "terminated"].includes(t.teamStatus) || ["cancelled", "terminated"].includes(t.subscriptionStatus)).length}
+            {allTeams.filter(
+              (t) =>
+                ["cancelled", "terminated"].includes(t.teamStatus) ||
+                ["cancelled", "terminated"].includes(t.subscriptionStatus)
+            ).length}
           </p>
         </div>
       </div>
 
-      <div className="space-y-3">
-        {filtered.map((team) => (
-          <div key={team.id} className={cn(adminUi.panel, adminUi.panelPadding)}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-white">{team.name}</h3>
-                <p className="text-xs font-medium text-slate-300">{team.organization.name}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className={cn(adminOpsTeamStateChip(team.subscriptionStatus))}>subscription: {team.subscriptionStatus}</span>
-                  <span className={cn(adminOpsTeamStateChip(team.teamStatus))}>team: {team.teamStatus}</span>
-                </div>
-                <p className="mt-2 text-xs font-medium text-slate-300">
-                  Plan: {team.planTier || "starter"} | Roster: {team.players.length} | Head coach:{" "}
-                  {team.headCoachName ?? "No head coach assigned"} | Staff (HC/AC): {team.coachStaffCount}
-                </p>
-                <Link href={`/admin/teams/${team.id}`} className={adminUi.linkSubtle}>
-                  View details
-                </Link>
-              </div>
-              <AdminTeamStatusForm teamId={team.id} initialStatus={team.teamStatus} />
+      <div className="space-y-8">
+        {filteredGroups.map((group) => (
+          <section key={group.groupKey} className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold text-white">{group.groupTitle}</h2>
+              {group.groupHint ? <p className="text-xs font-medium text-slate-400">{group.groupHint}</p> : null}
             </div>
-          </div>
+            <div className="space-y-3">
+              {group.teams.map((team) => (
+                <TeamCard key={team.id} team={team} />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 
-      <AdminModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Teams Drill-down"
-        summary="Filter/search/action/export operator overlay."
-      >
-        <div className="space-y-2">
-          <div className="grid gap-2 md:grid-cols-4">
-            <input className={adminUi.toolbarInput} placeholder="Search" />
-            <select className={adminUi.toolbarInput}>
-              <option>Bulk action</option>
-              <option>Suspend selected</option>
-              <option>Restore selected</option>
-            </select>
-            <button type="button" className={adminUi.btnSecondarySm}>
-              Apply
-            </button>
-            <button type="button" className={adminUi.btnSecondarySm}>
-              Export CSV
-            </button>
+      {filteredGroups.length === 0 ? (
+        <p className="text-sm font-medium text-slate-400">No teams match the current filters.</p>
+      ) : null}
+    </div>
+  )
+}
+
+function TeamCard({ team }: { team: AdminTeamRow }) {
+  return (
+    <div className={cn(adminUi.panel, adminUi.panelPadding)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-white">{team.name}</h3>
+          <p className="text-xs font-medium text-slate-300">{team.organization.name || "—"}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className={cn(adminOpsTeamStateChip(team.subscriptionStatus))}>subscription: {team.subscriptionStatus}</span>
+            <span className={cn(adminOpsTeamStateChip(team.teamStatus))}>team: {team.teamStatus}</span>
           </div>
-          <div className={cn(adminUi.tableWrap, "max-h-[45vh] overflow-y-auto")}>
-            <table className={cn(adminUi.table, "min-w-0 text-xs")}>
-              <thead className={adminUi.thead}>
-                <tr>
-                  <th className={adminUi.th}>Team</th>
-                  <th className={adminUi.th}>Subscription</th>
-                  <th className={adminUi.th}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((t) => (
-                  <tr key={t.id} className={adminUi.tbodyRow}>
-                    <td className={adminUi.td}>{t.name}</td>
-                    <td className={adminUi.td}>{t.subscriptionStatus}</td>
-                    <td className={adminUi.td}>{t.teamStatus}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <p className="mt-2 text-xs font-medium text-slate-300">
+            Plan: {team.planTier || "starter"} | Level: {team.teamLevel ?? "—"} | Sport: {team.sport ?? "—"} | Created:{" "}
+            {new Date(team.createdAt).toLocaleDateString()}
+            {" | "}
+            Head coach: {team.headCoachName ?? "—"} | Staff (HC/AC): {team.coachStaffCount}
+          </p>
+          <Link href={`/admin/teams/${team.id}`} className={adminUi.linkSubtle}>
+            View details
+          </Link>
         </div>
-      </AdminModal>
+        <AdminTeamStatusForm teamId={team.id} initialStatus={team.teamStatus} />
+      </div>
     </div>
   )
 }

@@ -147,12 +147,6 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
               </Link>
               <span className="text-slate-500"> — orgs, teams, invites</span>
             </li>
-            <li>
-              <Link href="/admin/billing" className={adminUi.link}>
-                Billing
-              </Link>
-              <span className="text-slate-500"> — revenue and subscription tooling</span>
-            </li>
           </ul>
         </div>
       </div>

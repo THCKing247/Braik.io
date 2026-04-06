@@ -140,9 +140,6 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
             </NavSection>
 
             <NavSection title="Platform">
-              {caps && (caps.canViewBilling || caps.canManageBilling) ? (
-                <NavLink href="/admin/billing">Billing</NavLink>
-              ) : null}
               {caps?.canViewAuditLogs ? <NavLink href="/admin/audit">Audit</NavLink> : null}
               {caps && (caps.canViewAuditLogs || caps.canManageUsers) ? (
                 <NavLink href="/admin/document-audit">Document audit</NavLink>
@@ -152,10 +149,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
             </NavSection>
 
             <NavSection title="Session">
-              <Link href="/dashboard" className={adminNavLinkClass(false)}>
-                Exit to app
-              </Link>
-              <div className="pt-2">
+              <div className="pt-1">
                 <AdminSignOutButton />
               </div>
             </NavSection>

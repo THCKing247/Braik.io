@@ -7,6 +7,7 @@ export const USER_ROLE_VALUES = [
   "assistant_coach",
   "athletic_director",
   "parent",
+  "player",
   "athlete",
   "admin",
   "user",
@@ -20,6 +21,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   assistant_coach: "Assistant Coach",
   athletic_director: "Athletic Director",
   parent: "Parent",
+  player: "Player",
   athlete: "Athlete",
   admin: "Admin",
   user: "User",
@@ -29,7 +31,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 export function profileRoleToUserRole(profileRole: string | null | undefined): UserRole {
   if (!profileRole || typeof profileRole !== "string") return "user"
   const normalized = profileRole.trim().toLowerCase().replace(/-/g, "_")
-  if (normalized === "player") return "athlete"
+  if (normalized === "player") return "player"
   if (USER_ROLE_VALUES.includes(normalized as UserRole)) return normalized as UserRole
   return "user"
 }

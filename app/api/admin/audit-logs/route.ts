@@ -20,19 +20,32 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .limit(200)
 
-    if (action) query = query.eq("action", action)
+    if (action) query = query.ilike("action", `%${action}%`)
     if (targetType) query = query.eq("target_type", targetType)
 
     const { data: rows } = await query
-    const logs = (rows ?? []).map((r) => ({
-      id: r.id,
-      actorId: r.actor_id,
-      action: r.action,
-      targetType: r.target_type,
-      targetId: r.target_id,
-      metadata: r.metadata,
-      createdAt: r.created_at,
-    }))
+    const raw = rows ?? []
+    const actorIds = [...new Set(raw.map((r) => r.actor_id).filter(Boolean))] as string[]
+    const { data: actorUsers } =
+      actorIds.length > 0
+        ? await supabase.from("users").select("id, email, name").in("id", actorIds)
+        : { data: [] as { id: string; email: string; name: string | null }[] }
+    const actorById = new Map((actorUsers ?? []).map((u) => [u.id, u]))
+
+    const logs = raw.map((r) => {
+      const actor = r.actor_id ? actorById.get(r.actor_id as string) : undefined
+      return {
+        id: r.id,
+        actorId: r.actor_id,
+        actorEmail: actor?.email ?? null,
+        actorName: actor?.name?.trim() || null,
+        action: r.action,
+        targetType: r.target_type,
+        targetId: r.target_id,
+        metadata: r.metadata,
+        createdAt: r.created_at,
+      }
+    })
 
     return NextResponse.json({ ok: true, logs })
   } catch (error: unknown) {

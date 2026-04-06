@@ -36,7 +36,7 @@ export function DocumentAuditClient() {
     if (teamId.trim()) p.set("teamId", teamId.trim())
     p.set("limit", "200")
     try {
-      const res = await fetch(`/api/admin/document-audit?${p.toString()}`)
+      const res = await fetch(`/api/admin/document-audit?${p.toString()}`, { credentials: "include", cache: "no-store" })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         throw new Error((d as { error?: string }).error ?? "Failed to load")

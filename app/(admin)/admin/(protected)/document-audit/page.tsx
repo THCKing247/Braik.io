@@ -1,3 +1,8 @@
+/**
+ * Player document access log — backed by `document_access_audit` + `player_documents` (see GET /api/admin/document-audit).
+ * Empty results mean no rows yet, not a stub UI. Future work: team filter via DB (currently filtered client-side after join),
+ * and any product decisions on retention/IP logging under GDPR/FERPA.
+ */
 import Link from "next/link"
 import { DocumentAuditClient } from "./document-audit-client"
 import { adminUi } from "@/lib/admin/admin-ui"
@@ -8,7 +13,7 @@ export default function DocumentAuditPage() {
     <div className="space-y-6">
       <div>
         <Link href="/admin/audit" className={cn(adminUi.link, "text-sm")}>
-          ← Legacy audit
+          ← Platform audit
         </Link>
         <h2 className="mt-2 font-athletic text-xl font-bold uppercase tracking-wide text-white">
           Player document access log

@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { PlatformPermissionKey } from "@/lib/permissions/platform-permission-keys"
 import { PLATFORM_PERMISSION_SECTION_ORDER } from "@/lib/permissions/platform-permission-keys"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 type PermRow = { key: string; section: string; label: string; description: string }
 
@@ -206,7 +208,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
     return (
       <p className="text-sm text-amber-200/90">
         You cannot manage roles.{" "}
-        <Link href="/admin/roles" className="text-cyan-300 underline">
+        <Link href="/admin/roles" className={cn(adminUi.link, "underline-offset-2")}>
           Back
         </Link>
       </p>
@@ -216,7 +218,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
     return (
       <p className="text-sm text-red-300/90">
         Failed to load.{" "}
-        <button type="button" className="text-cyan-300 underline" onClick={() => void load()}>
+        <button type="button" className={cn(adminUi.link, "underline-offset-2")} onClick={() => void load()}>
           Retry
         </button>
       </p>
@@ -237,7 +239,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
         </div>
       ) : null}
 
-      <div className="grid gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 md:grid-cols-2">
+      <div className={cn(adminUi.panel, adminUi.panelPadding, "grid gap-4 md:grid-cols-2")}>
         {isEdit && roleType ? (
           <div className="md:col-span-2 flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-white/50">Role type</span>
@@ -253,21 +255,17 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
           </div>
         ) : null}
         <div className="md:col-span-2">
-          <label className="text-xs font-medium uppercase tracking-wide text-white/50">Role name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/15 bg-[#0c0c0e] px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none"
-          />
+          <label className={adminUi.label}>Role name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={cn(adminUi.input, "mt-1")} />
         </div>
         <div>
-          <label className="text-xs font-medium uppercase tracking-wide text-white/50">Role key</label>
+          <label className={adminUi.label}>Role key</label>
           <input
             value={key}
             onChange={(e) => setKey(e.target.value)}
             disabled={isEdit && !keyEditable}
             title={isEdit && !keyEditable ? "System role keys are locked" : undefined}
-            className="mt-1 w-full rounded-lg border border-white/15 bg-[#0c0c0e] px-3 py-2 font-mono text-sm text-white focus:border-cyan-500/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className={cn(adminUi.input, "mt-1 font-mono disabled:cursor-not-allowed disabled:opacity-60")}
           />
         </div>
         <div className="flex flex-col gap-2">
@@ -278,29 +276,29 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
           </label>
         </div>
         <div className="md:col-span-2">
-          <label className="text-xs font-medium uppercase tracking-wide text-white/50">Description</label>
+          <label className={adminUi.label}>Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            className="mt-1 w-full rounded-lg border border-white/15 bg-[#0c0c0e] px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none"
+            className={cn(adminUi.input, "mt-1 min-h-[88px] py-2.5")}
           />
         </div>
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-white">Permissions</h2>
+        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">Permissions</h2>
         <div className="space-y-6">
           {grouped.map(({ section, rows }) => {
             const allOn = rows.length > 0 && rows.every((r) => selected.has(r.key as PlatformPermissionKey))
             return (
-              <div key={section} className="rounded-xl border border-white/10 bg-[#0f0f12] p-4">
+              <div key={section} className={cn(adminUi.panelMuted, "p-4")}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-cyan-200/90">{section}</h3>
+                  <h3 className="text-sm font-semibold text-orange-200/95">{section}</h3>
                   <button
                     type="button"
                     onClick={() => selectSection(section, !allOn)}
-                    className="text-xs text-cyan-300/90 hover:underline"
+                    className={cn(adminUi.linkSubtle, "hover:underline")}
                   >
                     {allOn ? "Clear section" : "Select all in section"}
                   </button>
@@ -332,11 +330,11 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
           type="button"
           disabled={saving || !name.trim() || !key.trim()}
           onClick={() => void save()}
-          className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className={cn(adminUi.btnPrimary, "disabled:cursor-not-allowed")}
         >
           {saving ? "Saving…" : isEdit ? "Save changes" : "Create role"}
         </button>
-        <Link href="/admin/roles" className="text-sm text-white/70 hover:text-white">
+        <Link href="/admin/roles" className="text-sm text-slate-400 transition-colors hover:text-white">
           Cancel
         </Link>
         {isDirty ? <span className="text-xs text-amber-200/80">Unsaved changes</span> : null}

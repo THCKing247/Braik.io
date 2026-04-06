@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Shield } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { adminUi } from "@/lib/admin/admin-ui"
 
 const ADMIN_CALLBACK_URL = "/admin/dashboard"
 
@@ -67,19 +69,20 @@ export function AdminLoginForm() {
   }
 
   return (
-    <div className="w-full rounded-xl border border-white/10 bg-white/5 p-8 shadow-xl backdrop-blur-sm">
-      <div className="mb-6 flex items-center justify-center gap-2 text-cyan-400">
+    <div
+      className={cn(
+        adminUi.panel,
+        "w-full p-8 shadow-2xl shadow-black/40 backdrop-blur-md"
+      )}
+    >
+      <div className="mb-6 flex items-center justify-center gap-2 text-orange-400">
         <Shield className="h-6 w-6" aria-hidden />
-        <h2 className="text-xl font-semibold uppercase tracking-wide text-white">
-          Admin portal
-        </h2>
+        <h2 className="font-athletic text-xl font-bold uppercase tracking-wide text-white">Admin portal</h2>
       </div>
-      <p className="mb-6 text-center text-sm text-white/70">
-        Sign in with your platform owner or admin account
-      </p>
+      <p className="mb-6 text-center text-sm text-slate-400">Sign in with your platform owner or admin account</p>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="admin-email" className="text-sm font-medium text-white/90">
+          <Label htmlFor="admin-email" className="text-sm font-medium text-slate-300">
             Email
           </Label>
           <Input
@@ -89,11 +92,11 @@ export function AdminLoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="admin@example.com"
-            className="border-white/20 bg-white/10 text-white placeholder:text-white/50 focus-visible:ring-cyan-500"
+            className="border-white/15 bg-[#060a12]/90 text-slate-100 placeholder:text-slate-500 focus-visible:border-orange-500/50 focus-visible:ring-orange-500/30"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="admin-password" className="text-sm font-medium text-white/90">
+          <Label htmlFor="admin-password" className="text-sm font-medium text-slate-300">
             Password
           </Label>
           <div className="relative">
@@ -104,7 +107,7 @@ export function AdminLoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="••••••••"
-              className="border-white/20 bg-white/10 pr-10 text-white placeholder:text-white/50 focus-visible:ring-cyan-500"
+              className="border-white/15 bg-[#060a12]/90 pr-10 text-slate-100 placeholder:text-slate-500 focus-visible:border-orange-500/50 focus-visible:ring-orange-500/30"
             />
             <button
               type="button"
@@ -126,16 +129,16 @@ export function AdminLoginForm() {
         )}
         <Button
           type="submit"
-          className="w-full bg-cyan-600 font-medium text-white hover:bg-cyan-500 focus-visible:ring-cyan-500"
+          className="w-full bg-orange-500 font-semibold text-white hover:bg-orange-400 focus-visible:ring-orange-500/50"
           disabled={loading}
           size="lg"
         >
           {loading ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-      <p className="mt-5 text-center text-xs text-white/50">
+      <p className="mt-5 text-center text-xs text-slate-500">
         Not an admin?{" "}
-        <a href="/login" className="text-cyan-400 hover:underline">
+        <a href="/login" className={cn(adminUi.link, "text-xs")}>
           Go to main sign in
         </a>
       </p>

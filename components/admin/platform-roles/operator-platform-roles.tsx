@@ -4,6 +4,9 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
+import { AdminPageHeader } from "@/components/admin/admin-page-header"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 type PlatformRoleRow = {
   id: string
@@ -140,18 +143,16 @@ export function OperatorPlatformRoles() {
 
   if (phase === "loading") {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-sm text-white/70">
-        Loading roles…
-      </div>
+      <div className={cn(adminUi.panel, adminUi.panelPadding, "text-sm text-slate-400")}>Loading roles…</div>
     )
   }
 
   if (phase === "forbidden") {
     return (
-      <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-white/90">
+      <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-amber-50">
         <p className="font-medium">You do not have permission to manage roles.</p>
-        <p className="text-white/70">Ask a platform administrator to grant the “Manage roles & permissions” capability.</p>
-        <Link href="/admin" className="inline-block text-cyan-300 underline">
+        <p className="text-amber-100/80">Ask a platform administrator to grant the “Manage roles & permissions” capability.</p>
+        <Link href="/admin" className={cn(adminUi.link, "inline-block underline-offset-2")}>
           Back to admin overview
         </Link>
       </div>
@@ -160,10 +161,10 @@ export function OperatorPlatformRoles() {
 
   if (phase === "unauthorized") {
     return (
-      <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-white/90">
+      <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-amber-50">
         <p className="font-medium">Sign-in required</p>
-        <p className="text-white/70">{loadErrorMessage ?? "Your session expired or you are not signed in."}</p>
-        <Link href="/login" className="inline-block text-cyan-300 underline">
+        <p className="text-amber-100/80">{loadErrorMessage ?? "Your session expired or you are not signed in."}</p>
+        <Link href="/login" className={cn(adminUi.link, "inline-block underline-offset-2")}>
           Go to sign in
         </Link>
       </div>
@@ -172,10 +173,10 @@ export function OperatorPlatformRoles() {
 
   if (phase === "error") {
     return (
-      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-white/90">
-        <p className="mb-2">Failed to load roles.</p>
-        {loadErrorMessage ? <p className="mb-3 text-white/70">{loadErrorMessage}</p> : null}
-        <button type="button" className="text-cyan-300 underline" onClick={() => void load()}>
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-100">
+        <p className="mb-2 font-medium">Failed to load roles.</p>
+        {loadErrorMessage ? <p className="mb-3 text-red-100/80">{loadErrorMessage}</p> : null}
+        <button type="button" className={cn(adminUi.link, "underline")} onClick={() => void load()}>
           Retry
         </button>
       </div>
@@ -186,10 +187,16 @@ export function OperatorPlatformRoles() {
 
   return (
     <div className="space-y-6">
+      <AdminPageHeader
+        title="Roles & permissions"
+        description="Platform-level capability bundles assigned to operator accounts. Keys are stable identifiers for automation and audits."
+      />
       {dataSource === "fallback" ? (
-        <div className="rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50/95">
-          Showing the default platform role catalog (database roles schema is not available yet). Create, edit, and delete
-          actions are disabled until migrations are applied.
+        <div className={adminUi.noticeInfo}>
+          <p className="text-sm text-orange-50/95">
+            Showing the default platform role catalog (database roles schema is not available yet). Create, edit, and delete
+            actions are disabled until migrations are applied.
+          </p>
         </div>
       ) : null}
       {toast ? (
@@ -206,52 +213,51 @@ export function OperatorPlatformRoles() {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1">
-          <label className="block text-xs font-medium uppercase tracking-wide text-white/50">Search roles</label>
+          <label className={cn(adminUi.label, "uppercase tracking-wide")}>Search roles</label>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter by name, key, or description…"
-            className="mt-1 w-full max-w-md rounded-lg border border-white/15 bg-[#0c0c0e] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-cyan-500/50 focus:outline-none"
+            className={cn(adminUi.input, "mt-1 max-w-md")}
           />
         </div>
         {readOnlyCatalog ? (
           <span
-            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/50"
+            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-slate-500"
             title="Run platform roles migrations to enable creating roles"
           >
             Create Role
           </span>
         ) : (
-          <Link
-            href="/admin/roles/new"
-            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
-          >
+          <Link href="/admin/roles/new" className={cn(adminUi.btnPrimary, "inline-flex shrink-0 no-underline")}>
             Create Role
           </Link>
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-white/10">
-        <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-          <thead className="bg-white/[0.04] text-xs uppercase tracking-wide text-white/50">
+      <div className={adminUi.tableWrap}>
+        <table className={cn(adminUi.table, "min-w-full")}>
+          <thead className={adminUi.thead}>
             <tr>
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Key</th>
-              <th className="hidden px-4 py-3 font-medium md:table-cell">Description</th>
-              <th className="px-4 py-3 font-medium">Users</th>
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
+              <th className={adminUi.th}>Role</th>
+              <th className={adminUi.th}>Key</th>
+              <th className={cn(adminUi.th, "hidden md:table-cell")}>Description</th>
+              <th className={adminUi.th}>Users</th>
+              <th className={adminUi.th}>Type</th>
+              <th className={adminUi.th}>Status</th>
+              <th className={cn(adminUi.th, "text-right")}>Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody>
             {filtered.map((r) => (
-              <tr key={r.id} className="hover:bg-white/[0.03]">
-                <td className="px-4 py-3 font-medium text-white">{r.name}</td>
-                <td className="px-4 py-3 font-mono text-xs text-cyan-200/90">{r.key}</td>
-                <td className="hidden max-w-md truncate px-4 py-3 text-white/60 md:table-cell">{r.description || "—"}</td>
-                <td className="px-4 py-3 text-white/80">{r.userCount}</td>
-                <td className="px-4 py-3">
+              <tr key={r.id} className={adminUi.tbodyRow}>
+                <td className={cn(adminUi.td, "font-medium text-white")}>{r.name}</td>
+                <td className={cn(adminUi.td, "font-mono text-xs text-orange-300/90")}>{r.key}</td>
+                <td className={cn(adminUi.td, "hidden max-w-md truncate text-slate-400 md:table-cell")}>
+                  {r.description || "—"}
+                </td>
+                <td className={adminUi.td}>{r.userCount}</td>
+                <td className={adminUi.td}>
                   <span
                     className={
                       r.role_type === "system"
@@ -262,34 +268,34 @@ export function OperatorPlatformRoles() {
                     {r.role_type === "system" ? "System" : "Custom"}
                   </span>
                 </td>
-                <td className="px-4 py-3">
+                <td className={adminUi.td}>
                   <span
                     className={
                       r.is_active
-                        ? "rounded border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-100"
-                        : "rounded border border-white/20 bg-white/5 px-2 py-0.5 text-xs text-white/60"
+                        ? "rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-100"
+                        : "rounded-md border border-white/20 bg-white/5 px-2 py-0.5 text-xs text-slate-400"
                     }
                   >
                     {r.is_active ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className={cn(adminUi.td, "text-right")}>
                   <div className="flex flex-wrap justify-end gap-2">
                     {readOnlyCatalog ? (
-                      <span className="text-xs text-white/35" title="Run migrations to use role detail and editing">
+                      <span className="text-xs text-slate-600" title="Run migrations to use role detail and editing">
                         View
                       </span>
                     ) : (
-                      <Link href={`/admin/roles/${r.id}`} className="text-xs text-cyan-300 hover:underline">
+                      <Link href={`/admin/roles/${r.id}`} className={cn(adminUi.linkSubtle, "hover:underline")}>
                         View
                       </Link>
                     )}
                     {readOnlyCatalog ? (
-                      <span className="text-xs text-white/35" title="Run migrations to use role detail and editing">
+                      <span className="text-xs text-slate-600" title="Run migrations to use role detail and editing">
                         Edit
                       </span>
                     ) : (
-                      <Link href={`/admin/roles/${r.id}/edit`} className="text-xs text-white/80 hover:underline">
+                      <Link href={`/admin/roles/${r.id}/edit`} className="text-xs text-slate-300 hover:underline">
                         Edit
                       </Link>
                     )}
@@ -297,7 +303,7 @@ export function OperatorPlatformRoles() {
                       type="button"
                       disabled={readOnlyCatalog || busyId === r.id}
                       onClick={() => void duplicate(r)}
-                      className="text-xs text-white/70 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                      className="text-xs text-slate-400 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
                       title={readOnlyCatalog ? "Run migrations to duplicate roles" : undefined}
                     >
                       Duplicate
@@ -324,7 +330,7 @@ export function OperatorPlatformRoles() {
           </tbody>
         </table>
         {filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-white/50">No roles match your search.</div>
+          <div className="px-4 py-8 text-center text-sm text-slate-500">No roles match your search.</div>
         ) : null}
       </div>
 
@@ -336,18 +342,14 @@ export function OperatorPlatformRoles() {
       >
         {deleteTarget ? (
           <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDeleteTarget(null)}
-              className="rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
-            >
+            <button type="button" onClick={() => setDeleteTarget(null)} className={adminUi.btnSecondary}>
               Cancel
             </button>
             <button
               type="button"
               disabled={busyId === deleteTarget.id}
               onClick={() => void confirmDelete()}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50"
             >
               Delete
             </button>

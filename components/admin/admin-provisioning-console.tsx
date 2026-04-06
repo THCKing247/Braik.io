@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
 import { USER_ROLE_LABELS, USER_ROLE_VALUES } from "@/lib/auth/user-roles"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 type OrgRow = { id: string; name: string; slug: string | null; video_clips_enabled: boolean }
 type TeamRow = { id: string; name: string; org: string | null; program_id: string | null; video_clips_enabled: boolean }
@@ -133,53 +135,39 @@ export function AdminProvisioningConsole() {
 
   return (
     <div className="space-y-8">
-      <p className="text-sm text-white/70">
+      <p className="text-sm leading-relaxed text-slate-400">
         Create organizations and teams, then invite users. Invites use Supabase email with a secure link to set a
         password — no temporary passwords are sent in plain text.
       </p>
 
-      <section className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <h2 className="text-lg font-semibold">New organization</h2>
+      <section className={cn(adminUi.panel, adminUi.panelPadding)}>
+        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">New organization</h2>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitOrg}>
           <div>
-            <label className="text-xs text-white/60">Name</label>
-            <input
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              required
-            />
+            <label className={adminUi.label}>Name</label>
+            <input className={adminUi.input} value={orgName} onChange={(e) => setOrgName(e.target.value)} required />
           </div>
           <div>
-            <label className="text-xs text-white/60">Slug (optional)</label>
-            <input
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={orgSlug}
-              onChange={(e) => setOrgSlug(e.target.value)}
-            />
+            <label className={adminUi.label}>Slug (optional)</label>
+            <input className={adminUi.input} value={orgSlug} onChange={(e) => setOrgSlug(e.target.value)} />
           </div>
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
             <input type="checkbox" checked={orgVideo} onChange={(e) => setOrgVideo(e.target.checked)} />
             video_clips_enabled (org)
           </label>
-          <button type="submit" className="rounded bg-cyan-600 px-3 py-2 text-sm font-medium text-white md:col-span-2">
+          <button type="submit" className={cn(adminUi.btnPrimary, "md:col-span-2")}>
             Create organization
           </button>
         </form>
-        {orgMsg ? <p className="mt-2 text-xs text-emerald-300">{orgMsg}</p> : null}
+        {orgMsg ? <p className="mt-2 text-xs text-emerald-400/90">{orgMsg}</p> : null}
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <h2 className="text-lg font-semibold">New team (under program)</h2>
+      <section className={cn(adminUi.panel, adminUi.panelPadding)}>
+        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">New team (under program)</h2>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitTeam}>
           <div className="md:col-span-2">
-            <label className="text-xs text-white/60">Organization</label>
-            <select
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={teamOrgId}
-              onChange={(e) => setTeamOrgId(e.target.value)}
-              required
-            >
+            <label className={adminUi.label}>Organization</label>
+            <select className={adminUi.select} value={teamOrgId} onChange={(e) => setTeamOrgId(e.target.value)} required>
               <option value="">Select…</option>
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -189,73 +177,51 @@ export function AdminProvisioningConsole() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/60">Team name</label>
-            <input
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              required
-            />
+            <label className={adminUi.label}>Team name</label>
+            <input className={adminUi.input} value={teamName} onChange={(e) => setTeamName(e.target.value)} required />
           </div>
           <div>
-            <label className="text-xs text-white/60">Sport</label>
-            <input
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={teamSport}
-              onChange={(e) => setTeamSport(e.target.value)}
-            />
+            <label className={adminUi.label}>Sport</label>
+            <input className={adminUi.input} value={teamSport} onChange={(e) => setTeamSport(e.target.value)} />
           </div>
           <div className="md:col-span-2">
-            <label className="text-xs text-white/60">Program name (defaults to team name)</label>
-            <input
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={teamProgramName}
-              onChange={(e) => setTeamProgramName(e.target.value)}
-            />
+            <label className={adminUi.label}>Program name (defaults to team name)</label>
+            <input className={adminUi.input} value={teamProgramName} onChange={(e) => setTeamProgramName(e.target.value)} />
           </div>
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
             <input type="checkbox" checked={teamVideo} onChange={(e) => setTeamVideo(e.target.checked)} />
             video_clips_enabled (team)
           </label>
-          <button type="submit" className="rounded bg-cyan-600 px-3 py-2 text-sm font-medium text-white md:col-span-2">
+          <button type="submit" className={cn(adminUi.btnPrimary, "md:col-span-2")}>
             Create team
           </button>
         </form>
-        {teamMsg ? <p className="mt-2 text-xs text-emerald-300">{teamMsg}</p> : null}
+        {teamMsg ? <p className="mt-2 text-xs text-emerald-400/90">{teamMsg}</p> : null}
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <h2 className="text-lg font-semibold">Invite user</h2>
-        <p className="mt-1 text-xs text-white/50">
+      <section className={cn(adminUi.panel, adminUi.panelPadding)}>
+        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">Invite user</h2>
+        <p className="mt-1 text-xs text-slate-500">
           Sends a Supabase invite email. TODO: confirm Auth email templates use your app URL in the dashboard.
         </p>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitInvite}>
           <div>
-            <label className="text-xs text-white/60">Email</label>
+            <label className={adminUi.label}>Email</label>
             <input
               type="email"
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
+              className={adminUi.input}
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="text-xs text-white/60">Full name</label>
-            <input
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={inviteName}
-              onChange={(e) => setInviteName(e.target.value)}
-              required
-            />
+            <label className={adminUi.label}>Full name</label>
+            <input className={adminUi.input} value={inviteName} onChange={(e) => setInviteName(e.target.value)} required />
           </div>
           <div>
-            <label className="text-xs text-white/60">Role</label>
-            <select
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-            >
+            <label className={adminUi.label}>Role</label>
+            <select className={adminUi.select} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
               {USER_ROLE_VALUES.map((r) => (
                 <option key={r} value={r}>
                   {USER_ROLE_LABELS[r]}
@@ -264,12 +230,8 @@ export function AdminProvisioningConsole() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/60">Account status</label>
-            <select
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={inviteStatus}
-              onChange={(e) => setInviteStatus(e.target.value)}
-            >
+            <label className={adminUi.label}>Account status</label>
+            <select className={adminUi.select} value={inviteStatus} onChange={(e) => setInviteStatus(e.target.value)}>
               {ACCOUNT_STATUS_VALUES.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -278,12 +240,8 @@ export function AdminProvisioningConsole() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/60">Team (optional)</label>
-            <select
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={inviteTeamId}
-              onChange={(e) => setInviteTeamId(e.target.value)}
-            >
+            <label className={adminUi.label}>Team (optional)</label>
+            <select className={adminUi.select} value={inviteTeamId} onChange={(e) => setInviteTeamId(e.target.value)}>
               <option value="">—</option>
               {teams.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -293,12 +251,8 @@ export function AdminProvisioningConsole() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/60">Org (optional, for records)</label>
-            <select
-              className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm"
-              value={inviteOrgId}
-              onChange={(e) => setInviteOrgId(e.target.value)}
-            >
+            <label className={adminUi.label}>Org (optional, for records)</label>
+            <select className={adminUi.select} value={inviteOrgId} onChange={(e) => setInviteOrgId(e.target.value)}>
               <option value="">—</option>
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -307,15 +261,15 @@ export function AdminProvisioningConsole() {
               ))}
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
             <input type="checkbox" checked={inviteVideo} onChange={(e) => setInviteVideo(e.target.checked)} />
             Game Video / Clips (sets view/upload/create/share; refine per user in Accounts)
           </label>
-          <button type="submit" className="rounded bg-violet-600 px-3 py-2 text-sm font-medium text-white md:col-span-2">
+          <button type="submit" className={cn(adminUi.btnPrimary, "md:col-span-2")}>
             Send invite
           </button>
         </form>
-        {inviteMsg ? <p className="mt-2 text-xs text-emerald-300">{inviteMsg}</p> : null}
+        {inviteMsg ? <p className="mt-2 text-xs text-emerald-400/90">{inviteMsg}</p> : null}
       </section>
     </div>
   )

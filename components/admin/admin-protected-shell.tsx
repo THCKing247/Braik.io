@@ -1,8 +1,11 @@
 "use client"
 
+import type { ReactNode } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { cn } from "@/lib/utils"
+import { adminUi, isAdminNavActive } from "@/lib/admin/admin-ui"
 
 type Phase = "loading" | "ok" | "error"
 
@@ -16,7 +19,20 @@ type AdminCaps = {
   canManageBilling: boolean
 }
 
-export function AdminProtectedShell({ children }: { children: React.ReactNode }) {
+function NavLink({ href, children }: { href: string; children: ReactNode }) {
+  const pathname = usePathname()
+  const active = isAdminNavActive(pathname, href)
+  return (
+    <Link
+      href={href}
+      className={cn(adminUi.navLink, active && adminUi.navLinkActive)}
+    >
+      {children}
+    </Link>
+  )
+}
+
+export function AdminProtectedShell({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>("loading")
   const [caps, setCaps] = useState<AdminCaps | null>(null)
@@ -86,17 +102,17 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
 
   if (phase === "loading") {
     return (
-      <div className="min-h-screen w-full bg-[#09090B] text-white flex items-center justify-center">
-        <p className="text-sm text-white/70">Loading admin…</p>
+      <div className={adminUi.loadingCenter}>
+        <p className="text-sm text-slate-400">Loading admin…</p>
       </div>
     )
   }
 
   if (phase === "error") {
     return (
-      <div className="min-h-screen w-full bg-[#09090B] text-white flex flex-col items-center justify-center gap-4 p-6">
-        <p className="text-sm text-white/80">Could not verify admin access.</p>
-        <Link href="/admin/login" className="text-cyan-300 underline">
+      <div className={adminUi.errorCenter}>
+        <p className="text-sm text-slate-300">Could not verify admin access.</p>
+        <Link href="/admin/login" className={cn(adminUi.link, "text-base")}>
           Admin login
         </Link>
       </div>
@@ -104,67 +120,37 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#09090B] text-white">
+    <div className={adminUi.shellGradient}>
       <div className="flex w-full gap-0">
-        <aside className="sticky top-0 h-screen w-72 shrink-0 border-r border-white/10 bg-[#111113] p-5">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Braik Super Admin</p>
-          <h1 className="mt-2 text-xl font-semibold">Backend Console</h1>
-          <nav className="mt-5 space-y-2 text-sm">
-            <Link href="/admin" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Overview
-            </Link>
-            <Link href="/admin/users" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Accounts
-            </Link>
-            <Link href="/admin/teams" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Teams
-            </Link>
-            <Link
-              href="/admin/athletic-departments"
-              className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white"
-            >
-              Athletic Departments
-            </Link>
-            <Link
-              href="/admin/provisioning"
-              className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white"
-            >
-              Provisioning
-            </Link>
+        <aside className={adminUi.sidebar}>
+          <p className={adminUi.brandKicker}>Braik</p>
+          <h1 className={adminUi.sidebarTitle}>Admin Console</h1>
+          <p className="mt-1 text-xs text-slate-500">Platform operations &amp; governance</p>
+          <nav className="mt-6 space-y-1 text-sm">
+            <NavLink href="/admin">Overview</NavLink>
+            <NavLink href="/admin/users">Accounts</NavLink>
+            <NavLink href="/admin/teams">Teams</NavLink>
+            <NavLink href="/admin/athletic-departments">Athletic Departments</NavLink>
+            <NavLink href="/admin/provisioning">Provisioning</NavLink>
             {caps && (caps.canViewBilling || caps.canManageBilling) ? (
-              <Link href="/admin/billing" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-                Billing
-              </Link>
+              <NavLink href="/admin/billing">Billing</NavLink>
             ) : null}
-            {caps?.canViewAuditLogs ? (
-              <Link href="/admin/audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-                Audit
-              </Link>
-            ) : null}
+            {caps?.canViewAuditLogs ? <NavLink href="/admin/audit">Audit</NavLink> : null}
             {caps && (caps.canViewAuditLogs || caps.canManageUsers) ? (
-              <Link href="/admin/document-audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-                Document audit
-              </Link>
+              <NavLink href="/admin/document-audit">Document audit</NavLink>
             ) : null}
-            {caps?.canManageRoles ? (
-              <Link href="/admin/roles" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-                Roles & Permissions
-              </Link>
-            ) : null}
+            {caps?.canManageRoles ? <NavLink href="/admin/roles">Roles &amp; Permissions</NavLink> : null}
             {caps?.canManagePlatformSettings ? (
-              <Link href="/admin/settings/system" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-                System Settings
-              </Link>
+              <NavLink href="/admin/settings/system">System Settings</NavLink>
             ) : null}
-            <Link href="/admin/dashboard" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Dashboard
-            </Link>
-            <Link href="/dashboard" className="mt-3 block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
+            <NavLink href="/admin/dashboard">Dashboard</NavLink>
+            <p className={adminUi.navSectionLabel}>Leave</p>
+            <Link href="/dashboard" className={cn(adminUi.navLink, "mt-1")}>
               Exit to App
             </Link>
           </nav>
         </aside>
-        <main className="min-w-0 flex-1 px-6 py-6">{children}</main>
+        <main className={adminUi.main}>{children}</main>
       </div>
     </div>
   )

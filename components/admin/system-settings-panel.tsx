@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 type Scope = "future_only" | "all" | "selective"
 
@@ -92,10 +94,10 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <h3 className="text-lg font-semibold">System Config (Versioned)</h3>
-        <p className="mt-1 text-xs text-white/70">
+    <div className="space-y-6">
+      <div className={cn(adminUi.panel, adminUi.panelPadding)}>
+        <h3 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">System config (versioned)</h3>
+        <p className="mt-1 text-xs text-slate-400">
           Every update appends a new row with incremented version. Previous rows are preserved.
         </p>
 
@@ -103,30 +105,26 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
           <input
             value={key}
             onChange={(event) => setKey(event.target.value)}
-            className="rounded border border-white/15 bg-black/30 px-3 py-2 text-sm"
+            className={adminUi.input}
             placeholder="Config key"
           />
           <select
             value={scope}
             onChange={(event) => setScope(event.target.value as Scope)}
-            className="rounded border border-white/15 bg-black/30 px-3 py-2 text-sm"
+            className={adminUi.select}
           >
             <option value="future_only">future_only</option>
             <option value="all">all</option>
             <option value="selective">selective</option>
           </select>
-          <button
-            type="button"
-            onClick={() => setOpenConfirm(true)}
-            className="rounded bg-purple-500 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-400"
-          >
+          <button type="button" onClick={() => setOpenConfirm(true)} className={adminUi.btnPrimary}>
             Save New Version
           </button>
         </div>
 
         {scope === "selective" ? (
-          <div className="mt-3 rounded border border-white/10 bg-black/25 p-3">
-            <p className="mb-2 text-xs text-white/70">Selective team rollout</p>
+          <div className={cn(adminUi.panelMuted, "mt-3 p-3")}>
+            <p className="mb-2 text-xs text-slate-400">Selective team rollout</p>
             <div className="grid max-h-36 gap-2 overflow-y-auto md:grid-cols-2">
               {teams.map((team) => (
                 <label key={team.id} className="flex items-center gap-2 text-xs">
@@ -141,23 +139,23 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
         <textarea
           value={jsonValue}
           onChange={(event) => setJsonValue(event.target.value)}
-          className="mt-3 min-h-[220px] w-full rounded border border-white/15 bg-black/30 px-3 py-2 font-mono text-xs"
+          className={cn(adminUi.input, "mt-3 min-h-[220px] font-mono text-xs")}
         />
-        {status ? <p className="mt-2 text-xs text-white/75">{status}</p> : null}
+        {status ? <p className="mt-2 text-xs text-slate-400">{status}</p> : null}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <h3 className="text-lg font-semibold">Latest by Key</h3>
+      <div className={cn(adminUi.panel, adminUi.panelPadding)}>
+        <h3 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">Latest by key</h3>
         <div className="mt-3 space-y-2">
           {latestByKey.map((row) => (
-            <div key={row.id} className="rounded border border-white/10 bg-black/25 p-2 text-xs">
-              <p className="font-semibold">
+            <div key={row.id} className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 p-3 text-xs">
+              <p className="font-semibold text-slate-200">
                 {row.key} (v{row.version}) - {row.applied_scope}
               </p>
-              <p className="mt-1 text-white/70">{JSON.stringify(row.value_json)}</p>
+              <p className="mt-1 text-slate-400">{JSON.stringify(row.value_json)}</p>
             </div>
           ))}
-          {latestByKey.length === 0 ? <p className="text-sm text-white/70">No rows available.</p> : null}
+          {latestByKey.length === 0 ? <p className="text-sm text-slate-500">No rows available.</p> : null}
         </div>
       </div>
 
@@ -168,22 +166,23 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
         summary="Choose rollout scope and append a new immutable config version."
       >
         <div className="space-y-3">
-          <p className="text-sm text-white/80">
-            Key: <span className="font-mono">{key}</span> | Scope: <span className="font-mono">{scope}</span>
+          <p className="text-sm text-slate-300">
+            Key: <span className="font-mono text-orange-200/90">{key}</span> | Scope:{" "}
+            <span className="font-mono text-orange-200/90">{scope}</span>
           </p>
           {scope === "selective" ? (
-            <p className="text-xs text-white/70">Team count selected: {selectedTeamIds.length}</p>
+            <p className="text-xs text-slate-400">Team count selected: {selectedTeamIds.length}</p>
           ) : null}
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={saving}
               onClick={commitVersionedUpdate}
-              className="rounded bg-purple-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+              className={cn(adminUi.btnPrimarySm, "disabled:opacity-60")}
             >
               {saving ? "Saving..." : "Confirm Append Version"}
             </button>
-            <button type="button" onClick={() => setOpenConfirm(false)} className="rounded bg-white/10 px-3 py-2 text-xs">
+            <button type="button" onClick={() => setOpenConfirm(false)} className={adminUi.btnSecondarySm}>
               Cancel
             </button>
           </div>

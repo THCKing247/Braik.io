@@ -1,6 +1,8 @@
 "use client"
 
 import { FormEvent, useState } from "react"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 export function AdminTicketMessageForm({ ticketId }: { ticketId: string }) {
   const [message, setMessage] = useState("")
@@ -34,17 +36,13 @@ export function AdminTicketMessageForm({ ticketId }: { ticketId: string }) {
   return (
     <form className="mt-2 flex gap-2" onSubmit={onSubmit}>
       <input
-        className="w-full rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+        className={cn(adminUi.toolbarInput, "min-w-0 flex-1")}
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         placeholder="Reply to Head Coach"
         required
       />
-      <button
-        type="submit"
-        disabled={saving}
-        className="rounded bg-cyan-500 px-3 py-1 text-xs font-semibold text-black disabled:opacity-60"
-      >
+      <button type="submit" disabled={saving} className={cn(adminUi.btnPrimarySm, "disabled:opacity-60")}>
         {saving ? "Sending..." : "Send"}
       </button>
       {status ? <span className="text-xs text-white/70">{status}</span> : null}

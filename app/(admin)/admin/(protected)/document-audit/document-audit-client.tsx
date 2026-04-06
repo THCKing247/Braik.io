@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 type Entry = {
   id: string
@@ -56,12 +58,12 @@ export function DocumentAuditClient() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs text-white/70">
+        <label className={cn(adminUi.label, "flex flex-col gap-1")}>
           Action
           <select
             value={action}
             onChange={(e) => setAction(e.target.value)}
-            className="rounded border border-white/20 bg-[#18181B] px-3 py-2 text-sm text-white"
+            className={cn(adminUi.select, "mt-0 min-w-[160px]")}
           >
             <option value="">All</option>
             <option value="upload">upload</option>
@@ -72,59 +74,58 @@ export function DocumentAuditClient() {
             <option value="bulk_export">bulk_export</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-white/70">
+        <label className={cn(adminUi.label, "flex flex-col gap-1")}>
           Team ID
           <input
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
             placeholder="optional filter"
-            className="w-72 rounded border border-white/20 bg-[#18181B] px-3 py-2 text-sm text-white placeholder:text-white/30"
+            className={cn(adminUi.input, "mt-0 w-72")}
           />
         </label>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
-        >
+        <button type="button" onClick={() => void load()} className={adminUi.btnPrimary}>
           Refresh
         </button>
       </div>
 
-      {loading && <p className="text-sm text-white/60">Loading…</p>}
+      {loading && <p className="text-sm text-slate-400">Loading…</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {!loading && !error && (
-        <div className="overflow-x-auto rounded border border-white/10">
-          <table className="min-w-full text-left text-sm text-white/90">
-            <thead className="bg-white/5 text-xs uppercase text-white/50">
+        <div className={adminUi.tableWrap}>
+          <table className={cn(adminUi.table, "min-w-full")}>
+            <thead className={adminUi.thead}>
               <tr>
-                <th className="px-3 py-2">Time</th>
-                <th className="px-3 py-2">Actor</th>
-                <th className="px-3 py-2">Role</th>
-                <th className="px-3 py-2">Action</th>
-                <th className="px-3 py-2">Document</th>
-                <th className="px-3 py-2">Method</th>
-                <th className="px-3 py-2">IP</th>
-                <th className="px-3 py-2">Metadata</th>
+                <th className={adminUi.th}>Time</th>
+                <th className={adminUi.th}>Actor</th>
+                <th className={adminUi.th}>Role</th>
+                <th className={adminUi.th}>Action</th>
+                <th className={adminUi.th}>Document</th>
+                <th className={adminUi.th}>Method</th>
+                <th className={adminUi.th}>IP</th>
+                <th className={adminUi.th}>Metadata</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-t border-white/10">
-                  <td className="whitespace-nowrap px-3 py-2 text-white/80">
+                <tr key={e.id} className={adminUi.tbodyRow}>
+                  <td className={cn(adminUi.td, "whitespace-nowrap text-slate-300")}>
                     {new Date(e.createdAt).toLocaleString()}
                   </td>
-                  <td className="max-w-[140px] truncate px-3 py-2" title={e.actorProfileId}>
+                  <td className={cn(adminUi.td, "max-w-[140px] truncate")} title={e.actorProfileId}>
                     {e.actorName ?? e.actorProfileId.slice(0, 8) + "…"}
                   </td>
-                  <td className="px-3 py-2">{e.actorRole ?? "—"}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{e.action}</td>
-                  <td className="max-w-[200px] truncate px-3 py-2" title={e.documentName ?? ""}>
+                  <td className={adminUi.td}>{e.actorRole ?? "—"}</td>
+                  <td className={cn(adminUi.td, "font-mono text-xs")}>{e.action}</td>
+                  <td className={cn(adminUi.td, "max-w-[200px] truncate")} title={e.documentName ?? ""}>
                     {e.documentName ?? e.documentId.slice(0, 8) + "…"}
                   </td>
-                  <td className="px-3 py-2">{e.accessMethod ?? "—"}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{e.ipAddress ?? "—"}</td>
-                  <td className="max-w-xs truncate px-3 py-2 font-mono text-xs text-white/60" title={JSON.stringify(e.metadata)}>
+                  <td className={adminUi.td}>{e.accessMethod ?? "—"}</td>
+                  <td className={cn(adminUi.td, "font-mono text-xs")}>{e.ipAddress ?? "—"}</td>
+                  <td
+                    className={cn(adminUi.td, "max-w-xs truncate font-mono text-xs text-slate-500")}
+                    title={JSON.stringify(e.metadata)}
+                  >
                     {JSON.stringify(e.metadata)}
                   </td>
                 </tr>
@@ -132,7 +133,7 @@ export function DocumentAuditClient() {
             </tbody>
           </table>
           {entries.length === 0 && (
-            <p className="p-6 text-center text-sm text-white/50">No entries match filters.</p>
+            <p className="p-6 text-center text-sm text-slate-500">No entries match filters.</p>
           )}
         </div>
       )}

@@ -4,8 +4,11 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
+import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { getUserRoleLabel, USER_ROLE_VALUES, USER_ROLE_LABELS } from "@/lib/auth/user-roles"
 import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 interface UserRow {
   id: string
@@ -25,8 +28,8 @@ function chipClass(status: string): string {
   const value = status.toLowerCase()
   if (value.includes("active")) return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
   if (value.includes("suspend")) return "bg-red-500/20 text-red-200 border-red-400/40"
-  if (value.includes("deactiv")) return "bg-[#000000]/20 text-[#e5e7eb] border-[#000000]/40"
-  return "bg-white/10 text-white/80 border-white/20"
+  if (value.includes("deactiv")) return "border-slate-500/40 bg-slate-500/15 text-slate-200"
+  return "border-white/15 bg-white/[0.06] text-slate-300"
 }
 
 type AdminCaps = {
@@ -131,29 +134,27 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Account Management</h2>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/admin/provisioning"
-              className="rounded bg-cyan-600/30 px-3 py-1 text-xs font-medium text-cyan-100 hover:bg-cyan-600/50"
-            >
-              Provisioning (orgs / teams / invites)
+    <div className="space-y-6">
+      <AdminPageHeader
+        title="Accounts"
+        description="Search, filter, and manage platform users, roles, and team memberships."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/admin/provisioning" className={cn(adminUi.btnPrimarySm, "no-underline")}>
+              Provisioning
             </Link>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Local filter"
-              className="rounded border border-white/15 bg-black/30 px-2 py-1 text-xs"
+              placeholder="Filter list…"
+              className={adminUi.toolbarInput}
             />
-            <button onClick={() => setModalOpen(true)} className="rounded bg-white/10 px-3 py-1 text-xs">
-              Open Drill-down
+            <button type="button" onClick={() => setModalOpen(true)} className={adminUi.btnSecondarySm}>
+              Drill-down
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-sky-400/30 bg-sky-500/10 p-3">
@@ -180,59 +181,59 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#18181c]">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-white/5 text-white/70">
+      <div className={adminUi.tableWrap}>
+        <table className={adminUi.table}>
+          <thead className={adminUi.thead}>
             <tr>
-              <th className="px-3 py-2">User</th>
-              <th className="px-3 py-2">App role</th>
-              <th className="px-3 py-2">Platform role</th>
-              <th className="px-3 py-2">Team(s)</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Created</th>
-              <th className="px-3 py-2">Last Login</th>
-              <th className="px-3 py-2">Actions</th>
+              <th className={adminUi.th}>User</th>
+              <th className={adminUi.th}>App role</th>
+              <th className={adminUi.th}>Platform role</th>
+              <th className={adminUi.th}>Team(s)</th>
+              <th className={adminUi.th}>Status</th>
+              <th className={adminUi.th}>Created</th>
+              <th className={adminUi.th}>Last Login</th>
+              <th className={adminUi.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((user) => (
-              <tr key={user.id} className="border-t border-white/10">
-                <td className="px-3 py-2">
-                  <p className="font-medium">{user.name || "Unnamed"}</p>
-                  <p className="text-xs text-white/70">{user.email}</p>
-                  <Link href={`/admin/users/${user.id}`} className="text-xs text-cyan-300 hover:text-cyan-200">
+              <tr key={user.id} className={adminUi.tbodyRow}>
+                <td className={adminUi.td}>
+                  <p className="font-medium text-white">{user.name || "Unnamed"}</p>
+                  <p className="text-xs text-slate-400">{user.email}</p>
+                  <Link href={`/admin/users/${user.id}`} className={adminUi.linkSubtle}>
                     View profile
                   </Link>
                 </td>
-                <td className="px-3 py-2">{getUserRoleLabel(user.role)}</td>
-                <td className="px-3 py-2 text-xs text-white/80">
+                <td className={adminUi.td}>{getUserRoleLabel(user.role)}</td>
+                <td className={cn(adminUi.td, "text-xs text-slate-300")}>
                   {user.platformRoleName ? (
                     <>
                       <span className="text-white">{user.platformRoleName}</span>
-                      <span className="ml-1 font-mono text-white/50">({user.platformRoleKey})</span>
+                      <span className="ml-1 font-mono text-slate-500">({user.platformRoleKey})</span>
                     </>
                   ) : (
-                    <span className="text-white/45">—</span>
+                    <span className="text-slate-500">—</span>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td className={adminUi.td}>
                   {user.memberships.length
                     ? user.memberships.map((membership) => `${membership.team.name} (${membership.role})`).join(", ")
                     : "No teams"}
                 </td>
-                <td className="px-3 py-2">
-                  <span className={`rounded border px-2 py-0.5 text-xs ${chipClass(user.status)}`}>{user.status}</span>
+                <td className={adminUi.td}>
+                  <span className={cn("rounded-md border px-2 py-0.5 text-xs", chipClass(user.status))}>{user.status}</span>
                 </td>
-                <td className="px-3 py-2">{new Date(user.createdAt).toISOString().slice(0, 10)}</td>
-                <td className="px-3 py-2">{user.lastLoginAt ? new Date(user.lastLoginAt).toISOString().slice(0, 10) : "Never"}</td>
-                <td className="px-3 py-2">
+                <td className={adminUi.td}>{new Date(user.createdAt).toISOString().slice(0, 10)}</td>
+                <td className={adminUi.td}>{user.lastLoginAt ? new Date(user.lastLoginAt).toISOString().slice(0, 10) : "Never"}</td>
+                <td className={adminUi.td}>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => setEditUser(user)}
                       disabled={caps === null ? false : !caps.canManageUsers}
                       title={caps && !caps.canManageUsers ? "Missing manage users permission" : undefined}
-                      className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      className={cn(adminUi.btnSecondarySm, "disabled:cursor-not-allowed disabled:opacity-40")}
                     >
                       Edit
                     </button>
@@ -252,10 +253,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     >
                       Delete
                     </button>
-                    <Link
-                      href={`/admin/teams?userId=${user.id}`}
-                      className="rounded bg-cyan-500/20 px-2 py-1 text-xs text-cyan-200 hover:bg-cyan-500/30"
-                    >
+                    <Link href={`/admin/teams?userId=${user.id}`} className={adminUi.actionPill}>
                       Teams
                     </Link>
                     <button
@@ -298,30 +296,34 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
       >
         <div className="space-y-2">
           <div className="grid gap-2 md:grid-cols-4">
-            <input className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs" placeholder="Search" />
-            <select className="rounded border border-white/10 bg-black/30 px-2 py-1 text-xs">
+            <input className={adminUi.toolbarInput} placeholder="Search" />
+            <select className={adminUi.toolbarInput}>
               <option>Bulk action</option>
               <option>Suspend selected</option>
               <option>Restore selected</option>
             </select>
-            <button className="rounded bg-white/10 px-2 py-1 text-xs">Apply</button>
-            <button className="rounded bg-white/10 px-2 py-1 text-xs">Export CSV</button>
+            <button type="button" className={adminUi.btnSecondarySm}>
+              Apply
+            </button>
+            <button type="button" className={adminUi.btnSecondarySm}>
+              Export CSV
+            </button>
           </div>
-          <div className="max-h-[45vh] overflow-y-auto rounded border border-white/10">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-white/10">
+          <div className={cn(adminUi.tableWrap, "max-h-[45vh]")}>
+            <table className={cn(adminUi.table, "min-w-0 text-xs")}>
+              <thead className={adminUi.thead}>
                 <tr>
-                  <th className="px-2 py-2">Email</th>
-                  <th className="px-2 py-2">Role</th>
-                  <th className="px-2 py-2">Status</th>
+                  <th className={adminUi.th}>Email</th>
+                  <th className={adminUi.th}>Role</th>
+                  <th className={adminUi.th}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((u) => (
-                  <tr key={u.id} className="border-t border-white/10">
-                    <td className="px-2 py-2">{u.email}</td>
-                    <td className="px-2 py-2">{u.role}</td>
-                    <td className="px-2 py-2">{u.status}</td>
+                  <tr key={u.id} className={adminUi.tbodyRow}>
+                    <td className={adminUi.td}>{u.email}</td>
+                    <td className={adminUi.td}>{u.role}</td>
+                    <td className={adminUi.td}>{u.status}</td>
                   </tr>
                 ))}
               </tbody>
@@ -445,30 +447,22 @@ function EditUserModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs text-white/70">Name</label>
-            <input
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <label className={adminUi.label}>Name</label>
+            <input className={adminUi.input} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-white/70">Email</label>
+            <label className={adminUi.label}>Email</label>
             <input
               type="email"
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              className={adminUi.input}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-white/70">App role (legacy)</label>
-            <select
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            >
+            <label className={adminUi.label}>App role (legacy)</label>
+            <select className={adminUi.select} value={role} onChange={(e) => setRole(e.target.value)}>
               {USER_ROLE_VALUES.map((r) => (
                 <option key={r} value={r}>
                   {USER_ROLE_LABELS[r]}
@@ -477,12 +471,8 @@ function EditUserModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs text-white/70">Platform role (permissions)</label>
-            <select
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
-              value={platformRoleId}
-              onChange={(e) => setPlatformRoleId(e.target.value)}
-            >
+            <label className={adminUi.label}>Platform role (permissions)</label>
+            <select className={adminUi.select} value={platformRoleId} onChange={(e) => setPlatformRoleId(e.target.value)}>
               <option value="">— None —</option>
               {platformRoles.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -492,12 +482,8 @@ function EditUserModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs text-white/70">Status</label>
-            <select
-              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
+            <label className={adminUi.label}>Status</label>
+            <select className={adminUi.select} value={status} onChange={(e) => setStatus(e.target.value)}>
               {ACCOUNT_STATUS_VALUES.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -506,8 +492,8 @@ function EditUserModal({
             </select>
           </div>
         </div>
-        <div className="rounded border border-white/10 bg-black/20 p-3">
-          <p className="mb-2 text-xs font-medium text-white/80">Game Video / Clips</p>
+        <div className={cn(adminUi.panelMuted, "p-3")}>
+          <p className="mb-2 text-xs font-medium text-slate-300">Game Video / Clips</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {(
               [
@@ -518,7 +504,7 @@ function EditUserModal({
                 ["can_delete_video", "Delete video"],
               ] as const
             ).map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2 text-xs text-white/80">
+              <label key={key} className="flex items-center gap-2 text-xs text-slate-300">
                 <input
                   type="checkbox"
                   checked={video[key]}
@@ -531,14 +517,10 @@ function EditUserModal({
         </div>
         {error ? <p className="text-xs text-red-400">{error}</p> : null}
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded bg-cyan-500 px-3 py-2 text-sm font-medium text-black disabled:opacity-50"
-          >
+          <button type="submit" disabled={saving} className={adminUi.btnPrimary}>
             {saving ? "Saving…" : "Save"}
           </button>
-          <button type="button" onClick={onClose} className="rounded bg-white/10 px-3 py-2 text-sm">
+          <button type="button" onClick={onClose} className={adminUi.btnSecondary}>
             Cancel
           </button>
         </div>

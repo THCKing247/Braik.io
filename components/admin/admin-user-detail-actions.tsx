@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { USER_ROLE_VALUES, USER_ROLE_LABELS } from "@/lib/auth/user-roles"
+import { adminUi } from "@/lib/admin/admin-ui"
 
 export function AdminUserDetailActions({
   user,
@@ -136,7 +137,7 @@ export function AdminUserDetailActions({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button onClick={saveProfile} className="rounded bg-cyan-500 px-3 py-2 text-xs font-semibold text-black">
+        <button type="button" onClick={saveProfile} className={adminUi.btnPrimarySm}>
           Save Profile
         </button>
         <button onClick={forcePasswordReset} className="rounded bg-white/10 px-3 py-2 text-xs">

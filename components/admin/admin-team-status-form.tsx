@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 const TEAM_STATUSES = ["active", "suspended", "cancelled", "terminated"] as const
 
@@ -41,7 +43,7 @@ export function AdminTeamStatusForm({
   return (
     <div className="flex items-center gap-2">
       <select
-        className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+        className={cn(adminUi.toolbarInput, "min-w-[140px]")}
         value={status}
         onChange={(event) => setStatus(event.target.value)}
       >
@@ -55,7 +57,7 @@ export function AdminTeamStatusForm({
         type="button"
         onClick={onSave}
         disabled={saving}
-        className="rounded bg-cyan-500 px-3 py-1 text-xs font-semibold text-black disabled:opacity-60"
+        className={cn(adminUi.btnPrimarySm, "disabled:opacity-60")}
       >
         {saving ? "Saving..." : "Update"}
       </button>

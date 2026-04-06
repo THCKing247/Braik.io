@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { adminUi } from "@/lib/admin/admin-ui"
 
 export function AdminTeamDetailActions({
   team,
@@ -92,7 +93,7 @@ export function AdminTeamDetailActions({
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button onClick={saveTeam} className="rounded bg-cyan-500 px-3 py-2 text-xs font-semibold text-black">
+        <button type="button" onClick={saveTeam} className={adminUi.btnPrimarySm}>
           Save Team
         </button>
         <button onClick={saveAiSettings} className="rounded bg-white/10 px-3 py-2 text-xs">

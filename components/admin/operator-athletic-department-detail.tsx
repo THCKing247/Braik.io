@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 import type {
   AthleticDepartmentDetailOverview,
   AthleticDepartmentTeamRow,
@@ -150,58 +152,58 @@ export function OperatorAthleticDepartmentDetail({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <Link href="/admin/athletic-departments" className="text-cyan-300 underline hover:text-cyan-200">
+        <Link href="/admin/athletic-departments" className={cn(adminUi.link, "text-sm underline-offset-2")}>
           ← Athletic Departments
         </Link>
-        <span className="text-white/40">/</span>
-        <span className="text-white/80">{overview.schoolName}</span>
+        <span className="text-slate-600">/</span>
+        <span className="text-slate-300">{overview.schoolName}</span>
       </div>
 
       {err && (
         <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">{err}</div>
       )}
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-5">
-        <h2 className="text-lg font-semibold text-white">{overview.schoolName}</h2>
+      <div className={cn(adminUi.panel, adminUi.panelPadding)}>
+        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">{overview.schoolName}</h2>
         {overview.organizationNames.length > 0 && (
-          <p className="mt-1 text-sm text-white/65">Organizations: {overview.organizationNames.join(", ")}</p>
+          <p className="mt-1 text-sm text-slate-400">Organizations: {overview.organizationNames.join(", ")}</p>
         )}
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-            <dt className="text-xs uppercase tracking-wide text-white/50">Teams usage</dt>
-            <dd className="mt-1 text-sm font-medium text-white">{usageTeams}</dd>
+          <div className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 px-3 py-2">
+            <dt className="text-xs uppercase tracking-wide text-slate-500">Teams usage</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-100">{usageTeams}</dd>
           </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-            <dt className="text-xs uppercase tracking-wide text-white/50">Assistant coaches</dt>
-            <dd className="mt-1 text-sm font-medium text-white">{usageAssist}</dd>
+          <div className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 px-3 py-2">
+            <dt className="text-xs uppercase tracking-wide text-slate-500">Assistant coaches</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-100">{usageAssist}</dd>
           </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-            <dt className="text-xs uppercase tracking-wide text-white/50">School video (master)</dt>
-            <dd className="mt-1 text-sm font-medium text-white">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
+          <div className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 px-3 py-2">
+            <dt className="text-xs uppercase tracking-wide text-slate-500">School video (master)</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-100">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
           </div>
         </dl>
 
-        <div className="mt-5 space-y-3 border-t border-white/10 pt-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-white/50">Edit entitlements</p>
+        <div className="mt-5 space-y-3 border-t border-white/[0.08] pt-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Edit entitlements</p>
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-white/60">teams_allowed</span>
+              <span className="text-slate-400">teams_allowed</span>
               <input
                 type="number"
                 min={0}
                 value={teamsAllowedInput}
                 onChange={(e) => setTeamsAllowedInput(e.target.value)}
-                className="w-28 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-white"
+                className={cn(adminUi.input, "w-28")}
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-white/60">assistant_coaches_allowed</span>
+              <span className="text-slate-400">assistant_coaches_allowed</span>
               <input
                 type="number"
                 min={0}
                 value={assistantsAllowedInput}
                 onChange={(e) => setAssistantsAllowedInput(e.target.value)}
-                className="w-28 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-white"
+                className={cn(adminUi.input, "w-28")}
               />
             </label>
             <label className="flex items-center gap-2 text-sm">
@@ -211,70 +213,70 @@ export function OperatorAthleticDepartmentDetail({
                 onChange={(e) => setAdVideo(e.target.checked)}
                 className="h-4 w-4 rounded border-white/30"
               />
-              <span className="text-white/85">School video enabled (master)</span>
+              <span className="text-slate-300">School video enabled (master)</span>
             </label>
             <button
               type="button"
               disabled={saving}
               onClick={() => saveAdSettings()}
-              className="rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+              className={adminUi.btnPrimary}
             >
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
-          <p className="text-xs text-white/45">
+          <p className="text-xs text-slate-500">
             Lowering caps below current usage requires confirmation. Team video stays off when school video is off.
           </p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <h3 className="text-base font-semibold text-white">Teams</h3>
-        <p className="mt-1 text-xs text-white/55">
+      <div className={cn(adminUi.panel, adminUi.panelPadding)}>
+        <h3 className="font-athletic text-base font-bold uppercase tracking-wide text-white">Teams</h3>
+        <p className="mt-1 text-xs text-slate-400">
           Team toggles are disabled when school video is off. Effective video also requires organization and team flags
           when a program is linked.
         </p>
         {teams.length === 0 ? (
-          <p className="mt-4 text-sm text-white/55">No teams linked to this athletic department.</p>
+          <p className="mt-4 text-sm text-slate-400">No teams linked to this athletic department.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="border-b border-white/10 text-xs uppercase text-white/50">
+          <div className={cn(adminUi.tableWrap, "mt-4")}>
+            <table className={cn(adminUi.table, "min-w-[900px]")}>
+              <thead className={adminUi.thead}>
                 <tr>
-                  <th className="py-2 pr-3">Team</th>
-                  <th className="py-2 pr-3">Sport</th>
-                  <th className="py-2 pr-3">Level</th>
-                  <th className="py-2 pr-3">Head coach</th>
-                  <th className="py-2 pr-3">Asst.</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Org video</th>
-                  <th className="py-2 pr-3">Team video</th>
-                  <th className="py-2 pr-3">Effective</th>
+                  <th className={adminUi.th}>Team</th>
+                  <th className={adminUi.th}>Sport</th>
+                  <th className={adminUi.th}>Level</th>
+                  <th className={adminUi.th}>Head coach</th>
+                  <th className={adminUi.th}>Asst.</th>
+                  <th className={adminUi.th}>Status</th>
+                  <th className={adminUi.th}>Org video</th>
+                  <th className={adminUi.th}>Team video</th>
+                  <th className={adminUi.th}>Effective</th>
                 </tr>
               </thead>
               <tbody>
                 {teams.map((t) => {
                   const disabled = !overview.videoFeatureEnabled
                   return (
-                    <tr key={t.id} className="border-b border-white/5">
-                      <td className="py-2 pr-3 font-medium text-white">
-                        <Link href={`/admin/teams?q=${encodeURIComponent(t.name)}`} className="text-cyan-300 underline">
+                    <tr key={t.id} className={adminUi.tbodyRow}>
+                      <td className={cn(adminUi.td, "font-medium text-white")}>
+                        <Link href={`/admin/teams?q=${encodeURIComponent(t.name)}`} className={adminUi.link}>
                           {t.name}
                         </Link>
                       </td>
-                      <td className="py-2 pr-3 text-white/75">{t.sport ?? "—"}</td>
-                      <td className="py-2 pr-3 text-white/75">{t.level ?? "—"}</td>
-                      <td className="py-2 pr-3 text-white/75">{t.headCoachName ?? "—"}</td>
-                      <td className="py-2 pr-3 text-white/75">{t.assistantCoachCount}</td>
-                      <td className="py-2 pr-3">
-                        <span className={`rounded border px-2 py-0.5 text-xs ${statusChip(t.teamStatus)}`}>
+                      <td className={adminUi.td}>{t.sport ?? "—"}</td>
+                      <td className={adminUi.td}>{t.level ?? "—"}</td>
+                      <td className={adminUi.td}>{t.headCoachName ?? "—"}</td>
+                      <td className={adminUi.td}>{t.assistantCoachCount}</td>
+                      <td className={adminUi.td}>
+                        <span className={cn("rounded-md border px-2 py-0.5 text-xs", statusChip(t.teamStatus))}>
                           {t.teamStatus}
                         </span>
                       </td>
-                      <td className="py-2 pr-3 text-white/70">
+                      <td className={cn(adminUi.td, "text-slate-400")}>
                         {t.organizationVideoEnabled == null ? "—" : t.organizationVideoEnabled ? "On" : "Off"}
                       </td>
-                      <td className="py-2 pr-3">
+                      <td className={adminUi.td}>
                         <label
                           className={`inline-flex items-center gap-2 ${disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer"}`}
                         >
@@ -285,10 +287,10 @@ export function OperatorAthleticDepartmentDetail({
                             title={disabled ? "Enable school-level video first" : undefined}
                             onChange={(e) => toggleTeamVideo(t, e.target.checked)}
                           />
-                          <span className="text-white/80">{t.videoFeatureEnabled ? "On" : "Off"}</span>
+                          <span className="text-slate-300">{t.videoFeatureEnabled ? "On" : "Off"}</span>
                         </label>
                       </td>
-                      <td className="py-2 pr-3 text-white/85">{t.videoEffectiveEnabled ? "Yes" : "No"}</td>
+                      <td className={adminUi.td}>{t.videoEffectiveEnabled ? "Yes" : "No"}</td>
                     </tr>
                   )
                 })}
@@ -298,48 +300,48 @@ export function OperatorAthleticDepartmentDetail({
         )}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
+      <div className={cn(adminUi.panel, adminUi.panelPadding)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-semibold text-white">Users</h3>
+          <h3 className="font-athletic text-base font-bold uppercase tracking-wide text-white">Users</h3>
           <input
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder="Search users…"
-            className="rounded border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+            className={cn(adminUi.toolbarInput, "min-w-[200px] text-sm")}
           />
         </div>
         {filteredUsers.length === 0 ? (
-          <p className="mt-4 text-sm text-white/55">
+          <p className="mt-4 text-sm text-slate-400">
             {users.length === 0 ? "No users found for this department." : "No users match your search."}
           </p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[800px] text-left text-sm">
-              <thead className="border-b border-white/10 text-xs uppercase text-white/50">
+          <div className={cn(adminUi.tableWrap, "mt-4")}>
+            <table className={cn(adminUi.table, "min-w-[800px]")}>
+              <thead className={adminUi.thead}>
                 <tr>
-                  <th className="py-2 pr-3">Name</th>
-                  <th className="py-2 pr-3">Email</th>
-                  <th className="py-2 pr-3">Role</th>
-                  <th className="py-2 pr-3">Team(s)</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Last login</th>
+                  <th className={adminUi.th}>Name</th>
+                  <th className={adminUi.th}>Email</th>
+                  <th className={adminUi.th}>Role</th>
+                  <th className={adminUi.th}>Team(s)</th>
+                  <th className={adminUi.th}>Status</th>
+                  <th className={adminUi.th}>Last login</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((u) => (
-                  <tr key={u.id} className="border-b border-white/5">
-                    <td className="py-2 pr-3 text-white">
-                      <Link href={`/admin/users/${u.id}`} className="text-cyan-300 underline hover:text-cyan-200">
+                  <tr key={u.id} className={adminUi.tbodyRow}>
+                    <td className={cn(adminUi.td, "text-white")}>
+                      <Link href={`/admin/users/${u.id}`} className={adminUi.link}>
                         {u.name?.trim() || "—"}
                       </Link>
                     </td>
-                    <td className="py-2 pr-3 text-white/75">{u.email ?? "—"}</td>
-                    <td className="py-2 pr-3 text-white/75">{u.role}</td>
-                    <td className="max-w-[280px] py-2 pr-3 text-white/70">{u.teamLabels}</td>
-                    <td className="py-2 pr-3">
-                      <span className={`rounded border px-2 py-0.5 text-xs ${statusChip(u.status)}`}>{u.status}</span>
+                    <td className={adminUi.td}>{u.email ?? "—"}</td>
+                    <td className={adminUi.td}>{u.role}</td>
+                    <td className={cn(adminUi.td, "max-w-[280px] text-slate-400")}>{u.teamLabels}</td>
+                    <td className={adminUi.td}>
+                      <span className={cn("rounded-md border px-2 py-0.5 text-xs", statusChip(u.status))}>{u.status}</span>
                     </td>
-                    <td className="py-2 pr-3 text-white/60">
+                    <td className={cn(adminUi.td, "text-slate-400")}>
                       {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "—"}
                     </td>
                   </tr>

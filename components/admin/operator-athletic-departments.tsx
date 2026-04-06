@@ -2,7 +2,10 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import type { AthleticDepartmentListRow } from "@/lib/admin/athletic-departments-types"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 function statusChip(value: string): string {
   const normalized = value.toLowerCase()
@@ -22,79 +25,73 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
   }, [initialRows, query])
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-white/10 bg-[#18181c] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold">Athletic Departments / Schools</h2>
-            <p className="mt-1 text-xs text-white/60">
-              Entitlements and usage for each school&rsquo;s athletic department. Video requires school + organization +
-              team toggles where linked.
-            </p>
-          </div>
+    <div className="space-y-6">
+      <AdminPageHeader
+        title="Athletic departments"
+        description="Entitlements and usage for each school’s athletic department. Video requires school, organization, and team toggles where linked."
+        action={
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by school, org, status…"
-            className="min-w-[200px] rounded border border-white/15 bg-black/30 px-3 py-1.5 text-sm"
+            className={cn(adminUi.toolbarInput, "min-w-[200px] text-sm")}
           />
-        </div>
-      </div>
+        }
+      />
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/20 bg-[#111113] p-10 text-center text-sm text-white/60">
-          {initialRows.length === 0
-            ? "No athletic departments found. Provisioning may create schools and departments."
-            : "No rows match your search."}
+        <div className={adminUi.emptyState}>
+          <p className="text-sm text-slate-400">
+            {initialRows.length === 0
+              ? "No athletic departments found. Provisioning may create schools and departments."
+              : "No rows match your search."}
+          </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#18181c]">
-          <table className="w-full min-w-[960px] text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-white/50">
+        <div className={adminUi.tableWrap}>
+          <table className={cn(adminUi.table, "min-w-[960px]")}>
+            <thead className={adminUi.thead}>
               <tr>
-                <th className="px-4 py-3">School / AD</th>
-                <th className="px-4 py-3">Organization(s)</th>
-                <th className="px-4 py-3">Teams (used / cap)</th>
-                <th className="px-4 py-3">Asst. coaches allowed</th>
-                <th className="px-4 py-3">Video (school)</th>
-                <th className="px-4 py-3">Users</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className={adminUi.th}>School / AD</th>
+                <th className={adminUi.th}>Organization(s)</th>
+                <th className={adminUi.th}>Teams (used / cap)</th>
+                <th className={adminUi.th}>Asst. coaches allowed</th>
+                <th className={adminUi.th}>Video (school)</th>
+                <th className={adminUi.th}>Users</th>
+                <th className={adminUi.th}>Status</th>
+                <th className={adminUi.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((row) => (
-                <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.03]">
-                  <td className="px-4 py-3 font-medium text-white">{row.schoolName}</td>
-                  <td className="max-w-[220px] px-4 py-3 text-white/75">
+                <tr key={row.id} className={adminUi.tbodyRow}>
+                  <td className={cn(adminUi.td, "font-medium text-white")}>{row.schoolName}</td>
+                  <td className={cn(adminUi.td, "max-w-[220px] text-slate-300")}>
                     {row.organizationSummary ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-white/85">
+                  <td className={adminUi.td}>
                     {row.teamCount} / {row.teamsAllowed}
                   </td>
-                  <td className="px-4 py-3 text-white/85">{row.assistantCoachesAllowed}</td>
-                  <td className="px-4 py-3">
+                  <td className={adminUi.td}>{row.assistantCoachesAllowed}</td>
+                  <td className={adminUi.td}>
                     <span
                       className={
                         row.videoFeatureEnabled
-                          ? "rounded border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-100"
-                          : "rounded border border-white/15 bg-black/30 px-2 py-0.5 text-white/60"
+                          ? "rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-100"
+                          : "rounded-md border border-white/15 bg-[#060a12]/80 px-2 py-0.5 text-slate-500"
                       }
                     >
                       {row.videoFeatureEnabled ? "On" : "Off"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-white/85">{row.totalUsers}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded border px-2 py-0.5 text-xs ${statusChip(row.status)}`}>
+                  <td className={adminUi.td}>{row.totalUsers}</td>
+                  <td className={adminUi.td}>
+                    <span className={cn("rounded-md border px-2 py-0.5 text-xs", statusChip(row.status))}>
                       {row.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/admin/athletic-departments/${row.id}`}
-                      className="text-cyan-300 underline hover:text-cyan-200"
-                    >
+                  <td className={adminUi.td}>
+                    <Link href={`/admin/athletic-departments/${row.id}`} className={cn(adminUi.link, "text-sm")}>
                       Open
                     </Link>
                   </td>

@@ -1,6 +1,8 @@
 "use client"
 
 import { FormEvent, useState } from "react"
+import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 export function AdminAnnouncementForm() {
   const [content, setContent] = useState("")
@@ -45,7 +47,7 @@ export function AdminAnnouncementForm() {
   return (
     <form className="space-y-3" onSubmit={onSubmit}>
       <textarea
-        className="min-h-[120px] w-full rounded border border-white/20 bg-black/20 px-3 py-2 text-sm"
+        className={cn(adminUi.input, "min-h-[120px]")}
         value={content}
         onChange={(event) => setContent(event.target.value)}
         placeholder="Announcement content for Head Coaches"
@@ -53,25 +55,25 @@ export function AdminAnnouncementForm() {
       />
       <div className="grid gap-2 md:grid-cols-4">
         <input
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className={adminUi.toolbarInput}
           placeholder="Plan tier (optional)"
           value={planTier}
           onChange={(event) => setPlanTier(event.target.value)}
         />
         <input
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className={adminUi.toolbarInput}
           placeholder="Region (optional)"
           value={region}
           onChange={(event) => setRegion(event.target.value)}
         />
         <input
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className={adminUi.toolbarInput}
           placeholder="Sport (optional)"
           value={sport}
           onChange={(event) => setSport(event.target.value)}
         />
         <select
-          className="rounded border border-white/20 bg-black/20 px-2 py-1 text-xs"
+          className={adminUi.toolbarInput}
           value={teamStatus}
           onChange={(event) => setTeamStatus(event.target.value)}
         >
@@ -83,14 +85,10 @@ export function AdminAnnouncementForm() {
         </select>
       </div>
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-cyan-500 px-4 py-2 text-sm font-semibold text-black disabled:opacity-60"
-        >
+        <button type="submit" disabled={submitting} className={cn(adminUi.btnPrimary, "disabled:opacity-60")}>
           {submitting ? "Sending..." : "Send to Head Coaches"}
         </button>
-        {result ? <p className="text-sm text-white/70">{result}</p> : null}
+        {result ? <p className="text-sm text-slate-400">{result}</p> : null}
       </div>
     </form>
   )

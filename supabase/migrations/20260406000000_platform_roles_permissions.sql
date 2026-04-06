@@ -1,5 +1,8 @@
 -- Platform-level roles & granular permissions (admin console / future enforcement).
 -- Service-role APIs bypass RLS; JWT users have no direct access.
+-- gen_random_uuid() requires pgcrypto (also ensured by earlier Braik baseline migrations).
+
+create extension if not exists pgcrypto;
 
 create table if not exists public.platform_permissions (
   key text primary key,
@@ -35,9 +38,22 @@ create index if not exists idx_platform_role_permissions_permission on public.pl
 alter table public.users add column if not exists platform_role_id uuid references public.platform_roles (id) on delete set null;
 create index if not exists idx_users_platform_role_id on public.users (platform_role_id) where platform_role_id is not null;
 
+-- Optional many-to-many: mirrors users.platform_role_id; app syncs both. Created here so fresh DBs get full schema in one migration.
+create table if not exists public.user_platform_roles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  role_id uuid not null references public.platform_roles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (user_id, role_id)
+);
+
+create index if not exists idx_user_platform_roles_user on public.user_platform_roles (user_id);
+create index if not exists idx_user_platform_roles_role on public.user_platform_roles (role_id);
+
 alter table public.platform_roles enable row level security;
 alter table public.platform_permissions enable row level security;
 alter table public.platform_role_permissions enable row level security;
+alter table public.user_platform_roles enable row level security;
 
 -- Catalog: all platform permission keys (grouped in app UI by section)
 insert into public.platform_permissions (key, section, label, description) values
@@ -195,7 +211,14 @@ where u.platform_role_id is null
   and lower(trim(u.role)) = 'assistant_coach'
   and r.key = 'assistant_coach';
 
+insert into public.user_platform_roles (user_id, role_id)
+select u.id, u.platform_role_id
+from public.users u
+where u.platform_role_id is not null
+on conflict (user_id, role_id) do nothing;
+
 comment on table public.platform_roles is 'Platform-wide roles for admin portal access and future permission enforcement.';
 comment on table public.platform_permissions is 'Stable permission keys; labels shown in admin Roles & Permissions UI.';
 comment on table public.platform_role_permissions is 'Join: which permissions each platform role grants.';
+comment on table public.user_platform_roles is 'Optional many-to-many; when empty for a user, fall back to users.platform_role_id. Service-role APIs sync both.';
 comment on column public.users.platform_role_id is 'Optional link to platform_roles for granular permissions; legacy users.role still used by auth until fully migrated.';

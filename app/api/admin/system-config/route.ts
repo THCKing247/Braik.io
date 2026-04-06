@@ -1,24 +1,24 @@
 ﻿import { NextResponse } from "next/server"
-import { getAdminAccessForApi } from "@/lib/admin/admin-access"
+import { requirePermissionForApi } from "@/lib/permissions/platform-permissions"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
 import { appendSystemConfigVersion, listSystemConfig } from "@/lib/admin/system-config-store"
 
 export async function GET(request: Request) {
   try {
-    const access = await getAdminAccessForApi()
+    const access = await requirePermissionForApi("manage_platform_settings")
     if (!access.ok) return access.response
 
     const rows = await listSystemConfig(300)
-    return NextResponse.json({ rows })
+    return NextResponse.json({ ok: true, rows })
   } catch (error: any) {
     console.error("admin system-config GET error", error)
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
+    return NextResponse.json({ ok: false, error: error.message || "Internal server error" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const access = await getAdminAccessForApi()
+    const access = await requirePermissionForApi("manage_platform_settings")
     if (!access.ok) return access.response
 
     const body = await request.json()
@@ -62,9 +62,9 @@ export async function POST(request: Request) {
       userAgent: request.headers.get("user-agent"),
     }).catch(() => undefined)
 
-    return NextResponse.json({ success: true, row: created })
+    return NextResponse.json({ ok: true, success: true, row: created })
   } catch (error: any) {
     console.error("admin system-config POST error", error)
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
+    return NextResponse.json({ ok: false, error: error.message || "Internal server error" }, { status: 500 })
   }
 }

@@ -12,11 +12,22 @@ export default async function AdminUsersPage({
 
   const users = await safeAdminDbQuery(
     async () => {
-      let q = supabase.from("users").select("id, email, name, role, status, created_at, last_login_at").order("created_at", { ascending: false }).limit(100)
+      let q = supabase
+        .from("users")
+        .select("id, email, name, role, status, created_at, last_login_at, platform_role_id")
+        .order("created_at", { ascending: false })
+        .limit(100)
       if (query) {
         q = q.or(`email.ilike.%${query}%,name.ilike.%${query}%`)
       }
       const { data: rows } = await q
+      const roleIds = [...new Set((rows ?? []).map((r) => r.platform_role_id).filter(Boolean))] as string[]
+      const { data: proles } =
+        roleIds.length > 0
+          ? await supabase.from("platform_roles").select("id, key, name").in("id", roleIds)
+          : { data: [] as { id: string; key: string; name: string }[] }
+      const roleById = new Map((proles ?? []).map((r) => [r.id, r as { id: string; key: string; name: string }]))
+
       const withMemberships = await Promise.all(
         (rows ?? []).map(async (u) => {
           const { data: profile } = await supabase
@@ -34,6 +45,7 @@ export default async function AdminUsersPage({
                 },
               ]
             : []
+          const pr = u.platform_role_id ? roleById.get(u.platform_role_id as string) : undefined
           return {
             id: u.id,
             email: u.email,
@@ -43,6 +55,9 @@ export default async function AdminUsersPage({
             createdAt: u.created_at,
             lastLoginAt: u.last_login_at,
             memberships,
+            platformRoleId: (u.platform_role_id as string | null) ?? null,
+            platformRoleName: pr?.name ?? null,
+            platformRoleKey: pr?.key ?? null,
           }
         })
       )
@@ -57,6 +72,9 @@ export default async function AdminUsersPage({
       createdAt: string
       lastLoginAt: string | null
       memberships: Array<{ role: string; team: { id: string; name: string } }>
+      platformRoleId: string | null
+      platformRoleName: string | null
+      platformRoleKey: string | null
     }>
   )
 

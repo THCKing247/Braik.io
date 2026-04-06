@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getAdminAccessForApi } from "@/lib/admin/admin-access"
+import { requireAnyPermissionForApi } from "@/lib/permissions/platform-permissions"
 
 /**
  * GET /api/admin/document-audit?teamId=&playerId=&action=&from=&to=&limit=
  */
 export async function GET(request: Request) {
-  const gate = await getAdminAccessForApi()
+  const gate = await requireAnyPermissionForApi(["view_audit_logs", "manage_documents"])
   if (!gate.ok) {
     return gate.response
   }
@@ -96,5 +96,5 @@ export async function GET(request: Request) {
   if (teamId) entries = entries.filter((x) => x.teamId === teamId)
   if (playerId) entries = entries.filter((x) => x.playerId === playerId)
 
-  return NextResponse.json({ entries })
+  return NextResponse.json({ ok: true, entries })
 }

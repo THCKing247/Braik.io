@@ -1,10 +1,10 @@
 ﻿import { NextResponse } from "next/server"
-import { getAdminAccessForApi } from "@/lib/admin/admin-access"
+import { requirePermissionForApi } from "@/lib/permissions/platform-permissions"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export async function GET(request: Request) {
   try {
-    const access = await getAdminAccessForApi()
+    const access = await requirePermissionForApi("view_audit_logs")
     if (!access.ok) {
       return access.response
     }
@@ -34,11 +34,11 @@ export async function GET(request: Request) {
       createdAt: r.created_at,
     }))
 
-    return NextResponse.json({ logs })
+    return NextResponse.json({ ok: true, logs })
   } catch (error: unknown) {
     console.error("Admin audit logs error:", error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
+      { ok: false, error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     )
   }

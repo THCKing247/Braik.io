@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAdminAccessForApi } from "@/lib/admin/admin-access"
+import { requirePermissionForApi } from "@/lib/permissions/platform-permissions"
 import {
   createImpersonationToken,
   impersonationCookieHeader,
@@ -8,7 +8,7 @@ import {
 const DEFAULT_DURATION_MINUTES = 60
 
 export async function POST(request: NextRequest) {
-  const access = await getAdminAccessForApi()
+  const access = await requirePermissionForApi("impersonate_users")
   if (!access.ok) return access.response
 
   let body: { targetUserId?: string; durationMinutes?: number }

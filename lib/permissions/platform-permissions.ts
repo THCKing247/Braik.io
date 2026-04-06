@@ -92,6 +92,25 @@ export async function requireManageRolesForApi(): Promise<
   return requirePermissionForApi("manage_roles_permissions")
 }
 
+/** At least one of the permissions (legacy admin bypass still applies via hasPermission). */
+export async function requireAnyPermissionForApi(
+  permissions: PlatformPermissionKey[]
+): Promise<{ ok: true; context: AdminAccessContext } | { ok: false; response: NextResponse }> {
+  const access = await getAdminAccessForApi()
+  if (!access.ok) {
+    return access
+  }
+  for (const p of permissions) {
+    if (await hasPermission(access.context.actorId, access.context.actorEmail, p)) {
+      return access
+    }
+  }
+  return {
+    ok: false,
+    response: NextResponse.json({ ok: false, error: "Forbidden: missing permission" }, { status: 403 }),
+  }
+}
+
 /** Alias for route handlers: enforce a single platform permission (async). */
 export const requirePermission = requirePermissionForApi
 

@@ -6,10 +6,20 @@ import { useEffect, useState } from "react"
 
 type Phase = "loading" | "ok" | "error"
 
+type AdminCaps = {
+  canManageRoles: boolean
+  canManageUsers: boolean
+  canImpersonate: boolean
+  canViewAuditLogs: boolean
+  canManagePlatformSettings: boolean
+  canViewBilling: boolean
+  canManageBilling: boolean
+}
+
 export function AdminProtectedShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>("loading")
-  const [canManageRoles, setCanManageRoles] = useState<boolean | null>(null)
+  const [caps, setCaps] = useState<AdminCaps | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -25,20 +35,46 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
           return
         }
         if (!res.ok) throw new Error(String(res.status))
-        if (!cancelled) {
-          setPhase("ok")
-          try {
-            const cap = await fetch("/api/admin/platform-role-access", { credentials: "include", cache: "no-store" })
-            if (cap.ok) {
-              const j = (await cap.json()) as { canManageRoles?: boolean }
-              if (!cancelled) setCanManageRoles(Boolean(j.canManageRoles))
-            } else if (!cancelled) {
-              setCanManageRoles(false)
+        try {
+          const cap = await fetch("/api/admin/platform-role-access", { credentials: "include", cache: "no-store" })
+          if (cap.ok) {
+            const j = (await cap.json()) as Partial<AdminCaps> & { canManageRoles?: boolean }
+            if (!cancelled) {
+              setCaps({
+                canManageRoles: Boolean(j.canManageRoles),
+                canManageUsers: Boolean(j.canManageUsers),
+                canImpersonate: Boolean(j.canImpersonate),
+                canViewAuditLogs: Boolean(j.canViewAuditLogs),
+                canManagePlatformSettings: Boolean(j.canManagePlatformSettings),
+                canViewBilling: Boolean(j.canViewBilling),
+                canManageBilling: Boolean(j.canManageBilling),
+              })
             }
-          } catch {
-            if (!cancelled) setCanManageRoles(false)
+          } else if (!cancelled) {
+            setCaps({
+              canManageRoles: false,
+              canManageUsers: false,
+              canImpersonate: false,
+              canViewAuditLogs: false,
+              canManagePlatformSettings: false,
+              canViewBilling: false,
+              canManageBilling: false,
+            })
+          }
+        } catch {
+          if (!cancelled) {
+            setCaps({
+              canManageRoles: false,
+              canManageUsers: false,
+              canImpersonate: false,
+              canViewAuditLogs: false,
+              canManagePlatformSettings: false,
+              canViewBilling: false,
+              canManageBilling: false,
+            })
           }
         }
+        if (!cancelled) setPhase("ok")
       } catch {
         if (!cancelled) setPhase("error")
       }
@@ -95,23 +131,31 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
             >
               Provisioning
             </Link>
-            <Link href="/admin/billing" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Billing
-            </Link>
-            <Link href="/admin/audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Audit
-            </Link>
-            <Link href="/admin/document-audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              Document audit
-            </Link>
-            {canManageRoles ? (
+            {caps && (caps.canViewBilling || caps.canManageBilling) ? (
+              <Link href="/admin/billing" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
+                Billing
+              </Link>
+            ) : null}
+            {caps?.canViewAuditLogs ? (
+              <Link href="/admin/audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
+                Audit
+              </Link>
+            ) : null}
+            {caps && (caps.canViewAuditLogs || caps.canManageUsers) ? (
+              <Link href="/admin/document-audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
+                Document audit
+              </Link>
+            ) : null}
+            {caps?.canManageRoles ? (
               <Link href="/admin/roles" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
                 Roles & Permissions
               </Link>
             ) : null}
-            <Link href="/admin/settings/system" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
-              System Settings
-            </Link>
+            {caps?.canManagePlatformSettings ? (
+              <Link href="/admin/settings/system" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
+                System Settings
+              </Link>
+            ) : null}
             <Link href="/admin/dashboard" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               Dashboard
             </Link>

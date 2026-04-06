@@ -16,6 +16,9 @@ interface UserRow {
   createdAt: string
   lastLoginAt: string | null
   memberships: Array<{ role: string; team: { id: string; name: string } }>
+  platformRoleId: string | null
+  platformRoleName: string | null
+  platformRoleKey: string | null
 }
 
 function chipClass(status: string): string {
@@ -26,18 +29,48 @@ function chipClass(status: string): string {
   return "bg-white/10 text-white/80 border-white/20"
 }
 
+type AdminCaps = {
+  canManageUsers: boolean
+  canImpersonate: boolean
+}
+
 export function OperatorUsers({ users }: { users: UserRow[] }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [caps, setCaps] = useState<AdminCaps | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/platform-role-access", { credentials: "include", cache: "no-store" })
+        if (!res.ok) return
+        const j = (await res.json()) as Partial<AdminCaps>
+        if (!cancelled) {
+          setCaps({
+            canManageUsers: Boolean(j.canManageUsers),
+            canImpersonate: Boolean(j.canImpersonate),
+          })
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return users
     return users.filter((user) =>
-      `${user.email} ${user.name || ""} ${user.role} ${user.status}`.toLowerCase().includes(q)
+      `${user.email} ${user.name || ""} ${user.role} ${user.status} ${user.platformRoleName || ""} ${user.platformRoleKey || ""}`
+        .toLowerCase()
+        .includes(q)
     )
   }, [users, query])
 
@@ -49,6 +82,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       })
@@ -66,7 +100,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
     if (!window.confirm(`Permanently delete ${user.email}? This cannot be undone.`)) return
     setActionLoading(user.id)
     try {
-      const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" })
+      const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE", credentials: "include" })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to delete")
       router.refresh()
@@ -151,7 +185,8 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
           <thead className="bg-white/5 text-white/70">
             <tr>
               <th className="px-3 py-2">User</th>
-              <th className="px-3 py-2">Role</th>
+              <th className="px-3 py-2">App role</th>
+              <th className="px-3 py-2">Platform role</th>
               <th className="px-3 py-2">Team(s)</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Created</th>
@@ -170,6 +205,16 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                   </Link>
                 </td>
                 <td className="px-3 py-2">{getUserRoleLabel(user.role)}</td>
+                <td className="px-3 py-2 text-xs text-white/80">
+                  {user.platformRoleName ? (
+                    <>
+                      <span className="text-white">{user.platformRoleName}</span>
+                      <span className="ml-1 font-mono text-white/50">({user.platformRoleKey})</span>
+                    </>
+                  ) : (
+                    <span className="text-white/45">—</span>
+                  )}
+                </td>
                 <td className="px-3 py-2">
                   {user.memberships.length
                     ? user.memberships.map((membership) => `${membership.team.name} (${membership.role})`).join(", ")
@@ -185,14 +230,16 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     <button
                       type="button"
                       onClick={() => setEditUser(user)}
-                      className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+                      disabled={caps === null ? false : !caps.canManageUsers}
+                      title={caps && !caps.canManageUsers ? "Missing manage users permission" : undefined}
+                      className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Edit
                     </button>
                     <button
                       type="button"
                       onClick={() => handleSuspendOrRestore(user)}
-                      disabled={!!actionLoading}
+                      disabled={!!actionLoading || (caps !== null && !caps.canManageUsers)}
                       className="rounded bg-amber-500/20 px-2 py-1 text-xs text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
                     >
                       {user.status.toLowerCase().includes("suspend") ? "Restore" : "Suspend"}
@@ -200,7 +247,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     <button
                       type="button"
                       onClick={() => handleDelete(user)}
-                      disabled={!!actionLoading}
+                      disabled={!!actionLoading || (caps !== null && !caps.canManageUsers)}
                       className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-200 hover:bg-red-500/30 disabled:opacity-50"
                     >
                       Delete
@@ -214,9 +261,13 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     <button
                       type="button"
                       onClick={() => handleSignInAsUser(user)}
-                      disabled={!!actionLoading}
+                      disabled={!!actionLoading || (caps !== null && !caps.canImpersonate)}
                       className="rounded bg-violet-500/20 px-2 py-1 text-xs text-violet-200 hover:bg-violet-500/30 disabled:opacity-50"
-                      title="Open this user's brAIk.io dashboard (sudo sign in)"
+                      title={
+                        caps && !caps.canImpersonate
+                          ? "Missing impersonate permission"
+                          : "Open this user's brAIk.io dashboard (sudo sign in)"
+                      }
                     >
                       Sign in as user
                     </button>
@@ -294,6 +345,8 @@ function EditUserModal({
   const [name, setName] = useState(user.name ?? "")
   const [email, setEmail] = useState(user.email)
   const [role, setRole] = useState(user.role.trim().toLowerCase().replace(/-/g, "_"))
+  const [platformRoleId, setPlatformRoleId] = useState<string>(user.platformRoleId ?? "")
+  const [platformRoles, setPlatformRoles] = useState<{ id: string; key: string; name: string }[]>([])
   const [status, setStatus] = useState(user.status)
   const [video, setVideo] = useState({
     can_view_video: false,
@@ -309,9 +362,29 @@ function EditUserModal({
     let cancelled = false
     void (async () => {
       try {
+        const opt = await fetch("/api/admin/platform-role-options", { credentials: "include", cache: "no-store" })
+        if (opt.ok) {
+          const j = (await opt.json()) as { roles?: { id: string; key: string; name: string }[] }
+          if (!cancelled && j.roles) setPlatformRoles(j.roles)
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
         const res = await fetch(`/api/admin/users/${user.id}`, { credentials: "include" })
         const data = await res.json()
         if (cancelled || !res.ok) return
+        const pr = data.platformRole as { id?: string } | null | undefined
+        if (pr?.id) setPlatformRoleId(pr.id)
         const vp = data.videoPermissions as
           | {
               can_view_video?: boolean
@@ -346,17 +419,19 @@ function EditUserModal({
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim() || null,
           email: email.trim().toLowerCase(),
           role: role,
           status: status,
+          platformRoleId: platformRoleId || null,
           videoPermissions: video,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to save")
+      if (!res.ok || data.ok === false) throw new Error((data as { error?: string }).error || "Failed to save")
       onSaved()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save")
@@ -388,7 +463,7 @@ function EditUserModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-white/70">Role</label>
+            <label className="mb-1 block text-xs text-white/70">App role (legacy)</label>
             <select
               className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
               value={role}
@@ -397,6 +472,21 @@ function EditUserModal({
               {USER_ROLE_VALUES.map((r) => (
                 <option key={r} value={r}>
                   {USER_ROLE_LABELS[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-white/70">Platform role (permissions)</label>
+            <select
+              className="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm"
+              value={platformRoleId}
+              onChange={(e) => setPlatformRoleId(e.target.value)}
+            >
+              <option value="">— None —</option>
+              {platformRoles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.key})
                 </option>
               ))}
             </select>

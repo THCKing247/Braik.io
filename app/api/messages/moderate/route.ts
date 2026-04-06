@@ -2,12 +2,13 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUserMembership, MembershipLookupError } from "@/lib/auth/rbac"
-import { canModerateMessages } from "@/lib/auth/roles"
+import { canAdminDeleteMessages } from "@/lib/auth/roles"
+import { isAdminUserRole } from "@/lib/auth/user-roles"
 import { writeAuditLog } from "@/lib/audit/write-audit-log"
 
 /**
  * POST /api/messages/moderate
- * Soft-delete a message (head coach / school admin / AD for that team).
+ * Soft-delete a message (school admin for that team, or platform admin).
  */
 export async function POST(request: Request) {
   try {
@@ -58,7 +59,10 @@ export async function POST(request: Request) {
       throw e
     }
 
-    if (!membership || !canModerateMessages(membership.role)) {
+    const allowed =
+      isAdminUserRole(session.user?.role) ||
+      (membership ? canAdminDeleteMessages(membership.role) : false)
+    if (!allowed) {
       return NextResponse.json({ error: "You do not have permission to moderate messages." }, { status: 403 })
     }
 

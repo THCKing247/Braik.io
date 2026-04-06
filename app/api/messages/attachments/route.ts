@@ -3,6 +3,8 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 
+const STORAGE_BUCKET = "message-attachments"
+
 /**
  * POST /api/messages/attachments
  * Uploads a file attachment for a message (before message is sent).
@@ -27,18 +29,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
+    if (!threadId) {
+      return NextResponse.json({ error: "threadId is required" }, { status: 400 })
+    }
+
     const supabase = getSupabaseServer()
     const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
+    const { data: thread } = await supabase
+      .from("message_threads")
+      .select("id, team_id")
+      .eq("id", threadId)
+      .maybeSingle()
+
+    if (!thread || thread.team_id !== teamId) {
+      return NextResponse.json({ error: "Thread not found" }, { status: 404 })
+    }
+
     await requireTeamAccess(teamId)
+
+    const { data: participant } = await supabase
+      .from("message_thread_participants")
+      .select("user_id")
+      .eq("thread_id", threadId)
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+
+    if (!participant) {
+      return NextResponse.json({ error: "You are not a participant in this thread" }, { status: 403 })
+    }
 
     // Validate file type and size (per ATTACHMENTS_IMPLEMENTATION.md)
     const allowedTypes = [
       "application/pdf",
       "image/jpeg",
+      "image/jpg",
       "image/png",
       "image/gif",
       "image/webp",
@@ -75,26 +103,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `File size exceeds limit (${sizeLimit / 1024 / 1024}MB)` }, { status: 400 })
     }
 
-    // Generate secure file name
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 15)
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
     const secureFileName = `${timestamp}-${random}-${sanitizedName}`
-    const fileUrl = `./uploads/messages/${secureFileName}`
+    const storagePath = `${teamId}/${threadId}/${secureFileName}`
 
-    // TODO: Upload to Supabase Storage or file system
-    // For now, store metadata only (actual file upload would go to Storage bucket)
-    // In production, use: await supabase.storage.from('message-attachments').upload(secureFileName, file)
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const { error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, fileBuffer, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      })
 
-    // Create attachment record (message_id will be set when message is sent)
+    if (uploadError) {
+      console.error("[POST /api/messages/attachments] storage upload", uploadError)
+      return NextResponse.json({ error: "Failed to upload file" }, { status: 500 })
+    }
+
     const { data: attachment, error: attachmentError } = await supabase
       .from("message_attachments")
       .insert({
-        message_id: "00000000-0000-0000-0000-000000000000", // Placeholder, will be updated when message is sent
-        thread_id: threadId || "00000000-0000-0000-0000-000000000000", // Placeholder
+        message_id: null,
+        thread_id: threadId,
         team_id: teamId,
         file_name: file.name,
-        file_url: fileUrl,
+        file_url: storagePath,
         file_size: file.size,
         mime_type: file.type,
         uploaded_by: session.user.id,
@@ -104,6 +139,7 @@ export async function POST(request: Request) {
 
     if (attachmentError || !attachment) {
       console.error("[POST /api/messages/attachments]", attachmentError)
+      await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]).catch(() => {})
       return NextResponse.json({ error: "Failed to create attachment record" }, { status: 500 })
     }
 
@@ -116,9 +152,9 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("[POST /api/messages/attachments]", error)
-  return NextResponse.json(
+    return NextResponse.json(
       { error: error.message || "Failed to upload attachment" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    )
   }
 }

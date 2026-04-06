@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { format } from "date-fns"
+import { format, isToday, isYesterday } from "date-fns"
 import {
   MessageSquare,
   Paperclip,
@@ -82,6 +82,21 @@ function starredStorageKey(uid: string, tid: string) {
 function isNearBottomEl(el: HTMLElement, thresholdPx = 56) {
   const { scrollTop, scrollHeight, clientHeight } = el
   return scrollHeight - scrollTop - clientHeight <= thresholdPx
+}
+
+/** Hide scrollbars while keeping scroll (Messages module only). */
+const msgScrollHide =
+  "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+
+function messageDayKey(d: Date | string) {
+  return format(new Date(d), "yyyy-MM-dd")
+}
+
+function messageDaySeparatorLabel(d: Date | string) {
+  const date = new Date(d)
+  if (isToday(date)) return "Today"
+  if (isYesterday(date)) return "Yesterday"
+  return format(date, "MMMM d, yyyy")
 }
 
 interface Contact {
@@ -775,6 +790,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (!selectedThread?.id) {
+      alert("Select a conversation before attaching a file.")
+      e.target.value = ""
+      return
+    }
+
     // Validate file type and size
     const allowedTypes = [
       "application/pdf",
@@ -809,6 +830,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       const formData = new FormData()
       formData.append("file", file)
       formData.append("teamId", teamId)
+      formData.append("threadId", selectedThread.id)
 
       const response = await fetch("/api/messages/attachments", {
         method: "POST",
@@ -828,6 +850,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       alert(errorMessage)
     } finally {
       setLoading(false)
+      e.target.value = ""
     }
   }
 
@@ -1294,7 +1317,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         )}
 
-        <div className="messages-thread-list min-h-0 flex-1 overflow-y-auto py-3 md:py-4">
+        <div
+          className={`messages-thread-list min-h-0 flex-1 overflow-y-auto py-3 md:py-4 ${msgScrollHide}`}
+        >
           {threads.length === 0 ? (
             <div className="mx-4 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/40 px-4 py-10 text-center">
               <MessageSquare className="mx-auto mb-3 h-10 w-10 text-[rgb(var(--accent))]" aria-hidden />
@@ -1411,7 +1436,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             <div className="relative flex min-h-0 flex-1 flex-col">
               <div
                 ref={messagesContainerRef}
-                className="messages-container min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5"
+                className={`messages-container min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5 ${msgScrollHide}`}
               >
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
@@ -1422,10 +1447,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                   <p style={{ color: "rgb(var(--muted))" }}>No messages yet. Start the conversation!</p>
                 </div>
               ) : (
-                messages.map((message) => {
+                messages.flatMap((message, index) => {
+                const prev = index > 0 ? messages[index - 1] : null
+                const showDaySep =
+                  !prev || messageDayKey(prev.createdAt) !== messageDayKey(message.createdAt)
                 const isOwnMessage = message.creator.id === userId
                 const removed = message.isRemoved === true
-                return (
+                const bubble = (
                   <div
                     key={message.id}
                     className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
@@ -1494,7 +1522,24 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                     </div>
                   </div>
                 )
-              }))}
+                if (!showDaySep) return [bubble]
+                const sep = (
+                  <div
+                    key={`day-sep-${message.id}`}
+                    className="flex items-center gap-3 py-1"
+                    role="separator"
+                    aria-label={messageDaySeparatorLabel(message.createdAt)}
+                  >
+                    <div className="h-px flex-1 bg-[rgb(var(--border))]" />
+                    <span className="shrink-0 text-[11px] font-medium tabular-nums text-[rgb(var(--muted))]">
+                      {messageDaySeparatorLabel(message.createdAt)}
+                    </span>
+                    <div className="h-px flex-1 bg-[rgb(var(--border))]" />
+                  </div>
+                )
+                return [sep, bubble]
+                })
+              )}
               <div ref={messagesEndRef} />
             </div>
             {showJumpToNewest && (
@@ -1590,7 +1635,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           if (!open) setParticipantsModalPurpose("pick")
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-white">
+        <DialogContent className={`max-h-[85vh] overflow-y-auto bg-white ${msgScrollHide}`}>
           <DialogHeader>
             <DialogTitle>
               {participantsModalPurpose === "view"
@@ -1604,7 +1649,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </DialogHeader>
           <div className="mt-4 space-y-4">
             {participantsModalPurpose === "view" && selectedThread ? (
-              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+              <div className={`messages-thread-list max-h-96 space-y-2 overflow-y-auto ${msgScrollHide}`}>
                 {selectedThread.participants.map((p) => {
                   const name = displayNameForParticipantUser(p.user)
                   const initials = initialsFromDisplayName(name)
@@ -1635,7 +1680,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 })}
               </div>
             ) : (
-              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+              <div className={`messages-thread-list max-h-96 space-y-2 overflow-y-auto ${msgScrollHide}`}>
                 {getFilteredContacts().length === 0 ? (
                   <p className="py-4 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
                     {threadType ? `No ${threadType}s available` : "No contacts available"}

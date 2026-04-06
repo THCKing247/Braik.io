@@ -3,9 +3,11 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 
+const STORAGE_BUCKET = "message-attachments"
+
 /**
  * GET /api/messages/attachments/serve?fileUrl=xxx
- * Serves an attachment by file URL (backward compatibility).
+ * Serves an attachment by storage path (backward compatibility).
  */
 export async function GET(request: Request) {
   try {
@@ -22,7 +24,6 @@ export async function GET(request: Request) {
 
     const supabase = getSupabaseServer()
 
-    // Find attachment by file_url
     const { data: attachment, error: attachmentError } = await supabase
       .from("message_attachments")
       .select("id, thread_id, team_id, file_name, file_url, file_size, mime_type")
@@ -35,7 +36,6 @@ export async function GET(request: Request) {
 
     await requireTeamAccess(attachment.team_id)
 
-    // Verify user is a participant in the thread
     const { data: participant } = await supabase
       .from("message_thread_participants")
       .select("user_id")
@@ -44,7 +44,6 @@ export async function GET(request: Request) {
       .maybeSingle()
 
     if (!participant) {
-      // Check if user is admin
       const { data: user } = await supabase
         .from("users")
         .select("role")
@@ -56,20 +55,33 @@ export async function GET(request: Request) {
       }
     }
 
-    // TODO: Serve file from Supabase Storage or file system
-    // For now, return file info
-    return NextResponse.json({
-      id: attachment.id,
-      fileName: attachment.file_name,
-      fileUrl: attachment.file_url,
-      fileSize: attachment.file_size,
-      mimeType: attachment.mime_type,
+    const { data: fileBlob, error: dlErr } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .download(attachment.file_url)
+
+    if (dlErr || !fileBlob) {
+      console.error("[GET /api/messages/attachments/serve] storage download", dlErr)
+      return NextResponse.json({ error: "File not found in storage" }, { status: 404 })
+    }
+
+    const arrayBuffer = await fileBlob.arrayBuffer()
+    const contentType = attachment.mime_type || "application/octet-stream"
+    const safeName = attachment.file_name.replace(/[\r\n"]/g, "_")
+
+    return new NextResponse(arrayBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Content-Length": String(arrayBuffer.byteLength),
+        "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+        "Cache-Control": "private, max-age=3600",
+      },
     })
   } catch (error: any) {
     console.error("[GET /api/messages/attachments/serve]", error)
-  return NextResponse.json(
+    return NextResponse.json(
       { error: error.message || "Failed to serve attachment" },
       { status: error.message?.includes("Access denied") ? 403 : 500 }
-  )
+    )
   }
 }

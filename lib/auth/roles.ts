@@ -44,3 +44,8 @@ export function canModerateMessages(role: Role): boolean {
   return role === ROLES.HEAD_COACH || role === ROLES.SCHOOL_ADMIN || role === ROLES.ATHLETIC_DIRECTOR
 }
 
+/** Message removal/delete control in Messages UI — school admins only (plus platform admin via session; see APIs). */
+export function canAdminDeleteMessages(role: Role): boolean {
+  return role === ROLES.SCHOOL_ADMIN
+}
+

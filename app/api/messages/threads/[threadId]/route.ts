@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUserMembershipForUserId, requireTeamAccessWithUser } from "@/lib/auth/rbac"
-import { canModerateMessages } from "@/lib/auth/roles"
+import { canAdminDeleteMessages } from "@/lib/auth/roles"
+import { isAdminUserRole } from "@/lib/auth/user-roles"
 import { MODERATED_MESSAGE_PLACEHOLDER } from "@/lib/messaging/moderation-copy"
 
 /**
@@ -116,7 +117,9 @@ export async function GET(
       ])
     })
 
-    const canModerate = mem ? canModerateMessages(mem.role) : false
+    const canModerate =
+      isAdminUserRole(session.user?.role) ||
+      (mem ? canAdminDeleteMessages(mem.role) : false)
 
     const formattedMessages = (messages ?? []).map((m) => {
       const sender = userMap.get(m.sender_id) || { id: m.sender_id, name: null, email: "" }

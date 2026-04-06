@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { loadMergedPlatformRoleUserCounts } from "@/lib/admin/platform-role-user-counts"
 import { requireManageRolesForApi } from "@/lib/permissions/platform-permissions"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { isPlatformPermissionKey, type PlatformPermissionKey } from "@/lib/permissions/platform-permission-keys"
@@ -41,12 +42,14 @@ export async function GET(_request: Request, context: { params: Promise<{ roleId
     .map((p) => (p as { permission_key: string }).permission_key)
     .filter((k) => isPlatformPermissionKey(k)) as PlatformPermissionKey[]
 
-  const { count: userCountRaw } = await supabase.from("users").select("*", { count: "exact", head: true }).eq("platform_role_id", roleId)
+  const row = role as { id: string; key: string }
+  const counts = await loadMergedPlatformRoleUserCounts(supabase, [{ id: row.id, key: row.key }])
+  const userCount = counts.get(row.id) ?? 0
 
   return NextResponse.json({
     role,
     permissionKeys,
-    userCount: userCountRaw ?? 0,
+    userCount,
   })
 }
 

@@ -5,6 +5,7 @@ import {
   type FallbackPermissionGroup,
   type PlatformRoleListItem,
 } from "@/lib/admin/fallback-platform-roles"
+import { loadMergedPlatformRoleUserCounts } from "@/lib/admin/platform-role-user-counts"
 import { isSupabaseSchemaObjectMissingError } from "@/lib/admin/supabase-schema-error"
 import { isPlatformPermissionKey, type PlatformPermissionKey } from "@/lib/permissions/platform-permission-keys"
 
@@ -40,11 +41,20 @@ export async function loadPlatformRolesList(supabase: SupabaseClient): Promise<L
   if (rolesErr) {
     if (isSupabaseSchemaObjectMissingError(rolesErr)) {
       console.warn("[platform-roles] platform_roles unavailable; using in-code catalog:", rolesErr.message)
+      const fallbackRows = getFallbackPlatformRoles()
+      const counts = await loadMergedPlatformRoleUserCounts(
+        supabase,
+        fallbackRows.map((r) => ({ id: r.id, key: r.key }))
+      )
+      const rolesWithCounts = fallbackRows.map((r) => ({
+        ...r,
+        userCount: counts.get(r.id) ?? 0,
+      }))
       return {
         ok: true,
         source: "fallback",
         catalogReadOnly: true,
-        roles: getFallbackPlatformRoles(),
+        roles: rolesWithCounts,
         permissionGroups: getFallbackPlatformPermissionGroups(),
       }
     }
@@ -56,7 +66,10 @@ export async function loadPlatformRolesList(supabase: SupabaseClient): Promise<L
   }
 
   const roles = (roleRows ?? []) as DbRoleRow[]
-  const counts = await loadUserCountsByRoleId(supabase)
+  const counts = await loadMergedPlatformRoleUserCounts(
+    supabase,
+    roles.map((r) => ({ id: r.id, key: r.key }))
+  )
   const permMap = await loadPermissionKeysByRoleId(supabase)
 
   const mapped: PlatformRoleListItem[] = roles.map((r) => ({
@@ -78,27 +91,6 @@ export async function loadPlatformRolesList(supabase: SupabaseClient): Promise<L
     catalogReadOnly: false,
     roles: mapped,
   }
-}
-
-async function loadUserCountsByRoleId(supabase: SupabaseClient): Promise<Map<string, number>> {
-  const counts = new Map<string, number>()
-  const { data: userRows, error: usersErr } = await supabase.from("users").select("platform_role_id").not("platform_role_id", "is", null)
-
-  if (usersErr) {
-    if (isSupabaseSchemaObjectMissingError(usersErr)) {
-      console.warn("[platform-roles] users.platform_role_id not available; user counts default to 0:", usersErr.message)
-      return counts
-    }
-    console.warn("[platform-roles] user count query failed; user counts default to 0:", usersErr.message)
-    return counts
-  }
-
-  for (const u of userRows ?? []) {
-    const id = (u as { platform_role_id?: string }).platform_role_id
-    if (!id) continue
-    counts.set(id, (counts.get(id) ?? 0) + 1)
-  }
-  return counts
 }
 
 async function loadPermissionKeysByRoleId(supabase: SupabaseClient): Promise<Map<string, PlatformPermissionKey[]>> {

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { adminUi } from "@/lib/admin/admin-ui"
+import { cn } from "@/lib/utils"
 
 export function AdminTeamDetailActions({
   team,
@@ -60,48 +61,88 @@ export function AdminTeamDetailActions({
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-white/10 bg-white/5 p-4 text-sm">
-      <div className="grid gap-2 md:grid-cols-2">
-        <input className="rounded border border-white/20 bg-black/20 px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} />
-        <input
-          type="number"
-          className="rounded border border-white/20 bg-black/20 px-3 py-2"
-          value={baseAiCredits}
-          onChange={(e) => setBaseAiCredits(Number(e.target.value))}
-        />
-        <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={subscriptionStatus} onChange={(e) => setSubscriptionStatus(e.target.value)}>
-          <option value="active">active</option>
-          <option value="past_due">past_due</option>
-          <option value="grace_period">grace_period</option>
-          <option value="suspended">suspended</option>
-          <option value="cancelled">cancelled</option>
-          <option value="terminated">terminated</option>
-        </select>
-        <select className="rounded border border-white/20 bg-black/20 px-3 py-2" value={teamStatus} onChange={(e) => setTeamStatus(e.target.value)}>
-          <option value="active">active</option>
-          <option value="suspended">suspended</option>
-          <option value="cancelled">cancelled</option>
-          <option value="terminated">terminated</option>
-        </select>
-        <div className="flex items-center gap-2 rounded border border-white/20 bg-black/20 px-3 py-2">
+    <div className={cn(adminUi.panel, adminUi.panelPadding, "space-y-4 text-sm")}>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <label className={adminUi.label} htmlFor="team-name">
+            Team name
+          </label>
+          <input
+            id="team-name"
+            className={adminUi.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className={adminUi.label} htmlFor="base-ai-credits">
+            Base AI credits
+          </label>
+          <input
+            id="base-ai-credits"
+            type="number"
+            className={adminUi.input}
+            value={baseAiCredits}
+            onChange={(e) => setBaseAiCredits(Number(e.target.value))}
+          />
+        </div>
+        <div>
+          <label className={adminUi.label} htmlFor="sub-status">
+            Subscription status
+          </label>
+          <select
+            id="sub-status"
+            className={adminUi.select}
+            value={subscriptionStatus}
+            onChange={(e) => setSubscriptionStatus(e.target.value)}
+          >
+            <option value="active">active</option>
+            <option value="past_due">past_due</option>
+            <option value="grace_period">grace_period</option>
+            <option value="suspended">suspended</option>
+            <option value="cancelled">cancelled</option>
+            <option value="terminated">terminated</option>
+          </select>
+        </div>
+        <div>
+          <label className={adminUi.label} htmlFor="team-status">
+            Team status
+          </label>
+          <select
+            id="team-status"
+            className={adminUi.select}
+            value={teamStatus}
+            onChange={(e) => setTeamStatus(e.target.value)}
+          >
+            <option value="active">active</option>
+            <option value="suspended">suspended</option>
+            <option value="cancelled">cancelled</option>
+            <option value="terminated">terminated</option>
+          </select>
+        </div>
+        <label className={cn(adminUi.formCheckRow, "cursor-pointer")}>
           <input type="checkbox" checked={aiEnabled} onChange={(e) => setAiEnabled(e.target.checked)} />
-          AI enabled
-        </div>
-        <div className="flex items-center gap-2 rounded border border-white/20 bg-black/20 px-3 py-2">
-          <input type="checkbox" checked={aiDisabledByPlatform} onChange={(e) => setAiDisabledByPlatform(e.target.checked)} />
-          Disable AI by platform
-        </div>
+          <span className="font-medium text-slate-200">AI enabled</span>
+        </label>
+        <label className={cn(adminUi.formCheckRow, "cursor-pointer")}>
+          <input
+            type="checkbox"
+            checked={aiDisabledByPlatform}
+            onChange={(e) => setAiDisabledByPlatform(e.target.checked)}
+          />
+          <span className="font-medium text-slate-200">Disable AI by platform</span>
+        </label>
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={saveTeam} className={adminUi.btnPrimarySm}>
-          Save Team
+          Save team
         </button>
-        <button onClick={saveAiSettings} className="rounded bg-white/10 px-3 py-2 text-xs">
-          Save AI Settings
+        <button type="button" onClick={saveAiSettings} className={adminUi.btnSecondarySm}>
+          Save AI settings
         </button>
       </div>
-      <p className="text-xs text-white/70">Current AI usage this cycle: {team.aiUsageThisCycle}</p>
-      {result ? <p className="text-xs text-white/70">{result}</p> : null}
+      <p className="text-xs font-medium text-slate-300">Current AI usage this cycle: {team.aiUsageThisCycle}</p>
+      {result ? <p className="text-xs font-medium text-slate-200">{result}</p> : null}
     </div>
   )
 }

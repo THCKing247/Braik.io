@@ -4,14 +4,8 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import type { AthleticDepartmentListRow } from "@/lib/admin/athletic-departments-types"
-import { adminUi } from "@/lib/admin/admin-ui"
+import { adminChip, adminOpsAdStatusChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
-
-function statusChip(value: string): string {
-  const normalized = value.toLowerCase()
-  if (normalized === "active") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
-  return "bg-white/10 text-white/80 border-white/20"
-}
 
 export function OperatorAthleticDepartments({ initialRows }: { initialRows: AthleticDepartmentListRow[] }) {
   const [query, setQuery] = useState("")
@@ -41,7 +35,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
 
       {filtered.length === 0 ? (
         <div className={adminUi.emptyState}>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm font-medium text-slate-300">
             {initialRows.length === 0
               ? "No athletic departments found. Provisioning may create schools and departments."
               : "No rows match your search."}
@@ -74,19 +68,13 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
                   </td>
                   <td className={adminUi.td}>{row.assistantCoachesAllowed}</td>
                   <td className={adminUi.td}>
-                    <span
-                      className={
-                        row.videoFeatureEnabled
-                          ? "rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-100"
-                          : "rounded-md border border-white/15 bg-[#060a12]/80 px-2 py-0.5 text-slate-500"
-                      }
-                    >
+                    <span className={row.videoFeatureEnabled ? adminChip.success : cn(adminChip.neutral, "text-slate-300")}>
                       {row.videoFeatureEnabled ? "On" : "Off"}
                     </span>
                   </td>
                   <td className={adminUi.td}>{row.totalUsers}</td>
                   <td className={adminUi.td}>
-                    <span className={cn("rounded-md border px-2 py-0.5 text-xs", statusChip(row.status))}>
+                    <span className={cn(adminOpsAdStatusChip(row.status), "text-xs")}>
                       {row.status}
                     </span>
                   </td>

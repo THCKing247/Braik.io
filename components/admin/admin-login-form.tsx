@@ -77,7 +77,7 @@ export function AdminLoginForm() {
     >
       <div className="mb-6 flex items-center justify-center gap-2 text-orange-400">
         <Shield className="h-6 w-6" aria-hidden />
-        <h2 className="font-athletic text-xl font-bold uppercase tracking-wide text-white">Admin portal</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-white">Admin portal</h2>
       </div>
       <p className="mb-6 text-center text-sm text-slate-400">Sign in with your platform owner or admin account</p>
       <form onSubmit={handleSubmit} className="space-y-5">

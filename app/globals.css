@@ -235,6 +235,31 @@
 }
 
 @layer utilities {
+  /* Admin console — dark skeleton shimmer (solid base + moving highlight) */
+  .admin-skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(15 23 42); /* slate-900 */
+  }
+  .admin-skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(51 65 85 / 0.35),
+      transparent
+    );
+    animation: admin-skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes admin-skeleton-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
   /* Momentum scrolling for dashboard sidebar / main (iOS) */
   .touch-scroll {
     -webkit-overflow-scrolling: touch;

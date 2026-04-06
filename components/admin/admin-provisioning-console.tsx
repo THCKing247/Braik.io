@@ -135,13 +135,13 @@ export function AdminProvisioningConsole() {
 
   return (
     <div className="space-y-8">
-      <p className="text-sm leading-relaxed text-slate-400">
+      <p className="text-sm font-medium leading-relaxed text-slate-300">
         Create organizations and teams, then invite users. Invites use Supabase email with a secure link to set a
         password — no temporary passwords are sent in plain text.
       </p>
 
       <section className={cn(adminUi.panel, adminUi.panelPadding)}>
-        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">New organization</h2>
+        <h2 className={cn(adminUi.sectionTitle, "text-lg")}>New organization</h2>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitOrg}>
           <div>
             <label className={adminUi.label}>Name</label>
@@ -159,11 +159,11 @@ export function AdminProvisioningConsole() {
             Create organization
           </button>
         </form>
-        {orgMsg ? <p className="mt-2 text-xs text-emerald-400/90">{orgMsg}</p> : null}
+        {orgMsg ? <p className="mt-2 text-xs font-medium text-emerald-300">{orgMsg}</p> : null}
       </section>
 
       <section className={cn(adminUi.panel, adminUi.panelPadding)}>
-        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">New team (under program)</h2>
+        <h2 className={cn(adminUi.sectionTitle, "text-lg")}>New team (under program)</h2>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitTeam}>
           <div className="md:col-span-2">
             <label className={adminUi.label}>Organization</label>
@@ -196,12 +196,12 @@ export function AdminProvisioningConsole() {
             Create team
           </button>
         </form>
-        {teamMsg ? <p className="mt-2 text-xs text-emerald-400/90">{teamMsg}</p> : null}
+        {teamMsg ? <p className="mt-2 text-xs font-medium text-emerald-300">{teamMsg}</p> : null}
       </section>
 
       <section className={cn(adminUi.panel, adminUi.panelPadding)}>
-        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">Invite user</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <h2 className={cn(adminUi.sectionTitle, "text-lg")}>Invite user</h2>
+        <p className="mt-1 text-xs font-medium text-slate-400">
           Sends a Supabase invite email. TODO: confirm Auth email templates use your app URL in the dashboard.
         </p>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitInvite}>
@@ -269,7 +269,7 @@ export function AdminProvisioningConsole() {
             Send invite
           </button>
         </form>
-        {inviteMsg ? <p className="mt-2 text-xs text-emerald-400/90">{inviteMsg}</p> : null}
+        {inviteMsg ? <p className="mt-2 text-xs font-medium text-emerald-300">{inviteMsg}</p> : null}
       </section>
     </div>
   )

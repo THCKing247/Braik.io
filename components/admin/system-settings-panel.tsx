@@ -96,8 +96,8 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
   return (
     <div className="space-y-6">
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
-        <h3 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">System config (versioned)</h3>
-        <p className="mt-1 text-xs text-slate-400">
+        <h3 className={cn(adminUi.sectionTitle, "text-base")}>System config (versioned)</h3>
+        <p className="mt-1 text-xs font-medium text-slate-300">
           Every update appends a new row with incremented version. Previous rows are preserved.
         </p>
 
@@ -124,7 +124,7 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
 
         {scope === "selective" ? (
           <div className={cn(adminUi.panelMuted, "mt-3 p-3")}>
-            <p className="mb-2 text-xs text-slate-400">Selective team rollout</p>
+            <p className="mb-2 text-xs font-medium text-slate-300">Selective team rollout</p>
             <div className="grid max-h-36 gap-2 overflow-y-auto md:grid-cols-2">
               {teams.map((team) => (
                 <label key={team.id} className="flex items-center gap-2 text-xs">
@@ -141,21 +141,21 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
           onChange={(event) => setJsonValue(event.target.value)}
           className={cn(adminUi.input, "mt-3 min-h-[220px] font-mono text-xs")}
         />
-        {status ? <p className="mt-2 text-xs text-slate-400">{status}</p> : null}
+        {status ? <p className="mt-2 text-xs font-medium text-slate-300">{status}</p> : null}
       </div>
 
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
-        <h3 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">Latest by key</h3>
+        <h3 className={cn(adminUi.sectionTitle, "text-base")}>Latest by key</h3>
         <div className="mt-3 space-y-2">
           {latestByKey.map((row) => (
-            <div key={row.id} className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 p-3 text-xs">
-              <p className="font-semibold text-slate-200">
+            <div key={row.id} className={cn(adminUi.nestedRow, "text-xs")}>
+              <p className="font-semibold text-slate-100">
                 {row.key} (v{row.version}) - {row.applied_scope}
               </p>
-              <p className="mt-1 text-slate-400">{JSON.stringify(row.value_json)}</p>
+              <p className="mt-1 font-medium text-slate-400">{JSON.stringify(row.value_json)}</p>
             </div>
           ))}
-          {latestByKey.length === 0 ? <p className="text-sm text-slate-500">No rows available.</p> : null}
+          {latestByKey.length === 0 ? <p className="text-sm font-medium text-slate-400">No rows available.</p> : null}
         </div>
       </div>
 
@@ -166,12 +166,12 @@ export function SystemSettingsPanel({ initialRows, teams }: Props) {
         summary="Choose rollout scope and append a new immutable config version."
       >
         <div className="space-y-3">
-          <p className="text-sm text-slate-300">
-            Key: <span className="font-mono text-orange-200/90">{key}</span> | Scope:{" "}
-            <span className="font-mono text-orange-200/90">{scope}</span>
+          <p className="text-sm font-medium text-slate-200">
+            Key: <span className="font-mono text-orange-300">{key}</span> | Scope:{" "}
+            <span className="font-mono text-orange-300">{scope}</span>
           </p>
           {scope === "selective" ? (
-            <p className="text-xs text-slate-400">Team count selected: {selectedTeamIds.length}</p>
+            <p className="text-xs font-medium text-slate-300">Team count selected: {selectedTeamIds.length}</p>
           ) : null}
           <div className="flex items-center gap-2">
             <button

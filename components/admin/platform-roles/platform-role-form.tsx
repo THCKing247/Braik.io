@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { PlatformPermissionKey } from "@/lib/permissions/platform-permission-keys"
 import { PLATFORM_PERMISSION_SECTION_ORDER } from "@/lib/permissions/platform-permission-keys"
-import { adminUi } from "@/lib/admin/admin-ui"
+import { adminChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
 type PermRow = { key: string; section: string; label: string; description: string }
@@ -202,11 +202,11 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
   }
 
   if (phase === "loading") {
-    return <p className="text-sm text-white/70">Loading…</p>
+    return <p className="text-sm font-medium text-slate-300">Loading…</p>
   }
   if (phase === "forbidden") {
     return (
-      <p className="text-sm text-amber-200/90">
+      <p className="text-sm font-medium text-amber-200">
         You cannot manage roles.{" "}
         <Link href="/admin/roles" className={cn(adminUi.link, "underline-offset-2")}>
           Back
@@ -216,7 +216,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
   }
   if (phase === "error") {
     return (
-      <p className="text-sm text-red-300/90">
+      <p className="text-sm font-medium text-red-300">
         Failed to load.{" "}
         <button type="button" className={cn(adminUi.link, "underline-offset-2")} onClick={() => void load()}>
           Retry
@@ -231,8 +231,8 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
         <div
           className={
             toast.type === "ok"
-              ? "rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm text-emerald-100"
-              : "rounded-lg border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm text-red-100"
+              ? "rounded-lg border border-emerald-800 bg-emerald-950 px-4 py-2 text-sm font-medium text-emerald-100"
+              : "rounded-lg border border-red-800 bg-red-950 px-4 py-2 text-sm font-medium text-red-100"
           }
         >
           {toast.message}
@@ -242,14 +242,8 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
       <div className={cn(adminUi.panel, adminUi.panelPadding, "grid gap-4 md:grid-cols-2")}>
         {isEdit && roleType ? (
           <div className="md:col-span-2 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-white/50">Role type</span>
-            <span
-              className={
-                roleType === "system"
-                  ? "rounded border border-violet-400/40 bg-violet-500/15 px-2 py-0.5 text-xs text-violet-100"
-                  : "rounded border border-white/20 bg-white/5 px-2 py-0.5 text-xs text-white/80"
-              }
-            >
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Role type</span>
+            <span className={roleType === "system" ? cn(adminChip.violet, "text-xs") : cn(adminChip.neutral, "text-xs")}>
               {roleType === "system" ? "System" : "Custom"}
             </span>
           </div>
@@ -269,8 +263,8 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
           />
         </div>
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-white/50">Status</span>
-          <label className="flex items-center gap-2 text-sm text-white/90">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</span>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-200">
             <Checkbox checked={isActive} onCheckedChange={(c) => setIsActive(Boolean(c))} />
             Active
           </label>
@@ -287,14 +281,14 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
       </div>
 
       <div className="space-y-4">
-        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">Permissions</h2>
+        <h2 className={cn(adminUi.sectionTitle, "text-base")}>Permissions</h2>
         <div className="space-y-6">
           {grouped.map(({ section, rows }) => {
             const allOn = rows.length > 0 && rows.every((r) => selected.has(r.key as PlatformPermissionKey))
             return (
               <div key={section} className={cn(adminUi.panelMuted, "p-4")}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-orange-200/95">{section}</h3>
+                  <h3 className="text-sm font-semibold text-orange-300">{section}</h3>
                   <button
                     type="button"
                     onClick={() => selectSection(section, !allOn)}
@@ -305,7 +299,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
                 </div>
                 <ul className="space-y-3">
                   {rows.map((r) => (
-                    <li key={r.key} className="flex gap-3 rounded-lg border border-white/5 bg-black/20 p-3">
+                    <li key={r.key} className={cn(adminUi.nestedRow, "flex gap-3")}>
                       <Checkbox
                         checked={selected.has(r.key as PlatformPermissionKey)}
                         onCheckedChange={(c) => toggleKey(r.key as PlatformPermissionKey, Boolean(c))}
@@ -313,8 +307,8 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
                       />
                       <div>
                         <div className="text-sm font-medium text-white">{r.label}</div>
-                        <div className="font-mono text-[11px] text-white/45">{r.key}</div>
-                        {r.description ? <p className="mt-1 text-xs text-white/55">{r.description}</p> : null}
+                        <div className="font-mono text-[11px] text-slate-400">{r.key}</div>
+                        {r.description ? <p className="mt-1 text-xs font-medium text-slate-400">{r.description}</p> : null}
                       </div>
                     </li>
                   ))}
@@ -325,7 +319,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-4">
+      <div className="flex flex-wrap items-center gap-3 border-t border-slate-800 pt-4">
         <button
           type="button"
           disabled={saving || !name.trim() || !key.trim()}
@@ -334,10 +328,10 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
         >
           {saving ? "Saving…" : isEdit ? "Save changes" : "Create role"}
         </button>
-        <Link href="/admin/roles" className="text-sm text-slate-400 transition-colors hover:text-white">
+        <Link href="/admin/roles" className="text-sm font-medium text-slate-300 transition-colors hover:text-white">
           Cancel
         </Link>
-        {isDirty ? <span className="text-xs text-amber-200/80">Unsaved changes</span> : null}
+        {isDirty ? <span className="text-xs font-medium text-amber-200">Unsaved changes</span> : null}
       </div>
     </div>
   )

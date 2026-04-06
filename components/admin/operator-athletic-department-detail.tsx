@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
-import { adminUi } from "@/lib/admin/admin-ui"
+import { adminOpsTeamStateChip, adminOpsUserStatusChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 import type {
   AthleticDepartmentDetailOverview,
@@ -15,13 +15,6 @@ type InitialDetail = {
   overview: AthleticDepartmentDetailOverview
   teams: AthleticDepartmentTeamRow[]
   users: AthleticDepartmentUserRow[]
-}
-
-function statusChip(value: string): string {
-  const normalized = value.toLowerCase()
-  if (normalized === "active") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
-  if (normalized.includes("suspend")) return "bg-red-500/20 text-red-200 border-red-400/40"
-  return "bg-white/10 text-white/80 border-white/20"
 }
 
 export function OperatorAthleticDepartmentDetail({
@@ -155,39 +148,39 @@ export function OperatorAthleticDepartmentDetail({
         <Link href="/admin/athletic-departments" className={cn(adminUi.link, "text-sm underline-offset-2")}>
           ← Athletic Departments
         </Link>
-        <span className="text-slate-600">/</span>
+        <span className="text-slate-500">/</span>
         <span className="text-slate-300">{overview.schoolName}</span>
       </div>
 
-      {err && (
-        <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">{err}</div>
-      )}
+      {err ? (
+        <div className="rounded-lg border border-red-800 bg-red-950 px-3 py-2 text-sm font-medium text-red-100">{err}</div>
+      ) : null}
 
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
-        <h2 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">{overview.schoolName}</h2>
+        <h2 className={cn(adminUi.sectionTitle, "text-lg")}>{overview.schoolName}</h2>
         {overview.organizationNames.length > 0 && (
-          <p className="mt-1 text-sm text-slate-400">Organizations: {overview.organizationNames.join(", ")}</p>
+          <p className="mt-1 text-sm font-medium text-slate-300">Organizations: {overview.organizationNames.join(", ")}</p>
         )}
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 px-3 py-2">
-            <dt className="text-xs uppercase tracking-wide text-slate-500">Teams usage</dt>
+          <div className={adminUi.nestedRow}>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Teams usage</dt>
             <dd className="mt-1 text-sm font-medium text-slate-100">{usageTeams}</dd>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 px-3 py-2">
-            <dt className="text-xs uppercase tracking-wide text-slate-500">Assistant coaches</dt>
+          <div className={adminUi.nestedRow}>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Assistant coaches</dt>
             <dd className="mt-1 text-sm font-medium text-slate-100">{usageAssist}</dd>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-[#060a12]/50 px-3 py-2">
-            <dt className="text-xs uppercase tracking-wide text-slate-500">School video (master)</dt>
+          <div className={adminUi.nestedRow}>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">School video (master)</dt>
             <dd className="mt-1 text-sm font-medium text-slate-100">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
           </div>
         </dl>
 
-        <div className="mt-5 space-y-3 border-t border-white/[0.08] pt-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Edit entitlements</p>
+        <div className="mt-5 space-y-3 border-t border-slate-800 pt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Edit entitlements</p>
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-slate-400">teams_allowed</span>
+              <span className="font-medium text-slate-300">teams_allowed</span>
               <input
                 type="number"
                 min={0}
@@ -197,7 +190,7 @@ export function OperatorAthleticDepartmentDetail({
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-slate-400">assistant_coaches_allowed</span>
+              <span className="font-medium text-slate-300">assistant_coaches_allowed</span>
               <input
                 type="number"
                 min={0}
@@ -224,20 +217,20 @@ export function OperatorAthleticDepartmentDetail({
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs font-medium text-slate-400">
             Lowering caps below current usage requires confirmation. Team video stays off when school video is off.
           </p>
         </div>
       </div>
 
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
-        <h3 className="font-athletic text-base font-bold uppercase tracking-wide text-white">Teams</h3>
-        <p className="mt-1 text-xs text-slate-400">
+        <h3 className={adminUi.sectionTitle}>Teams</h3>
+        <p className="mt-1 text-xs font-medium text-slate-300">
           Team toggles are disabled when school video is off. Effective video also requires organization and team flags
           when a program is linked.
         </p>
         {teams.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-400">No teams linked to this athletic department.</p>
+          <p className="mt-4 text-sm font-medium text-slate-400">No teams linked to this athletic department.</p>
         ) : (
           <div className={cn(adminUi.tableWrap, "mt-4")}>
             <table className={cn(adminUi.table, "min-w-[900px]")}>
@@ -269,16 +262,14 @@ export function OperatorAthleticDepartmentDetail({
                       <td className={adminUi.td}>{t.headCoachName ?? "—"}</td>
                       <td className={adminUi.td}>{t.assistantCoachCount}</td>
                       <td className={adminUi.td}>
-                        <span className={cn("rounded-md border px-2 py-0.5 text-xs", statusChip(t.teamStatus))}>
-                          {t.teamStatus}
-                        </span>
+                        <span className={cn(adminOpsTeamStateChip(t.teamStatus), "text-xs")}>{t.teamStatus}</span>
                       </td>
-                      <td className={cn(adminUi.td, "text-slate-400")}>
+                      <td className={cn(adminUi.td, "font-medium text-slate-300")}>
                         {t.organizationVideoEnabled == null ? "—" : t.organizationVideoEnabled ? "On" : "Off"}
                       </td>
                       <td className={adminUi.td}>
                         <label
-                          className={`inline-flex items-center gap-2 ${disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer"}`}
+                          className={`inline-flex items-center gap-2 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                         >
                           <input
                             type="checkbox"
@@ -302,7 +293,7 @@ export function OperatorAthleticDepartmentDetail({
 
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-athletic text-base font-bold uppercase tracking-wide text-white">Users</h3>
+          <h3 className={adminUi.sectionTitle}>Users</h3>
           <input
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
@@ -311,7 +302,7 @@ export function OperatorAthleticDepartmentDetail({
           />
         </div>
         {filteredUsers.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-400">
+          <p className="mt-4 text-sm font-medium text-slate-400">
             {users.length === 0 ? "No users found for this department." : "No users match your search."}
           </p>
         ) : (
@@ -337,11 +328,11 @@ export function OperatorAthleticDepartmentDetail({
                     </td>
                     <td className={adminUi.td}>{u.email ?? "—"}</td>
                     <td className={adminUi.td}>{u.role}</td>
-                    <td className={cn(adminUi.td, "max-w-[280px] text-slate-400")}>{u.teamLabels}</td>
+                    <td className={cn(adminUi.td, "max-w-[280px] font-medium text-slate-300")}>{u.teamLabels}</td>
                     <td className={adminUi.td}>
-                      <span className={cn("rounded-md border px-2 py-0.5 text-xs", statusChip(u.status))}>{u.status}</span>
+                      <span className={cn(adminOpsUserStatusChip(u.status), "text-xs")}>{u.status}</span>
                     </td>
-                    <td className={cn(adminUi.td, "text-slate-400")}>
+                    <td className={cn(adminUi.td, "font-medium text-slate-300")}>
                       {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "—"}
                     </td>
                   </tr>

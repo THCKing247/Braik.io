@@ -29,15 +29,15 @@ export function AdminModal({ open, title, summary, onClose, children }: AdminMod
           "relative z-[121] w-full max-w-6xl max-h-[min(90vh,920px)] flex flex-col overflow-hidden p-0 text-slate-100 shadow-2xl shadow-black/50"
         )}
       >
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/[0.08] bg-[#0a1020]/40 px-5 py-4">
+        <div className={cn(adminUi.modalHeader, "flex shrink-0 items-start justify-between gap-4")}>
           <div className="min-w-0">
-            <h3 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">{title}</h3>
-            {summary ? <p className="mt-1 text-xs leading-relaxed text-slate-400">{summary}</p> : null}
+            <h3 className="text-lg font-semibold tracking-tight text-white">{title}</h3>
+            {summary ? <p className="mt-1 text-xs font-medium leading-relaxed text-slate-300">{summary}</p> : null}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={cn(adminUi.btnSecondarySm, "shrink-0 border-white/10")}
+            className={cn(adminUi.btnSecondarySm, "shrink-0")}
           >
             Close
           </button>

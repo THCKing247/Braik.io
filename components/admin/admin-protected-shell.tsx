@@ -5,7 +5,8 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
-import { adminUi, isAdminNavActive } from "@/lib/admin/admin-ui"
+import { adminNavLinkClass, adminUi, isAdminNavActive } from "@/lib/admin/admin-ui"
+import { AdminLoadingShell } from "@/components/admin/admin-loading-shell"
 
 type Phase = "loading" | "ok" | "error"
 
@@ -23,12 +24,18 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
   const pathname = usePathname()
   const active = isAdminNavActive(pathname, href)
   return (
-    <Link
-      href={href}
-      className={cn(adminUi.navLink, active && adminUi.navLinkActive)}
-    >
+    <Link href={href} className={adminNavLinkClass(active)}>
       {children}
     </Link>
+  )
+}
+
+function NavSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mt-6 first:mt-0">
+      <p className={adminUi.navSectionLabel}>{title}</p>
+      <div className="space-y-0.5">{children}</div>
+    </div>
   )
 }
 
@@ -101,17 +108,13 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
   }, [router])
 
   if (phase === "loading") {
-    return (
-      <div className={adminUi.loadingCenter}>
-        <p className="text-sm text-slate-400">Loading admin…</p>
-      </div>
-    )
+    return <AdminLoadingShell />
   }
 
   if (phase === "error") {
     return (
       <div className={adminUi.errorCenter}>
-        <p className="text-sm text-slate-300">Could not verify admin access.</p>
+        <p className="text-sm font-medium text-slate-200">Could not verify admin access.</p>
         <Link href="/admin/login" className={cn(adminUi.link, "text-base")}>
           Admin login
         </Link>
@@ -124,30 +127,34 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
       <div className="flex w-full gap-0">
         <aside className={adminUi.sidebar}>
           <p className={adminUi.brandKicker}>Braik</p>
-          <h1 className={adminUi.sidebarTitle}>Admin Console</h1>
-          <p className="mt-1 text-xs text-slate-500">Platform operations &amp; governance</p>
-          <nav className="mt-6 space-y-1 text-sm">
-            <NavLink href="/admin">Overview</NavLink>
-            <NavLink href="/admin/users">Accounts</NavLink>
-            <NavLink href="/admin/teams">Teams</NavLink>
-            <NavLink href="/admin/athletic-departments">Athletic Departments</NavLink>
-            <NavLink href="/admin/provisioning">Provisioning</NavLink>
-            {caps && (caps.canViewBilling || caps.canManageBilling) ? (
-              <NavLink href="/admin/billing">Billing</NavLink>
-            ) : null}
-            {caps?.canViewAuditLogs ? <NavLink href="/admin/audit">Audit</NavLink> : null}
-            {caps && (caps.canViewAuditLogs || caps.canManageUsers) ? (
-              <NavLink href="/admin/document-audit">Document audit</NavLink>
-            ) : null}
-            {caps?.canManageRoles ? <NavLink href="/admin/roles">Roles &amp; Permissions</NavLink> : null}
-            {caps?.canManagePlatformSettings ? (
-              <NavLink href="/admin/settings/system">System Settings</NavLink>
-            ) : null}
-            <NavLink href="/admin/dashboard">Dashboard</NavLink>
-            <p className={adminUi.navSectionLabel}>Leave</p>
-            <Link href="/dashboard" className={cn(adminUi.navLink, "mt-1")}>
-              Exit to App
-            </Link>
+          <h1 className={adminUi.sidebarTitle}>Admin</h1>
+          <p className={adminUi.sidebarTagline}>Platform operations</p>
+          <nav className="mt-8 text-sm">
+            <NavSection title="Operations">
+              <NavLink href="/admin/dashboard">Dashboard</NavLink>
+              <NavLink href="/admin/users">Accounts</NavLink>
+              <NavLink href="/admin/teams">Teams</NavLink>
+              <NavLink href="/admin/athletic-departments">Athletic departments</NavLink>
+              <NavLink href="/admin/provisioning">Provisioning</NavLink>
+            </NavSection>
+
+            <NavSection title="Platform">
+              {caps && (caps.canViewBilling || caps.canManageBilling) ? (
+                <NavLink href="/admin/billing">Billing</NavLink>
+              ) : null}
+              {caps?.canViewAuditLogs ? <NavLink href="/admin/audit">Audit</NavLink> : null}
+              {caps && (caps.canViewAuditLogs || caps.canManageUsers) ? (
+                <NavLink href="/admin/document-audit">Document audit</NavLink>
+              ) : null}
+              {caps?.canManageRoles ? <NavLink href="/admin/roles">Roles &amp; permissions</NavLink> : null}
+              {caps?.canManagePlatformSettings ? <NavLink href="/admin/settings/system">System settings</NavLink> : null}
+            </NavSection>
+
+            <NavSection title="Session">
+              <Link href="/dashboard" className={adminNavLinkClass(false)}>
+                Exit to app
+              </Link>
+            </NavSection>
           </nav>
         </aside>
         <main className={adminUi.main}>{children}</main>

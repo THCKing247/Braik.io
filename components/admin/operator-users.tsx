@@ -7,7 +7,7 @@ import { AdminModal } from "@/components/admin/admin-modal"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { getUserRoleLabel, USER_ROLE_VALUES, USER_ROLE_LABELS } from "@/lib/auth/user-roles"
 import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
-import { adminUi } from "@/lib/admin/admin-ui"
+import { adminKpiLabel, adminKpiStatCard, adminKpiValue, adminOpsUserStatusChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
 interface UserRow {
@@ -22,14 +22,6 @@ interface UserRow {
   platformRoleId: string | null
   platformRoleName: string | null
   platformRoleKey: string | null
-}
-
-function chipClass(status: string): string {
-  const value = status.toLowerCase()
-  if (value.includes("active")) return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
-  if (value.includes("suspend")) return "bg-red-500/20 text-red-200 border-red-400/40"
-  if (value.includes("deactiv")) return "border-slate-500/40 bg-slate-500/15 text-slate-200"
-  return "border-white/15 bg-white/[0.06] text-slate-300"
 }
 
 type AdminCaps = {
@@ -157,25 +149,25 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
       />
 
       <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-xl border border-sky-400/30 bg-sky-500/10 p-3">
-          <p className="text-xs text-sky-100/70">Total</p>
-          <p className="text-2xl font-semibold text-sky-100">{users.length}</p>
+        <div className={adminKpiStatCard("sky")}>
+          <p className={adminKpiLabel()}>Total</p>
+          <p className={adminKpiValue()}>{users.length}</p>
         </div>
-        <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-          <p className="text-xs text-emerald-100/70">Active</p>
-          <p className="text-2xl font-semibold text-emerald-100">
+        <div className={adminKpiStatCard("emerald")}>
+          <p className={adminKpiLabel()}>Active</p>
+          <p className={adminKpiValue()}>
             {users.filter((u) => u.status.toLowerCase().includes("active")).length}
           </p>
         </div>
-        <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-3">
-          <p className="text-xs text-red-100/70">Suspended</p>
-          <p className="text-2xl font-semibold text-red-100">
+        <div className={adminKpiStatCard("red")}>
+          <p className={adminKpiLabel()}>Suspended</p>
+          <p className={adminKpiValue()}>
             {users.filter((u) => u.status.toLowerCase().includes("suspend")).length}
           </p>
         </div>
-        <div className="rounded-xl border border-purple-400/30 bg-purple-500/10 p-3">
-          <p className="text-xs text-purple-100/70">Admins</p>
-          <p className="text-2xl font-semibold text-purple-100">
+        <div className={adminKpiStatCard("purple")}>
+          <p className={adminKpiLabel()}>Admins</p>
+          <p className={adminKpiValue()}>
             {users.filter((u) => u.role.toLowerCase() === "admin").length}
           </p>
         </div>
@@ -199,21 +191,21 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
             {filtered.map((user) => (
               <tr key={user.id} className={adminUi.tbodyRow}>
                 <td className={adminUi.td}>
-                  <p className="font-medium text-white">{user.name || "Unnamed"}</p>
-                  <p className="text-xs text-slate-400">{user.email}</p>
+                  <p className="font-semibold text-white">{user.name || "Unnamed"}</p>
+                  <p className="text-xs font-medium text-slate-300">{user.email}</p>
                   <Link href={`/admin/users/${user.id}`} className={adminUi.linkSubtle}>
                     View profile
                   </Link>
                 </td>
                 <td className={adminUi.td}>{getUserRoleLabel(user.role)}</td>
-                <td className={cn(adminUi.td, "text-xs text-slate-300")}>
+                <td className={cn(adminUi.td, "text-xs")}>
                   {user.platformRoleName ? (
                     <>
-                      <span className="text-white">{user.platformRoleName}</span>
-                      <span className="ml-1 font-mono text-slate-500">({user.platformRoleKey})</span>
+                      <span className="font-medium text-white">{user.platformRoleName}</span>
+                      <span className="ml-1 font-mono text-slate-400">({user.platformRoleKey})</span>
                     </>
                   ) : (
-                    <span className="text-slate-500">—</span>
+                    <span className="font-medium text-slate-400">—</span>
                   )}
                 </td>
                 <td className={adminUi.td}>
@@ -222,7 +214,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                     : "No teams"}
                 </td>
                 <td className={adminUi.td}>
-                  <span className={cn("rounded-md border px-2 py-0.5 text-xs", chipClass(user.status))}>{user.status}</span>
+                  <span className={adminOpsUserStatusChip(user.status)}>{user.status}</span>
                 </td>
                 <td className={adminUi.td}>{new Date(user.createdAt).toISOString().slice(0, 10)}</td>
                 <td className={adminUi.td}>{user.lastLoginAt ? new Date(user.lastLoginAt).toISOString().slice(0, 10) : "Never"}</td>
@@ -241,7 +233,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                       type="button"
                       onClick={() => handleSuspendOrRestore(user)}
                       disabled={!!actionLoading || (caps !== null && !caps.canManageUsers)}
-                      className="rounded bg-amber-500/20 px-2 py-1 text-xs text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
+                      className={cn(adminUi.btnWarningSm, "disabled:opacity-50")}
                     >
                       {user.status.toLowerCase().includes("suspend") ? "Restore" : "Suspend"}
                     </button>
@@ -249,7 +241,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                       type="button"
                       onClick={() => handleDelete(user)}
                       disabled={!!actionLoading || (caps !== null && !caps.canManageUsers)}
-                      className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+                      className={cn(adminUi.btnDangerSm, "disabled:opacity-50")}
                     >
                       Delete
                     </button>
@@ -260,7 +252,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                       type="button"
                       onClick={() => handleSignInAsUser(user)}
                       disabled={!!actionLoading || (caps !== null && !caps.canImpersonate)}
-                      className="rounded bg-violet-500/20 px-2 py-1 text-xs text-violet-200 hover:bg-violet-500/30 disabled:opacity-50"
+                      className={cn(adminUi.btnSecondarySm, "disabled:opacity-50")}
                       title={
                         caps && !caps.canImpersonate
                           ? "Missing impersonate permission"

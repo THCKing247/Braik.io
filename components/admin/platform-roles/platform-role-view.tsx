@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { PLATFORM_PERMISSION_SECTION_ORDER } from "@/lib/permissions/platform-permission-keys"
 import type { PlatformPermissionKey } from "@/lib/permissions/platform-permission-keys"
-import { adminUi } from "@/lib/admin/admin-ui"
+import { adminChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
 type PermRow = { key: string; section: string; label: string; description: string }
@@ -70,11 +70,11 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
   }, [catalog, permissionKeys])
 
   if (phase === "loading") {
-    return <p className="text-sm text-white/70">Loading…</p>
+    return <p className="text-sm font-medium text-slate-300">Loading…</p>
   }
   if (phase === "forbidden") {
     return (
-      <p className="text-sm text-amber-200/90">
+      <p className="text-sm font-medium text-amber-200">
         You cannot view this role.{" "}
         <Link href="/admin/roles" className={cn(adminUi.link, "underline-offset-2")}>
           Back
@@ -84,7 +84,7 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
   }
   if (phase === "error" || !role) {
     return (
-      <p className="text-sm text-red-300/90">
+      <p className="text-sm font-medium text-red-300">
         Role not found.{" "}
         <Link href="/admin/roles" className={cn(adminUi.link, "underline-offset-2")}>
           Back
@@ -97,9 +97,9 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="font-athletic text-xl font-bold uppercase tracking-wide text-white">{role.name}</h2>
-          <p className="mt-1 font-mono text-sm text-orange-300/90">{role.key}</p>
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">{role.description || "—"}</p>
+          <h2 className={cn(adminUi.sectionTitle, "text-xl")}>{role.name}</h2>
+          <p className="mt-1 font-mono text-sm text-orange-300">{role.key}</p>
+          <p className="mt-2 max-w-2xl text-sm font-medium text-slate-300">{role.description || "—"}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -115,44 +115,32 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
       </div>
 
       <div className="flex flex-wrap gap-3 text-sm">
-        <span
-          className={
-            role.role_type === "system"
-              ? "rounded border border-violet-400/40 bg-violet-500/15 px-2 py-1 text-violet-100"
-              : "rounded border border-white/20 bg-white/5 px-2 py-1 text-white/80"
-          }
-        >
+        <span className={role.role_type === "system" ? adminChip.violet : cn(adminChip.neutral, "px-2 py-1")}>
           {role.role_type === "system" ? "System" : "Custom"}
         </span>
-        <span
-          className={
-            role.is_active
-              ? "rounded border border-emerald-400/40 bg-emerald-500/15 px-2 py-1 text-emerald-100"
-              : "rounded border border-white/20 bg-white/5 px-2 py-1 text-white/60"
-          }
-        >
+        <span className={role.is_active ? adminChip.success : cn(adminChip.neutral, "px-2 py-1 text-slate-400")}>
           {role.is_active ? "Active" : "Inactive"}
         </span>
-        <span className="rounded border border-white/15 bg-white/5 px-2 py-1 text-white/80">{userCount} users assigned</span>
+        <span className={cn(adminUi.badgeNeutral, "px-2 py-1")}>{userCount} users assigned</span>
       </div>
 
       <div className="space-y-4">
-        <h3 className="font-athletic text-lg font-bold uppercase tracking-wide text-white">Permissions</h3>
+        <h3 className={cn(adminUi.sectionTitle, "text-base")}>Permissions</h3>
         {grouped.map(({ section, rows }) => (
           <div key={section} className={cn(adminUi.panelMuted, "p-4")}>
-            <h4 className="mb-2 text-sm font-semibold text-orange-200/95">{section}</h4>
+            <h4 className="mb-2 text-sm font-semibold text-orange-300">{section}</h4>
             <ul className="space-y-2">
               {rows.map((r) => (
-                <li key={r.key} className="text-sm text-slate-300">
-                  <span className="font-medium text-white">{r.label}</span>
-                  <span className="ml-2 font-mono text-[11px] text-slate-500">({r.key})</span>
+                <li key={r.key} className="text-sm font-medium text-slate-300">
+                  <span className="font-semibold text-white">{r.label}</span>
+                  <span className="ml-2 font-mono text-[11px] text-slate-400">({r.key})</span>
                 </li>
               ))}
             </ul>
           </div>
         ))}
         {permissionKeys.length === 0 ? (
-          <p className="text-sm text-slate-500">No permissions assigned.</p>
+          <p className="text-sm font-medium text-slate-400">No permissions assigned.</p>
         ) : null}
       </div>
     </div>

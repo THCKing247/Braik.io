@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
 import { isAdminEmailAllowed } from "@/lib/admin/admin-security"
+import { userHasPlatformPermission } from "@/lib/permissions/platform-permission-db"
 
 export interface AdminAccessContext {
   actorId: string
@@ -83,6 +84,16 @@ export async function getAdminAccessForApi(): Promise<
     }
   }
 
+  if (await userHasPlatformPermission(sessionUserId, "view_admin_portal")) {
+    return {
+      ok: true,
+      context: {
+        actorId: sessionUserId,
+        actorEmail: user?.email ?? sessionEmail,
+      },
+    }
+  }
+
   if (session.user.id) {
     await writeAdminAuditLog({
       actorId: session.user.id,
@@ -105,7 +116,11 @@ function isAdminProfileRole(role: string | null | undefined): boolean {
   return r === "admin" || r === "school_admin"
 }
 
-export async function hasAdminAccess(userId: string, email?: string | null): Promise<boolean> {
+/**
+ * Bootstrap allowlist, users.role admin, platform owner, and profile admin roles.
+ * Does not include permission-based `view_admin_portal` (see {@link hasAdminAccess}).
+ */
+export async function hasLegacyAdminAccess(userId: string, email?: string | null): Promise<boolean> {
   if (userId.startsWith("bootstrap-admin:")) {
     return true
   }
@@ -129,11 +144,18 @@ export async function hasAdminAccess(userId: string, email?: string | null): Pro
     return true
   }
 
-  // Fallback: users row may be missing or out of sync (e.g. upsert failed at login). Check profiles.
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", userId)
     .maybeSingle()
   return isAdminProfileRole(profile?.role) === true
+}
+
+/** Admin portal access: legacy admins, or a platform role that includes `view_admin_portal`. */
+export async function hasAdminAccess(userId: string, email?: string | null): Promise<boolean> {
+  if (await hasLegacyAdminAccess(userId, email)) {
+    return true
+  }
+  return userHasPlatformPermission(userId, "view_admin_portal")
 }

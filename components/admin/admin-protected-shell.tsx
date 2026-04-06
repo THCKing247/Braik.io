@@ -9,6 +9,7 @@ type Phase = "loading" | "ok" | "error"
 export function AdminProtectedShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [phase, setPhase] = useState<Phase>("loading")
+  const [canManageRoles, setCanManageRoles] = useState<boolean | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -24,7 +25,20 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
           return
         }
         if (!res.ok) throw new Error(String(res.status))
-        if (!cancelled) setPhase("ok")
+        if (!cancelled) {
+          setPhase("ok")
+          try {
+            const cap = await fetch("/api/admin/platform-role-access", { credentials: "include", cache: "no-store" })
+            if (cap.ok) {
+              const j = (await cap.json()) as { canManageRoles?: boolean }
+              if (!cancelled) setCanManageRoles(Boolean(j.canManageRoles))
+            } else if (!cancelled) {
+              setCanManageRoles(false)
+            }
+          } catch {
+            if (!cancelled) setCanManageRoles(false)
+          }
+        }
       } catch {
         if (!cancelled) setPhase("error")
       }
@@ -90,6 +104,11 @@ export function AdminProtectedShell({ children }: { children: React.ReactNode })
             <Link href="/admin/document-audit" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               Document audit
             </Link>
+            {canManageRoles ? (
+              <Link href="/admin/roles" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
+                Roles & Permissions
+              </Link>
+            ) : null}
             <Link href="/admin/settings/system" className="block rounded px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white">
               System Settings
             </Link>

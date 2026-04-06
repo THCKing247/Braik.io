@@ -17,7 +17,7 @@ export async function getAdminAccessForApi(): Promise<
   if (!session?.user?.id || !session.user.email) {
     return {
       ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 }),
     }
   }
 
@@ -55,7 +55,7 @@ export async function getAdminAccessForApi(): Promise<
     }
     return {
       ok: false,
-      response: NextResponse.json({ error: "Access denied: Admin only" }, { status: 403 }),
+      response: NextResponse.json({ ok: false, error: "Access denied: Admin only" }, { status: 403 }),
     }
   }
   if (isAdminFromUsers || isPlatformOwner) {
@@ -105,7 +105,7 @@ export async function getAdminAccessForApi(): Promise<
   }
   return {
     ok: false,
-    response: NextResponse.json({ error: "Access denied: Admin only" }, { status: 403 }),
+    response: NextResponse.json({ ok: false, error: "Access denied: Admin only" }, { status: 403 }),
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { loadPlatformRolesList } from "@/lib/admin/load-platform-roles-list"
 import { requireManageRolesForApi } from "@/lib/permissions/platform-permissions"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { isPlatformPermissionKey, type PlatformPermissionKey } from "@/lib/permissions/platform-permission-keys"
@@ -22,37 +23,31 @@ const createBodySchema = z.object({
 })
 
 export async function GET() {
-  const access = await requireManageRolesForApi()
-  if (!access.ok) {
-    return access.response
-  }
+  try {
+    const access = await requireManageRolesForApi()
+    if (!access.ok) {
+      return access.response
+    }
 
-  const supabase = getSupabaseServer()
-  const { data: roles, error: rolesErr } = await supabase.from("platform_roles").select("*").order("name", { ascending: true })
-  if (rolesErr) {
-    console.error("platform-roles list:", rolesErr)
-    return NextResponse.json({ error: rolesErr.message }, { status: 500 })
-  }
+    const supabase = getSupabaseServer()
+    const result = await loadPlatformRolesList(supabase)
+    if (!result.ok) {
+      console.error("[platform-roles] GET failed:", result.logDetail ?? result.error)
+      return NextResponse.json({ ok: false, error: result.error }, { status: 500 })
+    }
 
-  const { data: userRows, error: usersErr } = await supabase.from("users").select("platform_role_id").not("platform_role_id", "is", null)
-  if (usersErr) {
-    console.error("platform-roles counts:", usersErr)
-    return NextResponse.json({ error: usersErr.message }, { status: 500 })
+    return NextResponse.json({
+      ok: true,
+      source: result.source,
+      catalogReadOnly: result.catalogReadOnly,
+      roles: result.roles,
+      ...(result.permissionGroups ? { permissionGroups: result.permissionGroups } : {}),
+    })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Internal error"
+    console.error("[platform-roles] GET unhandled:", e)
+    return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }
-
-  const counts = new Map<string, number>()
-  for (const u of userRows ?? []) {
-    const id = (u as { platform_role_id?: string }).platform_role_id
-    if (!id) continue
-    counts.set(id, (counts.get(id) ?? 0) + 1)
-  }
-
-  return NextResponse.json({
-    roles: (roles ?? []).map((r) => ({
-      ...r,
-      userCount: counts.get(r.id as string) ?? 0,
-    })),
-  })
 }
 
 export async function POST(request: Request) {

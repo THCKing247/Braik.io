@@ -15,12 +15,16 @@ type PlatformRoleRow = {
   is_deletable: boolean
   is_key_editable: boolean
   userCount: number
+  permissionKeys?: string[]
 }
 
 export function OperatorPlatformRoles() {
   const router = useRouter()
-  const [phase, setPhase] = useState<"loading" | "ok" | "forbidden" | "error">("loading")
+  const [phase, setPhase] = useState<"loading" | "ok" | "forbidden" | "unauthorized" | "error">("loading")
   const [roles, setRoles] = useState<PlatformRoleRow[]>([])
+  const [catalogReadOnly, setCatalogReadOnly] = useState(false)
+  const [dataSource, setDataSource] = useState<"database" | "fallback" | null>(null)
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [toast, setToast] = useState<{ type: "ok" | "err"; message: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<PlatformRoleRow | null>(null)
@@ -28,18 +32,39 @@ export function OperatorPlatformRoles() {
 
   const load = useCallback(async () => {
     setPhase("loading")
+    setLoadErrorMessage(null)
     try {
       const res = await fetch("/api/admin/platform-roles", { credentials: "include", cache: "no-store" })
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        error?: string
+        source?: "database" | "fallback"
+        catalogReadOnly?: boolean
+        roles?: PlatformRoleRow[]
+      } | null
+
+      if (res.status === 401) {
+        setPhase("unauthorized")
+        setLoadErrorMessage(json?.error ?? "You need to sign in to manage platform roles.")
+        return
+      }
       if (res.status === 403) {
         setPhase("forbidden")
         return
       }
-      if (!res.ok) throw new Error(String(res.status))
-      const data = (await res.json()) as { roles: PlatformRoleRow[] }
-      setRoles(data.roles ?? [])
+      if (!res.ok || !json || json.ok === false) {
+        setPhase("error")
+        setLoadErrorMessage(json?.error ?? `Request failed (${res.status}).`)
+        return
+      }
+
+      setRoles(json.roles ?? [])
+      setDataSource(json.source ?? "database")
+      setCatalogReadOnly(json.catalogReadOnly === true || json.source === "fallback")
       setPhase("ok")
-    } catch {
+    } catch (e) {
       setPhase("error")
+      setLoadErrorMessage(e instanceof Error ? e.message : "Failed to load roles.")
     }
   }, [])
 
@@ -133,10 +158,23 @@ export function OperatorPlatformRoles() {
     )
   }
 
+  if (phase === "unauthorized") {
+    return (
+      <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-sm text-white/90">
+        <p className="font-medium">Sign-in required</p>
+        <p className="text-white/70">{loadErrorMessage ?? "Your session expired or you are not signed in."}</p>
+        <Link href="/login" className="inline-block text-cyan-300 underline">
+          Go to sign in
+        </Link>
+      </div>
+    )
+  }
+
   if (phase === "error") {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-white/90">
-        Failed to load roles.{" "}
+        <p className="mb-2">Failed to load roles.</p>
+        {loadErrorMessage ? <p className="mb-3 text-white/70">{loadErrorMessage}</p> : null}
         <button type="button" className="text-cyan-300 underline" onClick={() => void load()}>
           Retry
         </button>
@@ -144,8 +182,16 @@ export function OperatorPlatformRoles() {
     )
   }
 
+  const readOnlyCatalog = catalogReadOnly
+
   return (
     <div className="space-y-6">
+      {dataSource === "fallback" ? (
+        <div className="rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50/95">
+          Showing the default platform role catalog (database roles schema is not available yet). Create, edit, and delete
+          actions are disabled until migrations are applied.
+        </div>
+      ) : null}
       {toast ? (
         <div
           className={
@@ -168,12 +214,21 @@ export function OperatorPlatformRoles() {
             className="mt-1 w-full max-w-md rounded-lg border border-white/15 bg-[#0c0c0e] px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-cyan-500/50 focus:outline-none"
           />
         </div>
-        <Link
-          href="/admin/roles/new"
-          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
-        >
-          Create Role
-        </Link>
+        {readOnlyCatalog ? (
+          <span
+            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/50"
+            title="Run platform roles migrations to enable creating roles"
+          >
+            Create Role
+          </span>
+        ) : (
+          <Link
+            href="/admin/roles/new"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
+          >
+            Create Role
+          </Link>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-white/10">
@@ -220,26 +275,45 @@ export function OperatorPlatformRoles() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex flex-wrap justify-end gap-2">
-                    <Link href={`/admin/roles/${r.id}`} className="text-xs text-cyan-300 hover:underline">
-                      View
-                    </Link>
-                    <Link href={`/admin/roles/${r.id}/edit`} className="text-xs text-white/80 hover:underline">
-                      Edit
-                    </Link>
+                    {readOnlyCatalog ? (
+                      <span className="text-xs text-white/35" title="Run migrations to use role detail and editing">
+                        View
+                      </span>
+                    ) : (
+                      <Link href={`/admin/roles/${r.id}`} className="text-xs text-cyan-300 hover:underline">
+                        View
+                      </Link>
+                    )}
+                    {readOnlyCatalog ? (
+                      <span className="text-xs text-white/35" title="Run migrations to use role detail and editing">
+                        Edit
+                      </span>
+                    ) : (
+                      <Link href={`/admin/roles/${r.id}/edit`} className="text-xs text-white/80 hover:underline">
+                        Edit
+                      </Link>
+                    )}
                     <button
                       type="button"
-                      disabled={busyId === r.id}
+                      disabled={readOnlyCatalog || busyId === r.id}
                       onClick={() => void duplicate(r)}
-                      className="text-xs text-white/70 hover:underline disabled:opacity-50"
+                      className="text-xs text-white/70 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                      title={readOnlyCatalog ? "Run migrations to duplicate roles" : undefined}
                     >
                       Duplicate
                     </button>
                     <button
                       type="button"
-                      disabled={!r.is_deletable || busyId === r.id}
+                      disabled={readOnlyCatalog || !r.is_deletable || busyId === r.id}
                       onClick={() => setDeleteTarget(r)}
                       className="text-xs text-red-300/90 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-                      title={!r.is_deletable ? "System roles cannot be deleted" : "Delete role"}
+                      title={
+                        readOnlyCatalog
+                          ? "Run migrations to delete roles"
+                          : !r.is_deletable
+                            ? "System roles cannot be deleted"
+                            : "Delete role"
+                      }
                     >
                       Delete
                     </button>

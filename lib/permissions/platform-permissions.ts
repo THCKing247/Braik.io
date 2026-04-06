@@ -57,7 +57,7 @@ export async function requirePermissionForApi(
   if (!allowed) {
     return {
       ok: false,
-      response: NextResponse.json({ error: "Forbidden: missing permission" }, { status: 403 }),
+      response: NextResponse.json({ ok: false, error: "Forbidden: missing permission" }, { status: 403 }),
     }
   }
   return access
@@ -79,7 +79,7 @@ export async function requireAdminRoleForApi(): Promise<
   if (!isPlatformAdminRole) {
     return {
       ok: false,
-      response: NextResponse.json({ error: "Forbidden: admin role required" }, { status: 403 }),
+      response: NextResponse.json({ ok: false, error: "Forbidden: admin role required" }, { status: 403 }),
     }
   }
   return access

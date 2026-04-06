@@ -152,8 +152,8 @@ export function OperatorPlatformRoles() {
       <div className="space-y-3 rounded-xl border border-amber-800 bg-amber-950 p-6 text-sm text-amber-50">
         <p className="font-semibold">You do not have permission to manage roles.</p>
         <p className="font-medium text-amber-100">Ask a platform administrator to grant the “Manage roles & permissions” capability.</p>
-        <Link href="/admin/dashboard" className={cn(adminUi.link, "inline-block underline-offset-2")}>
-          Back to dashboard
+        <Link href="/admin/overview" className={cn(adminUi.link, "inline-block underline-offset-2")}>
+          Back to overview
         </Link>
       </div>
     )

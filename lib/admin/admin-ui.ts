@@ -254,8 +254,13 @@ export function isAdminNavActive(pathname: string, href: string) {
   if (href === "/admin" || href === "/admin/") {
     return pathname === "/admin" || pathname === "/admin/"
   }
-  if (href === "/admin/dashboard") {
-    return pathname === "/admin/dashboard" || pathname === "/admin/dashboard/"
+  if (href === "/admin/overview") {
+    return (
+      pathname === "/admin/overview" ||
+      pathname === "/admin/overview/" ||
+      pathname === "/admin/dashboard" ||
+      pathname === "/admin/dashboard/"
+    )
   }
   return pathname === href || pathname.startsWith(`${href}/`)
 }

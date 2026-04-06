@@ -2,7 +2,7 @@
 export function getDefaultAppPathForRole(role?: string | null) {
   switch ((role || "").toLowerCase()) {
     case "admin":
-      return "/admin/dashboard"
+      return "/admin/overview"
     case "athletic_director":
       return "/dashboard/ad"
     case "head_coach":

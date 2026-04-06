@@ -11,7 +11,7 @@ import { Eye, EyeOff, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { adminUi } from "@/lib/admin/admin-ui"
 
-const ADMIN_CALLBACK_URL = "/admin/dashboard"
+const ADMIN_CALLBACK_URL = "/admin/overview"
 
 function getDetailedLoginError(code?: string) {
   if (!code) {

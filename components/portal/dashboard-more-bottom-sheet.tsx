@@ -169,7 +169,7 @@ export function DashboardMoreBottomSheet({
           <nav className="space-y-2 pb-4" aria-label="More navigation">
             {showAdminLink && (
               <SheetNavRow
-                href="/admin/dashboard"
+                href="/admin/overview"
                 label="Admin"
                 icon={Shield}
                 isActive={pathname?.startsWith("/admin") ?? false}

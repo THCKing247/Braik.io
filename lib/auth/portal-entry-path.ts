@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 
-const ADMIN_DASHBOARD = "/admin/dashboard"
+const ADMIN_DASHBOARD = "/admin/overview"
 const AD_PORTAL = "/dashboard/ad"
 const HC_DASHBOARD = "/dashboard"
 

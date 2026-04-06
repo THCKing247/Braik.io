@@ -52,7 +52,7 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
       return undefined
     }
     if (value === "/admin/login") {
-      return "/admin/dashboard"
+      return "/admin/overview"
     }
     return value
   }

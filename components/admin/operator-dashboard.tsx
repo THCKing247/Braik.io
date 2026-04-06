@@ -1,11 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { AdminModal } from "@/components/admin/admin-modal"
+import Link from "next/link"
+import { useMemo } from "react"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { AdminTimeframeSegment } from "@/components/admin/admin-timeframe-segment"
 import type { ProductHealthSnapshot } from "@/lib/admin/product-health-types"
-import { adminKpiLabel, adminKpiStatCard, adminKpiValue, adminMetricCard, adminUi } from "@/lib/admin/admin-ui"
+import { adminKpiLabel, adminKpiStatCard, adminKpiValue, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
 interface AuditEntry {
@@ -18,12 +18,6 @@ interface AuditEntry {
   metadataSummary?: string | null
 }
 
-interface DashboardMetric {
-  label: string
-  value: number
-  color: "red" | "orange" | "yellow" | "green" | "blue" | "purple"
-}
-
 interface Props {
   timeframeDays: number
   metrics: {
@@ -32,117 +26,135 @@ interface Props {
     suspendedTeams: number
     pastDueTeams: number
     gracePeriodTeams: number
+    auditEntriesTotalInWindow: number
     recentAuditEntries: AuditEntry[]
     productHealth?: ProductHealthSnapshot
   }
 }
 
-const metricAccent: Record<DashboardMetric["color"], "sky" | "emerald" | "red" | "orange" | "slate" | "violet"> = {
-  red: "red",
-  orange: "orange",
-  yellow: "slate",
-  green: "emerald",
-  blue: "sky",
-  purple: "violet",
-}
-
 export function OperatorDashboard({ timeframeDays, metrics }: Props) {
-  const [openModal, setOpenModal] = useState<string | null>(null)
-  const [search, setSearch] = useState("")
-  const [action, setAction] = useState("")
-
-  const metricCards: DashboardMetric[] = useMemo(
-    () => [
-      { label: "Total Users", value: metrics.totalUsers, color: "blue" },
-      { label: "Active Teams", value: metrics.activeTeams, color: "green" },
-      { label: "Suspended Teams", value: metrics.suspendedTeams, color: "red" },
-      { label: "Past Due Teams", value: metrics.pastDueTeams, color: "orange" },
-    ],
-    [metrics]
-  )
-
-  const modalRows = metrics.recentAuditEntries.filter((row) =>
-    `${row.action} ${row.actorEmail} ${row.targetType ?? ""} ${row.targetId ?? ""} ${row.metadataSummary ?? ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  )
+  const actionMix = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const e of metrics.recentAuditEntries) {
+      m.set(e.action, (m.get(e.action) ?? 0) + 1)
+    }
+    return [...m.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+  }, [metrics.recentAuditEntries])
 
   return (
     <div className="space-y-8">
-      <div className={adminUi.noticeInfo}>
-        <p className="font-semibold text-orange-50">Operations snapshot</p>
-        <p className="mt-1 text-xs font-medium leading-relaxed text-orange-100">
-          Suspension and billing risk metrics are centralized for rapid response. Use cards below to drill into details.
-        </p>
-      </div>
-
-      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <button
-          type="button"
-          onClick={() => setOpenModal("suspended")}
-          className={adminKpiStatCard("red", true)}
-        >
-          <p className={adminKpiLabel()}>Suspended teams</p>
-          <p className={adminKpiValue()}>{metrics.suspendedTeams}</p>
-        </button>
-        <button type="button" onClick={() => setOpenModal("grace")} className={adminKpiStatCard("orange", true)}>
-          <p className={adminKpiLabel()}>Grace period teams</p>
-          <p className={adminKpiValue()}>{metrics.gracePeriodTeams}</p>
-        </button>
-        <button type="button" onClick={() => setOpenModal("ai-near-limit")} className={adminKpiStatCard("slate", true)}>
-          <p className={adminKpiLabel()}>AI near limit</p>
-          <p className={adminKpiValue()}>0</p>
-        </button>
-        <button type="button" onClick={() => setOpenModal("refunds")} className={adminKpiStatCard("sky", true)}>
-          <p className={adminKpiLabel()}>Pending refunds</p>
-          <p className={adminKpiValue()}>0</p>
-        </button>
-        <button type="button" onClick={() => setOpenModal("promos")} className={adminKpiStatCard("violet", true)}>
-          <p className={adminKpiLabel()}>Pending promo approvals</p>
-          <p className={adminKpiValue()}>0</p>
-        </button>
-      </div>
-
       <AdminPageHeader
-        title="Operator dashboard"
-        description="Key counts and trends for the selected window. Audit entries and product health follow the timeframe filter."
+        title="Overview"
+        description={`Platform snapshot. Team counts are current totals. Audit totals and the list below use the selected period (last ${timeframeDays} days).`}
         action={<AdminTimeframeSegment value={timeframeDays} />}
       />
 
-      <div className="grid w-full gap-3 md:grid-cols-4">
-        {metricCards.map((card) => (
-          <button
-            key={card.label}
-            type="button"
-            onClick={() => setOpenModal(card.label)}
-            className={cn(adminMetricCard(metricAccent[card.color]), adminUi.panelPadding, "w-full text-left")}
-          >
-            <p className="text-xs font-medium text-slate-300">{card.label}</p>
-            <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-white">{card.value}</p>
-            <p className="mt-2 text-[11px] font-medium text-slate-400">Trend: placeholder +2.4%</p>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
-              <div
-                className="h-full rounded-full bg-orange-500"
-                style={{ width: `${Math.min(100, Math.max(12, card.value % 100))}%` }}
-              />
-            </div>
-          </button>
-        ))}
-      </div>
+      <section aria-label="Key metrics">
+        <p className="mb-3 text-xs font-medium text-slate-400">Totals — open a destination to act</p>
+        <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Link href="/admin/users" className={cn(adminKpiStatCard("sky", true), "no-underline")}>
+            <p className={adminKpiLabel()}>Total users</p>
+            <p className={adminKpiValue()}>{metrics.totalUsers}</p>
+          </Link>
+          <Link href="/admin/teams" className={cn(adminKpiStatCard("emerald", true), "no-underline")}>
+            <p className={adminKpiLabel()}>Active teams</p>
+            <p className={adminKpiValue()}>{metrics.activeTeams}</p>
+          </Link>
+          <Link href="/admin/teams" className={cn(adminKpiStatCard("red", true), "no-underline")}>
+            <p className={adminKpiLabel()}>Suspended teams</p>
+            <p className={adminKpiValue()}>{metrics.suspendedTeams}</p>
+          </Link>
+          <Link href="/admin/teams" className={cn(adminKpiStatCard("orange", true), "no-underline")}>
+            <p className={adminKpiLabel()}>Past due (subscription)</p>
+            <p className={adminKpiValue()}>{metrics.pastDueTeams}</p>
+          </Link>
+          <Link href="/admin/teams" className={cn(adminKpiStatCard("slate", true), "no-underline")}>
+            <p className={adminKpiLabel()}>Grace period (subscription)</p>
+            <p className={adminKpiValue()}>{metrics.gracePeriodTeams}</p>
+          </Link>
+        </div>
+      </section>
 
-      <div className="grid w-full gap-3 md:grid-cols-2">
-        {["User growth", "Team growth", "Revenue (placeholder)", "Suspension trend"].map((title) => (
-          <div key={title} className={cn(adminUi.panel, adminUi.panelPadding)}>
-            <p className={adminUi.sectionTitle}>{title}</p>
-            <div className="mt-3 h-40 rounded-lg border border-slate-800 bg-slate-950 p-3">
-              <div className="flex h-full items-end gap-1.5">
-                {[16, 24, 34, 28, 40, 48, 42, 52, 46, 60].map((h, idx) => (
-                  <div key={idx} className="w-full rounded-t bg-slate-700" style={{ height: `${h}%` }} />
-                ))}
+      <div className="grid w-full gap-4 lg:grid-cols-2">
+        <div className={cn(adminUi.panel, adminUi.panelPadding)}>
+          <h2 className={cn(adminUi.sectionTitle, "text-base")}>Audit activity</h2>
+          <p className="mt-1 text-xs font-medium text-slate-300">
+            <span className="text-white">{metrics.auditEntriesTotalInWindow.toLocaleString()}</span> events in the selected
+            window ({timeframeDays}d). Below are up to 25 of the most recent.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/admin/audit" className={cn(adminUi.btnSecondarySm, "no-underline")}>
+              Open full audit log
+            </Link>
+          </div>
+          {actionMix.length > 0 ? (
+            <div className="mt-5">
+              <p className="text-xs font-semibold text-slate-300">Action mix in this sample (latest 25 entries)</p>
+              <div className={cn(adminUi.tableWrap, "mt-2")}>
+                <table className={cn(adminUi.table, "min-w-0 text-xs")}>
+                  <thead className={adminUi.thead}>
+                    <tr>
+                      <th className={adminUi.th}>Action</th>
+                      <th className={cn(adminUi.th, "text-right")}>Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {actionMix.map(([action, count]) => (
+                      <tr key={action} className={adminUi.tbodyRow}>
+                        <td className={cn(adminUi.td, "font-mono")}>{action}</td>
+                        <td className={cn(adminUi.td, "text-right tabular-nums")}>{count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <p className="mt-4 text-sm font-medium text-slate-400">No audit entries in this window.</p>
+          )}
+        </div>
+
+        <div className={cn(adminUi.panel, adminUi.panelPadding)}>
+          <h2 className={cn(adminUi.sectionTitle, "text-base")}>Shortcuts</h2>
+          <p className="mt-1 text-xs font-medium text-slate-300">
+            Jump to common admin surfaces. Team subscription and status fields are visible on the Teams list and team detail
+            pages.
+          </p>
+          <ul className="mt-4 space-y-2 text-sm font-medium">
+            <li>
+              <Link href="/admin/teams" className={adminUi.link}>
+                Teams
+              </Link>
+              <span className="text-slate-500"> — roster, subscription, suspensions</span>
+            </li>
+            <li>
+              <Link href="/admin/users" className={adminUi.link}>
+                Accounts
+              </Link>
+              <span className="text-slate-500"> — users and platform roles</span>
+            </li>
+            <li>
+              <Link href="/admin/audit" className={adminUi.link}>
+                Audit log
+              </Link>
+              <span className="text-slate-500"> — full history and filters</span>
+            </li>
+            <li>
+              <Link href="/admin/provisioning" className={adminUi.link}>
+                Provisioning
+              </Link>
+              <span className="text-slate-500"> — orgs, teams, invites</span>
+            </li>
+            <li>
+              <Link href="/admin/billing" className={adminUi.link}>
+                Billing
+              </Link>
+              <span className="text-slate-500"> — revenue and subscription tooling</span>
+            </li>
+          </ul>
+        </div>
       </div>
 
       {metrics.productHealth ? (
@@ -173,7 +185,7 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
             ))}
           </div>
           <p className="mt-3 text-[11px] font-medium text-slate-400">
-            * Stripe-linked `subscriptions` table; team subscription_status cards above remain source for ops alerts.
+            * Stripe-linked `subscriptions` table; team subscription fields on Teams remain the primary ops view.
           </p>
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <div>
@@ -226,6 +238,9 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
 
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
         <h2 className={cn(adminUi.sectionTitle, "text-base")}>Recent audit entries</h2>
+        <p className="mt-1 text-xs font-medium text-slate-400">
+          Newest first in the selected window (max 25 shown here).
+        </p>
         <div className="mt-4 space-y-2">
           {metrics.recentAuditEntries.map((entry) => (
             <div key={entry.id} className={cn(adminUi.nestedRow, "text-xs leading-relaxed")}>
@@ -246,76 +261,10 @@ export function OperatorDashboard({ timeframeDays, metrics }: Props) {
             </div>
           ))}
           {metrics.recentAuditEntries.length === 0 ? (
-            <p className="text-sm font-medium text-slate-400">No recent audit entries.</p>
+            <p className="text-sm font-medium text-slate-400">No audit entries in this window.</p>
           ) : null}
         </div>
       </div>
-
-      <AdminModal
-        open={!!openModal}
-        title={openModal || "Details"}
-        summary="Drill-down for card actions: filters, export, and bulk controls."
-        onClose={() => setOpenModal(null)}
-      >
-        <div className="space-y-3">
-          <div className="grid gap-2 md:grid-cols-4">
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className={adminUi.toolbarInput}
-              placeholder="Search"
-            />
-            <select value={action} onChange={(event) => setAction(event.target.value)} className={adminUi.toolbarInput}>
-              <option value="">Action</option>
-              <option value="bulk_suspend">bulk_suspend</option>
-              <option value="bulk_restore">bulk_restore</option>
-            </select>
-            <button type="button" className={adminUi.btnSecondarySm}>
-              Bulk action
-            </button>
-            <button type="button" className={adminUi.btnSecondarySm}>
-              Export CSV (stub)
-            </button>
-          </div>
-
-          <div className={cn(adminUi.tableWrap, "max-h-[45vh] overflow-y-auto")}>
-            <table className={cn(adminUi.table, "min-w-0 text-xs")}>
-              <thead className={adminUi.thead}>
-                <tr>
-                  <th className={adminUi.th}>Action</th>
-                  <th className={adminUi.th}>Actor</th>
-                  <th className={adminUi.th}>Details</th>
-                  <th className={adminUi.th}>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {modalRows.map((row) => (
-                  <tr key={row.id} className={adminUi.tbodyRow}>
-                    <td className={adminUi.td}>{row.action}</td>
-                    <td className={adminUi.td}>{row.actorEmail}</td>
-                    <td className={cn(adminUi.td, "break-all text-slate-300")}>
-                      {[row.targetType, row.targetId].filter(Boolean).join(" · ") || "—"}
-                      {row.metadataSummary ? (
-                        <div className="mt-1 font-mono text-[10px] text-slate-500">{row.metadataSummary}</div>
-                      ) : null}
-                    </td>
-                    <td className={cn(adminUi.td, "whitespace-nowrap text-slate-200")}>
-                      {new Date(row.createdAt).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-                {modalRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-sm font-medium text-slate-400">
-                      No rows for this filter.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </AdminModal>
     </div>
   )
 }

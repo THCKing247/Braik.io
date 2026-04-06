@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { adminNavLinkClass, adminUi, isAdminNavActive } from "@/lib/admin/admin-ui"
 import { AdminLoadingShell } from "@/components/admin/admin-loading-shell"
+import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button"
 
 type Phase = "loading" | "ok" | "error"
 
@@ -131,7 +132,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
           <p className={adminUi.sidebarTagline}>Platform operations</p>
           <nav className="mt-8 text-sm">
             <NavSection title="Operations">
-              <NavLink href="/admin/dashboard">Dashboard</NavLink>
+              <NavLink href="/admin/overview">Overview</NavLink>
               <NavLink href="/admin/users">Accounts</NavLink>
               <NavLink href="/admin/teams">Teams</NavLink>
               <NavLink href="/admin/athletic-departments">Athletic departments</NavLink>
@@ -154,6 +155,9 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
               <Link href="/dashboard" className={adminNavLinkClass(false)}>
                 Exit to app
               </Link>
+              <div className="pt-2">
+                <AdminSignOutButton />
+              </div>
             </NavSection>
           </nav>
         </aside>

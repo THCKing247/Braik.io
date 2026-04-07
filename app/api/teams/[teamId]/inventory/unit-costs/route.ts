@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUserMembership, requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { revalidateTeamInventory } from "@/lib/cache/lightweight-get-cache"
+import { recalcInventoryTypeTotalsForTeam } from "@/lib/inventory/recalc-inventory-type-totals"
 
 const BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 
@@ -99,6 +100,12 @@ export async function POST(
 
     if (evErr) {
       console.error("[POST unit-costs] event", evErr)
+    }
+
+    try {
+      await recalcInventoryTypeTotalsForTeam(supabase, teamId)
+    } catch (recalcErr) {
+      console.error("[POST unit-costs] recalc totals", recalcErr)
     }
 
     revalidateTeamInventory(teamId)

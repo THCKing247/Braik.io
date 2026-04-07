@@ -3,6 +3,12 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUserMembership, requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { getCachedTeamInventoryGetPayload } from "@/lib/teams/cached-team-inventory-get"
+import { loadInventoryPage } from "@/lib/teams/load-inventory-paginated"
+import {
+  loadInventoryBootstrap,
+  inventoryViewerFromMembership,
+} from "@/lib/teams/load-inventory-meta"
+import { loadInventoryExpenseGroups } from "@/lib/teams/load-inventory-expense-groups"
 import { revalidateTeamInventory } from "@/lib/cache/lightweight-get-cache"
 import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
 import {
@@ -65,9 +71,15 @@ function mapItemRow(
 /**
  * GET /api/teams/[teamId]/inventory
  * Returns inventory items and players for the team (InventoryManager shape).
+ *
+ * Query params:
+ * - `meta=1` — bootstrap only (players, recent costs, type totals, tab stats, pending count); no items.
+ * - `paginated=1&page=1&limit=25&bucket=All&search=` — paged item list + assignments map.
+ * - `expenseGroups=1` — server-rolled expense rows for the Expenses tab (no per-item array).
+ * Default — full cached payload (backward compatible for player profile, etc.).
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
@@ -83,9 +95,83 @@ export async function GET(
 
     await requireTeamAccessWithUser(teamId, session.user)
 
+    const url = new URL(request.url)
+    const membership = await getUserMembership(teamId)
+    const viewer = inventoryViewerFromMembership(membership)
+
     try {
+      if (url.searchParams.get("expenseGroups") === "1") {
+        const groups = await loadInventoryExpenseGroups(teamId)
+        return NextResponse.json({ expenseGroups: groups })
+      }
+
+      if (url.searchParams.get("meta") === "1") {
+        const bucketFilter = url.searchParams.get("bucket") || "All"
+        const boot = await loadInventoryBootstrap(teamId, membership, { bucketFilter })
+        return NextResponse.json({
+          ...boot,
+          viewer,
+        })
+      }
+
+      if (url.searchParams.get("paginated") === "1") {
+        const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1)
+        const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "25", 10) || 25))
+        const bucketFilter = url.searchParams.get("bucket") || "All"
+        const search = url.searchParams.get("search") || ""
+        const supabase = getSupabaseServer()
+        const { items, totalCount, assignments } = await loadInventoryPage(supabase, teamId, {
+          page,
+          pageSize,
+          bucketFilter,
+          search,
+        })
+        const merged = items.map((row) => {
+          const pid = row.assignedToPlayerId
+          const ap = pid ? assignments[pid] : undefined
+          return {
+            id: row.id,
+            category: row.category,
+            name: row.name,
+            quantityTotal: row.quantityTotal,
+            quantityAvailable: row.quantityAvailable,
+            condition: row.condition,
+            assignedToPlayerId: row.assignedToPlayerId,
+            notes: row.notes,
+            status: row.status,
+            equipmentType: row.equipmentType,
+            size: row.size,
+            make: row.make,
+            itemCode: row.itemCode,
+            inventoryBucket: row.inventoryBucket,
+            costPerUnit: row.costPerUnit,
+            costNotes: row.costNotes,
+            costUpdatedAt: row.costUpdatedAt,
+            damageReportText: row.damageReportText,
+            damageReportedAt: row.damageReportedAt,
+            damageReportedByPlayerId: row.damageReportedByPlayerId,
+            equipmentBatchId: row.equipmentBatchId,
+            equipmentBatchStatus: row.equipmentBatchStatus,
+            assignedPlayer: ap
+              ? {
+                  id: ap.id,
+                  firstName: ap.firstName,
+                  lastName: ap.lastName,
+                  jerseyNumber: ap.jerseyNumber,
+                }
+              : null,
+          }
+        })
+        return NextResponse.json({
+          items: merged,
+          totalCount,
+          page,
+          pageSize,
+          viewer,
+        })
+      }
+
       const { items, players, recentUnitCostChanges } = await getCachedTeamInventoryGetPayload(teamId)
-      const membership = await getUserMembership(teamId)
       let pendingConditionReportCount = 0
       if (membership && canApproveInventoryConditionReports(membership)) {
         const supabase = getSupabaseServer()

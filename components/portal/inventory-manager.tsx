@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { InventoryTabbedLayout } from "./inventory-tabbed-layout"
 
 interface InventoryItem {
@@ -30,6 +30,8 @@ interface InventoryItem {
     lastName: string
     jerseyNumber?: number | null
   } | null
+  equipmentBatchId?: string | null
+  equipmentBatchStatus?: string | null
 }
 
 interface Player {
@@ -69,6 +71,8 @@ interface InventoryManagerProps {
   initialRecentUnitCostChanges?: UnitCostChange[]
   initialPendingConditionReportCount?: number
   initialViewer?: InventoryViewer
+  /** Load inventory via paginated + meta API (inventory page). */
+  bootstrapInventory?: boolean
 }
 
 function mergeInventoryJson(
@@ -94,13 +98,15 @@ function mergeInventoryJson(
 export function InventoryManager({
   teamId,
   initialItems,
-  players,
+  players: initialPlayers,
   permissions,
   initialRecentUnitCostChanges = [],
   initialPendingConditionReportCount = 0,
   initialViewer = { canReportCondition: false, canApproveConditionReports: false },
+  bootstrapInventory = false,
 }: InventoryManagerProps) {
   const [items, setItems] = useState(initialItems)
+  const [players, setPlayers] = useState<Player[]>(initialPlayers)
   const [recentUnitCostChanges, setRecentUnitCostChanges] = useState<UnitCostChange[]>(
     initialRecentUnitCostChanges
   )
@@ -110,6 +116,101 @@ export function InventoryManager({
   const [viewer, setViewer] = useState<InventoryViewer>(initialViewer)
   const [showAddModal, setShowAddModal] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [bootstrapLoading, setBootstrapLoading] = useState(bootstrapInventory)
+  const [inventoryPage, setInventoryPage] = useState(1)
+  const [bucketFilter, setBucketFilter] = useState<string>("All")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [totalItemCount, setTotalItemCount] = useState(0)
+  const [serverTabStats, setServerTabStats] = useState<{
+    total: number
+    available: number
+    assigned: number
+    needsAttention: number
+  } | null>(null)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(searchQuery), 320)
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    }
+  }, [searchQuery])
+
+  const fetchInventoryPage = useCallback(
+    async (page: number, bucket: string, search: string) => {
+      const [metaRes, pageRes] = await Promise.all([
+        fetch(`/api/teams/${teamId}/inventory?meta=1&bucket=${encodeURIComponent(bucket)}`),
+        fetch(
+          `/api/teams/${teamId}/inventory?paginated=1&page=${page}&limit=25&bucket=${encodeURIComponent(bucket)}&search=${encodeURIComponent(search)}`
+        ),
+      ])
+      if (!metaRes.ok || !pageRes.ok) {
+        setBootstrapLoading(false)
+        return
+      }
+      const meta = (await metaRes.json()) as {
+        players?: Player[]
+        recentUnitCostChanges?: UnitCostChange[]
+        pendingConditionReportCount?: number
+        viewer?: InventoryViewer
+        tabStats?: { total: number; available: number; assigned: number; needsAttention: number }
+      }
+      const pg = (await pageRes.json()) as {
+        items?: InventoryItem[]
+        totalCount?: number
+        viewer?: InventoryViewer
+      }
+      if (Array.isArray(meta.players)) setPlayers(meta.players)
+      if (Array.isArray(meta.recentUnitCostChanges)) setRecentUnitCostChanges(meta.recentUnitCostChanges)
+      if (typeof meta.pendingConditionReportCount === "number") {
+        setPendingConditionReportCount(meta.pendingConditionReportCount)
+      }
+      if (meta.viewer) setViewer(meta.viewer)
+      if (meta.tabStats) setServerTabStats(meta.tabStats)
+      setItems(Array.isArray(pg.items) ? pg.items : [])
+      setTotalItemCount(typeof pg.totalCount === "number" ? pg.totalCount : 0)
+      if (pg.viewer) setViewer(pg.viewer)
+      setBootstrapLoading(false)
+    },
+    [teamId]
+  )
+
+  useEffect(() => {
+    if (!bootstrapInventory || !teamId) return
+    setBootstrapLoading(true)
+    void fetchInventoryPage(inventoryPage, bucketFilter, debouncedSearch)
+  }, [bootstrapInventory, teamId, inventoryPage, bucketFilter, debouncedSearch, fetchInventoryPage])
+
+  const setBucketFilterAndResetPage = useCallback((b: string) => {
+    setBucketFilter(b)
+    setInventoryPage(1)
+  }, [])
+
+  const reloadInventoryAfterMutation = useCallback(async () => {
+    if (bootstrapInventory) {
+      await fetchInventoryPage(inventoryPage, bucketFilter, debouncedSearch)
+      return
+    }
+    const res = await fetch(`/api/teams/${teamId}/inventory`)
+    if (res.ok) {
+      const data = await res.json()
+      mergeInventoryJson(data, {
+        setItems,
+        setRecent: setRecentUnitCostChanges,
+        setPending: setPendingConditionReportCount,
+        setViewer,
+      })
+    }
+  }, [
+    bootstrapInventory,
+    fetchInventoryPage,
+    inventoryPage,
+    bucketFilter,
+    debouncedSearch,
+    teamId,
+  ])
 
   const handleAddItem = async (data: {
     equipmentType: string
@@ -140,19 +241,20 @@ export function InventoryManager({
         throw new Error(error.error || "Failed to create item")
       }
 
-      const newItem = await response.json()
-      // Reload items to get all created items (if quantity > 1)
-      const itemsResponse = await fetch(`/api/teams/${teamId}/inventory`)
-      if (itemsResponse.ok) {
-        const itemsData = await itemsResponse.json()
-        mergeInventoryJson(itemsData, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
+      await response.json()
+      if (bootstrapInventory) {
+        await reloadInventoryAfterMutation()
       } else {
-        setItems([newItem, ...items])
+        const itemsResponse = await fetch(`/api/teams/${teamId}/inventory`)
+        if (itemsResponse.ok) {
+          const itemsData = await itemsResponse.json()
+          mergeInventoryJson(itemsData, {
+            setItems,
+            setRecent: setRecentUnitCostChanges,
+            setPending: setPendingConditionReportCount,
+            setViewer,
+          })
+        }
       }
     } catch (error: any) {
       alert(error.message || "Error creating item")
@@ -180,17 +282,7 @@ export function InventoryManager({
         throw new Error(error.error || "Failed to assign item")
       }
 
-      // Reload items
-      const res = await fetch(`/api/teams/${teamId}/inventory`)
-      if (res.ok) {
-        const data = await res.json()
-        mergeInventoryJson(data, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
-      }
+      await reloadInventoryAfterMutation()
     } catch (error: any) {
       alert(error.message || "Error assigning item")
     } finally {
@@ -216,17 +308,7 @@ export function InventoryManager({
         throw new Error(error.error || "Failed to return item")
       }
 
-      // Reload items
-      const res = await fetch(`/api/teams/${teamId}/inventory`)
-      if (res.ok) {
-        const data = await res.json()
-        mergeInventoryJson(data, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
-      }
+      await reloadInventoryAfterMutation()
     } catch (error: any) {
       alert(error.message || "Error returning item")
     } finally {
@@ -262,17 +344,7 @@ export function InventoryManager({
         throw new Error(error.error || "Failed to update item")
       }
 
-      // Reload items
-      const res = await fetch(`/api/teams/${teamId}/inventory`)
-      if (res.ok) {
-        const itemsData = await res.json()
-        mergeInventoryJson(itemsData, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
-      }
+      await reloadInventoryAfterMutation()
     } catch (error: any) {
       alert(error.message || "Error updating item")
       throw error
@@ -293,17 +365,7 @@ export function InventoryManager({
         throw new Error(error.error || "Failed to delete item")
       }
 
-      // Reload items
-      const res = await fetch(`/api/teams/${teamId}/inventory`)
-      if (res.ok) {
-        const data = await res.json()
-        mergeInventoryJson(data, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
-      }
+      await reloadInventoryAfterMutation()
     } catch (error: any) {
       alert(error.message || "Error deleting item")
     } finally {
@@ -312,7 +374,14 @@ export function InventoryManager({
   }
 
   const handleDeleteGroup = async (equipmentType: string) => {
-    const groupItems = items.filter(item => (item.equipmentType || item.category) === equipmentType)
+    let groupItems = items.filter((item) => (item.equipmentType || item.category) === equipmentType)
+    if (bootstrapInventory) {
+      const res = await fetch(`/api/teams/${teamId}/inventory`)
+      const data = res.ok ? await res.json() : {}
+      groupItems = Array.isArray(data.items)
+        ? data.items.filter((item: InventoryItem) => (item.equipmentType || item.category) === equipmentType)
+        : []
+    }
     if (groupItems.length === 0) return
 
     if (!confirm(`Are you sure you want to delete all ${groupItems.length} items of type "${equipmentType}"?`)) return
@@ -328,17 +397,7 @@ export function InventoryManager({
         )
       )
 
-      // Reload items
-      const res = await fetch(`/api/teams/${teamId}/inventory`)
-      if (res.ok) {
-        const data = await res.json()
-        mergeInventoryJson(data, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
-      }
+      await reloadInventoryAfterMutation()
     } catch (error: any) {
       alert(error.message || "Error deleting items")
     } finally {
@@ -366,16 +425,7 @@ export function InventoryManager({
         const err = await res.json().catch(() => ({}))
         throw new Error((err as { error?: string }).error || "Failed to save unit cost")
       }
-      const inv = await fetch(`/api/teams/${teamId}/inventory`)
-      if (inv.ok) {
-        const data = await inv.json()
-        mergeInventoryJson(data, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
-      }
+      await reloadInventoryAfterMutation()
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : "Error updating unit price")
       throw error
@@ -395,7 +445,14 @@ export function InventoryManager({
   }) => {
     setLoading(true)
     try {
-      const groupItems = items.filter(item => (item.equipmentType || item.category) === equipmentType)
+      let groupItems = items.filter((item) => (item.equipmentType || item.category) === equipmentType)
+      if (bootstrapInventory) {
+        const res = await fetch(`/api/teams/${teamId}/inventory`)
+        const data = res.ok ? await res.json() : {}
+        groupItems = Array.isArray(data.items)
+          ? data.items.filter((item: InventoryItem) => (item.equipmentType || item.category) === equipmentType)
+          : []
+      }
       const currentQuantity = groupItems.length
       const assignedItems = groupItems.filter(item => item.assignedToPlayerId)
       const assignedCount = assignedItems.length
@@ -534,17 +591,7 @@ export function InventoryManager({
         )
       }
 
-      // Final reload to get all updates
-      const res = await fetch(`/api/teams/${teamId}/inventory`)
-      if (res.ok) {
-        const itemsData = await res.json()
-        mergeInventoryJson(itemsData, {
-          setItems,
-          setRecent: setRecentUnitCostChanges,
-          setPending: setPendingConditionReportCount,
-          setViewer,
-        })
-      }
+      await reloadInventoryAfterMutation()
     } catch (error: any) {
       alert(error.message || "Error updating items")
       throw error
@@ -553,18 +600,7 @@ export function InventoryManager({
     }
   }
 
-  const refreshInventoryFromServer = async () => {
-    const res = await fetch(`/api/teams/${teamId}/inventory`)
-    if (res.ok) {
-      const data = await res.json()
-      mergeInventoryJson(data, {
-        setItems,
-        setRecent: setRecentUnitCostChanges,
-        setPending: setPendingConditionReportCount,
-        setViewer,
-      })
-    }
-  }
+  const totalPages = Math.max(1, Math.ceil(totalItemCount / 25))
 
   return (
     <InventoryTabbedLayout
@@ -575,7 +611,7 @@ export function InventoryManager({
       recentUnitCostChanges={recentUnitCostChanges}
       pendingConditionReportCount={pendingConditionReportCount}
       viewer={viewer}
-      onRefreshInventory={refreshInventoryFromServer}
+      onRefreshInventory={reloadInventoryAfterMutation}
       onAddItem={handleAddItem}
       onUpdateItem={handleUpdateItem}
       onUpdateAllItems={handleUpdateAllItems}
@@ -585,6 +621,23 @@ export function InventoryManager({
       onDeleteGroup={handleDeleteGroup}
       onDeleteItem={handleDeleteItem}
       loading={loading}
+      inventoryBootstrapLoading={bootstrapInventory ? bootstrapLoading : false}
+      totalInventoryCount={bootstrapInventory ? totalItemCount : undefined}
+      inventoryPagination={
+        bootstrapInventory
+          ? {
+              enabled: true,
+              serverTabStats,
+              page: inventoryPage,
+              totalPages,
+              onPageChange: setInventoryPage,
+              bucketFilter,
+              setBucketFilter: setBucketFilterAndResetPage,
+              searchQuery,
+              setSearchQuery,
+            }
+          : undefined
+      }
     />
   )
 }

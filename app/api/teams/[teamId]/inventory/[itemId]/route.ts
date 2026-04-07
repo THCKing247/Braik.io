@@ -42,7 +42,7 @@ export async function PATCH(
     // Verify item belongs to team and get current assignment + bucket
     const { data: existingItem } = await supabase
       .from("inventory_items")
-      .select("id, team_id, assigned_to_player_id, inventory_bucket")
+      .select("id, team_id, assigned_to_player_id, inventory_bucket, equipment_batch_id")
       .eq("id", itemId)
       .eq("team_id", teamId)
       .maybeSingle()
@@ -117,6 +117,21 @@ export async function PATCH(
         { error: "Only Gear and Uniforms items can be assigned to players." },
         { status: 400 }
       )
+    }
+    const batchId = (existingItem as { equipment_batch_id?: string | null }).equipment_batch_id ?? null
+    if (wantsAssign && batchId) {
+      const { data: batchRow } = await supabase
+        .from("equipment_batches")
+        .select("status")
+        .eq("id", batchId)
+        .maybeSingle()
+      const bstatus = (batchRow as { status?: string } | null)?.status
+      if (bstatus === "retired") {
+        return NextResponse.json(
+          { error: "Cannot assign equipment from a retired purchase batch." },
+          { status: 400 }
+        )
+      }
     }
     if (
       bucket !== undefined &&

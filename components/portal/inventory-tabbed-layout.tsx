@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -40,6 +40,8 @@ interface InventoryItem {
   costUpdatedAt?: string | null
   damageReportText?: string | null
   damageReportedAt?: string | null
+  equipmentBatchId?: string | null
+  equipmentBatchStatus?: string | null
   assignedPlayer?: {
     id: string
     firstName: string
@@ -114,10 +116,41 @@ function ExpenseGroupUnitCell({
   onSave: (cost: number | null) => Promise<void>
 }) {
   const [draft, setDraft] = useState("")
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "ok" | "error">("idle")
+  const baselineRef = useRef("")
+  const skipBlurRef = useRef(false)
+
   useEffect(() => {
     if (uniformUnit != null && !Number.isNaN(uniformUnit)) setDraft(String(uniformUnit))
     else setDraft("")
   }, [uniformUnit, groupKey])
+
+  const commit = async () => {
+    const t = draft.trim()
+    const newVal = t === "" ? null : parseFloat(t)
+    if (newVal !== null && (Number.isNaN(newVal) || newVal < 0)) {
+      setSaveState("error")
+      setDraft(baselineRef.current)
+      setTimeout(() => setSaveState("idle"), 2000)
+      return
+    }
+    const u = uniformUnit
+    const unchanged =
+      (newVal === null && (u === null || u === undefined)) ||
+      (newVal !== null && u != null && !Number.isNaN(u) && Math.abs(newVal - u) < 1e-6)
+    if (unchanged) return
+
+    setSaveState("saving")
+    try {
+      await onSave(newVal)
+      setSaveState("ok")
+      setTimeout(() => setSaveState("idle"), 1200)
+    } catch {
+      setSaveState("error")
+      setDraft(baselineRef.current)
+      setTimeout(() => setSaveState("idle"), 2000)
+    }
+  }
 
   if (!canEdit) {
     return (
@@ -131,25 +164,52 @@ function ExpenseGroupUnitCell({
     <div className="flex items-center justify-end gap-1">
       <Input
         type="number"
+        inputMode="decimal"
         min={0}
         step="0.01"
-        className="h-8 max-w-[7rem] text-right text-sm placeholder:text-muted-foreground/70"
+        className={`h-8 max-w-[7rem] text-right text-sm placeholder:text-muted-foreground/70 transition-colors ${
+          saveState === "ok" ? "ring-1 ring-emerald-500/50" : saveState === "error" ? "ring-1 ring-red-500/50" : ""
+        }`}
         disabled={disabled}
         value={draft}
         placeholder="Enter cost"
+        onFocus={() => {
+          baselineRef.current = draft
+        }}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={async () => {
-          const t = draft.trim()
-          if (t === "") {
-            await onSave(null)
+        onKeyDown={async (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault()
+            setDraft(baselineRef.current)
+            ;(e.target as HTMLInputElement).blur()
             return
           }
-          const n = parseFloat(t)
-          if (Number.isNaN(n) || n < 0) return
-          await onSave(n)
+          const step = e.shiftKey ? 10 : 1
+          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault()
+            const cur = parseFloat(draft) || 0
+            const next = e.key === "ArrowUp" ? cur + step : Math.max(0, cur - step)
+            setDraft(String(Math.round(next * 100) / 100))
+            return
+          }
+          if (e.key === "Enter") {
+            e.preventDefault()
+            skipBlurRef.current = true
+            void commit().then(() => {
+              ;(e.target as HTMLInputElement).blur()
+              setTimeout(() => {
+                skipBlurRef.current = false
+              }, 0)
+            })
+          }
+        }}
+        onBlur={async () => {
+          if (skipBlurRef.current) return
+          await commit()
         }}
         aria-label="Unit price"
       />
+      {saveState === "ok" && <span className="text-emerald-600 text-xs" aria-hidden>✓</span>}
     </div>
   )
 }
@@ -168,6 +228,7 @@ function InventoryExpenseLedger({
   canEdit,
   onBulkSetCost,
   recentUnitCostChanges,
+  serverExpenseGroups,
 }: {
   items: InventoryItem[]
   expenseBreakdown: "all" | "category" | "type"
@@ -179,6 +240,15 @@ function InventoryExpenseLedger({
     unitCost: number | null
   }) => Promise<void>
   recentUnitCostChanges: UnitCostChangeRow[]
+  /** When set (server rollup), expense tables use this instead of iterating client items. */
+  serverExpenseGroups?: {
+    key: string
+    bucket: string
+    typeKey: string
+    totalQty: number
+    totalLine: number
+    uniformUnit: number | null
+  }[]
 }) {
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [expandedTypeKeys, setExpandedTypeKeys] = useState<Set<string>>(() => new Set())
@@ -187,23 +257,44 @@ function InventoryExpenseLedger({
     dir: "asc" | "desc"
   }>({ key: "bucket", dir: "asc" })
 
-  const compositeGroups = useMemo(() => buildCompositeGroups(items), [items])
+  const compositeGroups = useMemo(() => {
+    if (serverExpenseGroups) {
+      return serverExpenseGroups.map((g) => ({
+        key: g.key,
+        bucket: g.bucket,
+        typeKey: g.typeKey,
+        items: [] as InventoryItem[],
+        totalQty: g.totalQty,
+        totalLine: g.totalLine,
+        uniformUnit: g.uniformUnit,
+      }))
+    }
+    return buildCompositeGroups(items)
+  }, [items, serverExpenseGroups])
 
-  const totalWithCosts = useMemo(
-    () => items.reduce((s, i) => s + (hasEnteredCost(i) ? lineInvestment(i) : 0), 0),
-    [items]
-  )
+  const totalWithCosts = useMemo(() => {
+    if (serverExpenseGroups) {
+      return compositeGroups.reduce((s, g) => s + g.totalLine, 0)
+    }
+    return items.reduce((s, i) => s + (hasEnteredCost(i) ? lineInvestment(i) : 0), 0)
+  }, [items, compositeGroups, serverExpenseGroups])
   const anyCostEntered = totalWithCosts > 0
 
   const byCategoryTotals = useMemo(() => {
     const m = new Map<string, number>()
+    if (serverExpenseGroups) {
+      for (const g of compositeGroups) {
+        m.set(g.bucket, (m.get(g.bucket) || 0) + g.totalLine)
+      }
+      return m
+    }
     for (const i of items) {
       if (!hasEnteredCost(i)) continue
       const b = i.inventoryBucket || "Gear"
       m.set(b, (m.get(b) || 0) + lineInvestment(i))
     }
     return m
-  }, [items])
+  }, [items, compositeGroups, serverExpenseGroups])
 
   const largestCategory = useMemo((): { name: string; v: number } | null => {
     let best: { name: string; v: number } | null = null
@@ -223,7 +314,7 @@ function InventoryExpenseLedger({
   ]
 
   const saveUnit = async (g: ExpenseGroupRow, cost: number | null) => {
-    if (g.items.length === 0) return
+    if (!serverExpenseGroups && g.items.length === 0) return
     setSavingKey(g.key)
     try {
       await onBulkSetCost({
@@ -646,6 +737,25 @@ interface InventoryTabbedLayoutProps {
   pendingConditionReportCount: number
   viewer: { canReportCondition: boolean; canApproveConditionReports: boolean }
   onRefreshInventory: () => Promise<void>
+  inventoryBootstrapLoading?: boolean
+  /** When set, empty state uses this instead of items.length (paginated mode). */
+  totalInventoryCount?: number
+  inventoryPagination?: {
+    enabled: boolean
+    serverTabStats: {
+      total: number
+      available: number
+      assigned: number
+      needsAttention: number
+    } | null
+    page: number
+    totalPages: number
+    onPageChange: (p: number) => void
+    bucketFilter: string
+    setBucketFilter: (b: string) => void
+    searchQuery: string
+    setSearchQuery: (s: string) => void
+  }
 }
 
 type ConditionReportRow = {
@@ -659,6 +769,136 @@ type ConditionReportRow = {
   note: string | null
   status: string
   createdAt: string
+}
+
+function InventoryFundraisingPanel({ teamId }: { teamId: string }) {
+  const [loading, setLoading] = useState(true)
+  const [payload, setPayload] = useState<{
+    seasonYear: number
+    budget: {
+      school_allocation: number | null
+      goal_amount: number | null
+      notes: string | null
+      affiliate_url: string | null
+      affiliate_label: string | null
+    } | null
+    entries: { id: string; source_type: string; source_name: string; amount: number; received_date: string }[]
+    paymentRefs: { id: string; platform: string; handle_or_url: string; display_label: string | null }[]
+    canEdit: boolean
+  } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/teams/${teamId}/inventory/fundraising`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d) setPayload(d)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId])
+
+  if (loading || !payload) {
+    return (
+      <div className="animate-pulse space-y-3 flex-1 min-h-0">
+        <div className="h-24 rounded-lg bg-[rgb(var(--platinum))]" />
+        <div className="h-40 rounded-lg bg-[rgb(var(--platinum))]" />
+      </div>
+    )
+  }
+
+  const donationTotal = payload.entries.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+  const school = payload.budget?.school_allocation != null ? Number(payload.budget.school_allocation) : 0
+  const goal = payload.budget?.goal_amount != null ? Number(payload.budget.goal_amount) : null
+  const combined = school + donationTotal
+
+  return (
+    <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto inventory-modal-scroll p-1">
+      <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+        <CardContent className="p-4 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+            Fundraising summary · {payload.seasonYear}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div>
+              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>School budget allocation</p>
+              <p className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>{formatMoney(school)}</p>
+            </div>
+            <div>
+              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>Donations &amp; promotional</p>
+              <p className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>{formatMoney(donationTotal)}</p>
+            </div>
+            <div>
+              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>Combined available</p>
+              <p className="text-lg font-semibold" style={{ color: "rgb(var(--accent))" }}>{formatMoney(combined)}</p>
+            </div>
+          </div>
+          {goal != null && goal > 0 && (
+            <div className="pt-2">
+              <div className="flex justify-between text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
+                <span>Goal</span>
+                <span>{formatMoney(goal)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-[rgb(var(--platinum))] overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, Math.round((combined / goal) * 100))}%`,
+                    backgroundColor: "rgb(var(--accent))",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          <p className="text-[11px] pt-1" style={{ color: "rgb(var(--muted))" }}>
+            Ledger and payment references only — Braik does not process payments.
+            {payload.canEdit ? " Head coach can extend this tab with full editing in a follow-up." : " Ask your head coach to manage fundraising entries."}
+          </p>
+        </CardContent>
+      </Card>
+      {payload.paymentRefs.length > 0 && (
+        <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>Payment references</p>
+            <ul className="space-y-2">
+              {payload.paymentRefs.map((p) => (
+                <li key={p.id}>
+                  <a
+                    href={p.handle_or_url.startsWith("http") ? p.handle_or_url : `https://${p.handle_or_url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm underline text-[rgb(var(--accent))]"
+                  >
+                    {p.display_label || p.platform} · {p.handle_or_url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+      {payload.entries.length > 0 && (
+        <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>Entries</p>
+            <ul className="divide-y text-sm" style={{ borderColor: "rgb(var(--border))" }}>
+              {payload.entries.map((e) => (
+                <li key={e.id} className="py-2 flex justify-between gap-2">
+                  <span className="truncate">{e.source_name} · {e.source_type.replace(/_/g, " ")}</span>
+                  <span className="shrink-0 font-medium">{formatMoney(Number(e.amount))}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
 }
 
 export function InventoryTabbedLayout({
@@ -679,6 +919,9 @@ export function InventoryTabbedLayout({
   pendingConditionReportCount,
   viewer,
   onRefreshInventory,
+  inventoryBootstrapLoading = false,
+  totalInventoryCount,
+  inventoryPagination,
 }: InventoryTabbedLayoutProps) {
   // Add hover effect styles for inventory icons
   useEffect(() => {
@@ -705,18 +948,56 @@ export function InventoryTabbedLayout({
   const [assignPlayerId, setAssignPlayerId] = useState<string>("")
   const [bulkEditEquipmentType, setBulkEditEquipmentType] = useState<string | null>(null)
   const [addModalEquipmentType, setAddModalEquipmentType] = useState<string | undefined>(undefined)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [internalSearchQuery, setInternalSearchQuery] = useState("")
   const [showAddModal, setShowAddModal] = useState(false)
   const [showBulkEditModal, setShowBulkEditModal] = useState(false)
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
   const [assigningItemId, setAssigningItemId] = useState<string | null>(null)
   const [returningItemId, setReturningItemId] = useState<string | null>(null)
-  const [bucketFilter, setBucketFilter] = useState<BucketFilter>("All")
-  const [mainView, setMainView] = useState<"items" | "expenses">("items")
+  const [internalBucketFilter, setInternalBucketFilter] = useState<BucketFilter>("All")
+
+  const bucketFilter = (
+    inventoryPagination?.enabled ? inventoryPagination.bucketFilter : internalBucketFilter
+  ) as BucketFilter
+  const setBucketFilter = inventoryPagination?.enabled
+    ? (inventoryPagination.setBucketFilter as (b: BucketFilter) => void)
+    : setInternalBucketFilter
+  const searchQuery = inventoryPagination?.enabled ? inventoryPagination.searchQuery : internalSearchQuery
+  const setSearchQuery = inventoryPagination?.enabled ? inventoryPagination.setSearchQuery : setInternalSearchQuery
+  const [mainView, setMainView] = useState<"items" | "expenses" | "fundraising">("items")
   const [expenseBreakdown, setExpenseBreakdown] = useState<"all" | "category" | "type">("type")
   const [conditionQueue, setConditionQueue] = useState<ConditionReportRow[]>([])
   const [conditionPanelOpen, setConditionPanelOpen] = useState(false)
   const [conditionActionId, setConditionActionId] = useState<string | null>(null)
+  const [serverExpenseGroups, setServerExpenseGroups] = useState<
+    | {
+        key: string
+        bucket: string
+        typeKey: string
+        totalQty: number
+        totalLine: number
+        uniformUnit: number | null
+      }[]
+    | undefined
+  >(undefined)
+
+  useEffect(() => {
+    if (mainView !== "expenses" || !teamId) return
+    let cancelled = false
+    fetch(`/api/teams/${teamId}/inventory?expenseGroups=1`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { expenseGroups?: NonNullable<typeof serverExpenseGroups> }) => {
+        if (!cancelled && Array.isArray(d?.expenseGroups)) {
+          setServerExpenseGroups(d.expenseGroups)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setServerExpenseGroups(undefined)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mainView, teamId, recentUnitCostChanges])
 
   useEffect(() => {
     if (!teamId) return
@@ -743,9 +1024,10 @@ export function InventoryTabbedLayout({
   }, [assignModalItem])
 
   const bucketFilteredItems = useMemo(() => {
+    if (inventoryPagination?.enabled) return items
     if (bucketFilter === "All") return items
     return items.filter((item) => (item.inventoryBucket || "Gear") === bucketFilter)
-  }, [items, bucketFilter])
+  }, [items, bucketFilter, inventoryPagination?.enabled])
 
   // Group items by equipment type (within bucket filter)
   const groupedItems = useMemo(() => {
@@ -762,6 +1044,7 @@ export function InventoryTabbedLayout({
   const equipmentTypes = Object.keys(groupedItems).sort()
 
   const searchFilteredItems = useMemo(() => {
+    if (inventoryPagination?.enabled) return items
     if (!searchQuery.trim()) return bucketFilteredItems
     const query = searchQuery.toLowerCase().trim()
     return bucketFilteredItems.filter((item) => {
@@ -777,7 +1060,7 @@ export function InventoryTabbedLayout({
       if (item.make?.toLowerCase().includes(query)) return true
       return false
     })
-  }, [bucketFilteredItems, searchQuery])
+  }, [bucketFilteredItems, searchQuery, inventoryPagination?.enabled, items])
 
   const groupedSearchItems = useMemo(() => {
     return searchFilteredItems.reduce((acc, item) => {
@@ -790,8 +1073,11 @@ export function InventoryTabbedLayout({
 
   const equipmentTypesDisplay = Object.keys(groupedSearchItems).sort()
 
-  // Stats for all items currently visible (bucket filter + search)
+  // Stats for all items currently visible (bucket filter + search), or server counts when paginated
   const tabStats = useMemo(() => {
+    if (inventoryPagination?.enabled && inventoryPagination.serverTabStats) {
+      return inventoryPagination.serverTabStats
+    }
     const tabItems = searchFilteredItems
     return {
       total: tabItems.length,
@@ -806,15 +1092,21 @@ export function InventoryTabbedLayout({
           i.condition === "REPLACE"
       ).length,
     }
-  }, [searchFilteredItems])
+  }, [searchFilteredItems, inventoryPagination])
 
   const handleBulkEdit = (equipmentType: string) => {
     setBulkEditEquipmentType(equipmentType)
     setShowBulkEditModal(true)
   }
 
-  const handleBulkPrint = (equipmentType: string) => {
-    const tabItems = groupedItems[equipmentType] || []
+  const handleBulkPrint = async (equipmentType: string) => {
+    let tabItems = groupedItems[equipmentType] || []
+    if (inventoryPagination?.enabled) {
+      const res = await fetch(`/api/teams/${teamId}/inventory`)
+      const data = res.ok ? await res.json() : {}
+      const allItems: InventoryItem[] = Array.isArray(data.items) ? data.items : []
+      tabItems = allItems.filter((item) => (item.equipmentType || item.category) === equipmentType)
+    }
     const itemsWithCodes = tabItems.filter(item => item.itemCode)
     
     if (itemsWithCodes.length === 0) {
@@ -1002,7 +1294,28 @@ export function InventoryTabbedLayout({
     ...INVENTORY_BUCKETS.map((b) => ({ id: b, label: b })),
   ]
 
-  if (items.length === 0) {
+  const effectiveTotalCount = totalInventoryCount !== undefined ? totalInventoryCount : items.length
+
+  if (inventoryBootstrapLoading) {
+    return (
+      <div className="flex flex-col gap-3 animate-pulse" aria-busy>
+        <div className="h-10 rounded-lg bg-[rgb(var(--platinum))]" />
+        <div className="grid grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-20 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }} />
+          ))}
+        </div>
+        <div className="h-10 rounded-md bg-[rgb(var(--platinum))]" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-48 rounded-lg border bg-white" style={{ borderColor: "rgb(var(--border))" }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (effectiveTotalCount === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">No equipment items yet</p>
@@ -1040,13 +1353,16 @@ export function InventoryTabbedLayout({
             ),
           },
           { id: "expenses", label: "Expenses" },
+          { id: "fundraising", label: "Fundraising" },
         ]}
         value={mainView}
-        onValueChange={(id) => setMainView(id as "items" | "expenses")}
-        ariaLabel="Inventory Items or Expenses"
+        onValueChange={(id) => setMainView(id as "items" | "expenses" | "fundraising")}
+        ariaLabel="Inventory Items, Expenses, or Fundraising"
       />
 
-      {mainView === "expenses" ? (
+      {mainView === "fundraising" ? (
+        <InventoryFundraisingPanel teamId={teamId} />
+      ) : mainView === "expenses" ? (
         <>
           <PortalUnderlineTabs
             compact
@@ -1069,6 +1385,7 @@ export function InventoryTabbedLayout({
             canEdit={permissions.canEdit}
             onBulkSetCost={onBulkSetCostForItems}
             recentUnitCostChanges={recentUnitCostChanges}
+            serverExpenseGroups={serverExpenseGroups}
           />
         </>
       ) : equipmentTypes.length === 0 ? (
@@ -1548,6 +1865,35 @@ export function InventoryTabbedLayout({
                 </div>
               )}
             </div>
+            {inventoryPagination?.enabled && (
+              <div
+                className="flex flex-wrap items-center justify-center gap-2 py-2 border-t px-2 shrink-0"
+                style={{ borderColor: "rgb(var(--border))" }}
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={inventoryPagination.page <= 1}
+                  onClick={() => inventoryPagination.onPageChange(inventoryPagination.page - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs tabular-nums" style={{ color: "rgb(var(--muted))" }}>
+                  Page {inventoryPagination.page} of {inventoryPagination.totalPages}
+                  {totalInventoryCount != null ? ` · ${totalInventoryCount} items` : null}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={inventoryPagination.page >= inventoryPagination.totalPages}
+                  onClick={() => inventoryPagination.onPageChange(inventoryPagination.page + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

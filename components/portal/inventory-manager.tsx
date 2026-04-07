@@ -407,6 +407,7 @@ function InventoryManagerInner({
 
   const handleAssignItem = async (itemId: string, playerId: string | null) => {
     setLoading(true)
+    const prevItem = items.find((i) => i.id === itemId)
     try {
       const response = await fetch(`/api/teams/${teamId}/inventory/${itemId}`, {
         method: "PATCH",
@@ -423,7 +424,74 @@ function InventoryManagerInner({
         throw new Error(error.error || "Failed to assign item")
       }
 
-      await reloadInventoryAfterMutation()
+      if (prevItem) {
+        if (playerId) {
+          const pl = players.find((p) => p.id === playerId)
+          if (!pl) {
+            await reloadInventoryAfterMutation()
+            return
+          }
+          const wasAssigned = !!prevItem.assignedToPlayerId
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    assignedToPlayerId: playerId,
+                    quantityAvailable: 0,
+                    status: "ASSIGNED",
+                    assignedPlayer: {
+                      id: pl.id,
+                      firstName: pl.firstName,
+                      lastName: pl.lastName,
+                      jerseyNumber: pl.jerseyNumber ?? null,
+                    },
+                  }
+                : item
+            )
+          )
+          if (bootstrapInventory) {
+            setServerTabStats((stats) => {
+              if (!stats) return stats
+              if (!wasAssigned) {
+                return {
+                  ...stats,
+                  available: Math.max(0, stats.available - 1),
+                  assigned: stats.assigned + 1,
+                }
+              }
+              return stats
+            })
+          }
+        } else {
+          const wasAssigned = !!prevItem.assignedToPlayerId
+          setItems((prev) =>
+            prev.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    assignedToPlayerId: null,
+                    quantityAvailable: 1,
+                    status: "AVAILABLE",
+                    assignedPlayer: null,
+                  }
+                : item
+            )
+          )
+          if (bootstrapInventory && wasAssigned) {
+            setServerTabStats((stats) => {
+              if (!stats) return stats
+              return {
+                ...stats,
+                available: stats.available + 1,
+                assigned: Math.max(0, stats.assigned - 1),
+              }
+            })
+          }
+        }
+      } else {
+        await reloadInventoryAfterMutation()
+      }
     } catch (error: any) {
       alert(error.message || "Error assigning item")
     } finally {
@@ -433,6 +501,7 @@ function InventoryManagerInner({
 
   const handleReturnItem = async (itemId: string) => {
     setLoading(true)
+    const prevItem = items.find((i) => i.id === itemId)
     try {
       const response = await fetch(`/api/teams/${teamId}/inventory/${itemId}`, {
         method: "PATCH",
@@ -449,7 +518,33 @@ function InventoryManagerInner({
         throw new Error(error.error || "Failed to return item")
       }
 
-      await reloadInventoryAfterMutation()
+      if (prevItem && prevItem.assignedToPlayerId) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  assignedToPlayerId: null,
+                  quantityAvailable: 1,
+                  status: "AVAILABLE",
+                  assignedPlayer: null,
+                }
+              : item
+          )
+        )
+        if (bootstrapInventory) {
+          setServerTabStats((stats) => {
+            if (!stats) return stats
+            return {
+              ...stats,
+              available: stats.available + 1,
+              assigned: Math.max(0, stats.assigned - 1),
+            }
+          })
+        }
+      } else {
+        await reloadInventoryAfterMutation()
+      }
     } catch (error: any) {
       alert(error.message || "Error returning item")
     } finally {
@@ -566,7 +661,17 @@ function InventoryManagerInner({
         const err = await res.json().catch(() => ({}))
         throw new Error((err as { error?: string }).error || "Failed to save unit cost")
       }
-      await reloadInventoryAfterMutation()
+      const bucket = args.inventoryBucket
+      const typeKey = args.equipmentType.trim()
+      setItems((prev) =>
+        prev.map((item) => {
+          const et = (item.equipmentType || item.category || "").trim()
+          if ((item.inventoryBucket || "Gear") === bucket && et === typeKey) {
+            return { ...item, costPerUnit: args.unitCost }
+          }
+          return item
+        })
+      )
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : "Error updating unit price")
       throw error

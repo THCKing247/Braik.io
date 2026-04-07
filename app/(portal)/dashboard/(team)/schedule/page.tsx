@@ -7,6 +7,7 @@ import { format } from "date-fns"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { ScheduleGameListSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,6 @@ import {
 import { computeTeamTrends } from "@/lib/schedule-team-trends"
 import { mergeTeamGameRangeQueryResults } from "@/lib/schedule-team-games-merge"
 import { logScheduleGameDev, logScheduleGamesPartitionDebug } from "@/lib/schedule-game-dev-log"
-import { cn } from "@/lib/utils"
 import { ListOrdered, Plus, Upload, Download } from "lucide-react"
 import { emitTeamGamesChanged, TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 import {
@@ -242,45 +242,28 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
         )}
       </div>
 
-      <div
-        className="flex w-full max-w-lg rounded-xl border p-1 shadow-sm"
-        style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
-        role="tablist"
-        aria-label="Schedule and results"
-      >
-        <button
-          type="button"
-          role="tab"
-          id="schedule-tab-schedule"
-          aria-selected={scheduleTab === "schedule"}
-          aria-controls="schedule-panel-schedule"
-          className={cn(
-            "min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold transition-colors",
-            scheduleTab === "schedule"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-background/80"
-          )}
-          onClick={() => setScheduleTab("schedule")}
-        >
-          Game Schedule
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="schedule-tab-results"
-          aria-selected={scheduleTab === "results"}
-          aria-controls="schedule-panel-results"
-          className={cn(
-            "min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold transition-colors",
-            scheduleTab === "results"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-background/80"
-          )}
-          onClick={() => setScheduleTab("results")}
-        >
-          Game Results
-        </button>
-      </div>
+      <PortalUnderlineTabs
+        className="max-w-lg"
+        ariaLabel="Schedule and results"
+        tabs={[
+          {
+            id: "schedule",
+            label: "Game Schedule",
+            tabId: "schedule-tab-schedule",
+            panelId: "schedule-panel-schedule",
+          },
+          {
+            id: "results",
+            label: "Game Results",
+            tabId: "schedule-tab-results",
+            panelId: "schedule-panel-results",
+          },
+        ]}
+        value={scheduleTab}
+        onValueChange={(id) => {
+          if (id === "schedule" || id === "results") setScheduleTab(id)
+        }}
+      />
 
       {canEdit && scheduleTab === "schedule" && (
         <div className="flex flex-wrap items-center gap-2">

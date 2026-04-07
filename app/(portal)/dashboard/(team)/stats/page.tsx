@@ -4,6 +4,7 @@ import dynamic from "next/dynamic"
 import { useEffect, useState, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -503,26 +504,18 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               ? "Season totals from player profiles. Click a row to open the player profile."
               : "Per-game and weekly stat lines. All Stats season totals are the sum of these rows (plus any keys not in weekly sums)."}
           </p>
-          <div className="flex flex-wrap gap-2 mt-4" role="tablist" aria-label="Stats view">
-            <Button
-              type="button"
-              size="sm"
-              variant={statsTab === "all" ? "default" : "outline"}
-              onClick={() => setStatsTab("all")}
-              aria-selected={statsTab === "all"}
-            >
-              All Stats
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={statsTab === "weekly" ? "default" : "outline"}
-              onClick={() => setStatsTab("weekly")}
-              aria-selected={statsTab === "weekly"}
-            >
-              Weekly / Game Stats
-            </Button>
-          </div>
+          <PortalUnderlineTabs
+            className="mt-4"
+            ariaLabel="Stats view"
+            tabs={[
+              { id: "all", label: "All Stats" },
+              { id: "weekly", label: "Weekly / Game Stats" },
+            ]}
+            value={statsTab}
+            onValueChange={(id) => {
+              if (id === "all" || id === "weekly") setStatsTab(id)
+            }}
+          />
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {canEdit && (

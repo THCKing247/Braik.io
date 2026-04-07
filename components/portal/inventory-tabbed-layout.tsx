@@ -1713,9 +1713,9 @@ export function InventoryTabbedLayout({
                             )}
                             <Button
                               type="button"
-                              variant="outline"
+                              variant={viewMode === "card" ? "secondary" : "icon"}
                               size="icon"
-                              className={`h-9 w-9 shrink-0 border-2 ${viewMode === "card" ? "bg-[rgb(var(--platinum))]" : ""}`}
+                              className="h-9 w-9 shrink-0 border-2"
                               style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                               title="Card view"
                               onClick={() => setViewMode("card")}
@@ -1724,9 +1724,9 @@ export function InventoryTabbedLayout({
                             </Button>
                             <Button
                               type="button"
-                              variant="outline"
+                              variant={viewMode === "list" ? "secondary" : "icon"}
                               size="icon"
-                              className={`h-9 w-9 shrink-0 border-2 ${viewMode === "list" ? "bg-[rgb(var(--platinum))]" : ""}`}
+                              className="h-9 w-9 shrink-0 border-2"
                               style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
                               title="List view"
                               onClick={() => setViewMode("list")}

@@ -1753,32 +1753,26 @@ export function RosterManagerEnhanced({
               </select>
               <span className="text-sm font-medium text-muted-foreground">View:</span>
               <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
-                <button
+                <Button
                   type="button"
+                  variant={rosterViewMode === "card" ? "secondary" : "icon"}
                   onClick={() => setRosterViewMode("card")}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    rosterViewMode === "card"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  }`}
                   aria-pressed={rosterViewMode === "card"}
+                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium h-auto min-h-0"
                 >
                   <LayoutGrid className="h-4 w-4" />
                   Cards
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant={rosterViewMode === "list" ? "secondary" : "icon"}
                   onClick={() => setRosterViewMode("list")}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    rosterViewMode === "list"
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  }`}
                   aria-pressed={rosterViewMode === "list"}
+                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium h-auto min-h-0"
                 >
                   <List className="h-4 w-4" />
                   List
-                </button>
+                </Button>
               </div>
             </div>
             {canEdit && !showAddModal && !showImportForm && !showPrintModal && !showEmailModal && (

@@ -2,7 +2,12 @@
 const nextConfig = {
   experimental: {
     // Tree-shake icon / UI packages so routes only ship icons/components actually used.
-    optimizePackageImports: ["lucide-react"],
+    optimizePackageImports: [
+      "lucide-react",
+      "@radix-ui/react-popover",
+      "@radix-ui/react-label",
+      "@radix-ui/react-slot",
+    ],
   },
   eslint: {
     // Allow production builds while lint issues are addressed incrementally

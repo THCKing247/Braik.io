@@ -137,7 +137,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const realtimeSubscriptionRef = useRef<any>(null)
   const optimisticMessageIdRef = useRef<string | null>(null)
-  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isRefreshingRef = useRef<boolean>(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showJumpToNewest, setShowJumpToNewest] = useState(false)
@@ -208,15 +207,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     if (threadId) {
       lastMessageCountRef.current = 0
       loadMessages(threadId)
-      
-      // Set up automatic refresh every 10 seconds
-      refreshIntervalRef.current = setInterval(() => {
-        // Use a closure to capture the current threadId
-        const currentThreadId = selectedThread?.id
-        if (currentThreadId && !isRefreshingRef.current) {
-          refreshMessages(currentThreadId)
-        }
-      }, 15000)
     } else {
       setMessages([])
       // Cleanup subscription when no thread selected
@@ -225,15 +215,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         realtimeSubscriptionRef.current = null
       }
     }
-    // Cleanup: unsubscribe from previous thread's realtime and clear interval
+    // Cleanup: unsubscribe from previous thread's realtime
     return () => {
       if (realtimeSubscriptionRef.current) {
         realtimeSubscriptionRef.current.unsubscribe()
         realtimeSubscriptionRef.current = null
-      }
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current)
-        refreshIntervalRef.current = null
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

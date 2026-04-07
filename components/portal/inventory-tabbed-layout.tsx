@@ -4,6 +4,14 @@ import { useState, useMemo, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { Edit, Trash2, Printer, Search, LayoutGrid, List, Plus, ChevronDown, ChevronRight, Download } from "lucide-react"
 import { InventoryIcon } from "./inventory-icon"
 import { EditItemModal } from "./edit-item-modal"
@@ -692,8 +700,11 @@ export function InventoryTabbedLayout({
     }
   }, [])
   
-  const [activeTab, setActiveTab] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"card" | "list">("card")
+  const [assignModalItem, setAssignModalItem] = useState<InventoryItem | null>(null)
+  const [assignPlayerId, setAssignPlayerId] = useState<string>("")
+  const [bulkEditEquipmentType, setBulkEditEquipmentType] = useState<string | null>(null)
+  const [addModalEquipmentType, setAddModalEquipmentType] = useState<string | undefined>(undefined)
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddModal, setShowAddModal] = useState(false)
   const [showBulkEditModal, setShowBulkEditModal] = useState(false)
@@ -723,6 +734,14 @@ export function InventoryTabbedLayout({
     }
   }, [teamId, mainView, pendingConditionReportCount])
 
+  useEffect(() => {
+    if (assignModalItem) {
+      setAssignPlayerId(assignModalItem.assignedToPlayerId || "")
+    } else {
+      setAssignPlayerId("")
+    }
+  }, [assignModalItem])
+
   const bucketFilteredItems = useMemo(() => {
     if (bucketFilter === "All") return items
     return items.filter((item) => (item.inventoryBucket || "Gear") === bucketFilter)
@@ -742,20 +761,10 @@ export function InventoryTabbedLayout({
 
   const equipmentTypes = Object.keys(groupedItems).sort()
 
-  useEffect(() => {
-    const keys = Object.keys(groupedItems).sort()
-    if (keys.length === 0) return
-    setActiveTab((prev) => (prev && keys.includes(prev) ? prev : keys[0]))
-  }, [groupedItems])
-
-  // Filter items based on search
-  const filteredItems = useMemo(() => {
-    if (!activeTab) return []
-    const tabItems = groupedItems[activeTab] || []
-    if (!searchQuery.trim()) return tabItems
-
+  const searchFilteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return bucketFilteredItems
     const query = searchQuery.toLowerCase().trim()
-    return tabItems.filter((item) => {
+    return bucketFilteredItems.filter((item) => {
       if (item.itemCode?.toLowerCase().includes(query)) return true
       if (item.inventoryBucket?.toLowerCase().includes(query)) return true
       if (item.assignedPlayer) {
@@ -768,64 +777,44 @@ export function InventoryTabbedLayout({
       if (item.make?.toLowerCase().includes(query)) return true
       return false
     })
-  }, [activeTab, groupedItems, searchQuery])
+  }, [bucketFilteredItems, searchQuery])
 
-  /** When browsing with bucket "All", group the main list by inventory category for clearer scanning. */
-  const displayItemSections = useMemo(() => {
-    if (bucketFilter !== "All") {
-      return [{ bucketLabel: null as string | null, items: filteredItems }]
-    }
-    const order = [...INVENTORY_BUCKETS]
-    const map = new Map<string, InventoryItem[]>()
-    for (const item of filteredItems) {
-      const b = item.inventoryBucket || "Gear"
-      if (!map.has(b)) map.set(b, [])
-      map.get(b)!.push(item)
-    }
-    const sections: { bucketLabel: string; items: InventoryItem[] }[] = []
-    const used = new Set<string>()
-    for (const b of order) {
-      const arr = map.get(b)
-      if (arr?.length) {
-        sections.push({ bucketLabel: b, items: arr })
-        used.add(b)
-      }
-    }
-    for (const b of [...map.keys()].sort()) {
-      if (!used.has(b)) {
-        const arr = map.get(b)
-        if (arr?.length) sections.push({ bucketLabel: b, items: arr })
-      }
-    }
-    return sections
-  }, [bucketFilter, filteredItems])
+  const groupedSearchItems = useMemo(() => {
+    return searchFilteredItems.reduce((acc, item) => {
+      const key = item.equipmentType || item.category || "UNKNOWN"
+      if (!acc[key]) acc[key] = []
+      acc[key].push(item)
+      return acc
+    }, {} as Record<string, InventoryItem[]>)
+  }, [searchFilteredItems])
 
-  // Calculate stats for active tab
+  const equipmentTypesDisplay = Object.keys(groupedSearchItems).sort()
+
+  // Stats for all items currently visible (bucket filter + search)
   const tabStats = useMemo(() => {
-    if (!activeTab) return { total: 0, available: 0, assigned: 0, needsAttention: 0 }
-    const tabItems = groupedItems[activeTab] || []
+    const tabItems = searchFilteredItems
     return {
       total: tabItems.length,
-      available: tabItems.filter(i => !i.assignedToPlayerId && i.status === "AVAILABLE").length,
-      assigned: tabItems.filter(i => i.assignedToPlayerId).length,
-      needsAttention: tabItems.filter(i => 
-        i.status === "NEEDS_REPAIR" || 
-        i.status === "DAMAGED" || 
-        i.status === "MISSING" ||
-        i.condition === "NEEDS_REPAIR" ||
-        i.condition === "REPLACE"
+      available: tabItems.filter((i) => !i.assignedToPlayerId && i.status === "AVAILABLE").length,
+      assigned: tabItems.filter((i) => i.assignedToPlayerId).length,
+      needsAttention: tabItems.filter(
+        (i) =>
+          i.status === "NEEDS_REPAIR" ||
+          i.status === "DAMAGED" ||
+          i.status === "MISSING" ||
+          i.condition === "NEEDS_REPAIR" ||
+          i.condition === "REPLACE"
       ).length,
     }
-  }, [activeTab, groupedItems])
+  }, [searchFilteredItems])
 
-  const handleBulkEdit = () => {
-    if (!activeTab) return
+  const handleBulkEdit = (equipmentType: string) => {
+    setBulkEditEquipmentType(equipmentType)
     setShowBulkEditModal(true)
   }
 
-  const handleBulkPrint = () => {
-    if (!activeTab) return
-    const tabItems = groupedItems[activeTab] || []
+  const handleBulkPrint = (equipmentType: string) => {
+    const tabItems = groupedItems[equipmentType] || []
     const itemsWithCodes = tabItems.filter(item => item.itemCode)
     
     if (itemsWithCodes.length === 0) {
@@ -843,7 +832,7 @@ export function InventoryTabbedLayout({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Equipment Labels — ${escPrint(activeTab)}</title>
+          <title>Equipment Labels — ${escPrint(equipmentType)}</title>
           <style>
             @media print {
               @page { size: letter; margin: 0.4in; }
@@ -923,11 +912,10 @@ export function InventoryTabbedLayout({
     }, 250)
   }
 
-  const handleBulkDelete = () => {
-    if (!activeTab) return
-    const tabItems = groupedItems[activeTab] || []
-    if (!confirm(`Are you sure you want to delete all ${tabItems.length} items of type "${activeTab}"?`)) return
-    onDeleteGroup(activeTab)
+  const handleBulkDelete = (equipmentType: string) => {
+    const tabItems = groupedItems[equipmentType] || []
+    if (!confirm(`Are you sure you want to delete all ${tabItems.length} items of type "${equipmentType}"?`)) return
+    onDeleteGroup(equipmentType)
   }
 
   const escPrint = (s: string) =>
@@ -1103,7 +1091,7 @@ export function InventoryTabbedLayout({
         <div className="flex flex-col flex-1 min-h-0 gap-2">
           {viewer.canApproveConditionReports &&
             conditionQueue.filter((r) => r.status === "pending").length > 0 && (
-              <Card className="border lg:max-w-5xl" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+              <Card className="border w-full" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
                 <CardContent className="p-3">
                   <button
                     type="button"
@@ -1175,152 +1163,18 @@ export function InventoryTabbedLayout({
                 </CardContent>
               </Card>
             )}
-          <div className="hidden lg:block lg:max-w-5xl">
-            <PortalUnderlineTabs
-              compact
-              tabs={bucketTabs}
-              value={bucketFilter}
-              onValueChange={(id) => setBucketFilter(id as BucketFilter)}
-              ariaLabel="Inventory category filter"
-            />
-          </div>
-          <div className="flex flex-1 min-h-0 gap-4 overflow-hidden">
-      {/* Left Sidebar - item types */}
-      <div className="w-64 flex-shrink-0 border-r" style={{ borderColor: "rgb(var(--border))" }}>
-        <div className="p-4 border-b" style={{ borderColor: "rgb(var(--border))" }}>
-          <div className="mb-3 lg:hidden">
-            <PortalUnderlineTabs
-              compact
-              tabs={bucketTabs}
-              value={bucketFilter}
-              onValueChange={(id) => setBucketFilter(id as BucketFilter)}
-              ariaLabel="Inventory category filter"
-            />
-          </div>
-        </div>
-        <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
-          {equipmentTypes.map((equipmentType) => {
-            const typeItems = groupedItems[equipmentType] || []
-            const isActive = activeTab === equipmentType
-            return (
-              <div
-                key={equipmentType}
-                className={`p-3 border-b cursor-pointer transition-colors relative ${
-                  isActive ? "bg-[rgb(var(--platinum))]" : "hover:bg-[rgb(var(--platinum))]"
-                }`}
-                style={{ borderColor: "rgb(var(--border))" }}
-                onClick={() => setActiveTab(equipmentType)}
-              >
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <InventoryIcon type={equipmentType} size={28} />
-                  <span className="font-medium text-sm truncate" style={{ color: "rgb(var(--text))" }}>
-                    {equipmentType}
-                  </span>
-                  <span className="text-xs shrink-0" style={{ color: "rgb(var(--muted))" }}>
-                    ({typeItems.length})
-                  </span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+          <PortalUnderlineTabs
+            compact
+            tabs={bucketTabs}
+            value={bucketFilter}
+            onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+            ariaLabel="Inventory category filter"
+            className="w-full"
+            navClassName="w-full flex-wrap"
+          />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {activeTab && (
-          <>
-            {/* Stats and Controls */}
-            <div className="border-b p-4" style={{ borderColor: "rgb(var(--border))" }}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <InventoryIcon type={activeTab} size={28} />
-                  <h2 className="text-xl font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
-                    {activeTab}
-                  </h2>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {permissions.canCreate && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-9 shrink-0 gap-1 border-2 px-2.5"
-                      style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-                      title="Add equipment"
-                      onClick={() => setShowAddModal(true)}
-                    >
-                      <Plus className="h-4 w-4 shrink-0" aria-hidden />
-                      <span className="text-xs font-medium">Add</span>
-                    </Button>
-                  )}
-                  {permissions.canEdit && (
-                    <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0 border-2"
-                        style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-                        title="Edit all in this type"
-                        onClick={handleBulkEdit}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0 border-2"
-                        style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-                        title="Print codes"
-                        onClick={handleBulkPrint}
-                      >
-                        <Printer className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                  {permissions.canDelete && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9 shrink-0 border-2"
-                      style={{ borderColor: "rgb(var(--border))", color: "#dc2626" }}
-                      title="Delete all in this type"
-                      onClick={handleBulkDelete}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <div className="flex items-center gap-1 border rounded-lg p-1" style={{ borderColor: "rgb(var(--border))" }}>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("card")}
-                      className={`p-2 rounded transition-colors ${
-                        viewMode === "card"
-                          ? "bg-[rgb(var(--accent))] text-white"
-                          : "text-[rgb(var(--muted))] hover:bg-[rgb(var(--platinum))]"
-                      }`}
-                      title="Card view"
-                    >
-                      <LayoutGrid className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("list")}
-                      className={`p-2 rounded transition-colors ${
-                        viewMode === "list"
-                          ? "bg-[rgb(var(--accent))] text-white"
-                          : "text-[rgb(var(--muted))] hover:bg-[rgb(var(--platinum))]"
-                      }`}
-                      title="List view"
-                    >
-                      <List className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
+          <div className="w-full flex flex-col flex-1 min-h-0 min-w-0">
+            <div className="border-b p-4 w-full" style={{ borderColor: "rgb(var(--border))" }}>
               {/* Stats */}
               <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
@@ -1360,331 +1214,356 @@ export function InventoryTabbedLayout({
             </div>
 
             {/* Items Display */}
-            <div className="flex-1 overflow-y-auto p-4 inventory-modal-scroll" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-              {filteredItems.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">
-                    {searchQuery ? "No items match your search" : "No items in this category"}
-                  </p>
-                </div>
-              ) : viewMode === "card" ? (
-                <div className="space-y-8">
-                  {displayItemSections.map(({ bucketLabel, items: sectionItems }) => (
-                    <div key={bucketLabel ?? "single-type"}>
-                      {bucketLabel && (
-                        <div className="mb-3 border-b pb-2" style={{ borderColor: "rgb(var(--border))" }}>
-                          <p
-                            className="text-xs font-semibold uppercase tracking-wider"
-                            style={{ color: "rgb(var(--muted))" }}
-                          >
-                            {bucketLabel}
-                          </p>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sectionItems.map((item) => {
-                    const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
-                    return (
-                      <Card
-                        key={item.id}
-                        className="border hover:shadow-md transition-shadow cursor-pointer"
-                        style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
-                        onClick={() => setEditingItem(item)}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-2 mb-3">
-                            <div className="relative shrink-0">
-                              <InventoryIcon type={item.equipmentType || item.category} />
-                              {jerseyLabel && (
-                                <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
-                                  {jerseyLabel}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm mb-1 truncate" style={{ color: "rgb(var(--text))" }}>
-                                {item.name}
-                              </p>
-                              <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgb(var(--muted))" }}>
-                                {item.inventoryBucket || "Gear"}
-                              </p>
-                              {item.itemCode && (
-                                <p className="text-xs font-mono mb-1" style={{ color: "rgb(var(--muted))" }}>
-                                  Code: {item.itemCode}
-                                </p>
-                              )}
-                              {(item.size || item.make) && (
-                                <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
-                                  {item.size && `Size: ${item.size}`}
-                                  {item.size && item.make && " • "}
-                                  {item.make && `Make: ${item.make}`}
-                                </p>
-                              )}
-                              {item.costPerUnit != null && !Number.isNaN(item.costPerUnit) && (
-                                <p className="text-xs mb-1" style={{ color: "rgb(var(--text))" }}>
-                                  Est. value: {formatMoney(lineInvestment(item))}
-                                  <span className="text-[rgb(var(--muted))]"> ({formatMoney(item.costPerUnit)} × {item.quantityTotal ?? 0})</span>
-                                </p>
-                              )}
-                              {item.damageReportText && (
-                                <p className="text-xs mt-1 rounded border px-2 py-1" style={{ borderColor: "#fecaca", backgroundColor: "#fef2f2", color: "#991b1b" }}>
-                                  <span className="font-semibold">Damage report: </span>
-                                  {item.damageReportText}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span
-                              className="text-xs px-2 py-1 rounded border"
-                              style={getStatusColor(item.status)}
-                            >
-                              {item.status.replace("_", " ")}
-                            </span>
-                            <span className="text-xs font-medium" style={getConditionColor(item.condition)}>
-                              {item.condition.replace("_", " ")}
-                            </span>
-                          </div>
-                          {item.assignedPlayer && (
-                            <p className="text-xs mb-2" style={{ color: "rgb(var(--muted))" }}>
-                              Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
-                              {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                            </p>
-                          )}
-                          {permissions.canAssign && isPlayerAssignableBucket(item.inventoryBucket || "Gear") && (
-                            <div className="space-y-2 pt-3 border-t" style={{ borderTopColor: "rgb(var(--border))" }} onClick={(e) => e.stopPropagation()}>
-                              {item.assignedToPlayerId ? (
-                                <div className="space-y-2">
-                                  <select
-                                    value={item.assignedToPlayerId}
-                                    onChange={(e) => handleAssign(item.id, e.target.value || null)}
-                                    className="w-full px-3 py-2 text-sm border rounded-md"
-                                    style={{
-                                      backgroundColor: "#FFFFFF",
-                                      borderColor: "rgb(var(--border))",
-                                      color: "rgb(var(--text))",
-                                    }}
-                                    disabled={loading || assigningItemId === item.id || returningItemId === item.id}
-                                  >
-                                    <option value={item.assignedToPlayerId}>
-                                      {item.assignedPlayer?.firstName} {item.assignedPlayer?.lastName}
-                                      {item.assignedPlayer?.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                                    </option>
-                                    {players.map((player) => (
-                                      <option key={player.id} value={player.id}>
-                                        {player.firstName} {player.lastName}
-                                        {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <Button
-                                    onClick={() => handleReturn(item.id)}
-                                    disabled={loading || returningItemId === item.id || assigningItemId === item.id}
-                                    className="w-full"
-                                    style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-                                    size="sm"
-                                  >
-                                    {returningItemId === item.id ? "Returning..." : "Returned"}
-                                  </Button>
-                                </div>
-                              ) : (
-                                <select
-                                  value=""
-                                  onChange={(e) => handleAssign(item.id, e.target.value || null)}
-                                  className="w-full px-3 py-2 text-sm border rounded-md"
-                                  style={{
-                                    backgroundColor: "#FFFFFF",
-                                    borderColor: "rgb(var(--border))",
-                                    color: "rgb(var(--text))",
-                                  }}
-                                  disabled={loading || assigningItemId === item.id}
-                                >
-                                  <option value="">Assign to Player</option>
-                                  {players.map((player) => (
-                                    <option key={player.id} value={player.id}>
-                                      {player.firstName} {player.lastName}
-                                      {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="flex-1 overflow-y-auto p-4 inventory-modal-scroll min-h-0 w-full" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+              {bucketFilteredItems.length > 0 && searchFilteredItems.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">No items match your search</div>
+              ) : equipmentTypesDisplay.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">No items in this category</div>
               ) : (
-                <div className="space-y-8">
-                  {displayItemSections.map(({ bucketLabel, items: sectionItems }) => (
-                    <div key={`list-${bucketLabel ?? "single-type"}`}>
-                      {bucketLabel && (
-                        <div className="mb-2 border-b pb-2" style={{ borderColor: "rgb(var(--border))" }}>
-                          <p
-                            className="text-xs font-semibold uppercase tracking-wider"
-                            style={{ color: "rgb(var(--muted))" }}
-                          >
-                            {bucketLabel}
-                          </p>
-                        </div>
-                      )}
-                      <div className="space-y-3">
-                  {sectionItems.map((item) => {
-                    const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
+                <div className="space-y-10 w-full">
+                  {equipmentTypesDisplay.map((equipmentType) => {
+                    const sectionItems = groupedSearchItems[equipmentType] || []
                     return (
-                      <Card
-                        key={item.id}
-                        className="inventory-card border cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
-                        style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
-                        onClick={() => setEditingItem(item)}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <div className="relative shrink-0">
-                                <InventoryIcon type={item.equipmentType || item.category} />
-                                {jerseyLabel && (
-                                  <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-                                    {jerseyLabel}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium truncate" style={{ color: "rgb(var(--text))" }}>
-                                  {item.name}
-                                </p>
-                                <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-                                  {item.inventoryBucket || "Gear"}
-                                </p>
-                                {item.itemCode && (
-                                  <p className="text-xs font-mono" style={{ color: "rgb(var(--muted))" }}>
-                                    Code: {item.itemCode}
-                                  </p>
-                                )}
-                                {(item.size || item.make) && (
-                                  <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                                    {item.size && `Size: ${item.size}`}
-                                    {item.size && item.make && " • "}
-                                    {item.make && `Make: ${item.make}`}
-                                  </p>
-                                )}
-                                {item.costPerUnit != null && !Number.isNaN(item.costPerUnit) && (
-                                  <p className="text-xs" style={{ color: "rgb(var(--text))" }}>
-                                    {formatMoney(lineInvestment(item))} total
-                                  </p>
-                                )}
-                                {item.damageReportText && (
-                                  <p className="text-xs mt-1 text-red-800 font-medium truncate" title={item.damageReportText}>
-                                    Damage report
-                                  </p>
-                                )}
-                                <div className="flex flex-wrap items-center gap-3 mt-1">
-                                  <span
-                                    className="text-xs px-2 py-1 rounded border"
-                                    style={getStatusColor(item.status)}
-                                  >
-                                    {item.status.replace("_", " ")}
-                                  </span>
-                                  <span className="text-xs" style={getConditionColor(item.condition)}>
-                                    {item.condition.replace("_", " ")}
-                                  </span>
-                                  {item.assignedPlayer && (
-                                    <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                                      Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
-                                      {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            {permissions.canAssign && isPlayerAssignableBucket(item.inventoryBucket || "Gear") && (
-                              <div className="ml-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                {item.assignedToPlayerId ? (
-                                  <div className="flex items-center gap-2">
-                                    <select
-                                      value={item.assignedToPlayerId}
-                                      onChange={(e) => handleAssign(item.id, e.target.value || null)}
-                                      className="px-3 py-1.5 text-sm border rounded-md"
-                                      style={{
-                                        backgroundColor: "#FFFFFF",
-                                        borderColor: "rgb(var(--border))",
-                                        color: "rgb(var(--text))",
-                                      }}
-                                      disabled={loading || assigningItemId === item.id || returningItemId === item.id}
-                                    >
-                                      <option value={item.assignedToPlayerId}>
-                                        {item.assignedPlayer?.firstName} {item.assignedPlayer?.lastName}
-                                        {item.assignedPlayer?.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
-                                      </option>
-                                      {players.map((player) => (
-                                        <option key={player.id} value={player.id}>
-                                          {player.firstName} {player.lastName}
-                                          {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <Button
-                                      onClick={() => handleReturn(item.id)}
-                                      disabled={loading || returningItemId === item.id || assigningItemId === item.id}
-                                      style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-                                      size="sm"
-                                    >
-                                      {returningItemId === item.id ? "Returning..." : "Returned"}
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <select
-                                    value=""
-                                    onChange={(e) => handleAssign(item.id, e.target.value || null)}
-                                    className="px-3 py-1.5 text-sm border rounded-md"
-                                    style={{
-                                      backgroundColor: "#FFFFFF",
-                                      borderColor: "rgb(var(--border))",
-                                      color: "rgb(var(--text))",
-                                    }}
-                                    disabled={loading || assigningItemId === item.id}
-                                  >
-                                    <option value="">Assign to Player</option>
-                                    {players.map((player) => (
-                                      <option key={player.id} value={player.id}>
-                                        {player.firstName} {player.lastName}
-                                        {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </div>
-                            )}
+                      <section key={equipmentType} className="w-full min-w-0">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <InventoryIcon type={equipmentType} size={28} />
+                            <h2 className="text-xl font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
+                              {equipmentType}
+                            </h2>
                           </div>
-                        </CardContent>
-                      </Card>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {permissions.canCreate && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-9 shrink-0 gap-1 border-2 px-2.5"
+                                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                                title="Add equipment"
+                                onClick={() => {
+                                  setAddModalEquipmentType(equipmentType)
+                                  setShowAddModal(true)
+                                }}
+                              >
+                                <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                                <span className="text-xs font-medium">Add</span>
+                              </Button>
+                            )}
+                            {permissions.canEdit && (
+                              <>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-9 w-9 shrink-0 border-2"
+                                  style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                                  title="Edit all in this type"
+                                  onClick={() => handleBulkEdit(equipmentType)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-9 w-9 shrink-0 border-2"
+                                  style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                                  title="Print codes"
+                                  onClick={() => handleBulkPrint(equipmentType)}
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {permissions.canDelete && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-9 w-9 shrink-0 border-2"
+                                style={{ borderColor: "rgb(var(--border))", color: "#dc2626" }}
+                                title="Delete all in this type"
+                                onClick={() => handleBulkDelete(equipmentType)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className={`h-9 w-9 shrink-0 border-2 ${viewMode === "card" ? "bg-[rgb(var(--platinum))]" : ""}`}
+                              style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                              title="Card view"
+                              onClick={() => setViewMode("card")}
+                            >
+                              <LayoutGrid className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className={`h-9 w-9 shrink-0 border-2 ${viewMode === "list" ? "bg-[rgb(var(--platinum))]" : ""}`}
+                              style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                              title="List view"
+                              onClick={() => setViewMode("list")}
+                            >
+                              <List className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {viewMode === "card" ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {sectionItems.map((item) => {
+                              const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
+                              return (
+                                <Card
+                                  key={item.id}
+                                  className="border hover:shadow-md transition-shadow cursor-pointer flex flex-col"
+                                  style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+                                  onClick={() => setEditingItem(item)}
+                                >
+                                  <CardContent className="p-4 flex flex-col flex-1">
+                                    <div className="flex items-start gap-2 mb-3">
+                                      <div className="relative shrink-0">
+                                        <InventoryIcon type={item.equipmentType || item.category} />
+                                        {jerseyLabel && (
+                                          <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-5 h-5 flex items-center justify-center">
+                                            {jerseyLabel}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm mb-1 truncate" style={{ color: "rgb(var(--text))" }}>
+                                          {item.name}
+                                        </p>
+                                        <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgb(var(--muted))" }}>
+                                          {item.inventoryBucket || "Gear"}
+                                        </p>
+                                        {item.itemCode && (
+                                          <p className="text-xs font-mono mb-1" style={{ color: "rgb(var(--muted))" }}>
+                                            Code: {item.itemCode}
+                                          </p>
+                                        )}
+                                        {(item.size || item.make) && (
+                                          <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
+                                            {item.size && `Size: ${item.size}`}
+                                            {item.size && item.make && " • "}
+                                            {item.make && `Make: ${item.make}`}
+                                          </p>
+                                        )}
+                                        {item.costPerUnit != null && !Number.isNaN(item.costPerUnit) && (
+                                          <p className="text-xs mb-1" style={{ color: "rgb(var(--text))" }}>
+                                            Est. value: {formatMoney(lineInvestment(item))}
+                                            <span className="text-[rgb(var(--muted))]"> ({formatMoney(item.costPerUnit)} × {item.quantityTotal ?? 0})</span>
+                                          </p>
+                                        )}
+                                        {item.damageReportText && (
+                                          <p className="text-xs mt-1 rounded border px-2 py-1" style={{ borderColor: "#fecaca", backgroundColor: "#fef2f2", color: "#991b1b" }}>
+                                            <span className="font-semibold">Damage report: </span>
+                                            {item.damageReportText}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                                      <span
+                                        className="text-xs px-2 py-1 rounded border"
+                                        style={getStatusColor(item.status)}
+                                      >
+                                        {item.status.replace("_", " ")}
+                                      </span>
+                                      <span className="text-xs font-medium" style={getConditionColor(item.condition)}>
+                                        {item.condition.replace("_", " ")}
+                                      </span>
+                                    </div>
+                                    {item.assignedPlayer && (
+                                      <p className="text-xs mb-2" style={{ color: "rgb(var(--muted))" }}>
+                                        Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
+                                        {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
+                                      </p>
+                                    )}
+                                    {permissions.canAssign && isPlayerAssignableBucket(item.inventoryBucket || "Gear") && (
+                                      <div className="mt-auto pt-3 border-t flex flex-wrap gap-2" style={{ borderTopColor: "rgb(var(--border))" }} onClick={(e) => e.stopPropagation()}>
+                                        {item.assignedToPlayerId ? (
+                                          <>
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              className="border-2"
+                                              style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                                              onClick={() => setAssignModalItem(item)}
+                                            >
+                                              Change
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              onClick={() => handleReturn(item.id)}
+                                              disabled={loading || returningItemId === item.id || assigningItemId === item.id}
+                                              size="sm"
+                                              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                                            >
+                                              {returningItemId === item.id ? "Returning..." : "Returned"}
+                                            </Button>
+                                          </>
+                                        ) : (
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-2"
+                                            style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                                            onClick={() => setAssignModalItem(item)}
+                                          >
+                                            Assign
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {sectionItems.map((item) => {
+                              const jerseyLabel = getJerseyLabel(item.equipmentType, item.name)
+                              return (
+                                <Card
+                                  key={item.id}
+                                  className="inventory-card border cursor-pointer hover:bg-[rgb(var(--platinum))] transition-colors"
+                                  style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+                                  onClick={() => setEditingItem(item)}
+                                >
+                                  <CardContent className="p-3">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <div className="relative shrink-0">
+                                          <InventoryIcon type={item.equipmentType || item.category} />
+                                          {jerseyLabel && (
+                                            <span className="absolute -top-1 -right-1 text-xs font-bold bg-[rgb(var(--accent))] text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                                              {jerseyLabel}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium truncate" style={{ color: "rgb(var(--text))" }}>
+                                            {item.name}
+                                          </p>
+                                          <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                                            {item.inventoryBucket || "Gear"}
+                                          </p>
+                                          {item.itemCode && (
+                                            <p className="text-xs font-mono" style={{ color: "rgb(var(--muted))" }}>
+                                              Code: {item.itemCode}
+                                            </p>
+                                          )}
+                                          {(item.size || item.make) && (
+                                            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                                              {item.size && `Size: ${item.size}`}
+                                              {item.size && item.make && " • "}
+                                              {item.make && `Make: ${item.make}`}
+                                            </p>
+                                          )}
+                                          {item.costPerUnit != null && !Number.isNaN(item.costPerUnit) && (
+                                            <p className="text-xs" style={{ color: "rgb(var(--text))" }}>
+                                              {formatMoney(lineInvestment(item))} total
+                                            </p>
+                                          )}
+                                          {item.damageReportText && (
+                                            <p className="text-xs mt-1 text-red-800 font-medium truncate" title={item.damageReportText}>
+                                              Damage report
+                                            </p>
+                                          )}
+                                          <div className="flex flex-wrap items-center gap-3 mt-1">
+                                            <span
+                                              className="text-xs px-2 py-1 rounded border"
+                                              style={getStatusColor(item.status)}
+                                            >
+                                              {item.status.replace("_", " ")}
+                                            </span>
+                                            <span className="text-xs" style={getConditionColor(item.condition)}>
+                                              {item.condition.replace("_", " ")}
+                                            </span>
+                                            {item.assignedPlayer && (
+                                              <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                                                Assigned to: {item.assignedPlayer.firstName} {item.assignedPlayer.lastName}
+                                                {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {permissions.canAssign && isPlayerAssignableBucket(item.inventoryBucket || "Gear") && (
+                                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:ml-4" onClick={(e) => e.stopPropagation()}>
+                                          {item.assignedToPlayerId ? (
+                                            <>
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="border-2"
+                                                style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                                                onClick={() => setAssignModalItem(item)}
+                                              >
+                                                Change
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                onClick={() => handleReturn(item.id)}
+                                                disabled={loading || returningItemId === item.id || assigningItemId === item.id}
+                                                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                                                size="sm"
+                                              >
+                                                {returningItemId === item.id ? "Returning..." : "Returned"}
+                                              </Button>
+                                            </>
+                                          ) : (
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              className="border-2"
+                                              style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                                              onClick={() => setAssignModalItem(item)}
+                                            >
+                                              Assign
+                                            </Button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </section>
                     )
                   })}
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
-          </>
-        )}
-      </div>
           </div>
         </div>
       )}
+
 
       {/* Modals */}
       {permissions.canCreate && (
         <AddItemModal
           open={showAddModal}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => {
+            setShowAddModal(false)
+            setAddModalEquipmentType(undefined)
+          }}
           initialInventoryBucket={bucketFilter !== "All" ? bucketFilter : undefined}
           lockInventoryBucket={bucketFilter !== "All"}
-          initialEquipmentTypeLabel={activeTab ?? undefined}
+          initialEquipmentTypeLabel={addModalEquipmentType}
           onSubmit={onAddItem}
           players={players}
           loading={loading}
@@ -1709,21 +1588,81 @@ export function InventoryTabbedLayout({
       )}
 
       {/* Bulk Edit Modal */}
-      {showBulkEditModal && activeTab && (
+      {showBulkEditModal && bulkEditEquipmentType && (
         <BulkEditModal
           open={showBulkEditModal}
-          onClose={() => setShowBulkEditModal(false)}
-          equipmentType={activeTab}
-          itemCount={groupedItems[activeTab]?.length || 0}
-          assignedCount={groupedItems[activeTab]?.filter((item) => item.assignedToPlayerId).length || 0}
-          defaultInventoryBucket={groupedItems[activeTab]?.[0]?.inventoryBucket || "Gear"}
-          onSave={async (data) => {
-            await onUpdateAllItems(activeTab, data)
+          onClose={() => {
             setShowBulkEditModal(false)
+            setBulkEditEquipmentType(null)
+          }}
+          equipmentType={bulkEditEquipmentType}
+          itemCount={groupedItems[bulkEditEquipmentType]?.length || 0}
+          assignedCount={groupedItems[bulkEditEquipmentType]?.filter((item) => item.assignedToPlayerId).length || 0}
+          defaultInventoryBucket={groupedItems[bulkEditEquipmentType]?.[0]?.inventoryBucket || "Gear"}
+          onSave={async (data) => {
+            await onUpdateAllItems(bulkEditEquipmentType, data)
+            setShowBulkEditModal(false)
+            setBulkEditEquipmentType(null)
           }}
           loading={loading}
         />
       )}
+
+      <Dialog open={!!assignModalItem} onOpenChange={(open) => !open && setAssignModalItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign equipment</DialogTitle>
+          </DialogHeader>
+          {assignModalItem && (
+            <div className="space-y-3 py-1">
+              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                {assignModalItem.name}
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="assign-player-select">Player</Label>
+                <select
+                  id="assign-player-select"
+                  value={assignPlayerId}
+                  onChange={(e) => setAssignPlayerId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border rounded-md"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderColor: "rgb(var(--border))",
+                    color: "rgb(var(--text))",
+                  }}
+                >
+                  <option value="">— Unassigned —</option>
+                  {players.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.firstName} {player.lastName}
+                      {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setAssignModalItem(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              disabled={loading || !assignModalItem}
+              onClick={() => {
+                if (!assignModalItem) return
+                void (async () => {
+                  await handleAssign(assignModalItem.id, assignPlayerId || null)
+                  setAssignModalItem(null)
+                })()
+              }}
+            >
+              {assigningItemId ? "Saving…" : "Save assignment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList, Copy } from "lucide-react"
+import { ArrowLeft, BarChart3, Package, FileText, Save, Loader2, User, Camera, Trash2, FileUp, ExternalLink, History, Eye, EyeOff, CheckCircle2, XCircle, Mail, Phone, ClipboardList, Copy, Dumbbell } from "lucide-react"
 import type { PlayerProfile } from "@/types/player-profile"
 import { PlayerProfileWeeklyStatsPanel } from "./player-profile-weekly-stats-panel"
 import {
@@ -935,6 +935,33 @@ function OverviewTab({
         </div>
       </div>
       </div>
+
+      {/* Weight room maxes (read-only; logged in Weight Room module) */}
+      {(profile.weightRoomMaxes &&
+        (profile.weightRoomMaxes.benchLbs != null ||
+          profile.weightRoomMaxes.squatLbs != null ||
+          profile.weightRoomMaxes.cleanLbs != null ||
+          profile.weightRoomMaxes.deadliftLbs != null)) ? (
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+          <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+            <Dumbbell className="h-4 w-4" aria-hidden />
+            Weight room — current maxes (lbs)
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "Bench", v: profile.weightRoomMaxes.benchLbs },
+              { label: "Squat", v: profile.weightRoomMaxes.squatLbs },
+              { label: "Power clean", v: profile.weightRoomMaxes.cleanLbs },
+              { label: "Deadlift", v: profile.weightRoomMaxes.deadliftLbs },
+            ].map(({ label, v }) => (
+              <div key={label} className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2">
+                <p className="text-[11px] font-medium uppercase text-[#64748B]">{label}</p>
+                <p className="text-lg font-semibold tabular-nums text-[#0F172A]">{v != null ? v : "—"}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Follow-ups (coach intervention tracking) */}
       <FollowUpsSection

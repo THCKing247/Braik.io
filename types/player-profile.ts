@@ -76,8 +76,18 @@ export interface PlayerProfileDocuments {
   documentRefs?: unknown[]
 }
 
+/** Current weight-room maxes (lbs); synced from player_maxes; display-only on profile. */
+export interface WeightRoomMaxesDisplay {
+  benchLbs: number | null
+  squatLbs: number | null
+  cleanLbs: number | null
+  deadliftLbs: number | null
+}
+
 export interface PlayerProfile extends PlayerProfileBasic, PlayerProfileTeam, PlayerProfileStats, PlayerProfileEquipment, PlayerProfileDocuments {
   id: string
+  /** Populated from players.max_* columns; coaches see all; players see own only via API. */
+  weightRoomMaxes?: WeightRoomMaxesDisplay | null
   imageUrl?: string | null
   healthStatus?: "active" | "injured" | "unavailable"
   /** Coach-issued code on this roster row; parents use it at parent signup (`/parent/join`). */

@@ -49,6 +49,10 @@ export type DbPlayerRow = {
   profile_notes?: string | null
   document_refs?: unknown
   invite_code?: string | null
+  max_bench_lbs?: number | null
+  max_squat_lbs?: number | null
+  max_power_clean_lbs?: number | null
+  max_deadlift_lbs?: number | null
 }
 
 export type AssignedEquipmentItemRow = {
@@ -128,6 +132,18 @@ export function mapRowToProfile(
     imageUrl: normalizePlayerImageUrl(row.image_url) ?? null,
     healthStatus: (row.health_status as "active" | "injured" | "unavailable") ?? "active",
     userId: row.user_id ?? null,
+    weightRoomMaxes:
+      row.max_bench_lbs != null ||
+      row.max_squat_lbs != null ||
+      row.max_power_clean_lbs != null ||
+      row.max_deadlift_lbs != null
+        ? {
+            benchLbs: row.max_bench_lbs ?? null,
+            squatLbs: row.max_squat_lbs ?? null,
+            cleanLbs: row.max_power_clean_lbs ?? null,
+            deadliftLbs: row.max_deadlift_lbs ?? null,
+          }
+        : null,
   }
 }
 

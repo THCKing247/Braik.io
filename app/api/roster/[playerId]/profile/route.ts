@@ -54,7 +54,7 @@ export async function GET(
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select(
-        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, suspension_end_date, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, emergency_contact_relationship, medical_notes, medical_alerts, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs, invite_code"
+        "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, suspension_end_date, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, emergency_contact_relationship, medical_notes, medical_alerts, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs, invite_code, max_bench_lbs, max_squat_lbs, max_power_clean_lbs, max_deadlift_lbs"
       )
       .eq("id", playerId)
       .eq("team_id", teamId)

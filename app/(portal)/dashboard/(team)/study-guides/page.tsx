@@ -1,12 +1,12 @@
 "use client"
 
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { StudyGuidesScaffold } from "@/components/portal/study-guides-scaffold"
+import { StudyGuidesModule } from "@/components/portal/study-guides-module"
 
 export default function StudyGuidesPage() {
   return (
     <DashboardPageShell>
-      {({ canEdit }) => <StudyGuidesScaffold canEdit={canEdit} />}
+      {({ teamId, canEdit }) => <StudyGuidesModule teamId={teamId} canEdit={canEdit} />}
     </DashboardPageShell>
   )
 }

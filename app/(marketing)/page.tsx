@@ -24,7 +24,11 @@ import {
   landingLightSection,
 } from "@/lib/marketing/landing-visual-theme"
 
-/** Below-the-fold / non-LCP: separate chunks to shrink the main home bundle. */
+/**
+ * Below-the-fold / non-LCP: separate chunks to shrink the main home bundle.
+ * Hero field image keeps `priority`; device mockup uses default lazy load — do not add `priority`
+ * to below-fold images (see PERFORMANCE_GUIDELINES.md).
+ */
 const LeadCaptureFormLazy = dynamic(
   () => import("@/components/marketing/lead-capture-form").then((m) => m.LeadCaptureForm),
   {

@@ -240,6 +240,10 @@ export async function getAdPortalAccessForUser(
   for (const p of footballProgs) {
     const orgId = (p as { organization_id?: string | null }).organization_id
     const adUid = orgId ? orgToAdUser.get(orgId) ?? null : null
+    // When adUid is null, no AD has been assigned to this org yet.
+    // The varsity HC receives full_owner access to initialize the program structure
+    // for the future. When a real AD is later assigned, they will take over
+    // and the HC will drop to restricted_football mode automatically.
     if (adUid && adUid !== userId) {
       hasExternalAd = true
       break

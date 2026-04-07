@@ -7,6 +7,9 @@ import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-conte
  * Prefer team `AppBootstrapProvider` payload for display / gating; fall back to
  * `useSession()` when bootstrap is absent, still loading, or has no user (e.g. no team id).
  * Does not replace full session for auth-sensitive mutations — use server session there.
+ *
+ * Used to align dashboard skeleton timing with bootstrap so we do not wait on session hydration
+ * when shell payload already has `user.id`. See PERFORMANCE_GUIDELINES.md.
  */
 export function useDashboardShellIdentity() {
   const shell = useAppBootstrapOptional()

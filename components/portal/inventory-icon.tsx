@@ -11,9 +11,9 @@ interface InventoryIconProps {
 }
 
 /**
- * Maps inventory item types to their corresponding transparent PNG icon files.
+ * Maps inventory item types to their corresponding transparent WebP icon files.
  * Returns the appropriate icon based on the type prop (with fallback to equipmentType/category for backward compatibility).
- * Icons are transparent PNGs with black silhouettes and hover effects.
+ * Icons are transparent WebPs with black silhouettes and hover effects.
  */
 export function InventoryIcon({ 
   type, 
@@ -28,53 +28,53 @@ export function InventoryIcon({
   // Map item types to icon file names - matches actual equipment type names from the system
   const iconMap: Record<string, string> = {
     // Exact matches for preset equipment types
-    "helmets": "helmet.png",
-    "helmet": "helmet.png",
-    "pads": "shoulder_pads.png",
-    "shoulder_pads": "shoulder_pads.png",
-    "shoulder pads": "shoulder_pads.png",
-    "shoulderpad": "shoulder_pads.png",
-    "shoulder pad": "shoulder_pads.png",
-    "practice jerseys": "jersey.png",
-    "home jersey": "jersey.png",
-    "away jersey": "jersey.png",
-    "alternate jersey": "jersey.png",
-    "jersey": "jersey.png",
-    "jerseys": "jersey.png",
-    "home pants": "football_pants.png",
-    "away pants": "football_pants.png",
-    "alternate pants": "football_pants.png",
-    "practice pants": "football_pants.png",
-    "pants": "football_pants.png",
-    "football pants": "football_pants.png",
-    "chinstraps": "chinstrap.png",
-    "chinstrap": "chinstrap.png",
-    "knee pads": "knee_pad.png",
-    "knee_pad": "knee_pad.png",
-    "knee pad": "knee_pad.png",
-    "kneepad": "knee_pad.png",
-    "kneepads": "knee_pad.png",
-    "mouthpieces": "mouthguard.png",
-    "mouthpiece": "mouthguard.png",
-    "mouthguard": "mouthguard.png",
-    "locks": "lock.png",
-    "lock": "lock.png",
-    "lockers": "locker.png",
-    "locker": "locker.png",
-    "playcall wristbands": "equipment_bag.png",
-    "wristband": "equipment_bag.png",
-    "wristbands": "equipment_bag.png",
+    "helmets": "helmet.webp",
+    "helmet": "helmet.webp",
+    "pads": "shoulder_pads.webp",
+    "shoulder_pads": "shoulder_pads.webp",
+    "shoulder pads": "shoulder_pads.webp",
+    "shoulderpad": "shoulder_pads.webp",
+    "shoulder pad": "shoulder_pads.webp",
+    "practice jerseys": "jersey.webp",
+    "home jersey": "jersey.webp",
+    "away jersey": "jersey.webp",
+    "alternate jersey": "jersey.webp",
+    "jersey": "jersey.webp",
+    "jerseys": "jersey.webp",
+    "home pants": "football_pants.webp",
+    "away pants": "football_pants.webp",
+    "alternate pants": "football_pants.webp",
+    "practice pants": "football_pants.webp",
+    "pants": "football_pants.webp",
+    "football pants": "football_pants.webp",
+    "chinstraps": "chinstrap.webp",
+    "chinstrap": "chinstrap.webp",
+    "knee pads": "knee_pad.webp",
+    "knee_pad": "knee_pad.webp",
+    "knee pad": "knee_pad.webp",
+    "kneepad": "knee_pad.webp",
+    "kneepads": "knee_pad.webp",
+    "mouthpieces": "mouthguard.webp",
+    "mouthpiece": "mouthguard.webp",
+    "mouthguard": "mouthguard.webp",
+    "locks": "lock.webp",
+    "lock": "lock.webp",
+    "lockers": "locker.webp",
+    "locker": "locker.webp",
+    "playcall wristbands": "equipment_bag.webp",
+    "wristband": "equipment_bag.webp",
+    "wristbands": "equipment_bag.webp",
     // Additional common types
-    "football": "football.png",
-    "gloves": "gloves.png",
-    "cleats": "cleats.png",
-    "equipment_bag": "equipment_bag.png",
-    "equipment bag": "equipment_bag.png",
-    "equipmentbag": "equipment_bag.png",
-    "whistle": "whistle.png",
-    "water_bottle": "water_bottle.png",
-    "water bottle": "water_bottle.png",
-    "waterbottle": "water_bottle.png",
+    "football": "football.webp",
+    "gloves": "gloves.webp",
+    "cleats": "cleats.webp",
+    "equipment_bag": "equipment_bag.webp",
+    "equipment bag": "equipment_bag.webp",
+    "equipmentbag": "equipment_bag.webp",
+    "whistle": "whistle.webp",
+    "water_bottle": "water_bottle.webp",
+    "water bottle": "water_bottle.webp",
+    "waterbottle": "water_bottle.webp",
   }
 
   // Find matching icon (check for partial matches too)
@@ -83,32 +83,32 @@ export function InventoryIcon({
   if (!iconFile) {
     // Try partial matching for compound terms
     if (itemType.includes("helmet")) {
-      iconFile = "helmet.png"
+      iconFile = "helmet.webp"
     } else if (itemType.includes("shoulder") || (itemType.includes("pad") && !itemType.includes("knee"))) {
-      iconFile = "shoulder_pads.png"
+      iconFile = "shoulder_pads.webp"
     } else if (itemType.includes("jersey")) {
-      iconFile = "jersey.png"
+      iconFile = "jersey.webp"
     } else if (itemType.includes("pant")) {
-      iconFile = "football_pants.png"
+      iconFile = "football_pants.webp"
     } else if (itemType.includes("knee") && itemType.includes("pad")) {
-      iconFile = "knee_pad.png"
+      iconFile = "knee_pad.webp"
     } else if (itemType.includes("mouth")) {
-      iconFile = "mouthguard.png"
+      iconFile = "mouthguard.webp"
     } else if (itemType.includes("chinstrap")) {
-      iconFile = "chinstrap.png"
+      iconFile = "chinstrap.webp"
     } else if (itemType.includes("locker")) {
-      iconFile = "locker.png"
+      iconFile = "locker.webp"
     } else if (itemType.includes("lock") && !itemType.includes("locker")) {
-      iconFile = "lock.png"
+      iconFile = "lock.webp"
     } else if (itemType.includes("equipment") && itemType.includes("bag")) {
-      iconFile = "equipment_bag.png"
+      iconFile = "equipment_bag.webp"
     } else if (itemType.includes("water")) {
-      iconFile = "water_bottle.png"
+      iconFile = "water_bottle.webp"
     } else if (itemType.includes("wristband") || itemType.includes("playcall")) {
-      iconFile = "equipment_bag.png"
+      iconFile = "equipment_bag.webp"
     } else {
       // Default to equipment bag for unknown items
-      iconFile = "equipment_bag.png"
+      iconFile = "equipment_bag.webp"
     }
   }
 

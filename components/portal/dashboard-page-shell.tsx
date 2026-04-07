@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * Performance: `sessionStillLoading` uses the same identity rule as `app/(portal)/dashboard/(team)/page.tsx`
+ * (`useDashboardShellIdentity`) so shell + home do not disagree on when to show skeletons.
+ * See PERFORMANCE_GUIDELINES.md (first render / bootstrap).
+ */
+
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"

@@ -79,6 +79,19 @@ interface Player {
   updatedAt?: string | null
 }
 
+function mapApiRowToPlayer(p: Record<string, unknown>): Player {
+  return {
+    ...p,
+    guardianLinks: Array.isArray(p.guardianLinks) ? p.guardianLinks : [],
+  } as Player
+}
+
+function isCompletePlayerCreateResponse(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false
+  const o = data as Record<string, unknown>
+  return typeof o.id === "string" && o.id.length > 0 && typeof o.firstName === "string" && typeof o.lastName === "string"
+}
+
 interface DepthChartEntry {
   id: string
   unit: string
@@ -739,6 +752,9 @@ export function RosterManagerEnhanced({
     prevRosterBootstrapPending.current = rosterBootstrapPending
   }, [initialPlayers, rosterBootstrapPending])
 
+  /** Full-page bootstrap had no roster rows yet; show grid skeletons only (not a second shell). */
+  const showRosterBootstrapSkeleton = rosterBootstrapPending && initialPlayers.length === 0
+
   const syncRosterParamsToUrl = useMemo(() => {
     return (view: "card" | "list", q: string, position: string) => {
       const p = new URLSearchParams()
@@ -1002,8 +1018,17 @@ export function RosterManagerEnhanced({
         }
         throw new Error(r.message)
       }
-      const newPlayer = data as Player
-      setPlayers([...players, newPlayer])
+      if (isCompletePlayerCreateResponse(data)) {
+        setPlayers((prev) => [...prev, mapApiRowToPlayer(data as Record<string, unknown>)])
+      } else {
+        const rosterRes = await fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`)
+        if (!rosterRes.ok) {
+          throw new Error("Player may have been added, but the roster could not be refreshed. Please reload the page.")
+        }
+        const rosterData = await rosterRes.json()
+        const list = Array.isArray(rosterData) ? rosterData : []
+        setPlayers(list.map((p: Record<string, unknown>) => mapApiRowToPlayer(p)))
+      }
       setReadinessRefetchNonce((n) => n + 1)
       setPendingPlayerData(null)
       setShowAddModal(false)
@@ -1443,25 +1468,6 @@ export function RosterManagerEnhanced({
         : "rounded-t-lg border-b-[3px] border-transparent text-foreground/70 hover:bg-muted/50 hover:text-foreground lg:border-transparent lg:hover:bg-muted/30"
     }`
 
-  if (rosterBootstrapPending) {
-    return (
-      <div className="w-full min-w-0 max-w-full overflow-x-hidden">
-        <div className="lg:hidden">
-          <div className="sticky top-0 z-10 mb-4 space-y-3 border-b border-border bg-background/95 py-3 backdrop-blur-md">
-            <div className="h-11 w-full animate-pulse rounded-xl bg-muted" />
-            <div className="flex gap-2">
-              <div className="h-11 w-28 shrink-0 animate-pulse rounded-xl bg-muted" />
-              <div className="h-11 w-24 shrink-0 animate-pulse rounded-xl bg-muted" />
-              <div className="h-11 w-32 shrink-0 animate-pulse rounded-xl bg-muted" />
-            </div>
-          </div>
-          <RosterMobileSkeleton count={6} />
-        </div>
-        <RosterDesktopSkeleton />
-      </div>
-    )
-  }
-
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-hidden px-4 pb-6 lg:px-0 lg:pb-0">
       {/* Tab Navigation — scrollable on small screens, 44px tap targets */}
@@ -1647,26 +1653,30 @@ export function RosterManagerEnhanced({
                 )}
             </div>
             {!showPrintModal && !showEmailModal && (
-              <RosterMobileView
-                players={filteredRosterPlayers}
-                sort={mobileRosterSort}
-                teamId={teamId}
-                canEdit={canEdit}
-                onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
-                onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
-                onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
-                onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
-                onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
-                onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
-                onPromotePlayer={
-                  isFootball && programId && userRole === "HEAD_COACH" && canEdit
-                    ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
-                    : undefined
-                }
-                getProfileHref={(p) => rosterProfileHref(p as Player)}
-                onAddPlayer={canEdit ? () => setShowAddModal(true) : undefined}
-                onImport={canEdit ? () => setShowImportForm(true) : undefined}
-              />
+              showRosterBootstrapSkeleton ? (
+                <RosterMobileSkeleton count={6} />
+              ) : (
+                <RosterMobileView
+                  players={filteredRosterPlayers}
+                  sort={mobileRosterSort}
+                  teamId={teamId}
+                  canEdit={canEdit}
+                  onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
+                  onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}
+                  onCopyJoinLink={canEdit ? (p) => handleCopyJoinLink(p as Player) : undefined}
+                  onResendInvite={canEdit ? (p) => void handleResendInvite(p as Player) : undefined}
+                  onRevokeInvite={canEdit ? (p) => void handleRevokeInvite(p as Player) : undefined}
+                  onDeletePlayer={canEdit ? (p) => void handleDeletePlayer(p as Player) : undefined}
+                  onPromotePlayer={
+                    isFootball && programId && userRole === "HEAD_COACH" && canEdit
+                      ? (p) => setPromotePlayer({ player: p as Player, currentTeamId: teamId })
+                      : undefined
+                  }
+                  getProfileHref={(p) => rosterProfileHref(p as Player)}
+                  onAddPlayer={canEdit ? () => setShowAddModal(true) : undefined}
+                  onImport={canEdit ? () => setShowImportForm(true) : undefined}
+                />
+              )
             )}
           </div>
 
@@ -2567,7 +2577,11 @@ export function RosterManagerEnhanced({
       {/* Content Views */}
       {activeTab === "roster" && !showPrintModal && !showEmailModal && (
         <div className="hidden min-w-0 w-full max-w-full overflow-x-hidden lg:block">
-          {rosterViewMode === "card" ? (
+          {showRosterBootstrapSkeleton ? (
+            <div className="min-w-0 max-w-full [&>div>div:first-child]:hidden">
+              <RosterDesktopSkeleton />
+            </div>
+          ) : rosterViewMode === "card" ? (
             <RosterGridView
               players={filteredRosterPlayers}
               canEdit={canEdit}

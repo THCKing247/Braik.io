@@ -1,29 +1,14 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { RosterManagerEnhanced } from "@/components/portal/roster-manager-enhanced"
 import {
   kickDeferredCoreMerge,
   useDashboardBootstrapQuery,
 } from "@/lib/dashboard/dashboard-bootstrap-query"
-
-const RosterManagerEnhanced = dynamic(
-  () => import("@/components/portal/roster-manager-enhanced").then((m) => m.RosterManagerEnhanced),
-  {
-    loading: () => (
-      <div className="w-full min-w-0 max-w-full overflow-x-hidden">
-        <div className="lg:hidden">
-          <div className="sticky top-0 z-10 mb-4 space-y-3 border-b border-border bg-background/95 py-3 backdrop-blur-md">
-            <div className="h-11 w-full animate-pulse rounded-xl bg-muted" />
-          </div>
-        </div>
-      </div>
-    ),
-  }
-)
 
 export default function RosterPage() {
   return (

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import sharp from "sharp"
 import { unlink } from "fs/promises"
 import { join } from "path"
 import { getUploadRoot } from "@/lib/upload-path"
@@ -98,15 +99,19 @@ export async function POST(
 
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 15)
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-    const secureFileName = `${timestamp}-${random}-${sanitizedName}`
+    const secureFileName = `${timestamp}-${random}-${playerId}.webp`
     const storagePath = `teams/${teamId}/players/${playerId}/${secureFileName}`
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const rawBuffer = Buffer.from(await file.arrayBuffer())
+    const buffer = await sharp(rawBuffer)
+      .rotate()
+      .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer()
     const { error: uploadError } = await supabase.storage
       .from(PLAYER_IMAGES_BUCKET)
       .upload(storagePath, buffer, {
-        contentType: file.type,
+        contentType: "image/webp",
         upsert: false,
       })
 

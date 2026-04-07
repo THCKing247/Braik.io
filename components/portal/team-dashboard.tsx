@@ -855,11 +855,37 @@ function mapNotificationRowsForHomeCard(rows: NotificationApiRow[]): DashNotific
 }
 
 export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDashboardProps) {
-  const user = session?.user
-
   const tid = teamId?.trim() ?? ""
   /** Same team id as `AppBootstrapProvider` (must share one React Query cache). */
   const shell = useAppBootstrapOptional()
+
+  /** Prefer NextAuth session; fall back to app bootstrap `shell` user so the banner can paint before session hydrates. */
+  const user = useMemo((): SessionUser | undefined => {
+    if (session?.user) return session.user as SessionUser
+    if (shell?.phase === "ok" && shell.payload?.user) {
+      const u = shell.payload.user
+      const team = shell.payload.team
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.displayName,
+        role: u.role,
+        teamId: u.teamId,
+        teamName: team?.name,
+        organizationName: undefined,
+      }
+    }
+    return undefined
+  }, [
+    session?.user,
+    shell?.phase,
+    shell?.payload?.user?.id,
+    shell?.payload?.user?.email,
+    shell?.payload?.user?.displayName,
+    shell?.payload?.user?.role,
+    shell?.payload?.user?.teamId,
+    shell?.payload?.team?.name,
+  ])
   const queryClient = useQueryClient()
   const bootstrapQueryTeamId = (shell?.teamId?.trim() || tid).trim()
   const dashQ = useDashboardBootstrapQuery(bootstrapQueryTeamId)

@@ -91,7 +91,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
           <div className="flex min-w-0 justify-center">
             <Link
               href="/dashboard"
-              prefetch={false}
               className="flex max-w-[min(200px,42vw)] min-w-0 justify-center active:opacity-80"
               aria-label="Braik - Home"
             >
@@ -134,7 +133,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
           <div className="min-w-0 shrink-0">
             <Link
               href={dashboardHomeHref}
-              prefetch={false}
               className="flex items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
               aria-label="Braik - Return to dashboard"
             >

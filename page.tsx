@@ -173,7 +173,7 @@ export default function Home() {
                 {/* Image on the left */}
                 <div className="order-2 md:order-1 flex justify-center md:justify-start">
                   <img 
-                    src="/diagram-hero-page-1.png" 
+                    src="/diagram-hero-page-1.webp" 
                     alt="Braik system diagram" 
                     className="max-w-full h-auto object-contain rounded-xl"
                     style={{ maxHeight: '600px', width: 'auto' }}

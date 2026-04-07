@@ -101,3 +101,7 @@ Inside `/dashboard/ad/**`, **top nav tabs** depend on Phase 1 access state. Layo
 - **UI:** “Move player” on the roster appears only for **football** teams and **head coach** session role (`components/portal/roster-manager-enhanced.tsx`); modal copy clarifies scope (`player-promote-modal.tsx`).
 - **Program team list API:** `GET /api/programs/[programId]/teams` uses **`requireProgramTeamsListAccess`** (coaches on program or team level; not `athletic_director` program role) instead of `requireProgramCoach`, so assistants and team-only coaches can load the destination dropdown without treating AD as a roster coach.
 - **Cleanup:** Removed reliance on **`requireProgramHeadCoach` + `program_members` only** for promotion (which blocked team-level head coaches). No portal shell or nav changes.
+
+## Performance guidelines (portal & marketing)
+
+See **[PERFORMANCE_GUIDELINES.md](./PERFORMANCE_GUIDELINES.md)** for first-render, bootstrap, fetching, Suspense, images, and dynamic-import rules. New dashboard widgets or portal surfaces should note impact on first paint and network waterfalls before merge.

@@ -19,6 +19,11 @@ import { CoachPageDebug } from "@/components/portal/coach-page-debug"
 import { DashboardLayoutFallback } from "@/components/portal/dashboard-layout-fallback"
 import { DashboardShellLoadingSkeleton } from "@/components/portal/dashboard-shell-loading-skeleton"
 
+/**
+ * First paint: one GET /api/dashboard/shell (React Query). Downstream pages should consume
+ * bootstrap/shell payloads instead of duplicating the same data with ad-hoc fetches.
+ * PERFORMANCE_GUIDELINES.md — fetching rules.
+ */
 export function DashboardTeamShellGate({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()

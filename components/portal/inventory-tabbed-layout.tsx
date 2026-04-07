@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Edit, Trash2, Printer, Search, LayoutGrid, List, Plus } from "lucide-react"
+import { Edit, Trash2, Printer, Search, LayoutGrid, List, Plus, ChevronDown, ChevronRight, Download } from "lucide-react"
 import { InventoryIcon } from "./inventory-icon"
 import { EditItemModal } from "./edit-item-modal"
 import { AddItemModal } from "./add-item-modal"
 import { BulkEditModal } from "./bulk-edit-modal"
 import { PortalUnderlineTabs, type PortalUnderlineTab } from "./portal-underline-tabs"
+import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
 
 interface InventoryItem {
   id: string
@@ -46,8 +47,13 @@ function formatMoney(n: number): string {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 })
 }
 
+function hasEnteredCost(item: InventoryItem): boolean {
+  return item.costPerUnit != null && !Number.isNaN(item.costPerUnit)
+}
+
 function lineInvestment(item: InventoryItem): number {
-  const unit = item.costPerUnit != null && !Number.isNaN(item.costPerUnit) ? item.costPerUnit : 0
+  if (!hasEnteredCost(item)) return 0
+  const unit = item.costPerUnit as number
   const qty = item.quantityTotal ?? 0
   return unit * qty
 }
@@ -86,25 +92,6 @@ function buildCompositeGroups(inv: InventoryItem[]): ExpenseGroupRow[] {
   })
 }
 
-function buildTypeOnlyGroups(inv: InventoryItem[]): ExpenseGroupRow[] {
-  const m = new Map<string, ExpenseGroupRow>()
-  for (const i of inv) {
-    const typeKey = i.equipmentType || i.category || "Other"
-    const key = `t||${typeKey}`
-    if (!m.has(key)) {
-      m.set(key, { key, bucket: "", typeKey, items: [], totalQty: 0, totalLine: 0, uniformUnit: null })
-    }
-    m.get(key)!.items.push(i)
-  }
-  for (const g of m.values()) {
-    g.totalQty = g.items.reduce((s, x) => s + (x.quantityTotal ?? 0), 0)
-    g.totalLine = g.items.reduce((s, x) => s + lineInvestment(x), 0)
-    const units = g.items.map((x) => x.costPerUnit).filter((u) => u != null && !Number.isNaN(u as number)) as number[]
-    g.uniformUnit = units.length === 0 ? null : units.every((u) => u === units[0]) ? units[0] : null
-  }
-  return [...m.values()].sort((a, b) => a.typeKey.localeCompare(b.typeKey))
-}
-
 function ExpenseGroupUnitCell({
   groupKey,
   uniformUnit,
@@ -116,7 +103,7 @@ function ExpenseGroupUnitCell({
   uniformUnit: number | null
   canEdit: boolean
   disabled: boolean
-  onSave: (cost: number) => Promise<void>
+  onSave: (cost: number | null) => Promise<void>
 }) {
   const [draft, setDraft] = useState("")
   useEffect(() => {
@@ -127,7 +114,7 @@ function ExpenseGroupUnitCell({
   if (!canEdit) {
     return (
       <span className="text-right block">
-        {uniformUnit != null ? formatMoney(uniformUnit) : <span style={{ color: "rgb(var(--muted))" }}>Mixed / —</span>}
+        {uniformUnit != null ? formatMoney(uniformUnit) : <span style={{ color: "rgb(var(--muted))" }}>—</span>}
       </span>
     )
   }
@@ -138,12 +125,18 @@ function ExpenseGroupUnitCell({
         type="number"
         min={0}
         step="0.01"
-        className="h-8 max-w-[7rem] text-right text-sm"
+        className="h-8 max-w-[7rem] text-right text-sm placeholder:text-muted-foreground/70"
         disabled={disabled}
         value={draft}
+        placeholder="Enter cost"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={async () => {
-          const n = parseFloat(draft)
+          const t = draft.trim()
+          if (t === "") {
+            await onSave(null)
+            return
+          }
+          const n = parseFloat(t)
           if (Number.isNaN(n) || n < 0) return
           await onSave(n)
         }}
@@ -153,29 +146,51 @@ function ExpenseGroupUnitCell({
   )
 }
 
+type UnitCostChangeRow = {
+  inventoryBucket: string
+  equipmentType: string
+  newCost: number | null
+  changedAt: string
+}
+
 function InventoryExpenseLedger({
   items,
   expenseBreakdown,
   onBreakdownChange,
   canEdit,
   onBulkSetCost,
+  recentUnitCostChanges,
 }: {
   items: InventoryItem[]
   expenseBreakdown: "all" | "category" | "type"
   onBreakdownChange: (v: "all" | "category" | "type") => void
   canEdit: boolean
-  onBulkSetCost: (itemIds: string[], costPerUnit: number) => Promise<void>
+  onBulkSetCost: (args: {
+    inventoryBucket: string
+    equipmentType: string
+    unitCost: number | null
+  }) => Promise<void>
+  recentUnitCostChanges: UnitCostChangeRow[]
 }) {
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [expandedTypeKeys, setExpandedTypeKeys] = useState<Set<string>>(() => new Set())
+  const [allSort, setAllSort] = useState<{
+    key: "bucket" | "type" | "qty" | "unit" | "total"
+    dir: "asc" | "desc"
+  }>({ key: "bucket", dir: "asc" })
 
   const compositeGroups = useMemo(() => buildCompositeGroups(items), [items])
-  const typeGroups = useMemo(() => buildTypeOnlyGroups(items), [items])
 
-  const total = useMemo(() => items.reduce((s, i) => s + lineInvestment(i), 0), [items])
+  const totalWithCosts = useMemo(
+    () => items.reduce((s, i) => s + (hasEnteredCost(i) ? lineInvestment(i) : 0), 0),
+    [items]
+  )
+  const anyCostEntered = totalWithCosts > 0
 
   const byCategoryTotals = useMemo(() => {
     const m = new Map<string, number>()
     for (const i of items) {
+      if (!hasEnteredCost(i)) continue
       const b = i.inventoryBucket || "Gear"
       m.set(b, (m.get(b) || 0) + lineInvestment(i))
     }
@@ -185,19 +200,13 @@ function InventoryExpenseLedger({
   const largestCategory = useMemo((): { name: string; v: number } | null => {
     let best: { name: string; v: number } | null = null
     byCategoryTotals.forEach((v: number, name: string) => {
+      if (v <= 0) return
       if (!best || v > best.v) best = { name, v }
     })
     return best
   }, [byCategoryTotals])
 
-  const recentCost = useMemo(() => {
-    return [...items]
-      .filter((i) => i.costUpdatedAt)
-      .sort((a, b) => new Date(b.costUpdatedAt!).getTime() - new Date(a.costUpdatedAt!).getTime())
-      .slice(0, 5)
-  }, [items])
-
-  const itemsWithoutCost = items.filter((i) => i.costPerUnit == null || Number.isNaN(i.costPerUnit)).length
+  const itemsWithoutCost = items.filter((i) => !hasEnteredCost(i)).length
 
   const expenseBreakdownTabs: PortalUnderlineTab[] = [
     { id: "all", label: "All" },
@@ -205,16 +214,82 @@ function InventoryExpenseLedger({
     { id: "type", label: "By item type" },
   ]
 
-  const saveUnit = async (g: ExpenseGroupRow, cost: number) => {
-    const ids = g.items.map((i) => i.id)
-    if (ids.length === 0) return
+  const saveUnit = async (g: ExpenseGroupRow, cost: number | null) => {
+    if (g.items.length === 0) return
     setSavingKey(g.key)
     try {
-      await onBulkSetCost(ids, cost)
+      await onBulkSetCost({
+        inventoryBucket: g.bucket,
+        equipmentType: g.typeKey,
+        unitCost: cost,
+      })
     } finally {
       setSavingKey(null)
     }
   }
+
+  const sortedAllGroups = useMemo(() => {
+    const rows = [...compositeGroups]
+    const mult = allSort.dir === "asc" ? 1 : -1
+    rows.sort((a, b) => {
+      if (allSort.key === "bucket") {
+        const c = a.bucket.localeCompare(b.bucket) * mult
+        if (c !== 0) return c
+        return a.typeKey.localeCompare(b.typeKey) * mult
+      }
+      if (allSort.key === "type") return a.typeKey.localeCompare(b.typeKey) * mult
+      if (allSort.key === "qty") return (a.totalQty - b.totalQty) * mult
+      if (allSort.key === "unit") {
+        const au = a.uniformUnit ?? -1
+        const bu = b.uniformUnit ?? -1
+        return (au - bu) * mult
+      }
+      return (a.totalLine - b.totalLine) * mult
+    })
+    return rows
+  }, [compositeGroups, allSort])
+
+  const toggleTypeExpand = useCallback((key: string) => {
+    setExpandedTypeKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const exportCsv = useCallback(() => {
+    const lines = [
+      ["item_type", "category", "quantity", "unit_cost", "total_cost", "last_updated"].join(","),
+    ]
+    for (const g of compositeGroups) {
+      const last = g.items
+        .map((i) => i.costUpdatedAt)
+        .filter(Boolean)
+        .sort()
+        .pop()
+      const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
+      lines.push(
+        [
+          esc(g.typeKey),
+          esc(g.bucket),
+          String(g.totalQty),
+          g.uniformUnit != null ? String(g.uniformUnit) : "",
+          g.totalLine > 0 ? String(g.totalLine.toFixed(2)) : "",
+          last ? esc(new Date(last).toISOString()) : "",
+        ].join(",")
+      )
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "inventory-expenses.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [compositeGroups])
+
+  const budgetDen = totalWithCosts > 0 ? totalWithCosts : 1
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto inventory-modal-scroll p-1">
@@ -222,10 +297,14 @@ function InventoryExpenseLedger({
         <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
           <CardContent className="p-4">
             <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Total inventory cost</p>
-            <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{formatMoney(total)}</p>
-            {itemsWithoutCost > 0 && (
+            {anyCostEntered ? (
+              <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{formatMoney(totalWithCosts)}</p>
+            ) : (
+              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>No costs entered yet</p>
+            )}
+            {itemsWithoutCost > 0 && anyCostEntered && (
               <p className="text-xs mt-2" style={{ color: "rgb(var(--muted))" }}>
-                {itemsWithoutCost} item{itemsWithoutCost !== 1 ? "s" : ""} without cost entered
+                {itemsWithoutCost} physical item{itemsWithoutCost !== 1 ? "s" : ""} still missing a unit cost
               </p>
             )}
           </CardContent>
@@ -234,22 +313,26 @@ function InventoryExpenseLedger({
           <CardContent className="p-4">
             <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Largest category</p>
             <p className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>
-              {largestCategory ? `${largestCategory.name} · ${formatMoney(largestCategory.v)}` : "—"}
+              {largestCategory ? `${largestCategory.name} · ${formatMoney(largestCategory.v)}` : anyCostEntered ? "—" : "—"}
             </p>
+            {!anyCostEntered && (
+              <p className="text-xs mt-1" style={{ color: "rgb(var(--muted))" }}>Enter unit costs to compare categories</p>
+            )}
           </CardContent>
         </Card>
         <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
           <CardContent className="p-4">
             <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Recent cost updates</p>
             <ul className="text-sm space-y-1" style={{ color: "rgb(var(--text))" }}>
-              {recentCost.length === 0 ? (
-                <li style={{ color: "rgb(var(--muted))" }}>No updates yet</li>
+              {recentUnitCostChanges.length === 0 ? (
+                <li style={{ color: "rgb(var(--muted))" }}>No costs entered yet</li>
               ) : (
-                recentCost.map((i) => (
-                  <li key={i.id} className="truncate">
-                    {i.name}{" "}
+                recentUnitCostChanges.slice(0, 3).map((u, idx) => (
+                  <li key={`${u.inventoryBucket}-${u.equipmentType}-${u.changedAt}-${idx}`} className="truncate">
+                    <span className="font-medium">{u.equipmentType}</span>{" "}
+                    {u.newCost != null ? formatMoney(u.newCost) : "—"}{" "}
                     <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                      {i.costUpdatedAt ? new Date(i.costUpdatedAt).toLocaleDateString() : ""}
+                      {new Date(u.changedAt).toLocaleDateString()}
                     </span>
                   </li>
                 ))
@@ -259,27 +342,94 @@ function InventoryExpenseLedger({
         </Card>
       </div>
 
-      <PortalUnderlineTabs
-        compact
-        tabs={expenseBreakdownTabs}
-        value={expenseBreakdown}
-        onValueChange={(id) => onBreakdownChange(id as "all" | "category" | "type")}
-        ariaLabel="Expense breakdown"
-        className="lg:max-w-4xl"
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2 lg:max-w-4xl">
+        <PortalUnderlineTabs
+          compact
+          tabs={expenseBreakdownTabs}
+          value={expenseBreakdown}
+          onValueChange={(id) => onBreakdownChange(id as "all" | "category" | "type")}
+          ariaLabel="Expense breakdown"
+          className="flex-1 min-w-0 border-0 -mx-2"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1"
+          onClick={exportCsv}
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          Export CSV
+        </Button>
+      </div>
 
       <Card className="border flex-1 min-h-0" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
         <CardContent className="p-0">
           {expenseBreakdown === "all" && (
             <div className="divide-y" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold bg-[rgb(var(--platinum))]" style={{ color: "rgb(var(--muted))" }}>
-                <span className="col-span-2">Category</span>
-                <span className="col-span-3">Equipment type</span>
-                <span className="col-span-2 text-right">Qty</span>
-                <span className="col-span-2 text-right">$/unit</span>
-                <span className="col-span-3 text-right">Total</span>
+                <button
+                  type="button"
+                  className="col-span-2 text-left underline-offset-2 hover:underline"
+                  onClick={() =>
+                    setAllSort((s) => ({
+                      key: "bucket",
+                      dir: s.key === "bucket" && s.dir === "asc" ? "desc" : "asc",
+                    }))
+                  }
+                >
+                  Category
+                </button>
+                <button
+                  type="button"
+                  className="col-span-3 text-left underline-offset-2 hover:underline"
+                  onClick={() =>
+                    setAllSort((s) => ({
+                      key: "type",
+                      dir: s.key === "type" && s.dir === "asc" ? "desc" : "asc",
+                    }))
+                  }
+                >
+                  Equipment type
+                </button>
+                <button
+                  type="button"
+                  className="col-span-2 text-right underline-offset-2 hover:underline"
+                  onClick={() =>
+                    setAllSort((s) => ({
+                      key: "qty",
+                      dir: s.key === "qty" && s.dir === "asc" ? "desc" : "asc",
+                    }))
+                  }
+                >
+                  Qty
+                </button>
+                <button
+                  type="button"
+                  className="col-span-2 text-right underline-offset-2 hover:underline"
+                  onClick={() =>
+                    setAllSort((s) => ({
+                      key: "unit",
+                      dir: s.key === "unit" && s.dir === "asc" ? "desc" : "asc",
+                    }))
+                  }
+                >
+                  $/unit
+                </button>
+                <button
+                  type="button"
+                  className="col-span-3 text-right underline-offset-2 hover:underline"
+                  onClick={() =>
+                    setAllSort((s) => ({
+                      key: "total",
+                      dir: s.key === "total" && s.dir === "asc" ? "desc" : "asc",
+                    }))
+                  }
+                >
+                  Total
+                </button>
               </div>
-              {compositeGroups.map((g) => (
+              {sortedAllGroups.map((g) => (
                 <div
                   key={g.key}
                   className="grid grid-cols-12 gap-2 px-4 py-3 text-sm items-center"
@@ -297,7 +447,9 @@ function InventoryExpenseLedger({
                       onSave={(cost) => saveUnit(g, cost)}
                     />
                   </span>
-                  <span className="col-span-3 text-right font-medium">{formatMoney(g.totalLine)}</span>
+                  <span className="col-span-3 text-right font-medium">
+                    {g.uniformUnit != null ? formatMoney(g.totalLine) : <span style={{ color: "rgb(var(--muted))" }}>—</span>}
+                  </span>
                 </div>
               ))}
             </div>
@@ -307,13 +459,26 @@ function InventoryExpenseLedger({
               {INVENTORY_BUCKETS.map((bucket) => {
                 const inBucket = items.filter((i) => (i.inventoryBucket || "Gear") === bucket)
                 if (inBucket.length === 0) return null
-                const sub = inBucket.reduce((s, i) => s + lineInvestment(i), 0)
+                const sub = inBucket.reduce((s, i) => s + (hasEnteredCost(i) ? lineInvestment(i) : 0), 0)
                 const inner = buildCompositeGroups(inBucket)
+                const pct = budgetDen > 0 ? Math.round((sub / budgetDen) * 1000) / 10 : 0
                 return (
                   <div key={bucket}>
-                    <div className="flex justify-between items-baseline mb-2">
-                      <h4 className="font-semibold" style={{ color: "rgb(var(--text))" }}>{bucket}</h4>
-                      <span className="text-sm font-medium" style={{ color: "rgb(var(--accent))" }}>{formatMoney(sub)}</span>
+                    <div className="flex justify-between items-baseline mb-2 gap-2">
+                      <div>
+                        <h4 className="font-semibold" style={{ color: "rgb(var(--text))" }}>{bucket}</h4>
+                        <p className="text-[11px] mt-0.5" style={{ color: "rgb(var(--muted))" }}>
+                          {isPlayerAssignableBucket(bucket) ? "Player equipment" : "Program inventory"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-medium block" style={{ color: "rgb(var(--accent))" }}>
+                          {sub > 0 ? formatMoney(sub) : "—"}
+                        </span>
+                        {anyCostEntered && sub > 0 && (
+                          <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>{pct}% of tracked budget</span>
+                        )}
+                      </div>
                     </div>
                     <div className="rounded-lg border divide-y text-sm" style={{ borderColor: "rgb(var(--border))" }}>
                       {inner.map((g) => (
@@ -333,7 +498,9 @@ function InventoryExpenseLedger({
                               onSave={(cost) => saveUnit(g, cost)}
                             />
                           </span>
-                          <span className="col-span-3 text-right font-medium">{formatMoney(g.totalLine)}</span>
+                          <span className="col-span-3 text-right font-medium">
+                            {g.uniformUnit != null ? formatMoney(g.totalLine) : <span style={{ color: "rgb(var(--muted))" }}>—</span>}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -345,31 +512,54 @@ function InventoryExpenseLedger({
           {expenseBreakdown === "type" && (
             <div className="divide-y" style={{ borderColor: "rgb(var(--border))" }}>
               <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold bg-[rgb(var(--platinum))]" style={{ color: "rgb(var(--muted))" }}>
-                <span className="col-span-4">Equipment type</span>
+                <span className="col-span-5">Equipment type</span>
                 <span className="col-span-2 text-right">Qty</span>
-                <span className="col-span-3 text-right">$/unit</span>
+                <span className="col-span-2 text-right">$/unit</span>
                 <span className="col-span-3 text-right">Total</span>
               </div>
-              {typeGroups.map((g) => (
-                <div
-                  key={g.key}
-                  className="grid grid-cols-12 gap-2 px-4 py-3 text-sm items-center"
-                  style={{ color: "rgb(var(--text))" }}
-                >
-                  <span className="col-span-4 font-medium truncate">{g.typeKey}</span>
-                  <span className="col-span-2 text-right">{g.totalQty}</span>
-                  <span className="col-span-3">
-                    <ExpenseGroupUnitCell
-                      groupKey={g.key}
-                      uniformUnit={g.uniformUnit}
-                      canEdit={canEdit}
-                      disabled={savingKey === g.key}
-                      onSave={(cost) => saveUnit(g, cost)}
-                    />
-                  </span>
-                  <span className="col-span-3 text-right font-medium">{formatMoney(g.totalLine)}</span>
-                </div>
-              ))}
+              {compositeGroups.map((g) => {
+                const open = expandedTypeKeys.has(g.key)
+                const notes = [...new Set(g.items.map((i) => (i.notes ?? "").trim()).filter(Boolean))].join(" · ")
+                return (
+                  <div key={g.key} className="text-sm" style={{ color: "rgb(var(--text))" }}>
+                    <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center">
+                      <div className="col-span-5 flex items-start gap-1 min-w-0">
+                        <button
+                          type="button"
+                          className="p-0.5 mt-0.5 rounded hover:bg-[rgb(var(--platinum))]"
+                          aria-expanded={open}
+                          onClick={() => toggleTypeExpand(g.key)}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{g.typeKey}</div>
+                          <div className="text-[11px] truncate" style={{ color: "rgb(var(--muted))" }}>{g.bucket}</div>
+                        </div>
+                      </div>
+                      <span className="col-span-2 text-right">{g.totalQty}</span>
+                      <span className="col-span-2">
+                        <ExpenseGroupUnitCell
+                          groupKey={g.key}
+                          uniformUnit={g.uniformUnit}
+                          canEdit={canEdit}
+                          disabled={savingKey === g.key}
+                          onSave={(cost) => saveUnit(g, cost)}
+                        />
+                      </span>
+                      <span className="col-span-3 text-right font-medium">
+                        {g.uniformUnit != null ? formatMoney(g.totalLine) : <span style={{ color: "rgb(var(--muted))" }}>—</span>}
+                      </span>
+                    </div>
+                    {open && (
+                      <div className="px-4 pb-3 pl-11 text-xs space-y-1" style={{ color: "rgb(var(--muted))" }}>
+                        <p><span className="font-semibold" style={{ color: "rgb(var(--text))" }}>Category:</span> {g.bucket}</p>
+                        {notes ? <p><span className="font-semibold" style={{ color: "rgb(var(--text))" }}>Notes:</span> {notes}</p> : null}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -434,12 +624,33 @@ interface InventoryTabbedLayoutProps {
     equipmentType?: string
     costPerUnit?: number | null
   }) => Promise<void>
-  onBulkSetCostForItems: (itemIds: string[], costPerUnit: number) => Promise<void>
+  onBulkSetCostForItems: (args: {
+    inventoryBucket: string
+    equipmentType: string
+    unitCost: number | null
+  }) => Promise<void>
   onAssignItem: (itemId: string, playerId: string | null) => Promise<void>
   onReturnItem: (itemId: string) => Promise<void>
   onDeleteGroup: (equipmentType: string) => Promise<void>
   onDeleteItem: (itemId: string) => Promise<void>
   loading: boolean
+  recentUnitCostChanges: UnitCostChangeRow[]
+  pendingConditionReportCount: number
+  viewer: { canReportCondition: boolean; canApproveConditionReports: boolean }
+  onRefreshInventory: () => Promise<void>
+}
+
+type ConditionReportRow = {
+  id: string
+  itemId: string
+  itemName: string
+  inventoryBucket: string
+  equipmentType: string
+  reportedByName: string
+  reportedCondition: string
+  note: string | null
+  status: string
+  createdAt: string
 }
 
 export function InventoryTabbedLayout({
@@ -456,6 +667,10 @@ export function InventoryTabbedLayout({
   onDeleteGroup,
   onDeleteItem,
   loading,
+  recentUnitCostChanges,
+  pendingConditionReportCount,
+  viewer,
+  onRefreshInventory,
 }: InventoryTabbedLayoutProps) {
   // Add hover effect styles for inventory icons
   useEffect(() => {
@@ -488,6 +703,25 @@ export function InventoryTabbedLayout({
   const [bucketFilter, setBucketFilter] = useState<BucketFilter>("All")
   const [mainView, setMainView] = useState<"items" | "expenses">("items")
   const [expenseBreakdown, setExpenseBreakdown] = useState<"all" | "category" | "type">("type")
+  const [conditionQueue, setConditionQueue] = useState<ConditionReportRow[]>([])
+  const [conditionPanelOpen, setConditionPanelOpen] = useState(false)
+  const [conditionActionId, setConditionActionId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!teamId) return
+    let cancelled = false
+    fetch(`/api/teams/${teamId}/inventory/condition-reports`)
+      .then((r) => (r.ok ? r.json() : { reports: [] }))
+      .then((d: { reports?: ConditionReportRow[] }) => {
+        if (!cancelled) setConditionQueue(Array.isArray(d.reports) ? d.reports : [])
+      })
+      .catch(() => {
+        if (!cancelled) setConditionQueue([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, mainView, pendingConditionReportCount])
 
   const bucketFilteredItems = useMemo(() => {
     if (bucketFilter === "All") return items
@@ -748,8 +982,31 @@ export function InventoryTabbedLayout({
     if (condition === "GOOD") return { color: "#0d9488" }
     if (condition === "FAIR") return { color: "#d97706" }
     if (condition === "POOR") return { color: "#dc2626" }
-    if (condition === "NEEDS_REPAIR") return { color: "#991b1b" }
+    if (condition === "NEEDS_REPAIR" || condition === "NEEDS_REPLACEMENT" || condition === "REPLACE") return { color: "#991b1b" }
     return { color: "rgb(var(--text))" }
+  }
+
+  const reviewConditionReport = async (reportId: string, action: "approve" | "dismiss") => {
+    setConditionActionId(reportId)
+    try {
+      const res = await fetch(`/api/teams/${teamId}/inventory/condition-reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? "Update failed")
+      }
+      await onRefreshInventory()
+      const r2 = await fetch(`/api/teams/${teamId}/inventory/condition-reports`)
+      const d = r2.ok ? await r2.json() : { reports: [] }
+      setConditionQueue(Array.isArray(d.reports) ? d.reports : [])
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Update failed")
+    } finally {
+      setConditionActionId(null)
+    }
   }
 
   const bucketTabs: PortalUnderlineTab[] = [
@@ -778,7 +1035,22 @@ export function InventoryTabbedLayout({
       <PortalUnderlineTabs
         emphasized
         tabs={[
-          { id: "items", label: "Items" },
+          {
+            id: "items",
+            label: (
+              <span className="inline-flex items-center gap-2">
+                Items
+                {viewer.canApproveConditionReports && pendingConditionReportCount > 0 ? (
+                  <span
+                    className="rounded-full min-w-[1.25rem] px-1.5 py-0.5 text-center text-[11px] font-semibold text-white"
+                    style={{ backgroundColor: "#d97706" }}
+                  >
+                    {pendingConditionReportCount}
+                  </span>
+                ) : null}
+              </span>
+            ),
+          },
           { id: "expenses", label: "Expenses" },
         ]}
         value={mainView}
@@ -795,12 +1067,20 @@ export function InventoryTabbedLayout({
             onValueChange={(id) => setBucketFilter(id as BucketFilter)}
             ariaLabel="Inventory category filter"
           />
+          {bucketFilter !== "All" && (
+            <p className="text-[11px] -mt-1 lg:max-w-5xl" style={{ color: "rgb(var(--muted))" }}>
+              {isPlayerAssignableBucket(bucketFilter)
+                ? "Player equipment — costs roll up to assignable gear and uniforms."
+                : "Program inventory — replacement and facility costs (not assigned to players)."}
+            </p>
+          )}
           <InventoryExpenseLedger
             items={bucketFilteredItems}
             expenseBreakdown={expenseBreakdown}
             onBreakdownChange={setExpenseBreakdown}
             canEdit={permissions.canEdit}
             onBulkSetCost={onBulkSetCostForItems}
+            recentUnitCostChanges={recentUnitCostChanges}
           />
         </>
       ) : equipmentTypes.length === 0 ? (
@@ -821,6 +1101,80 @@ export function InventoryTabbedLayout({
         </div>
       ) : (
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          {viewer.canApproveConditionReports &&
+            conditionQueue.filter((r) => r.status === "pending").length > 0 && (
+              <Card className="border lg:max-w-5xl" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+                <CardContent className="p-3">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between text-left gap-2"
+                    onClick={() => setConditionPanelOpen((o) => !o)}
+                  >
+                    <span className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+                      Condition reports queue
+                    </span>
+                    <span className="text-xs font-medium rounded-full px-2 py-0.5 text-white shrink-0" style={{ backgroundColor: "#d97706" }}>
+                      {conditionQueue.filter((r) => r.status === "pending").length} pending
+                    </span>
+                  </button>
+                  {conditionPanelOpen && (
+                    <ul className="mt-3 space-y-2 max-h-[min(50vh,280px)] overflow-y-auto">
+                      {conditionQueue
+                        .filter((r) => r.status === "pending")
+                        .map((r) => (
+                          <li
+                            key={r.id}
+                            className="rounded-md border p-3 text-sm space-y-2"
+                            style={{ borderColor: "rgb(var(--border))" }}
+                          >
+                            <div className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                              {r.itemName || "Item"}
+                            </div>
+                            <div className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                              {r.inventoryBucket}
+                              {r.equipmentType ? ` · ${r.equipmentType}` : ""}
+                            </div>
+                            <div>
+                              <span style={{ color: "rgb(var(--text))" }}>Proposed: </span>
+                              <span className="font-medium" style={getConditionColor(r.reportedCondition)}>
+                                {r.reportedCondition.replace(/_/g, " ")}
+                              </span>
+                            </div>
+                            <div className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                              By {r.reportedByName} · {new Date(r.createdAt).toLocaleString()}
+                            </div>
+                            {r.note && (
+                              <p className="text-xs whitespace-pre-wrap" style={{ color: "rgb(var(--text))" }}>
+                                {r.note}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                                disabled={loading || conditionActionId === r.id}
+                                onClick={() => void reviewConditionReport(r.id, "approve")}
+                              >
+                                {conditionActionId === r.id ? "…" : "Approve"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={loading || conditionActionId === r.id}
+                                onClick={() => void reviewConditionReport(r.id, "dismiss")}
+                              >
+                                Dismiss
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           <div className="hidden lg:block lg:max-w-5xl">
             <PortalUnderlineTabs
               compact
@@ -1097,7 +1451,7 @@ export function InventoryTabbedLayout({
                               {item.assignedPlayer.jerseyNumber ? ` (#${item.assignedPlayer.jerseyNumber})` : ""}
                             </p>
                           )}
-                          {permissions.canAssign && (
+                          {permissions.canAssign && isPlayerAssignableBucket(item.inventoryBucket || "Gear") && (
                             <div className="space-y-2 pt-3 border-t" style={{ borderTopColor: "rgb(var(--border))" }} onClick={(e) => e.stopPropagation()}>
                               {item.assignedToPlayerId ? (
                                 <div className="space-y-2">
@@ -1247,7 +1601,7 @@ export function InventoryTabbedLayout({
                                 </div>
                               </div>
                             </div>
-                            {permissions.canAssign && (
+                            {permissions.canAssign && isPlayerAssignableBucket(item.inventoryBucket || "Gear") && (
                               <div className="ml-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                 {item.assignedToPlayerId ? (
                                   <div className="flex items-center gap-2">
@@ -1343,6 +1697,9 @@ export function InventoryTabbedLayout({
           onClose={() => setEditingItem(null)}
           item={editingItem}
           players={players}
+          teamId={teamId}
+          canReportCondition={viewer.canReportCondition}
+          onConditionReportSubmitted={() => void onRefreshInventory()}
           onSave={async (data) => {
             await onUpdateItem(editingItem.id, data)
             setEditingItem(null)

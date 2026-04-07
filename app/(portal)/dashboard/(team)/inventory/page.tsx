@@ -43,6 +43,14 @@ function InventoryPageContent({ teamId }: { teamId: string }) {
     assignedPlayer?: { id: string; firstName: string; lastName: string; jerseyNumber?: number | null } | null
   }>>([])
   const [players, setPlayers] = useState<Array<{ id: string; firstName: string; lastName: string; jerseyNumber?: number | null }>>([])
+  const [recentUnitCostChanges, setRecentUnitCostChanges] = useState<
+    { inventoryBucket: string; equipmentType: string; newCost: number | null; changedAt: string }[]
+  >([])
+  const [pendingConditionReportCount, setPendingConditionReportCount] = useState(0)
+  const [viewer, setViewer] = useState({
+    canReportCondition: false,
+    canApproveConditionReports: false,
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -57,12 +65,26 @@ function InventoryPageContent({ teamId }: { teamId: string }) {
         if (!cancelled) {
           setItems(Array.isArray(data?.items) ? data.items : [])
           setPlayers(Array.isArray(data?.players) ? data.players : [])
+          setRecentUnitCostChanges(
+            Array.isArray(data?.recentUnitCostChanges) ? data.recentUnitCostChanges : []
+          )
+          setPendingConditionReportCount(
+            typeof data?.pendingConditionReportCount === "number" ? data.pendingConditionReportCount : 0
+          )
+          if (data?.viewer && typeof data.viewer === "object") {
+            setViewer({
+              canReportCondition: !!data.viewer.canReportCondition,
+              canApproveConditionReports: !!data.viewer.canApproveConditionReports,
+            })
+          }
         }
       })
       .catch(() => {
         if (!cancelled) {
           setItems([])
           setPlayers([])
+          setRecentUnitCostChanges([])
+          setPendingConditionReportCount(0)
         }
       })
       .finally(() => {
@@ -85,6 +107,9 @@ function InventoryPageContent({ teamId }: { teamId: string }) {
       initialItems={items}
       players={players}
       permissions={defaultCoachPermissions}
+      initialRecentUnitCostChanges={recentUnitCostChanges}
+      initialPendingConditionReportCount={pendingConditionReportCount}
+      initialViewer={viewer}
     />
   )
 }

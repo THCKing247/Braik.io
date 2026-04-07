@@ -23,6 +23,11 @@ export interface UserMembership {
   staffStatus?: StaffStatus
   /** JV/Freshman head (coach_assignments) may manage staff for their team level only. */
   delegatedTeamManage?: boolean
+  /**
+   * For `HEAD_COACH` rows from team_members: true when primary varsity HC (`is_primary` true or null).
+   * False when JV/freshman head (`is_primary` false). Omitted for non-head roles.
+   */
+  isPrimaryHeadCoach?: boolean
   permissions?: unknown
   positionGroups?: unknown
 }
@@ -151,7 +156,7 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
 
   const { data: tmRow, error: tmError } = await supabase
     .from("team_members")
-    .select("role, staff_status")
+    .select("role, staff_status, is_primary")
     .eq("team_id", teamId)
     .eq("user_id", userId)
     .eq("active", true)
@@ -171,18 +176,22 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
 
   async function withDelegation(
     role: Role,
-    staffStatus: StaffStatus = "active"
+    staffStatus: StaffStatus = "active",
+    isPrimaryFromRow?: boolean | null
   ): Promise<UserMembership> {
     let delegatedTeamManage = false
     if (programIdFromTeam && role === ROLES.ASSISTANT_COACH) {
       delegatedTeamManage = await computeDelegatedTeamManage(supabase, userId, programIdFromTeam, teamLevel, role)
     }
+    const isPrimaryHeadCoach =
+      role === ROLES.HEAD_COACH ? isPrimaryFromRow !== false : undefined
     return {
       userId,
       teamId,
       role,
       staffStatus,
       delegatedTeamManage: delegatedTeamManage || undefined,
+      isPrimaryHeadCoach,
       permissions: undefined,
       positionGroups: undefined,
     }
@@ -190,7 +199,8 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
 
   if (tmRow?.role) {
     const role = teamMemberDbRoleToNormalizedRole(String(tmRow.role))
-    return withDelegation(role, staffStatusFromRow ?? "active")
+    const ip = (tmRow as { is_primary?: boolean | null }).is_primary
+    return withDelegation(role, staffStatusFromRow ?? "active", ip)
   }
 
   const { data: profile, error: profileError } = await supabase

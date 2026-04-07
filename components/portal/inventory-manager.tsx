@@ -49,11 +49,46 @@ interface InventoryPermissions {
   scopedPlayerIds: string[] | null
 }
 
+type UnitCostChange = {
+  inventoryBucket: string
+  equipmentType: string
+  newCost: number | null
+  changedAt: string
+}
+
+type InventoryViewer = {
+  canReportCondition: boolean
+  canApproveConditionReports: boolean
+}
+
 interface InventoryManagerProps {
   teamId: string
   initialItems: InventoryItem[]
   players: Player[]
   permissions: InventoryPermissions
+  initialRecentUnitCostChanges?: UnitCostChange[]
+  initialPendingConditionReportCount?: number
+  initialViewer?: InventoryViewer
+}
+
+function mergeInventoryJson(
+  data: {
+    items?: InventoryItem[]
+    recentUnitCostChanges?: UnitCostChange[]
+    pendingConditionReportCount?: number
+    viewer?: InventoryViewer
+  },
+  setters: {
+    setItems: (v: InventoryItem[]) => void
+    setRecent: (v: UnitCostChange[]) => void
+    setPending: (v: number) => void
+    setViewer: (v: InventoryViewer) => void
+  }
+) {
+  if (Array.isArray(data.items)) setters.setItems(data.items)
+  if (Array.isArray(data.recentUnitCostChanges)) setters.setRecent(data.recentUnitCostChanges)
+  if (typeof data.pendingConditionReportCount === "number") setters.setPending(data.pendingConditionReportCount)
+  if (data.viewer && typeof data.viewer === "object") setters.setViewer(data.viewer)
 }
 
 export function InventoryManager({
@@ -61,8 +96,18 @@ export function InventoryManager({
   initialItems,
   players,
   permissions,
+  initialRecentUnitCostChanges = [],
+  initialPendingConditionReportCount = 0,
+  initialViewer = { canReportCondition: false, canApproveConditionReports: false },
 }: InventoryManagerProps) {
   const [items, setItems] = useState(initialItems)
+  const [recentUnitCostChanges, setRecentUnitCostChanges] = useState<UnitCostChange[]>(
+    initialRecentUnitCostChanges
+  )
+  const [pendingConditionReportCount, setPendingConditionReportCount] = useState(
+    initialPendingConditionReportCount
+  )
+  const [viewer, setViewer] = useState<InventoryViewer>(initialViewer)
   const [showAddModal, setShowAddModal] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -100,7 +145,12 @@ export function InventoryManager({
       const itemsResponse = await fetch(`/api/teams/${teamId}/inventory`)
       if (itemsResponse.ok) {
         const itemsData = await itemsResponse.json()
-        setItems(itemsData.items || [])
+        mergeInventoryJson(itemsData, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       } else {
         setItems([newItem, ...items])
       }
@@ -134,7 +184,12 @@ export function InventoryManager({
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
         const data = await res.json()
-        setItems(data.items || [])
+        mergeInventoryJson(data, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       }
     } catch (error: any) {
       alert(error.message || "Error assigning item")
@@ -165,7 +220,12 @@ export function InventoryManager({
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
         const data = await res.json()
-        setItems(data.items || [])
+        mergeInventoryJson(data, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       }
     } catch (error: any) {
       alert(error.message || "Error returning item")
@@ -206,7 +266,12 @@ export function InventoryManager({
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
         const itemsData = await res.json()
-        setItems(itemsData.items || [])
+        mergeInventoryJson(itemsData, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       }
     } catch (error: any) {
       alert(error.message || "Error updating item")
@@ -232,7 +297,12 @@ export function InventoryManager({
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
         const data = await res.json()
-        setItems(data.items || [])
+        mergeInventoryJson(data, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       }
     } catch (error: any) {
       alert(error.message || "Error deleting item")
@@ -262,7 +332,12 @@ export function InventoryManager({
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
         const data = await res.json()
-        setItems(data.items || [])
+        mergeInventoryJson(data, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       }
     } catch (error: any) {
       alert(error.message || "Error deleting items")
@@ -271,27 +346,35 @@ export function InventoryManager({
     }
   }
 
-  const handleBulkSetCostForItems = async (itemIds: string[], costPerUnit: number) => {
+  const handleBulkSetCostForItems = async (args: {
+    inventoryBucket: string
+    equipmentType: string
+    unitCost: number | null
+  }) => {
     setLoading(true)
     try {
-      await Promise.all(
-        itemIds.map((id) =>
-          fetch(`/api/teams/${teamId}/inventory/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ costPerUnit }),
-          }).then(async (res) => {
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}))
-              throw new Error(err.error || "Failed to update unit price")
-            }
-          })
-        )
-      )
-      const res = await fetch(`/api/teams/${teamId}/inventory`)
-      if (res.ok) {
-        const data = await res.json()
-        setItems(data.items || [])
+      const res = await fetch(`/api/teams/${teamId}/inventory/unit-costs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inventoryBucket: args.inventoryBucket,
+          equipmentType: args.equipmentType,
+          unitCost: args.unitCost,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || "Failed to save unit cost")
+      }
+      const inv = await fetch(`/api/teams/${teamId}/inventory`)
+      if (inv.ok) {
+        const data = await inv.json()
+        mergeInventoryJson(data, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       }
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : "Error updating unit price")
@@ -455,7 +538,12 @@ export function InventoryManager({
       const res = await fetch(`/api/teams/${teamId}/inventory`)
       if (res.ok) {
         const itemsData = await res.json()
-        setItems(itemsData.items || [])
+        mergeInventoryJson(itemsData, {
+          setItems,
+          setRecent: setRecentUnitCostChanges,
+          setPending: setPendingConditionReportCount,
+          setViewer,
+        })
       }
     } catch (error: any) {
       alert(error.message || "Error updating items")
@@ -465,12 +553,29 @@ export function InventoryManager({
     }
   }
 
+  const refreshInventoryFromServer = async () => {
+    const res = await fetch(`/api/teams/${teamId}/inventory`)
+    if (res.ok) {
+      const data = await res.json()
+      mergeInventoryJson(data, {
+        setItems,
+        setRecent: setRecentUnitCostChanges,
+        setPending: setPendingConditionReportCount,
+        setViewer,
+      })
+    }
+  }
+
   return (
     <InventoryTabbedLayout
       items={items}
       players={players}
       teamId={teamId}
       permissions={permissions}
+      recentUnitCostChanges={recentUnitCostChanges}
+      pendingConditionReportCount={pendingConditionReportCount}
+      viewer={viewer}
+      onRefreshInventory={refreshInventoryFromServer}
       onAddItem={handleAddItem}
       onUpdateItem={handleUpdateItem}
       onUpdateAllItems={handleUpdateAllItems}

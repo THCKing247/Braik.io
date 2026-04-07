@@ -33,6 +33,7 @@ import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { PLAYER_DOCUMENT_UPLOAD_HELPER, PLAYER_DOCUMENT_CONSENT_TEXT } from "@/lib/player-documents/constants"
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 import { AddFollowUpModal } from "@/components/portal/add-follow-up-modal"
+import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
 import { FOLLOW_UP_CATEGORY_LABELS } from "@/lib/roster/follow-up-ui"
 import { getPositionByCode } from "@/lib/constants/playbook-positions"
 
@@ -1663,6 +1664,7 @@ function equipmentTypeLabel(i: InventoryItem): string {
 }
 
 function isAssignableInventoryItem(i: InventoryItem): boolean {
+  if (!isPlayerAssignableBucket(normalizeInventoryBucket(i))) return false
   if (i.assignedToPlayerId) return false
   if ((i.quantityAvailable ?? 0) <= 0) return false
   const st = (i.status ?? "").toUpperCase()

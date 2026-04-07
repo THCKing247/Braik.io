@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
+import { getUserMembership, requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { getCachedTeamInventoryGetPayload } from "@/lib/teams/cached-team-inventory-get"
 import { revalidateTeamInventory } from "@/lib/cache/lightweight-get-cache"
+import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
+import {
+  canApproveInventoryConditionReports,
+  canSubmitInventoryConditionReport,
+} from "@/lib/inventory-condition-permissions"
 
 const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 type InventoryBucket = (typeof INVENTORY_BUCKETS)[number]
@@ -79,8 +84,30 @@ export async function GET(
     await requireTeamAccessWithUser(teamId, session.user)
 
     try {
-      const { items, players } = await getCachedTeamInventoryGetPayload(teamId)
-      return NextResponse.json({ items, players })
+      const { items, players, recentUnitCostChanges } = await getCachedTeamInventoryGetPayload(teamId)
+      const membership = await getUserMembership(teamId)
+      let pendingConditionReportCount = 0
+      if (membership && canApproveInventoryConditionReports(membership)) {
+        const supabase = getSupabaseServer()
+        const { count } = await supabase
+          .from("inventory_condition_reports")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", teamId)
+          .eq("status", "pending")
+        pendingConditionReportCount = count ?? 0
+      }
+      return NextResponse.json({
+        items,
+        players,
+        recentUnitCostChanges,
+        pendingConditionReportCount,
+        viewer: membership
+          ? {
+              canReportCondition: canSubmitInventoryConditionReport(membership),
+              canApproveConditionReports: canApproveInventoryConditionReports(membership),
+            }
+          : { canReportCondition: false, canApproveConditionReports: false },
+      })
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load inventory"
       console.error("[GET /api/teams/.../inventory]", msg, e)
@@ -145,6 +172,13 @@ export async function POST(
       ? customEquipmentName
       : equipmentType
     const bucket = normalizeBucket(inventoryBucket)
+
+    if (assignedToPlayerId && !isPlayerAssignableBucket(bucket)) {
+      return NextResponse.json(
+        { error: "Only Gear and Uniforms items can be assigned to players." },
+        { status: 400 }
+      )
+    }
 
     const costNum =
       costPerUnit !== undefined && costPerUnit !== null && costPerUnit !== ""

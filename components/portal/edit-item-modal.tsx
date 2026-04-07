@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X } from "lucide-react"
+import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
 
 interface Player {
   id: string
@@ -36,11 +36,16 @@ interface InventoryItem {
   damageReportedAt?: string | null
 }
 
+const REPORT_CONDITIONS = ["EXCELLENT", "GOOD", "FAIR", "POOR", "NEEDS_REPLACEMENT"] as const
+
 interface EditItemModalProps {
   open: boolean
   onClose: () => void
   item: InventoryItem | null
   players: Player[]
+  teamId?: string
+  canReportCondition?: boolean
+  onConditionReportSubmitted?: () => void
   onSave: (data: {
     condition: string
     status: string
@@ -68,6 +73,9 @@ export function EditItemModal({
   onClose,
   item,
   players,
+  teamId,
+  canReportCondition = false,
+  onConditionReportSubmitted,
   onSave,
   loading = false,
 }: EditItemModalProps) {
@@ -84,6 +92,9 @@ export function EditItemModal({
   const [costPerUnit, setCostPerUnit] = useState("")
   const [costNotes, setCostNotes] = useState("")
   const [clearDamageReport, setClearDamageReport] = useState(false)
+  const [reportCondition, setReportCondition] = useState<(typeof REPORT_CONDITIONS)[number]>("GOOD")
+  const [reportNote, setReportNote] = useState("")
+  const [reportSubmitting, setReportSubmitting] = useState(false)
 
   useEffect(() => {
     if (item) {
@@ -106,8 +117,37 @@ export function EditItemModal({
       )
       setCostNotes(item.costNotes || "")
       setClearDamageReport(false)
+      setReportNote("")
+      setReportCondition("GOOD")
     }
   }, [item])
+
+  const submitConditionReport = async () => {
+    if (!item || !teamId) return
+    setReportSubmitting(true)
+    try {
+      const res = await fetch(`/api/teams/${teamId}/inventory/condition-reports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: item.id,
+          reportedCondition: reportCondition,
+          note: reportNote.trim() || null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? "Could not submit report")
+      }
+      setReportNote("")
+      onConditionReportSubmitted?.()
+      alert("Condition report submitted for head coach review.")
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not submit report")
+    } finally {
+      setReportSubmitting(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -467,31 +507,95 @@ export function EditItemModal({
             </div>
           </div>
 
-          {/* Assign to Player */}
-          <div className="space-y-2">
-            <Label htmlFor="assignedToPlayer" style={{ color: "rgb(var(--text))" }}>
-              Assign to Player
-            </Label>
-            <select
-              id="assignedToPlayer"
-              value={assignedToPlayerId}
-              onChange={(e) => setAssignedToPlayerId(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
-              style={{
-                backgroundColor: "#FFFFFF",
-                borderColor: "rgb(var(--border))",
-                color: "rgb(var(--text))",
-              }}
+          {/* Assign to Player — Gear & Uniforms only */}
+          {isPlayerAssignableBucket(inventoryBucket) ? (
+            <div className="space-y-2">
+              <Label htmlFor="assignedToPlayer" style={{ color: "rgb(var(--text))" }}>
+                Assign to Player
+              </Label>
+              <select
+                id="assignedToPlayer"
+                value={assignedToPlayerId}
+                onChange={(e) => setAssignedToPlayerId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              >
+                <option value="">None - Keep in inventory</option>
+                {players.map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.firstName} {player.lastName}
+                    {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <p className="text-sm rounded-md border px-3 py-2" style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--muted))" }}>
+              Program inventory items are not assigned to players. Use quantity and condition to track this asset.
+            </p>
+          )}
+
+          {canReportCondition && teamId && item && (
+            <div
+              className="space-y-3 rounded-md border p-4"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}
             >
-              <option value="">None - Keep in inventory</option>
-              {players.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.firstName} {player.lastName}
-                  {player.jerseyNumber ? ` (#${player.jerseyNumber})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+              <p className="text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+                Report condition (pending head coach review)
+              </p>
+              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                Submit a proposed condition change. The varsity head coach approves or dismisses each report.
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Reported condition</Label>
+                  <select
+                    value={reportCondition}
+                    onChange={(e) => setReportCondition(e.target.value as (typeof REPORT_CONDITIONS)[number])}
+                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      borderColor: "rgb(var(--border))",
+                      color: "rgb(var(--text))",
+                    }}
+                  >
+                    {REPORT_CONDITIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label className="text-xs">Note (optional)</Label>
+                  <textarea
+                    value={reportNote}
+                    onChange={(e) => setReportNote(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md min-h-[72px] text-sm resize-none"
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      borderColor: "rgb(var(--border))",
+                      color: "rgb(var(--text))",
+                    }}
+                    placeholder="Context for the head coach…"
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={reportSubmitting || loading}
+                onClick={() => void submitConditionReport()}
+              >
+                {reportSubmitting ? "Submitting…" : "Submit condition report"}
+              </Button>
+            </div>
+          )}
 
           {/* Notes */}
           <div className="space-y-2">

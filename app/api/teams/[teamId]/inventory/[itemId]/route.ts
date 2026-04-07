@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
 import { revalidateTeamInventory } from "@/lib/cache/lightweight-get-cache"
+import { isPlayerAssignableBucket, normalizeInventoryBucketLabel } from "@/lib/inventory-category-policy"
 
 const INVENTORY_BUCKETS = ["Gear", "Uniforms", "Facilities", "Training Room", "Field"] as const
 type InventoryBucket = (typeof INVENTORY_BUCKETS)[number]
@@ -38,10 +39,10 @@ export async function PATCH(
     const body = await request.json()
     const supabase = getSupabaseServer()
 
-    // Verify item belongs to team and get current assignment
+    // Verify item belongs to team and get current assignment + bucket
     const { data: existingItem } = await supabase
       .from("inventory_items")
-      .select("id, team_id, assigned_to_player_id")
+      .select("id, team_id, assigned_to_player_id, inventory_bucket")
       .eq("id", itemId)
       .eq("team_id", teamId)
       .maybeSingle()
@@ -50,8 +51,12 @@ export async function PATCH(
       return NextResponse.json({ error: "Item not found" }, { status: 404 })
     }
 
+    const existingBucket = normalizeInventoryBucketLabel(
+      (existingItem as { inventory_bucket?: string | null }).inventory_bucket
+    )
     const previousPlayerId = (existingItem as { assigned_to_player_id?: string | null }).assigned_to_player_id ?? null
-    const newPlayerId = body.assignedToPlayerId ?? null
+    const newPlayerId =
+      body.assignedToPlayerId !== undefined ? (body.assignedToPlayerId || null) : previousPlayerId
 
     // Build update object
     const updateData: any = {}
@@ -101,6 +106,27 @@ export async function PATCH(
     const bucket = normalizeBucket(body.inventoryBucket)
     if (bucket !== undefined) {
       updateData.inventory_bucket = bucket
+    }
+
+    const effectiveBucket =
+      bucket !== undefined ? normalizeInventoryBucketLabel(bucket) : existingBucket
+    const wantsAssign =
+      body.assignedToPlayerId !== undefined && (body.assignedToPlayerId || null) !== null
+    if (wantsAssign && !isPlayerAssignableBucket(effectiveBucket)) {
+      return NextResponse.json(
+        { error: "Only Gear and Uniforms items can be assigned to players." },
+        { status: 400 }
+      )
+    }
+    if (
+      bucket !== undefined &&
+      !isPlayerAssignableBucket(normalizeInventoryBucketLabel(bucket)) &&
+      ((body.assignedToPlayerId !== undefined ? body.assignedToPlayerId : previousPlayerId) || null)
+    ) {
+      return NextResponse.json(
+        { error: "Move or unassign this item before switching to a program inventory category." },
+        { status: 400 }
+      )
     }
     if (body.costPerUnit !== undefined) {
       const n = body.costPerUnit === null || body.costPerUnit === "" ? null : Number(body.costPerUnit)

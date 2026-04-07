@@ -33,7 +33,8 @@ export async function loadInventoryExpenseGroups(teamId: string): Promise<Expens
     supabase
       .from("inventory_items")
       .select("inventory_bucket, equipment_type, category, quantity_total, cost_per_unit, notes")
-      .eq("team_id", teamId),
+      .eq("team_id", teamId)
+      .eq("archive_status", "active"),
     supabase.from("inventory_unit_costs").select("inventory_bucket, equipment_type, unit_cost").eq("team_id", teamId),
     supabase.from("inventory_type_totals").select("inventory_bucket, equipment_type, total_line_cost").eq("team_id", teamId),
   ])

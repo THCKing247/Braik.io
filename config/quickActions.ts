@@ -10,6 +10,7 @@ import {
   Settings,
   Stethoscope,
   TrendingUp,
+  CircleDollarSign,
   LifeBuoy,
   Dumbbell,
   GraduationCap,
@@ -121,6 +122,13 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: "Stats / Analytics",
     icon: TrendingUp,
     roles: ["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR", "SCHOOL_ADMIN"],
+  },
+  {
+    id: "fundraising",
+    href: "/dashboard/fundraising",
+    label: "Fundraising",
+    icon: CircleDollarSign,
+    roles: ["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"],
   },
   {
     id: "support",

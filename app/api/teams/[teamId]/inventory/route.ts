@@ -9,6 +9,7 @@ import {
   inventoryViewerFromMembership,
 } from "@/lib/teams/load-inventory-meta"
 import { loadInventoryExpenseGroups } from "@/lib/teams/load-inventory-expense-groups"
+import { loadInventoryCatalog, loadInventoryArchiveAssignments } from "@/lib/teams/load-inventory-catalog"
 import { revalidateTeamInventory } from "@/lib/cache/lightweight-get-cache"
 import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
 import {
@@ -100,9 +101,27 @@ export async function GET(
     const viewer = inventoryViewerFromMembership(membership)
 
     try {
+      const supabase = getSupabaseServer()
+
       if (url.searchParams.get("expenseGroups") === "1") {
         const groups = await loadInventoryExpenseGroups(teamId)
         return NextResponse.json({ expenseGroups: groups })
+      }
+
+      if (url.searchParams.get("catalog") === "1") {
+        const bucketFilter = url.searchParams.get("bucket") || "All"
+        const catalog = await loadInventoryCatalog(supabase, teamId, bucketFilter)
+        return NextResponse.json({ catalog })
+      }
+
+      if (url.searchParams.get("archiveCheck") === "1") {
+        const inventoryBucket = url.searchParams.get("bucket") || ""
+        const equipmentType = url.searchParams.get("equipmentType") || ""
+        if (!inventoryBucket || !equipmentType) {
+          return NextResponse.json({ error: "bucket and equipmentType are required" }, { status: 400 })
+        }
+        const assignedItems = await loadInventoryArchiveAssignments(supabase, teamId, inventoryBucket, equipmentType)
+        return NextResponse.json({ assignedItems })
       }
 
       if (url.searchParams.get("meta") === "1") {
@@ -116,15 +135,16 @@ export async function GET(
 
       if (url.searchParams.get("paginated") === "1") {
         const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1)
-        const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "25", 10) || 25))
+        const pageSize = Math.min(500, Math.max(1, parseInt(url.searchParams.get("limit") || "25", 10) || 25))
         const bucketFilter = url.searchParams.get("bucket") || "All"
         const search = url.searchParams.get("search") || ""
-        const supabase = getSupabaseServer()
+        const equipmentTypeFilter = url.searchParams.get("equipmentType")?.trim() || null
         const { items, totalCount, assignments } = await loadInventoryPage(supabase, teamId, {
           page,
           pageSize,
           bucketFilter,
           search,
+          equipmentTypeFilter,
         })
         const merged = items.map((row) => {
           const pid = row.assignedToPlayerId

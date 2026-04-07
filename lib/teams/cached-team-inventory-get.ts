@@ -90,9 +90,10 @@ async function loadTeamInventoryGetPayload(teamId: string): Promise<TeamInventor
     supabase
       .from("inventory_items")
       .select(
-        "id, category, name, quantity_total, quantity_available, condition, assigned_to_player_id, notes, status, equipment_type, size, make, item_code, inventory_bucket, cost_per_unit, cost_notes, cost_updated_at, damage_report_text, damage_reported_at, damage_reported_by_player_id"
+        "id, category, name, quantity_total, quantity_available, condition, assigned_to_player_id, notes, status, equipment_type, size, make, item_code, inventory_bucket, cost_per_unit, cost_notes, cost_updated_at, damage_report_text, damage_reported_at, damage_reported_by_player_id, archive_status"
       )
       .eq("team_id", teamId)
+      .eq("archive_status", "active")
       .order("name", { ascending: true }),
     supabase
       .from("players")

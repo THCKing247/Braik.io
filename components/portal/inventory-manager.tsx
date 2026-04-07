@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from "react"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
+import type { InventoryCatalogCardRow } from "@/lib/teams/load-inventory-catalog"
 import { InventoryTabbedLayout } from "./inventory-tabbed-layout"
 
 interface InventoryItem {
@@ -95,7 +97,17 @@ function mergeInventoryJson(
   if (data.viewer && typeof data.viewer === "object") setters.setViewer(data.viewer)
 }
 
-export function InventoryManager({
+type PageSizeChoice = 10 | 25 | 50 | "all"
+
+function readPageSizeFromSession(): PageSizeChoice {
+  if (typeof window === "undefined") return 25
+  const v = sessionStorage.getItem("inventoryPageSize")
+  if (v === "10" || v === "25" || v === "50") return Number(v) as PageSizeChoice
+  if (v === "all") return "all"
+  return 25
+}
+
+function InventoryManagerInner({
   teamId,
   initialItems,
   players: initialPlayers,
@@ -105,6 +117,45 @@ export function InventoryManager({
   initialViewer = { canReportCondition: false, canApproveConditionReports: false },
   bootstrapInventory = false,
 }: InventoryManagerProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const invType = (() => {
+    const raw = searchParams.get("invType")
+    return raw ? decodeURIComponent(raw) : null
+  })()
+
+  const catalogNavigate = useMemo(() => {
+    const invDisplayLabel = (() => {
+      const v = searchParams.get("invLabel")
+      return v ? decodeURIComponent(v) : null
+    })()
+    return {
+      invDisplayLabel,
+      onRoot: () => {
+        const p = new URLSearchParams(searchParams.toString())
+        p.delete("invType")
+        p.delete("invLabel")
+        p.delete("invBucket")
+        router.push(`${pathname}?${p.toString()}`)
+      },
+      onBucket: (bucket: string) => {
+        const p = new URLSearchParams(searchParams.toString())
+        p.delete("invType")
+        p.delete("invLabel")
+        p.set("invBucket", bucket)
+        router.push(`${pathname}?${p.toString()}`)
+      },
+      onOpenType: (card: InventoryCatalogCardRow) => {
+        const p = new URLSearchParams(searchParams.toString())
+        p.set("invType", encodeURIComponent(card.equipmentTypeKey))
+        p.set("invBucket", card.inventoryBucket)
+        p.set("invLabel", encodeURIComponent(card.displayName))
+        router.push(`${pathname}?${p.toString()}`)
+      },
+    }
+  }, [pathname, router, searchParams])
+
   const [items, setItems] = useState(initialItems)
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
   const [recentUnitCostChanges, setRecentUnitCostChanges] = useState<UnitCostChange[]>(
@@ -128,7 +179,22 @@ export function InventoryManager({
     assigned: number
     needsAttention: number
   } | null>(null)
+  const [catalogCards, setCatalogCards] = useState<InventoryCatalogCardRow[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [fetchAllLoading, setFetchAllLoading] = useState(false)
+  const [pageSizeChoice, setPageSizeChoice] = useState<PageSizeChoice>(25)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    setPageSizeChoice(readPageSizeFromSession())
+  }, [])
+
+  useEffect(() => {
+    const ib = searchParams.get("invBucket")
+    if (ib === "Gear" || ib === "Uniforms" || ib === "Facilities" || ib === "Training Room" || ib === "Field" || ib === "All") {
+      setBucketFilter(ib)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
@@ -138,59 +204,141 @@ export function InventoryManager({
     }
   }, [searchQuery])
 
-  const fetchInventoryPage = useCallback(
-    async (page: number, bucket: string, search: string) => {
-      const [metaRes, pageRes] = await Promise.all([
-        fetch(`/api/teams/${teamId}/inventory?meta=1&bucket=${encodeURIComponent(bucket)}`),
-        fetch(
-          `/api/teams/${teamId}/inventory?paginated=1&page=${page}&limit=25&bucket=${encodeURIComponent(bucket)}&search=${encodeURIComponent(search)}`
-        ),
-      ])
-      if (!metaRes.ok || !pageRes.ok) {
+  const applyMeta = useCallback((meta: {
+    players?: Player[]
+    recentUnitCostChanges?: UnitCostChange[]
+    pendingConditionReportCount?: number
+    viewer?: InventoryViewer
+    tabStats?: { total: number; available: number; assigned: number; needsAttention: number }
+  }) => {
+    if (Array.isArray(meta.players)) setPlayers(meta.players)
+    if (Array.isArray(meta.recentUnitCostChanges)) setRecentUnitCostChanges(meta.recentUnitCostChanges)
+    if (typeof meta.pendingConditionReportCount === "number") {
+      setPendingConditionReportCount(meta.pendingConditionReportCount)
+    }
+    if (meta.viewer) setViewer(meta.viewer)
+    if (meta.tabStats) setServerTabStats(meta.tabStats)
+  }, [])
+
+  const runBootstrap = useCallback(async () => {
+    if (!bootstrapInventory || !teamId) return
+    setBootstrapLoading(true)
+    try {
+      const metaRes = await fetch(
+        `/api/teams/${teamId}/inventory?meta=1&bucket=${encodeURIComponent(bucketFilter)}`
+      )
+      if (!metaRes.ok) {
         setBootstrapLoading(false)
         return
       }
-      const meta = (await metaRes.json()) as {
-        players?: Player[]
-        recentUnitCostChanges?: UnitCostChange[]
-        pendingConditionReportCount?: number
-        viewer?: InventoryViewer
-        tabStats?: { total: number; available: number; assigned: number; needsAttention: number }
+      const meta = (await metaRes.json()) as Parameters<typeof applyMeta>[0]
+      applyMeta(meta)
+
+      if (!invType) {
+        setCatalogLoading(true)
+        const catRes = await fetch(
+          `/api/teams/${teamId}/inventory?catalog=1&bucket=${encodeURIComponent(bucketFilter)}`
+        )
+        const catJ = catRes.ok ? await catRes.json() : { catalog: [] }
+        setCatalogCards(Array.isArray(catJ.catalog) ? catJ.catalog : [])
+        setCatalogLoading(false)
+        setItems([])
+        setTotalItemCount(0)
+        setBootstrapLoading(false)
+        return
+      }
+
+      const limitNum = pageSizeChoice === "all" ? 200 : pageSizeChoice
+      const etQ = `&equipmentType=${encodeURIComponent(invType)}`
+
+      if (pageSizeChoice === "all") {
+        setFetchAllLoading(true)
+        let allItems: InventoryItem[] = []
+        let page = 1
+        let total = 0
+        while (true) {
+          const pageRes = await fetch(
+            `/api/teams/${teamId}/inventory?paginated=1&page=${page}&limit=200&bucket=${encodeURIComponent(bucketFilter)}&search=${encodeURIComponent(debouncedSearch)}${etQ}`
+          )
+          if (!pageRes.ok) break
+          const pg = (await pageRes.json()) as {
+            items?: InventoryItem[]
+            totalCount?: number
+            viewer?: InventoryViewer
+          }
+          total = typeof pg.totalCount === "number" ? pg.totalCount : total
+          const chunk = Array.isArray(pg.items) ? pg.items : []
+          allItems = allItems.concat(chunk)
+          if (chunk.length < 200 || allItems.length >= total) break
+          page += 1
+        }
+        setItems(allItems)
+        setTotalItemCount(total)
+        setFetchAllLoading(false)
+        setBootstrapLoading(false)
+        return
+      }
+
+      const pageRes = await fetch(
+        `/api/teams/${teamId}/inventory?paginated=1&page=${inventoryPage}&limit=${limitNum}&bucket=${encodeURIComponent(bucketFilter)}&search=${encodeURIComponent(debouncedSearch)}${etQ}`
+      )
+      if (!pageRes.ok) {
+        setBootstrapLoading(false)
+        return
       }
       const pg = (await pageRes.json()) as {
         items?: InventoryItem[]
         totalCount?: number
         viewer?: InventoryViewer
       }
-      if (Array.isArray(meta.players)) setPlayers(meta.players)
-      if (Array.isArray(meta.recentUnitCostChanges)) setRecentUnitCostChanges(meta.recentUnitCostChanges)
-      if (typeof meta.pendingConditionReportCount === "number") {
-        setPendingConditionReportCount(meta.pendingConditionReportCount)
-      }
-      if (meta.viewer) setViewer(meta.viewer)
-      if (meta.tabStats) setServerTabStats(meta.tabStats)
       setItems(Array.isArray(pg.items) ? pg.items : [])
       setTotalItemCount(typeof pg.totalCount === "number" ? pg.totalCount : 0)
       if (pg.viewer) setViewer(pg.viewer)
       setBootstrapLoading(false)
-    },
-    [teamId]
-  )
+    } catch {
+      setBootstrapLoading(false)
+      setFetchAllLoading(false)
+      setCatalogLoading(false)
+    }
+  }, [
+    bootstrapInventory,
+    teamId,
+    bucketFilter,
+    debouncedSearch,
+    invType,
+    inventoryPage,
+    pageSizeChoice,
+    applyMeta,
+  ])
 
   useEffect(() => {
-    if (!bootstrapInventory || !teamId) return
-    setBootstrapLoading(true)
-    void fetchInventoryPage(inventoryPage, bucketFilter, debouncedSearch)
-  }, [bootstrapInventory, teamId, inventoryPage, bucketFilter, debouncedSearch, fetchInventoryPage])
+    void runBootstrap()
+  }, [runBootstrap])
 
-  const setBucketFilterAndResetPage = useCallback((b: string) => {
-    setBucketFilter(b)
+  const setPageSizeChoicePersist = useCallback((p: PageSizeChoice) => {
+    setPageSizeChoice(p)
+    if (typeof window !== "undefined") sessionStorage.setItem("inventoryPageSize", String(p))
     setInventoryPage(1)
   }, [])
 
+  const setBucketFilterAndResetPage = useCallback(
+    (b: string) => {
+      setBucketFilter(b)
+      setInventoryPage(1)
+      if (bootstrapInventory) {
+        const p = new URLSearchParams(searchParams.toString())
+        p.set("invBucket", b)
+        p.delete("invType")
+        p.delete("invLabel")
+        router.push(`${pathname}?${p.toString()}`)
+      }
+    },
+    [bootstrapInventory, pathname, router, searchParams]
+  )
+
   const reloadInventoryAfterMutation = useCallback(async () => {
     if (bootstrapInventory) {
-      await fetchInventoryPage(inventoryPage, bucketFilter, debouncedSearch)
+      await runBootstrap()
       return
     }
     const res = await fetch(`/api/teams/${teamId}/inventory`)
@@ -203,14 +351,7 @@ export function InventoryManager({
         setViewer,
       })
     }
-  }, [
-    bootstrapInventory,
-    fetchInventoryPage,
-    inventoryPage,
-    bucketFilter,
-    debouncedSearch,
-    teamId,
-  ])
+  }, [bootstrapInventory, runBootstrap, teamId])
 
   const handleAddItem = async (data: {
     equipmentType: string
@@ -600,13 +741,16 @@ export function InventoryManager({
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalItemCount / 25))
+  const limitForPages = pageSizeChoice === "all" ? Math.max(1, totalItemCount || 1) : pageSizeChoice
+  const totalPages =
+    pageSizeChoice === "all" ? 1 : Math.max(1, Math.ceil(totalItemCount / limitForPages))
 
   return (
     <InventoryTabbedLayout
       items={items}
       players={players}
       teamId={teamId}
+      catalogNavigate={bootstrapInventory ? catalogNavigate : undefined}
       permissions={permissions}
       recentUnitCostChanges={recentUnitCostChanges}
       pendingConditionReportCount={pendingConditionReportCount}
@@ -635,9 +779,23 @@ export function InventoryManager({
               setBucketFilter: setBucketFilterAndResetPage,
               searchQuery,
               setSearchQuery,
+              invType,
+              catalogCards,
+              catalogLoading,
+              pageSizeChoice,
+              setPageSizeChoice: setPageSizeChoicePersist,
+              fetchAllLoading,
             }
           : undefined
       }
     />
+  )
+}
+
+export function InventoryManager(props: InventoryManagerProps) {
+  return (
+    <Suspense fallback={<div className="min-h-[40vh] w-full animate-pulse rounded-xl bg-muted" aria-hidden />}>
+      <InventoryManagerInner {...props} />
+    </Suspense>
   )
 }

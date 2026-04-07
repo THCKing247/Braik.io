@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react"
+import type { InventoryCatalogCardRow } from "@/lib/teams/load-inventory-catalog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -740,6 +741,13 @@ interface InventoryTabbedLayoutProps {
   inventoryBootstrapLoading?: boolean
   /** When set, empty state uses this instead of items.length (paginated mode). */
   totalInventoryCount?: number
+  /** Catalog drill + breadcrumb (inventory page). */
+  catalogNavigate?: {
+    invDisplayLabel: string | null
+    onRoot: () => void
+    onBucket: (bucket: string) => void
+    onOpenType: (card: InventoryCatalogCardRow) => void
+  }
   inventoryPagination?: {
     enabled: boolean
     serverTabStats: {
@@ -755,6 +763,12 @@ interface InventoryTabbedLayoutProps {
     setBucketFilter: (b: string) => void
     searchQuery: string
     setSearchQuery: (s: string) => void
+    invType: string | null
+    catalogCards: InventoryCatalogCardRow[]
+    catalogLoading: boolean
+    pageSizeChoice: 10 | 25 | 50 | "all"
+    setPageSizeChoice: (p: 10 | 25 | 50 | "all") => void
+    fetchAllLoading: boolean
   }
 }
 
@@ -769,136 +783,6 @@ type ConditionReportRow = {
   note: string | null
   status: string
   createdAt: string
-}
-
-function InventoryFundraisingPanel({ teamId }: { teamId: string }) {
-  const [loading, setLoading] = useState(true)
-  const [payload, setPayload] = useState<{
-    seasonYear: number
-    budget: {
-      school_allocation: number | null
-      goal_amount: number | null
-      notes: string | null
-      affiliate_url: string | null
-      affiliate_label: string | null
-    } | null
-    entries: { id: string; source_type: string; source_name: string; amount: number; received_date: string }[]
-    paymentRefs: { id: string; platform: string; handle_or_url: string; display_label: string | null }[]
-    canEdit: boolean
-  } | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    fetch(`/api/teams/${teamId}/inventory/fundraising`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled && d) setPayload(d)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId])
-
-  if (loading || !payload) {
-    return (
-      <div className="animate-pulse space-y-3 flex-1 min-h-0">
-        <div className="h-24 rounded-lg bg-[rgb(var(--platinum))]" />
-        <div className="h-40 rounded-lg bg-[rgb(var(--platinum))]" />
-      </div>
-    )
-  }
-
-  const donationTotal = payload.entries.reduce((s, e) => s + (Number(e.amount) || 0), 0)
-  const school = payload.budget?.school_allocation != null ? Number(payload.budget.school_allocation) : 0
-  const goal = payload.budget?.goal_amount != null ? Number(payload.budget.goal_amount) : null
-  const combined = school + donationTotal
-
-  return (
-    <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto inventory-modal-scroll p-1">
-      <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
-        <CardContent className="p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-            Fundraising summary · {payload.seasonYear}
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            <div>
-              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>School budget allocation</p>
-              <p className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>{formatMoney(school)}</p>
-            </div>
-            <div>
-              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>Donations &amp; promotional</p>
-              <p className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>{formatMoney(donationTotal)}</p>
-            </div>
-            <div>
-              <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>Combined available</p>
-              <p className="text-lg font-semibold" style={{ color: "rgb(var(--accent))" }}>{formatMoney(combined)}</p>
-            </div>
-          </div>
-          {goal != null && goal > 0 && (
-            <div className="pt-2">
-              <div className="flex justify-between text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
-                <span>Goal</span>
-                <span>{formatMoney(goal)}</span>
-              </div>
-              <div className="h-2 rounded-full bg-[rgb(var(--platinum))] overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${Math.min(100, Math.round((combined / goal) * 100))}%`,
-                    backgroundColor: "rgb(var(--accent))",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          <p className="text-[11px] pt-1" style={{ color: "rgb(var(--muted))" }}>
-            Ledger and payment references only — Braik does not process payments.
-            {payload.canEdit ? " Head coach can extend this tab with full editing in a follow-up." : " Ask your head coach to manage fundraising entries."}
-          </p>
-        </CardContent>
-      </Card>
-      {payload.paymentRefs.length > 0 && (
-        <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
-          <CardContent className="p-4">
-            <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>Payment references</p>
-            <ul className="space-y-2">
-              {payload.paymentRefs.map((p) => (
-                <li key={p.id}>
-                  <a
-                    href={p.handle_or_url.startsWith("http") ? p.handle_or_url : `https://${p.handle_or_url}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm underline text-[rgb(var(--accent))]"
-                  >
-                    {p.display_label || p.platform} · {p.handle_or_url}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-      {payload.entries.length > 0 && (
-        <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
-          <CardContent className="p-4">
-            <p className="text-sm font-semibold mb-2" style={{ color: "rgb(var(--text))" }}>Entries</p>
-            <ul className="divide-y text-sm" style={{ borderColor: "rgb(var(--border))" }}>
-              {payload.entries.map((e) => (
-                <li key={e.id} className="py-2 flex justify-between gap-2">
-                  <span className="truncate">{e.source_name} · {e.source_type.replace(/_/g, " ")}</span>
-                  <span className="shrink-0 font-medium">{formatMoney(Number(e.amount))}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  )
 }
 
 export function InventoryTabbedLayout({
@@ -921,8 +805,24 @@ export function InventoryTabbedLayout({
   onRefreshInventory,
   inventoryBootstrapLoading = false,
   totalInventoryCount,
+  catalogNavigate,
   inventoryPagination,
 }: InventoryTabbedLayoutProps) {
+  const [archiveFlow, setArchiveFlow] = useState<
+    | { step: "idle" }
+    | { step: "assign"; card: InventoryCatalogCardRow; rows: { itemId: string; itemName: string; playerLabel: string }[] }
+    | { step: "warn"; card: InventoryCatalogCardRow; itemCount: number }
+    | { step: "confirm"; card: InventoryCatalogCardRow; itemCount: number }
+  >({ step: "idle" })
+  const [confirmArchiveText, setConfirmArchiveText] = useState("")
+  const [editCatalog, setEditCatalog] = useState<InventoryCatalogCardRow | null>(null)
+  const [editCatalogDraft, setEditCatalogDraft] = useState({
+    displayName: "",
+    inventoryBucket: "Gear",
+    iconKey: "",
+    equipmentTypeKey: "",
+  })
+
   // Add hover effect styles for inventory icons
   useEffect(() => {
     const style = document.createElement("style")
@@ -964,7 +864,7 @@ export function InventoryTabbedLayout({
     : setInternalBucketFilter
   const searchQuery = inventoryPagination?.enabled ? inventoryPagination.searchQuery : internalSearchQuery
   const setSearchQuery = inventoryPagination?.enabled ? inventoryPagination.setSearchQuery : setInternalSearchQuery
-  const [mainView, setMainView] = useState<"items" | "expenses" | "fundraising">("items")
+  const [mainView, setMainView] = useState<"items" | "expenses">("items")
   const [expenseBreakdown, setExpenseBreakdown] = useState<"all" | "category" | "type">("type")
   const [conditionQueue, setConditionQueue] = useState<ConditionReportRow[]>([])
   const [conditionPanelOpen, setConditionPanelOpen] = useState(false)
@@ -1295,6 +1195,13 @@ export function InventoryTabbedLayout({
   ]
 
   const effectiveTotalCount = totalInventoryCount !== undefined ? totalInventoryCount : items.length
+  const showGlobalEmpty =
+    effectiveTotalCount === 0 &&
+    !(
+      inventoryPagination?.enabled &&
+      !inventoryPagination.invType &&
+      (inventoryPagination.serverTabStats?.total ?? 0) > 0
+    )
 
   if (inventoryBootstrapLoading) {
     return (
@@ -1315,7 +1222,7 @@ export function InventoryTabbedLayout({
     )
   }
 
-  if (effectiveTotalCount === 0) {
+  if (showGlobalEmpty) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">No equipment items yet</p>
@@ -1353,16 +1260,13 @@ export function InventoryTabbedLayout({
             ),
           },
           { id: "expenses", label: "Expenses" },
-          { id: "fundraising", label: "Fundraising" },
         ]}
         value={mainView}
-        onValueChange={(id) => setMainView(id as "items" | "expenses" | "fundraising")}
-        ariaLabel="Inventory Items, Expenses, or Fundraising"
+        onValueChange={(id) => setMainView(id as "items" | "expenses")}
+        ariaLabel="Inventory Items or Expenses"
       />
 
-      {mainView === "fundraising" ? (
-        <InventoryFundraisingPanel teamId={teamId} />
-      ) : mainView === "expenses" ? (
+      {mainView === "expenses" ? (
         <>
           <PortalUnderlineTabs
             compact
@@ -1388,6 +1292,151 @@ export function InventoryTabbedLayout({
             serverExpenseGroups={serverExpenseGroups}
           />
         </>
+      ) : inventoryPagination?.enabled && !inventoryPagination.invType ? (
+        <div className="flex flex-col gap-3 flex-1 min-h-0">
+          <PortalUnderlineTabs
+            compact
+            tabs={bucketTabs}
+            value={bucketFilter}
+            onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+            ariaLabel="Inventory category filter"
+            className="w-full"
+            navClassName="w-full flex-wrap"
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Total Items</p>
+              <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{tabStats.total}</p>
+            </div>
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Available</p>
+              <p className="text-2xl font-bold" style={{ color: "#059669" }}>{tabStats.available}</p>
+            </div>
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Assigned</p>
+              <p className="text-2xl font-bold" style={{ color: "#d97706" }}>{tabStats.assigned}</p>
+            </div>
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Needs Attention</p>
+              <p className="text-2xl font-bold" style={{ color: "#dc2626" }}>{tabStats.needsAttention}</p>
+            </div>
+          </div>
+          {inventoryPagination.catalogLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-36 rounded-xl border bg-white animate-pulse" style={{ borderColor: "rgb(var(--border))" }} />
+              ))}
+            </div>
+          ) : inventoryPagination.catalogCards.length === 0 ? (
+            <div className="text-center py-12 rounded-lg border" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-muted-foreground mb-3">No equipment in this category yet.</p>
+              {permissions.canCreate && (
+                <Button
+                  onClick={() => setShowAddModal(true)}
+                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                >
+                  Add equipment
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {inventoryPagination.catalogCards.map((card) => (
+                <Card
+                  key={`${card.inventoryBucket}-${card.equipmentTypeKey}`}
+                  className="border overflow-hidden"
+                  style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+                >
+                  <CardContent className="p-0">
+                    <button
+                      type="button"
+                      className="w-full text-left p-4 hover:bg-[#F8FAFC] transition-colors"
+                      onClick={() => catalogNavigate?.onOpenType(card)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <InventoryIcon type={card.iconKey || card.equipmentTypeKey} size={36} />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
+                            {card.displayName}
+                          </h3>
+                          <p className="text-sm mt-1" style={{ color: "rgb(var(--muted))" }}>
+                            {card.assignedCount}/{card.totalCount} assigned / total
+                          </p>
+                          <span
+                            className="inline-block mt-2 text-[11px] font-medium rounded-full px-2 py-0.5 border"
+                            style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--muted))" }}
+                          >
+                            {card.dominantConditionLabel}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                    {permissions.canEdit && (
+                      <div className="flex gap-2 px-4 pb-4 pt-0 border-t" style={{ borderColor: "rgb(var(--border))" }}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditCatalog(card)
+                            setEditCatalogDraft({
+                              displayName: card.displayName,
+                              inventoryBucket: card.inventoryBucket,
+                              iconKey: card.iconKey ?? "",
+                              equipmentTypeKey: card.equipmentTypeKey,
+                            })
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          style={{ color: "#dc2626", borderColor: "rgb(var(--border))" }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void (async () => {
+                              const r = await fetch(
+                                `/api/teams/${teamId}/inventory?archiveCheck=1&bucket=${encodeURIComponent(card.inventoryBucket)}&equipmentType=${encodeURIComponent(card.equipmentTypeKey)}`
+                              )
+                              const j = r.ok ? await r.json() : { assignedItems: [] }
+                              const rows = Array.isArray(j.assignedItems) ? j.assignedItems : []
+                              if (rows.length > 0) {
+                                setArchiveFlow({
+                                  step: "assign",
+                                  card,
+                                  rows: rows.map(
+                                    (x: {
+                                      itemId: string
+                                      itemName: string
+                                      player: { firstName: string; lastName: string; jerseyNumber?: number | null }
+                                    }) => ({
+                                      itemId: x.itemId,
+                                      itemName: x.itemName,
+                                      playerLabel: `${x.player.firstName} ${x.player.lastName}`.trim(),
+                                    })
+                                  ),
+                                })
+                              } else {
+                                setArchiveFlow({ step: "warn", card, itemCount: card.totalCount })
+                              }
+                            })()
+                          }}
+                        >
+                          Archive
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       ) : equipmentTypes.length === 0 ? (
         <div className="flex flex-col gap-3">
           <PortalUnderlineTabs
@@ -1398,7 +1447,9 @@ export function InventoryTabbedLayout({
             ariaLabel="Inventory category filter"
           />
           <div className="text-center py-10 rounded-lg border" style={{ borderColor: "rgb(var(--border))" }}>
-            <p className="text-muted-foreground mb-3">No items match this category filter.</p>
+            <p className="text-muted-foreground mb-3">
+              {inventoryPagination?.invType ? "No items in this equipment group." : "No items match this category filter."}
+            </p>
             <Button type="button" variant="outline" size="sm" onClick={() => setBucketFilter("All")}>
               Show all items
             </Button>
@@ -1490,6 +1541,32 @@ export function InventoryTabbedLayout({
             navClassName="w-full flex-wrap"
           />
 
+          {catalogNavigate && inventoryPagination?.invType ? (
+            <nav className="text-sm flex flex-wrap items-center gap-1 px-1" aria-label="Breadcrumb">
+              <button
+                type="button"
+                className="font-medium hover:underline"
+                style={{ color: "rgb(var(--accent))" }}
+                onClick={() => catalogNavigate.onRoot()}
+              >
+                Inventory
+              </button>
+              <span style={{ color: "rgb(var(--muted))" }}>/</span>
+              <button
+                type="button"
+                className="font-medium hover:underline"
+                style={{ color: "rgb(var(--accent))" }}
+                onClick={() => catalogNavigate.onBucket(bucketFilter)}
+              >
+                {bucketFilter}
+              </button>
+              <span style={{ color: "rgb(var(--muted))" }}>/</span>
+              <span className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                {catalogNavigate.invDisplayLabel || inventoryPagination.invType}
+              </span>
+            </nav>
+          ) : null}
+
           <div className="w-full flex flex-col flex-1 min-h-0 min-w-0">
             <div className="border-b p-4 w-full" style={{ borderColor: "rgb(var(--border))" }}>
               {/* Stats */}
@@ -1512,21 +1589,50 @@ export function InventoryTabbedLayout({
                 </div>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4" style={{ color: "rgb(var(--muted))" }} />
-                <Input
-                  type="text"
-                  placeholder="Search by code, player name, size, or make..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderColor: "rgb(var(--border))",
-                    color: "rgb(var(--text))",
-                  }}
-                />
+              {/* Search + page size (drill-down) */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="relative flex-1 min-w-0">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4" style={{ color: "rgb(var(--muted))" }} />
+                  <Input
+                    type="text"
+                    placeholder="Search by code, player name, size, or make..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      borderColor: "rgb(var(--border))",
+                      color: "rgb(var(--text))",
+                    }}
+                  />
+                </div>
+                {inventoryPagination?.invType ? (
+                  <div className="flex items-center gap-2 shrink-0 justify-end">
+                    <span className="text-xs font-medium whitespace-nowrap" style={{ color: "rgb(var(--muted))" }}>
+                      Page size
+                    </span>
+                    <select
+                      id="inv-page-size"
+                      className="h-9 rounded-md border border-input bg-background px-2 text-sm min-w-[5.5rem]"
+                      value={inventoryPagination.pageSizeChoice === "all" ? "all" : String(inventoryPagination.pageSizeChoice)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        inventoryPagination.setPageSizeChoice(v === "all" ? "all" : (Number(v) as 10 | 25 | 50))
+                      }}
+                      disabled={inventoryPagination.fetchAllLoading}
+                    >
+                      <option value="10">10</option>
+                      <option value="25">25</option>
+                      <option value="50">50</option>
+                      <option value="all">All</option>
+                    </select>
+                    {inventoryPagination.fetchAllLoading ? (
+                      <span className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                        Loading…
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -1865,7 +1971,9 @@ export function InventoryTabbedLayout({
                 </div>
               )}
             </div>
-            {inventoryPagination?.enabled && (
+            {inventoryPagination?.enabled &&
+              inventoryPagination.invType &&
+              inventoryPagination.pageSizeChoice !== "all" && (
               <div
                 className="flex flex-wrap items-center justify-center gap-2 py-2 border-t px-2 shrink-0"
                 style={{ borderColor: "rgb(var(--border))" }}
@@ -1898,6 +2006,223 @@ export function InventoryTabbedLayout({
         </div>
       )}
 
+
+      {/* Catalog: archive + edit */}
+      <Dialog open={archiveFlow.step === "assign"} onOpenChange={(o) => !o && setArchiveFlow({ step: "idle" })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cannot archive yet</DialogTitle>
+          </DialogHeader>
+          {archiveFlow.step === "assign" ? (
+            <div className="space-y-3 text-sm">
+              <p style={{ color: "rgb(var(--text))" }}>
+                {archiveFlow.rows.length} item{archiveFlow.rows.length === 1 ? "" : "s"} in this group are assigned to players.
+                Unassign all items before archiving.
+              </p>
+              <ul className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2" style={{ borderColor: "rgb(var(--border))" }}>
+                {archiveFlow.rows.map((r) => (
+                  <li key={r.itemId}>
+                    <span className="font-medium">{r.itemName}</span>
+                    <span style={{ color: "rgb(var(--muted))" }}> — {r.playerLabel}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setArchiveFlow({ step: "idle" })}>
+              Close
+            </Button>
+            <Button
+              type="button"
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              onClick={() => setArchiveFlow({ step: "idle" })}
+            >
+              Go to assignments
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={archiveFlow.step === "warn"} onOpenChange={(o) => !o && setArchiveFlow({ step: "idle" })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive {archiveFlow.step === "warn" ? archiveFlow.card.displayName : ""}?</DialogTitle>
+          </DialogHeader>
+          {archiveFlow.step === "warn" ? (
+            <p className="text-sm" style={{ color: "rgb(var(--text))" }}>
+              You are about to archive <strong>{archiveFlow.card.displayName}</strong>. This will hide all{" "}
+              {archiveFlow.itemCount} items from your inventory. This action can only be reversed by contacting Braik
+              support.
+            </p>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setArchiveFlow({ step: "idle" })}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              onClick={() => {
+                if (archiveFlow.step !== "warn") return
+                setConfirmArchiveText("")
+                setArchiveFlow({ step: "confirm", card: archiveFlow.card, itemCount: archiveFlow.itemCount })
+              }}
+            >
+              Continue to confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={archiveFlow.step === "confirm"}
+        onOpenChange={(o) => {
+          if (!o) setArchiveFlow({ step: "idle" })
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm archive</DialogTitle>
+          </DialogHeader>
+          {archiveFlow.step === "confirm" ? (
+            <div className="space-y-2">
+              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                Type <strong>{archiveFlow.card.displayName}</strong> exactly to confirm (case-insensitive).
+              </p>
+              <Input
+                placeholder={`Type ${archiveFlow.card.displayName} to confirm`}
+                value={confirmArchiveText}
+                onChange={(e) => setConfirmArchiveText(e.target.value)}
+              />
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setArchiveFlow({ step: "idle" })}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                archiveFlow.step !== "confirm" ||
+                confirmArchiveText.trim().toLowerCase() !== archiveFlow.card.displayName.trim().toLowerCase()
+              }
+              style={{ backgroundColor: "#dc2626", color: "white" }}
+              onClick={() => {
+                if (archiveFlow.step !== "confirm") return
+                void (async () => {
+                  const r = await fetch(`/api/teams/${teamId}/inventory/catalog`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "archive_catalog_group",
+                      inventoryBucket: archiveFlow.card.inventoryBucket,
+                      equipmentTypeKey: archiveFlow.card.equipmentTypeKey,
+                    }),
+                  })
+                  if (!r.ok) {
+                    const j = await r.json().catch(() => ({}))
+                    alert((j as { error?: string }).error || "Archive failed")
+                    return
+                  }
+                  setArchiveFlow({ step: "idle" })
+                  setConfirmArchiveText("")
+                  await onRefreshInventory()
+                  catalogNavigate?.onRoot()
+                })()
+              }}
+            >
+              Archive group
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editCatalog} onOpenChange={(o) => !o && setEditCatalog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit equipment type</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label htmlFor="ec-name">Display name</Label>
+              <Input
+                id="ec-name"
+                value={editCatalogDraft.displayName}
+                onChange={(e) => setEditCatalogDraft((d) => ({ ...d, displayName: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="ec-bucket">Category</Label>
+              <select
+                id="ec-bucket"
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={editCatalogDraft.inventoryBucket}
+                onChange={(e) => setEditCatalogDraft((d) => ({ ...d, inventoryBucket: e.target.value }))}
+              >
+                {INVENTORY_BUCKETS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="ec-key">Equipment type key (rename)</Label>
+              <Input
+                id="ec-key"
+                value={editCatalogDraft.equipmentTypeKey}
+                onChange={(e) => setEditCatalogDraft((d) => ({ ...d, equipmentTypeKey: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="ec-icon">Icon key (optional)</Label>
+              <Input
+                id="ec-icon"
+                placeholder="e.g. helmets, jersey"
+                value={editCatalogDraft.iconKey}
+                onChange={(e) => setEditCatalogDraft((d) => ({ ...d, iconKey: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEditCatalog(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+              onClick={() => {
+                if (!editCatalog) return
+                void (async () => {
+                  const r = await fetch(`/api/teams/${teamId}/inventory/catalog`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "upsert_catalog_type",
+                      oldInventoryBucket: editCatalog.inventoryBucket,
+                      oldEquipmentTypeKey: editCatalog.equipmentTypeKey,
+                      inventoryBucket: editCatalogDraft.inventoryBucket,
+                      equipmentTypeKey: editCatalogDraft.equipmentTypeKey.trim() || editCatalog.equipmentTypeKey,
+                      displayName: editCatalogDraft.displayName.trim(),
+                      iconKey: editCatalogDraft.iconKey.trim() || null,
+                    }),
+                  })
+                  if (!r.ok) {
+                    const j = await r.json().catch(() => ({}))
+                    alert((j as { error?: string }).error || "Save failed")
+                    return
+                  }
+                  setEditCatalog(null)
+                  await onRefreshInventory()
+                })()
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modals */}
       {permissions.canCreate && (

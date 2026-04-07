@@ -40,22 +40,29 @@ export async function loadInventoryMeta(
     pendingConditionReportCount = count ?? 0
   }
 
-  let qTotal = supabase.from("inventory_items").select("id", { count: "exact", head: true }).eq("team_id", teamId)
+  let qTotal = supabase
+    .from("inventory_items")
+    .select("id", { count: "exact", head: true })
+    .eq("team_id", teamId)
+    .eq("archive_status", "active")
   let qAvail = supabase
     .from("inventory_items")
     .select("id", { count: "exact", head: true })
     .eq("team_id", teamId)
+    .eq("archive_status", "active")
     .is("assigned_to_player_id", null)
     .eq("status", "AVAILABLE")
   let qAssign = supabase
     .from("inventory_items")
     .select("id", { count: "exact", head: true })
     .eq("team_id", teamId)
+    .eq("archive_status", "active")
     .not("assigned_to_player_id", "is", null)
   let qAttn = supabase
     .from("inventory_items")
     .select("id", { count: "exact", head: true })
     .eq("team_id", teamId)
+    .eq("archive_status", "active")
     .or("status.eq.NEEDS_REPAIR,status.eq.DAMAGED,status.eq.MISSING,condition.eq.NEEDS_REPAIR,condition.eq.REPLACE")
 
   if (bucket && bucket !== "All") {

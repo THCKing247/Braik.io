@@ -87,9 +87,11 @@ export async function loadInventoryPage(
     pageSize: number
     bucketFilter: string
     search: string
+    /** When set, only rows matching this equipment type (or category) are returned. */
+    equipmentTypeFilter?: string | null
   }
 ): Promise<{ items: PaginatedInventoryItemRow[]; totalCount: number; assignments: Record<string, { id: string; firstName: string; lastName: string; jerseyNumber: number | null }> }> {
-  const { page, pageSize, bucketFilter, search } = opts
+  const { page, pageSize, bucketFilter, search, equipmentTypeFilter } = opts
   const from = Math.max(0, (page - 1) * pageSize)
   const to = from + pageSize - 1
 
@@ -99,16 +101,27 @@ export async function loadInventoryPage(
       ? `name.ilike.%${qtermRaw}%,item_code.ilike.%${qtermRaw}%,equipment_type.ilike.%${qtermRaw}%,category.ilike.%${qtermRaw}%`
       : null
 
-  let countQ = supabase.from("inventory_items").select("id", { count: "exact", head: true }).eq("team_id", teamId)
+  let countQ = supabase
+    .from("inventory_items")
+    .select("id", { count: "exact", head: true })
+    .eq("team_id", teamId)
+    .eq("archive_status", "active")
   let dataQ = supabase
     .from("inventory_items")
     .select(
-      "id, category, name, quantity_total, quantity_available, condition, assigned_to_player_id, notes, status, equipment_type, size, make, item_code, inventory_bucket, cost_per_unit, cost_notes, cost_updated_at, damage_report_text, damage_reported_at, damage_reported_by_player_id, equipment_batch_id"
+      "id, category, name, quantity_total, quantity_available, condition, assigned_to_player_id, notes, status, equipment_type, size, make, item_code, inventory_bucket, cost_per_unit, cost_notes, cost_updated_at, damage_report_text, damage_reported_at, damage_reported_by_player_id, equipment_batch_id, archive_status"
     )
     .eq("team_id", teamId)
+    .eq("archive_status", "active")
   if (bucketFilter && bucketFilter !== "All") {
     countQ = countQ.eq("inventory_bucket", bucketFilter)
     dataQ = dataQ.eq("inventory_bucket", bucketFilter)
+  }
+  const et = equipmentTypeFilter?.trim()
+  if (et) {
+    const typeOr = `equipment_type.eq.${et},category.eq.${et}`
+    countQ = countQ.or(typeOr)
+    dataQ = dataQ.or(typeOr)
   }
   if (orFilter) {
     countQ = countQ.or(orFilter)

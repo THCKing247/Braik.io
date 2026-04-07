@@ -1196,31 +1196,13 @@ export function InventoryTabbedLayout({
 
   const effectiveTotalCount = totalInventoryCount !== undefined ? totalInventoryCount : items.length
   const showGlobalEmpty =
+    !inventoryBootstrapLoading &&
     effectiveTotalCount === 0 &&
     !(
       inventoryPagination?.enabled &&
       !inventoryPagination.invType &&
       (inventoryPagination.serverTabStats?.total ?? 0) > 0
     )
-
-  if (inventoryBootstrapLoading) {
-    return (
-      <div className="flex flex-col gap-3 animate-pulse" aria-busy>
-        <div className="h-10 rounded-lg bg-[rgb(var(--platinum))]" />
-        <div className="grid grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-20 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }} />
-          ))}
-        </div>
-        <div className="h-10 rounded-md bg-[rgb(var(--platinum))]" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-48 rounded-lg border bg-white" style={{ borderColor: "rgb(var(--border))" }} />
-          ))}
-        </div>
-      </div>
-    )
-  }
 
   if (showGlobalEmpty) {
     return (
@@ -1291,6 +1273,61 @@ export function InventoryTabbedLayout({
             recentUnitCostChanges={recentUnitCostChanges}
             serverExpenseGroups={serverExpenseGroups}
           />
+        </>
+      ) : mainView === "items" && inventoryBootstrapLoading ? (
+        <>
+          <PortalUnderlineTabs
+            compact
+            tabs={bucketTabs}
+            value={bucketFilter}
+            onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+            ariaLabel="Inventory category filter"
+            className="w-full"
+            navClassName="w-full flex-wrap"
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
+                Total Items
+              </p>
+              <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>
+                —
+              </p>
+            </div>
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
+                Available
+              </p>
+              <p className="text-2xl font-bold" style={{ color: "#059669" }}>
+                —
+              </p>
+            </div>
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
+                Assigned
+              </p>
+              <p className="text-2xl font-bold" style={{ color: "#d97706" }}>
+                —
+              </p>
+            </div>
+            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
+                Needs Attention
+              </p>
+              <p className="text-2xl font-bold" style={{ color: "#dc2626" }}>
+                —
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="h-48 rounded-lg border bg-white animate-pulse"
+                style={{ borderColor: "rgb(var(--border))" }}
+              />
+            ))}
+          </div>
         </>
       ) : inventoryPagination?.enabled && !inventoryPagination.invType ? (
         <div className="flex flex-col gap-3 flex-1 min-h-0">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -117,23 +117,7 @@ export function FundraisingView({ teamId }: { teamId: string }) {
     void load()
   }, [load])
 
-  if (loading && !data) {
-    return (
-      <div className="min-h-[40vh] w-full animate-pulse rounded-xl bg-muted" aria-hidden />
-    )
-  }
-
-  if (err || !data) {
-    return (
-      <Card className="border" style={{ borderColor: "rgb(var(--border))" }}>
-        <CardContent className="py-8 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
-          {err || "Unable to load fundraising."}
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (data.access === "payment_refs_only") {
+  if (data?.access === "payment_refs_only") {
     return (
       <div className="min-w-0 space-y-4">
         <div>
@@ -156,37 +140,45 @@ export function FundraisingView({ teamId }: { teamId: string }) {
   }
 
   return (
-    <FundraisingFullView
-      teamId={teamId}
-      payload={data}
-      seasonYear={seasonYear}
-      setSeasonYear={setSeasonYear}
-      tab={tab}
-      setTab={setTab}
-      reload={load}
-    />
+    <FundraisingShell seasonYear={seasonYear} setSeasonYear={setSeasonYear} tab={tab} setTab={setTab}>
+      {loading && !data ? (
+        <div className="space-y-4 mt-4">
+          <div className="h-24 rounded-xl animate-pulse bg-muted" />
+          <div className="h-48 rounded-xl animate-pulse bg-muted" />
+        </div>
+      ) : err || !data ? (
+        <Card className="border mt-4" style={{ borderColor: "rgb(var(--border))" }}>
+          <CardContent className="py-8 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
+            {err || "Unable to load fundraising."}
+          </CardContent>
+        </Card>
+      ) : data.access === "full" ? (
+        <FundraisingFullTabPanels
+          teamId={teamId}
+          payload={data}
+          seasonYear={seasonYear}
+          setSeasonYear={setSeasonYear}
+          tab={tab}
+          reload={load}
+        />
+      ) : null}
+    </FundraisingShell>
   )
 }
 
-function FundraisingFullView({
-  teamId,
-  payload,
+function FundraisingShell({
   seasonYear,
   setSeasonYear,
   tab,
   setTab,
-  reload,
+  children,
 }: {
-  teamId: string
-  payload: FullPayload
   seasonYear: number
   setSeasonYear: (y: number) => void
   tab: "overview" | "budget" | "donations" | "payment_refs"
   setTab: (t: "overview" | "budget" | "donations" | "payment_refs") => void
-  reload: () => Promise<void>
+  children: ReactNode
 }) {
-  const canEdit = payload.canEdit
-
   return (
     <div className="min-w-0 space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -226,6 +218,30 @@ function FundraisingFullView({
         ariaLabel="Fundraising sections"
       />
 
+      {children}
+    </div>
+  )
+}
+
+function FundraisingFullTabPanels({
+  teamId,
+  payload,
+  seasonYear,
+  setSeasonYear,
+  tab,
+  reload,
+}: {
+  teamId: string
+  payload: FullPayload
+  seasonYear: number
+  setSeasonYear: (y: number) => void
+  tab: "overview" | "budget" | "donations" | "payment_refs"
+  reload: () => Promise<void>
+}) {
+  const canEdit = payload.canEdit
+
+  return (
+    <>
       {tab === "overview" && (
         <OverviewTab payload={payload} seasonYear={seasonYear} />
       )}
@@ -258,7 +274,7 @@ function FundraisingFullView({
           onChanged={reload}
         />
       )}
-    </div>
+    </>
   )
 }
 

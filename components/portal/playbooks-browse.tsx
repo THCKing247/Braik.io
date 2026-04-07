@@ -67,29 +67,6 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex-shrink-0 border-b border-slate-200 bg-white px-5 py-4 sm:px-6 sm:py-5 rounded-t-2xl">
-          <div className="h-4 w-32 bg-slate-200 rounded animate-pulse mb-3" />
-          <div className="h-8 w-48 bg-slate-200 rounded animate-pulse mb-2" />
-          <div className="h-4 w-full max-w-xl bg-slate-100 rounded animate-pulse" />
-        </div>
-        <div className="flex-1 p-5 sm:p-6 bg-slate-50 rounded-b-2xl border border-t-0 border-slate-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="rounded-xl border border-slate-200 bg-white p-5 h-36 animate-pulse">
-                <div className="h-5 bg-slate-200 rounded w-3/4 mb-3" />
-                <div className="h-4 bg-slate-100 rounded w-1/2" />
-                <div className="h-4 bg-slate-100 rounded w-1/3 mt-2" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const breadcrumbs = [{ label: "Playbooks" }]
 
   return (
@@ -116,22 +93,26 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-24 md:pb-28 lg:pb-6 bg-slate-50 rounded-b-2xl border border-t-0 border-slate-200 min-w-0">
-        {playbooks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-6 text-center rounded-xl border border-dashed border-slate-200 bg-white/80 max-w-lg mx-auto">
-            <p className="text-slate-700 font-medium">No playbooks yet</p>
-            <p className="text-sm text-slate-500 mt-1">
-              Create your first playbook to organize formations and plays.
-            </p>
-            {canEdit && (
-              <Button size="sm" className="mt-6" onClick={handleNewPlaybook}>
-                <Plus className="h-4 w-4 mr-1.5" />
-                New playbook
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-            {playbooks.map((pb) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+          {loading ? (
+            [1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="rounded-xl border border-slate-200 bg-white p-5 h-36 animate-pulse" />
+            ))
+          ) : playbooks.length === 0 ? (
+            <div className="col-span-full flex flex-col items-center justify-center py-16 px-6 text-center rounded-xl border border-dashed border-slate-200 bg-white/80 max-w-lg mx-auto">
+              <p className="text-slate-700 font-medium">No playbooks yet</p>
+              <p className="text-sm text-slate-500 mt-1">
+                Create your first playbook to organize formations and plays.
+              </p>
+              {canEdit && (
+                <Button size="sm" className="mt-6" onClick={handleNewPlaybook}>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  New playbook
+                </Button>
+              )}
+            </div>
+          ) : (
+            playbooks.map((pb) => (
               <PlaybookCard
                 key={pb.id}
                 playbook={pb}
@@ -143,9 +124,9 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
                 onDelete={canEdit ? () => handleDeletePlaybook(pb.id) : undefined}
                 canEdit={canEdit}
               />
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   )

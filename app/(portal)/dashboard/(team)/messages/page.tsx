@@ -1,13 +1,7 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { DashboardMessagesSkeleton } from "@/components/portal/dashboard-route-skeletons"
-
-const MessagingManager = dynamic(
-  () => import("@/components/portal/messaging-manager").then((m) => m.MessagingManager),
-  { loading: () => <DashboardMessagesSkeleton /> }
-)
+import { MessagingManager } from "@/components/portal/messaging-manager"
 
 export default function MessagesPage() {
   return (

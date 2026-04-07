@@ -1,19 +1,7 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-
-const PlaybooksBrowse = dynamic(
-  () => import("@/components/portal/playbooks-browse").then((m) => m.PlaybooksBrowse),
-  {
-    loading: () => (
-      <div
-        className="flex min-h-[400px] w-full animate-pulse rounded-2xl bg-muted lg:min-h-[775px]"
-        aria-hidden
-      />
-    ),
-  }
-)
+import { PlaybooksBrowse } from "@/components/portal/playbooks-browse"
 
 export default function PlaybooksPage() {
   return (

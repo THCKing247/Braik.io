@@ -1080,14 +1080,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     )
   }
 
-  if (initialLoading) {
-    return (
-      <div className="flex h-[calc(100vh-200px)] items-center justify-center rounded-lg border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
-  }
-
   return (
     <div
       className="relative flex h-[calc(100dvh-12rem)] min-h-[560px] flex-col overflow-hidden rounded-[18px] border border-border bg-white shadow-[0_2px_14px_rgba(15,23,42,0.08)] lg:flex-row"
@@ -1306,7 +1298,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         <div
           className={`messages-thread-list min-h-0 flex-1 overflow-y-auto py-3 md:py-4 ${msgScrollHide}`}
         >
-          {threads.length === 0 ? (
+          {initialLoading ? (
+            <div className="space-y-2 p-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-14 rounded-lg animate-pulse bg-muted" />
+              ))}
+            </div>
+          ) : threads.length === 0 ? (
             <div className="mx-4 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/40 px-4 py-10 text-center">
               <MessageSquare className="mx-auto mb-3 h-10 w-10 text-[rgb(var(--accent))]" aria-hidden />
               <p className="text-sm font-medium text-[rgb(var(--text))]">No conversations yet</p>

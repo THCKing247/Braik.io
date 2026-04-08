@@ -33,8 +33,16 @@ export function middleware(request: NextRequest): NextResponse {
     return finish(NextResponse.redirect(u))
   }
 
-  /** Public self-serve signup is retired — send users to Request Access. */
+  /** Public self-serve signup is retired — allow ONLY player QR/code-based signup */
   if (pathname === "/signup" || pathname.startsWith("/signup/")) {
+    if (pathname.startsWith("/signup/player")) {
+      const raw = request.nextUrl.searchParams.get("code")
+      const code = typeof raw === "string" ? raw.trim() : ""
+      if (code.length > 0) {
+        return finish(NextResponse.next())
+      }
+    }
+
     const u = request.nextUrl.clone()
     u.pathname = "/request-access"
     u.search = ""

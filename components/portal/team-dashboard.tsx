@@ -73,6 +73,7 @@ import {
 } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
+import { RosterClaimReviewDashboardBanner } from "@/components/portal/roster-claim-review-dashboard-banner"
 import { useBraikPerfDashboardBootstrapReady, useBraikPerfMount } from "@/lib/perf/braik-perf-client"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1049,6 +1050,8 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         bootstrapTeamLoading={dashboardBootstrapState === "loading"}
         networkSyncHint={dashNetworkHint}
       />
+
+      {hasTeam && canAddCalendarEvents ? <RosterClaimReviewDashboardBanner teamId={dataTeamId} /> : null}
 
       {/* ── Connect to Team Card (if no team and not head coach) ── */}
       {!hasTeam && !isHeadCoach && <ConnectToTeamCard user={user} />}

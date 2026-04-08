@@ -8,6 +8,8 @@ export type NotificationType =
   | "message"
   | "thread_reply"
   | "roster_change"
+  | "roster_claim_pending"
+  | "roster_claim_completed"
   | "roster_import"
   | "document_change"
   | "inventory_change"

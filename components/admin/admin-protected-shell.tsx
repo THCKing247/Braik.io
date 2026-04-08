@@ -106,7 +106,11 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [router])
+    // Intentionally run once on mount only. Including `router` in deps caused the gate to re-run on
+    // client navigations (router identity can change), which could call access-check again and
+    // `replace` away from deep routes like /admin/roles while the user had already passed the gate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- admin gate is intentionally one-shot per shell mount
+  }, [])
 
   if (phase === "loading") {
     return <AdminLoadingShell />

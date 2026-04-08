@@ -409,6 +409,9 @@ export async function POST(request: Request) {
       invite_status: "not_invited",
       created_by: session.user.id,
       email: email ?? null,
+      claim_status: "unclaimed",
+      created_source: "coach",
+      self_registered: false,
     }
 
     const { data: player, error } = await supabase

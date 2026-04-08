@@ -233,6 +233,9 @@ export async function POST(request: Request) {
         height: row.height,
         status: "active",
         created_by: createdBy,
+        claim_status: "unclaimed",
+        created_source: "import",
+        self_registered: false,
       }
     }
 

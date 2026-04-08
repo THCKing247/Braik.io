@@ -43,6 +43,10 @@ export default function RoleSelectionPage() {
     setSelectedRole(roleValue)
     // Short delay so user sees selected state before navigating
     setTimeout(() => {
+      if (roleValue === "player") {
+        router.push("/signup/player")
+        return
+      }
       const signupData = { role: roleValue }
       localStorage.setItem("signupData", JSON.stringify(signupData))
       router.push("/signup")

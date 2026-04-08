@@ -116,6 +116,7 @@ export async function claimPlayerInviteForUser(
       user_id: userId,
       claimed_at: new Date().toISOString(),
       invite_status: "joined",
+      claim_status: "claimed",
     })
     .eq("id", playerId)
 

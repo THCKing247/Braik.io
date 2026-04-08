@@ -12,6 +12,8 @@ import { logTeamMembersAudit, setPrimaryHeadCoach, upsertStaffTeamMember } from 
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
 import { claimPlayerInviteForUser } from "@/lib/player-invite-claim"
 import { isPublicSignupAllowed } from "@/lib/config/public-signup"
+import { processPlayerTeamJoinSignup, resolveTeamByPlayerJoinCode } from "@/lib/players/player-claim"
+import type { PlayerJoinIntent } from "@/lib/players/claim-types"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
 
@@ -28,6 +30,8 @@ class SignupRouteError extends Error {
 
 type RawSignupBody = {
   fullName?: string
+  firstName?: string
+  lastName?: string
   programName?: string
   programType?: string
   email?: string
@@ -38,6 +42,12 @@ type RawSignupBody = {
   programCode?: string
   /** From /join?token= — links roster during signup (Phase 6). */
   joinToken?: string
+  /** Team player join code flow: auto | confirm | new */
+  playerJoinIntent?: string
+  confirmedPlayerId?: string
+  graduationYear?: unknown
+  jerseyNumber?: unknown
+  dateOfBirth?: string
   // Backward-compatible aliases from the existing flow
   name?: string
   teamName?: string
@@ -82,6 +92,28 @@ function parseOptIn(value: unknown): boolean {
   return value === true || value === "true"
 }
 
+function splitFullName(fullName: string | null): { first: string; last: string } {
+  const t = (fullName ?? "").trim()
+  if (!t) return { first: "", last: "" }
+  const sp = t.indexOf(" ")
+  if (sp === -1) return { first: t, last: "" }
+  return { first: t.slice(0, sp).trim(), last: t.slice(sp + 1).trim() }
+}
+
+function parseOptionalInt(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = typeof v === "number" ? v : parseInt(String(v), 10)
+  if (!Number.isFinite(n)) return null
+  return n
+}
+
+function normalizePlayerJoinIntent(raw: string | null): PlayerJoinIntent | null {
+  if (!raw) return null
+  const x = raw.trim().toLowerCase()
+  if (x === "auto" || x === "confirm" || x === "new") return x
+  return null
+}
+
 function parseSignupPayload(body: RawSignupBody) {
   const fullName = asNonEmptyString(body.fullName) ?? asNonEmptyString(body.name)
   const programName = asNonEmptyString(body.programName) ?? asNonEmptyString(body.teamName)
@@ -95,6 +127,14 @@ function parseSignupPayload(body: RawSignupBody) {
   const joinToken = asNonEmptyString(body.joinToken)?.trim() ?? null
   const role = normalizeRole(asNonEmptyString(body.role))
   const smsOptIn = parseOptIn(body.smsOptIn)
+  const firstNameField = asNonEmptyString(body.firstName)
+  const lastNameField = asNonEmptyString(body.lastName)
+  const playerJoinIntent = normalizePlayerJoinIntent(asNonEmptyString(body.playerJoinIntent))
+  const confirmedPlayerId = asNonEmptyString(body.confirmedPlayerId)
+  const graduationYear = parseOptionalInt(body.graduationYear)
+  const jerseyNumber = parseOptionalInt(body.jerseyNumber)
+  const dateOfBirth =
+    asNonEmptyString(body.dateOfBirth)?.trim().slice(0, 10) ?? null
 
   return {
     fullName,
@@ -108,6 +148,13 @@ function parseSignupPayload(body: RawSignupBody) {
     programCode,
     joinToken,
     smsOptIn,
+    firstNameField,
+    lastNameField,
+    playerJoinIntent,
+    confirmedPlayerId,
+    graduationYear,
+    jerseyNumber,
+    dateOfBirth,
   }
 }
 
@@ -149,8 +196,26 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as RawSignupBody
-    const { fullName, programName, email, password, role, phone, sport, programType, programCode, joinToken, smsOptIn } =
-      parseSignupPayload(body)
+    const {
+      fullName,
+      programName,
+      email,
+      password,
+      role,
+      phone,
+      sport,
+      programType,
+      programCode,
+      joinToken,
+      smsOptIn,
+      firstNameField,
+      lastNameField,
+      playerJoinIntent,
+      confirmedPlayerId,
+      graduationYear,
+      jerseyNumber,
+      dateOfBirth,
+    } = parseSignupPayload(body)
 
     // programName and sport are only required when the user is creating a new team (head_coach)
     const isHeadCoach = role === "head_coach"
@@ -582,6 +647,7 @@ export async function POST(request: Request) {
                   user_id: createdAuthUserId,
                   claimed_at: new Date().toISOString(),
                   invite_status: "joined",
+                  claim_status: "claimed",
                 })
                 .eq("id", pl.id)
               if (linkErr) {
@@ -612,11 +678,48 @@ export async function POST(request: Request) {
               user_id: createdAuthUserId,
               claimed_at: new Date().toISOString(),
               invite_status: "joined",
+              claim_status: "claimed",
             })
             .eq("id", existingPlayer.id)
           if (linkErr) {
             throw new SignupRouteError(500, "Failed to link your account to the roster.", linkErr.message)
           }
+        }
+      }
+
+      if (!teamId) {
+        const teamJoinResolved = await resolveTeamByPlayerJoinCode(supabase, programCode)
+        if (teamJoinResolved) {
+          const fn = firstNameField ?? splitFullName(fullName).first
+          const ln = lastNameField ?? splitFullName(fullName).last
+          if (!fn?.trim() || !ln?.trim()) {
+            throw new SignupRouteError(
+              400,
+              "First and last name are required to join with a team player code. Send firstName and lastName, or a full name."
+            )
+          }
+          if (!playerJoinIntent) {
+            throw new SignupRouteError(
+              400,
+              "Player join is incomplete. Use the Join as Player flow and confirm your roster match."
+            )
+          }
+          const joinRes = await processPlayerTeamJoinSignup(supabase, {
+            teamId: teamJoinResolved.teamId,
+            userId: createdAuthUserId,
+            email: email!,
+            firstName: fn.trim(),
+            lastName: ln.trim(),
+            graduationYear,
+            jerseyNumber,
+            dateOfBirth,
+            intent: playerJoinIntent,
+            confirmedPlayerId: confirmedPlayerId ?? null,
+          })
+          if (!joinRes.ok) {
+            throw new SignupRouteError(joinRes.status, joinRes.error)
+          }
+          teamId = joinRes.teamId
         }
       }
 

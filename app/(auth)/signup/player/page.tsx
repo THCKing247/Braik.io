@@ -1,7 +1,7 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,11 +14,15 @@ import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox
 
 type Step = "code" | "info" | "match" | "account"
 
-export default function PlayerJoinSignupPage() {
+function PlayerJoinSignupInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const codeFromQuery = searchParams.get("code")?.trim() ?? ""
+
   const [step, setStep] = useState<Step>("code")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [initializing, setInitializing] = useState(() => codeFromQuery.length > 0)
 
   const [joinCode, setJoinCode] = useState("")
   const [teamName, setTeamName] = useState<string | null>(null)
@@ -42,6 +46,49 @@ export default function PlayerJoinSignupPage() {
   const [smsOptIn, setSmsOptIn] = useState(false)
   const [acceptLegalBundle, setAcceptLegalBundle] = useState(false)
   const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
+
+  useEffect(() => {
+    if (!codeFromQuery) {
+      setInitializing(false)
+      return
+    }
+    const upper = codeFromQuery.toUpperCase()
+    setJoinCode(upper)
+    setError("")
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch("/api/player/join/resolve-team", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ joinCode: upper }),
+        })
+        const data = (await res.json()) as { ok?: boolean; teamName?: string | null; error?: string }
+        if (cancelled) return
+        if (res.ok && data.ok) {
+          setTeamName(data.teamName ?? null)
+          setStep("info")
+        } else {
+          setError(
+            data.error === "invalid_code" || res.status === 404
+              ? "That signup link is invalid or the code has changed. Enter the code from your coach or scan a current QR."
+              : "Could not verify the signup link. Try again or enter your team code manually."
+          )
+          setStep("code")
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Could not verify the signup link. Check your connection.")
+          setStep("code")
+        }
+      } finally {
+        if (!cancelled) setInitializing(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [codeFromQuery])
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8) return false
@@ -264,6 +311,17 @@ export default function PlayerJoinSignupPage() {
     setLoading(false)
   }
 
+  if (initializing) {
+    return (
+      <div className="min-h-screen bg-white">
+        <SiteHeader />
+        <section className="relative min-h-screen flex items-center justify-center px-4 py-24 md:py-32">
+          <p className="text-[#495057]">Loading team…</p>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <SiteHeader />
@@ -279,6 +337,15 @@ export default function PlayerJoinSignupPage() {
                 linked.
               </p>
             </div>
+
+            {teamName ? (
+              <div className="mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-center" role="status">
+                <p className="text-base font-semibold text-[#1E40AF]">Joining {teamName}</p>
+                <p className="text-xs text-[#1E3A8A]/90 mt-1">
+                  Complete the steps below. Matching and coach review still apply—this link only fills in your team code.
+                </p>
+              </div>
+            ) : null}
 
             {step === "code" && (
               <div className="space-y-4">
@@ -301,11 +368,6 @@ export default function PlayerJoinSignupPage() {
 
             {step === "info" && (
               <div className="space-y-4">
-                {teamName ? (
-                  <p className="text-sm text-[#495057] rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] px-3 py-2">
-                    Team: <span className="font-semibold text-[#212529]">{teamName}</span>
-                  </p>
-                ) : null}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="fn">First name *</Label>
@@ -500,5 +562,24 @@ export default function PlayerJoinSignupPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+function PlayerJoinSignupFallback() {
+  return (
+    <div className="min-h-screen bg-white">
+      <SiteHeader />
+      <section className="relative min-h-screen flex items-center justify-center px-4 py-24 md:py-32">
+        <p className="text-[#495057]">Loading…</p>
+      </section>
+    </div>
+  )
+}
+
+export default function PlayerJoinSignupPage() {
+  return (
+    <Suspense fallback={<PlayerJoinSignupFallback />}>
+      <PlayerJoinSignupInner />
+    </Suspense>
   )
 }

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
+import { PlayerSignupQrCard } from "@/components/portal/player-signup-qr-card"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { Loader2, ImagePlus } from "lucide-react"
 
@@ -293,6 +294,8 @@ export function TeamSettingsSection({ team: initialTeam, onTeamUpdated }: TeamSe
           )}
         </CardContent>
       </Card>
+
+      <PlayerSignupQrCard teamId={team.id} />
 
       {/* Team Logo */}
       <Card className="border border-border bg-card">

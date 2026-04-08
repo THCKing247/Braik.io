@@ -1,9 +1,24 @@
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 
-/** Primary marketing path for “join” CTAs (hero, header, footer). Self-serve signup is disabled. */
-export function getPublicJoinHref(_options?: { hero?: boolean }): string {
+/** Public player onboarding — team join code or QR with code. */
+export const PLAYER_SIGNUP_HREF = "/signup/player"
+
+export function getPlayerSignupHref(): string {
+  return PLAYER_SIGNUP_HREF
+}
+
+/** Coach, school, or program access — waitlist or split-entry request page. */
+export function getProgramOrCoachAccessHref(): string {
   if (isWaitlistMode()) return "/waitlist"
   return "/request-access"
+}
+
+/**
+ * Primary marketing destination for “join Braik as a player” (hero, header, footer).
+ * Coach and school flows use {@link getProgramOrCoachAccessHref}.
+ */
+export function getPublicJoinHref(_options?: { hero?: boolean }): string {
+  return getPlayerSignupHref()
 }
 
 export function getPricingCalculatorCta(args: {
@@ -16,9 +31,19 @@ export function getPricingCalculatorCta(args: {
   if (args.planChoice === "athletic_director") {
     return { href: "/request-access", label: "Request access" }
   }
-  return { href: "/request-access", label: "Request access" }
+  return { href: args.headCoachHref, label: "Request access" }
 }
 
 export function getAthleticDirectorMarketingHref(): string {
   return isWaitlistMode() ? "/waitlist" : "/request-access"
+}
+
+/** Short labels for primary player CTAs (hero, nav, footers). */
+export function getPlayerPrimaryCtaLabel(): string {
+  return "Join your team"
+}
+
+/** Secondary line for “have a code” contexts. */
+export function getPlayerSignupSupportingLabel(): string {
+  return "Have a team code? Sign up"
 }

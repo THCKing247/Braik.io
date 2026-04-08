@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
+import { getProgramOrCoachAccessHref } from "@/lib/marketing/join-cta"
 
 const STORAGE_KEY = "braik_parent_player_code"
 
@@ -102,18 +102,17 @@ export default function ParentJoinPage() {
                 Coaches and staff:{" "}
                 {isWaitlistMode() ? (
                   <>
-                    <Link href={getPublicJoinHref()} className="text-[#6B7280] hover:text-[#3B82F6] hover:underline">
+                    <Link href={getProgramOrCoachAccessHref()} className="text-[#6B7280] hover:text-[#3B82F6] hover:underline">
                       join the waitlist
                     </Link>{" "}
                     for program access.
                   </>
                 ) : (
                   <>
-                    use the main{" "}
-                    <Link href={getPublicJoinHref()} className="text-[#6B7280] hover:text-[#3B82F6] hover:underline">
-                      sign up
-                    </Link>{" "}
-                    flow.
+                    <Link href={getProgramOrCoachAccessHref()} className="text-[#6B7280] hover:text-[#3B82F6] hover:underline">
+                      request coach or school access
+                    </Link>
+                    .
                   </>
                 )}
               </p>

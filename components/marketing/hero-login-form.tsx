@@ -4,8 +4,7 @@ import { signIn } from "@/lib/auth/client-auth"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authTimingClient } from "@/lib/auth/login-flow-timing"
 import { useId, useState } from "react"
-import { isWaitlistMode } from "@/lib/config/waitlist-mode"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
+import { getPlayerPrimaryCtaLabel, getPlayerSignupHref } from "@/lib/marketing/join-cta"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -275,10 +274,10 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
           variant="outline"
           className={`mt-3 w-full font-athletic uppercase tracking-wide ${isApp ? "min-h-[52px] rounded-2xl text-base" : "min-h-[48px]"}`}
           size="lg"
-          onClick={() => router.push(getPublicJoinHref())}
-          aria-label={isWaitlistMode() ? "Join the waitlist" : "Sign up"}
+          onClick={() => router.push(getPlayerSignupHref())}
+          aria-label={getPlayerPrimaryCtaLabel()}
         >
-          {isWaitlistMode() ? "Join the waitlist" : "Sign Up"}
+          {getPlayerPrimaryCtaLabel()}
         </Button>
         <Button
           type="button"

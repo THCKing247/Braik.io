@@ -4,8 +4,10 @@ import Link from "next/link"
 import Image from "next/image"
 import { type FormEvent, useEffect, useState } from "react"
 import { useSession } from "@/lib/auth/client-auth"
-import { isWaitlistMode } from "@/lib/config/waitlist-mode"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
+import {
+  getPlayerSignupHref,
+  getProgramOrCoachAccessHref,
+} from "@/lib/marketing/join-cta"
 import { braikLogo } from "@/lib/marketing/landing-images"
 
 export function SiteFooter() {
@@ -180,8 +182,16 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link href={getPublicJoinHref()} className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
-                  {isWaitlistMode() ? "Join the Waitlist" : "Sign Up"}
+                <Link href={getPlayerSignupHref()} className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm">
+                  Player sign up
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={getProgramOrCoachAccessHref()}
+                  className="text-slate-900 hover:text-[#3B82F6] transition-colors text-sm"
+                >
+                  Coach or school access
                 </Link>
               </li>
               <li>

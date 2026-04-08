@@ -8,14 +8,13 @@ import {
 } from "@/components/marketing/marketing-layout"
 import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta"
 import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
-import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import { getPlayerPrimaryCtaLabel, getPlayerSignupHref } from "@/lib/marketing/join-cta"
 
 const shell = marketingSectionShell
 
 export function WhyBraikMarketingSections() {
-  const joinHref = getPublicJoinHref()
-  const primaryCtaLabel = isWaitlistMode() ? "Join the waitlist" : "Request access"
+  const joinHref = getPlayerSignupHref()
+  const primaryCtaLabel = getPlayerPrimaryCtaLabel()
 
   return (
     <>
@@ -216,7 +215,7 @@ export function WhyBraikMarketingSections() {
 
       <MarketingFinalCta
         title="See how Braik fits your program"
-        description="If you want a simpler way to manage communication, scheduling, rosters, and staff workflows, Braik can help."
+        description="Players join with a team code. If you run a program and want a simpler way to manage communication, scheduling, rosters, and staff workflows, Braik can help."
         primaryHref={joinHref}
         primaryLabel={primaryCtaLabel}
         primaryAnalyticsCta="why_braik_join_waitlist"

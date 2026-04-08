@@ -9,12 +9,12 @@ import {
   MarketingCard,
 } from "@/components/marketing/marketing-layout"
 import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
+import { getProgramOrCoachAccessHref } from "@/lib/marketing/join-cta"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 
 export function PricingMarketingSections() {
-  const requestHref = getPublicJoinHref()
-  const requestLabel = isWaitlistMode() ? "Join the waitlist" : "Request Pricing"
+  const requestHref = getProgramOrCoachAccessHref()
+  const requestLabel = isWaitlistMode() ? "Join the waitlist" : "Request pricing"
 
   return (
     <>

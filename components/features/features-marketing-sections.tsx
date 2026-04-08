@@ -8,8 +8,7 @@ import {
   MarketingCard,
 } from "@/components/marketing/marketing-layout"
 import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
-import { isWaitlistMode } from "@/lib/config/waitlist-mode"
+import { getPlayerPrimaryCtaLabel, getPlayerSignupHref } from "@/lib/marketing/join-cta"
 import { trackMarketingEvent } from "@/lib/utils/analytics-client"
 
 const shell = marketingSectionShell
@@ -134,8 +133,8 @@ function FeatureCard({ item }: { item: FeatureItem }) {
 }
 
 export function FeaturesMarketingSections() {
-  const joinHref = getPublicJoinHref()
-  const primaryCtaLabel = isWaitlistMode() ? "Join the waitlist" : "Request access"
+  const joinHref = getPlayerSignupHref()
+  const primaryCtaLabel = getPlayerPrimaryCtaLabel()
 
   return (
     <>
@@ -233,7 +232,7 @@ export function FeaturesMarketingSections() {
 
       <MarketingFinalCta
         title="Ready to see Braik in your program?"
-        description="Join the waitlist or book a demo—we’ll walk through features, structure, and pricing for your roster and teams."
+        description="Players can join with a team code from their coach. Programs and coaches can book a demo—we’ll walk through features, structure, and pricing."
         primaryHref={joinHref}
         primaryLabel={primaryCtaLabel}
         primaryAnalyticsCta="features_footer_join"

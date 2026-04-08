@@ -32,6 +32,13 @@ export default function WaitlistPage() {
               Braik is opening in phases. Add your program to the list and we will reach out when early access is available for your
               team.
             </p>
+            <p className="mt-8 max-w-xl mx-auto rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-left text-base text-slate-800 shadow-sm">
+              <span className="font-semibold text-[#1E40AF]">Are you a player?</span> Use your team join code or QR from your coach to{" "}
+              <Link href="/signup/player" className="font-medium text-[#2563EB] underline decoration-[#93C5FD] underline-offset-2 hover:text-[#1D4ED8]">
+                sign up here
+              </Link>
+              — you do not need this program waitlist.
+            </p>
           </div>
         </section>
 

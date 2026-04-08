@@ -3,6 +3,10 @@ import type { NextRequest } from "next/server"
 import { authTimingMiddleware } from "@/lib/auth/login-flow-timing"
 import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
 import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
+import {
+  BRAIK_PUBLIC_PLAYER_SIGNUP_HEADER,
+  BRAIK_PUBLIC_PLAYER_SIGNUP_HEADER_VALUE,
+} from "@/lib/auth/public-player-signup-header"
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -33,14 +37,12 @@ export function middleware(request: NextRequest): NextResponse {
     return finish(NextResponse.redirect(u))
   }
 
-  /** Public self-serve signup is retired — allow ONLY player QR/code-based signup */
+  /** Public self-serve signup is retired — allow ONLY the player join-code flow at /signup/player */
   if (pathname === "/signup" || pathname.startsWith("/signup/")) {
-    if (pathname.startsWith("/signup/player")) {
-      const raw = request.nextUrl.searchParams.get("code")
-      const code = typeof raw === "string" ? raw.trim() : ""
-      if (code.length > 0) {
-        return finish(NextResponse.next())
-      }
+    if (pathname === "/signup/player" || pathname.startsWith("/signup/player/")) {
+      const reqHeaders = new Headers(request.headers)
+      reqHeaders.set(BRAIK_PUBLIC_PLAYER_SIGNUP_HEADER, BRAIK_PUBLIC_PLAYER_SIGNUP_HEADER_VALUE)
+      return finish(NextResponse.next({ request: { headers: reqHeaders } }))
     }
 
     const u = request.nextUrl.clone()

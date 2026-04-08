@@ -73,10 +73,10 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
     id: "get-started",
     question: "How do I get started?",
     answer: isWaitlistMode()
-      ? "Braik is opening in phases. Join the waitlist to request early access for your program. Existing teams continue to use invite links and codes from their staff to activate accounts."
-      : "Accounts are created by your administrator. Request access and we will route you to the right contact; staff can still invite players and families with secure links and codes.",
-    learnMoreHref: isWaitlistMode() ? "/waitlist" : "/request-access",
-    learnMoreLabel: isWaitlistMode() ? "Join the waitlist" : "Request access",
+      ? "Players join with a team join code or QR from their coach—sign up to create an account and link to your roster. Programs opening in phases can join the waitlist for early access; coach and admin accounts stay invite-based."
+      : "Players use a team join code or QR from their coach to sign up and join the team. Coach and administrator access is handled separately—use Request access if you need a program account.",
+    learnMoreHref: isWaitlistMode() ? "/waitlist" : "/signup/player",
+    learnMoreLabel: isWaitlistMode() ? "Join the waitlist" : "Player sign up",
   },
   {
     id: "ai",

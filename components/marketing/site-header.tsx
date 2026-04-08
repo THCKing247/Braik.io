@@ -6,8 +6,11 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
-import { isWaitlistMode } from "@/lib/config/waitlist-mode"
-import { getPublicJoinHref } from "@/lib/marketing/join-cta"
+import {
+  getPlayerPrimaryCtaLabel,
+  getPlayerSignupHref,
+  getProgramOrCoachAccessHref,
+} from "@/lib/marketing/join-cta"
 import { braikLogo } from "@/lib/marketing/landing-images"
 
 const navLinks = [
@@ -80,6 +83,17 @@ export function SiteHeader() {
                 {link.label}
               </Link>
             ))}
+            <Link href={getPlayerSignupHref()}>
+              <Button size="sm" className="font-athletic uppercase tracking-wide px-5 bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-md shadow-[#3B82F6]/20">
+                {getPlayerPrimaryCtaLabel()}
+              </Button>
+            </Link>
+            <Link
+              href={getProgramOrCoachAccessHref()}
+              className="hidden xl:inline text-sm font-medium text-slate-600 hover:text-[#3B82F6] transition-colors"
+            >
+              Coach access
+            </Link>
             <Link href="/login">
               <Button variant="signIn" size="sm" className="font-athletic uppercase tracking-wide px-5">
                 Sign in
@@ -155,9 +169,18 @@ export function SiteHeader() {
 
         {/* Drawer footer CTAs */}
         <div className="px-4 py-6 border-t border-[#E5E7EB] space-y-3">
-          <Link href={getPublicJoinHref()} className="block">
-            <Button className="w-full font-athletic uppercase tracking-wide" size="lg">
-              {isWaitlistMode() ? "Join the Waitlist" : "Request access"}
+          <Link href={getPlayerSignupHref()} className="block">
+            <Button className="w-full font-athletic uppercase tracking-wide min-h-[52px] text-base" size="lg">
+              {getPlayerPrimaryCtaLabel()}
+            </Button>
+          </Link>
+          <Link href={getProgramOrCoachAccessHref()} className="block">
+            <Button
+              variant="outline"
+              className="w-full border-slate-300 text-slate-900 hover:bg-slate-50 min-h-[48px]"
+              size="lg"
+            >
+              Coach or school access
             </Button>
           </Link>
           <Link href="/login" className="block">

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 import { notifyTeamStaff } from "@/lib/notifications/team-staff-notify"
 import { upsertStaffTeamMember } from "@/lib/team-members-sync"
+import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
 import type { PlayerJoinAnalyzeResponse, PlayerJoinIntent } from "./claim-types"
 import {
   type PlayerMatchInput,
@@ -11,26 +12,51 @@ import {
   scorePlayerMatch,
 } from "./player-match"
 
+/** @deprecated use normalizePlayerJoinCode */
 export function normalizeJoinCode(code: string): string {
-  return String(code ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "")
+  return normalizePlayerJoinCode(code)
 }
 
 export async function resolveTeamByPlayerJoinCode(
   supabase: SupabaseClient,
   rawCode: string
 ): Promise<{ teamId: string; teamName: string | null } | null> {
-  const code = normalizeJoinCode(rawCode)
+  const code = normalizePlayerJoinCode(rawCode)
   if (!code) return null
-  const { data, error } = await supabase
+
+  const { data: exact, error: errExact } = await supabase
     .from("teams")
-    .select("id, name")
+    .select("id, name, player_code")
     .eq("player_code", code)
     .maybeSingle()
-  if (error || !data?.id) return null
-  return { teamId: data.id as string, teamName: (data.name as string) ?? null }
+
+  if (errExact) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[resolveTeamByPlayerJoinCode] eq lookup error:", errExact.message)
+    }
+    return null
+  }
+
+  if (exact?.id) {
+    return { teamId: exact.id as string, teamName: (exact.name as string) ?? null }
+  }
+
+  // Legacy rows or manual entry: match case-insensitively (no wildcards in normalized codes)
+  const { data: loose, error: errLoose } = await supabase
+    .from("teams")
+    .select("id, name, player_code")
+    .ilike("player_code", code)
+    .maybeSingle()
+
+  if (errLoose) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[resolveTeamByPlayerJoinCode] ilike fallback error:", errLoose.message)
+    }
+    return null
+  }
+
+  if (!loose?.id) return null
+  return { teamId: loose.id as string, teamName: (loose.name as string) ?? null }
 }
 
 async function loadUnclaimedRosterForMatching(

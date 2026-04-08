@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
-import { isPublicSignupAllowed } from "@/lib/config/public-signup"
+import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
 import { analyzePlayerJoinMatch } from "@/lib/players/player-claim"
 import type { PlayerMatchInput } from "@/lib/players/player-match"
 
@@ -13,14 +13,10 @@ function parseOptionalInt(v: unknown): number | null {
 
 /**
  * POST /api/player/join/analyze
- * Public: resolves team by join code and returns match outcome without exposing the roster.
+ * Resolves team by teams.player_code and returns match outcome without exposing the roster. Not gated by BRAIK_ALLOW_PUBLIC_SIGNUP.
  */
 export async function POST(request: Request) {
   try {
-    if (!isPublicSignupAllowed()) {
-      return NextResponse.json({ error: "Signup is not available." }, { status: 403 })
-    }
-
     const body = (await request.json()) as {
       joinCode?: string
       firstName?: string
@@ -30,7 +26,7 @@ export async function POST(request: Request) {
       dateOfBirth?: string
     }
 
-    const joinCode = typeof body.joinCode === "string" ? body.joinCode.trim() : ""
+    const joinCode = normalizePlayerJoinCode(typeof body.joinCode === "string" ? body.joinCode : "")
     const firstName = typeof body.firstName === "string" ? body.firstName.trim() : ""
     const lastName = typeof body.lastName === "string" ? body.lastName.trim() : ""
 

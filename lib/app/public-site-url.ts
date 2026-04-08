@@ -1,3 +1,5 @@
+import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
+
 /**
  * Canonical public site URL for share links and QR codes (no trailing slash).
  * Prefer `NEXT_PUBLIC_APP_URL` when set so QR codes point at production, not a dev origin.
@@ -11,6 +13,6 @@ export function getPublicSiteUrl(): string {
 
 export function buildPlayerSignupUrl(playerCode: string): string {
   const base = getPublicSiteUrl()
-  const code = encodeURIComponent(playerCode.trim().toUpperCase())
+  const code = encodeURIComponent(normalizePlayerJoinCode(playerCode))
   return `${base}/signup/player?code=${code}`
 }

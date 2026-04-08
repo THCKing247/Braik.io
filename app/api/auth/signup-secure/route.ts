@@ -185,7 +185,18 @@ export async function POST(request: Request) {
   let createdAuthUserId: string | null = null
 
   try {
-    if (!isPublicSignupAllowed()) {
+    const body = (await request.json()) as RawSignupBody
+    const parsed = parseSignupPayload(body)
+
+    const allowPlayerTeamJoinWithoutGlobalFlag =
+      parsed.role === "player" && !!parsed.programCode && !!parsed.playerJoinIntent
+    const allowPlayerInviteTokenWithoutGlobalFlag = parsed.role === "player" && !!parsed.joinToken
+
+    if (
+      !isPublicSignupAllowed() &&
+      !allowPlayerTeamJoinWithoutGlobalFlag &&
+      !allowPlayerInviteTokenWithoutGlobalFlag
+    ) {
       return NextResponse.json(
         {
           error:
@@ -195,7 +206,6 @@ export async function POST(request: Request) {
       )
     }
 
-    const body = (await request.json()) as RawSignupBody
     const {
       fullName,
       programName,
@@ -215,7 +225,7 @@ export async function POST(request: Request) {
       graduationYear,
       jerseyNumber,
       dateOfBirth,
-    } = parseSignupPayload(body)
+    } = parsed
 
     // programName and sport are only required when the user is creating a new team (head_coach)
     const isHeadCoach = role === "head_coach"

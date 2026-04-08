@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission } from "@/lib/auth/rbac"
+import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
 
 /**
  * PATCH /api/roster/codes/update?teamId=xxx
@@ -34,18 +35,20 @@ export async function PATCH(request: Request) {
     const updateData: { player_code?: string | null; parent_code?: string | null; team_id_code?: string | null } = {}
 
     if (body.playerCode !== undefined) {
-      if (body.playerCode) {
+      const normalizedPlayer =
+        body.playerCode && String(body.playerCode).trim() ? normalizePlayerJoinCode(String(body.playerCode)) : null
+      if (normalizedPlayer) {
         const { data: existing } = await supabase
           .from("teams")
           .select("id")
-          .eq("player_code", body.playerCode)
+          .eq("player_code", normalizedPlayer)
           .neq("id", teamId)
           .maybeSingle()
         if (existing) {
           return NextResponse.json({ error: "Player code already in use" }, { status: 409 })
         }
       }
-      updateData.player_code = body.playerCode || null
+      updateData.player_code = normalizedPlayer
     }
 
     if (body.parentCode !== undefined) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,13 +11,20 @@ import Link from "next/link"
 import { applyServerAuthSessionPayload, signIn, type SessionResponse } from "@/lib/auth/client-auth"
 import type { PlayerJoinAnalyzeResponse, PlayerJoinMatchCandidate } from "@/lib/players/claim-types"
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
+import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
 
 type Step = "code" | "info" | "match" | "account"
+
+const CODE_NOT_FOUND_MSG =
+  "We couldn’t find a team for that code. Double-check the code from your coach or try scanning the QR again."
 
 function PlayerJoinSignupInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const codeFromQuery = searchParams.get("code")?.trim() ?? ""
+  const codeFromQuery = useMemo(() => {
+    const raw = searchParams.get("code")
+    return raw ? normalizePlayerJoinCode(raw) : ""
+  }, [searchParams])
 
   const [step, setStep] = useState<Step>("code")
   const [error, setError] = useState("")
@@ -52,8 +59,7 @@ function PlayerJoinSignupInner() {
       setInitializing(false)
       return
     }
-    const upper = codeFromQuery.toUpperCase()
-    setJoinCode(upper)
+    setJoinCode(codeFromQuery)
     setError("")
     let cancelled = false
     ;(async () => {
@@ -61,7 +67,7 @@ function PlayerJoinSignupInner() {
         const res = await fetch("/api/player/join/resolve-team", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ joinCode: upper }),
+          body: JSON.stringify({ joinCode: codeFromQuery }),
         })
         const data = (await res.json()) as { ok?: boolean; teamName?: string | null; error?: string }
         if (cancelled) return
@@ -69,16 +75,19 @@ function PlayerJoinSignupInner() {
           setTeamName(data.teamName ?? null)
           setStep("info")
         } else {
+          const notFound = data.error === "invalid_code" || res.status === 404
           setError(
-            data.error === "invalid_code" || res.status === 404
-              ? "That signup link is invalid or the code has changed. Enter the code from your coach or scan a current QR."
-              : "Could not verify the signup link. Try again or enter your team code manually."
+            notFound
+              ? CODE_NOT_FOUND_MSG
+              : res.status === 403
+                ? "Signup is temporarily unavailable. Try again later or contact support."
+                : "We couldn’t verify that link. Try again or enter your team code manually."
           )
           setStep("code")
         }
       } catch {
         if (!cancelled) {
-          setError("Could not verify the signup link. Check your connection.")
+          setError("Could not reach Braik. Check your connection and try again.")
           setStep("code")
         }
       } finally {
@@ -101,16 +110,28 @@ function PlayerJoinSignupInner() {
 
   const handleResolveCode = async () => {
     setError("")
+    const normalized = normalizePlayerJoinCode(joinCode)
+    if (!normalized) {
+      setError("Enter the team join code from your coach.")
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch("/api/player/join/resolve-team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ joinCode: joinCode.trim() }),
+        body: JSON.stringify({ joinCode: normalized }),
       })
       const data = (await res.json()) as { ok?: boolean; teamName?: string | null; error?: string }
       if (!res.ok || !data.ok) {
-        setError(data.error === "invalid_code" ? "That join code was not found. Check with your coach." : "Could not validate join code.")
+        const notFound = data.error === "invalid_code" || res.status === 404
+        setError(
+          notFound
+            ? CODE_NOT_FOUND_MSG
+            : res.status === 403
+              ? "Signup is temporarily unavailable. Try again later or contact support."
+              : "We couldn’t verify that code. Try again in a moment."
+        )
         setLoading(false)
         return
       }
@@ -134,7 +155,7 @@ function PlayerJoinSignupInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          joinCode: joinCode.trim(),
+          joinCode: normalizePlayerJoinCode(joinCode),
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           jerseyNumber: jerseyNumber.trim() ? Number(jerseyNumber) : undefined,
@@ -149,7 +170,7 @@ function PlayerJoinSignupInner() {
         return
       }
       if (data.outcome === "invalid_code") {
-        setError("That join code is not valid anymore. Go back and re-enter it.")
+        setError(CODE_NOT_FOUND_MSG)
         setLoading(false)
         return
       }
@@ -256,7 +277,7 @@ function PlayerJoinSignupInner() {
           email: email.trim(),
           password,
           role: "player",
-          teamId: joinCode.trim().toUpperCase(),
+          teamId: normalizePlayerJoinCode(joinCode),
           playerJoinIntent,
           confirmedPlayerId,
           graduationYear: graduationYear.trim() ? Number(graduationYear) : undefined,
@@ -354,13 +375,19 @@ function PlayerJoinSignupInner() {
                   <Input
                     id="joinCode"
                     value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    onChange={(e) => setJoinCode(normalizePlayerJoinCode(e.target.value))}
                     className="font-mono text-lg tracking-wider"
                     placeholder="e.g. ABC12XY9"
                     autoComplete="off"
                   />
                 </div>
-                <Button type="button" className="w-full font-athletic uppercase tracking-wide" size="lg" onClick={handleResolveCode} disabled={loading || !joinCode.trim()}>
+                <Button
+                  type="button"
+                  className="w-full font-athletic uppercase tracking-wide"
+                  size="lg"
+                  onClick={handleResolveCode}
+                  disabled={loading || !normalizePlayerJoinCode(joinCode)}
+                >
                   {loading ? "Checking…" : "Continue"}
                 </Button>
               </div>

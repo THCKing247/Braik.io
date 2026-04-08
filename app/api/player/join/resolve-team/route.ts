@@ -1,30 +1,38 @@
 import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
-import { isPublicSignupAllowed } from "@/lib/config/public-signup"
+import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
 import { resolveTeamByPlayerJoinCode } from "@/lib/players/player-claim"
+
+const DEV = process.env.NODE_ENV === "development"
 
 /**
  * POST /api/player/join/resolve-team
- * Validates a team player join code and returns the team display name (no roster data).
+ * Validates teams.player_code and returns minimal team info (no roster). Not gated by BRAIK_ALLOW_PUBLIC_SIGNUP — the code is the credential.
  */
 export async function POST(request: Request) {
   try {
-    if (!isPublicSignupAllowed()) {
-      return NextResponse.json({ error: "Signup is not available." }, { status: 403 })
+    const body = (await request.json()) as { joinCode?: string }
+    const raw = typeof body.joinCode === "string" ? body.joinCode : ""
+    const joinCode = normalizePlayerJoinCode(raw)
+
+    if (!joinCode) {
+      return NextResponse.json({ error: "Join code is required.", code: "missing_code" }, { status: 400 })
     }
 
-    const body = (await request.json()) as { joinCode?: string }
-    const joinCode = typeof body.joinCode === "string" ? body.joinCode.trim() : ""
-    if (!joinCode) {
-      return NextResponse.json({ error: "Join code is required." }, { status: 400 })
+    if (DEV) {
+      console.info("[POST /api/player/join/resolve-team] normalized join code length:", joinCode.length)
     }
 
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
-      return NextResponse.json({ error: "Server configuration error." }, { status: 500 })
+      if (DEV) console.error("[POST /api/player/join/resolve-team] Supabase admin client unavailable")
+      return NextResponse.json({ error: "Server configuration error.", code: "config" }, { status: 500 })
     }
 
     const resolved = await resolveTeamByPlayerJoinCode(supabase, joinCode)
+    if (DEV && !resolved) {
+      console.info("[POST /api/player/join/resolve-team] no team matched teams.player_code after normalize + eq/ilike")
+    }
     if (!resolved) {
       return NextResponse.json({ ok: false, error: "invalid_code" }, { status: 404 })
     }
@@ -33,6 +41,6 @@ export async function POST(request: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error"
     console.error("[POST /api/player/join/resolve-team]", msg)
-    return NextResponse.json({ error: "Could not validate join code." }, { status: 500 })
+    return NextResponse.json({ error: "Could not validate join code.", code: "server_error" }, { status: 500 })
   }
 }

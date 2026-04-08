@@ -37,7 +37,7 @@ async function optimizeDevicesHero() {
 
   const outMeta = await sharp(webpPath).metadata()
   console.log("devices-transparent:", { webp: webpPath, ...outMeta })
-  console.log("If width/height changed, update lib/marketing/landing-images.ts (landingDevicesHero, braikLogo).")
+  console.log("If width/height changed, update lib/marketing/landing-images.ts (braikLogo).")
 }
 
 async function optimizeLogo() {

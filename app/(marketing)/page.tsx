@@ -15,7 +15,7 @@ import { MarketingCard } from "@/components/marketing/marketing-layout"
 import { ImagePlaceholder } from "@/components/marketing/image-placeholder"
 import { SectionSplit } from "@/components/marketing/section-split"
 import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
-import { landingDevicesHero, landingFogFieldHero } from "@/lib/marketing/landing-images"
+import { landingFogFieldHero } from "@/lib/marketing/landing-images"
 import {
   landingBodyDark,
   landingContainer,
@@ -251,27 +251,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Reframing Braik — light / clarity; device mockup (image left on desktop, text first on mobile) */}
+      {/* Reframing Braik — light / clarity; copy only (device/partnership imagery removed) */}
       <section className={landingLightSection}>
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-slate-50/80 to-white" aria-hidden />
-        <div className={landingContainerSplit}>
-          <ScrollReveal>
-            <SectionSplit>
-              <div className="order-2 flex min-w-0 justify-center md:order-1 md:justify-start">
-                <div className="w-full max-w-4xl">
-                  <Image
-                    src={landingDevicesHero.webp}
-                    alt="Braik devices"
-                    width={landingDevicesHero.width}
-                    height={landingDevicesHero.height}
-                    sizes="(max-width: 896px) 100vw, 896px"
-                    quality={85}
-                    loading="lazy"
-                    className="h-auto w-full object-contain scale-105 md:scale-110 drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
-                  />
-                </div>
-              </div>
-              <div className={`order-1 min-w-0 space-y-8 md:order-2 ${lightSectionColumn}`}>
+        <div className={landingContainer}>
+          <div className="mx-auto max-w-3xl">
+            <ScrollReveal>
+              <div className={`space-y-8 ${lightSectionColumn}`}>
                 <h2 className={lightSectionH2}>One system. Less stress.</h2>
                 <div className="space-y-6 pt-2">
                   <p className={lightSectionLead}>
@@ -285,8 +271,8 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-            </SectionSplit>
-          </ScrollReveal>
+            </ScrollReveal>
+          </div>
         </div>
       </section>
 

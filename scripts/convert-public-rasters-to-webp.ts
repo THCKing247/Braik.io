@@ -24,7 +24,6 @@ function walk(dir: string, acc: string[] = []): string[] {
 /** Raster paths under public/ to convert (excludes unreferenced orphans like hero-background.jpg). */
 const INCLUDE_RELATIVE = new Set<string>([
   "braik-logo.png",
-  "diagram-hero-page-1.png",
   "images/ai-chat-icon-tmp.png",
   "images/fog-field.png",
   ...[

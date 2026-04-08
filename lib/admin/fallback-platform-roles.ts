@@ -9,6 +9,8 @@ export const FALLBACK_PLATFORM_ROLE_IDS = {
   assistant_coach: "f0000001-0000-4000-8000-000000000004",
   team_staff: "f0000001-0000-4000-8000-000000000005",
   read_only: "f0000001-0000-4000-8000-000000000006",
+  parent: "f0000001-0000-4000-8000-000000000007",
+  player: "f0000001-0000-4000-8000-000000000008",
 } as const
 
 const ALL_PERMISSION_KEYS: PlatformPermissionKey[] = [...PLATFORM_PERMISSION_KEYS]
@@ -137,6 +139,25 @@ const KEYS_BY_ROLE: Record<(typeof FALLBACK_PLATFORM_ROLE_IDS)[keyof typeof FALL
     "view_reports",
     "view_billing",
     "view_ad_dashboard",
+  ],
+  [FALLBACK_PLATFORM_ROLE_IDS.parent]: [
+    "view_teams",
+    "view_roster",
+    "view_playbooks",
+    "view_schedule",
+    "view_messages",
+    "send_messages",
+    "view_reports",
+  ],
+  [FALLBACK_PLATFORM_ROLE_IDS.player]: [
+    "view_teams",
+    "view_roster",
+    "view_playbooks",
+    "view_schedule",
+    "view_messages",
+    "send_messages",
+    "view_reports",
+    "coach_view_access",
   ],
 }
 
@@ -323,6 +344,30 @@ export function getFallbackPlatformRoles(): PlatformRoleListItem[] {
       is_key_editable: false,
       userCount: 0,
       permissionKeys: KEYS_BY_ROLE[FALLBACK_PLATFORM_ROLE_IDS.read_only],
+    },
+    {
+      id: FALLBACK_PLATFORM_ROLE_IDS.parent,
+      key: "parent",
+      name: "Parent",
+      description: "Parent / guardian access: view team-facing areas and message staff as policy allows.",
+      role_type: "system",
+      is_active: true,
+      is_deletable: false,
+      is_key_editable: false,
+      userCount: 0,
+      permissionKeys: KEYS_BY_ROLE[FALLBACK_PLATFORM_ROLE_IDS.parent],
+    },
+    {
+      id: FALLBACK_PLATFORM_ROLE_IDS.player,
+      key: "player",
+      name: "Player",
+      description: "Player / athlete access: roster app, schedule, messaging within policy.",
+      role_type: "system",
+      is_active: true,
+      is_deletable: false,
+      is_key_editable: false,
+      userCount: 0,
+      permissionKeys: KEYS_BY_ROLE[FALLBACK_PLATFORM_ROLE_IDS.player],
     },
   ]
   return rows

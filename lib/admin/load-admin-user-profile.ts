@@ -1,6 +1,7 @@
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
 import { isSupabaseSchemaObjectMissingError } from "@/lib/admin/supabase-schema-error"
+import { effectiveAppRoleForAdmin } from "@/lib/auth/user-roles"
 
 export type AdminUserProfilePayload = {
   id: string
@@ -113,11 +114,14 @@ export async function loadAdminUserProfile(userId: string): Promise<AdminUserPro
       schoolName = (s?.name as string) ?? null
     }
 
+    const profileRole = (profile?.role as string | null) ?? null
+    const role = effectiveAppRoleForAdmin(String(user.role ?? "user"), profileRole)
+
     return {
       id: user.id as string,
       email: user.email as string,
       name: (user.name as string | null) ?? null,
-      role: String(user.role ?? "user"),
+      role,
       status: String(user.status ?? "active"),
       createdAt:
         typeof user.created_at === "string"
@@ -132,7 +136,7 @@ export async function loadAdminUserProfile(userId: string): Promise<AdminUserPro
       platformRoleName,
       platformRoleKey,
       profileFullName: (profile?.full_name as string | null) ?? null,
-      profileRole: (profile?.role as string | null) ?? null,
+      profileRole,
       profileSport: (profile?.sport as string | null) ?? null,
       profileProgramName: (profile?.program_name as string | null) ?? null,
       team,

@@ -1,5 +1,6 @@
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
+import { effectiveAppRoleForAdmin, type UserRole } from "@/lib/auth/user-roles"
 import { OperatorUsers } from "@/components/admin/operator-users"
 
 export default async function AdminUsersPage({
@@ -46,11 +47,12 @@ export default async function AdminUsersPage({
               ]
             : []
           const pr = u.platform_role_id ? roleById.get(u.platform_role_id as string) : undefined
+          const role = effectiveAppRoleForAdmin(u.role as string, profile?.role as string | null)
           return {
             id: u.id,
             email: u.email,
             name: u.name,
-            role: u.role,
+            role,
             status: u.status,
             createdAt: u.created_at,
             lastLoginAt: u.last_login_at,
@@ -67,7 +69,7 @@ export default async function AdminUsersPage({
       id: string
       email: string
       name: string | null
-      role: string
+      role: UserRole
       status: string
       createdAt: string
       lastLoginAt: string | null

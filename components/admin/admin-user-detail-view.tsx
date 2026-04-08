@@ -220,11 +220,11 @@ export function AdminUserDetailView({ initial }: { initial: AdminUserProfilePayl
             <dd className="text-sm font-medium text-slate-200">{profile.profileFullName ?? "—"}</dd>
           </div>
           <div>
-            <dt className={adminUi.label}>App role (users.role)</dt>
+            <dt className={adminUi.label}>App role</dt>
             <dd className="text-sm font-medium text-slate-200">{getUserRoleLabel(profile.role)}</dd>
           </div>
           <div>
-            <dt className={adminUi.label}>Profile role</dt>
+            <dt className={adminUi.label}>Profile role (profiles.role)</dt>
             <dd className="text-sm font-medium text-slate-200">{profile.profileRole ?? "—"}</dd>
           </div>
           <div>

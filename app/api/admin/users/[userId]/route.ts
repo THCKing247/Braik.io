@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { countUsersWithPlatformRoleExcept } from "@/lib/admin/count-platform-role-assignments"
 import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { USER_ROLE_VALUES, type UserRole } from "@/lib/auth/user-roles"
+import { USER_ROLE_VALUES, userRoleToProfileRoleColumn, type UserRole } from "@/lib/auth/user-roles"
 import { ACCOUNT_STATUS_VALUES } from "@/lib/account/account-status"
 import { requirePermissionForApi } from "@/lib/permissions/platform-permissions"
 import { syncUserPlatformRoleMirror } from "@/lib/permissions/sync-user-platform-role"
@@ -192,6 +192,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+  }
+
+  if (typeof body.role === "string" && update.role !== undefined) {
+    const pr = userRoleToProfileRoleColumn(String(update.role))
+    const { error: pErr } = await supabase.from("profiles").update({ role: pr }).eq("id", userId)
+    if (pErr) {
+      console.warn("[admin PATCH user] profiles.role sync:", pErr.message)
+    }
   }
 
   if (body.platformRoleId !== undefined) {

@@ -30,7 +30,13 @@ import { PortalUnderlineTabs } from "./portal-underline-tabs"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 import { startOfDay } from "date-fns"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
-import { PLAYER_DOCUMENT_UPLOAD_HELPER, PLAYER_DOCUMENT_CONSENT_TEXT } from "@/lib/player-documents/constants"
+import {
+  PLAYER_DOCUMENT_UPLOAD_HELPER,
+  PLAYER_DOCUMENT_CONSENT_TEXT,
+  DOCUMENT_TYPES,
+  DOCUMENT_TYPE_LABELS,
+  type DocumentType,
+} from "@/lib/player-documents/constants"
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 import { AddFollowUpModal } from "@/components/portal/add-follow-up-modal"
 import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
@@ -2098,9 +2104,10 @@ function EquipmentTab({
   )
 }
 
-const DOC_CATEGORIES = ["all", "waiver", "physical", "permission_slip", "other"] as const
-/** Categories that satisfy required compliance for readiness. */
-const REQUIRED_DOC_CATEGORIES = ["physical", "waiver"]
+const DOC_FILTER_OPTIONS = ["all", ...DOCUMENT_TYPES] as const
+
+/** Types highlighted as common for compliance (physical + waiver match readiness requiredDocsComplete; eligibility aligns with eligibilityOnFile). */
+const DOC_TYPE_COMPLIANCE_BADGE = new Set<string>(["physical", "waiver", "eligibility"])
 
 type PlayerDocumentRow = {
   id: string
@@ -2400,10 +2407,10 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:flex-wrap">
               <Input name="docTitle" placeholder="Title" className="max-w-[200px]" />
               <select name="docCategory" className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm min-w-[160px]" aria-label="Document type">
-                {DOC_CATEGORIES.filter((c) => c !== "all").map((c) => (
+                {DOCUMENT_TYPES.map((c) => (
                   <option key={c} value={c}>
-                    {c.replace("_", " ").replace(/^\w/, (x) => x.toUpperCase())}
-                    {REQUIRED_DOC_CATEGORIES.includes(c) ? " (common)" : ""}
+                    {DOCUMENT_TYPE_LABELS[c]}
+                    {DOC_TYPE_COMPLIANCE_BADGE.has(c) ? " (common)" : ""}
                   </option>
                 ))}
               </select>
@@ -2436,9 +2443,9 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
             >
-              {DOC_CATEGORIES.map((c) => (
+              {DOC_FILTER_OPTIONS.map((c) => (
                 <option key={c} value={c}>
-                  {c === "all" ? "All" : c.replace("_", " ").replace(/^\w/, (x) => x.toUpperCase())}
+                  {c === "all" ? "All" : DOCUMENT_TYPE_LABELS[c as DocumentType]}
                 </option>
               ))}
             </select>
@@ -2469,10 +2476,10 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
                   <span className="rounded bg-[#E2E8F0] px-2 py-0.5 text-xs font-medium text-[#475569]">
                     {getFileTypeBadge(d.fileName, d.mimeType)}
                   </span>
-                  <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#64748B] capitalize">
-                    {d.documentType.replace("_", " ")}
+                  <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#64748B]">
+                    {DOCUMENT_TYPE_LABELS[d.documentType as DocumentType] ?? d.documentType}
                   </span>
-                  {REQUIRED_DOC_CATEGORIES.includes(d.documentType) && (
+                  {DOC_TYPE_COMPLIANCE_BADGE.has(d.documentType) && (
                     <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Common for compliance</span>
                   )}
                   <span
@@ -2560,7 +2567,9 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
       ) : (
         <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] p-8 text-center">
           <p className="text-sm text-[#64748B]">
-            {docs.length === 0 ? "No documents yet." : `No documents in ${categoryFilter === "all" ? "any" : categoryFilter} type.`}
+            {docs.length === 0
+              ? "No documents yet."
+              : `No documents in ${categoryFilter === "all" ? "any" : DOCUMENT_TYPE_LABELS[categoryFilter as DocumentType]} type.`}
           </p>
           <p className="mt-1 text-xs text-[#94A3B8]">
             {canUploadUi ? "Upload forms, waivers, or permission slips above." : "Documents will appear here when added."}

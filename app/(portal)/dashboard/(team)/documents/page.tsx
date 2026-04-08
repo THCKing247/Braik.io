@@ -69,11 +69,16 @@ function DocumentsPageContent({
     createdAt: typeof d.createdAt === "string" ? new Date(d.createdAt) : d.createdAt,
   }))
 
+  const canUploadCoachCategories =
+    canEdit || userRole === "ATHLETIC_DIRECTOR" || userRole === "SCHOOL_ADMIN"
+  const allowPlayerParentMediaUpload = userRole === "PLAYER" || userRole === "PARENT"
+
   return (
     <DocumentsManager
       teamId={teamId}
       documents={docsWithDate}
-      canUpload={canEdit}
+      canUploadCoachCategories={canUploadCoachCategories}
+      allowPlayerParentMediaUpload={allowPlayerParentMediaUpload}
       userRole={userRole}
       listLoading={listLoading}
     />

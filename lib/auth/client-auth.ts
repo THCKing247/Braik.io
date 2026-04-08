@@ -105,14 +105,15 @@ export async function applyServerAuthSessionPayload(
     })
     if (awaitSupabaseSession) {
       const { error: setErr } = await p
-      if (setErr && AUTH_DEBUG) {
-        console.warn("[auth] setSession after server auth payload:", setErr.message)
+      if (setErr) {
+        // setSession failed — httpOnly cookies from server are still valid; navigation uses cookie-based auth.
+        authTimingClient("sign_in_set_session_failed_nonfatal", { message: setErr.message })
       }
     } else {
       authTimingClient("sign_in_set_session_deferred")
       void p.then(({ error: setErr }) => {
-        if (setErr && AUTH_DEBUG) {
-          console.warn("[auth] setSession after server auth payload:", setErr.message)
+        if (setErr) {
+          authTimingClient("sign_in_set_session_failed_nonfatal", { message: setErr.message })
         }
       })
     }

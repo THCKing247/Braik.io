@@ -1,25 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { HeroLoginForm } from "@/components/marketing/hero-login-form"
 import { useSession } from "@/lib/auth/client-auth"
-import { getResumeOrDefaultAppPath } from "@/lib/navigation/last-visited-route"
 import {
   MobileAppEntryLoading,
   MobileAppLoginScreen,
 } from "@/components/auth/mobile-app-login-screen"
 import { isNativeAppSync } from "@/lib/native/app-environment"
-import { getNativeBiometricUnlockEnabled } from "@/lib/native/native-biometric-prefs"
-import { hasNativeBiometricUnlockedThisLaunch } from "@/lib/native/native-unlock-session"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 export default function LoginPage() {
-  const router = useRouter()
   const { data, status } = useSession()
-  const didRedirect = useRef(false)
   const isLgUp = useMinWidthLg()
   const [nativeClient, setNativeClient] = useState(false)
 
@@ -27,25 +21,15 @@ export default function LoginPage() {
     setNativeClient(isNativeAppSync())
   }, [])
 
-  const useNativeLoginChrome = nativeClient
-  const useMobileWebLoginChrome = !nativeClient && !isLgUp
-
   useEffect(() => {
     if (status !== "authenticated" || !data?.user) return
-    if (didRedirect.current) return
-    didRedirect.current = true
-    void (async () => {
-      if (
-        isNativeAppSync() &&
-        (await getNativeBiometricUnlockEnabled()) &&
-        !hasNativeBiometricUnlockedThisLaunch()
-      ) {
-        router.replace("/native-unlock")
-        return
-      }
-      router.replace(getResumeOrDefaultAppPath(data.user.role, data.user.defaultAppPath))
-    })()
-  }, [router, status, data?.user])
+    const destination = data.user.defaultAppPath ?? "/dashboard"
+    window.location.href = destination
+  }, [status, data?.user])
+
+  const useNativeLoginChrome = nativeClient
+  const useMobileWebLoginChrome = !nativeClient && !isLgUp
+  const showDesktopHeroLogin = !useNativeLoginChrome && !useMobileWebLoginChrome
 
   return (
     <>
@@ -61,8 +45,8 @@ export default function LoginPage() {
         </div>
       )}
 
-      {!useNativeLoginChrome && (
-        <div className="hidden min-h-screen flex-col bg-white lg:flex">
+      {showDesktopHeroLogin && (
+        <div className="flex min-h-screen flex-col bg-white">
           <SiteHeader />
 
           <section className="flex flex-1 items-center justify-center bg-gradient-to-b from-[#F8FAFC] to-white px-4 py-16 md:py-24">

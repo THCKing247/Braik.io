@@ -69,6 +69,13 @@ export async function buildPasswordSessionSuccessPayload(
     ms: typeof performance !== "undefined" ? Math.round(performance.now() - tParallel0) : 0,
   })
 
+  if (profileRes.error) {
+    console.error("[login] profiles read failed:", profileRes.error.message, profileRes.error.code)
+  }
+  if (usersRowRes.error) {
+    console.error("[login] users read failed:", usersRowRes.error.message, usersRowRes.error.code)
+  }
+
   let { data: profile, error: profileError } = profileRes
 
   const metadata = (data.user.user_metadata || {}) as { role?: string; teamId?: string; displayName?: string }
@@ -194,6 +201,7 @@ export async function buildPasswordSessionSuccessPayload(
     const accessTokenMaxAge = rememberMe ? 60 * 60 * 24 * 7 : sess.expires_in || 3600
     const refreshTokenMaxAge = rememberMe ? 60 * 60 * 24 * 90 : 60 * 60 * 24 * 30
 
+    // httpOnly + path "/" + sameSite lax + secure in prod — single pair of session cookies (no duplicate non-httpOnly names).
     res.cookies.set("sb-access-token", sess.access_token, {
       httpOnly: true,
       sameSite: "lax",

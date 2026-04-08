@@ -12,6 +12,7 @@ import {
 } from "@/components/auth/mobile-app-login-screen"
 import { isNativeAppSync } from "@/lib/native/app-environment"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
+
 export default function LoginPage() {
   const { data, status } = useSession()
   const isLgUp = useMinWidthLg()
@@ -21,15 +22,16 @@ export default function LoginPage() {
     setNativeClient(isNativeAppSync())
   }, [])
 
+  const useNativeLoginChrome = nativeClient
+  const useMobileWebLoginChrome = !nativeClient && !isLgUp
+
+  // Only redirect if user is already authenticated when they arrive at /login.
+  // Do NOT handle post-form-submission redirect here — the form uses window.location.href directly.
   useEffect(() => {
     if (status !== "authenticated" || !data?.user) return
     const destination = data.user.defaultAppPath ?? "/dashboard"
     window.location.href = destination
   }, [status, data?.user])
-
-  const useNativeLoginChrome = nativeClient
-  const useMobileWebLoginChrome = !nativeClient && !isLgUp
-  const showDesktopHeroLogin = !useNativeLoginChrome && !useMobileWebLoginChrome
 
   return (
     <>
@@ -45,8 +47,8 @@ export default function LoginPage() {
         </div>
       )}
 
-      {showDesktopHeroLogin && (
-        <div className="flex min-h-screen flex-col bg-white">
+      {!useNativeLoginChrome && (
+        <div className="hidden min-h-screen flex-col bg-white lg:flex">
           <SiteHeader />
 
           <section className="flex flex-1 items-center justify-center bg-gradient-to-b from-[#F8FAFC] to-white px-4 py-16 md:py-24">

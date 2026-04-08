@@ -24,39 +24,40 @@ export async function resolveTeamByPlayerJoinCode(
   const code = normalizePlayerJoinCode(rawCode)
   if (!code) return null
 
-  const { data: exact, error: errExact } = await supabase
-    .from("teams")
-    .select("id, name, player_code")
-    .eq("player_code", code)
-    .maybeSingle()
+  let { data, error } = await supabase.from("teams").select("id, name, player_code").eq("player_code", code).maybeSingle()
 
-  if (errExact) {
+  if (error) {
     if (process.env.NODE_ENV === "development") {
-      console.warn("[resolveTeamByPlayerJoinCode] eq lookup error:", errExact.message)
+      console.warn("[resolveTeamByPlayerJoinCode] lookup error:", error.message)
     }
     return null
   }
 
-  if (exact?.id) {
-    return { teamId: exact.id as string, teamName: (exact.name as string) ?? null }
+  if (!data?.id) {
+    const lower = code.toLowerCase()
+    if (lower !== code) {
+      const second = await supabase.from("teams").select("id, name, player_code").eq("player_code", lower).maybeSingle()
+      data = second.data
+      error = second.error
+      if (error && process.env.NODE_ENV === "development") {
+        console.warn("[resolveTeamByPlayerJoinCode] lowercase fallback error:", error.message)
+      }
+    }
   }
 
-  // Legacy rows or manual entry: match case-insensitively (no wildcards in normalized codes)
-  const { data: loose, error: errLoose } = await supabase
-    .from("teams")
-    .select("id, name, player_code")
-    .ilike("player_code", code)
-    .maybeSingle()
-
-  if (errLoose) {
+  if (!data?.id) {
     if (process.env.NODE_ENV === "development") {
-      console.warn("[resolveTeamByPlayerJoinCode] ilike fallback error:", errLoose.message)
+      console.info("[resolveTeamByPlayerJoinCode] no row for teams.player_code (upper or lower):", code)
     }
     return null
   }
 
-  if (!loose?.id) return null
-  return { teamId: loose.id as string, teamName: (loose.name as string) ?? null }
+  const stored = (data as { player_code?: string | null }).player_code
+  if (process.env.NODE_ENV === "development" && (stored == null || stored === "")) {
+    console.warn("[resolveTeamByPlayerJoinCode] matched team has empty player_code column (unexpected):", data.id)
+  }
+
+  return { teamId: data.id as string, teamName: (data.name as string) ?? null }
 }
 
 async function loadUnclaimedRosterForMatching(

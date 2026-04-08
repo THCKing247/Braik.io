@@ -6,8 +6,30 @@ export const PLAYER_DOCUMENT_CONSENT_TEXT =
 export const PLAYER_DOCUMENT_UPLOAD_HELPER =
   "Documents are stored securely and shared only with authorized team staff for participation purposes. Documents may automatically expire after 365 days based on season retention settings."
 
-export const DOCUMENT_TYPES = ["physical", "waiver", "permission_slip", "other"] as const
+export const DOCUMENT_TYPES = [
+  "physical",
+  "waiver",
+  "eligibility",
+  "permission_slip",
+  "medical_release",
+  "media_consent",
+  "other",
+] as const
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  physical: "Physical",
+  waiver: "Waiver",
+  eligibility: "Eligibility Form",
+  permission_slip: "Permission Slip",
+  medical_release: "Medical Release",
+  media_consent: "Media Consent",
+  other: "Other",
+}
+
+export function isPlayerDocumentType(s: string): s is DocumentType {
+  return (DOCUMENT_TYPES as readonly string[]).includes(s)
+}
 
 export const SIGNED_URL_TTL_SECONDS = 300
 

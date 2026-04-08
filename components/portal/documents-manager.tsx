@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { format } from "date-fns"
 import { FileText, File, Lock, Users, User, Trash2, Plus, Share2, Copy } from "lucide-react"
+import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import {
   Dialog,
   DialogContent,
@@ -34,19 +35,64 @@ interface Document {
   acknowledgements: Array<{ id: string }>
 }
 
+const TEAM_DOC_CATEGORY_KEYS = [
+  "team",
+  "coaching_staff",
+  "medical_eligibility",
+  "financial",
+  "media_images",
+  "legal_compliance",
+] as const
+type TeamDocCategory = (typeof TEAM_DOC_CATEGORY_KEYS)[number]
+
+const TEAM_DOC_TAB_LABELS: Record<TeamDocCategory, string> = {
+  team: "Team",
+  coaching_staff: "Coaching Staff",
+  medical_eligibility: "Medical & Eligibility",
+  financial: "Financial",
+  media_images: "Media & Images",
+  legal_compliance: "Legal & Compliance",
+}
+
+function visibleTeamDocTabs(userRole: string | undefined): TeamDocCategory[] {
+  const r = (userRole ?? "").toUpperCase()
+  const all = [...TEAM_DOC_CATEGORY_KEYS] as TeamDocCategory[]
+  if (r === "HEAD_COACH" || r === "ATHLETIC_DIRECTOR" || r === "SCHOOL_ADMIN") return all
+  if (r === "ASSISTANT_COACH") {
+    return all.filter((x) => x !== "financial" && x !== "legal_compliance")
+  }
+  if (r === "PLAYER" || r === "PARENT") {
+    return ["team", "medical_eligibility", "media_images"]
+  }
+  return ["team", "media_images"]
+}
+
+function normalizeTeamDocCategory(raw: string | null | undefined): TeamDocCategory {
+  const s = (raw ?? "").trim()
+  if ((TEAM_DOC_CATEGORY_KEYS as readonly string[]).includes(s)) return s as TeamDocCategory
+  return "team"
+}
+
+function parseAssignedPlayerIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((x): x is string => typeof x === "string" && x.length > 0)
+}
+
 type Contact = { id: string; name: string; email: string }
 
 export function DocumentsManager({
   teamId,
   documents: initialDocuments,
-  canUpload,
+  canUploadCoachCategories,
+  allowPlayerParentMediaUpload = false,
   userRole,
   /** Parent is fetching first page — show grid skeleton but keep chrome interactive */
   listLoading = false,
 }: {
   teamId: string
   documents: Document[]
-  canUpload: boolean
+  canUploadCoachCategories: boolean
+  allowPlayerParentMediaUpload?: boolean
   userRole?: string
   listLoading?: boolean
 }) {
@@ -58,11 +104,40 @@ export function DocumentsManager({
   }, [initialDocuments])
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
+  const visibleTabs = useMemo(() => visibleTeamDocTabs(userRole), [userRole])
+  const [activeTeamCategoryTab, setActiveTeamCategoryTab] = useState<TeamDocCategory>("team")
+  const [viewerPlayerId, setViewerPlayerId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTeamCategoryTab)) {
+      setActiveTeamCategoryTab(visibleTabs[0] ?? "team")
+    }
+  }, [visibleTabs, activeTeamCategoryTab])
+
+  useEffect(() => {
+    if (userRole !== "PLAYER" || !teamId) {
+      setViewerPlayerId(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/roster/me?teamId=${encodeURIComponent(teamId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { playerId?: string | null } | null) => {
+        if (!cancelled && j?.playerId) setViewerPlayerId(j.playerId)
+        else if (!cancelled) setViewerPlayerId(null)
+      })
+      .catch(() => {
+        if (!cancelled) setViewerPlayerId(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, userRole])
 
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [title, setTitle] = useState("")
-  const [category, setCategory] = useState("other")
+  const [category, setCategory] = useState<TeamDocCategory>("team")
   const [folder, setFolder] = useState("")
   const [visibility, setVisibility] = useState("all")
   const [file, setFile] = useState<File | null>(null)
@@ -97,24 +172,24 @@ export function DocumentsManager({
     return Array.from(folderSet).sort()
   }, [documents])
 
-  const categories = useMemo(() => {
-    const categorySet = new Set<string>()
-    documents.forEach((doc) => {
-      categorySet.add(doc.category)
-    })
-    return Array.from(categorySet).sort()
-  }, [documents])
-
   const filteredByFolderCategory = useMemo(() => {
     let filtered = documents
     if (selectedFolder) {
       filtered = filtered.filter((doc) => doc.folder === selectedFolder)
     }
-    if (selectedCategory) {
-      filtered = filtered.filter((doc) => doc.category === selectedCategory)
+    filtered = filtered.filter((doc) => normalizeTeamDocCategory(doc.category) === activeTeamCategoryTab)
+    if (
+      activeTeamCategoryTab === "medical_eligibility" &&
+      userRole === "PLAYER" &&
+      viewerPlayerId
+    ) {
+      filtered = filtered.filter((doc) => {
+        const ids = parseAssignedPlayerIds(doc.assignedPlayerIds)
+        return ids.length === 0 || ids.includes(viewerPlayerId)
+      })
     }
     return filtered
-  }, [documents, selectedFolder, selectedCategory])
+  }, [documents, selectedFolder, activeTeamCategoryTab, userRole, viewerPlayerId])
 
   const visibleDocuments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -131,6 +206,10 @@ export function DocumentsManager({
     })
   }, [filteredByFolderCategory, searchQuery])
 
+  const canShowUploadButton =
+    canUploadCoachCategories ||
+    (allowPlayerParentMediaUpload && activeTeamCategoryTab === "media_images")
+
   const handlePickFile = () => {
     fileInputRef.current?.click()
   }
@@ -141,6 +220,11 @@ export function DocumentsManager({
     if (!f) return
     setFile(f)
     setTitle(f.name.replace(/\.[^/.]+$/, "") || f.name)
+    setCategory(
+      allowPlayerParentMediaUpload && !canUploadCoachCategories
+        ? "media_images"
+        : activeTeamCategoryTab
+    )
     setShowUploadDialog(true)
   }
 
@@ -152,11 +236,12 @@ export function DocumentsManager({
 
     setLoading(true)
     try {
+      const uploadCategory: TeamDocCategory = canUploadCoachCategories ? category : "media_images"
       const formData = new FormData()
       formData.append("file", file)
       formData.append("teamId", teamId)
       formData.append("title", title)
-      formData.append("category", category)
+      formData.append("category", uploadCategory)
       formData.append("visibility", visibility)
       if (folder.trim()) {
         formData.append("folder", folder.trim())
@@ -329,6 +414,18 @@ export function DocumentsManager({
         onChange={onFileInputChange}
       />
 
+      <PortalUnderlineTabs
+        emphasized
+        tabs={visibleTabs.map((id) => ({
+          id,
+          label: TEAM_DOC_TAB_LABELS[id],
+        }))}
+        value={activeTeamCategoryTab}
+        onValueChange={(id) => setActiveTeamCategoryTab(id as TeamDocCategory)}
+        ariaLabel="Document categories"
+        className="mb-4"
+      />
+
       {/* Top: search + add (desktop: slightly wider cards in grid below) */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
@@ -340,7 +437,7 @@ export function DocumentsManager({
             className="w-full min-w-0"
             aria-label="Search documents"
           />
-          {canUpload && (
+          {canShowUploadButton && (
             <Button type="button" onClick={handlePickFile} className="shrink-0 gap-1" title="Add document">
               <Plus className="h-4 w-4" />
               <span className="sr-only">Add document</span>
@@ -358,20 +455,6 @@ export function DocumentsManager({
               {folders.map((f) => (
                 <option key={f} value={f}>
                   {f}
-                </option>
-              ))}
-            </select>
-          )}
-          {categories.length > 0 && (
-            <select
-              value={selectedCategory || ""}
-              onChange={(e) => setSelectedCategory(e.target.value || null)}
-              className="flex h-10 rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
                 </option>
               ))}
             </select>
@@ -395,19 +478,23 @@ export function DocumentsManager({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Category</Label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
-                >
-                  <option value="waiver">Waiver</option>
-                  <option value="policy">Policy</option>
-                  <option value="program_document">Program Document</option>
-                  <option value="parent_handbook">Parent Handbook</option>
-                  <option value="team_rules">Team Rules</option>
-                  <option value="form">Form</option>
-                  <option value="other">Other</option>
-                </select>
+                {canUploadCoachCategories ? (
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as TeamDocCategory)}
+                    className="flex h-10 w-full rounded-md border-2 border-border bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
+                  >
+                    {visibleTabs.map((id) => (
+                      <option key={id} value={id}>
+                        {TEAM_DOC_TAB_LABELS[id]}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-2">
+                    {TEAM_DOC_TAB_LABELS.media_images} (player/parent uploads)
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Visibility</Label>
@@ -558,8 +645,8 @@ export function DocumentsManager({
             <DocumentCard
               key={doc.id}
               doc={doc}
-              canDelete={canUpload && userRole === "HEAD_COACH"}
-              canShare={canUpload}
+              canDelete={canUploadCoachCategories && userRole === "HEAD_COACH"}
+              canShare={canUploadCoachCategories}
               onDelete={handleDelete}
               onClick={handleCardClick}
               onShare={openShare}

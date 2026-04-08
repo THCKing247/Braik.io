@@ -154,6 +154,8 @@ export async function resolvePlayerDocumentAccess(
     }
   }
 
+  // Player self-service and parent uploads: own roster row (players.user_id) or parent_player_links / guardian_links.
+  // POST /api/player-documents/upload uses this helper — no separate role check needed in the route beyond canUpload.
   if (isPlayer) {
     return {
       ...base,

@@ -6,6 +6,7 @@ import { resolvePlayerDocumentAccess } from "@/lib/player-documents/access"
 import {
   PLAYER_DOCUMENT_CONSENT_TEXT,
   DEFAULT_RETENTION_DAYS,
+  isPlayerDocumentType,
   type DocumentType,
 } from "@/lib/player-documents/constants"
 import {
@@ -16,10 +17,6 @@ import {
 } from "@/lib/player-documents/storage"
 import { writeDocumentAuditLog } from "@/lib/player-documents/audit"
 import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
-
-function isDocType(s: string): s is DocumentType {
-  return ["physical", "waiver", "permission_slip", "other"].includes(s)
-}
 
 export async function POST(request: Request) {
   try {
@@ -32,7 +29,7 @@ export async function POST(request: Request) {
     const teamId = (formData.get("teamId") as string)?.trim()
     const playerId = (formData.get("playerId") as string)?.trim()
     const documentTypeRaw = ((formData.get("documentType") as string) ?? "other").trim().toLowerCase()
-    const documentType: DocumentType = isDocType(documentTypeRaw) ? documentTypeRaw : "other"
+    const documentType: DocumentType = isPlayerDocumentType(documentTypeRaw) ? documentTypeRaw : "other"
     const seasonLabel = ((formData.get("seasonLabel") as string) ?? "").trim() || null
     const notes = ((formData.get("notes") as string) ?? "").trim() || null
     const retentionDaysRaw = Number((formData.get("retentionDays") as string) ?? DEFAULT_RETENTION_DAYS)
@@ -54,6 +51,7 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServer()
     const access = await resolvePlayerDocumentAccess(supabase, session.user.id, playerId, teamId)
+    // canUpload is true for staff, the rostered player (user_id match), and linked parents — see lib/player-documents/access.ts.
     if (!access?.canUpload) {
       return NextResponse.json({ error: "You cannot upload documents for this player." }, { status: 403 })
     }

@@ -118,7 +118,7 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
       } else if (result?.ok) {
         const destination = callbackUrl ?? result.url ?? "/dashboard"
         authTimingClient("login_client_navigate_start", { destination })
-        router.replace(destination)
+        window.location.href = destination
         return
       } else {
         console.error("Login returned no explicit success/error", { result })

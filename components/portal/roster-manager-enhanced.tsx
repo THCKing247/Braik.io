@@ -41,6 +41,7 @@ import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
 import { AddFollowUpModal } from "./add-follow-up-modal"
 import { PortalUnderlineTabs } from "./portal-underline-tabs"
+import { ScrollableListContainer } from "./scrollable-list-container"
 import { usePlaybookToast } from "./playbook-toast"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
@@ -1932,10 +1933,10 @@ export function RosterManagerEnhanced({
                   aria-labelledby="readiness-tab-attention"
                   className="border border-border bg-card"
                 >
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-foreground">
-                      <AlertCircle className="h-5 w-5 text-amber-500" />
-                      Needs attention
+                  <CardHeader className="space-y-1">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                      <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
+                      Needs Attention
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">Players with missing items. Click a row to open profile.</p>
                   </CardHeader>
@@ -1943,17 +1944,20 @@ export function RosterManagerEnhanced({
                     {teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length === 0 ? (
                       <p className="py-6 text-center text-sm text-muted-foreground">All players are ready.</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-md border border-border">
+                      <ScrollableListContainer
+                        contentKey={teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length}
+                        backToTopAriaLabel="Back to top of needs attention list"
+                      >
                         <table className="w-full min-w-[640px] border-collapse text-sm">
-                          <thead>
-                            <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
-                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[11rem] text-[#0F172A]">
+                          <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC]">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-sm font-semibold align-middle min-w-[11rem] text-[#0F172A]">
                                 Player
                               </th>
                               <th className="px-4 py-3 text-sm font-semibold align-middle w-28 whitespace-nowrap text-[#0F172A]">
                                 Status
                               </th>
-                              <th className="px-4 py-3 text-sm font-semibold align-middle min-w-[12rem] text-[#0F172A]">
+                              <th className="px-4 py-3 text-left text-sm font-semibold align-middle min-w-[12rem] text-[#0F172A]">
                                 Missing
                               </th>
                               {canEdit && (
@@ -1972,7 +1976,7 @@ export function RosterManagerEnhanced({
                                 const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
                                 const openCount = teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length
                                 return (
-                                  <tr key={p.playerId} className="border-b border-border/70 hover:bg-muted/40">
+                                  <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
                                     <td className="px-4 py-3.5 align-top">
                                       <Link
                                         href={profileHref}
@@ -2028,7 +2032,7 @@ export function RosterManagerEnhanced({
                               })}
                           </tbody>
                         </table>
-                      </div>
+                      </ScrollableListContainer>
                     )}
                   </CardContent>
                 </Card>
@@ -2042,7 +2046,7 @@ export function RosterManagerEnhanced({
                   className="border border-border bg-card"
                 >
                   <CardHeader className="space-y-1 lg:space-y-2">
-                    <CardTitle className="text-foreground">Roster checklist</CardTitle>
+                    <CardTitle className="text-base font-semibold text-foreground">Roster Checklist</CardTitle>
                     <p className="text-sm text-muted-foreground">
                       Physical, waiver, required forms, and whether the player has linked their app account.
                     </p>
@@ -2150,7 +2154,10 @@ export function RosterManagerEnhanced({
                         </Button>
                       </div>
                     </div>
-                    <div className="overflow-x-auto max-h-[min(480px,55vh)] overflow-y-auto rounded-lg border border-border bg-card shadow-sm">
+                    <ScrollableListContainer
+                      contentKey={teamReadiness.players.length}
+                      backToTopAriaLabel="Back to top of roster checklist"
+                    >
                       <table className="w-full min-w-[36rem] border-collapse text-sm">
                         <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC]">
                           <tr>
@@ -2191,7 +2198,7 @@ export function RosterManagerEnhanced({
                           })}
                         </tbody>
                       </table>
-                    </div>
+                    </ScrollableListContainer>
                   </CardContent>
                 </Card>
               )}
@@ -2203,10 +2210,10 @@ export function RosterManagerEnhanced({
                   aria-labelledby="readiness-tab-activity"
                   className="border border-border bg-card"
                 >
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-foreground">
-                      <History className="h-5 w-5 text-muted-foreground" />
-                      Recent team activity
+                  <CardHeader className="space-y-1">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                      <History className="h-5 w-5 shrink-0 text-muted-foreground" />
+                      Recent Team Activity
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">Latest profile changes across the roster.</p>
                   </CardHeader>
@@ -2218,41 +2225,47 @@ export function RosterManagerEnhanced({
                     ) : teamActivity.length === 0 ? (
                       <p className="py-4 text-center text-sm text-muted-foreground">No recent activity.</p>
                     ) : (
-                      <ul className="space-y-3">
-                        {teamActivity.map((a) => {
-                          const profileHref = `/dashboard/roster/${a.playerId}?teamId=${encodeURIComponent(teamId)}`
-                          const label = TEAM_ACTIVITY_LABELS[a.actionType] ?? a.actionType
-                          const timeAgo = (() => {
-                            const d = new Date(a.createdAt)
-                            const now = new Date()
-                            const diffMins = Math.floor((now.getTime() - d.getTime()) / 60000)
-                            const diffHours = Math.floor(diffMins / 60)
-                            const diffDays = Math.floor(diffHours / 24)
-                            if (diffMins < 1) return "Just now"
-                            if (diffMins < 60) return `${diffMins}m ago`
-                            if (diffHours < 24) return `${diffHours}h ago`
-                            if (diffDays < 7) return `${diffDays}d ago`
-                            return d.toLocaleDateString()
-                          })()
-                          return (
-                            <li
-                              key={a.id}
-                              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-4 py-3 text-sm"
-                            >
-                              <div className="min-w-0">
-                                <Link href={profileHref} className="font-medium text-primary hover:underline">
-                                  {a.playerName}
-                                </Link>
-                                <span className="ml-2 text-muted-foreground">— {label}</span>
-                                {a.actor?.name && (
-                                  <span className="ml-1 text-xs text-muted-foreground">by {a.actor.name}</span>
-                                )}
-                              </div>
-                              <span className="text-xs text-muted-foreground shrink-0 tabular-nums">{timeAgo}</span>
-                            </li>
-                          )
-                        })}
-                      </ul>
+                      <ScrollableListContainer
+                        contentKey={teamActivity.length}
+                        scrollClassName="p-3"
+                        backToTopAriaLabel="Back to top of activity list"
+                      >
+                        <ul className="space-y-2">
+                          {teamActivity.map((a) => {
+                            const profileHref = `/dashboard/roster/${a.playerId}?teamId=${encodeURIComponent(teamId)}`
+                            const label = TEAM_ACTIVITY_LABELS[a.actionType] ?? a.actionType
+                            const timeAgo = (() => {
+                              const d = new Date(a.createdAt)
+                              const now = new Date()
+                              const diffMins = Math.floor((now.getTime() - d.getTime()) / 60000)
+                              const diffHours = Math.floor(diffMins / 60)
+                              const diffDays = Math.floor(diffHours / 24)
+                              if (diffMins < 1) return "Just now"
+                              if (diffMins < 60) return `${diffMins}m ago`
+                              if (diffHours < 24) return `${diffHours}h ago`
+                              if (diffDays < 7) return `${diffDays}d ago`
+                              return d.toLocaleDateString()
+                            })()
+                            return (
+                              <li
+                                key={a.id}
+                                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 px-4 py-3 text-sm transition-colors hover:bg-muted/30"
+                              >
+                                <div className="min-w-0">
+                                  <Link href={profileHref} className="font-medium text-primary hover:underline">
+                                    {a.playerName}
+                                  </Link>
+                                  <span className="ml-2 text-muted-foreground">— {label}</span>
+                                  {a.actor?.name && (
+                                    <span className="ml-1 text-xs text-muted-foreground">by {a.actor.name}</span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted-foreground shrink-0 tabular-nums">{timeAgo}</span>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </ScrollableListContainer>
                     )}
                   </CardContent>
                 </Card>

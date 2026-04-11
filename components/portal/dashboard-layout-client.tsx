@@ -96,15 +96,15 @@ export function DashboardLayoutClient({
         <div
           className={cn(
             "flex w-full min-w-0 flex-col",
-            "lg:flex-1 lg:min-h-0 lg:overflow-hidden lg:pt-16",
+            "lg:flex-1 lg:min-h-0 lg:overflow-hidden lg:pt-[5rem]",
             className
           )}
         >
           <div className="flex w-full min-w-0 flex-col lg:flex-1 lg:min-h-0 lg:flex-row lg:overflow-hidden">
             <aside
               className={cn(
-                "z-40 hidden w-full shrink-0 flex-col overflow-hidden border-border lg:fixed lg:left-0 lg:top-16 lg:z-40 lg:flex",
-                "lg:h-[calc(100dvh-4rem)] lg:w-60 lg:overflow-hidden lg:border-b-0 lg:border-r lg:border-slate-800/60",
+                "z-40 hidden w-full shrink-0 flex-col overflow-hidden border-border lg:fixed lg:left-0 lg:top-[5rem] lg:z-40 lg:flex",
+                "lg:h-[calc(100dvh-5rem)] lg:w-60 lg:overflow-hidden lg:border-b-0 lg:border-r lg:border-slate-800/60",
                 "lg:bg-[#0f172a]"
               )}
               aria-label="Dashboard navigation"

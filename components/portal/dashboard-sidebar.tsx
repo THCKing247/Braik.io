@@ -26,7 +26,13 @@ interface Team {
 
 function SidebarSectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{children}</p>
+    <div className="mb-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/90">{children}</p>
+      <span
+        className="mt-1.5 block h-0.5 w-6 rounded-full bg-orange-500/75"
+        aria-hidden
+      />
+    </div>
   )
 }
 
@@ -59,7 +65,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f172a]">
       <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll">
-        <div className="flex-shrink-0 border-b border-slate-700/50 px-4 pb-4 pt-5">
+        <div className="relative flex-shrink-0 border-b border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-transparent to-transparent px-4 pb-4 pt-5">
           <SidebarSectionLabel>Team</SidebarSectionLabel>
           {roleLabel && (
             <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{roleLabel}</p>
@@ -110,11 +116,11 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         ) : null}
 
         {showCoachB && (
-          <div className="border-t border-slate-700/50 p-3">
+          <div className="border-t border-orange-500/10 p-3">
             <div
               className={cn(
                 "overflow-hidden rounded-xl border border-slate-700/60 bg-slate-800/40 p-3 transition-all duration-150",
-                "hover:bg-slate-800/60"
+                "hover:border-orange-500/25 hover:bg-slate-800/60"
               )}
             >
               <div className="mb-2 flex justify-center">
@@ -127,7 +133,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
                 />
               </div>
               <div className="mb-1.5 flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 flex-shrink-0 text-blue-300" aria-hidden />
+                <MessageSquare className="h-5 w-5 flex-shrink-0 text-orange-400/90" aria-hidden />
                 <span className="text-sm font-semibold text-slate-100">Coach B</span>
               </div>
               <p className="mb-2 text-xs text-slate-400" key={coachCopy.tick}>
@@ -141,7 +147,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
                   "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2.5",
                   "text-sm font-medium text-white shadow-sm transition-all duration-150",
                   "bg-blue-600 hover:bg-blue-500",
-                  "focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:ring-offset-2 focus:ring-offset-[#0f172a]"
+                  "focus:outline-none focus:ring-2 focus:ring-orange-400/45 focus:ring-offset-2 focus:ring-offset-[#0f172a]"
                 )}
                 aria-label="Ask Coach B"
               >
@@ -153,15 +159,15 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         )}
       </div>
 
-      <div className="mt-auto shrink-0 space-y-2 border-t border-slate-700/50 p-4">
+      <div className="mt-auto shrink-0 space-y-2 border-t border-orange-500/10 p-4">
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: "/" })}
           className={cn(
             "flex w-full items-center justify-center gap-2 rounded-md border border-slate-600 px-3 py-2.5",
             "text-sm font-medium text-slate-200 transition-all duration-150",
-            "hover:border-slate-500 hover:bg-white/5 hover:text-white",
-            "focus:outline-none focus:ring-2 focus:ring-slate-500/40 focus:ring-offset-2 focus:ring-offset-[#0f172a]"
+            "hover:border-orange-500/35 hover:bg-orange-500/5 hover:text-white",
+            "focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:ring-offset-2 focus:ring-offset-[#0f172a]"
           )}
           aria-label="Sign out"
         >
@@ -191,19 +197,41 @@ const SidebarNavItem = memo(function SidebarNavItem({
     <Link
       href={href}
       className={cn(
-        "flex min-h-[44px] items-center gap-3 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150",
-        "focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2 focus:ring-offset-[#0f172a]",
+        "group flex min-h-[44px] items-center gap-3 rounded-md border-l-4 py-2.5 pr-4 text-sm font-medium transition-colors duration-150",
+        "focus:outline-none focus:ring-2 focus:ring-orange-500/35 focus:ring-offset-2 focus:ring-offset-[#0f172a]",
         isActive
-          ? "bg-blue-600 text-white shadow-sm"
-          : "text-gray-400 hover:bg-white/5 hover:text-white"
+          ? cn(
+              "relative overflow-hidden border-orange-500 bg-blue-950/70 pl-3 text-white",
+              "animate-sidebar-active-pulse motion-reduce:animate-none"
+            )
+          : "border-transparent pl-4 text-slate-400 hover:border-orange-500/35 hover:bg-orange-500/10 hover:text-orange-400"
       )}
       aria-current={isActive ? "page" : undefined}
     >
-      <Icon className="h-5 w-5 flex-shrink-0 opacity-90" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {isActive ? (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0 z-0 rounded-md",
+            "bg-gradient-to-r from-[rgba(249,115,22,0.18)] via-[rgba(249,115,22,0.08)] to-transparent",
+            "animate-sidebar-active-sheen motion-reduce:animate-none motion-reduce:opacity-40"
+          )}
+        />
+      ) : null}
+      <Icon
+        className={cn(
+          "relative z-[1] h-5 w-5 flex-shrink-0 transition-colors duration-150",
+          isActive ? "text-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.35)]" : "text-slate-500 group-hover:text-orange-400"
+        )}
+        aria-hidden
+      />
+      <span className="relative z-[1] min-w-0 flex-1 truncate">{label}</span>
       {badgeCount != null && badgeCount > 0 ? (
         <span
-          className="ml-1 flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white"
+          className={cn(
+            "relative z-[1] ml-1 flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white",
+            isActive ? "bg-orange-600" : "bg-amber-500"
+          )}
           aria-label={`${badgeCount} unread`}
         >
           {badgeCount > 9 ? "9+" : badgeCount}

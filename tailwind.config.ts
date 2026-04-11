@@ -98,10 +98,27 @@ const config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        /** Braik dashboard sidebar — active item only; soft orange “heartbeat” (slow, low contrast) */
+        "sidebar-active-pulse": {
+          "0%, 100%": {
+            boxShadow:
+              "0 0 0 0 rgba(249, 115, 22, 0.12), inset 0 0 0 0 rgba(249, 115, 22, 0.06)",
+          },
+          "50%": {
+            boxShadow:
+              "0 0 14px 2px rgba(249, 115, 22, 0.22), inset 0 0 28px rgba(249, 115, 22, 0.1)",
+          },
+        },
+        "sidebar-active-sheen": {
+          "0%, 100%": { opacity: "0.28" },
+          "50%": { opacity: "0.52" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "sidebar-active-pulse": "sidebar-active-pulse 3.5s ease-in-out infinite",
+        "sidebar-active-sheen": "sidebar-active-sheen 3.5s ease-in-out infinite",
       },
     },
   },

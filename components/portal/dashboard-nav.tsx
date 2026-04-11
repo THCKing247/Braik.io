@@ -141,7 +141,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
       <div className="relative hidden lg:block lg:h-0 lg:overflow-visible">
         <nav
           className={cn(
-            "fixed left-0 right-0 top-0 z-[60] flex h-16 w-full min-w-0 max-w-full flex-col overflow-x-hidden",
+            "fixed left-0 right-0 top-0 z-[60] flex h-[5rem] w-full min-w-0 max-w-full flex-col overflow-x-hidden",
             "border-b border-gray-200 bg-[#fafafa] shadow-sm"
           )}
           aria-label="App navigation"
@@ -153,13 +153,13 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 className="flex shrink-0 items-center rounded-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2"
                 aria-label="Braik - Return to dashboard"
               >
-                <div className="flex h-9 max-w-[min(240px,calc(100vw-28rem))] items-center overflow-hidden">
+                <div className="flex min-h-0 max-h-[5rem] max-w-[min(240px,calc(100vw-28rem))] items-center overflow-visible">
                   <Image
                     src="/braik-logo.webp"
                     alt="Braik Logo"
                     width={720}
                     height={360}
-                    className="h-auto w-full max-h-9 object-contain object-left"
+                    className="h-auto w-full max-h-[5rem] object-contain object-left"
                     priority
                   />
                 </div>

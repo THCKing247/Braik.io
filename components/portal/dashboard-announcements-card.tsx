@@ -448,7 +448,7 @@ export function DashboardAnnouncementsCard({
 
       {/* View all modal */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="relative max-h-[85vh] max-w-3xl w-[calc(100%-2rem)] overflow-hidden border border-[rgb(var(--border))] bg-white p-0">
+        <DialogContent className="relative flex max-h-[min(90vh,900px)] w-[calc(100%-2rem)] max-w-3xl flex-col overflow-hidden border border-[rgb(var(--border))] bg-white p-0">
           <button
             type="button"
             className="absolute right-3 top-3 z-10 rounded-lg p-1.5 transition-colors hover:bg-[rgb(var(--platinum))]"
@@ -457,14 +457,14 @@ export function DashboardAnnouncementsCard({
           >
             <X className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
           </button>
-          <DialogHeader className="border-b border-[rgb(var(--border))] px-6 pb-4 pt-6 pr-14">
+          <DialogHeader className="mb-0 shrink-0 border-b border-[rgb(var(--border))] bg-white px-6 pb-4 pt-6 pr-14">
             <DialogTitle className="text-xl text-[rgb(var(--text))]">Announcements</DialogTitle>
           </DialogHeader>
           <ScrollFadeContainer
             variant="light"
             fadeHeight="h-8"
-            className="max-h-[min(70vh,560px)] min-h-0"
-            scrollClassName="overflow-y-auto px-6 py-4"
+            className="flex min-h-0 flex-1 flex-col"
+            scrollClassName="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-6 pb-8 pt-2"
           >
             {sortedAnnouncements.length === 0 ? (
               <div className="py-12 text-center">

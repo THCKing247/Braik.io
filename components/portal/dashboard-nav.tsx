@@ -30,12 +30,24 @@ const navBarStyle = {
 
 /**
  * &lt; lg: simple bar — centered logo, theme. Overflow nav is bottom "More" sheet.
- * lg+: desktop header with team switcher and Admin.
+ * lg+: fixed desktop header (Edge-style): logo, team switcher, actions + avatar.
  */
 const departmentNavLinkClass = cn(
-  "inline-flex min-h-[44px] items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-  "hover:bg-[rgb(var(--platinum))]"
+  "inline-flex min-h-[44px] items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors duration-150",
+  "text-gray-700 hover:bg-gray-100"
 )
+
+function userInitials(displayName: string | null, email: string): string {
+  const raw = (displayName || email || "?").trim()
+  if (!raw) return "?"
+  const parts = raw.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    const a = parts[0]?.[0]
+    const b = parts[parts.length - 1]?.[0]
+    if (a && b) return `${a}${b}`.toUpperCase()
+  }
+  return raw.slice(0, 2).toUpperCase()
+}
 
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const identity = useDashboardShellIdentity()
@@ -61,10 +73,12 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
       ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
       : "/dashboard"
 
+  const initials = userInitials(identity.displayName, identity.email)
+
   return (
     <>
       <nav
-        className="sticky top-0 z-50 flex w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b shadow-[0_1px_0_rgba(0,0,0,0.04)] lg:hidden"
+        className="sticky top-0 z-50 flex w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b border-gray-200/80 bg-white shadow-sm lg:hidden"
         style={{
           ...navBarStyle,
           paddingTop: "max(0.375rem, env(safe-area-inset-top, 0px))",
@@ -112,7 +126,6 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 href={adDepartmentHref}
                 prefetch={false}
                 className={cn(departmentNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
-                style={{ color: "rgb(var(--text))" }}
                 title="Return to Athletic Department portal"
                 aria-label="Return to Athletic Department portal"
               >
@@ -124,71 +137,79 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         </div>
       </nav>
 
-      <nav
-        className="sticky top-0 z-50 hidden w-full min-w-0 max-w-full flex-col overflow-x-hidden border-b lg:flex"
-        style={navBarStyle}
-        aria-label="App navigation"
-      >
-        <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-3 md:px-6">
-          <div className="min-w-0 shrink-0">
-            <Link
-              href={dashboardHomeHref}
-              className="flex items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
-              aria-label="Braik - Return to dashboard"
-            >
-              <div className="flex h-16 max-w-[min(300px,calc(100vw-22rem))] items-center overflow-hidden md:h-20 lg:h-24">
-                <Image
-                  src="/braik-logo.webp"
-                  alt="Braik Logo"
-                  width={720}
-                  height={360}
-                  className="h-auto w-full max-h-16 object-contain object-left md:max-h-20 lg:max-h-24"
-                />
+      {/* Zero-height wrapper so fixed bar does not consume flex layout space (scroll shell stays correct). */}
+      <div className="relative hidden lg:block lg:h-0 lg:overflow-visible">
+        <nav
+          className={cn(
+            "fixed left-0 right-0 top-0 z-[60] flex h-16 w-full min-w-0 max-w-full flex-col overflow-x-hidden",
+            "border-b border-gray-200 bg-[#fafafa] shadow-sm"
+          )}
+          aria-label="App navigation"
+        >
+          <div className="flex h-full w-full min-w-0 max-w-full items-center justify-between gap-4 px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <Link
+                href={dashboardHomeHref}
+                className="flex shrink-0 items-center rounded-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2"
+                aria-label="Braik - Return to dashboard"
+              >
+                <div className="flex h-9 max-w-[min(240px,calc(100vw-28rem))] items-center overflow-hidden">
+                  <Image
+                    src="/braik-logo.webp"
+                    alt="Braik Logo"
+                    width={720}
+                    height={360}
+                    className="h-auto w-full max-h-9 object-contain object-left"
+                    priority
+                  />
+                </div>
+              </Link>
+            </div>
+
+            <div className="flex min-w-0 flex-1 items-center justify-center px-2">
+              {teams.length > 1 && (
+                <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
+              )}
+            </div>
+
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+              {showDepartmentNavLink && adDepartmentHref && (
+                <Link
+                  href={adDepartmentHref}
+                  prefetch={false}
+                  className={departmentNavLinkClass}
+                  title="Return to Athletic Department portal"
+                  aria-label="Return to Athletic Department portal"
+                >
+                  Department
+                </Link>
+              )}
+              {showAdminLink && (
+                <Link
+                  href="/admin/overview"
+                  prefetch={false}
+                  className={cn(
+                    "inline-flex min-h-[40px] items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
+                    pathname?.startsWith("/admin")
+                      ? "bg-blue-600 font-semibold text-white shadow-sm"
+                      : "text-gray-700 hover:bg-gray-100"
+                  )}
+                >
+                  Admin
+                </Link>
+              )}
+              <ThemeToggle />
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white shadow-sm ring-2 ring-white"
+                title={identity.displayName || identity.email || "User"}
+                aria-label={identity.displayName || identity.email || "User account"}
+              >
+                {initials}
               </div>
-            </Link>
+            </div>
           </div>
-          <div className="flex min-w-0 flex-1 items-center justify-center px-2">
-            {teams.length > 1 && (
-              <TeamSwitcher teams={teams} currentTeamId={currentTeamId} />
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            {showDepartmentNavLink && adDepartmentHref && (
-              <Link
-                href={adDepartmentHref}
-                prefetch={false}
-                className={departmentNavLinkClass}
-                style={{ color: "rgb(var(--text))" }}
-                title="Return to Athletic Department portal"
-                aria-label="Return to Athletic Department portal"
-              >
-                Department
-              </Link>
-            )}
-            {showAdminLink && (
-              <Link
-                href="/admin/overview"
-                prefetch={false}
-                className={cn(
-                  "inline-flex min-h-[44px] items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                  pathname?.startsWith("/admin")
-                    ? "border-b-2 font-semibold"
-                    : "hover:bg-[rgb(var(--platinum))]"
-                )}
-                style={{
-                  color: "rgb(var(--text))",
-                  borderBottomColor: pathname?.startsWith("/admin")
-                    ? "rgb(var(--accent))"
-                    : "transparent",
-                }}
-              >
-                Admin
-              </Link>
-            )}
-            <ThemeToggle />
-          </div>
-        </div>
-      </nav>
+        </nav>
+      </div>
     </>
   )
 }

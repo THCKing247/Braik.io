@@ -91,83 +91,85 @@ export function DashboardLayoutClient({
 
   return (
     <CoachBProvider isDesktop={isLgUp}>
-          <PlaybookToastProvider>
-            <BiometricEnablePrompt />
-            <div className={cn("flex w-full min-w-0 flex-col", className)}>
-            <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
-              <aside
-                className={cn(
-                  "z-40 hidden w-full shrink-0 flex-col overflow-hidden border-border lg:flex lg:w-64",
-                  "lg:sticky lg:top-[7.5rem] lg:max-h-[calc(100dvh-7.5rem)] lg:border-b-0 lg:border-r lg:self-start"
-                )}
-                style={{
-                  background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
-                  boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
-                }}
-                aria-label="Dashboard navigation"
-              >
-                <DashboardSidebar teams={shellTeams} />
-              </aside>
+      <PlaybookToastProvider>
+        <BiometricEnablePrompt />
+        <div
+          className={cn(
+            "flex w-full min-w-0 flex-col",
+            "lg:flex-1 lg:min-h-0 lg:overflow-hidden lg:pt-16",
+            className
+          )}
+        >
+          <div className="flex w-full min-w-0 flex-col lg:flex-1 lg:min-h-0 lg:flex-row lg:overflow-hidden">
+            <aside
+              className={cn(
+                "z-40 hidden w-full shrink-0 flex-col overflow-hidden border-border lg:fixed lg:left-0 lg:top-16 lg:z-40 lg:flex",
+                "lg:h-[calc(100dvh-4rem)] lg:w-60 lg:overflow-hidden lg:border-b-0 lg:border-r lg:border-slate-800/60",
+                "lg:bg-[#0f172a]"
+              )}
+              aria-label="Dashboard navigation"
+            >
+              <DashboardSidebar teams={shellTeams} />
+            </aside>
 
-              <main
+            <main
+              className={cn(
+                "min-w-0 w-full max-w-full flex-1 overflow-x-hidden",
+                "lg:ml-60 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:bg-[#f9fafb]",
+                isPlayEditorRoute
+                  ? "max-lg:p-0 max-lg:pt-0 lg:p-0"
+                  : isSchedulePage
+                    ? "px-4 pt-4 md:p-6 md:pt-5 lg:p-6 xl:p-8"
+                    : "px-0 pt-4 pb-0 md:p-6 md:pt-5 lg:p-6 xl:p-8",
+                !isPlayEditorRoute && "lg:pb-6",
+                isSchedulePage
+                  ? "max-lg:pb-[max(7.5rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(8.5rem,calc(6rem+env(safe-area-inset-bottom,0px)))]"
+                  : isPlayEditorRoute
+                    ? "max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
+                    : "max-lg:pb-[var(--mobile-main-pad-bottom)]",
+                isSchedulePage &&
+                  "flex min-h-[calc(100dvh-9rem)] flex-col overflow-hidden lg:min-h-0 lg:flex-1",
+                "bg-[rgb(var(--snow))] lg:bg-[#f9fafb]"
+              )}
+            >
+              <div
                 className={cn(
-                  "min-w-0 w-full max-w-full flex-1 overflow-x-hidden",
-                  isPlayEditorRoute
-                    ? "max-lg:p-0 max-lg:pt-0"
-                    : isSchedulePage
-                      ? "px-4 pt-4 md:p-6 md:pt-5"
-                      : "px-0 pt-4 pb-0 md:p-6 md:pt-5",
-                  "lg:pb-6",
-                  isSchedulePage
-                    ? "max-lg:pb-[max(7.5rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] md:max-lg:pb-[max(8.5rem,calc(6rem+env(safe-area-inset-bottom,0px)))]"
-                    : isPlayEditorRoute
-                      ? "max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
-                      : "max-lg:pb-[var(--mobile-main-pad-bottom)]",
-                  isSchedulePage &&
-                    "flex min-h-[calc(100dvh-9rem)] flex-col overflow-hidden lg:min-h-[calc(100dvh-8rem)]"
+                  "w-full min-w-0 max-w-full lg:flex-1 lg:min-h-0",
+                  isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
                 )}
-                style={{
-                  backgroundColor: "rgb(var(--snow))",
-                }}
               >
                 <div
                   className={cn(
-                    "w-full min-w-0 max-w-full",
-                    isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
+                    "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
+                    "lg:rounded-xl lg:border lg:border-gray-200 lg:bg-white lg:p-6 lg:shadow-sm",
+                    isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0 lg:!rounded-none lg:!border-0 lg:!bg-transparent lg:!p-0 lg:!shadow-none",
+                    isSchedulePage &&
+                      "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"
                   )}
+                  aria-label="Page content"
                 >
                   <div
                     className={cn(
-                      "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
-                      "lg:rounded-xl lg:border lg:border-[#E5E7EB] lg:bg-white lg:p-6 lg:shadow-sm",
-                      isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0",
-                      isSchedulePage &&
-                        "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"
+                      "min-w-0 w-full max-w-full",
+                      isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
                     )}
-                    aria-label="Page content"
                   >
-                    <div
-                      className={cn(
-                        "min-w-0 w-full max-w-full",
-                        isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
-                      )}
-                    >
-                      {/* Hints only on home dashboard — avoids mounting /api fetch wiring on every route */}
-                      {isDashboardHome && resolvedCurrentTeamId ? (
-                        <DeferredDashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
-                      ) : null}
-                      {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
-                    </div>
+                    {/* Hints only on home dashboard — avoids mounting /api fetch wiring on every route */}
+                    {isDashboardHome && resolvedCurrentTeamId ? (
+                      <DeferredDashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
+                    ) : null}
+                    {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
                   </div>
                 </div>
-              </main>
-            </div>
-
-            <AIWidgetWrapper />
-            <CalendarEventsInvalidateBridge />
-            <DashboardMobileTabBar />
+              </div>
+            </main>
           </div>
-        </PlaybookToastProvider>
-      </CoachBProvider>
+
+          <AIWidgetWrapper />
+          <CalendarEventsInvalidateBridge />
+          <DashboardMobileTabBar />
+        </div>
+      </PlaybookToastProvider>
+    </CoachBProvider>
   )
 }

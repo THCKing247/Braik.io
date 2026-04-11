@@ -101,11 +101,15 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
 
   return (
     <DashboardShellWithMobileNav teams={teams} currentTeamId={currentTeamId}>
-      <div className="app-shell flex min-h-screen flex-col bg-background">
+      <div className="app-shell dashboard-app-shell flex min-h-screen flex-col bg-background">
         <header className="shrink-0">
           <DashboardNav teams={teams} />
         </header>
-        <DashboardLayoutClient teams={teams} currentTeamId={currentTeamId} className="flex w-full min-w-0 flex-col">
+        <DashboardLayoutClient
+          teams={teams}
+          currentTeamId={currentTeamId}
+          className="flex w-full min-w-0 flex-col lg:flex-1 lg:min-h-0"
+        >
           {process.env.NODE_ENV === "development" ? (
             <CoachPageDebug session={{ user }} teamIds={teams.map((t) => t.id)} accessAllowed={true} />
           ) : null}

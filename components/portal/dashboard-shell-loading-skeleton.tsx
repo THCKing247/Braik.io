@@ -1,7 +1,7 @@
 /** Immediate placeholder while GET /api/dashboard/shell runs after first paint. */
 export function DashboardShellLoadingSkeleton() {
   return (
-    <div className="app-shell flex min-h-screen flex-col bg-background">
+    <div className="app-shell dashboard-app-shell flex min-h-screen flex-col bg-background">
       <header className="shrink-0 border-b border-border">
         <div className="h-14 animate-pulse bg-muted/40" aria-hidden />
       </header>

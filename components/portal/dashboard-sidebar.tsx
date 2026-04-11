@@ -14,7 +14,7 @@ import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
 import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
 
-const SIDEBAR_WIDTH = 256
+const SIDEBAR_WIDTH = 240
 
 interface Team {
   id: string
@@ -22,6 +22,12 @@ interface Team {
   organization: { name: string }
   sport: string
   seasonName: string
+}
+
+function SidebarSectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{children}</p>
+  )
 }
 
 export function DashboardSidebar({ teams }: { teams: Team[] }) {
@@ -51,18 +57,16 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
     : ""
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
-      {/* Scrollable: role, user, nav, Coach B — sign out stays pinned below */}
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f172a]">
       <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll">
-        <div className="flex-shrink-0 border-b border-white/10 p-4">
+        <div className="flex-shrink-0 border-b border-slate-700/50 px-4 pb-4 pt-5">
+          <SidebarSectionLabel>Team</SidebarSectionLabel>
           {roleLabel && (
-            <p className="text-xs font-medium uppercase tracking-wide text-white/70">
-              {roleLabel}
-            </p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{roleLabel}</p>
           )}
           {currentTeam?.name && (
             <p
-              className="mt-0.5 truncate text-sm font-semibold text-white"
+              className="mt-1 truncate text-sm font-semibold text-slate-100"
               title={currentTeam.name}
             >
               {currentTeam.name}
@@ -70,73 +74,74 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           )}
         </div>
 
-        <div className="flex-shrink-0 border-b border-white/10 p-3">
-          <div className="rounded-lg bg-white/10 px-3 py-2">
-            <p
-              className="truncate text-sm font-medium text-white"
-              title={identity.email}
-            >
-              {identity.displayName || identity.email || "User"}
-            </p>
-            <p className="truncate text-xs text-white/70">{identity.email}</p>
-          </div>
+        <div className="border-b border-slate-700/50 px-4 py-4">
+          <SidebarSectionLabel>Main</SidebarSectionLabel>
+          <nav className="flex flex-col gap-2" aria-label="Primary">
+            <SidebarNavItem
+              href={dashboardHomeHref}
+              label="Dashboard"
+              icon={LayoutDashboard}
+              isActive={pathname === "/dashboard"}
+            />
+          </nav>
         </div>
 
-        <nav className="space-y-1.5 p-3" aria-label="Main navigation">
-          <SidebarNavItem
-            href={dashboardHomeHref}
-            label="Dashboard"
-            icon={LayoutDashboard}
-            isActive={pathname === "/dashboard"}
-          />
-          {quickActions.map((action) => (
-            <SidebarNavItem
-              key={action.id}
-              href={action.href}
-              label={action.label}
-              icon={action.icon}
-              badgeCount={action.id === "messages" && shellUnread > 0 ? Math.min(shellUnread, 99) : undefined}
-              isActive={
-                pathname === action.href ||
-                (action.href !== "/dashboard" && pathname.startsWith(action.href))
-              }
-            />
-          ))}
-        </nav>
+        {quickActions.length > 0 ? (
+          <div className="px-4 py-4">
+            <SidebarSectionLabel>Tools</SidebarSectionLabel>
+            <nav className="flex flex-col gap-2" aria-label="Tools">
+              {quickActions.map((action) => (
+                <SidebarNavItem
+                  key={action.id}
+                  href={action.href}
+                  label={action.label}
+                  icon={action.icon}
+                  badgeCount={
+                    action.id === "messages" && shellUnread > 0 ? Math.min(shellUnread, 99) : undefined
+                  }
+                  isActive={
+                    pathname === action.href ||
+                    (action.href !== "/dashboard" && pathname.startsWith(action.href))
+                  }
+                />
+              ))}
+            </nav>
+          </div>
+        ) : null}
 
         {showCoachB && (
-          <div className="border-t border-white/10 p-2 lg:p-3">
+          <div className="border-t border-slate-700/50 p-3">
             <div
               className={cn(
-                "overflow-hidden rounded-xl border border-white/10 bg-white/10 p-3 transition-all duration-200 lg:p-4",
-                "hover:bg-white/15"
+                "overflow-hidden rounded-xl border border-slate-700/60 bg-slate-800/40 p-3 transition-all duration-150",
+                "hover:bg-slate-800/60"
               )}
             >
-              <div className="mb-2 flex justify-center lg:mb-3">
+              <div className="mb-2 flex justify-center">
                 <Image
                   src="/images/ai-chat-icon-tmp.webp"
                   alt="Coach B clipboard mascot"
                   width={96}
                   height={96}
-                  className="object-contain lg:h-[110px] lg:w-[110px]"
+                  className="h-[88px] w-[88px] object-contain"
                 />
               </div>
-              <div className="mb-1.5 flex items-center gap-2 lg:mb-2">
-                <MessageSquare className="h-5 w-5 flex-shrink-0 text-[#93C5FD]" aria-hidden />
-                <span className="text-sm font-semibold text-white">Coach B</span>
+              <div className="mb-1.5 flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 flex-shrink-0 text-blue-300" aria-hidden />
+                <span className="text-sm font-semibold text-slate-100">Coach B</span>
               </div>
-              <p className="mb-2 text-xs text-white/80 lg:mb-3" key={coachCopy.tick}>
+              <p className="mb-2 text-xs text-slate-400" key={coachCopy.tick}>
                 {coachCopy.subtitle}
               </p>
-              <p className="mb-2 text-[11px] leading-snug text-white/65 lg:mb-3">{coachCopy.insight}</p>
+              <p className="mb-2 text-[11px] leading-snug text-slate-500">{coachCopy.insight}</p>
               <button
                 type="button"
                 onClick={() => coachB?.open()}
                 className={cn(
-                  "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5",
-                  "text-sm font-medium text-white shadow-sm transition-colors",
-                  "bg-[#2563EB] hover:bg-[#3B82F6]",
-                  "focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
+                  "flex w-full items-center justify-center gap-2 rounded-md px-3 py-2.5",
+                  "text-sm font-medium text-white shadow-sm transition-all duration-150",
+                  "bg-blue-600 hover:bg-blue-500",
+                  "focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:ring-offset-2 focus:ring-offset-[#0f172a]"
                 )}
                 aria-label="Ask Coach B"
               >
@@ -148,21 +153,22 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         )}
       </div>
 
-      <div className="mt-auto shrink-0 space-y-2 border-t border-white/10 p-4">
+      <div className="mt-auto shrink-0 space-y-2 border-t border-slate-700/50 p-4">
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: "/" })}
           className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium",
-            "bg-[#EF4444] text-white shadow-md transition-colors hover:bg-[#DC2626]",
-            "focus:outline-none focus:ring-2 focus:ring-[#EF4444]/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
+            "flex w-full items-center justify-center gap-2 rounded-md border border-slate-600 px-3 py-2.5",
+            "text-sm font-medium text-slate-200 transition-all duration-150",
+            "hover:border-slate-500 hover:bg-white/5 hover:text-white",
+            "focus:outline-none focus:ring-2 focus:ring-slate-500/40 focus:ring-offset-2 focus:ring-offset-[#0f172a]"
           )}
           aria-label="Sign out"
         >
           <LogOut className="h-4 w-4" aria-hidden />
           Sign out
         </button>
-        <p className="text-center text-xs text-white/50">Braik</p>
+        <p className="text-center text-xs text-slate-600">Braik</p>
       </div>
     </div>
   )
@@ -185,15 +191,15 @@ const SidebarNavItem = memo(function SidebarNavItem({
     <Link
       href={href}
       className={cn(
-        "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-        "focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]",
+        "flex min-h-[44px] items-center gap-3 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150",
+        "focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2 focus:ring-offset-[#0f172a]",
         isActive
-          ? "border border-white/25 bg-[#2563EB] text-white shadow-md"
-          : "text-white/[0.88] hover:bg-white/15 hover:text-white"
+          ? "bg-blue-600 text-white shadow-sm"
+          : "text-gray-400 hover:bg-white/5 hover:text-white"
       )}
       aria-current={isActive ? "page" : undefined}
     >
-      <Icon className="h-5 w-5 flex-shrink-0" aria-hidden />
+      <Icon className="h-5 w-5 flex-shrink-0 opacity-90" aria-hidden />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {badgeCount != null && badgeCount > 0 ? (
         <span

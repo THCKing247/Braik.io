@@ -9,6 +9,7 @@ import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-conte
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
+import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { cn } from "@/lib/utils"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
@@ -64,7 +65,12 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f172a]">
-      <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll">
+      <ScrollFadeContainer
+        variant="dark"
+        fadeHeight="h-8"
+        className="min-h-0 flex-1 flex flex-col"
+        scrollClassName="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll"
+      >
         <div className="flex-shrink-0 border-b border-orange-500/30 px-4 py-6">
           <Link
             href={dashboardHomeHref}
@@ -174,7 +180,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
             </div>
           </div>
         )}
-      </div>
+      </ScrollFadeContainer>
 
       <div className="mt-auto shrink-0 space-y-2 border-t border-orange-500/10 p-4">
         <button

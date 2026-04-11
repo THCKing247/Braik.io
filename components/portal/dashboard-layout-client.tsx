@@ -12,6 +12,7 @@ import { CalendarEventsInvalidateBridge } from "@/components/calendar/calendar-e
 import { DashboardEngagementHints } from "@/components/portal/dashboard-engagement-hints"
 import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
+import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { cn } from "@/lib/utils"
 
 interface Team {
@@ -108,7 +109,7 @@ export function DashboardLayoutClient({
             <main
               className={cn(
                 "min-w-0 w-full max-w-full flex-1 overflow-x-hidden",
-                "lg:ml-60 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:bg-[#f9fafb]",
+                "lg:ml-60 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden lg:overflow-x-hidden lg:bg-[#f9fafb]",
                 isPlayEditorRoute
                   ? "max-lg:p-0 max-lg:pt-0 lg:p-0"
                   : isSchedulePage
@@ -125,36 +126,46 @@ export function DashboardLayoutClient({
                 "bg-[rgb(var(--snow))] lg:bg-[#f9fafb]"
               )}
             >
-              <div
-                className={cn(
-                  "w-full min-w-0 max-w-full lg:flex-1 lg:min-h-0",
-                  isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
+              <ScrollFadeContainer
+                variant="muted"
+                fadeHeight="h-8"
+                className="w-full min-h-0 flex-1 lg:flex lg:min-h-0 lg:flex-col"
+                scrollClassName={cn(
+                  "w-full min-h-0 flex-1 max-lg:overflow-x-hidden max-lg:overflow-y-visible",
+                  "lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden"
                 )}
               >
                 <div
                   className={cn(
-                    "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
-                    "lg:rounded-xl lg:border lg:border-gray-200 lg:bg-white lg:p-6 lg:shadow-sm",
-                    isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0 lg:!rounded-none lg:!border-0 lg:!bg-transparent lg:!p-0 lg:!shadow-none",
-                    isSchedulePage &&
-                      "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"
+                    "w-full min-w-0 max-w-full lg:flex-1 lg:min-h-0",
+                    isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
                   )}
-                  aria-label="Page content"
                 >
                   <div
                     className={cn(
-                      "min-w-0 w-full max-w-full",
-                      isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
+                      "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
+                      "lg:rounded-xl lg:border lg:border-gray-200 lg:bg-white lg:p-6 lg:shadow-sm",
+                      isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0 lg:!rounded-none lg:!border-0 lg:!bg-transparent lg:!p-0 lg:!shadow-none",
+                      isSchedulePage &&
+                        "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"
                     )}
+                    aria-label="Page content"
                   >
-                    {/* Hints only on home dashboard — avoids mounting /api fetch wiring on every route */}
-                    {isDashboardHome && resolvedCurrentTeamId ? (
-                      <DeferredDashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
-                    ) : null}
-                    {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
+                    <div
+                      className={cn(
+                        "min-w-0 w-full max-w-full",
+                        isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
+                      )}
+                    >
+                      {/* Hints only on home dashboard — avoids mounting /api fetch wiring on every route */}
+                      {isDashboardHome && resolvedCurrentTeamId ? (
+                        <DeferredDashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
+                      ) : null}
+                      {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </ScrollFadeContainer>
             </main>
           </div>
 

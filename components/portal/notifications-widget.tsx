@@ -13,6 +13,7 @@ import {
 } from "@/lib/hooks/use-notifications-polling"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 
 interface Notification {
   id: string
@@ -264,7 +265,12 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
               )}
             </div>
 
-            <div className="max-h-96 overflow-y-auto">
+            <ScrollFadeContainer
+              variant="panel"
+              fadeHeight="h-6"
+              className="max-h-96 min-h-0"
+              scrollClassName="overflow-y-auto"
+            >
               {notifications.length === 0 ? (
                 <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
                   No notifications
@@ -329,7 +335,7 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
                   </div>
                 ))
               )}
-            </div>
+            </ScrollFadeContainer>
           </div>
         </>
       )}

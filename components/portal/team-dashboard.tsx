@@ -14,6 +14,7 @@ import {
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -526,7 +527,13 @@ function NotificationsCard({
           <span className="h-9 w-16 shrink-0 md:h-7" aria-hidden />
         )}
       </CardHeader>
-      <CardContent className="scrollbar-hidden max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+        <ScrollFadeContainer
+          variant="light"
+          fadeHeight="h-6"
+          className="max-h-[320px] min-h-0 flex-1"
+          scrollClassName="space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6"
+        >
         {loading ? (
           <div className="space-y-3 py-6" aria-busy="true" aria-label="Loading notifications">
             <div className="h-4 w-full max-w-[240px] animate-pulse rounded bg-[rgb(var(--platinum))]" />
@@ -586,6 +593,7 @@ function NotificationsCard({
             )
           })
         )}
+        </ScrollFadeContainer>
       </CardContent>
     </Card>
   )

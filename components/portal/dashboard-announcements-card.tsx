@@ -27,6 +27,7 @@ import {
   saveAnnouncementPinOverrides,
 } from "@/lib/navigation/dashboard-announcement-pins"
 import { ROLES, type Role } from "@/lib/auth/roles"
+import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { cn } from "@/lib/utils"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import {
@@ -375,7 +376,13 @@ export function DashboardAnnouncementsCard({
             )}
           </div>
         </CardHeader>
-        <CardContent className="announcements-container max-h-[320px] flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <ScrollFadeContainer
+            variant="light"
+            fadeHeight="h-6"
+            className="max-h-[320px] min-h-0 flex-1"
+            scrollClassName="space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6"
+          >
           {loading ? (
             <div className="space-y-3 py-6" aria-busy="true" aria-label="Loading announcements">
               <div className="h-4 max-w-[200px] animate-pulse rounded bg-[rgb(var(--platinum))]" />
@@ -435,6 +442,7 @@ export function DashboardAnnouncementsCard({
               )
             })
           )}
+          </ScrollFadeContainer>
         </CardContent>
       </Card>
 
@@ -452,7 +460,12 @@ export function DashboardAnnouncementsCard({
           <DialogHeader className="border-b border-[rgb(var(--border))] px-6 pb-4 pt-6 pr-14">
             <DialogTitle className="text-xl text-[rgb(var(--text))]">Announcements</DialogTitle>
           </DialogHeader>
-          <div className="announcements-container max-h-[min(70vh,560px)] overflow-y-auto px-6 py-4">
+          <ScrollFadeContainer
+            variant="light"
+            fadeHeight="h-8"
+            className="max-h-[min(70vh,560px)] min-h-0"
+            scrollClassName="overflow-y-auto px-6 py-4"
+          >
             {sortedAnnouncements.length === 0 ? (
               <div className="py-12 text-center">
                 <Megaphone className="mx-auto h-10 w-10 opacity-30" style={{ color: "rgb(var(--muted))" }} />
@@ -593,7 +606,7 @@ export function DashboardAnnouncementsCard({
                 })}
               </ul>
             )}
-          </div>
+          </ScrollFadeContainer>
         </DialogContent>
       </Dialog>
 

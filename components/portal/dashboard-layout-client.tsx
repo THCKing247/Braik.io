@@ -98,7 +98,7 @@ export function DashboardLayoutClient({
               <aside
                 className={cn(
                   "z-40 hidden w-full shrink-0 flex-col overflow-hidden border-border lg:flex lg:w-64",
-                  "lg:sticky lg:top-14 lg:max-h-[calc(100dvh-3.75rem)] lg:border-b-0 lg:border-r lg:self-start"
+                  "lg:sticky lg:top-[7.5rem] lg:max-h-[calc(100dvh-7.5rem)] lg:border-b-0 lg:border-r lg:self-start"
                 )}
                 style={{
                   background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",

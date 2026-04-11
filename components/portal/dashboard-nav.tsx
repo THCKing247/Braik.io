@@ -71,7 +71,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         }}
         aria-label="App navigation"
       >
-        <div className="grid min-h-[52px] w-full grid-cols-3 items-center gap-2 px-3 py-2 sm:px-5 md:px-6">
+        <div className="grid min-h-[72px] w-full grid-cols-3 items-center gap-2 px-3 py-2 sm:min-h-[76px] sm:px-5 md:min-h-[88px] md:px-6">
           <div className="min-w-0 justify-self-start">
             {teams.length > 1 ? (
               <div className="max-w-[28vw] truncate text-xs font-semibold text-foreground sm:max-w-[140px] sm:text-sm">
@@ -91,16 +91,16 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
           <div className="flex min-w-0 justify-center">
             <Link
               href="/dashboard"
-              className="flex max-w-[min(200px,42vw)] min-w-0 justify-center active:opacity-80"
+              className="flex max-w-[min(300px,42vw)] min-w-0 justify-center active:opacity-80"
               aria-label="Braik - Home"
             >
-              <div className="flex h-9 items-center overflow-hidden sm:h-10 md:h-11">
+              <div className="flex h-12 items-center overflow-hidden sm:h-14 md:h-16">
                 <Image
                   src="/braik-logo.webp"
                   alt="Braik"
                   width={720}
                   height={360}
-                  className="h-auto w-full max-h-9 object-contain object-center sm:max-h-10 md:max-h-11"
+                  className="h-auto w-full max-h-12 object-contain object-center sm:max-h-14 md:max-h-16"
                   priority
                 />
               </div>
@@ -129,20 +129,20 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         style={navBarStyle}
         aria-label="App navigation"
       >
-        <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-2.5 md:px-6">
+        <div className="flex w-full min-w-0 max-w-full items-center gap-3 px-4 py-3 md:px-6">
           <div className="min-w-0 shrink-0">
             <Link
               href={dashboardHomeHref}
               className="flex items-center rounded transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E293B]"
               aria-label="Braik - Return to dashboard"
             >
-              <div className="flex h-10 max-w-[min(200px,calc(100vw-22rem))] items-center overflow-hidden md:h-11 lg:h-12">
+              <div className="flex h-16 max-w-[min(300px,calc(100vw-22rem))] items-center overflow-hidden md:h-20 lg:h-24">
                 <Image
                   src="/braik-logo.webp"
                   alt="Braik Logo"
                   width={720}
                   height={360}
-                  className="h-auto w-full max-h-10 object-contain object-left md:max-h-11 lg:max-h-12"
+                  className="h-auto w-full max-h-16 object-contain object-left md:max-h-20 lg:max-h-24"
                 />
               </div>
             </Link>

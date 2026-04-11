@@ -2,6 +2,10 @@ import type { SessionUser } from "@/lib/auth/server-auth"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireAuth, requireTeamPermission } from "@/lib/auth/rbac"
+import {
+  COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE,
+  isCoachBPlusEntitled,
+} from "@/lib/braik-ai/coach-b-plus-entitlement"
 import { getProposal, markExecuted } from "@/lib/braik-ai/action-proposal-store"
 import { sendNotificationSchema, sendTeamMessageSchema } from "@/lib/braik-ai/coach-b-tools-schemas"
 import {
@@ -27,7 +31,12 @@ export async function executeStoredProposal(
     incomingRequest?: Request | null
     schedulingContext?: SchedulingResolutionContext | null
   }
-): Promise<{ success: boolean; message?: string; executed?: Record<string, unknown> }> {
+): Promise<{
+  success: boolean
+  message?: string
+  executed?: Record<string, unknown>
+  code?: "coach_b_plus_required"
+}> {
   const user = await requireAuth()
   const proposal = await getProposal(proposalId)
   if (!proposal || proposal.status !== "pending") {
@@ -36,6 +45,18 @@ export async function executeStoredProposal(
   }
   if (proposal.userId !== user.id) {
     return { success: false, message: "You can only confirm your own proposals." }
+  }
+
+  const supabase = getSupabaseServer()
+  const entitled = await isCoachBPlusEntitled(supabase, proposal.teamId, user.id, {
+    isPlatformOwner: user.isPlatformOwner === true,
+  })
+  if (!entitled) {
+    return {
+      success: false,
+      code: "coach_b_plus_required",
+      message: COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE,
+    }
   }
 
   const sessionUser: SessionUser = {

@@ -3,6 +3,10 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getProposal } from "@/lib/braik-ai/action-proposal-store"
 import { executeStoredProposal } from "@/lib/braik-ai/execute-confirmed-proposal"
 import { parseClientSchedulingContext } from "@/lib/braik-ai/resolve-scheduling-slots"
+import {
+  COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE,
+  isCoachBPlusEntitled,
+} from "@/lib/braik-ai/coach-b-plus-entitlement"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export const dynamic = "force-dynamic"
@@ -32,6 +36,16 @@ export async function GET(request: Request) {
   }
 
   const supabase = getSupabaseServer()
+  const coachBPlus = await isCoachBPlusEntitled(supabase, proposal.teamId, session.user.id, {
+    isPlatformOwner: session.user.isPlatformOwner === true,
+  })
+  if (!coachBPlus) {
+    return NextResponse.json(
+      { error: COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE, code: "coach_b_plus_required" },
+      { status: 403 }
+    )
+  }
+
   const { data: prof } = await supabase
     .from("profiles")
     .select("full_name, email")
@@ -87,6 +101,12 @@ export async function POST(request: Request) {
   })
   if (!exec.success) {
     console.warn("[POST /api/ai/confirm-action] execution failed", { proposalId, message: exec.message })
+    if (exec.code === "coach_b_plus_required") {
+      return NextResponse.json(
+        { success: false, message: exec.message, code: exec.code },
+        { status: 403 }
+      )
+    }
     return NextResponse.json({ success: false, message: exec.message ?? "Failed" }, { status: 400 })
   }
 

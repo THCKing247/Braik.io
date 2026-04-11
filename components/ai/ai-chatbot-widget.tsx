@@ -56,6 +56,8 @@ interface Message {
 interface AIChatbotWidgetProps {
   teamId: string
   userRole: string
+  /** Coach B+ action tools — from server shell; never trust client-only toggles. */
+  coachBPlusEnabled?: boolean
   primaryColor?: string
 }
 
@@ -127,7 +129,12 @@ function buildCoachVoiceFields(args: {
 const MIN_VOICE_MS = 450
 const MIN_VOICE_BYTES = 800
 
-export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: AIChatbotWidgetProps) {
+export function AIChatbotWidget({
+  teamId,
+  userRole,
+  coachBPlusEnabled = false,
+  primaryColor = "#3B82F6",
+}: AIChatbotWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -137,6 +144,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canUseAdvancedActions = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
+  const showActionCapabilityHints = canUseAdvancedActions && coachBPlusEnabled
   const coachCopy = useCoachBRotatingCopy()
   const coachB = useCoachB()
   const pathname = usePathname()
@@ -381,7 +389,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
         inputSource: opts.inputSource,
         confirmProposalId: opts.confirmProposalId,
         idempotencyKey,
-        enableActionTools: true,
+        enableActionTools: coachBPlusEnabled,
         coachVoice,
         schedulingContext: getClientSchedulingContext(),
       }),
@@ -997,7 +1005,7 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                       Hi! I'm Coach B. Ask me about your team, schedule, or get help with
                       tasks.
                     </p>
-                    {canUseAdvancedActions ? (
+                    {showActionCapabilityHints ? (
                       <p className="text-xs mt-2 text-[rgb(var(--text2))]">
                         I can help you create events, send messages, and manage your team.
                       </p>
@@ -1107,7 +1115,10 @@ export function AIChatbotWidget({ teamId, userRole, primaryColor = "#3B82F6" }: 
                       </div>
                     </div>
                     {/* Show confirmation UI for action proposals */}
-                    {message.type === "action_proposal" && message.proposalId && activeProposalId === message.proposalId && (
+                    {coachBPlusEnabled &&
+                      message.type === "action_proposal" &&
+                      message.proposalId &&
+                      activeProposalId === message.proposalId && (
                       <div className="mt-4">
                         <AIActionConfirmation
                           proposalId={message.proposalId}

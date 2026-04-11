@@ -21,6 +21,10 @@ import {
   isLikelyCalendarSchedulingRequest,
   isLooseCalendarSchedulingHint,
 } from "@/lib/braik-ai/scheduling-intent"
+import {
+  COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE,
+  isCoachBPlusEntitled,
+} from "@/lib/braik-ai/coach-b-plus-entitlement"
 import type { SchedulingResolutionContext } from "@/lib/braik-ai/resolve-scheduling-slots"
 
 const SCHEDULING_FORCE_SUFFIX = `\n\n[Scheduling] The user is putting a dated item on the team calendar (practice, workout, meeting, etc.). Call create_event with title, event_type, timeText, relativeDateText and/or explicitDateText, and location when given. Do NOT output ISO timestamps or final calendar dates—the app resolves “today”, “tomorrow”, and times in the user’s time zone. Do not use send_notification or send_team_message for this turn. Do not claim the event is saved until the tool runs; after success, you may briefly offer to notify players or parents as a follow-up only.`
@@ -169,6 +173,8 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
   const teamId = params.teamId?.trim() || undefined
   let viewerRoleLabel: string | undefined
 
+  const supabase = getSupabaseServer()
+  let coachBPlus = false
   if (teamId) {
     try {
       const { membership } = await requireTeamAccess(teamId)
@@ -176,6 +182,9 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
         return { type: "error", message: "Coach B is only available to coaching and admin roles.", status: 403 }
       }
       viewerRoleLabel = membership.role
+      coachBPlus = await isCoachBPlusEntitled(supabase, teamId, params.sessionUser.id, {
+        isPlatformOwner: params.sessionUser.isPlatformOwner === true,
+      })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (err instanceof MembershipLookupError) {
@@ -188,7 +197,6 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
       throw err
     }
   } else {
-    const supabase = getSupabaseServer()
     const { data: prof } = await supabase.from("profiles").select("role").eq("id", params.sessionUser.id).maybeSingle()
     const r = profileRoleToNormalizedRole((prof as { role?: string } | null)?.role)
     if (!canUseCoachB(r as Role)) {
@@ -234,6 +242,14 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
     }
   }
 
+  if (teamId && isLikelyCalendarSchedulingRequest(message) && !coachBPlus) {
+    return {
+      type: "response",
+      response: COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE,
+      spokenText: deriveDefaultSpokenText(COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE),
+    }
+  }
+
   const history = Array.isArray(params.conversationHistory) ? params.conversationHistory : []
   let context = createGenericContext()
   if (teamId) {
@@ -268,7 +284,7 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
     history,
     coordinatorAnalysis,
     role: viewerRoleLabel,
-    enableActionTools: Boolean(params.enableActionTools && teamId),
+    enableActionTools: Boolean(coachBPlus && params.enableActionTools !== false && teamId),
     coachVoicePromptSuffix,
   })
 
@@ -286,7 +302,7 @@ export async function runCoachBChat(params: RunCoachBChatParams): Promise<CoachB
     },
   })
 
-  const useTools = Boolean(params.enableActionTools && teamId)
+  const useTools = Boolean(teamId && coachBPlus && params.enableActionTools !== false)
   if (useTools) {
     try {
       const schedulingIntent = isLikelyCalendarSchedulingRequest(message)

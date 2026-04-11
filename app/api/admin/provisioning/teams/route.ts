@@ -9,7 +9,7 @@ export async function GET() {
   const supabase = getSupabaseServer()
   const { data, error } = await supabase
     .from("teams")
-    .select("id, name, org, program_id, video_clips_enabled")
+    .select("id, name, org, program_id, video_clips_enabled, coach_b_plus_enabled")
     .order("created_at", { ascending: false })
     .limit(200)
 
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     programName?: string
     sport?: string
     video_clips_enabled?: boolean
+    coach_b_plus_enabled?: boolean
   }
   try {
     body = (await request.json()) as typeof body
@@ -84,8 +85,9 @@ export async function POST(request: Request) {
       org: orgDisplay,
       program_id: programId,
       video_clips_enabled: body.video_clips_enabled === true,
+      coach_b_plus_enabled: body.coach_b_plus_enabled === true,
     })
-    .select("id, name, org, program_id, video_clips_enabled")
+    .select("id, name, org, program_id, video_clips_enabled, coach_b_plus_enabled")
     .maybeSingle()
 
   if (teamErr || !team) {

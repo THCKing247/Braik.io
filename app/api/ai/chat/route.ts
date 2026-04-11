@@ -42,6 +42,7 @@ export async function POST(req: Request) {
 
   const teamId = typeof body?.teamId === "string" && body.teamId.trim() ? body.teamId.trim() : undefined
   const inputSource = body.inputSource === "voice" ? "voice" : "text"
+  /** Client hint only; Coach B+ entitlement is enforced inside runCoachBChat (ignore forged requests). */
   const enableActionTools = body.enableActionTools !== false
   const coachVoice = parseCoachBVoiceRequest(body.coachVoice)
   const schedulingContext = parseClientSchedulingContext(body.schedulingContext)

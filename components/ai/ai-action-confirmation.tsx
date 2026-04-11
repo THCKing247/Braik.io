@@ -49,11 +49,11 @@ export function AIActionConfirmation({
   const loadProposal = async () => {
     try {
       const response = await fetch(`/api/ai/confirm-action?proposalId=${proposalId}`)
+      const data = (await response.json().catch(() => ({}))) as { proposal?: ActionProposal; error?: string }
       if (!response.ok) {
-        throw new Error("Failed to load proposal")
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to load proposal")
       }
-      const data = await response.json()
-      setProposal(data.proposal)
+      setProposal(data.proposal ?? null)
     } catch (err: any) {
       setError(err.message || "Failed to load proposal")
     } finally {

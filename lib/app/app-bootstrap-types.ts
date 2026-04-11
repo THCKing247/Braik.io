@@ -40,6 +40,8 @@ export type AppBootstrapPayload = {
   user: AppBootstrapUser
   team: AppBootstrapTeam
   flags: AppBootstrapTeamFlags
+  /** Coach B+ — action tools (calendar mutations, proposals, announcements, depth chart actions). Default false. */
+  coachBPlus: boolean
   unreadNotifications: number
   /** Head coach / assistant / AD only; empty counts for others. */
   engagement: {

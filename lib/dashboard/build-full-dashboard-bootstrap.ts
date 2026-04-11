@@ -20,6 +20,8 @@ import {
 import type { BootstrapTimingSink } from "@/lib/debug/bootstrap-timing"
 import { timedBootstrap } from "@/lib/debug/bootstrap-timing"
 import { lightweightCached, LW_TTL_DASHBOARD_BOOTSTRAP, tagTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
+import { isCoachBPlusEntitled } from "@/lib/braik-ai/coach-b-plus-entitlement"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export function requestAppOrigin(request: Request): string {
   const h = request.headers
@@ -73,19 +75,22 @@ export async function buildLightFullDashboardBootstrapData(
   liteRole: string,
   isPlatformOwner: boolean,
   access: ResolvedTeamAccess,
-  timing: BootstrapTimingSink | null
+  timing: BootstrapTimingSink | null,
+  /** When set by cache wrapper, avoids a duplicate Coach B+ entitlement query */
+  coachBPlusEntitled?: boolean
 ): Promise<FullDashboardBootstrapPayload> {
   const dashboardPromise = timing
     ? timedBootstrap(timing, "dashboard_minimal", () => buildMinimalDashboardBootstrapPayload(teamId))
     : getCachedMinimalDashboardBootstrapPayload(teamId)
 
+  const shellPayloadIn = {
+    ...shellLiteInput({ userId, email, teamId, liteTeamId, liteRole, isPlatformOwner, access }),
+    ...(coachBPlusEntitled !== undefined ? { coachBPlusEntitled } : {}),
+  }
+
   const shellPromise = timing
-    ? timedBootstrap(timing, "shell_lite", () =>
-        buildAppBootstrapPayloadLite(shellLiteInput({ userId, email, teamId, liteTeamId, liteRole, isPlatformOwner, access }))
-      )
-    : buildAppBootstrapPayloadLite(
-        shellLiteInput({ userId, email, teamId, liteTeamId, liteRole, isPlatformOwner, access })
-      )
+    ? timedBootstrap(timing, "shell_lite", () => buildAppBootstrapPayloadLite(shellPayloadIn))
+    : buildAppBootstrapPayloadLite(shellPayloadIn)
 
   const [dashboard, shellBase] = await Promise.all([dashboardPromise, shellPromise])
 
@@ -105,7 +110,7 @@ export async function buildLightFullDashboardBootstrapData(
   }
 }
 
-export function getCachedLightFullDashboardBootstrap(
+export async function getCachedLightFullDashboardBootstrap(
   teamId: string,
   userId: string,
   email: string,
@@ -114,8 +119,16 @@ export function getCachedLightFullDashboardBootstrap(
   isPlatformOwner: boolean,
   access: ResolvedTeamAccess
 ): Promise<FullDashboardBootstrapPayload> {
+  const supabase = getSupabaseServer()
+  const coachBPlus = await isCoachBPlusEntitled(supabase, teamId, userId, { isPlatformOwner })
   return lightweightCached(
-    ["dashboard-bootstrap-light-v3", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    [
+      "dashboard-bootstrap-light-v4",
+      teamId,
+      userId,
+      coachBPlus ? "1" : "0",
+      access.canEditRoster ? "coach" : "noncoach",
+    ],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [tagTeamDashboardBootstrap(teamId)],
@@ -129,7 +142,8 @@ export function getCachedLightFullDashboardBootstrap(
         liteRole,
         isPlatformOwner,
         access,
-        null
+        null,
+        coachBPlus
       )
   )
 }

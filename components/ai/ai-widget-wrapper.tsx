@@ -8,6 +8,7 @@ export function AIWidgetWrapper() {
   const shell = useAppBootstrapOptional()
   const teamId = shell?.payload?.team.id ?? shell?.teamId ?? ""
   const role = shell?.payload?.user.role
+  const coachBPlusEnabled = shell?.payload?.coachBPlus === true
 
   if (!teamId?.trim() || !role) {
     return null
@@ -23,6 +24,7 @@ export function AIWidgetWrapper() {
     <AIChatbotWidget
       teamId={teamId}
       userRole={role}
+      coachBPlusEnabled={coachBPlusEnabled}
       primaryColor="#1e3a5f"
     />
   )

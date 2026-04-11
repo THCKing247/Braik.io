@@ -6,8 +6,21 @@ import { USER_ROLE_LABELS, USER_ROLE_VALUES } from "@/lib/auth/user-roles"
 import { adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
-type OrgRow = { id: string; name: string; slug: string | null; video_clips_enabled: boolean }
-type TeamRow = { id: string; name: string; org: string | null; program_id: string | null; video_clips_enabled: boolean }
+type OrgRow = {
+  id: string
+  name: string
+  slug: string | null
+  video_clips_enabled: boolean
+  coach_b_plus_enabled: boolean
+}
+type TeamRow = {
+  id: string
+  name: string
+  org: string | null
+  program_id: string | null
+  video_clips_enabled: boolean
+  coach_b_plus_enabled: boolean
+}
 
 export function AdminProvisioningConsole() {
   const [orgs, setOrgs] = useState<OrgRow[]>([])
@@ -19,12 +32,14 @@ export function AdminProvisioningConsole() {
   const [orgName, setOrgName] = useState("")
   const [orgSlug, setOrgSlug] = useState("")
   const [orgVideo, setOrgVideo] = useState(false)
+  const [orgCoachBPlus, setOrgCoachBPlus] = useState(false)
 
   const [teamName, setTeamName] = useState("")
   const [teamOrgId, setTeamOrgId] = useState("")
   const [teamSport, setTeamSport] = useState("football")
   const [teamProgramName, setTeamProgramName] = useState("")
   const [teamVideo, setTeamVideo] = useState(false)
+  const [teamCoachBPlus, setTeamCoachBPlus] = useState(false)
 
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteName, setInviteName] = useState("")
@@ -52,7 +67,12 @@ export function AdminProvisioningConsole() {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: orgName, slug: orgSlug || null, video_clips_enabled: orgVideo }),
+      body: JSON.stringify({
+        name: orgName,
+        slug: orgSlug || null,
+        video_clips_enabled: orgVideo,
+        coach_b_plus_enabled: orgCoachBPlus,
+      }),
     })
     const data = await res.json()
     if (!res.ok) {
@@ -82,6 +102,7 @@ export function AdminProvisioningConsole() {
         sport: teamSport,
         programName: teamProgramName || teamName,
         video_clips_enabled: teamVideo,
+        coach_b_plus_enabled: teamCoachBPlus,
       }),
     })
     const data = await res.json()
@@ -155,6 +176,10 @@ export function AdminProvisioningConsole() {
             <input type="checkbox" checked={orgVideo} onChange={(e) => setOrgVideo(e.target.checked)} />
             video_clips_enabled (org)
           </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input type="checkbox" checked={orgCoachBPlus} onChange={(e) => setOrgCoachBPlus(e.target.checked)} />
+            coach_b_plus_enabled (org) — Coach B action tools
+          </label>
           <button type="submit" className={cn(adminUi.btnPrimary, "md:col-span-2")}>
             Create organization
           </button>
@@ -191,6 +216,10 @@ export function AdminProvisioningConsole() {
           <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
             <input type="checkbox" checked={teamVideo} onChange={(e) => setTeamVideo(e.target.checked)} />
             video_clips_enabled (team)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input type="checkbox" checked={teamCoachBPlus} onChange={(e) => setTeamCoachBPlus(e.target.checked)} />
+            coach_b_plus_enabled (team) — Coach B action tools
           </label>
           <button type="submit" className={cn(adminUi.btnPrimary, "md:col-span-2")}>
             Create team

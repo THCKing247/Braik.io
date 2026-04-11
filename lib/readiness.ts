@@ -3,7 +3,24 @@
  * Single source of truth for "ready", "profile complete", "physical on file", etc.
  */
 
+import {
+  DOCUMENT_TYPES,
+  DOCUMENT_TYPE_LABELS,
+  type DocumentType,
+} from "@/lib/player-documents/constants"
+
 export const REQUIRED_DOC_CATEGORIES = ["physical", "waiver"] as const
+
+/** Team-level document requirement toggles (stored in teams.roster_template.documentReadinessRequired). */
+export function resolveRequiredDocCategoriesFromStored(
+  documentReadinessRequired: Record<string, boolean> | undefined | null
+): string[] {
+  if (!documentReadinessRequired || typeof documentReadinessRequired !== "object") {
+    return [...REQUIRED_DOC_CATEGORIES]
+  }
+  const selected = DOCUMENT_TYPES.filter((t) => documentReadinessRequired[t] === true)
+  return selected.length > 0 ? selected : [...REQUIRED_DOC_CATEGORIES]
+}
 
 export interface ReadinessInput {
   hasName: boolean
@@ -28,7 +45,7 @@ export interface ReadinessResult {
 
 export function computeReadiness(
   input: ReadinessInput,
-  opts?: { omitMissingItems?: boolean }
+  opts?: { omitMissingItems?: boolean; requiredDocCategories?: readonly string[] }
 ): ReadinessResult {
   const {
     hasName,
@@ -38,21 +55,27 @@ export function computeReadiness(
     assignedEquipmentCount,
   } = input
 
+  const requiredCats =
+    opts?.requiredDocCategories && opts.requiredDocCategories.length > 0
+      ? opts.requiredDocCategories
+      : [...REQUIRED_DOC_CATEGORIES]
+
   const profileComplete = hasName && hasContact
   const physicalOnFile = documentCategories.includes("physical")
   const waiverOnFile = documentCategories.includes("waiver")
   const eligibilityOnFile = documentCategories.includes("eligibility")
-  const requiredDocsComplete = REQUIRED_DOC_CATEGORIES.every((c) =>
-    documentCategories.includes(c)
-  )
+  const requiredDocsComplete = requiredCats.every((c) => documentCategories.includes(c))
   const equipmentAssigned = assignedEquipmentCount > 0
 
   const missingItems: string[] = []
   if (!opts?.omitMissingItems) {
     if (!profileComplete) missingItems.push("Profile incomplete (name + contact)")
-    if (!physicalOnFile) missingItems.push("Physical on file")
-    if (!waiverOnFile) missingItems.push("Waiver on file")
-    if (!requiredDocsComplete) missingItems.push("Required documents")
+    for (const c of requiredCats) {
+      if (!documentCategories.includes(c)) {
+        const label = DOCUMENT_TYPE_LABELS[c as DocumentType] ?? c
+        missingItems.push(`${label} (required)`)
+      }
+    }
     if (!eligibilityStatus?.trim()) missingItems.push("Eligibility status")
   }
 

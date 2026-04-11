@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Save } from "lucide-react"
 
@@ -13,7 +12,6 @@ interface CalendarSettingsData {
   assistantsCanAddMeetings: boolean
   assistantsCanAddPractices: boolean
   assistantsCanEditNonlocked: boolean
-  compactView: boolean
 }
 
 interface CalendarSettingsSectionProps {
@@ -29,7 +27,6 @@ export function CalendarSettingsSection({ teamId, initialSettings }: CalendarSet
       assistantsCanAddMeetings: true,
       assistantsCanAddPractices: false,
       assistantsCanEditNonlocked: false,
-      compactView: false,
     }
   )
 
@@ -63,7 +60,7 @@ export function CalendarSettingsSection({ teamId, initialSettings }: CalendarSet
             CALENDAR VIEW SETTINGS
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Configure default calendar view and appearance
+            Configure default calendar view
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -80,20 +77,6 @@ export function CalendarSettingsSection({ teamId, initialSettings }: CalendarSet
               <option value="week">Week</option>
               <option value="month">Month</option>
             </select>
-          </div>
-
-          {/* Appearance */}
-          <div className="space-y-4 border-t border-border pt-4">
-            <Label className="text-foreground">Appearance</Label>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.compactView}
-                onChange={(e) => setSettings({ ...settings, compactView: e.target.checked })}
-                className="h-4 w-4 accent-primary"
-              />
-              <span className="text-sm text-foreground">Use compact calendar view</span>
-            </label>
           </div>
 
           <div className="flex justify-end pt-4 border-t border-border">

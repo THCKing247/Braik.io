@@ -98,10 +98,21 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
   const handleSave = async () => {
     setSaving(true)
     try {
+      const getRes = await fetch(`/api/teams/${teamId}/roster-template`)
+      const existing = getRes.ok ? ((await getRes.json()) as { template?: Record<string, unknown> }) : {}
+      const serverT = existing.template ?? {}
+      const merged = {
+        ...serverT,
+        ...template,
+        header: template.header,
+        body: template.body,
+        footer: template.footer,
+      }
+
       const response = await fetch(`/api/teams/${teamId}/roster-template`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template }),
+        body: JSON.stringify({ template: merged }),
       })
 
       if (response.ok) {
@@ -483,6 +494,97 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
           </div>
         </CardContent>
       </Card>
+
+      <RosterTemplatePreview template={template} />
     </div>
+  )
+}
+
+function RosterTemplatePreview({ template }: { template: RosterTemplate }) {
+  const headerLine = [
+    template.header.showYear && template.header.yearLabel,
+    template.header.showSchoolName && template.header.schoolNameLabel,
+    template.header.showTeamName && template.header.teamNameLabel,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  const cols: { key: string; label: string }[] = []
+  if (template.body.showJerseyNumber) {
+    cols.push({ key: "j", label: template.body.jerseyNumberLabel })
+  }
+  if (template.body.showPlayerName) {
+    cols.push({ key: "n", label: template.body.playerNameLabel })
+  }
+  if (template.body.showGrade) {
+    cols.push({ key: "g", label: template.body.gradeLabel })
+  }
+  if (template.body.showPosition !== false) {
+    cols.push({ key: "p", label: template.body.positionLabel ?? "Position" })
+  }
+  if (template.body.showWeight !== false) {
+    cols.push({ key: "w", label: template.body.weightLabel ?? "Weight" })
+  }
+  if (template.body.showHeight !== false) {
+    cols.push({ key: "h", label: template.body.heightLabel ?? "Height" })
+  }
+
+  const sample = {
+    j: "12",
+    n: "J. Sample",
+    g: "11",
+    p: "WR",
+    w: "175",
+    h: `6'1"`,
+  }
+
+  return (
+    <Card className="border border-border bg-card">
+      <CardHeader>
+        <CardTitle className="text-foreground">Preview</CardTitle>
+        <CardDescription className="text-muted-foreground">
+          Read-only preview of print/email layout. Updates when you change settings above.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-foreground">
+          {headerLine ? (
+            <p className="text-center font-semibold tracking-tight mb-4">{headerLine}</p>
+          ) : (
+            <p className="text-center text-muted-foreground mb-4 text-xs">(No header fields selected)</p>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[280px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border">
+                  {cols.map((c) => (
+                    <th key={c.key} className="py-2 pr-3 text-left font-semibold text-foreground">
+                      {c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/60">
+                  {cols.map((c) => (
+                    <td key={c.key} className="py-2 pr-3 text-foreground">
+                      {sample[c.key as keyof typeof sample] ?? "—"}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 space-y-1 text-xs text-muted-foreground border-t border-border pt-3">
+            {template.footer.showGeneratedDate && (
+              <p>Generated {new Date().toLocaleDateString()}</p>
+            )}
+            {template.footer.customText?.trim() ? (
+              <p className="text-foreground whitespace-pre-wrap">{template.footer.customText.trim()}</p>
+            ) : null}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

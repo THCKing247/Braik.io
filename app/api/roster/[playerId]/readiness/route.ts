@@ -3,7 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
-import { computeReadiness } from "@/lib/readiness"
+import { computeReadiness, resolveRequiredDocCategoriesFromStored } from "@/lib/readiness"
 import { activeDocumentCategoriesForReadiness } from "@/lib/readiness-documents"
 
 /**
@@ -79,13 +79,26 @@ export async function GET(
       .eq("team_id", teamId)
       .eq("assigned_to_player_id", playerId)
 
-    const result = computeReadiness({
-      hasName,
-      hasContact,
-      documentCategories: categories,
-      eligibilityStatus: row.eligibility_status ?? null,
-      assignedEquipmentCount: count ?? 0,
-    })
+    const { data: teamMeta } = await supabase
+      .from("teams")
+      .select("roster_template")
+      .eq("id", teamId)
+      .maybeSingle()
+    const dr = (
+      teamMeta as { roster_template?: { documentReadinessRequired?: Record<string, boolean> } } | null
+    )?.roster_template?.documentReadinessRequired
+    const requiredDocCategories = resolveRequiredDocCategoriesFromStored(dr)
+
+    const result = computeReadiness(
+      {
+        hasName,
+        hasContact,
+        documentCategories: categories,
+        eligibilityStatus: row.eligibility_status ?? null,
+        assignedEquipmentCount: count ?? 0,
+      },
+      { requiredDocCategories }
+    )
 
     return NextResponse.json(result)
   } catch (err) {

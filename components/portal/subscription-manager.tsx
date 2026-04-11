@@ -21,7 +21,6 @@ interface SubscriptionManagerProps {
   remainingBalance: number
   subscriptionPaid: boolean
   isHeadCoach: boolean
-  teamIdCode: string
 }
 
 export function SubscriptionManager({
@@ -32,7 +31,6 @@ export function SubscriptionManager({
   remainingBalance,
   subscriptionPaid,
   isHeadCoach,
-  teamIdCode,
 }: SubscriptionManagerProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -116,44 +114,6 @@ export function SubscriptionManager({
           )}
         </CardContent>
       </Card>
-
-      {/* Team Code - Head Coach Only */}
-      {isHeadCoach && (
-        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
-          <CardHeader>
-            <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-              TEAM CODE
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {teamIdCode ? (
-              <>
-                <p style={{ color: "rgb(var(--muted))" }}>
-                  Share this team code with Assistant Coaches, Players, and Parents so they can join your team.
-                </p>
-                <div className="p-6 rounded-lg border" style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}>
-                  <p className="text-sm mb-2" style={{ color: "rgb(var(--muted))" }}>Team Code</p>
-                  <p className="text-4xl font-bold font-mono tracking-wider" style={{ color: "rgb(var(--text))" }}>{teamIdCode}</p>
-                </div>
-                <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                  This code is required when other users sign up to join your team. You can also manage it in Settings.
-                </p>
-              </>
-            ) : (
-              <>
-                <p style={{ color: "rgb(var(--muted))" }}>
-                  No team code has been generated yet. Generate one in Settings so others can join your team.
-                </p>
-                <Link href="/dashboard/settings">
-                  <Button variant="outline" style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}>
-                    Go to Settings to generate Team Code
-                  </Button>
-                </Link>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Payment Information - Head Coach Only */}
       {isHeadCoach && (

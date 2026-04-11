@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, UserCheck, UserX, ChevronDown, ChevronUp } from "lucide-react"
+import { Users, UserCheck, ChevronDown, ChevronUp, ChevronRight } from "lucide-react"
 
 function Badge({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "outline" }) {
   return (
@@ -57,6 +57,11 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
   const [programId, setProgramId] = useState<string | null>(null)
+  const [groupOpen, setGroupOpen] = useState({ assistants: true, players: true, parents: true })
+
+  const toggleGroup = (key: keyof typeof groupOpen) => {
+    setGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   useEffect(() => {
     loadUsers()
@@ -197,12 +202,21 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
 
       {/* Assistants Section */}
       <Card className="border border-border bg-card">
-        <CardHeader>
+        <CardHeader
+          className="cursor-pointer select-none flex flex-row items-center justify-between gap-2"
+          onClick={() => toggleGroup("assistants")}
+        >
           <CardTitle className="flex items-center gap-2 text-foreground">
             <UserCheck className="h-5 w-5 text-primary" />
             Assistant Coaches ({assistants.length})
           </CardTitle>
+          {groupOpen.assistants ? (
+            <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+          ) : (
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+          )}
         </CardHeader>
+        {groupOpen.assistants && (
         <CardContent className="space-y-3">
           {assistants.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -226,16 +240,26 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
             ))
           )}
         </CardContent>
+        )}
       </Card>
 
       {/* Players Section */}
       <Card className="border border-border bg-card">
-        <CardHeader>
+        <CardHeader
+          className="cursor-pointer select-none flex flex-row items-center justify-between gap-2"
+          onClick={() => toggleGroup("players")}
+        >
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Users className="h-5 w-5 text-primary" />
             Players ({players.length})
           </CardTitle>
+          {groupOpen.players ? (
+            <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+          ) : (
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+          )}
         </CardHeader>
+        {groupOpen.players && (
         <CardContent className="space-y-2">
           {players.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -260,16 +284,26 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
             ))
           )}
         </CardContent>
+        )}
       </Card>
 
       {/* Parents Section */}
       <Card className="border border-border bg-card">
-        <CardHeader>
+        <CardHeader
+          className="cursor-pointer select-none flex flex-row items-center justify-between gap-2"
+          onClick={() => toggleGroup("parents")}
+        >
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Users className="h-5 w-5 text-primary" />
             Parents ({parents.length})
           </CardTitle>
+          {groupOpen.parents ? (
+            <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+          ) : (
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+          )}
         </CardHeader>
+        {groupOpen.parents && (
         <CardContent className="space-y-2">
           {parents.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -295,6 +329,7 @@ export function UsersListSettings({ teamId }: UsersListSettingsProps) {
             ))
           )}
         </CardContent>
+        )}
       </Card>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { SubscriptionManager } from "@/components/portal/subscription-manager"
+import { TeamCodeCard } from "@/components/portal/team-code-card"
 import { PaymentsManager } from "@/components/portal/payments-manager"
 import { CoachPaymentsManager } from "@/components/portal/coach-payments-manager"
 import { CollectionsOverview } from "@/components/portal/collections-overview"
@@ -68,16 +69,18 @@ export function InvoicePageClient({
     switch (activeTab) {
       case "subscription":
         return (
-          <SubscriptionManager
-            team={team}
-            playerCount={playerCount}
-            subscriptionAmount={subscriptionAmount}
-            amountPaid={team.amountPaid || 0}
-            remainingBalance={remainingBalance}
-            subscriptionPaid={team.subscriptionPaid || false}
-            isHeadCoach={isHeadCoach}
-            teamIdCode={team.teamIdCode || ""}
-          />
+          <div className="space-y-6">
+            <SubscriptionManager
+              team={team}
+              playerCount={playerCount}
+              subscriptionAmount={subscriptionAmount}
+              amountPaid={team.amountPaid || 0}
+              remainingBalance={remainingBalance}
+              subscriptionPaid={team.subscriptionPaid || false}
+              isHeadCoach={isHeadCoach}
+            />
+            {isHeadCoach && <TeamCodeCard teamIdCode={team.teamIdCode || ""} />}
+          </div>
         )
       case "payments":
         return (

@@ -1,5 +1,5 @@
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { computeReadiness } from "@/lib/readiness"
+import { computeReadiness, resolveRequiredDocCategoriesFromStored } from "@/lib/readiness"
 import { activeDocumentCategoriesForReadiness } from "@/lib/readiness-documents"
 
 export type TeamReadinessSummary = {
@@ -46,6 +46,14 @@ const EMPTY_SUMMARY: TeamReadinessSummary = {
 }
 
 const GUARDIAN_IN_CHUNK = 250
+
+async function loadRequiredDocumentCategories(teamId: string): Promise<string[]> {
+  const supabase = getSupabaseServer()
+  const { data } = await supabase.from("teams").select("roster_template").eq("id", teamId).maybeSingle()
+  const raw = (data as { roster_template?: { documentReadinessRequired?: Record<string, boolean> } } | null)
+    ?.roster_template?.documentReadinessRequired
+  return resolveRequiredDocCategoriesFromStored(raw)
+}
 
 async function guardianPlayerIdSet(
   supabase: ReturnType<typeof getSupabaseServer>,
@@ -166,7 +174,8 @@ function aggregateReadiness(
   docsByPlayer: Map<string, string[]>,
   equipmentByPlayer: Map<string, number>,
   guardiansByPlayer: Set<string>,
-  buildList: boolean
+  buildList: boolean,
+  requiredDocCategories: string[]
 ): { summary: TeamReadinessSummary; players?: PlayerReadinessItem[] } {
   const playerReadinessList: PlayerReadinessItem[] = []
 
@@ -198,12 +207,12 @@ function aggregateReadiness(
         eligibilityStatus: row.eligibility_status ?? null,
         assignedEquipmentCount,
       },
-      { omitMissingItems: !buildList }
+      { omitMissingItems: !buildList, requiredDocCategories }
     )
 
     if (result.ready) readyCount++
-    if (!result.physicalOnFile) missingPhysicalCount++
-    if (!result.waiverOnFile) missingWaiverCount++
+    if (requiredDocCategories.includes("physical") && !result.physicalOnFile) missingPhysicalCount++
+    if (requiredDocCategories.includes("waiver") && !result.waiverOnFile) missingWaiverCount++
     if (!accountLinked) notAccountLinkedCount++
     if (!result.profileComplete) incompleteProfileCount++
     if (!result.equipmentAssigned) noEquipmentCount++
@@ -259,7 +268,15 @@ async function computeSummaryHeavyFallback(teamId: string): Promise<{ summary: T
   if (!ctx) {
     return { summary: { ...EMPTY_SUMMARY } }
   }
-  return aggregateReadiness(ctx.players, ctx.docsByPlayer, ctx.equipmentByPlayer, ctx.guardiansByPlayer, false)
+  const requiredDocCategories = await loadRequiredDocumentCategories(teamId)
+  return aggregateReadiness(
+    ctx.players,
+    ctx.docsByPlayer,
+    ctx.equipmentByPlayer,
+    ctx.guardiansByPlayer,
+    false,
+    requiredDocCategories
+  )
 }
 
 /**
@@ -283,5 +300,13 @@ export async function computeTeamReadinessPayload(
   if (!ctx) {
     return { summary: { ...EMPTY_SUMMARY }, players: [] }
   }
-  return aggregateReadiness(ctx.players, ctx.docsByPlayer, ctx.equipmentByPlayer, ctx.guardiansByPlayer, true)
+  const requiredDocCategories = await loadRequiredDocumentCategories(teamId)
+  return aggregateReadiness(
+    ctx.players,
+    ctx.docsByPlayer,
+    ctx.equipmentByPlayer,
+    ctx.guardiansByPlayer,
+    true,
+    requiredDocCategories
+  )
 }

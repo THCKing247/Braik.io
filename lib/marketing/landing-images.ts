@@ -3,6 +3,13 @@
  * Regenerate files with: npx tsx scripts/optimize-landing-images.ts
  */
 
+/** Wide visual beside “One system. Less stress.” — Braik field photography only (no third-party marks). */
+export const landingOneSystemPanel = {
+  src: "/hero-background.jpg",
+  width: 1536,
+  height: 1024,
+} as const
+
 export const braikLogo = {
   webp: "/braik-logo.webp",
   width: 480,

@@ -1,28 +1,18 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { User, Users, Calendar, Lock, CreditCard, Palette, HelpCircle, ShieldCheck, UserCog, Building2, Gauge } from "lucide-react"
-import { AccountSettings } from "./settings-sections/account-settings"
+import { useState, useCallback, useMemo, type ComponentType } from "react"
+import { Users, Calendar, Lock, CreditCard, ShieldCheck, UserCog, Building2, FileText } from "lucide-react"
 import { TeamSettingsSection } from "./settings-sections/team-settings-section"
 import { SeasonSettings } from "./settings-sections/season-settings"
 import { CalendarSettingsSection } from "./settings-sections/calendar-settings-section"
 import { PermissionsSettings } from "./settings-sections/permissions-settings"
 import { CardIntegrationSettings } from "./settings-sections/card-integration-settings"
-import { AppearanceSettings } from "./settings-sections/appearance-settings"
-import { SupportSettings } from "./settings-sections/support-settings"
 import { ComplianceLegalSettings } from "./settings-sections/compliance-legal-settings"
 import { RosterTemplateSettings } from "./settings-sections/roster-template-settings"
 import { UsersListSettings } from "./settings-sections/users-list-settings"
 import { SubscriptionSettings } from "./settings-sections/subscription-settings"
 import { LinkToOrganizationSettings } from "./settings-sections/link-to-organization-settings"
-import { Phase1OpsSettings } from "./settings-sections/phase1-ops-settings"
-
-interface User {
-  id: string
-  email: string
-  name: string | null
-  image: string | null
-}
+import { DocumentSettingsSection } from "./settings-sections/document-settings-section"
 
 interface Team {
   id: string
@@ -45,31 +35,25 @@ interface Team {
     assistantsCanAddMeetings: boolean
     assistantsCanAddPractices: boolean
     assistantsCanEditNonlocked: boolean
-    compactView: boolean
   } | null
   players: Array<{ id: string }>
 }
 
-type SettingsSection = 
-  | "account"
+type SettingsSection =
   | "team"
   | "season"
   | "calendar"
   | "permissions"
-  | "cardIntegration"
-  | "appearance"
-  | "support"
   | "compliance"
   | "rosterTemplate"
+  | "documents"
   | "users"
   | "subscription"
   | "linkToOrganization"
-  | "phase1Ops"
 
 export type TeamUpdatePayload = Partial<Pick<Team, "name" | "slogan" | "logoUrl">> | Team
 
 interface SettingsLayoutProps {
-  user: User
   team: Team
   userRole: string
 }
@@ -77,40 +61,50 @@ interface SettingsLayoutProps {
 const SETTINGS_SECTIONS: Array<{
   id: SettingsSection
   label: string
-  icon: any
+  icon: ComponentType<{ className?: string }>
   visible: (role: string) => boolean
 }> = [
-  { id: "account", label: "Account", icon: User, visible: () => true },
   { id: "team", label: "Team", icon: Users, visible: (role) => role === "HEAD_COACH" },
   { id: "season", label: "Season", icon: Calendar, visible: (role) => role === "HEAD_COACH" },
   { id: "calendar", label: "Calendar", icon: Calendar, visible: (role) => role === "HEAD_COACH" },
-  { id: "permissions", label: "Permissions", icon: Lock, visible: (role) => role === "HEAD_COACH" },
-  { id: "cardIntegration", label: "Card Integration", icon: CreditCard, visible: (role) => role === "HEAD_COACH" },
-  { id: "appearance", label: "Appearance", icon: Palette, visible: () => true },
-  { id: "compliance", label: "Compliance & Legal", icon: ShieldCheck, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
-  { id: "rosterTemplate", label: "Roster Template", icon: Users, visible: (role) => role === "HEAD_COACH" || role === "ASSISTANT_COACH" },
+  { id: "permissions", label: "Roles", icon: Lock, visible: (role) => role === "HEAD_COACH" },
+  { id: "compliance", label: "Compliance & Legal", icon: ShieldCheck, visible: (role) =>
+    role === "HEAD_COACH" || role === "ASSISTANT_COACH",
+  },
+  { id: "rosterTemplate", label: "Roster Template", icon: Users, visible: (role) =>
+    role === "HEAD_COACH" || role === "ASSISTANT_COACH",
+  },
+  { id: "documents", label: "Documents", icon: FileText, visible: (role) => role === "HEAD_COACH" },
   { id: "users", label: "Users", icon: UserCog, visible: (role) => role === "HEAD_COACH" },
   { id: "subscription", label: "Subscription", icon: CreditCard, visible: (role) => role === "HEAD_COACH" },
-  { id: "linkToOrganization", label: "Athletic Department", icon: Building2, visible: (role) => role === "HEAD_COACH" },
-  { id: "support", label: "Support", icon: HelpCircle, visible: () => true },
+  {
+    id: "linkToOrganization",
+    label: "Athletic Department",
+    icon: Building2,
+    visible: (role) => role === "HEAD_COACH",
+  },
 ]
 
-export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLayoutProps) {
+function defaultSectionForRole(role: string): SettingsSection {
+  if (role === "HEAD_COACH") return "team"
+  return "compliance"
+}
+
+export function SettingsLayout({ team: initialTeam, userRole }: SettingsLayoutProps) {
   const [team, setTeam] = useState<Team>(initialTeam)
-  const [activeSection, setActiveSection] = useState<SettingsSection>("account")
+  const [activeSection, setActiveSection] = useState<SettingsSection>(() => defaultSectionForRole(userRole))
 
   const onTeamUpdated = useCallback((updates: TeamUpdatePayload) => {
     setTeam((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  const visibleSections = SETTINGS_SECTIONS.filter((section) =>
-    section.visible(userRole)
+  const visibleSections = useMemo(
+    () => SETTINGS_SECTIONS.filter((section) => section.visible(userRole)),
+    [userRole]
   )
 
   const renderContent = () => {
     switch (activeSection) {
-      case "account":
-        return <AccountSettings user={user} />
       case "team":
         return <TeamSettingsSection team={team} onTeamUpdated={onTeamUpdated} />
       case "season":
@@ -119,26 +113,25 @@ export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLa
         return <CalendarSettingsSection teamId={team.id} initialSettings={team.calendarSettings} />
       case "permissions":
         return <PermissionsSettings teamId={team.id} initialSettings={team.calendarSettings} />
-      case "cardIntegration":
-        return <CardIntegrationSettings teamId={team.id} />
-      case "appearance":
-        return <AppearanceSettings />
-      case "support":
-        return <SupportSettings />
       case "compliance":
         return <ComplianceLegalSettings teamId={team.id} userRole={userRole} />
       case "rosterTemplate":
         return <RosterTemplateSettings teamId={team.id} />
+      case "documents":
+        return <DocumentSettingsSection teamId={team.id} />
       case "users":
         return <UsersListSettings teamId={team.id} />
       case "subscription":
-        return <SubscriptionSettings teamId={team.id} />
+        return (
+          <div className="space-y-8">
+            <SubscriptionSettings teamId={team.id} />
+            <CardIntegrationSettings teamId={team.id} />
+          </div>
+        )
       case "linkToOrganization":
         return <LinkToOrganizationSettings />
-      case "phase1Ops":
-        return <Phase1OpsSettings teamId={team.id} />
       default:
-        return <AccountSettings user={user} />
+        return <TeamSettingsSection team={team} onTeamUpdated={onTeamUpdated} />
     }
   }
 
@@ -159,6 +152,7 @@ export function SettingsLayout({ user, team: initialTeam, userRole }: SettingsLa
               return (
                 <button
                   key={section.id}
+                  type="button"
                   onClick={() => setActiveSection(section.id)}
                   className={`flex shrink-0 items-center gap-3 whitespace-nowrap rounded-lg px-4 py-3 text-left transition-colors lg:w-full ${
                     isActive

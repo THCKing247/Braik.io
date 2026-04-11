@@ -24,7 +24,6 @@ type SettingsTeam = {
     assistantsCanAddMeetings: boolean
     assistantsCanAddPractices: boolean
     assistantsCanEditNonlocked: boolean
-    compactView: boolean
   } | null
   players: Array<{ id: string }>
 }
@@ -105,14 +104,6 @@ export function SettingsPageClient() {
     )
   }
 
-  const sessionUserEmail = bundle.userProfile.email ?? ""
-  const user = {
-    id: bundle.userProfile.id,
-    email: sessionUserEmail,
-    name: bundle.userProfile.full_name,
-    image: null as null,
-  }
-
   const { teamData, calendarSettings, players } = bundle
 
   let team: SettingsTeam = {
@@ -153,12 +144,11 @@ export function SettingsPageClient() {
             assistantsCanAddMeetings: calendarSettings.assistants_can_add_meetings ?? true,
             assistantsCanAddPractices: calendarSettings.assistants_can_add_practices ?? false,
             assistantsCanEditNonlocked: calendarSettings.assistants_can_edit_nonlocked ?? false,
-            compactView: calendarSettings.compact_view ?? false,
           }
         : null,
       players: players || [],
     }
   }
 
-  return <SettingsLayout user={user} team={team} userRole={bundle.userRole} />
+  return <SettingsLayout team={team} userRole={bundle.userRole} />
 }

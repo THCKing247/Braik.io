@@ -15,7 +15,6 @@ export function SubscriptionSettings({ teamId }: SubscriptionSettingsProps) {
     amountPaid: 0,
     subscriptionPaid: false,
     subscriptionAmount: 0,
-    teamIdCode: "",
   })
   const [players, setPlayers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,20 +28,14 @@ export function SubscriptionSettings({ teamId }: SubscriptionSettingsProps) {
 
     const load = async () => {
       try {
-        const [codesRes, rosterRes] = await Promise.all([
-          fetch(`/api/roster/codes?teamId=${encodeURIComponent(teamId)}`),
-          fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`),
-        ])
+        const rosterRes = await fetch(`/api/roster?teamId=${encodeURIComponent(teamId)}`)
 
         if (cancelled) return
 
-        const codesData = codesRes.ok ? await codesRes.json() : {}
         setTeam((prev) => ({
           ...prev,
           id: teamId,
-          name: codesData.teamName || prev.name,
-          teamIdCode: codesData.teamIdCode || "",
-          subscriptionAmount: 0, // Will be calculated from player count
+          subscriptionAmount: 0,
         }))
 
         if (rosterRes.ok) {
@@ -92,7 +85,6 @@ export function SubscriptionSettings({ teamId }: SubscriptionSettingsProps) {
             remainingBalance={remainingBalance}
             subscriptionPaid={team.subscriptionPaid || false}
             isHeadCoach={true}
-            teamIdCode={team.teamIdCode || ""}
           />
         </CardContent>
       </Card>

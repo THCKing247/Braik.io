@@ -11,6 +11,13 @@ export const NOTIFICATIONS_POLL_INTERVAL_IDLE_MS = 120_000
 const DEFAULT_USER_IDLE_MS = 120_000
 
 /**
+ * App-wide “sign out after inactivity” is not implemented here. This hook only affects whether
+ * notification polling runs (short idle window vs hidden tab). A future session inactivity logout
+ * (e.g. 60 minutes without input) would use a separate timer and call `signOut` — not
+ * `DEFAULT_USER_IDLE_MS`, which must stay short so background polls resume after brief idle.
+ */
+
+/**
  * When false, skip notification polling (tab hidden or no recent user activity).
  */
 export function useNotificationsPollingActive(idleMs: number = DEFAULT_USER_IDLE_MS): boolean {

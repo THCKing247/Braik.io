@@ -22,7 +22,6 @@ interface SeasonSettingsProps {
 export function SeasonSettings({ team }: SeasonSettingsProps) {
   const [loading, setLoading] = useState(false)
   const [showRollover, setShowRollover] = useState(false)
-  const [rosterCap, setRosterCap] = useState(team.rosterCap.toString())
   const [newSeasonName, setNewSeasonName] = useState("")
   const [newSeasonStart, setNewSeasonStart] = useState<Date | null>(null)
   const [newSeasonEnd, setNewSeasonEnd] = useState<Date | null>(null)
@@ -74,31 +73,6 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
       window.location.reload()
     } catch (error: any) {
       alert(error.message || "Error updating division/standing")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleUpdateRosterCap = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/teams/${team.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rosterCap: parseInt(rosterCap),
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to update roster cap")
-      }
-
-      alert("Roster cap updated successfully!")
-      window.location.reload()
-    } catch (error: any) {
-      alert(error.message || "Error updating roster cap")
     } finally {
       setLoading(false)
     }
@@ -196,12 +170,6 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
                   Your team&apos;s conference or league name
                 </p>
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-4">
-                <p className="text-sm text-muted-foreground">
-                  <strong className="text-foreground">Note:</strong> This information is manually entered. If you have access to an external standings API, 
-                  we can integrate it in the future. For now, you can update this information as needed.
-                </p>
-              </div>
               <Button onClick={handleSaveDivisionStanding} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
                 {loading ? "Saving..." : "Save Division & Standing"}
               </Button>
@@ -214,26 +182,14 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
       <Card className="border border-border bg-card">
         <CardHeader>
           <CardTitle className="text-foreground">Roster Cap</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Set the maximum number of players for this season
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="rosterCap" className="text-foreground">Maximum Players</Label>
-              <Input
-                id="rosterCap"
-                type="number"
-                value={rosterCap}
-                onChange={(e) => setRosterCap(e.target.value)}
-                min="1"
-                className="bg-background border-border text-foreground"
-              />
-            </div>
-            <Button onClick={handleUpdateRosterCap} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              Update Roster Cap
-            </Button>
+          <div className="space-y-2">
+            <Label className="text-foreground">Maximum Players</Label>
+            <p className="text-lg font-semibold tabular-nums text-foreground">{team.rosterCap}</p>
+            <p className="text-xs text-muted-foreground">
+              (Contact support to change)
+            </p>
           </div>
         </CardContent>
       </Card>

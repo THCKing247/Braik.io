@@ -43,12 +43,12 @@ export function PermissionsSettings({ teamId, initialSettings }: PermissionsSett
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to save permissions")
+        throw new Error(error.error || "Failed to save roles")
       }
 
-      alert("Permissions updated successfully!")
+      alert("Roles updated successfully!")
     } catch (error: any) {
-      alert(error.message || "Error saving permissions")
+      alert(error.message || "Error saving roles")
     } finally {
       setLoading(false)
     }
@@ -59,7 +59,7 @@ export function PermissionsSettings({ teamId, initialSettings }: PermissionsSett
       <Card className="border border-border bg-card">
         <CardHeader>
           <CardTitle className="uppercase text-xs font-bold tracking-wide text-muted-foreground">
-            ASSISTANT COACH PERMISSIONS
+            ASSISTANT COACH ROLES
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             Configure what assistant coaches can do with calendar events
@@ -109,7 +109,7 @@ export function PermissionsSettings({ teamId, initialSettings }: PermissionsSett
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Save className="h-4 w-4 mr-2" />
-              Save Permissions
+              Save Roles
             </Button>
           </div>
         </CardContent>

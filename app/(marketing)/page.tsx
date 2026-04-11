@@ -15,7 +15,7 @@ import { MarketingCard } from "@/components/marketing/marketing-layout"
 import { ImagePlaceholder } from "@/components/marketing/image-placeholder"
 import { SectionSplit } from "@/components/marketing/section-split"
 import { FAQLinkCTA } from "@/components/marketing/faq-link-cta"
-import { landingFogFieldHero } from "@/lib/marketing/landing-images"
+import { landingFogFieldHero, landingOneSystemPanel } from "@/lib/marketing/landing-images"
 import {
   landingBodyDark,
   landingContainer,
@@ -26,7 +26,7 @@ import {
 
 /**
  * Below-the-fold / non-LCP: separate chunks to shrink the main home bundle.
- * Hero field image keeps `priority`; device mockup uses default lazy load — do not add `priority`
+ * Hero field image keeps `priority`; one-system panel uses default lazy load — do not add `priority`
  * to below-fold images (see PERFORMANCE_GUIDELINES.md).
  */
 const LeadCaptureFormLazy = dynamic(
@@ -251,13 +251,27 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Reframing Braik — light / clarity; copy only (device/partnership imagery removed) */}
+      {/* Reframing Braik — light / clarity; wide panel left on desktop, text first on mobile */}
       <section className={landingLightSection}>
         <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-slate-50/80 to-white" aria-hidden />
-        <div className={landingContainer}>
-          <div className="mx-auto max-w-3xl">
-            <ScrollReveal>
-              <div className={`space-y-8 ${lightSectionColumn}`}>
+        <div className={landingContainerSplit}>
+          <ScrollReveal>
+            <SectionSplit>
+              <div className="order-2 flex min-w-0 justify-center md:order-1 md:justify-start">
+                <div className="w-full max-w-4xl">
+                  <Image
+                    src={landingOneSystemPanel.src}
+                    alt="Football field — Braik supports your program"
+                    width={landingOneSystemPanel.width}
+                    height={landingOneSystemPanel.height}
+                    sizes="(max-width: 896px) 100vw, 896px"
+                    quality={85}
+                    loading="lazy"
+                    className="h-auto w-full object-contain scale-105 md:scale-110 drop-shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
+                  />
+                </div>
+              </div>
+              <div className={`order-1 min-w-0 space-y-8 md:order-2 ${lightSectionColumn}`}>
                 <h2 className={lightSectionH2}>One system. Less stress.</h2>
                 <div className="space-y-6 pt-2">
                   <p className={lightSectionLead}>
@@ -271,8 +285,8 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-            </ScrollReveal>
-          </div>
+            </SectionSplit>
+          </ScrollReveal>
         </div>
       </section>
 

@@ -68,17 +68,25 @@ export async function POST(request: Request) {
     })
 
     if (!result.ok) {
-      if (result.error.includes("not configured")) {
+      if (result.code === "POSTMARK_NOT_CONFIGURED") {
         return NextResponse.json(
           {
-            error: "Email not configured",
-            detail: result.error,
-            hint: "Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL (verified sender in Postmark).",
+            code: "POSTMARK_NOT_CONFIGURED" as const,
+            message:
+              "Postmark is not configured. Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL, and make sure the sender is verified in Postmark.",
+            error: result.error,
           },
           { status: 503 }
         )
       }
-      return NextResponse.json({ error: result.error }, { status: result.status && result.status >= 400 ? result.status : 502 })
+      return NextResponse.json(
+        {
+          code: result.code ?? "POSTMARK_API_ERROR",
+          error: result.error,
+          errorCode: result.errorCode,
+        },
+        { status: result.status && result.status >= 400 ? result.status : 502 }
+      )
     }
 
     return NextResponse.json({

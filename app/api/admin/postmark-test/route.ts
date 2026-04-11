@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAdminAccessForApi } from "@/lib/admin/admin-access"
 import { sendEmail } from "@/lib/email/postmark"
-import { isPostmarkConfigured } from "@/lib/email/postmark-config"
+import { getPostmarkConfigStatus } from "@/lib/email/postmark-config"
 import { writeAdminAuditLog } from "@/lib/audit/admin-audit"
 
 export const runtime = "nodejs"
@@ -24,12 +24,15 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!isPostmarkConfigured()) {
+  const pm = getPostmarkConfigStatus()
+  if (!pm.configured) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Postmark is not configured",
-        detail: "Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL on the server.",
+        code: "POSTMARK_NOT_CONFIGURED" as const,
+        error: pm.userMessage,
+        missing: pm.missing,
+        hasServerToken: pm.hasServerToken,
       },
       { status: 503 }
     )
@@ -72,7 +75,13 @@ export async function POST(request: Request) {
 
   if (!result.ok) {
     return NextResponse.json(
-      { ok: false, error: result.error, status: result.status, errorCode: result.errorCode },
+      {
+        ok: false,
+        code: result.code,
+        error: result.error,
+        status: result.status,
+        errorCode: result.errorCode,
+      },
       { status: 502 }
     )
   }

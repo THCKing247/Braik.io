@@ -7,11 +7,11 @@
  */
 
 import {
+  getPostmarkConfigStatus,
   getPostmarkFromEmail,
   getPostmarkMessageStream,
   getPostmarkReplyToEmail,
   getPostmarkServerToken,
-  isPostmarkConfigured,
   warnPostmarkMissingOnce,
 } from "@/lib/email/postmark-config"
 
@@ -19,11 +19,18 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
 }
 
+export type EmailSendErrorCode =
+  | "POSTMARK_NOT_CONFIGURED"
+  | "INVALID_BODY"
+  | "POSTMARK_API_ERROR"
+  | "NETWORK"
+
 export type EmailSendResult =
   | { ok: true; messageId: string }
   | {
       ok: false
       error: string
+      code?: EmailSendErrorCode
       status?: number
       errorCode?: number
     }
@@ -70,16 +77,26 @@ function logPostmarkFailure(status: number, body: unknown, safeSummary: string) 
   })
 }
 
+const POSTMARK_NOT_CONFIGURED_MESSAGE =
+  "Postmark is not configured. Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL, and make sure the sender is verified in Postmark."
+
 /**
  * Send a transactional email via Postmark `/email` endpoint.
  * Returns `{ ok: false }` when env is missing or the API errors — does not throw for HTTP errors.
  */
 export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult> {
-  if (!isPostmarkConfigured()) {
+  const cfg = getPostmarkConfigStatus()
+  if (!cfg.configured) {
     warnPostmarkMissingOnce("sendEmail")
+    console.info("[braik-email] sendEmail skipped — not configured", {
+      hasServerToken: cfg.hasServerToken,
+      fromEmail: cfg.fromEmail,
+      missing: cfg.missing,
+    })
     return {
       ok: false,
-      error: "POSTMARK_SERVER_TOKEN is not configured or POSTMARK_FROM_EMAIL is missing",
+      code: "POSTMARK_NOT_CONFIGURED",
+      error: cfg.userMessage || POSTMARK_NOT_CONFIGURED_MESSAGE,
     }
   }
 
@@ -89,11 +106,18 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult>
   const text = input.textBody?.trim() ?? (html ? stripHtml(html) : "")
 
   if (!html && !text) {
-    return { ok: false, error: "Email must include htmlBody and/or textBody" }
+    return { ok: false, code: "INVALID_BODY", error: "Email must include htmlBody and/or textBody" }
   }
 
   const replyTo = input.replyTo?.trim() || getPostmarkReplyToEmail()
   const stream = input.messageStream?.trim() || getPostmarkMessageStream()
+
+  console.info("[braik-email] sendEmail", {
+    hasServerToken: true,
+    fromEmail: from,
+    messageStream: stream,
+    tag: input.tag?.trim() || null,
+  })
 
   const payload: Record<string, unknown> = {
     From: from,
@@ -133,17 +157,23 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult>
       logPostmarkFailure(res.status, data, res.statusText)
       return {
         ok: false,
+        code: "POSTMARK_API_ERROR",
         error: data.Message || res.statusText || "Postmark request failed",
         status: res.status,
         errorCode: typeof data.ErrorCode === "number" ? data.ErrorCode : undefined,
       }
     }
 
+    console.info("[braik-email] Postmark send ok", {
+      messageIdPresent: Boolean(data.MessageID),
+      status: res.status,
+    })
+
     return { ok: true, messageId: data.MessageID ?? "" }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Postmark network error"
     console.error("[braik-email] Postmark fetch error:", msg)
-    return { ok: false, error: msg }
+    return { ok: false, code: "NETWORK", error: msg }
   }
 }
 

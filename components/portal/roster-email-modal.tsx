@@ -27,6 +27,15 @@ type RosterRow = {
   healthStatus?: string | null
 }
 
+type PostmarkStatusPayload = {
+  configured: boolean
+  fromEmail: string | null
+  messageStream: string
+  missing: string[]
+  userMessage: string
+  hasServerToken: boolean
+}
+
 type RosterData = {
   team: { name: string; schoolName: string | null; year: number }
   template: {
@@ -82,6 +91,39 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
   const [statusFilter, setStatusFilter] = useState("")
   /** 1 players → 2 compose → 3 preview → 4 send */
   const [flowStep, setFlowStep] = useState<1 | 2 | 3 | 4>(1)
+  const [postmarkLoading, setPostmarkLoading] = useState(true)
+  const [postmarkStatus, setPostmarkStatus] = useState<PostmarkStatusPayload | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const loadPostmark = async () => {
+      setPostmarkLoading(true)
+      try {
+        const res = await fetch(`/api/email/postmark-status?teamId=${encodeURIComponent(teamId)}`)
+        const data = (await res.json().catch(() => ({}))) as Partial<PostmarkStatusPayload> & { error?: string }
+        if (!cancelled && res.ok && typeof data.configured === "boolean") {
+          setPostmarkStatus({
+            configured: data.configured,
+            fromEmail: data.fromEmail ?? null,
+            messageStream: data.messageStream ?? "outbound",
+            missing: Array.isArray(data.missing) ? data.missing : [],
+            userMessage: typeof data.userMessage === "string" ? data.userMessage : "",
+            hasServerToken: Boolean(data.hasServerToken),
+          })
+        } else if (!cancelled) {
+          setPostmarkStatus(null)
+        }
+      } catch {
+        if (!cancelled) setPostmarkStatus(null)
+      } finally {
+        if (!cancelled) setPostmarkLoading(false)
+      }
+    }
+    void loadPostmark()
+    return () => {
+      cancelled = true
+    }
+  }, [teamId])
 
   useEffect(() => {
     const load = async () => {
@@ -155,6 +197,10 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
       showToast("Select at least one player", "error")
       return
     }
+    if (postmarkStatus && !postmarkStatus.configured) {
+      showToast(postmarkStatus.userMessage, "error")
+      return
+    }
 
     setSending(true)
     try {
@@ -169,14 +215,25 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
           playerIds: filteredPlayers.map((p) => p.id),
         }),
       })
-      const data = await res.json().catch(() => ({}))
+      const data = (await res.json().catch(() => ({}))) as {
+        code?: string
+        message?: string
+        error?: string
+        hint?: string
+        detail?: string
+      }
       if (res.ok) {
         showToast(`Email sent (${filteredPlayers.length} players)`, "success")
         onClose()
-      } else if (res.status === 503) {
-        showToast(data.hint || data.detail || "Configure Postmark (POSTMARK_SERVER_TOKEN)", "error")
+      } else if (res.status === 503 && data.code === "POSTMARK_NOT_CONFIGURED") {
+        showToast(
+          data.message ||
+            data.error ||
+            "Postmark is not configured. Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL, and verify the sender in Postmark.",
+          "error"
+        )
       } else {
-        showToast(data.error || "Failed to send", "error")
+        showToast(data.message || data.error || data.hint || data.detail || "Failed to send", "error")
       }
     } catch {
       showToast("Failed to send email", "error")
@@ -226,11 +283,28 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
             </button>
           </div>
           <p className="text-sm text-muted-foreground mt-1 lg:mt-2">
-            Sending uses Postmark when <code className="text-xs bg-muted px-1 rounded">POSTMARK_SERVER_TOKEN</code> is set.
+            {postmarkLoading && "Checking email configuration…"}
+            {!postmarkLoading && postmarkStatus?.configured && postmarkStatus.fromEmail && (
+              <>
+                Sending via Postmark from <span className="font-medium text-foreground">{postmarkStatus.fromEmail}</span>{" "}
+                (stream: {postmarkStatus.messageStream}).
+              </>
+            )}
+            {!postmarkLoading && postmarkStatus && !postmarkStatus.configured && "Email sending is disabled until Postmark is configured on the server."}
+            {!postmarkLoading && !postmarkStatus &&
+              "Could not load email settings. You can still try to send; the server validates Postmark configuration."}
           </p>
         </CardHeader>
 
         <CardContent className="flex-1 overflow-y-auto space-y-4 pt-4 lg:pt-6 lg:px-8 min-h-0">
+          {!postmarkLoading && postmarkStatus && !postmarkStatus.configured && (
+            <div
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+              role="alert"
+            >
+              {postmarkStatus.userMessage}
+            </div>
+          )}
           {flowStep === 1 && (
             <>
               <div className="space-y-2">
@@ -447,7 +521,11 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
                 </div>
               )}
               <div className="flex flex-wrap gap-2 pt-2">
-                <Button type="button" onClick={() => setFlowStep(4)} disabled={!emailPreviewOpen}>
+                <Button
+                  type="button"
+                  onClick={() => setFlowStep(4)}
+                  disabled={!emailPreviewOpen || postmarkStatus?.configured === false}
+                >
                   Continue to send
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setFlowStep(2)}>
@@ -465,7 +543,13 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
                 {filteredPlayers.length === 1 ? "" : "s"}.
               </p>
               <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
-                <Button onClick={handleSend} disabled={sending || !recipientEmail.trim()} className="min-w-[160px]">
+                <Button
+                  onClick={handleSend}
+                  disabled={
+                    sending || !recipientEmail.trim() || postmarkLoading || postmarkStatus?.configured === false
+                  }
+                  className="min-w-[160px]"
+                >
                   <Send className="h-4 w-4 mr-2" />
                   {sending ? "Sending…" : "Send email"}
                 </Button>

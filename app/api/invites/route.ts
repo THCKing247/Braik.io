@@ -5,6 +5,8 @@ import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import crypto from "crypto"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
+import { sendTeamInviteEmail } from "@/lib/email/braik-emails"
+import { buildTeamInviteAcceptUrl } from "@/lib/invites/team-invite-link"
 
 export async function POST(request: Request) {
   try {
@@ -80,6 +82,34 @@ export async function POST(request: Request) {
       targetId: invite.id,
       metadata: { email: normalizedEmail, role },
     })
+
+    const { data: teamRow } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()
+    const teamName = (teamRow as { name?: string } | null)?.name?.trim() || "Your team"
+    const { data: inviterProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", session.user.id)
+      .maybeSingle()
+    const inviterName =
+      (inviterProfile as { full_name?: string | null } | null)?.full_name?.trim() || null
+
+    const inviteUrl = buildTeamInviteAcceptUrl(token)
+    sendTeamInviteEmail({
+      to: normalizedEmail,
+      teamName,
+      role: String(role),
+      inviteUrl,
+      inviterName,
+      metadata: { teamId, inviteId: String(invite.id) },
+    })
+      .then((emailResult) => {
+        if (!emailResult.ok) {
+          console.error("[POST /api/invites] Postmark team invite email failed:", emailResult.error)
+        }
+      })
+      .catch((err: unknown) => {
+        console.error("[POST /api/invites] Postmark team invite email threw:", err instanceof Error ? err.message : err)
+      })
 
     return NextResponse.json(invite)
   } catch (error: unknown) {

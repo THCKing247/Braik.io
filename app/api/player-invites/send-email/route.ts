@@ -3,7 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { buildJoinLink } from "@/lib/invites/build-join-link"
-import { sendEmailViaPostmark } from "@/lib/invites/postmark"
+import { sendPlayerInviteEmail } from "@/lib/email/braik-emails"
 import { logInviteAction } from "@/lib/audit/structured-logger"
 
 /**
@@ -65,29 +65,20 @@ export async function POST(request: Request) {
     const joinLink = buildJoinLink(token)
     const playerName = `${(player as { first_name: string }).first_name} ${(player as { last_name: string }).last_name}`.trim() || "Player"
 
-    const subject = "You've been invited to join Braik"
-    const textBody = [
-      `Hi ${playerName},`,
-      "",
-      "You've been invited to join your team on Braik.",
-      "",
-      "Join here: " + joinLink,
-      code ? `Or enter this code in the app: ${code}` : "",
-      "",
-      "If you didn't expect this invite, you can ignore this email.",
-    ]
-      .filter(Boolean)
-      .join("\n")
-
-    const result = await sendEmailViaPostmark({
+    const result = await sendPlayerInviteEmail({
       to: emailStr,
-      subject,
-      textBody,
+      playerName,
+      joinLink,
+      code: code || null,
+      metadata: {
+        playerId: String(playerId),
+        teamId: String((player as { team_id: string }).team_id),
+      },
     })
 
     const inviteId = (invite as { id: string }).id
 
-    if (result.success) {
+    if (result.ok) {
       await supabase
         .from("player_invites")
         .update({

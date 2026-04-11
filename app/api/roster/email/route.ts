@@ -63,6 +63,8 @@ export async function POST(request: Request) {
       to: recipientEmail.trim(),
       subject: subj,
       htmlBody: htmlContent,
+      tag: "roster-email",
+      metadata: { teamId },
     })
 
     if (!result.ok) {

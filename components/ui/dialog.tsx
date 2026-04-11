@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useEffect } from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -13,6 +14,8 @@ interface DialogProps {
 interface DialogContentProps {
   className?: string
   children: React.ReactNode
+  /** When false, hides the bottom-sheet drag pill (use for full-height centered panels). Default true. */
+  showMobileSheetHandle?: boolean
 }
 
 interface DialogHeaderProps {
@@ -31,29 +34,49 @@ interface DialogDescriptionProps {
 }
 
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
+  useEffect(() => {
+    if (!open) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [open])
+
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/50 py-3 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] md:items-center md:px-4 md:py-6"
       onClick={() => onOpenChange(false)}
     >
-      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+      {/*
+        min-h-0 + max-h-full lets tall panels respect viewport; without this, flex items won’t shrink
+        and the modal can extend past the screen with content clipped.
+      */}
+      <div
+        className="flex min-h-0 max-h-full w-full max-w-full flex-col items-center justify-end md:justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
     </div>
   )
 }
 
-export function DialogContent({ className, children }: DialogContentProps) {
+export function DialogContent({ className, children, showMobileSheetHandle = true }: DialogContentProps) {
   return (
     <div
       className={cn(
-        "w-screen max-w-none rounded-t-3xl border border-border bg-card p-4 shadow-2xl max-h-[90dvh] overflow-y-auto",
-        "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:mx-4 md:w-full md:max-w-lg md:rounded-2xl md:p-6",
+        "min-h-0 w-screen max-w-none rounded-t-3xl border border-border bg-card p-4 shadow-2xl max-h-[90dvh] overflow-y-auto",
+        "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:mx-0 md:w-full md:max-w-lg md:rounded-2xl md:p-6",
         /** Consumers (e.g. wide stat forms) may override `md:max-w-*` and flex layout via `className`. */
         className
       )}
     >
-      <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted md:hidden" aria-hidden />
+      {showMobileSheetHandle ? (
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted md:hidden" aria-hidden />
+      ) : null}
       {children}
     </div>
   )

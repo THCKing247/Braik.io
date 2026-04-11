@@ -131,11 +131,11 @@ export function NativeAppBootstrap() {
           aria-hidden
         />
         <div className="relative z-10 flex flex-col items-center gap-4">
-          <div className="flex h-12 w-[168px] items-center justify-center">
+          <div className="flex min-h-[4.5rem] w-auto max-w-[min(90vw,280px)] items-center justify-center">
             <img
               src="/braik-logo.webp"
               alt="Braik"
-              className="h-auto w-full max-h-11 object-contain brightness-0 invert"
+              className="h-[4.5rem] w-auto object-contain brightness-0 invert"
             />
           </div>
           <div className="h-10 w-10 animate-pulse rounded-full bg-white/15" aria-hidden />
@@ -164,11 +164,11 @@ export function NativeAppBootstrap() {
         aria-hidden
       />
       <div className="relative z-10 flex flex-col items-center gap-4">
-        <div className="flex h-12 w-[168px] items-center justify-center">
+        <div className="flex min-h-[4.5rem] w-auto max-w-[min(90vw,280px)] items-center justify-center">
           <img
             src="/braik-logo.webp"
             alt="Braik"
-            className="h-auto w-full max-h-11 object-contain brightness-0 invert"
+            className="h-[4.5rem] w-auto object-contain brightness-0 invert"
           />
         </div>
         <div className="h-10 w-10 animate-pulse rounded-full bg-white/15" aria-hidden />

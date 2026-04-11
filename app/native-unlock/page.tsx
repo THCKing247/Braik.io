@@ -132,11 +132,11 @@ export default function NativeUnlockPage() {
       />
       <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-10">
         <div className="flex flex-col items-center space-y-3 text-center">
-          <div className="flex h-12 w-[168px] items-center justify-center">
+          <div className="flex min-h-[4.5rem] w-auto max-w-[min(90vw,280px)] items-center justify-center">
             <img
               src="/braik-logo.webp"
               alt="Braik"
-              className="h-auto w-full max-h-11 object-contain brightness-0 invert"
+              className="h-[4.5rem] w-auto object-contain brightness-0 invert"
             />
           </div>
           {phase === "biometric" ? (

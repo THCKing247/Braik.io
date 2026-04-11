@@ -36,9 +36,9 @@ export function AdNavShellSkeleton() {
       aria-label="Loading navigation"
     >
       <div className="mx-auto px-4">
-        <div className="flex h-14 items-center justify-between">
+        <div className="flex min-h-20 items-center justify-between py-2">
           <div className="flex items-center gap-8">
-            <div className="h-8 w-[120px] animate-pulse rounded bg-[#E5E7EB]" />
+            <div className="h-[4.5rem] w-[180px] animate-pulse rounded bg-[#E5E7EB]" />
             <div className="hidden md:flex gap-2">
               <div className="h-9 w-20 animate-pulse rounded-md bg-[#E5E7EB]" />
               <div className="h-9 w-16 animate-pulse rounded-md bg-[#E5E7EB]" />
@@ -72,10 +72,17 @@ export function AdNav({
       style={{ borderColor: "rgb(var(--border))" }}
     >
       <div className="mx-auto px-4">
-        <div className="flex h-14 items-center justify-between">
+        <div className="flex min-h-20 items-center justify-between py-2">
           <div className="flex items-center gap-8">
             <Link href={homeHref} className="flex items-center gap-2">
-              <Image src="/braik-logo.webp" alt="Braik" width={480} height={320} className="h-8 w-auto" sizes="120px" />
+              <Image
+                src="/braik-logo.webp"
+                alt="Braik"
+                width={480}
+                height={320}
+                className="h-[4.5rem] w-auto object-contain"
+                sizes="180px"
+              />
               <span className="text-sm font-semibold text-[#6B7280] hidden sm:inline">Athletic Director</span>
             </Link>
             <div className="hidden md:flex gap-1">

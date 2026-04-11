@@ -67,13 +67,6 @@ export function DashboardLayoutClient({
   const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
   const useMobilePortalShell = !isPlayEditorRoute && !isSchedulePage
 
-  useEffect(() => {
-    document.body.classList.add("dashboard-desktop-scrollbar-hidden")
-    return () => {
-      document.body.classList.remove("dashboard-desktop-scrollbar-hidden")
-    }
-  }, [])
-
   // RSC passes a new `teams` array every navigation; keep referential stability when id+name are unchanged
   // so the sidebar subtree skips useless updates during soft route changes.
   const shellTeamsRef = useRef<{ sig: string; teams: Team[] } | null>(null)

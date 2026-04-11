@@ -65,6 +65,23 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0f172a]">
       <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll">
+        <div className="flex-shrink-0 border-b border-orange-500/30 px-4 py-6">
+          <Link
+            href={dashboardHomeHref}
+            className="inline-flex rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-orange-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a]"
+            aria-label="Braik - Home"
+          >
+            <Image
+              src="/braik-logo.webp"
+              alt="Braik"
+              width={720}
+              height={360}
+              className="h-[4.5rem] w-auto object-contain object-left"
+              priority
+            />
+          </Link>
+        </div>
+
         <div className="relative flex-shrink-0 border-b border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-transparent to-transparent px-4 pb-4 pt-5">
           <SidebarSectionLabel>Team</SidebarSectionLabel>
           {roleLabel && (

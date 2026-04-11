@@ -32,11 +32,11 @@ export function MobileAppEntryLoading({ message = "Loading…" }: { message?: st
         aria-hidden
       />
       <header className="relative z-10 flex shrink-0 flex-col items-center px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-4">
-        <div className="flex h-11 w-[148px] items-center justify-center">
+        <div className="flex min-h-[4.5rem] w-auto max-w-[min(90vw,280px)] items-center justify-center">
           <img
             src="/braik-logo.webp"
             alt="Braik"
-            className="h-auto w-full max-h-10 object-contain brightness-0 invert"
+            className="h-[4.5rem] w-auto object-contain brightness-0 invert"
           />
         </div>
         <p className="mt-2 text-center text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
@@ -70,11 +70,11 @@ export function MobileAppLoginScreen() {
       />
 
       <header className="relative z-10 flex shrink-0 flex-col items-center px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-2">
-        <div className="flex h-11 w-[160px] items-center justify-center">
+        <div className="flex min-h-[4.5rem] w-auto max-w-[min(90vw,280px)] items-center justify-center">
           <img
             src="/braik-logo.webp"
             alt="Braik"
-            className="h-auto w-full max-h-10 object-contain brightness-0 invert"
+            className="h-[4.5rem] w-auto object-contain brightness-0 invert"
           />
         </div>
         <p className="mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">

@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* App-wide: hide scrollbars; scroll still works (wheel, touch, trackpad, keyboard) */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* Hide scrollbar for inventory modal */
 .inventory-modal-scroll::-webkit-scrollbar {
   display: none;
@@ -296,16 +305,6 @@
 
 .announcements-container::-webkit-scrollbar {
   display: none;
-}
-
-@media (min-width: 1024px) {
-  body.dashboard-desktop-scrollbar-hidden {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  body.dashboard-desktop-scrollbar-hidden::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 /* Layout Structure - Rail Offset */

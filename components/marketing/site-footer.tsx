@@ -105,18 +105,16 @@ export function SiteFooter() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           {/* Company Info */}
           <div>
-            <div className="flex items-center mb-4">
-              <div className="h-10 md:h-12 lg:h-16 w-auto overflow-hidden flex items-center">
-                <Image
-                  src={braikLogo.webp}
-                  alt="Braik Logo"
-                  width={braikLogo.width}
-                  height={braikLogo.height}
-                  sizes="(max-width: 768px) 160px, 200px"
-                  quality={90}
-                  className="h-[140%] w-auto object-contain object-center -my-[20%] cursor-default"
-                />
-              </div>
+            <div className="mb-4 flex items-center">
+              <Image
+                src={braikLogo.webp}
+                alt="Braik Logo"
+                width={braikLogo.width}
+                height={braikLogo.height}
+                sizes="(max-width: 768px) 200px, 240px"
+                quality={90}
+                className="h-[4.5rem] w-auto cursor-default object-contain object-left"
+              />
             </div>
             <p className="mb-4 text-sm text-slate-700">
               Break the Huddle. Break the Norm.

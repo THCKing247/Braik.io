@@ -85,7 +85,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
         }}
         aria-label="App navigation"
       >
-        <div className="grid min-h-[72px] w-full grid-cols-3 items-center gap-2 px-3 py-2 sm:min-h-[76px] sm:px-5 md:min-h-[88px] md:px-6">
+        <div className="grid min-h-20 w-full grid-cols-3 items-center gap-2 px-3 py-2 sm:min-h-[5.5rem] sm:px-5 md:px-6">
           <div className="min-w-0 justify-self-start">
             {teams.length > 1 ? (
               <div className="max-w-[28vw] truncate text-xs font-semibold text-foreground sm:max-w-[140px] sm:text-sm">
@@ -105,19 +105,17 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
           <div className="flex min-w-0 justify-center">
             <Link
               href="/dashboard"
-              className="flex max-w-[min(300px,42vw)] min-w-0 justify-center active:opacity-80"
+              className="flex max-w-[min(300px,42vw)] min-w-0 items-center justify-center active:opacity-80"
               aria-label="Braik - Home"
             >
-              <div className="flex h-12 items-center overflow-hidden sm:h-14 md:h-16">
-                <Image
-                  src="/braik-logo.webp"
-                  alt="Braik"
-                  width={720}
-                  height={360}
-                  className="h-auto w-full max-h-12 object-contain object-center sm:max-h-14 md:max-h-16"
-                  priority
-                />
-              </div>
+              <Image
+                src="/braik-logo.webp"
+                alt="Braik"
+                width={720}
+                height={360}
+                className="h-[4.5rem] w-auto object-contain object-center"
+                priority
+              />
             </Link>
           </div>
           <div className="flex items-center justify-end gap-1 [&_button]:h-10 [&_button]:w-10">
@@ -141,7 +139,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
       <div className="relative hidden lg:block lg:h-0 lg:overflow-visible">
         <nav
           className={cn(
-            "fixed left-0 right-0 top-0 z-[60] flex h-[5rem] w-full min-w-0 max-w-full flex-col overflow-x-hidden",
+            "fixed left-0 right-0 top-0 z-[60] flex h-20 w-full min-w-0 max-w-full flex-col overflow-x-hidden",
             "border-b border-gray-200 bg-[#fafafa] shadow-sm"
           )}
           aria-label="App navigation"
@@ -153,16 +151,14 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 className="flex shrink-0 items-center rounded-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2"
                 aria-label="Braik - Return to dashboard"
               >
-                <div className="flex min-h-0 max-h-[5rem] max-w-[min(240px,calc(100vw-28rem))] items-center overflow-visible">
-                  <Image
-                    src="/braik-logo.webp"
-                    alt="Braik Logo"
-                    width={720}
-                    height={360}
-                    className="h-auto w-full max-h-[5rem] object-contain object-left"
-                    priority
-                  />
-                </div>
+                <Image
+                  src="/braik-logo.webp"
+                  alt="Braik Logo"
+                  width={720}
+                  height={360}
+                  className="h-[4.5rem] w-auto max-w-[min(240px,calc(100vw-28rem))] object-contain object-left"
+                  priority
+                />
               </Link>
             </div>
 

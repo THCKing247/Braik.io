@@ -54,16 +54,16 @@ export function SiteHeader() {
             className="flex items-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3B82F6] focus:ring-offset-2 rounded transition-all"
             aria-label="Braik - Return to home page"
           >
-            <div className="h-12 w-[200px] flex items-center overflow-hidden">
+            <div className="flex min-h-[4.5rem] items-center">
               <Image
                 src={braikLogo.webp}
                 alt="Braik"
                 width={braikLogo.width}
                 height={braikLogo.height}
-                sizes="200px"
+                sizes="240px"
                 quality={90}
                 priority
-                className="w-full h-auto block object-contain object-left"
+                className="h-[4.5rem] w-auto object-contain object-left"
               />
             </div>
           </Link>

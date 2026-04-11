@@ -211,17 +211,15 @@ const SidebarNavItem = memo(function SidebarNavItem({
       {isActive ? (
         <span
           aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-0 z-0 rounded-md",
-            "bg-gradient-to-r from-[rgba(249,115,22,0.18)] via-[rgba(249,115,22,0.08)] to-transparent",
-            "animate-sidebar-active-sheen motion-reduce:animate-none motion-reduce:opacity-40"
-          )}
+          className="pointer-events-none absolute inset-0 z-0 rounded-md bg-gradient-to-r from-[rgba(249,115,22,0.05)] to-transparent"
         />
       ) : null}
       <Icon
         className={cn(
           "relative z-[1] h-5 w-5 flex-shrink-0 transition-colors duration-150",
-          isActive ? "text-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.35)]" : "text-slate-500 group-hover:text-orange-400"
+          isActive
+            ? "text-orange-400 drop-shadow-[0_0_4px_rgba(249,115,22,0.12)]"
+            : "text-slate-500 group-hover:text-orange-400"
         )}
         aria-hidden
       />

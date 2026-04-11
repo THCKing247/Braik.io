@@ -29,6 +29,7 @@ import {
   SCHEDULE_TEAM_GAMES_STALE_MS,
   teamGamesQueryKey,
   teamGamesQueryKeyPrefix,
+  upsertTeamGameInGamesQueries,
 } from "@/lib/stats/fetch-team-games-client"
 import { getScheduleGamesWindows } from "@/lib/stats/schedule-games-windows"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
@@ -173,12 +174,12 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
 
   /** After games data is refreshed, move the active tab if this game belongs on the other list. */
   const routeScheduleTabForGame = useCallback(
-    (gameId: string) => {
+    (gameId: string, gameRow?: TeamGameRow | null) => {
       const tuples = queryClient.getQueriesData<{ games?: TeamGameRow[] }>({
         queryKey: [...teamGamesQueryKeyPrefix(teamId)],
       })
       const merged = mergeTeamGameRangeQueryResults(tuples.map(([, d]) => ({ data: d })))
-      const row = merged.find((g) => g.id === gameId)
+      const row = gameRow ?? merged.find((g) => g.id === gameId)
       if (!row) {
         logScheduleGameDev("post-save:game-missing-after-merge", { payload: { gameId, mergedCount: merged.length } })
         return
@@ -198,15 +199,29 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   )
 
   const onSaved = useCallback(
-    async (meta?: { gameId?: string | null }) => {
+    async (meta?: { gameId?: string | null; game?: TeamGameRow | null }) => {
       await refreshGames()
+      if (meta?.game) {
+        upsertTeamGameInGamesQueries(queryClient, teamId, meta.game)
+      }
       router.refresh()
       emitTeamGamesChanged(teamId)
       if (meta?.gameId) {
-        routeScheduleTabForGame(meta.gameId)
+        routeScheduleTabForGame(meta.gameId, meta.game ?? undefined)
       }
     },
-    [refreshGames, router, routeScheduleTabForGame, teamId]
+    [queryClient, refreshGames, router, routeScheduleTabForGame, teamId]
+  )
+
+  /** Inline score/quarter saves already ran `onRefresh`; merge PATCH row so lists stay consistent with server. */
+  const onInlineScoreSaved = useCallback(
+    (gameId: string, game?: TeamGameRow) => {
+      if (game) {
+        upsertTeamGameInGamesQueries(queryClient, teamId, game)
+      }
+      routeScheduleTabForGame(gameId, game)
+    },
+    [queryClient, routeScheduleTabForGame, teamId]
   )
 
   const orderedGames = games
@@ -367,7 +382,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
                 recordBeforeMap={recordBeforeFull}
                 teamTrends={teamTrendsFull}
                 surface="schedule"
-                onScoreSaved={routeScheduleTabForGame}
+                onScoreSaved={onInlineScoreSaved}
               />
             )
           ) : resultsGames.length === 0 ? (
@@ -390,7 +405,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
               recordBeforeMap={recordBeforeFull}
               teamTrends={teamTrendsFull}
               surface="results"
-              onScoreSaved={routeScheduleTabForGame}
+              onScoreSaved={onInlineScoreSaved}
             />
           )}
         </CardContent>

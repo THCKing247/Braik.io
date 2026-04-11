@@ -492,7 +492,7 @@ function NotificationsCard({
 
   return (
     <Card
-      className="flex h-full flex-col rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:border md:shadow-sm md:ring-0"
       style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
     >
       <CardHeader className="flex shrink-0 flex-row items-center justify-between px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
@@ -527,12 +527,12 @@ function NotificationsCard({
           <span className="h-9 w-16 shrink-0 md:h-7" aria-hidden />
         )}
       </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+      <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
         <ScrollFadeContainer
           variant="light"
           fadeHeight="h-6"
-          className="max-h-[320px] min-h-0 flex-1"
-          scrollClassName="space-y-2 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          scrollClassName="max-h-[min(20rem,50vh)] flex-1 space-y-2 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-4 pt-0 md:px-6 md:pb-6 [scrollbar-gutter:stable]"
         >
         {loading ? (
           <div className="space-y-3 py-6" aria-busy="true" aria-label="Loading notifications">
@@ -1089,7 +1089,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
       {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
       {hasTeam && (
         <HomeDashboardWidgetsRow key={dataTeamId}>
-          <div className="lg:col-span-4">
+          <div className="min-h-0 lg:col-span-4">
             <DashboardAnnouncementsCard
               teamId={dataTeamId}
               canCreate={canAddCalendarEvents}
@@ -1101,7 +1101,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
               }
             />
           </div>
-          <div className="lg:col-span-5">
+          <div className="min-h-0 lg:col-span-5">
             <NotificationsCard
               teamId={dataTeamId}
               bootstrapLoading={dashboardBootstrapState === "loading"}

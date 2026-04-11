@@ -51,7 +51,7 @@ export function TeamGameFormDialog({
   open: boolean
   onOpenChange: (o: boolean) => void
   game: TeamGameRow | null
-  onSaved?: (meta?: { gameId?: string | null }) => void | Promise<void>
+  onSaved?: (meta?: { gameId?: string | null; game?: TeamGameRow | null }) => void | Promise<void>
   /** Hint when adding a game (e.g. last scheduled opponent). */
   suggestedOpponent?: string
 }) {
@@ -228,6 +228,7 @@ export function TeamGameFormDialog({
         })
 
         const scheduleFollowUp = buildSchedulePayload()
+        let savedRow = j.game
         if (scheduleFollowUp) {
           const notesA = (scheduleFollowUp.notes ?? "").trim()
           const notesB = (game.notes ?? "").trim()
@@ -248,16 +249,17 @@ export function TeamGameFormDialog({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(scheduleFollowUp),
             })
-            const j2 = (await res2.json().catch(() => ({}))) as { error?: string }
+            const j2 = (await res2.json().catch(() => ({}))) as { error?: string; game?: TeamGameRow }
             if (!res2.ok) {
               throw new Error(j2.error || "Failed to update schedule details")
             }
+            if (j2.game) savedRow = j2.game
           }
         }
 
         showToast("Game result saved.", "success")
         onOpenChange(false)
-        void onSaved?.({ gameId: game.id })
+        void onSaved?.({ gameId: game.id, game: savedRow })
         return
       }
 
@@ -281,7 +283,7 @@ export function TeamGameFormDialog({
       logScheduleGameDev("TeamGameFormDialog:schedule-patch:after", { gameBefore: game, gameAfter: j.game })
       showToast("Game updated.", "success")
       onOpenChange(false)
-      void onSaved?.({ gameId: game.id })
+      void onSaved?.({ gameId: game.id, game: j.game })
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Save failed", "error")
     } finally {

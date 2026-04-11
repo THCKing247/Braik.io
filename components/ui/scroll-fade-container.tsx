@@ -93,7 +93,7 @@ export function ScrollFadeContainer({
   const fade = VARIANTS[variant]
 
   return (
-    <div className={cn("relative min-h-0", className)}>
+    <div className={cn("relative min-h-0 overflow-hidden", className)}>
       <div
         ref={scrollRef}
         onScroll={smart ? updateFades : undefined}

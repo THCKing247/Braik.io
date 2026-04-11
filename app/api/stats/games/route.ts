@@ -10,9 +10,8 @@ import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rba
 import { getCachedStatsGamesPayload } from "@/lib/stats/cached-stats-games"
 import type { TeamGameRow } from "@/lib/team-schedule-games"
 
-/** Personalized payload; teamId is in the URL — use CDN/browser revalidation conservatively. */
-const GAMES_CACHE_CONTROL =
-  "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+/** Per-member payload (RBAC) — avoid shared caches serving stale lists after score edits. */
+const GAMES_CACHE_CONTROL = "private, max-age=0, must-revalidate"
 
 export async function GET(request: Request) {
   try {

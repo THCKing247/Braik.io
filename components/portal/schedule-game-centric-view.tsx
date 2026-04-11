@@ -117,8 +117,8 @@ export function ScheduleGameCentricView({
   recordBeforeMap?: Map<string, WinLossRecord>
   teamTrends?: TeamTrendsSnapshot
   surface?: "schedule" | "results"
-  /** Fires after scores/quarters/bulk save + refresh so the parent can route tabs. */
-  onScoreSaved?: (gameId: string) => void
+  /** Fires after scores/quarters/bulk save + refresh so the parent can route tabs and merge cache. */
+  onScoreSaved?: (gameId: string, game?: TeamGameRow) => void
 }) {
   const { showToast } = usePlaybookToast()
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -178,14 +178,15 @@ export function ScheduleGameCentricView({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
+        const body = (await res.json().catch(() => ({}))) as { error?: string; game?: TeamGameRow }
         if (!res.ok) {
-          const j = await res.json().catch(() => ({}))
-          throw new Error((j as { error?: string }).error || "Update failed")
+          throw new Error(body.error || "Update failed")
         }
+        const j = body
         showToast("Final score saved.", "success")
         emitTeamGamesChanged(teamId)
         await Promise.resolve(onRefresh())
-        onScoreSaved?.(gameId)
+        onScoreSaved?.(gameId, j.game)
         setScoreEditId(null)
         setScoreDraft(null)
       } catch (e) {
@@ -222,15 +223,15 @@ export function ScheduleGameCentricView({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         })
+        const parsed = (await res.json().catch(() => ({}))) as { error?: string; game?: TeamGameRow }
         if (!res.ok) {
-          const j = await res.json().catch(() => ({}))
-          throw new Error((j as { error?: string }).error || "Update failed")
+          throw new Error(parsed.error || "Update failed")
         }
         showToast("Quarter breakdown saved.", "success")
         emitTeamGamesChanged(teamId)
         logScheduleGameDev("patchQuarters", { gameBefore: game, payload: body })
         await Promise.resolve(onRefresh())
-        onScoreSaved?.(game.id)
+        onScoreSaved?.(game.id, parsed.game)
       } catch (e) {
         showToast(e instanceof Error ? e.message : "Update failed", "error")
       } finally {

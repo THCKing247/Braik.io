@@ -287,6 +287,17 @@
   display: none;
 }
 
+/* Announcements card + view dialog: hide scrollbar, keep scroll (component-scoped class) */
+.announcements-container {
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.announcements-container::-webkit-scrollbar {
+  display: none;
+}
+
 @media (min-width: 1024px) {
   body.dashboard-desktop-scrollbar-hidden {
     scrollbar-width: none;

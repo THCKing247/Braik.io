@@ -35,6 +35,7 @@ export function OperatorAthleticDepartmentDetail({
   const [teamsAllowedInput, setTeamsAllowedInput] = useState(String(initial.overview.teamsAllowed))
   const [assistantsAllowedInput, setAssistantsAllowedInput] = useState(String(initial.overview.assistantCoachesAllowed))
   const [adVideo, setAdVideo] = useState(initial.overview.videoFeatureEnabled)
+  const [adCoachBPlus, setAdCoachBPlus] = useState(initial.overview.coachBPlusFeatureEnabled)
 
   const filteredUsers = useMemo(() => {
     const q = userQuery.trim().toLowerCase()
@@ -55,6 +56,7 @@ export function OperatorAthleticDepartmentDetail({
     setTeamsAllowedInput(String(data.overview.teamsAllowed))
     setAssistantsAllowedInput(String(data.overview.assistantCoachesAllowed))
     setAdVideo(data.overview.videoFeatureEnabled)
+    setAdCoachBPlus(data.overview.coachBPlusFeatureEnabled)
     router.refresh()
   }
 
@@ -81,6 +83,7 @@ export function OperatorAthleticDepartmentDetail({
             teams_allowed: teamsAllowed,
             assistant_coaches_allowed: assistantsAllowed,
             video_clips_enabled: adVideo,
+            coach_b_plus_enabled: adCoachBPlus,
             confirm_reduce_teams_below_active: confirms.teams,
             confirm_reduce_assistants_below_usage: confirms.assistants,
           }),
@@ -110,6 +113,30 @@ export function OperatorAthleticDepartmentDetail({
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function toggleTeamCoachBPlus(team: AthleticDepartmentTeamRow, next: boolean) {
+    if (next && !overview.coachBPlusFeatureEnabled) {
+      setErr("Turn on school-level Coach B+ before enabling team Coach B+.")
+      return
+    }
+    setErr(null)
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/athletic-departments/${adId}/teams/${team.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coach_b_plus_enabled: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Update failed")
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Update failed")
     } finally {
       setSaving(false)
     }
@@ -174,6 +201,10 @@ export function OperatorAthleticDepartmentDetail({
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">School video (master)</dt>
             <dd className="mt-1 text-sm font-medium text-slate-100">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
           </div>
+          <div className={adminUi.nestedRow}>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">School Coach B+ (master)</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-100">{overview.coachBPlusFeatureEnabled ? "On" : "Off"}</dd>
+          </div>
         </dl>
 
         <div className="mt-5 space-y-3 border-t border-slate-800 pt-5">
@@ -208,6 +239,21 @@ export function OperatorAthleticDepartmentDetail({
               />
               <span className="text-slate-300">School video enabled (master)</span>
             </label>
+            <label className="flex flex-col gap-0.5 text-sm sm:col-span-2">
+              <span className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={adCoachBPlus}
+                  onChange={(e) => setAdCoachBPlus(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/30"
+                />
+                <span className="text-slate-300">Coach B+ (master)</span>
+              </span>
+              <span className="pl-6 text-[11px] font-medium text-slate-500">
+                Enables Coach B action-taking, voice responses, and microphone features for this school. Team and
+                organization flags also apply when linked.
+              </span>
+            </label>
             <button
               type="button"
               disabled={saving}
@@ -219,6 +265,7 @@ export function OperatorAthleticDepartmentDetail({
           </div>
           <p className="text-xs font-medium text-slate-400">
             Lowering caps below current usage requires confirmation. Team video stays off when school video is off.
+            Team Coach B+ stays off when school Coach B+ is off.
           </p>
         </div>
       </div>
@@ -226,14 +273,14 @@ export function OperatorAthleticDepartmentDetail({
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
         <h3 className={adminUi.sectionTitle}>Teams</h3>
         <p className="mt-1 text-xs font-medium text-slate-300">
-          Team toggles are disabled when school video is off. Effective video also requires organization and team flags
-          when a program is linked.
+          Team toggles are disabled when school-level master switches are off. Effective access also requires
+          organization and team flags when a program is linked (same hierarchy as Game Video).
         </p>
         {teams.length === 0 ? (
           <p className="mt-4 text-sm font-medium text-slate-400">No teams linked to this athletic department.</p>
         ) : (
           <div className={cn(adminUi.tableWrap, "mt-4")}>
-            <table className={cn(adminUi.table, "min-w-[900px]")}>
+            <table className={cn(adminUi.table, "min-w-[1280px]")}>
               <thead className={adminUi.thead}>
                 <tr>
                   <th className={adminUi.th}>Team</th>
@@ -245,11 +292,15 @@ export function OperatorAthleticDepartmentDetail({
                   <th className={adminUi.th}>Org video</th>
                   <th className={adminUi.th}>Team video</th>
                   <th className={adminUi.th}>Effective</th>
+                  <th className={adminUi.th}>Org CB+</th>
+                  <th className={adminUi.th}>Team CB+</th>
+                  <th className={adminUi.th}>Effective CB+</th>
                 </tr>
               </thead>
               <tbody>
                 {teams.map((t) => {
                   const disabled = !overview.videoFeatureEnabled
+                  const disabledCoachBPlus = !overview.coachBPlusFeatureEnabled
                   return (
                     <tr key={t.id} className={adminUi.tbodyRow}>
                       <td className={cn(adminUi.td, "font-medium text-white")}>
@@ -282,6 +333,24 @@ export function OperatorAthleticDepartmentDetail({
                         </label>
                       </td>
                       <td className={adminUi.td}>{t.videoEffectiveEnabled ? "Yes" : "No"}</td>
+                      <td className={cn(adminUi.td, "font-medium text-slate-300")}>
+                        {t.organizationCoachBPlusEnabled == null ? "—" : t.organizationCoachBPlusEnabled ? "On" : "Off"}
+                      </td>
+                      <td className={adminUi.td}>
+                        <label
+                          className={`inline-flex items-center gap-2 ${disabledCoachBPlus ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={t.coachBPlusFeatureEnabled}
+                            disabled={disabledCoachBPlus || saving}
+                            title={disabledCoachBPlus ? "Enable school-level Coach B+ first" : undefined}
+                            onChange={(e) => toggleTeamCoachBPlus(t, e.target.checked)}
+                          />
+                          <span className="text-slate-300">{t.coachBPlusFeatureEnabled ? "On" : "Off"}</span>
+                        </label>
+                      </td>
+                      <td className={adminUi.td}>{t.coachBPlusEffectiveEnabled ? "Yes" : "No"}</td>
                     </tr>
                   )
                 })}

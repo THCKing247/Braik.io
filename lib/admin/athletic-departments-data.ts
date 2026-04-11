@@ -102,7 +102,9 @@ async function countUsersForAdBatch(
 export async function loadAthleticDepartmentsListRows(supabase: SupabaseClient): Promise<AthleticDepartmentListRow[]> {
   const { data: ads, error } = await supabase
     .from("athletic_departments")
-    .select("id, school_id, status, teams_allowed, assistant_coaches_allowed, video_clips_enabled")
+    .select(
+      "id, school_id, status, teams_allowed, assistant_coaches_allowed, video_clips_enabled, coach_b_plus_enabled"
+    )
     .order("created_at", { ascending: false })
   if (error) throw error
 
@@ -133,6 +135,7 @@ export async function loadAthleticDepartmentsListRows(supabase: SupabaseClient):
       teams_allowed: number
       assistant_coaches_allowed: number
       video_clips_enabled: boolean
+      coach_b_plus_enabled?: boolean
       school_id: string
     }
     const teamIds = teamIdsByAd.get(a.id) ?? []
@@ -149,6 +152,7 @@ export async function loadAthleticDepartmentsListRows(supabase: SupabaseClient):
       teamsAllowed: a.teams_allowed,
       assistantCoachesAllowed: a.assistant_coaches_allowed,
       videoFeatureEnabled: Boolean(a.video_clips_enabled),
+      coachBPlusFeatureEnabled: Boolean(a.coach_b_plus_enabled),
       totalUsers,
       status: a.status,
     })
@@ -168,7 +172,7 @@ export async function loadAthleticDepartmentDetail(
   const { data: ad, error } = await supabase
     .from("athletic_departments")
     .select(
-      "id, school_id, status, teams_allowed, assistant_coaches_allowed, video_clips_enabled, athletic_director_user_id"
+      "id, school_id, status, teams_allowed, assistant_coaches_allowed, video_clips_enabled, coach_b_plus_enabled, athletic_director_user_id"
     )
     .eq("id", athleticDepartmentId)
     .maybeSingle()
@@ -202,12 +206,13 @@ export async function loadAthleticDepartmentDetail(
       ? await supabase
           .from("teams")
           .select(
-            "id, name, sport, team_level, team_status, video_clips_enabled, program_id, athletic_department_id"
+            "id, name, sport, team_level, team_status, video_clips_enabled, coach_b_plus_enabled, program_id, athletic_department_id"
           )
           .in("id", teamIds)
       : { data: [] }
 
   const adVideo = Boolean((ad as { video_clips_enabled?: boolean }).video_clips_enabled)
+  const adCoachBPlus = Boolean((ad as { coach_b_plus_enabled?: boolean }).coach_b_plus_enabled)
 
   const programIds = [
     ...new Set(
@@ -217,6 +222,7 @@ export async function loadAthleticDepartmentDetail(
     ),
   ]
   const orgVideoByProgramId = new Map<string, boolean | null>()
+  const orgCoachBPlusByProgramId = new Map<string, boolean | null>()
   if (programIds.length > 0) {
     const { data: programs } = await supabase.from("programs").select("id, organization_id").in("id", programIds)
     const orgIds = [
@@ -227,16 +233,16 @@ export async function loadAthleticDepartmentDetail(
       ),
     ]
     const orgVideoByOrgId = new Map<string, boolean>()
+    const orgCoachBPlusByOrgId = new Map<string, boolean>()
     if (orgIds.length > 0) {
       const { data: orgRows } = await supabase
         .from("organizations")
-        .select("id, video_clips_enabled")
+        .select("id, video_clips_enabled, coach_b_plus_enabled")
         .in("id", orgIds)
       for (const o of orgRows ?? []) {
-        orgVideoByOrgId.set(
-          (o as { id: string }).id,
-          Boolean((o as { video_clips_enabled?: boolean }).video_clips_enabled)
-        )
+        const row = o as { id: string; video_clips_enabled?: boolean; coach_b_plus_enabled?: boolean }
+        orgVideoByOrgId.set(row.id, Boolean(row.video_clips_enabled))
+        orgCoachBPlusByOrgId.set(row.id, Boolean(row.coach_b_plus_enabled))
       }
     }
     for (const p of programs ?? []) {
@@ -244,6 +250,9 @@ export async function loadAthleticDepartmentDetail(
       const v =
         pr.organization_id != null ? orgVideoByOrgId.get(pr.organization_id) : undefined
       orgVideoByProgramId.set(pr.id, v === undefined ? null : v)
+      const cb =
+        pr.organization_id != null ? orgCoachBPlusByOrgId.get(pr.organization_id) : undefined
+      orgCoachBPlusByProgramId.set(pr.id, cb === undefined ? null : cb)
     }
   }
 
@@ -272,6 +281,9 @@ export async function loadAthleticDepartmentDetail(
     const pid = (tr as { program_id?: string | null }).program_id
     const orgVid = pid ? orgVideoByProgramId.get(pid) ?? null : null
     const orgOk = orgVid == null ? true : orgVid
+    const teamCoachB = Boolean((tr as { coach_b_plus_enabled?: boolean }).coach_b_plus_enabled)
+    const orgCoachB = pid ? orgCoachBPlusByProgramId.get(pid) ?? null : null
+    const orgOkCoachB = orgCoachB == null ? true : orgCoachB
     return {
       id: tr.id,
       name: tr.name ?? "",
@@ -283,6 +295,9 @@ export async function loadAthleticDepartmentDetail(
       videoFeatureEnabled: teamVid,
       organizationVideoEnabled: orgVid,
       videoEffectiveEnabled: Boolean(adVideo && orgOk && teamVid),
+      coachBPlusFeatureEnabled: teamCoachB,
+      organizationCoachBPlusEnabled: orgCoachB,
+      coachBPlusEffectiveEnabled: Boolean(adCoachBPlus && orgOkCoachB && teamCoachB),
     }
   })
 
@@ -358,6 +373,7 @@ export async function loadAthleticDepartmentDetail(
     teamsAllowed: (ad as { teams_allowed: number }).teams_allowed,
     assistantCoachesAllowed: (ad as { assistant_coaches_allowed: number }).assistant_coaches_allowed,
     videoFeatureEnabled: adVideo,
+    coachBPlusFeatureEnabled: adCoachBPlus,
     activeTeamCount,
     assistantCoachUsageCount,
     organizationNames,

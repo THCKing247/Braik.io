@@ -22,7 +22,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
     <div className="space-y-6">
       <AdminPageHeader
         title="Athletic departments"
-        description="Entitlements and usage for each school’s athletic department. Video requires school, organization, and team toggles where linked."
+        description="Entitlements and usage for each school’s athletic department. Video and Coach B+ require school, organization, and team toggles where linked."
         action={
           <input
             value={query}
@@ -43,7 +43,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
         </div>
       ) : (
         <div className={adminUi.tableWrap}>
-          <table className={cn(adminUi.table, "min-w-[960px]")}>
+          <table className={cn(adminUi.table, "min-w-[1040px]")}>
             <thead className={adminUi.thead}>
               <tr>
                 <th className={adminUi.th}>School / AD</th>
@@ -51,6 +51,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
                 <th className={adminUi.th}>Teams (used / cap)</th>
                 <th className={adminUi.th}>Asst. coaches allowed</th>
                 <th className={adminUi.th}>Video (school)</th>
+                <th className={adminUi.th}>Coach B+ (school)</th>
                 <th className={adminUi.th}>Users</th>
                 <th className={adminUi.th}>Status</th>
                 <th className={adminUi.th}>Actions</th>
@@ -70,6 +71,15 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
                   <td className={adminUi.td}>
                     <span className={row.videoFeatureEnabled ? adminChip.success : cn(adminChip.neutral, "text-slate-300")}>
                       {row.videoFeatureEnabled ? "On" : "Off"}
+                    </span>
+                  </td>
+                  <td className={adminUi.td}>
+                    <span
+                      className={
+                        row.coachBPlusFeatureEnabled ? adminChip.success : cn(adminChip.neutral, "text-slate-300")
+                      }
+                    >
+                      {row.coachBPlusFeatureEnabled ? "On" : "Off"}
                     </span>
                   </td>
                   <td className={adminUi.td}>{row.totalUsers}</td>

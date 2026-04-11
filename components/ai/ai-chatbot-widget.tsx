@@ -144,7 +144,9 @@ export function AIChatbotWidget({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canUseAdvancedActions = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
-  const showActionCapabilityHints = canUseAdvancedActions && coachBPlusEnabled
+  /** Actions, voice, mic, TTS, and file upload — all require Coach B+ for staff roles. */
+  const coachBPlusUi = coachBPlusEnabled && canUseAdvancedActions
+  const showActionCapabilityHints = coachBPlusUi
   const coachCopy = useCoachBRotatingCopy()
   const coachB = useCoachB()
   const pathname = usePathname()
@@ -225,6 +227,7 @@ export function AIChatbotWidget({
       content: string,
       opts?: { actionType?: string; source?: "autoplay" | "manual"; spokenText?: string }
     ) => {
+      if (!coachBPlusEnabled) return
       if (!voiceSettingsHydrated) return
       if (opts?.source === "autoplay" && !voiceSettings.voiceModeEnabled) return
 
@@ -323,7 +326,7 @@ export function AIChatbotWidget({
         setTtsLoadingId((id) => (id === messageId ? null : id))
       }
     },
-    [teamId, pathname, isPlayEditorRoute, voiceSettings, voiceSettingsHydrated]
+    [teamId, pathname, isPlayEditorRoute, voiceSettings, voiceSettingsHydrated, coachBPlusEnabled]
   )
 
   /** Voice Mode: auto-request TTS when a new assistant message is appended (not when toggling settings). */
@@ -335,7 +338,7 @@ export function AIChatbotWidget({
     }
     const grew = len > prevMessagesLenRef.current
     prevMessagesLenRef.current = len
-    if (!grew || !voiceSettingsHydrated || !voiceSettings.voiceModeEnabled) return
+    if (!grew || !coachBPlusEnabled || !voiceSettingsHydrated || !voiceSettings.voiceModeEnabled) return
     const last = messages[len - 1]
     if (last.role !== "assistant" || last.type === "error") return
     if (lastAutoplayScheduledIdRef.current === last.id) return
@@ -345,7 +348,7 @@ export function AIChatbotWidget({
       source: "autoplay",
       spokenText: last.spokenText,
     })
-  }, [messages, voiceSettingsHydrated, voiceSettings.voiceModeEnabled, playAssistantTts])
+  }, [messages, coachBPlusEnabled, voiceSettingsHydrated, voiceSettings.voiceModeEnabled, playAssistantTts])
 
   useEffect(() => {
     return () => {
@@ -763,6 +766,7 @@ export function AIChatbotWidget({
   }, [endMicPress])
 
   const startMicRecording = async () => {
+    if (!coachBPlusUi) return
     if (loading || uploading) return
     micAbortControllerRef.current?.abort()
     const ac = new AbortController()
@@ -847,6 +851,7 @@ export function AIChatbotWidget({
   }
 
   const handleMicPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!coachBPlusUi) return
     if (e.button !== 0) return
     if (isMicPressingRef.current) return
     if (loading || uploading || voicePhaseRef.current === "processing") return
@@ -1007,7 +1012,7 @@ export function AIChatbotWidget({
                     </p>
                     {showActionCapabilityHints ? (
                       <p className="text-xs mt-2 text-[rgb(var(--text2))]">
-                        I can help you create events, send messages, and manage your team.
+                        I can help with actions, voice, and the mic — plus events, messages, and team tasks.
                       </p>
                     ) : (
                       <p className="text-xs mt-2 text-[rgb(var(--text2))]">
@@ -1049,7 +1054,7 @@ export function AIChatbotWidget({
                           <p className="text-[10px] uppercase tracking-wide opacity-80 mb-1">Voice transcript</p>
                         )}
                         <p className="text-sm">{message.content}</p>
-                        {message.role === "assistant" && message.type !== "error" && (
+                        {message.role === "assistant" && message.type !== "error" && coachBPlusUi && (
                           <div className="mt-2 flex items-center gap-2">
                             <button
                               type="button"
@@ -1115,7 +1120,7 @@ export function AIChatbotWidget({
                       </div>
                     </div>
                     {/* Show confirmation UI for action proposals */}
-                    {coachBPlusEnabled &&
+                    {coachBPlusUi &&
                       message.type === "action_proposal" &&
                       message.proposalId &&
                       activeProposalId === message.proposalId && (
@@ -1169,53 +1174,60 @@ export function AIChatbotWidget({
 
               {/* Input area: pinned to bottom */}
               <div className="shrink-0 relative border-t border-[#dbe3f0] p-4 bg-white">
-                <details className="mb-2 rounded-md border border-gray-200 bg-gray-50/80 px-2 py-1.5 text-xs text-gray-700">
-                  <summary className="cursor-pointer select-none font-medium text-gray-800">Coach and voice</summary>
-                  <div className="mt-2 flex flex-col gap-2 pb-1">
-                    <label className="flex flex-col gap-0.5 cursor-pointer select-none">
-                      <span className="flex items-center gap-2">
+                {coachBPlusUi ? (
+                  <details className="mb-2 rounded-md border border-gray-200 bg-gray-50/80 px-2 py-1.5 text-xs text-gray-700">
+                    <summary className="cursor-pointer select-none font-medium text-gray-800">Coach and voice</summary>
+                    <div className="mt-2 flex flex-col gap-2 pb-1">
+                      <label className="flex flex-col gap-0.5 cursor-pointer select-none">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={voiceSettings.voiceModeEnabled}
+                            onChange={(e) => {
+                              setVoiceModeEnabled(e.target.checked)
+                              setTtsError(null)
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span className="font-medium text-gray-800">Voice Mode</span>
+                        </span>
+                        <span className="pl-6 text-[11px] text-gray-500 leading-snug">
+                          When on, new replies speak automatically. Turn off to read only; tap the speaker anytime to listen.
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          checked={voiceSettings.voiceModeEnabled}
-                          onChange={(e) => {
-                            setVoiceModeEnabled(e.target.checked)
-                            setTtsError(null)
-                          }}
+                          checked={voiceSettings.sidelineMode}
+                          onChange={(e) => setSidelineMode(e.target.checked)}
                           className="rounded border-gray-300"
                         />
-                        <span className="font-medium text-gray-800">Voice Mode</span>
-                      </span>
-                      <span className="pl-6 text-[11px] text-gray-500 leading-snug">
-                        When on, new replies speak automatically. Turn off to read only; tap the speaker anytime to listen.
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={voiceSettings.sidelineMode}
-                        onChange={(e) => setSidelineMode(e.target.checked)}
-                        className="rounded border-gray-300"
-                      />
-                      Sideline mode (short answers, faster voice)
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] text-gray-600">Coach style</span>
-                      <select
-                        value={voiceSettings.personalityId}
-                        onChange={(e) => setPersonalityId(e.target.value as CoachPersonalityId)}
-                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
-                      >
-                        {(Object.keys(COACH_PERSONALITIES) as CoachPersonalityId[]).map((id) => (
-                          <option key={id} value={id}>
-                            {COACH_PERSONALITIES[id].label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </details>
+                        Sideline mode (short answers, faster voice)
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-gray-600">Coach style</span>
+                        <select
+                          value={voiceSettings.personalityId}
+                          onChange={(e) => setPersonalityId(e.target.value as CoachPersonalityId)}
+                          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                        >
+                          {(Object.keys(COACH_PERSONALITIES) as CoachPersonalityId[]).map((id) => (
+                            <option key={id} value={id}>
+                              {COACH_PERSONALITIES[id].label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </details>
+                ) : canUseAdvancedActions ? (
+                  <p className="mb-2 rounded-md border border-gray-200 bg-gray-50/80 px-2 py-2 text-[11px] text-gray-600 leading-snug">
+                    Coach B+ is not enabled on this account — voice responses and the microphone are unavailable. You can
+                    still use text chat.
+                  </p>
+                ) : null}
                 <div className="flex flex-col gap-2 mb-2">
-                  {canUseAdvancedActions && (
+                  {coachBPlusUi && (
                     <div className="flex items-center gap-2 text-[10px] text-gray-600 min-h-[1.25rem]">
                       {voicePhase === "processing" && (
                         <>
@@ -1255,7 +1267,7 @@ export function AIChatbotWidget({
                     disabled={loading || uploading || voicePhase === "recording" || voicePhase === "arming"}
                     className="flex-1"
                   />
-                  {canUseAdvancedActions && (
+                  {coachBPlusUi && (
                     <>
                       <input
                         ref={fileInputRef}
@@ -1278,7 +1290,7 @@ export function AIChatbotWidget({
                       </Button>
                     </>
                   )}
-                  {canUseAdvancedActions && (
+                  {coachBPlusUi && (
                     <button
                       type="button"
                       onPointerDown={handleMicPointerDown}
@@ -1323,9 +1335,9 @@ export function AIChatbotWidget({
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {canUseAdvancedActions
+                  {coachBPlusUi
                     ? "Press Enter to send • Hold the mic to dictate • Voice output plays replies • Upload when OpenAI is configured"
-                    : "Press Enter to send • Voice output plays Coach B replies • Answers use Braik team context when available"}
+                    : "Press Enter to send • Text-only Coach B • Answers use Braik team context when available"}
                 </p>
               </div>
             </CardContent>

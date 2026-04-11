@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const supabase = getSupabaseServer()
   const { data: existing, error: loadErr } = await supabase
     .from("athletic_departments")
-    .select("id, teams_allowed, assistant_coaches_allowed, video_clips_enabled")
+    .select("id, teams_allowed, assistant_coaches_allowed, video_clips_enabled, coach_b_plus_enabled")
     .eq("id", id)
     .maybeSingle()
   if (loadErr) {
@@ -101,6 +101,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof body.video_clips_enabled === "boolean") {
     patch.video_clips_enabled = body.video_clips_enabled
   }
+  if (typeof body.coach_b_plus_enabled === "boolean") {
+    patch.coach_b_plus_enabled = body.coach_b_plus_enabled
+  }
 
   if (Object.keys(patch).length <= 1) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
@@ -110,7 +113,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .from("athletic_departments")
     .update(patch)
     .eq("id", id)
-    .select("id, teams_allowed, assistant_coaches_allowed, video_clips_enabled")
+    .select("id, teams_allowed, assistant_coaches_allowed, video_clips_enabled, coach_b_plus_enabled")
     .maybeSingle()
 
   if (upErr) {

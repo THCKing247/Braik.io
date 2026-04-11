@@ -28,13 +28,14 @@ export async function PATCH(
 
   const { data: ad, error: adErr } = await supabase
     .from("athletic_departments")
-    .select("video_clips_enabled")
+    .select("video_clips_enabled, coach_b_plus_enabled")
     .eq("id", athleticDepartmentId)
     .maybeSingle()
   if (adErr) {
     return NextResponse.json({ error: adErr.message }, { status: 500 })
   }
   const adVideoOn = Boolean((ad as { video_clips_enabled?: boolean } | null)?.video_clips_enabled)
+  const adCoachBPlusOn = Boolean((ad as { coach_b_plus_enabled?: boolean } | null)?.coach_b_plus_enabled)
 
   if (body.video_clips_enabled === true && !adVideoOn) {
     return NextResponse.json(
@@ -46,9 +47,23 @@ export async function PATCH(
     )
   }
 
+  if (body.coach_b_plus_enabled === true && !adCoachBPlusOn) {
+    return NextResponse.json(
+      {
+        error:
+          "Enable school-level Coach B+ on this Athletic Department before turning on team Coach B+.",
+        code: "AD_COACH_B_PLUS_DISABLED",
+      },
+      { status: 400 }
+    )
+  }
+
   const patch: Record<string, unknown> = {}
   if (typeof body.video_clips_enabled === "boolean") {
     patch.video_clips_enabled = body.video_clips_enabled
+  }
+  if (typeof body.coach_b_plus_enabled === "boolean") {
+    patch.coach_b_plus_enabled = body.coach_b_plus_enabled
   }
 
   if (Object.keys(patch).length === 0) {
@@ -59,7 +74,7 @@ export async function PATCH(
     .from("teams")
     .update(patch)
     .eq("id", teamId)
-    .select("id, name, video_clips_enabled")
+    .select("id, name, video_clips_enabled, coach_b_plus_enabled")
     .maybeSingle()
 
   if (upErr) {

@@ -11,6 +11,8 @@ import {
   COACH_B_VOICE_MAX_BYTES,
   type CoachBVoiceErrorCode,
 } from "@/lib/braik-ai/coach-b-voice-api"
+import { COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE, isCoachBPlusEntitled } from "@/lib/braik-ai/coach-b-plus-entitlement"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -180,6 +182,20 @@ export async function POST(req: Request) {
       return voiceJson(
         {
           error: "Coach B is only available to coaching and admin roles.",
+          code: "FORBIDDEN" satisfies CoachBVoiceErrorCode,
+        },
+        403,
+        refreshed
+      )
+    }
+    const supabase = getSupabaseServer()
+    const coachBPlus = await isCoachBPlusEntitled(supabase, teamId, sessionResult.user.id, {
+      isPlatformOwner: sessionResult.user.isPlatformOwner === true,
+    })
+    if (!coachBPlus) {
+      return voiceJson(
+        {
+          error: COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE,
           code: "FORBIDDEN" satisfies CoachBVoiceErrorCode,
         },
         403,

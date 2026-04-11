@@ -9,6 +9,8 @@ import { buildCoachBTtsInstructions } from "@/lib/config/voice-modes"
 import { VOICE_CONFIG } from "@/lib/config/voice"
 import { parseCoachBVoiceRequest } from "@/lib/braik-ai/coach-b-voice-request"
 import { resolveCoachBVoiceProfile } from "@/lib/braik-ai/resolve-coach-b-voice-profile"
+import { COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE, isCoachBPlusEntitled } from "@/lib/braik-ai/coach-b-plus-entitlement"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -74,6 +76,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You do not have access to this team." }, { status: 403 })
     }
     throw e
+  }
+
+  const supabase = getSupabaseServer()
+  const coachBPlus = await isCoachBPlusEntitled(supabase, teamId, session.user.id, {
+    isPlatformOwner: session.user.isPlatformOwner === true,
+  })
+  if (!coachBPlus) {
+    return NextResponse.json(
+      { error: COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE, code: "coach_b_plus_required" },
+      { status: 403 }
+    )
   }
 
   const speakText =

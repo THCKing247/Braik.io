@@ -6,6 +6,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUploadRoot } from "@/lib/upload-path"
 import { requireTeamAccess } from "@/lib/auth/rbac"
+import { COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE, isCoachBPlusEntitled } from "@/lib/braik-ai/coach-b-plus-entitlement"
 import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
 import { PLAYER_DOCUMENT_CONSENT_TEXT } from "@/lib/player-documents/constants"
 import {
@@ -47,6 +48,16 @@ export async function POST(request: Request) {
     }
 
     await requireTeamAccess(teamId)
+
+    const entitled = await isCoachBPlusEntitled(getSupabaseServer(), teamId, session.user.id, {
+      isPlatformOwner: session.user.isPlatformOwner === true,
+    })
+    if (!entitled) {
+      return NextResponse.json(
+        { error: COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE, code: "coach_b_plus_required" },
+        { status: 403 }
+      )
+    }
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json(

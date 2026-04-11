@@ -1,45 +1,60 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 /**
- * User-facing copy when action tools (Coach B+) are disabled.
- * Centralize so chat, APIs, and UI stay consistent.
+ * User-facing copy when Coach B+ (actions + voice + mic) is disabled.
  */
 export const COACH_B_PLUS_UNAVAILABLE_USER_MESSAGE =
-  "Coach B can help answer questions and provide recommendations, but action features like creating events, updating rosters, and sending announcements are part of Coach B+, which isn't enabled on this account."
+  "Coach B can help answer questions and provide recommendations, but action, voice, and hands-free features are part of Coach B+, which isn't enabled on this account."
+
+/**
+ * Same hierarchy as Game Video / Clips: AD (when linked) ∧ org (when linked) ∧ team.
+ * @see effectiveVideoClipsProductEnabled in lib/video/resolve-video-clips-access.ts
+ */
+export function effectiveCoachBPlusProductEnabled(args: {
+  teamCoachBPlusEnabled: boolean
+  organizationCoachBPlusEnabled: boolean | null
+  athleticDepartmentCoachBPlusEnabled?: boolean | null
+}): boolean {
+  const adOk =
+    args.athleticDepartmentCoachBPlusEnabled == null ? true : args.athleticDepartmentCoachBPlusEnabled
+  const orgOk = args.organizationCoachBPlusEnabled == null ? true : args.organizationCoachBPlusEnabled
+  return Boolean(adOk && orgOk && args.teamCoachBPlusEnabled)
+}
 
 export type CoachBPlusTeamOrgFlags = {
   teamCoachBPlusEnabled: boolean
-  /** When the team has no program/org link, null — team flag alone applies. When linked, must be true with team. */
   organizationCoachBPlusEnabled: boolean | null
+  athleticDepartmentCoachBPlusEnabled: boolean | null
 }
 
 /**
- * Org + team flags: both must allow when an org is linked; standalone teams use the team flag only.
+ * Loads team, organization (via program), and athletic department flags — mirrors loadTeamOrgVideoFlags.
  */
-export function effectiveCoachBPlusEnabled(flags: CoachBPlusTeamOrgFlags): boolean {
-  if (!flags.teamCoachBPlusEnabled) return false
-  if (flags.organizationCoachBPlusEnabled === null) return true
-  return flags.organizationCoachBPlusEnabled === true
-}
-
 export async function loadTeamOrgCoachBPlusFlags(
   supabase: SupabaseClient,
   teamId: string
 ): Promise<CoachBPlusTeamOrgFlags> {
   const { data: team } = await supabase
     .from("teams")
-    .select("id, coach_b_plus_enabled, program_id")
+    .select("id, coach_b_plus_enabled, program_id, athletic_department_id")
     .eq("id", teamId)
     .maybeSingle()
 
   if (!team) {
-    return { teamCoachBPlusEnabled: false, organizationCoachBPlusEnabled: null }
+    return {
+      teamCoachBPlusEnabled: false,
+      organizationCoachBPlusEnabled: null,
+      athleticDepartmentCoachBPlusEnabled: null,
+    }
   }
 
   const teamFlag = Boolean((team as { coach_b_plus_enabled?: boolean }).coach_b_plus_enabled)
   const programId = (team as { program_id?: string | null }).program_id
+  const teamAdId = (team as { athletic_department_id?: string | null }).athletic_department_id
 
   let organizationCoachBPlusEnabled: boolean | null = null
+  let orgAthleticDepartmentId: string | null = null
+
   if (programId) {
     const { data: program } = await supabase
       .from("programs")
@@ -51,16 +66,38 @@ export async function loadTeamOrgCoachBPlusFlags(
     if (orgId) {
       const { data: org } = await supabase
         .from("organizations")
-        .select("coach_b_plus_enabled")
+        .select("coach_b_plus_enabled, athletic_department_id")
         .eq("id", orgId)
         .maybeSingle()
-      organizationCoachBPlusEnabled = org
-        ? Boolean((org as { coach_b_plus_enabled?: boolean }).coach_b_plus_enabled)
-        : false
+
+      if (org) {
+        const raw = (org as { coach_b_plus_enabled?: boolean | null }).coach_b_plus_enabled
+        organizationCoachBPlusEnabled = raw == null ? null : Boolean(raw)
+        orgAthleticDepartmentId = (org as { athletic_department_id?: string | null }).athletic_department_id ?? null
+      }
     }
   }
 
-  return { teamCoachBPlusEnabled: teamFlag, organizationCoachBPlusEnabled }
+  const resolvedAdId = teamAdId ?? orgAthleticDepartmentId
+  let athleticDepartmentCoachBPlusEnabled: boolean | null = null
+  if (resolvedAdId) {
+    const { data: ad } = await supabase
+      .from("athletic_departments")
+      .select("coach_b_plus_enabled")
+      .eq("id", resolvedAdId)
+      .maybeSingle()
+    if (ad) {
+      athleticDepartmentCoachBPlusEnabled = Boolean(
+        (ad as { coach_b_plus_enabled?: boolean }).coach_b_plus_enabled
+      )
+    }
+  }
+
+  return {
+    teamCoachBPlusEnabled: teamFlag,
+    organizationCoachBPlusEnabled,
+    athleticDepartmentCoachBPlusEnabled,
+  }
 }
 
 async function loadUserCoachBPlusOverride(supabase: SupabaseClient, userId: string): Promise<boolean> {
@@ -84,8 +121,7 @@ function isCoachBPlusPlatformOwnerBypass(isPlatformOwner?: boolean): boolean {
 }
 
 /**
- * Whether this user may use Coach B+ action tools for the given team.
- * Checks (in order): dev env bypass, platform-owner bypass (env), user_feature_overrides, then org/team columns.
+ * Whether this user may use Coach B+ (actions + voice + mic) for the given team.
  */
 export async function isCoachBPlusEntitled(
   supabase: SupabaseClient,
@@ -97,8 +133,10 @@ export async function isCoachBPlusEntitled(
   if (isCoachBPlusPlatformOwnerBypass(opts?.isPlatformOwner)) return true
   if (await loadUserCoachBPlusOverride(supabase, userId)) return true
   const flags = await loadTeamOrgCoachBPlusFlags(supabase, teamId)
-  return effectiveCoachBPlusEnabled(flags)
+  return effectiveCoachBPlusProductEnabled(flags)
 }
 
-/** Preferred name for permission checks at API boundaries. */
 export const canUseCoachBPlus = isCoachBPlusEntitled
+
+/** @alias isCoachBPlusEntitled */
+export const isCoachBPlusEnabled = isCoachBPlusEntitled

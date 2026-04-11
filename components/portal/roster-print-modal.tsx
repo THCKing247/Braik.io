@@ -7,11 +7,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Printer, Settings, Eye } from "lucide-react"
+import { Printer, Settings, Eye, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   parseRosterPrintClientData,
@@ -141,10 +140,20 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
       <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="no-print sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-foreground">
-              <Printer className="h-5 w-5 text-primary shrink-0" aria-hidden />
-              Print Roster
-            </DialogTitle>
+            <div className="flex items-start justify-between gap-3">
+              <DialogTitle className="flex min-w-0 items-center gap-2 text-foreground">
+                <Printer className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                Print Roster
+              </DialogTitle>
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
             <DialogDescription>Loading roster data…</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center py-8 text-sm text-muted-foreground" aria-busy="true">
@@ -160,14 +169,19 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
       <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="no-print sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Print Roster</DialogTitle>
+            <div className="flex items-start justify-between gap-3">
+              <DialogTitle className="min-w-0 text-foreground">Print Roster</DialogTitle>
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
             <DialogDescription>{loadError ?? "Failed to load roster data"}</DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button type="button" onClick={onClose}>
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     )
@@ -303,19 +317,29 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
               <span className={flowStep >= 3 ? "font-semibold text-foreground" : ""}>3. Print</span>
             </div>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1 min-w-0">
+              <div className="min-w-0 space-y-1">
                 <DialogTitle className="flex items-center gap-2 text-left text-foreground">
-                  <Printer className="h-5 w-5 text-primary shrink-0" aria-hidden />
+                  <Printer className="h-5 w-5 shrink-0 text-primary" aria-hidden />
                   Print Roster
                 </DialogTitle>
                 <DialogDescription className="text-left">
                   Select players, preview the layout, then print. Browser print dialog opens when you click Print.
                 </DialogDescription>
               </div>
-              <Button variant="outline" size="sm" type="button" onClick={() => setShowSettings(!showSettings)} className="shrink-0">
-                <Settings className="h-4 w-4 mr-2" aria-hidden />
-                Printer Settings
-              </Button>
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+                <Button variant="outline" size="sm" type="button" onClick={() => setShowSettings(!showSettings)}>
+                  <Settings className="mr-2 h-4 w-4" aria-hidden />
+                  Printer Settings
+                </Button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" aria-hidden />
+                </button>
+              </div>
             </div>
           </DialogHeader>
 
@@ -370,12 +394,9 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                     </tbody>
                   </table>
                 </div>
-                <div className="no-print flex flex-wrap gap-3 mt-4">
+                <div className="no-print mt-4 flex flex-wrap items-center gap-3">
                   <Button type="button" onClick={() => hasPlayers && setFlowStep(2)} disabled={!hasPlayers}>
                     Continue to preview
-                  </Button>
-                  <Button type="button" variant="outline" onClick={onClose}>
-                    Close
                   </Button>
                 </div>
               </div>
@@ -452,9 +473,6 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                     }}
                   >
                     Back
-                  </Button>
-                  <Button type="button" variant="outline" onClick={onClose}>
-                    Close
                   </Button>
                 </div>
               </>

@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { HeroLoginForm } from "@/components/marketing/hero-login-form"
@@ -12,29 +13,105 @@ import {
 } from "@/components/auth/mobile-app-login-screen"
 import { isNativeAppSync } from "@/lib/native/app-environment"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
+import { supabaseClient } from "@/src/lib/supabaseClient"
+
+/** Same rules as `HeroLoginForm` — safe in-app paths only. */
+function normalizeCallbackUrl(value: string | null): string | undefined {
+  if (!value || !value.startsWith("/")) {
+    return undefined
+  }
+  if (value.startsWith("//")) {
+    return undefined
+  }
+  if (value === "/admin/login") {
+    return "/admin/overview"
+  }
+  return value
+}
+
+type SessionApiUser = {
+  id: string
+  defaultAppPath?: string
+}
 
 export default function LoginPage() {
   const { data, status } = useSession()
+  const searchParams = useSearchParams()
+  const callbackUrl = useMemo(
+    () => normalizeCallbackUrl(searchParams.get("callbackUrl")),
+    [searchParams]
+  )
   const isLgUp = useMinWidthLg()
   const [nativeClient, setNativeClient] = useState(false)
   const hasRedirected = useRef(false)
+  const staleCleanupDone = useRef(false)
 
   useEffect(() => {
     setNativeClient(isNativeAppSync())
   }, [])
 
+  // Server cookies (middleware) are the source of truth. Never redirect using only client persistence.
+  useEffect(() => {
+    let cancelled = false
+
+    async function verifyServerSession() {
+      const clientPresent = status === "authenticated" && Boolean(data?.user)
+      console.log("[login] client session present:", clientPresent)
+
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "include" })
+        if (cancelled) return
+
+        if (res.status === 503) {
+          console.log("[login] server session check unavailable (503), skipping redirect/cleanup")
+          return
+        }
+
+        if (!res.ok) {
+          console.log("[login] server session check failed:", res.status)
+          return
+        }
+
+        const json = (await res.json()) as { user?: SessionApiUser | null }
+        if (cancelled) return
+
+        const serverUser = json?.user ?? null
+        console.log("[login] server session present:", Boolean(serverUser?.id))
+
+        if (serverUser?.id) {
+          if (hasRedirected.current) return
+          hasRedirected.current = true
+          const destination = callbackUrl ?? serverUser.defaultAppPath ?? "/dashboard"
+          console.log("[login] redirect destination:", destination)
+          window.location.href = destination
+          return
+        }
+
+        if (status === "loading") {
+          return
+        }
+
+        if (clientPresent && !staleCleanupDone.current) {
+          staleCleanupDone.current = true
+          console.log("[login] stale session cleanup triggered")
+          await supabaseClient.auth.signOut().catch(() => null)
+          await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(
+            () => null
+          )
+        }
+      } catch (e) {
+        console.log("[login] server session verify error:", e)
+      }
+    }
+
+    void verifyServerSession()
+    return () => {
+      cancelled = true
+    }
+  }, [status, data?.user?.id, callbackUrl])
+
   const useNativeLoginChrome = nativeClient
   const useMobileWebLoginChrome = !nativeClient && !isLgUp
-
-  // Only redirect if user is already authenticated when they arrive at /login.
-  // Do NOT handle post-form-submission redirect here — the form uses window.location.href directly.
-  useEffect(() => {
-    if (status !== "authenticated" || !data?.user) return
-    if (hasRedirected.current) return
-    hasRedirected.current = true
-    const destination = data.user.defaultAppPath ?? "/dashboard"
-    window.location.href = destination
-  }, [status, data?.user])
 
   return (
     <>

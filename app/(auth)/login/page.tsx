@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { HeroLoginForm } from "@/components/marketing/hero-login-form"
@@ -17,6 +17,7 @@ export default function LoginPage() {
   const { data, status } = useSession()
   const isLgUp = useMinWidthLg()
   const [nativeClient, setNativeClient] = useState(false)
+  const hasRedirected = useRef(false)
 
   useEffect(() => {
     setNativeClient(isNativeAppSync())
@@ -29,6 +30,8 @@ export default function LoginPage() {
   // Do NOT handle post-form-submission redirect here — the form uses window.location.href directly.
   useEffect(() => {
     if (status !== "authenticated" || !data?.user) return
+    if (hasRedirected.current) return
+    hasRedirected.current = true
     const destination = data.user.defaultAppPath ?? "/dashboard"
     window.location.href = destination
   }, [status, data?.user])

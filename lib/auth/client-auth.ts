@@ -286,6 +286,10 @@ async function fetchClientSession(queryClient: QueryClient): Promise<SessionResp
   }
 
   const mapped = data.session ? mapSupabaseSessionToSessionResponse(data.session) : null
+  // If no session and no cached session, clear stale server cookies silently
+  if (!mapped && !cached?.user?.id) {
+    void fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => null)
+  }
   const merged = mergePreferRicherSession(cached, mapped)
 
   authLog("INITIAL_SESSION", { hasUser: Boolean(merged?.user?.id) })
@@ -361,9 +365,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   useEffect(() => {
-    const { data: sub } = supabaseClient.auth.onAuthStateChange((event) => {
+    const { data: sub } = supabaseClient.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
         queryClient.setQueryData(BRAIK_AUTH_SESSION_QUERY_KEY, null)
+      } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+        if (session) {
+          const mapped = mapSupabaseSessionToSessionResponse(session)
+          if (mapped?.user?.id) {
+            queryClient.setQueryData(
+              BRAIK_AUTH_SESSION_QUERY_KEY,
+              (prev: SessionResponse | undefined) => mergePreferRicherSession(mapped, prev ?? null)
+            )
+          }
+        }
       }
     })
     return () => sub.subscription.unsubscribe()

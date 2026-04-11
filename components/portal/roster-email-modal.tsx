@@ -67,6 +67,24 @@ type RosterData = {
   generatedAt: string
 }
 
+const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Comma- or semicolon-separated CC list; empty is valid. */
+function normalizeCcInput(raw: string): { ok: true; cc: string } | { ok: false; error: string } {
+  const t = raw.trim()
+  if (!t) return { ok: true, cc: "" }
+  const parts = t
+    .split(/[,;]/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+  for (const p of parts) {
+    if (!SIMPLE_EMAIL.test(p)) {
+      return { ok: false, error: `Invalid CC address: ${p}` }
+    }
+  }
+  return { ok: true, cc: parts.join(", ") }
+}
+
 function emailPlayerMatchesStatusFilter(p: RosterRow, filter: string): boolean {
   if (!filter) return true
   const roster = (p.rosterStatus ?? "active").toLowerCase()
@@ -83,6 +101,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
   const [rosterData, setRosterData] = useState<RosterData | null>(null)
   const [loading, setLoading] = useState(true)
   const [recipientEmail, setRecipientEmail] = useState("")
+  const [ccEmail, setCcEmail] = useState("")
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [sending, setSending] = useState(false)
@@ -173,6 +192,8 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
     return playersForSelector.filter((p) => selectedIds.has(p.id))
   }, [playersForSelector, selectedIds])
 
+  const ccSummary = useMemo(() => normalizeCcInput(ccEmail), [ccEmail])
+
   const toggle = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -202,6 +223,12 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
       return
     }
 
+    const ccNorm = normalizeCcInput(ccEmail)
+    if (!ccNorm.ok) {
+      showToast(ccNorm.error, "error")
+      return
+    }
+
     setSending(true)
     try {
       const res = await fetch("/api/roster/email", {
@@ -210,6 +237,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
         body: JSON.stringify({
           teamId,
           recipientEmail: recipientEmail.trim(),
+          ...(ccNorm.cc ? { cc: ccNorm.cc } : {}),
           subject: subject.trim() || undefined,
           message: message.trim() || undefined,
           playerIds: filteredPlayers.map((p) => p.id),
@@ -407,6 +435,19 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
                 </div>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="roster-email-cc">Cc (optional)</Label>
+                <Input
+                  id="roster-email-cc"
+                  type="text"
+                  value={ccEmail}
+                  onChange={(e) => setCcEmail(e.target.value)}
+                  placeholder="assistant@school.edu, admin@school.edu"
+                  className="bg-background"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground">Separate multiple addresses with commas or semicolons.</p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="msg">Message (optional, appears above the table)</Label>
                 <textarea
                   id="msg"
@@ -538,8 +579,14 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
           {flowStep === 4 && (
             <>
               <p className="text-sm text-muted-foreground">
-                Ready to send to <strong className="text-foreground">{recipientEmail || "—"}</strong> with{" "}
-                <strong className="text-foreground">{filteredPlayers.length}</strong> player
+                Ready to send to <strong className="text-foreground">{recipientEmail || "—"}</strong>
+                {ccSummary.ok && ccSummary.cc ? (
+                  <>
+                    {" "}
+                    with Cc <strong className="text-foreground">{ccSummary.cc}</strong>
+                  </>
+                ) : null}{" "}
+                with <strong className="text-foreground">{filteredPlayers.length}</strong> player
                 {filteredPlayers.length === 1 ? "" : "s"}.
               </p>
               <div className="flex flex-wrap gap-3 pt-2 border-t border-border">

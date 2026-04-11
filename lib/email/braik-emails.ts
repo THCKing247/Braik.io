@@ -23,7 +23,7 @@ import { buildNotificationHtmlBody } from "@/lib/email/templates/notification"
 export type { EmailSendResult }
 
 export async function sendPlayerInviteEmail(
-  args: PlayerInviteTemplateInput & { to: string; metadata?: Record<string, string> }
+  args: PlayerInviteTemplateInput & { to: string; metadata?: Record<string, unknown> }
 ): Promise<EmailSendResult> {
   const { to, metadata, ...rest } = args
   return sendEmail({
@@ -38,7 +38,7 @@ export async function sendPlayerInviteEmail(
 
 /** Parent/guardian-facing copy — same join mechanics, distinct tagging for analytics. */
 export async function sendParentInviteEmail(
-  args: PlayerInviteTemplateInput & { to: string; metadata?: Record<string, string> }
+  args: PlayerInviteTemplateInput & { to: string; metadata?: Record<string, unknown> }
 ): Promise<EmailSendResult> {
   const { to, metadata, ...rest } = args
   return sendEmail({
@@ -52,7 +52,7 @@ export async function sendParentInviteEmail(
 }
 
 export async function sendTeamInviteEmail(
-  args: TeamInviteTemplateInput & { to: string; metadata?: Record<string, string> }
+  args: TeamInviteTemplateInput & { to: string; metadata?: Record<string, unknown> }
 ): Promise<EmailSendResult> {
   const { to, teamName, metadata, ...rest } = args
   return sendEmail({
@@ -66,7 +66,7 @@ export async function sendTeamInviteEmail(
 }
 
 export async function sendWelcomeEmail(
-  args: WelcomeTemplateInput & { to: string; metadata?: Record<string, string> }
+  args: WelcomeTemplateInput & { to: string; metadata?: Record<string, unknown> }
 ): Promise<EmailSendResult> {
   const { to, metadata, ...rest } = args
   return sendEmail({
@@ -87,7 +87,7 @@ export type NotificationEmailArgs = {
   /** HTML fragment (wrapped in layout) or full HTML if starts with <!DOCTYPE */
   bodyHtml: string
   tag?: string
-  metadata?: Record<string, string>
+  metadata?: Record<string, unknown>
 }
 
 export async function sendNotificationEmail(args: NotificationEmailArgs): Promise<EmailSendResult> {

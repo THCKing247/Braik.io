@@ -11,7 +11,7 @@ export interface SendEmailOptions {
   textBody: string
   htmlBody?: string
   tag?: string
-  metadata?: Record<string, string>
+  metadata?: Record<string, unknown>
 }
 
 export interface SendEmailResult {

@@ -14,6 +14,7 @@ import {
   getPostmarkServerToken,
   warnPostmarkMissingOnce,
 } from "@/lib/email/postmark-config"
+import { sanitizePostmarkMetadata } from "@/lib/email/postmark-metadata"
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
@@ -51,14 +52,8 @@ export type SendEmailInput = {
   replyTo?: string
   tag?: string
   messageStream?: string
-  /** Postmark Metadata — max 10 key/value pairs; values must be strings. */
-  metadata?: Record<string, string>
-}
-
-function metadataToPostmarkArray(meta: Record<string, string> | undefined) {
-  if (!meta || Object.keys(meta).length === 0) return undefined
-  const entries = Object.entries(meta).slice(0, 10)
-  return entries.map(([Name, Value]) => ({ Name, Value: String(Value).slice(0, 500) }))
+  /** Passed through {@link sanitizePostmarkMetadata} — flat object, max 10 keys, Postmark limits apply. */
+  metadata?: Record<string, unknown>
 }
 
 function logPostmarkFailure(status: number, body: unknown, safeSummary: string) {
@@ -112,11 +107,14 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult>
   const replyTo = input.replyTo?.trim() || getPostmarkReplyToEmail()
   const stream = input.messageStream?.trim() || getPostmarkMessageStream()
 
+  const sanitizedMeta = sanitizePostmarkMetadata(input.metadata)
   console.info("[braik-email] sendEmail", {
     hasServerToken: true,
     fromEmail: from,
     messageStream: stream,
     tag: input.tag?.trim() || null,
+    hasMetadata: Boolean(sanitizedMeta),
+    metadataKeys: sanitizedMeta ? Object.keys(sanitizedMeta) : [],
   })
 
   const payload: Record<string, unknown> = {
@@ -133,8 +131,9 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult>
   if (replyTo) payload.ReplyTo = replyTo
   if (input.tag?.trim()) payload.Tag = input.tag.trim().slice(0, 100)
 
-  const metaArr = metadataToPostmarkArray(input.metadata)
-  if (metaArr) payload.Metadata = metaArr
+  if (sanitizedMeta && Object.keys(sanitizedMeta).length > 0) {
+    payload.Metadata = sanitizedMeta
+  }
 
   try {
     const res = await fetch("https://api.postmarkapp.com/email", {
@@ -186,9 +185,10 @@ export async function sendPostmarkEmail(params: {
   subject: string
   htmlBody: string
   textBody?: string
+  cc?: string
   from?: string
   tag?: string
-  metadata?: Record<string, string>
+  metadata?: Record<string, unknown>
   messageStream?: string
 }): Promise<PostmarkSendResult> {
   return sendEmail({
@@ -196,6 +196,7 @@ export async function sendPostmarkEmail(params: {
     subject: params.subject,
     htmlBody: params.htmlBody,
     textBody: params.textBody,
+    cc: params.cc,
     from: params.from,
     tag: params.tag,
     metadata: params.metadata,

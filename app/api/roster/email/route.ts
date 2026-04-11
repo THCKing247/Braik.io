@@ -6,9 +6,25 @@ import { buildRosterPrintPayload } from "@/lib/roster/roster-print-payload"
 import { generateRosterEmailHTML } from "@/lib/roster/roster-email-html"
 import { sendPostmarkEmail } from "@/lib/email/postmark"
 
+const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function normalizeRosterEmailCc(raw: string | undefined): { ok: true; cc?: string } | { ok: false; error: string } {
+  if (raw == null || !String(raw).trim()) return { ok: true }
+  const parts = String(raw)
+    .split(/[,;]/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+  for (const p of parts) {
+    if (!SIMPLE_EMAIL.test(p)) {
+      return { ok: false, error: `Invalid CC address: ${p}` }
+    }
+  }
+  return { ok: true, cc: parts.join(", ") }
+}
+
 /**
  * POST /api/roster/email
- * Body: teamId, recipientEmail, subject?, message?, playerIds? (subset to email)
+ * Body: teamId, recipientEmail, cc?, subject?, message?, playerIds? (subset to email)
  * Sends HTML roster via Postmark when POSTMARK_SERVER_TOKEN + POSTMARK_FROM_EMAIL are set.
  */
 export async function POST(request: Request) {
@@ -22,12 +38,15 @@ export async function POST(request: Request) {
     const {
       teamId,
       recipientEmail,
+      cc,
       subject,
       message,
       playerIds,
     } = body as {
       teamId?: string
       recipientEmail?: string
+      /** Comma-separated CC addresses (Postmark Cc field). */
+      cc?: string
       subject?: string
       message?: string
       playerIds?: string[]
@@ -35,6 +54,11 @@ export async function POST(request: Request) {
 
     if (!teamId || !recipientEmail?.trim()) {
       return NextResponse.json({ error: "teamId and recipientEmail are required" }, { status: 400 })
+    }
+
+    const ccNorm = normalizeRosterEmailCc(cc)
+    if (!ccNorm.ok) {
+      return NextResponse.json({ error: ccNorm.error }, { status: 400 })
     }
 
     await requireTeamPermission(teamId, "edit_roster")
@@ -58,13 +82,12 @@ export async function POST(request: Request) {
 
     const htmlContent = generateRosterEmailHTML(payload, message || "")
     const subj = subject?.trim() || `Roster — ${payload.team.name} — ${new Date().toLocaleDateString()}`
-
     const result = await sendPostmarkEmail({
       to: recipientEmail.trim(),
+      cc: ccNorm.cc,
       subject: subj,
       htmlBody: htmlContent,
       tag: "roster-email",
-      metadata: { teamId },
     })
 
     if (!result.ok) {

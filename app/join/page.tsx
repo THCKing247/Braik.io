@@ -91,8 +91,8 @@ export default function JoinPage() {
         } else {
           if (typeof window !== "undefined") {
             sessionStorage.setItem(JOIN_TOKEN_KEY, token)
-            const callbackUrl = `/join?token=${encodeURIComponent(token)}`
-            window.location.replace(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)
+            // Send pre-account users to the player join flow; login is not required to resolve the invite.
+            window.location.replace(`/signup/player?token=${encodeURIComponent(token)}`)
           }
           setStatus("redirect_to_auth")
         }
@@ -183,7 +183,7 @@ export default function JoinPage() {
           <>
             <div className="h-10 w-10 mx-auto rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent animate-spin" />
             <p className="mt-4 text-sm text-[#64748B]">
-              {status === "redirect_to_auth" ? "Taking you to sign in…" : "Linking your roster spot…"}
+              {status === "redirect_to_auth" ? "Opening player signup…" : "Linking your roster spot…"}
             </p>
           </>
         )}

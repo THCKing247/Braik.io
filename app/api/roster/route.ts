@@ -11,6 +11,7 @@ import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { revalidateTeamRosterDerivedCaches } from "@/lib/cache/lightweight-get-cache"
 import { getTrustedAppOriginOrEmpty } from "@/lib/invites/resolve-invite-app-origin"
+import { buildPlayerInviteSignupPath } from "@/lib/invites/build-join-link"
 
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
@@ -183,7 +184,7 @@ export async function GET(request: Request) {
       const hasInvite = invite && invite.status !== "claimed"
       const joinLink =
         hasInvite && invite?.token && origin
-          ? `${origin}/join?token=${encodeURIComponent(invite.token)}`
+          ? `${origin.replace(/\/$/, "")}${buildPlayerInviteSignupPath(invite.token)}`
           : undefined
       return {
         id: p.id,

@@ -12,6 +12,8 @@ import { applyServerAuthSessionPayload, signIn, type SessionResponse } from "@/l
 import type { PlayerJoinAnalyzeResponse, PlayerJoinMatchCandidate } from "@/lib/players/claim-types"
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
+import { supabaseClient } from "@/src/lib/supabaseClient"
+import { buildPlayerInviteRedeemPath } from "@/lib/invites/build-join-link"
 
 type Step = "code" | "info" | "match" | "account"
 
@@ -21,15 +23,20 @@ const CODE_NOT_FOUND_MSG =
 function PlayerJoinSignupInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const tokenFromQuery = useMemo(() => searchParams.get("token")?.trim() ?? "", [searchParams])
   const codeFromQuery = useMemo(() => {
     const raw = searchParams.get("code")
     return raw ? normalizePlayerJoinCode(raw) : ""
   }, [searchParams])
 
+  const needsLandingResolve = Boolean(tokenFromQuery || codeFromQuery)
+
   const [step, setStep] = useState<Step>("code")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [initializing, setInitializing] = useState(() => codeFromQuery.length > 0)
+  const [initializing, setInitializing] = useState(needsLandingResolve)
+  /** Set when coach email/SMS invite token is validated — signup uses `joinToken` instead of team code matching. */
+  const [inviteToken, setInviteToken] = useState<string | null>(null)
 
   const [joinCode, setJoinCode] = useState("")
   const [teamName, setTeamName] = useState<string | null>(null)
@@ -55,15 +62,72 @@ function PlayerJoinSignupInner() {
   const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
 
   useEffect(() => {
-    if (!codeFromQuery) {
+    if (!tokenFromQuery && !codeFromQuery) {
+      setInviteToken(null)
       setInitializing(false)
       return
     }
-    setJoinCode(codeFromQuery)
-    setError("")
+
     let cancelled = false
+    setInitializing(true)
+    setError("")
+
     ;(async () => {
       try {
+        if (tokenFromQuery) {
+          const { data: sess } = await supabaseClient.auth.getSession()
+          if (cancelled) return
+          if (sess.session?.user?.id) {
+            router.replace(`/join?token=${encodeURIComponent(tokenFromQuery)}`)
+            return
+          }
+
+          const res = await fetch("/api/player-invites/resolve-landing", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: tokenFromQuery }),
+          })
+          const data = (await res.json().catch(() => ({}))) as {
+            ok?: boolean
+            teamName?: string | null
+            teamJoinCode?: string | null
+            playerFirstName?: string | null
+            playerLastName?: string | null
+            jerseyNumber?: number | null
+            graduationYear?: number | null
+            code?: string
+            error?: string
+          }
+          if (cancelled) return
+          if (!data.ok) {
+            setInviteToken(null)
+            const code = data.code
+            setError(
+              code === "expired"
+                ? "This invite has expired. Ask your coach for a new link, or enter your invite code below."
+                : code === "already_claimed"
+                  ? "This invite is no longer valid. If you already have an account, sign in to link your roster. Otherwise enter your invite code below."
+                  : "This invite link is invalid or no longer works. Enter your team invite code below or ask your coach for a new link."
+            )
+            setStep("code")
+            setInitializing(false)
+            return
+          }
+
+          setInviteToken(tokenFromQuery)
+          if (data.teamJoinCode) setJoinCode(data.teamJoinCode)
+          setTeamName(data.teamName ?? null)
+          if (data.playerFirstName) setFirstName(data.playerFirstName)
+          if (data.playerLastName) setLastName(data.playerLastName)
+          if (data.jerseyNumber != null) setJerseyNumber(String(data.jerseyNumber))
+          if (data.graduationYear != null) setGraduationYear(String(data.graduationYear))
+          setStep("info")
+          setInitializing(false)
+          return
+        }
+
+        // Deep link with team join code only (no invite token)
+        setJoinCode(codeFromQuery)
         const res = await fetch("/api/player/join/resolve-team", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -94,10 +158,11 @@ function PlayerJoinSignupInner() {
         if (!cancelled) setInitializing(false)
       }
     })()
+
     return () => {
       cancelled = true
     }
-  }, [codeFromQuery])
+  }, [tokenFromQuery, codeFromQuery, router])
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8) return false
@@ -135,6 +200,7 @@ function PlayerJoinSignupInner() {
         setLoading(false)
         return
       }
+      setInviteToken(null)
       setTeamName(data.teamName ?? null)
       setStep("info")
     } catch {
@@ -147,6 +213,10 @@ function PlayerJoinSignupInner() {
     setError("")
     if (!firstName.trim() || !lastName.trim()) {
       setError("First and last name are required.")
+      return
+    }
+    if (inviteToken) {
+      setStep("account")
       return
     }
     setLoading(true)
@@ -230,23 +300,25 @@ function PlayerJoinSignupInner() {
       return
     }
 
-    let playerJoinIntent: "auto" | "confirm" | "new"
+    let playerJoinIntent: "auto" | "confirm" | "new" | undefined
     let confirmedPlayerId: string | undefined
 
-    if (analyzeResult?.outcome === "auto_claim") {
-      playerJoinIntent = "auto"
-    } else if (analyzeResult?.outcome === "needs_confirmation") {
-      if (confirmNotListed) {
-        playerJoinIntent = "new"
-      } else if (selectedCandidate) {
-        playerJoinIntent = "confirm"
-        confirmedPlayerId = selectedCandidate.id
+    if (!inviteToken) {
+      if (analyzeResult?.outcome === "auto_claim") {
+        playerJoinIntent = "auto"
+      } else if (analyzeResult?.outcome === "needs_confirmation") {
+        if (confirmNotListed) {
+          playerJoinIntent = "new"
+        } else if (selectedCandidate) {
+          playerJoinIntent = "confirm"
+          confirmedPlayerId = selectedCandidate.id
+        } else {
+          setError("Select a roster match or confirm none apply.")
+          return
+        }
       } else {
-        setError("Select a roster match or confirm none apply.")
-        return
+        playerJoinIntent = "new"
       }
-    } else {
-      playerJoinIntent = "new"
     }
 
     setLoading(true)
@@ -266,29 +338,36 @@ function PlayerJoinSignupInner() {
           : null,
       }
 
+      const signupBody: Record<string, unknown> = {
+        name: `${firstName.trim()} ${lastName.trim()}`,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        password,
+        role: "player",
+        graduationYear: graduationYear.trim() ? Number(graduationYear) : undefined,
+        jerseyNumber: jerseyNumber.trim() ? Number(jerseyNumber) : undefined,
+        dateOfBirth: dateOfBirth.trim() || undefined,
+        playerAge,
+        parentEmail: parentEmail.trim() || undefined,
+        phone: phoneTrim || undefined,
+        smsOptIn: phoneTrim ? smsOptIn : false,
+        compliance,
+      }
+
+      if (inviteToken) {
+        signupBody.joinToken = inviteToken
+      } else {
+        signupBody.teamId = normalizePlayerJoinCode(joinCode)
+        signupBody.playerJoinIntent = playerJoinIntent
+        signupBody.confirmedPlayerId = confirmedPlayerId
+      }
+
       const response = await fetch("/api/auth/signup-secure", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${firstName.trim()} ${lastName.trim()}`,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim(),
-          password,
-          role: "player",
-          teamId: normalizePlayerJoinCode(joinCode),
-          playerJoinIntent,
-          confirmedPlayerId,
-          graduationYear: graduationYear.trim() ? Number(graduationYear) : undefined,
-          jerseyNumber: jerseyNumber.trim() ? Number(jerseyNumber) : undefined,
-          dateOfBirth: dateOfBirth.trim() || undefined,
-          playerAge,
-          parentEmail: parentEmail.trim() || undefined,
-          phone: phoneTrim || undefined,
-          smsOptIn: phoneTrim ? smsOptIn : false,
-          compliance,
-        }),
+        body: JSON.stringify(signupBody),
       })
 
       const data = (await response.json()) as {
@@ -354,8 +433,9 @@ function PlayerJoinSignupInner() {
                 Join as player
               </h2>
               <p className="text-[#495057]">
-                Enter your team&apos;s player join code from your coach. Your full roster stays private until you&apos;re
-                linked.
+                {inviteToken
+                  ? "You&apos;re invited — confirm your details and create your Braik account."
+                  : "Enter your team&apos;s player join code from your coach. Your full roster stays private until you&apos;re linked."}
               </p>
             </div>
 
@@ -363,7 +443,9 @@ function PlayerJoinSignupInner() {
               <div className="mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-center" role="status">
                 <p className="text-base font-semibold text-[#1E40AF]">Joining {teamName}</p>
                 <p className="text-xs text-[#1E3A8A]/90 mt-1">
-                  Complete the steps below. Matching and coach review still apply—this link only fills in your team code.
+                  {inviteToken
+                    ? "This invite is tied to your roster spot. Your team join code is filled in below if you need it."
+                    : "Complete the steps below. Matching and coach review still apply—this link only fills in your team code."}
                 </p>
               </div>
             ) : null}
@@ -420,10 +502,20 @@ function PlayerJoinSignupInner() {
                   </div>
                 </div>
                 <p className="text-xs text-[#6B7280]">
-                  Jersey, graduation year, and DOB help match you to a coach-created roster spot without exposing the roster.
+                  {inviteToken
+                    ? "Review your details from the roster. You can adjust them if something looks wrong before creating your account."
+                    : "Jersey, graduation year, and DOB help match you to a coach-created roster spot without exposing the roster."}
                 </p>
                 <div className="flex gap-3">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setStep("code")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setInviteToken(null)
+                      setStep("code")
+                    }}
+                  >
                     Back
                   </Button>
                   <Button type="button" className="flex-1 font-athletic uppercase tracking-wide" onClick={handleAnalyze} disabled={loading}>
@@ -570,6 +662,17 @@ function PlayerJoinSignupInner() {
                     {loading ? "Creating…" : "Create account"}
                   </Button>
                 </div>
+                {inviteToken ? (
+                  <p className="text-center text-sm text-[#6c757d] pt-2">
+                    Already have a Braik account?{" "}
+                    <Link
+                      href={`/login?callbackUrl=${encodeURIComponent(buildPlayerInviteRedeemPath(inviteToken))}`}
+                      className="text-[#3B82F6] hover:underline font-medium"
+                    >
+                      Sign in to link this invite
+                    </Link>
+                  </p>
+                ) : null}
               </div>
             )}
 

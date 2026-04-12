@@ -2,6 +2,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import type { SessionUser } from "@/lib/auth/server-auth"
 import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
+import { buildPlayerInviteSignupPath } from "@/lib/invites/build-join-link"
 
 type PlayerRow = {
   id: string
@@ -123,7 +124,7 @@ export async function loadTeamRosterForBootstrap(
     const hasInvite = invite && invite.status !== "claimed"
     const joinLink =
       hasInvite && invite?.token && appOrigin
-        ? `${appOrigin}/join?token=${encodeURIComponent(invite.token)}`
+        ? `${appOrigin.replace(/\/$/, "")}${buildPlayerInviteSignupPath(invite.token)}`
         : undefined
     return {
       id: p.id,

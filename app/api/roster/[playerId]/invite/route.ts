@@ -6,6 +6,7 @@ import { MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePhone } from "@/lib/player-invite-auto-link"
 import { logInviteAction } from "@/lib/audit/structured-logger"
 import { resolveTrustedAppOrigin } from "@/lib/invites/resolve-invite-app-origin"
+import { buildPlayerInviteSignupPath, buildPlayerJoinUrl } from "@/lib/invites/build-join-link"
 
 function generateInviteCode(length = 8): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -17,14 +18,14 @@ function generateInviteCode(length = 8): string {
   return code
 }
 
-/** Secure, unguessable token for /join?token=... (32 bytes base64url). */
+/** Secure, unguessable token for player invite links (32 bytes base64url). */
 function generateSecureToken(): string {
   return randomBytes(32).toString("base64url")
 }
 
 /**
  * POST /api/roster/[playerId]/invite - Create or update a player invite (token + optional email/phone).
- * Returns join link so the player can open /join?token=... without entering a code.
+ * Returns join link so the player can open /signup/player?token=... without entering a code.
  * Sets `players.invite_code` (unique player code) and syncs a typed `invite_codes` row (`player_claim_invite`) for signup/redeem flows.
  */
 export async function POST(
@@ -189,7 +190,8 @@ export async function POST(
       console.warn("[POST /api/roster/[playerId]/invite] invite_codes player_claim_invite", typedInviteErr.message)
     }
 
-    const joinLink = `${originCheck.origin}/join?token=${encodeURIComponent(token)}`
+    const joinBuilt = buildPlayerJoinUrl(token, request)
+    const joinLink = joinBuilt.ok ? joinBuilt.url : `${originCheck.origin}${buildPlayerInviteSignupPath(token)}`
 
     const p = updated as { invite_code?: string | null; invite_status?: string }
     return NextResponse.json({

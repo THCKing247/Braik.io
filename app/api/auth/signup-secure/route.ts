@@ -40,7 +40,7 @@ type RawSignupBody = {
   phone?: string
   sport?: string
   programCode?: string
-  /** From /join?token= — links roster during signup (Phase 6). */
+  /** From coach invite (`/signup/player?token=`). Links roster during signup. */
   joinToken?: string
   /** Team player join code flow: auto | confirm | new */
   playerJoinIntent?: string

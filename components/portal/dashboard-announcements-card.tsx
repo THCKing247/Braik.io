@@ -450,21 +450,21 @@ export function DashboardAnnouncementsCard({
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent
           showMobileSheetHandle={false}
-          className="relative flex min-h-0 w-[calc(100%-1rem)] max-w-3xl flex-col overflow-hidden border border-[rgb(var(--border))] bg-white p-0 max-h-[min(85dvh,900px)] md:max-h-[min(88dvh,900px)]"
+          className="relative flex min-h-0 w-full max-w-3xl flex-col overflow-hidden border border-[rgb(var(--border))] bg-white p-0 md:max-w-3xl"
         >
           <button
             type="button"
-            className="absolute right-2 top-2 z-10 rounded-lg p-1.5 transition-colors hover:bg-[rgb(var(--platinum))] sm:right-3 sm:top-3"
+            className="absolute right-3 top-3 z-10 rounded-lg p-1.5 transition-colors hover:bg-[rgb(var(--platinum))] sm:right-4 sm:top-4"
             onClick={() => setViewOpen(false)}
             aria-label="Close"
           >
             <X className="h-5 w-5" style={{ color: "rgb(var(--muted))" }} />
           </button>
-          <DialogHeader className="mb-0 shrink-0 border-b border-[rgb(var(--border))] bg-white px-4 pb-3 pt-5 pr-12 sm:px-6 sm:pb-4 sm:pt-6 sm:pr-14">
+          <DialogHeader className="mb-0 shrink-0 border-b border-[rgb(var(--border))] bg-white px-4 pb-3 pt-6 pr-14 sm:px-6 sm:pb-4 sm:pr-16 sm:pt-7">
             <DialogTitle className="text-lg text-[rgb(var(--text))] sm:text-xl">Announcements</DialogTitle>
           </DialogHeader>
           <div
-            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0.75rem))] pt-2 sm:px-6 sm:pb-8"
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0.75rem))] pt-4 sm:px-6 sm:pb-8"
             role="region"
             aria-label="Announcements list"
           >

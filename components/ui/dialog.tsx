@@ -47,15 +47,19 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/50 py-3 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] md:items-center md:px-4 md:py-6"
+      className={cn(
+        "fixed inset-0 z-50 grid min-h-0 grid-cols-1 grid-rows-1 overflow-hidden bg-black/50",
+        "p-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pl-4 pr-4",
+        "sm:p-6 sm:pt-[max(1.5rem,env(safe-area-inset-top,0px))] sm:pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
+      )}
       onClick={() => onOpenChange(false)}
     >
       {/*
-        min-h-0 + max-h-full lets tall panels respect viewport; without this, flex items won’t shrink
-        and the modal can extend past the screen with content clipped.
+        One grid cell fills the padded viewport. The shell uses max-h-full so panels never exceed
+        the visible frame; self-end = bottom sheet on phones, sm:self-center = true center on larger.
       */}
       <div
-        className="flex min-h-0 max-h-full w-full max-w-full flex-col items-center justify-end md:justify-center"
+        className="col-start-1 row-start-1 min-h-0 w-full max-h-full max-w-full justify-self-center self-end overflow-x-hidden sm:self-center"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -68,8 +72,9 @@ export function DialogContent({ className, children, showMobileSheetHandle = tru
   return (
     <div
       className={cn(
-        "min-h-0 w-screen max-w-none rounded-t-3xl border border-border bg-card p-4 shadow-2xl max-h-[90dvh] overflow-y-auto",
-        "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:mx-0 md:w-full md:max-w-lg md:rounded-2xl md:p-6",
+        /* max-h-full: stay inside padded overlay grid; min-h-0: allow inner flex children to shrink */
+        "min-h-0 w-full max-w-none rounded-t-3xl border border-border bg-card p-4 shadow-2xl max-h-full overflow-y-auto",
+        "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:mx-0 md:max-w-lg md:rounded-2xl md:p-6",
         /** Consumers (e.g. wide stat forms) may override `md:max-w-*` and flex layout via `className`. */
         className
       )}

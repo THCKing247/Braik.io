@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { FileDropZone } from "@/components/ui/file-drop-zone"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
+import { FileText, X } from "lucide-react"
 
 export function TeamGamesImportDialog({
   teamId,
@@ -23,9 +25,17 @@ export function TeamGamesImportDialog({
   onImported: () => void
 }) {
   const { showToast } = usePlaybookToast()
-  const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [typeError, setTypeError] = useState<string | null>(null)
   const [lastErrors, setLastErrors] = useState<Array<{ row: number; message: string }>>([])
+
+  useEffect(() => {
+    if (!open) return
+    setSelectedFile(null)
+    setTypeError(null)
+    setLastErrors([])
+  }, [open])
 
   const runImport = async (file: File) => {
     setBusy(true)
@@ -65,6 +75,8 @@ export function TeamGamesImportDialog({
           "success"
         )
         onImported()
+        setSelectedFile(null)
+        setTypeError(null)
         if (!allErrs.length) onOpenChange(false)
       } else {
         showToast("No games were imported.", "error")
@@ -73,42 +85,93 @@ export function TeamGamesImportDialog({
       showToast(e instanceof Error ? e.message : "Import failed", "error")
     } finally {
       setBusy(false)
-      if (inputRef.current) inputRef.current.value = ""
     }
+  }
+
+  const clearFile = () => {
+    setSelectedFile(null)
+    setTypeError(null)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[min(90vh,900px)] w-full overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Upload schedule (CSV)</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 text-sm text-muted-foreground">
-          <p>
-            Include a header row with at least: <code className="rounded bg-muted px-1">opponent</code>,{" "}
-            <code className="rounded bg-muted px-1">game_date</code>. Optional columns:{" "}
-            <code className="rounded bg-muted px-1">location</code>, <code className="rounded bg-muted px-1">game_type</code>{" "}
-            (regular, playoff, scrimmage, tournament), <code className="rounded bg-muted px-1">conference_game</code> (true/false),{" "}
-            <code className="rounded bg-muted px-1">notes</code>.
-          </p>
-          <p>
-            <code className="rounded bg-muted px-1">game_date</code> can be ISO 8601 (e.g.{" "}
-            <code className="rounded bg-muted px-1">2025-09-12T19:00:00Z</code>) or any string JavaScript can parse.
-          </p>
-        </div>
+        <div className="space-y-6">
+          <div className="space-y-3 text-sm" style={{ color: "rgb(var(--text2))" }}>
+            <p className="font-medium" style={{ color: "rgb(var(--text))" }}>
+              Upload a CSV with at least:
+            </p>
+            <ul className="list-inside list-disc space-y-1 pl-0.5">
+              <li>
+                <code className="rounded bg-[rgb(var(--platinum))] px-1.5 py-0.5 text-xs">opponent</code>
+              </li>
+              <li>
+                <code className="rounded bg-[rgb(var(--platinum))] px-1.5 py-0.5 text-xs">game_date</code>
+              </li>
+            </ul>
+            <p className="pt-1 font-medium" style={{ color: "rgb(var(--text))" }}>
+              Optional fields:
+            </p>
+            <ul className="list-inside list-disc space-y-1 pl-0.5">
+              <li>
+                <code className="rounded bg-[rgb(var(--platinum))] px-1.5 py-0.5 text-xs">location</code>
+              </li>
+              <li>
+                <code className="rounded bg-[rgb(var(--platinum))] px-1.5 py-0.5 text-xs">game_type</code>{" "}
+                (regular, playoff, scrimmage, tournament)
+              </li>
+              <li>
+                <code className="rounded bg-[rgb(var(--platinum))] px-1.5 py-0.5 text-xs">conference_game</code>{" "}
+                (true/false)
+              </li>
+              <li>
+                <code className="rounded bg-[rgb(var(--platinum))] px-1.5 py-0.5 text-xs">notes</code>
+              </li>
+            </ul>
+          </div>
 
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv,text/csv"
-          className="block w-full text-sm"
-          disabled={busy}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) void runImport(f)
-          }}
-        />
+          <FileDropZone
+            disabled={busy}
+            error={typeError}
+            onInvalidFile={(msg) => setTypeError(msg)}
+            onFileChange={(f) => {
+              setSelectedFile(f)
+              if (f) setTypeError(null)
+            }}
+          />
+
+          {selectedFile && (
+            <div
+              className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--snow))" }}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0" style={{ color: "rgb(var(--accent))" }} aria-hidden />
+                <span className="truncate text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                  {selectedFile.name}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1 text-xs"
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  clearFile()
+                }}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+                Remove
+              </Button>
+            </div>
+          )}
+        </div>
 
         {lastErrors.length > 0 && (
           <div className="max-h-40 overflow-y-auto rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs">
@@ -124,9 +187,17 @@ export function TeamGamesImportDialog({
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Close
+          </Button>
+          <Button
+            type="button"
+            disabled={busy || !selectedFile}
+            style={{ backgroundColor: "rgb(var(--accent))", color: "#fff" }}
+            onClick={() => selectedFile && void runImport(selectedFile)}
+          >
+            {busy ? "Importing…" : "Import schedule"}
           </Button>
         </DialogFooter>
       </DialogContent>

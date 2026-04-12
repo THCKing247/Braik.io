@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { formatPositionDisplay, formatSchoolDisplayName } from "@/lib/roster/roster-document-format"
 
 export const DEFAULT_ROSTER_TEMPLATE = {
   header: {
@@ -183,7 +184,10 @@ export async function buildRosterPrintPayload(
                 ? "Senior"
                 : `Grade ${row.grade}`
         : null,
-      position: row.position_group ?? null,
+      position:
+        row.position_group != null && String(row.position_group).trim() !== ""
+          ? formatPositionDisplay(row.position_group)
+          : null,
       weight: row.weight != null ? row.weight : null,
       height: row.height ?? null,
       rosterStatus: row.status ?? undefined,
@@ -200,13 +204,15 @@ export async function buildRosterPrintPayload(
     })
   }
 
+  const schoolDisplay = schoolName ? formatSchoolDisplayName(schoolName) : null
+
   return {
     success: true,
     teamId: teamRow.id,
     team: {
       id: teamRow.id,
       name: teamName,
-      schoolName,
+      schoolName: schoolDisplay,
       seasonName,
       year: currentYear,
     },

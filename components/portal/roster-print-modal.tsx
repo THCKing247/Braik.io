@@ -17,6 +17,7 @@ import {
   ROSTER_PRINT_PORTAL_CSS,
   type RosterPrintClientData,
 } from "@/lib/roster/roster-print-payload"
+import { formatSchoolDisplayName } from "@/lib/roster/roster-document-format"
 
 interface RosterPrintModalProps {
   teamId: string
@@ -194,54 +195,73 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
 
   const { team, template, players, generatedAt } = rosterData
 
+  const schoolDisplay = team.schoolName ? formatSchoolDisplayName(team.schoolName) : ""
+
   const printBody = (
     <>
-      <div className="text-center mb-8">
-        {template.header.showYear && (
-          <p className="text-sm text-gray-700 mb-1">
-            <strong>{template.header.yearLabel}:</strong> {team.year}
-          </p>
-        )}
-        {template.header.showSchoolName && team.schoolName && (
-          <p className="text-sm text-gray-700 mb-1">
-            <strong>{template.header.schoolNameLabel}:</strong> {team.schoolName}
-          </p>
-        )}
+      <div className="mb-8 text-center">
         {template.header.showTeamName && (
-          <h1 className="text-3xl font-bold mt-2 text-black">{team.name}</h1>
+          <h1 className="mb-3 text-3xl font-bold tracking-tight text-black">{team.name}</h1>
+        )}
+        {(template.header.showYear || (template.header.showSchoolName && schoolDisplay)) && (
+          <p className="text-sm leading-relaxed text-gray-600">
+            {template.header.showYear && (
+              <>
+                <span className="font-semibold text-gray-800">{template.header.yearLabel}:</span> {team.year}
+              </>
+            )}
+            {template.header.showYear && template.header.showSchoolName && schoolDisplay && (
+              <span className="mx-2 text-gray-400" aria-hidden>
+                |
+              </span>
+            )}
+            {template.header.showSchoolName && schoolDisplay && (
+              <>
+                <span className="font-semibold text-gray-800">{template.header.schoolNameLabel}:</span> {schoolDisplay}
+              </>
+            )}
+          </p>
         )}
       </div>
       {hasPlayers ? (
-        <table className="w-full border-collapse">
+        <table className="w-full table-fixed border-collapse border border-gray-300 text-sm">
+          <colgroup>
+            {template.body.showJerseyNumber && <col className="w-[3.25rem]" />}
+            {template.body.showPlayerName && <col />}
+            {template.body.showGrade && <col className="w-[5.5rem]" />}
+            {template.body.showPosition !== false && <col className="w-[4rem]" />}
+            {template.body.showWeight !== false && <col className="w-[3.5rem]" />}
+            {template.body.showHeight !== false && <col className="w-[4rem]" />}
+          </colgroup>
           <thead>
             <tr className="bg-gray-100">
               {template.body.showJerseyNumber && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                <th className="border border-gray-300 px-2 py-2 text-center text-xs font-bold uppercase tracking-wide text-black">
                   {template.body.jerseyNumberLabel}
                 </th>
               )}
               {template.body.showPlayerName && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                <th className="border border-gray-300 px-3 py-2 text-left text-xs font-bold uppercase tracking-wide text-black">
                   {template.body.playerNameLabel}
                 </th>
               )}
               {template.body.showGrade && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                <th className="border border-gray-300 px-2 py-2 text-left text-xs font-bold uppercase tracking-wide text-black">
                   {template.body.gradeLabel}
                 </th>
               )}
               {template.body.showPosition !== false && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                <th className="border border-gray-300 px-2 py-2 text-center text-xs font-bold uppercase tracking-wide text-black">
                   {template.body.positionLabel ?? "Position"}
                 </th>
               )}
               {template.body.showWeight !== false && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                <th className="border border-gray-300 px-2 py-2 text-right text-xs font-bold uppercase tracking-wide text-black">
                   {template.body.weightLabel ?? "Weight"}
                 </th>
               )}
               {template.body.showHeight !== false && (
-                <th className="border border-gray-300 px-4 py-2 text-left font-semibold text-black">
+                <th className="border border-gray-300 px-2 py-2 text-center text-xs font-bold uppercase tracking-wide text-black">
                   {template.body.heightLabel ?? "Height"}
                 </th>
               )}
@@ -249,28 +269,34 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
           </thead>
           <tbody>
             {playersToPrint.map((player, idx) => (
-              <tr key={player.id || idx}>
+              <tr key={player.id || idx} className={idx % 2 === 1 ? "bg-slate-50/80" : ""}>
                 {template.body.showJerseyNumber && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">{player.jerseyNumber ?? ""}</td>
+                  <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-center tabular-nums text-black">
+                    {player.jerseyNumber ?? ""}
+                  </td>
                 )}
                 {template.body.showPlayerName && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">{player.name}</td>
+                  <td className="border border-gray-300 px-3 py-1.5 text-left text-black">{player.name}</td>
                 )}
                 {template.body.showGrade && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">
+                  <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-left text-black">
                     {player.gradeLabel ?? player.grade ?? ""}
                   </td>
                 )}
                 {template.body.showPosition !== false && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">{player.position ?? ""}</td>
+                  <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-center font-medium text-black">
+                    {player.position ?? ""}
+                  </td>
                 )}
                 {template.body.showWeight !== false && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">
+                  <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-right tabular-nums text-black">
                     {player.weight != null ? player.weight : ""}
                   </td>
                 )}
                 {template.body.showHeight !== false && (
-                  <td className="border border-gray-300 px-4 py-2 text-black">{player.height ?? ""}</td>
+                  <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-center text-black">
+                    {player.height ?? ""}
+                  </td>
                 )}
               </tr>
             ))}

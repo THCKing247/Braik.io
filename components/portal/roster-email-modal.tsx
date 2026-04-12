@@ -8,6 +8,7 @@ import { X, Mail, Send, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { parseRosterPrintClientData } from "@/lib/roster/roster-print-payload"
+import { formatSchoolDisplayName } from "@/lib/roster/roster-document-format"
 
 interface RosterEmailModalProps {
   teamId: string
@@ -316,47 +317,82 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
 
   const { team, template, generatedAt } = rosterData
   const tb = template.body
+  const schoolDisplay = team.schoolName ? formatSchoolDisplayName(team.schoolName) : ""
 
   const previewTable = (
-    <table className="w-full border-collapse text-sm">
+    <table className="w-full table-fixed border-collapse border border-gray-300 text-sm">
+      <colgroup>
+        {tb.showJerseyNumber && <col className="w-[3.25rem]" />}
+        {tb.showPlayerName && <col />}
+        {tb.showGrade && <col className="w-[5.5rem]" />}
+        {tb.showPosition !== false && <col className="w-[4rem]" />}
+        {tb.showWeight !== false && <col className="w-[3.5rem]" />}
+        {tb.showHeight !== false && <col className="w-[4rem]" />}
+      </colgroup>
       <thead>
         <tr className="bg-gray-100">
           {tb.showJerseyNumber && (
-            <th className="border border-gray-300 px-2 py-1 text-left">{tb.jerseyNumberLabel}</th>
+            <th className="border border-gray-300 px-2 py-2 text-center text-xs font-bold uppercase tracking-wide text-black">
+              {tb.jerseyNumberLabel}
+            </th>
           )}
           {tb.showPlayerName && (
-            <th className="border border-gray-300 px-2 py-1 text-left">{tb.playerNameLabel}</th>
+            <th className="border border-gray-300 px-3 py-2 text-left text-xs font-bold uppercase tracking-wide text-black">
+              {tb.playerNameLabel}
+            </th>
           )}
-          {tb.showGrade && <th className="border border-gray-300 px-2 py-1 text-left">{tb.gradeLabel}</th>}
+          {tb.showGrade && (
+            <th className="border border-gray-300 px-2 py-2 text-left text-xs font-bold uppercase tracking-wide text-black">
+              {tb.gradeLabel}
+            </th>
+          )}
           {tb.showPosition !== false && (
-            <th className="border border-gray-300 px-2 py-1 text-left">{tb.positionLabel ?? "Pos"}</th>
+            <th className="border border-gray-300 px-2 py-2 text-center text-xs font-bold uppercase tracking-wide text-black">
+              {tb.positionLabel ?? "Position"}
+            </th>
           )}
           {tb.showWeight !== false && (
-            <th className="border border-gray-300 px-2 py-1 text-left">{tb.weightLabel ?? "Wt"}</th>
+            <th className="border border-gray-300 px-2 py-2 text-right text-xs font-bold uppercase tracking-wide text-black">
+              {tb.weightLabel ?? "Weight"}
+            </th>
           )}
           {tb.showHeight !== false && (
-            <th className="border border-gray-300 px-2 py-1 text-left">{tb.heightLabel ?? "Ht"}</th>
+            <th className="border border-gray-300 px-2 py-2 text-center text-xs font-bold uppercase tracking-wide text-black">
+              {tb.heightLabel ?? "Height"}
+            </th>
           )}
         </tr>
       </thead>
       <tbody>
-        {filteredPlayers.map((p) => (
-          <tr key={p.id}>
+        {filteredPlayers.map((p, idx) => (
+          <tr key={p.id} className={idx % 2 === 1 ? "bg-slate-50/80" : ""}>
             {tb.showJerseyNumber && (
-              <td className="border border-gray-300 px-2 py-1">{p.jerseyNumber ?? ""}</td>
+              <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-center tabular-nums text-black">
+                {p.jerseyNumber ?? ""}
+              </td>
             )}
-            {tb.showPlayerName && <td className="border border-gray-300 px-2 py-1">{p.name}</td>}
+            {tb.showPlayerName && (
+              <td className="border border-gray-300 px-3 py-1.5 text-left text-black">{p.name}</td>
+            )}
             {tb.showGrade && (
-              <td className="border border-gray-300 px-2 py-1">{p.gradeLabel ?? p.grade ?? ""}</td>
+              <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-left text-black">
+                {p.gradeLabel ?? p.grade ?? ""}
+              </td>
             )}
             {tb.showPosition !== false && (
-              <td className="border border-gray-300 px-2 py-1">{p.position ?? ""}</td>
+              <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-center font-medium text-black">
+                {p.position ?? ""}
+              </td>
             )}
             {tb.showWeight !== false && (
-              <td className="border border-gray-300 px-2 py-1">{p.weight ?? ""}</td>
+              <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-right tabular-nums text-black">
+                {p.weight ?? ""}
+              </td>
             )}
             {tb.showHeight !== false && (
-              <td className="border border-gray-300 px-2 py-1">{p.height ?? ""}</td>
+              <td className="whitespace-nowrap border border-gray-300 px-2 py-1.5 text-center text-black">
+                {p.height ?? ""}
+              </td>
             )}
           </tr>
         ))}
@@ -569,18 +605,30 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
               ) : (
                 <div className="rounded-lg border border-border bg-white text-black p-6 lg:p-8 shadow-inner max-h-[50vh] overflow-y-auto">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Email attachment preview</p>
-                  <div className="text-center mb-4">
-                    {template.header.showYear && (
-                      <p className="text-sm text-gray-700">
-                        <strong>{template.header.yearLabel}:</strong> {team.year}
+                  <div className="mb-4 text-center">
+                    {template.header.showTeamName && (
+                      <h2 className="mb-2 text-xl font-bold tracking-tight text-black">{team.name}</h2>
+                    )}
+                    {(template.header.showYear || (template.header.showSchoolName && schoolDisplay)) && (
+                      <p className="text-sm leading-relaxed text-gray-600">
+                        {template.header.showYear && (
+                          <>
+                            <span className="font-semibold text-gray-800">{template.header.yearLabel}:</span> {team.year}
+                          </>
+                        )}
+                        {template.header.showYear && template.header.showSchoolName && schoolDisplay && (
+                          <span className="mx-2 text-gray-400" aria-hidden>
+                            |
+                          </span>
+                        )}
+                        {template.header.showSchoolName && schoolDisplay && (
+                          <>
+                            <span className="font-semibold text-gray-800">{template.header.schoolNameLabel}:</span>{" "}
+                            {schoolDisplay}
+                          </>
+                        )}
                       </p>
                     )}
-                    {template.header.showSchoolName && team.schoolName && (
-                      <p className="text-sm text-gray-700">
-                        <strong>{template.header.schoolNameLabel}:</strong> {team.schoolName}
-                      </p>
-                    )}
-                    {template.header.showTeamName && <h2 className="text-xl font-bold mt-1">{team.name}</h2>}
                   </div>
                   {message.trim() && (
                     <div className="mb-4 p-3 bg-slate-50 border-l-4 border-blue-500 text-sm text-slate-700 whitespace-pre-wrap">

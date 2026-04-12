@@ -29,7 +29,7 @@ export function RosterPaginationControls({
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] bg-white/80 px-4 py-3 ${className}`}
+      className={`flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 ${className}`}
       role="navigation"
       aria-label="Roster pagination"
     >

@@ -15,8 +15,18 @@ type ScrollableListContainerProps = {
   className?: string
   /** Classes merged onto the scrollable element. */
   scrollClassName?: string
-  /** Max height; default matches Readiness roster checklist. */
+  /** Max height; default matches long unpaginated lists. Ignored when `naturalHeight` is true. */
   maxHeightClassName?: string
+  /**
+   * Grow with content vertically (no max-height / inner vertical scroll).
+   * Use with paginated tables so the card fits the current page of rows.
+   */
+  naturalHeight?: boolean
+  /**
+   * Renders below the scroll region but outside it (e.g. pagination).
+   * Avoids pinning controls to the bottom of a tall overflow box or leaving dead space above them.
+   */
+  footer?: ReactNode
   showBackToTop?: boolean
   backToTopThreshold?: number
   backToTopAriaLabel?: string
@@ -29,6 +39,8 @@ export function ScrollableListContainer({
   className,
   scrollClassName,
   maxHeightClassName = "max-h-[min(480px,55vh)]",
+  naturalHeight = false,
+  footer,
   showBackToTop = true,
   backToTopThreshold = 72,
   backToTopAriaLabel = "Back to top of list",
@@ -58,30 +70,47 @@ export function ScrollableListContainer({
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  return (
-    <div className={cn("relative", className)}>
-      <div
-        ref={scrollRef}
-        onScroll={updateScrollState}
-        className={cn(
-          "overflow-x-auto overflow-y-auto overscroll-contain rounded-lg border border-border bg-card shadow-sm [scrollbar-gutter:stable]",
-          maxHeightClassName,
-          SCROLLABLE_LIST_THIN_SCROLLBAR,
-          scrollClassName
-        )}
-      >
-        {children}
-      </div>
+  const scrollVerticalClasses = naturalHeight
+    ? "overflow-x-auto overflow-y-visible overscroll-x-contain"
+    : "overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+
+  const scrollBox = (
+    <div
+      ref={scrollRef}
+      onScroll={updateScrollState}
+      className={cn(
+        "relative",
+        scrollVerticalClasses,
+        !naturalHeight && maxHeightClassName,
+        !footer && "rounded-lg border border-border bg-card shadow-sm",
+        SCROLLABLE_LIST_THIN_SCROLLBAR,
+        scrollClassName
+      )}
+    >
+      {children}
       {showBackToTop && showTopBtn && (
         <Button
           type="button"
           variant="secondary"
-          className="absolute bottom-2 right-2 z-10 h-8 w-8 min-h-8 min-w-8 rounded-full border border-[#E2E8F0] bg-[#F8FAFC]/95 p-0 shadow-md backdrop-blur-sm hover:bg-[#F1F5F9]"
+          className="pointer-events-auto absolute bottom-2 right-2 z-10 h-8 w-8 min-h-8 min-w-8 rounded-full border border-[#E2E8F0] bg-[#F8FAFC]/95 p-0 shadow-md backdrop-blur-sm hover:bg-[#F1F5F9]"
           onClick={scrollToTop}
           aria-label={backToTopAriaLabel}
         >
           <ChevronUp className="h-4 w-4 text-[#334155]" aria-hidden />
         </Button>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={cn(className)}>
+      {footer ? (
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          {scrollBox}
+          {footer}
+        </div>
+      ) : (
+        scrollBox
       )}
     </div>
   )

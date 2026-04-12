@@ -2106,8 +2106,18 @@ export function RosterManagerEnhanced({
                       <p className="py-6 text-center text-sm text-muted-foreground">All players are ready.</p>
                     ) : (
                       <ScrollableListContainer
+                        naturalHeight
                         contentKey={`${attentionTotal}-${attentionPage}-${attentionQ}`}
                         backToTopAriaLabel="Back to top of needs attention list"
+                        showBackToTop={false}
+                        footer={
+                          <RosterPaginationControls
+                            page={attentionPage}
+                            totalItems={attentionTotal}
+                            pageSize={READINESS_PAGE_SIZE}
+                            onPageChange={setAttentionPage}
+                          />
+                        }
                       >
                         <table className="w-full min-w-[640px] border-collapse text-sm">
                           <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC]">
@@ -2191,12 +2201,6 @@ export function RosterManagerEnhanced({
                             })}
                           </tbody>
                         </table>
-                        <RosterPaginationControls
-                          page={attentionPage}
-                          totalItems={attentionTotal}
-                          pageSize={READINESS_PAGE_SIZE}
-                          onPageChange={setAttentionPage}
-                        />
                       </ScrollableListContainer>
                     )}
                   </CardContent>
@@ -2352,8 +2356,18 @@ export function RosterManagerEnhanced({
                       <p className="py-6 text-center text-sm text-muted-foreground">No players on roster.</p>
                     ) : (
                       <ScrollableListContainer
+                        naturalHeight
                         contentKey={`${checklistTotal}-${checklistPage}-${checklistQ}`}
                         backToTopAriaLabel="Back to top of roster checklist"
+                        showBackToTop={false}
+                        footer={
+                          <RosterPaginationControls
+                            page={checklistPage}
+                            totalItems={checklistTotal}
+                            pageSize={READINESS_PAGE_SIZE}
+                            onPageChange={setChecklistPage}
+                          />
+                        }
                       >
                         <table className="w-full min-w-[36rem] border-collapse text-sm">
                           <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC]">
@@ -2395,12 +2409,6 @@ export function RosterManagerEnhanced({
                             })}
                           </tbody>
                         </table>
-                        <RosterPaginationControls
-                          page={checklistPage}
-                          totalItems={checklistTotal}
-                          pageSize={READINESS_PAGE_SIZE}
-                          onPageChange={setChecklistPage}
-                        />
                       </ScrollableListContainer>
                     )}
                   </CardContent>

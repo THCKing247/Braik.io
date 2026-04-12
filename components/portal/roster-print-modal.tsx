@@ -23,6 +23,7 @@ interface RosterPrintModalProps {
   onClose: () => void
 }
 
+/** Preview HTML is derived from roster data + selection; no network on step change. */
 export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   const printRef = useRef<HTMLDivElement>(null)
   const [rosterData, setRosterData] = useState<RosterPrintClientData | null>(null)
@@ -30,6 +31,10 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   const [loading, setLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  /** Guided flow: 1 = select players, 2 = preview, 3 = print. */
+  const [flowStep, setFlowStep] = useState<1 | 2 | 3>(1)
+  /** Brief pulse when entering preview so layout can paint (no extra user click). */
+  const [previewFrameReady, setPreviewFrameReady] = useState(false)
 
   const togglePlayer = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -58,6 +63,12 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
   }, [rosterData, selectedIds])
 
   const hasPlayers = playersToPrint.length > 0
+
+  const selectionSignature = useMemo(() => [...selectedIds].sort().join(","), [selectedIds])
+
+  useEffect(() => {
+    setFlowStep(1)
+  }, [teamId])
 
   useEffect(() => {
     const loadRoster = async () => {
@@ -96,6 +107,17 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
     loadRoster()
   }, [teamId])
 
+  /** Auto-enable preview frame once user lands on step 2 or 3 (no “Show preview” click). */
+  useEffect(() => {
+    if (flowStep < 2 || !hasPlayers) {
+      setPreviewFrameReady(false)
+      return
+    }
+    setPreviewFrameReady(false)
+    const t = window.setTimeout(() => setPreviewFrameReady(true), 0)
+    return () => clearTimeout(t)
+  }, [flowStep, hasPlayers, selectionSignature])
+
   const handlePrint = () => {
     const el = printRef.current
     if (!el) {
@@ -106,7 +128,10 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
       console.warn("[roster-print-modal] Print aborted: no roster data")
       return
     }
-    if (!hasPlayers) return
+    if (flowStep < 3) {
+      console.warn("[roster-print-modal] Print aborted: not on print step")
+      return
+    }
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         window.print()
@@ -135,8 +160,9 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
             </div>
             <DialogDescription>Loading roster data…</DialogDescription>
           </DialogHeader>
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground" aria-busy="true">
-            Loading roster…
+          <div className="flex flex-col items-center justify-center gap-3 py-10" aria-busy="true">
+            <div className="h-32 w-full max-w-sm animate-pulse rounded-lg bg-muted" />
+            <p className="text-sm text-muted-foreground">Loading roster…</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -268,7 +294,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
     </>
   )
 
-  const showPrintPortal = hasPlayers
+  const showPrintPortal = flowStep >= 2 && hasPlayers && previewFrameReady
 
   return (
     <>
@@ -279,7 +305,14 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
             "w-[min(100vw-1rem,56rem)] max-w-[min(100vw-1rem,56rem)] lg:max-w-5xl"
           )}
         >
-          <DialogHeader className="no-print shrink-0 space-y-2 border-b border-border px-4 pb-3 pt-2 md:px-6 md:pb-4 md:pt-4">
+          <DialogHeader className="no-print shrink-0 space-y-3 border-b border-border px-4 pb-3 pt-2 md:px-6 md:pb-4 md:pt-4">
+            <div className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground">
+              <span className={flowStep >= 1 ? "font-semibold text-foreground" : ""}>1. Select</span>
+              <span aria-hidden>→</span>
+              <span className={flowStep >= 2 ? "font-semibold text-foreground" : ""}>2. Preview</span>
+              <span aria-hidden>→</span>
+              <span className={flowStep >= 3 ? "font-semibold text-foreground" : ""}>3. Print</span>
+            </div>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 space-y-1">
                 <DialogTitle className="flex items-center gap-2 text-left text-foreground">
@@ -287,7 +320,7 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
                   Print Roster
                 </DialogTitle>
                 <DialogDescription className="text-left">
-                  Choose players, review the preview below, then print. The browser print dialog opens when you click Print.
+                  Select players, review the preview, then print. The browser print dialog opens on step 3.
                 </DialogDescription>
               </div>
               <div className="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -308,87 +341,140 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
           </DialogHeader>
 
           <div className="no-print flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6 md:py-5">
-            <div className="no-print mb-4 rounded-lg border border-border bg-muted/30 p-4">
-              <h3 className="text-sm font-semibold text-foreground mb-2">Players to print</h3>
-              <div className="flex flex-wrap gap-2 mb-3">
-                <Button type="button" size="sm" variant="outline" onClick={selectAllPlayers}>
-                  Select all
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
-                  Clear
-                </Button>
-                <span className="text-muted-foreground text-sm self-center">
-                  {playersToPrint.length} of {players?.length ?? 0} selected
-                </span>
-              </div>
-              <div className="max-h-48 lg:max-h-56 overflow-y-auto rounded-md border border-border bg-background">
-                <table className="w-full text-sm text-foreground">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/50">
-                      <th className="w-10 p-2 text-left">
-                        <input
-                          type="checkbox"
-                          checked={allSelected}
-                          onChange={(e) => (e.target.checked ? selectAllPlayers() : clearSelection())}
-                          aria-label="Select all"
-                        />
-                      </th>
-                      <th className="p-2 text-left font-medium">Name</th>
-                      <th className="p-2 text-left w-14 font-medium">#</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(players || []).map((p) => (
-                      <tr key={p.id} className="border-b border-border/80">
-                        <td className="p-2">
-                          <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => togglePlayer(p.id)} />
-                        </td>
-                        <td className="p-2">{p.name}</td>
-                        <td className="p-2">{p.jerseyNumber ?? "—"}</td>
+            {flowStep === 1 && (
+              <div className="no-print mb-4 rounded-lg border border-border bg-muted/30 p-4">
+                <h3 className="text-sm font-semibold text-foreground mb-2">Step 1 — Players to print</h3>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <Button type="button" size="sm" variant="outline" onClick={selectAllPlayers}>
+                    Select all
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
+                    Clear
+                  </Button>
+                  <span className="text-muted-foreground text-sm self-center">
+                    {playersToPrint.length} of {players?.length ?? 0} selected
+                  </span>
+                </div>
+                <p className="text-muted-foreground text-xs mb-2 lg:hidden">
+                  Continue to preview the printable layout, then proceed to print.
+                </p>
+                <div className="max-h-48 lg:max-h-56 overflow-y-auto rounded-md border border-border bg-background">
+                  <table className="w-full text-sm text-foreground">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        <th className="w-10 p-2 text-left">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={(e) => (e.target.checked ? selectAllPlayers() : clearSelection())}
+                            aria-label="Select all"
+                          />
+                        </th>
+                        <th className="p-2 text-left font-medium">Name</th>
+                        <th className="p-2 text-left w-14 font-medium">#</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {showSettings && (
-              <div className="no-print mb-6 rounded-lg border border-border bg-muted/30 p-4">
-                <h3 className="text-sm font-semibold text-foreground mb-2">Printer Settings</h3>
-                <ul className="text-muted-foreground text-sm space-y-1 list-disc list-inside">
-                  <li>Recommended: Portrait orientation</li>
-                  <li>Paper size: Letter (8.5&quot; x 11&quot;)</li>
-                  <li>Turn off &quot;Headers and footers&quot; in the print dialog to hide date, URL, and page numbers</li>
-                  <li>Scale: 100% (default)</li>
-                  <li>Background graphics: Enabled (if available)</li>
-                </ul>
-              </div>
-            )}
-
-            <div className="no-print mb-3">
-              <h3 className="text-sm font-semibold text-foreground lg:text-base">Print preview</h3>
-              <p className="text-muted-foreground text-xs mt-1">This matches what will print.</p>
-            </div>
-
-            {hasPlayers ? (
-              <div
-                className="no-print mx-auto max-w-4xl rounded-lg border border-border bg-white p-8 text-black lg:p-10"
-                style={{ width: "8.5in" }}
-              >
-                {printBody}
-              </div>
-            ) : (
-              <div className="no-print rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-                Select at least one player to see the print preview.
+                    </thead>
+                    <tbody>
+                      {(players || []).map((p) => (
+                        <tr key={p.id} className="border-b border-border/80">
+                          <td className="p-2">
+                            <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => togglePlayer(p.id)} />
+                          </td>
+                          <td className="p-2">{p.name}</td>
+                          <td className="p-2">{p.jerseyNumber ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="no-print mt-4 flex flex-wrap items-center gap-3">
+                  <Button type="button" onClick={() => hasPlayers && setFlowStep(2)} disabled={!hasPlayers}>
+                    Continue to preview
+                  </Button>
+                </div>
               </div>
             )}
 
-            <div className="no-print mt-6 flex flex-wrap gap-3">
-              <Button type="button" onClick={handlePrint} className="min-w-[140px] flex-1" disabled={!hasPlayers}>
-                <Printer className="h-4 w-4 mr-2" aria-hidden />
-                Print
-              </Button>
-            </div>
+            {flowStep >= 2 && (
+              <>
+                {showSettings && (
+                  <div className="no-print mb-6 rounded-lg border border-border bg-muted/30 p-4">
+                    <h3 className="text-sm font-semibold text-foreground mb-2">Printer Settings</h3>
+                    <ul className="text-muted-foreground text-sm space-y-1 list-disc list-inside">
+                      <li>Recommended: Portrait orientation</li>
+                      <li>Paper size: Letter (8.5&quot; x 11&quot;)</li>
+                      <li>Turn off &quot;Headers and footers&quot; in the print dialog to hide date, URL, and page numbers</li>
+                      <li>Scale: 100% (default)</li>
+                      <li>Background graphics: Enabled (if available)</li>
+                    </ul>
+                  </div>
+                )}
+
+                <div className="no-print mb-3">
+                  <h3 className="text-sm font-semibold text-foreground lg:text-base">
+                    {flowStep === 2 ? "Step 2 — Preview layout" : "Step 3 — Print"}
+                  </h3>
+                  <p className="text-muted-foreground text-xs mt-1">
+                    Preview loads automatically when you open this step. On step 3, use Print to open the browser dialog.
+                  </p>
+                </div>
+
+                {flowStep >= 2 && hasPlayers && !previewFrameReady && (
+                  <div
+                    className="no-print mx-auto mb-4 max-w-4xl rounded-lg border border-border bg-muted/40 p-8"
+                    style={{ width: "8.5in", minHeight: "200px" }}
+                    aria-busy="true"
+                    aria-label="Loading preview"
+                  >
+                    <div className="space-y-3 animate-pulse">
+                      <div className="mx-auto h-6 w-2/3 rounded bg-muted" />
+                      <div className="h-4 w-full rounded bg-muted" />
+                      <div className="h-4 w-full rounded bg-muted" />
+                      <div className="h-4 w-5/6 rounded bg-muted" />
+                    </div>
+                  </div>
+                )}
+
+                {flowStep >= 2 && hasPlayers && previewFrameReady && (
+                  <div
+                    className="no-print mx-auto max-w-4xl rounded-lg border border-border bg-white p-8 text-black lg:p-10"
+                    style={{ width: "8.5in" }}
+                  >
+                    {printBody}
+                  </div>
+                )}
+
+                {flowStep >= 2 && !hasPlayers && (
+                  <div className="no-print rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+                    Select at least one player on step 1 to see a preview.
+                  </div>
+                )}
+
+                <div className="no-print mt-6 flex flex-wrap gap-3">
+                  {flowStep === 2 && (
+                    <>
+                      <Button type="button" onClick={() => hasPlayers && setFlowStep(3)} disabled={!hasPlayers}>
+                        Continue to print
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setFlowStep(1)}>
+                        Back
+                      </Button>
+                    </>
+                  )}
+                  {flowStep === 3 && (
+                    <>
+                      <Button type="button" onClick={handlePrint} className="min-w-[140px] flex-1" disabled={!hasPlayers}>
+                        <Printer className="h-4 w-4 mr-2" aria-hidden />
+                        Print
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setFlowStep(2)}>
+                        Back
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

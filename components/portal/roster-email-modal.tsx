@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X, Mail, Send } from "lucide-react"
+import { X, Mail, Send, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { parseRosterPrintClientData } from "@/lib/roster/roster-print-payload"
@@ -99,6 +99,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
   const { showToast } = usePlaybookToast()
   const [rosterData, setRosterData] = useState<RosterData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [recipientEmail, setRecipientEmail] = useState("")
   const [ccEmail, setCcEmail] = useState("")
   const [subject, setSubject] = useState("")
@@ -106,8 +107,13 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
   const [sending, setSending] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState("")
+  /** 1 players → 2 compose → 3 preview → 4 send */
+  const [flowStep, setFlowStep] = useState<1 | 2 | 3 | 4>(1)
+  const [previewFrameReady, setPreviewFrameReady] = useState(false)
   const [postmarkLoading, setPostmarkLoading] = useState(true)
   const [postmarkStatus, setPostmarkStatus] = useState<PostmarkStatusPayload | null>(null)
+
+  const selectionSignature = useMemo(() => [...selectedIds].sort().join(","), [selectedIds])
 
   useEffect(() => {
     let cancelled = false
@@ -142,11 +148,13 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
 
   useEffect(() => {
     const load = async () => {
+      setLoadError(false)
       try {
         const res = await fetch(`/api/roster/print?teamId=${encodeURIComponent(teamId)}&fullRoster=1`)
         if (!res.ok) {
           showToast("Could not load roster", "error")
           setRosterData(null)
+          setLoadError(true)
           return
         }
         const raw: unknown = await res.json()
@@ -154,6 +162,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
         if (!parsed) {
           showToast("Could not load roster", "error")
           setRosterData(null)
+          setLoadError(true)
           return
         }
         const data: RosterData = {
@@ -165,10 +174,12 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
         setRosterData(data)
         const ids = data.players.map((p) => p.id)
         setSelectedIds(new Set(ids))
+        setFlowStep(1)
         setSubject(`Roster — ${data.team?.name ?? "Team"} — ${new Date().toLocaleDateString()}`)
       } catch {
         showToast("Could not load roster", "error")
         setRosterData(null)
+        setLoadError(true)
       } finally {
         setLoading(false)
       }
@@ -176,6 +187,17 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per teamId
   }, [teamId])
+
+  /** Auto-show preview on step 3 after paint (no “Preview” button). Re-run when selection changes on preview step. */
+  useEffect(() => {
+    if (flowStep !== 3) {
+      setPreviewFrameReady(false)
+      return
+    }
+    setPreviewFrameReady(false)
+    const id = window.setTimeout(() => setPreviewFrameReady(true), 0)
+    return () => clearTimeout(id)
+  }, [flowStep, selectionSignature])
 
   const playersForSelector = useMemo(() => {
     if (!rosterData?.players) return []
@@ -264,16 +286,29 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
     }
   }
 
-  if (loading || !rosterData) {
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-card border border-border rounded-lg p-8 text-foreground max-w-sm w-full">
+          <p className="text-sm font-medium mb-4">Loading roster…</p>
+          <div className="space-y-2 animate-pulse" aria-busy="true">
+            <div className="h-4 w-full rounded bg-muted" />
+            <div className="h-4 w-5/6 rounded bg-muted" />
+            <div className="h-24 w-full rounded bg-muted" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!rosterData || loadError) {
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
         <div className="bg-card border border-border rounded-lg p-8 text-foreground">
-          <p>{loading ? "Loading roster…" : "Could not load roster"}</p>
-          {!loading && (
-            <Button className="mt-4" onClick={onClose}>
-              Close
-            </Button>
-          )}
+          <p>Could not load roster</p>
+          <Button className="mt-4" onClick={onClose}>
+            Close
+          </Button>
         </div>
       </div>
     )
@@ -282,10 +317,66 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
   const { team, template, generatedAt } = rosterData
   const tb = template.body
 
+  const previewTable = (
+    <table className="w-full border-collapse text-sm">
+      <thead>
+        <tr className="bg-gray-100">
+          {tb.showJerseyNumber && (
+            <th className="border border-gray-300 px-2 py-1 text-left">{tb.jerseyNumberLabel}</th>
+          )}
+          {tb.showPlayerName && (
+            <th className="border border-gray-300 px-2 py-1 text-left">{tb.playerNameLabel}</th>
+          )}
+          {tb.showGrade && <th className="border border-gray-300 px-2 py-1 text-left">{tb.gradeLabel}</th>}
+          {tb.showPosition !== false && (
+            <th className="border border-gray-300 px-2 py-1 text-left">{tb.positionLabel ?? "Pos"}</th>
+          )}
+          {tb.showWeight !== false && (
+            <th className="border border-gray-300 px-2 py-1 text-left">{tb.weightLabel ?? "Wt"}</th>
+          )}
+          {tb.showHeight !== false && (
+            <th className="border border-gray-300 px-2 py-1 text-left">{tb.heightLabel ?? "Ht"}</th>
+          )}
+        </tr>
+      </thead>
+      <tbody>
+        {filteredPlayers.map((p) => (
+          <tr key={p.id}>
+            {tb.showJerseyNumber && (
+              <td className="border border-gray-300 px-2 py-1">{p.jerseyNumber ?? ""}</td>
+            )}
+            {tb.showPlayerName && <td className="border border-gray-300 px-2 py-1">{p.name}</td>}
+            {tb.showGrade && (
+              <td className="border border-gray-300 px-2 py-1">{p.gradeLabel ?? p.grade ?? ""}</td>
+            )}
+            {tb.showPosition !== false && (
+              <td className="border border-gray-300 px-2 py-1">{p.position ?? ""}</td>
+            )}
+            {tb.showWeight !== false && (
+              <td className="border border-gray-300 px-2 py-1">{p.weight ?? ""}</td>
+            )}
+            {tb.showHeight !== false && (
+              <td className="border border-gray-300 px-2 py-1">{p.height ?? ""}</td>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <Card className="w-full max-w-3xl lg:max-w-4xl xl:max-w-5xl max-h-[95vh] flex flex-col bg-card border-border text-foreground my-4 shadow-xl">
         <CardHeader className="shrink-0 border-b border-border lg:py-6">
+          <div className="hidden lg:flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+            <span className={flowStep >= 1 ? "text-foreground font-semibold" : ""}>1. Players</span>
+            <ChevronRight className="h-3 w-3 opacity-50" aria-hidden />
+            <span className={flowStep >= 2 ? "text-foreground font-semibold" : ""}>2. Compose</span>
+            <ChevronRight className="h-3 w-3 opacity-50" aria-hidden />
+            <span className={flowStep >= 3 ? "text-foreground font-semibold" : ""}>3. Preview</span>
+            <ChevronRight className="h-3 w-3 opacity-50" aria-hidden />
+            <span className={flowStep >= 4 ? "text-foreground font-semibold" : ""}>4. Send</span>
+          </div>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <Mail className="h-5 w-5 text-primary shrink-0" />
@@ -300,7 +391,7 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
             {!postmarkLoading && postmarkStatus?.configured && postmarkStatus.fromEmail && (
               <>
                 Sending via Postmark from <span className="font-medium text-foreground">{postmarkStatus.fromEmail}</span>{" "}
-                (stream: {postmarkStatus.messageStream}). The roster is sent as a file attachment (PDF when available).
+                (stream: {postmarkStatus.messageStream}). Roster is attached as PDF when available.
               </>
             )}
             {!postmarkLoading && postmarkStatus && !postmarkStatus.configured && "Email sending is disabled until Postmark is configured on the server."}
@@ -319,199 +410,255 @@ export function RosterEmailModal({ teamId, onClose }: RosterEmailModalProps) {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email-status-filter">Filter by player status</Label>
-            <select
-              id="email-status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 w-full max-w-md rounded-md border border-border bg-background px-3 text-sm"
-            >
-              <option value="">All statuses</option>
-              <option value="active">Active / healthy</option>
-              <option value="injured">Injured</option>
-              <option value="unavailable">Unavailable</option>
-              <option value="inactive">Inactive (roster)</option>
-            </select>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">Players in attachment</span>
-            <Button type="button" variant="outline" size="sm" onClick={selectAllVisible}>
-              Select all (visible)
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={selectNone}>
-              Clear
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {filteredPlayers.length} of {playersForSelector.length} selected (visible)
-            </span>
-          </div>
-
-          <div className="rounded-md border border-border overflow-hidden max-h-56 lg:max-h-72 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted sticky top-0">
-                <tr>
-                  <th className="w-10 p-2 text-left">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all visible"
-                      checked={
-                        playersForSelector.length > 0 && playersForSelector.every((p) => selectedIds.has(p.id))
-                      }
-                      onChange={(e) => (e.target.checked ? selectAllVisible() : selectNone())}
-                    />
-                  </th>
-                  <th className="p-2 text-left">Name</th>
-                  <th className="p-2 text-left w-16">#</th>
-                  <th className="p-2 text-left hidden sm:table-cell">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {playersForSelector.map((p) => {
-                  const roster = (p.rosterStatus ?? "active").toLowerCase()
-                  const health = (p.healthStatus ?? "active").toLowerCase()
-                  let statusLabel = "Active"
-                  if (roster !== "active") statusLabel = "Inactive"
-                  else if (health === "injured") statusLabel = "Injured"
-                  else if (health === "unavailable") statusLabel = "Unavailable"
-                  return (
-                    <tr key={p.id} className="border-t border-border">
-                      <td className="p-2">
-                        <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggle(p.id)} />
-                      </td>
-                      <td className="p-2">{p.name}</td>
-                      <td className="p-2">{p.jerseyNumber ?? "—"}</td>
-                      <td className="p-2 hidden sm:table-cell text-muted-foreground">{statusLabel}</td>
+          {flowStep === 1 && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="email-status-filter">Filter by player status</Label>
+                <select
+                  id="email-status-filter"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-10 w-full max-w-md rounded-md border border-border bg-background px-3 text-sm"
+                >
+                  <option value="">All statuses</option>
+                  <option value="active">Active / healthy</option>
+                  <option value="injured">Injured</option>
+                  <option value="unavailable">Unavailable</option>
+                  <option value="inactive">Inactive (roster)</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">Players in email</span>
+                <Button type="button" variant="outline" size="sm" onClick={selectAllVisible}>
+                  Select all (visible)
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={selectNone}>
+                  Clear
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {filteredPlayers.length} of {playersForSelector.length} selected (visible)
+                </span>
+              </div>
+              <div className="rounded-md border border-border overflow-hidden max-h-56 lg:max-h-72 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted sticky top-0">
+                    <tr>
+                      <th className="w-10 p-2 text-left">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all visible"
+                          checked={
+                            playersForSelector.length > 0 && playersForSelector.every((p) => selectedIds.has(p.id))
+                          }
+                          onChange={(e) => (e.target.checked ? selectAllVisible() : selectNone())}
+                        />
+                      </th>
+                      <th className="p-2 text-left">Name</th>
+                      <th className="p-2 text-left w-16">#</th>
+                      <th className="p-2 text-left hidden sm:table-cell">Status</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {playersForSelector.map((p) => {
+                      const roster = (p.rosterStatus ?? "active").toLowerCase()
+                      const health = (p.healthStatus ?? "active").toLowerCase()
+                      let statusLabel = "Active"
+                      if (roster !== "active") statusLabel = "Inactive"
+                      else if (health === "injured") statusLabel = "Injured"
+                      else if (health === "unavailable") statusLabel = "Unavailable"
+                      return (
+                        <tr key={p.id} className="border-t border-border">
+                          <td className="p-2">
+                            <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggle(p.id)} />
+                          </td>
+                          <td className="p-2">{p.name}</td>
+                          <td className="p-2">{p.jerseyNumber ?? "—"}</td>
+                          <td className="p-2 hidden sm:table-cell text-muted-foreground">{statusLabel}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button type="button" onClick={() => filteredPlayers.length > 0 && setFlowStep(2)} disabled={filteredPlayers.length === 0}>
+                  Continue to compose
+                </Button>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          )}
 
-          <div className="grid sm:grid-cols-2 gap-4 lg:gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="to">To (recipient)</Label>
-              <Input
-                id="to"
-                type="email"
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
-                placeholder="coach@school.edu"
-                className="bg-background"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="subj">Subject</Label>
-              <Input id="subj" value={subject} onChange={(e) => setSubject(e.target.value)} className="bg-background" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="roster-email-cc">Cc (optional)</Label>
-            <Input
-              id="roster-email-cc"
-              type="text"
-              value={ccEmail}
-              onChange={(e) => setCcEmail(e.target.value)}
-              placeholder="assistant@school.edu, admin@school.edu"
-              className="bg-background"
-              autoComplete="off"
-            />
-            <p className="text-xs text-muted-foreground">Separate multiple addresses with commas or semicolons.</p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="msg">Short note (optional, in email body — roster attaches as PDF)</Label>
-            <textarea
-              id="msg"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full min-h-[88px] lg:min-h-[100px] rounded-md border border-border bg-background px-3 py-2 text-sm"
-              placeholder="Optional message to include above the signature…"
-            />
-          </div>
+          {flowStep === 2 && (
+            <>
+              <div className="grid sm:grid-cols-2 gap-4 lg:gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="to">To (recipient)</Label>
+                  <Input
+                    id="to"
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    placeholder="coach@school.edu"
+                    className="bg-background"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subj">Subject</Label>
+                  <Input id="subj" value={subject} onChange={(e) => setSubject(e.target.value)} className="bg-background" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="roster-email-cc">Cc (optional)</Label>
+                <Input
+                  id="roster-email-cc"
+                  type="text"
+                  value={ccEmail}
+                  onChange={(e) => setCcEmail(e.target.value)}
+                  placeholder="assistant@school.edu, admin@school.edu"
+                  className="bg-background"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground">Separate multiple addresses with commas or semicolons.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="msg">Message (optional, appears in email body; roster attaches as a file)</Label>
+                <textarea
+                  id="msg"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="w-full min-h-[100px] lg:min-h-[120px] rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  placeholder="Short note to include in the email…"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button type="button" onClick={() => setFlowStep(3)}>
+                  Continue to preview
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setFlowStep(1)}>
+                  Back
+                </Button>
+              </div>
+            </>
+          )}
 
-          <div className="rounded-lg border border-border bg-white text-black p-6 lg:p-8 shadow-inner max-h-[45vh] overflow-y-auto">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Attachment preview (same columns as PDF)</p>
-            <div className="text-center mb-4">
-              {template.header.showYear && (
-                <p className="text-sm text-gray-700">
-                  <strong>{template.header.yearLabel}:</strong> {team.year}
-                </p>
-              )}
-              {template.header.showSchoolName && team.schoolName && (
-                <p className="text-sm text-gray-700">
-                  <strong>{template.header.schoolNameLabel}:</strong> {team.schoolName}
-                </p>
-              )}
-              {template.header.showTeamName && <h2 className="text-xl font-bold mt-1">{team.name}</h2>}
-            </div>
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  {tb.showJerseyNumber && (
-                    <th className="border border-gray-300 px-2 py-1 text-left">{tb.jerseyNumberLabel}</th>
-                  )}
-                  {tb.showPlayerName && (
-                    <th className="border border-gray-300 px-2 py-1 text-left">{tb.playerNameLabel}</th>
-                  )}
-                  {tb.showGrade && <th className="border border-gray-300 px-2 py-1 text-left">{tb.gradeLabel}</th>}
-                  {tb.showPosition !== false && (
-                    <th className="border border-gray-300 px-2 py-1 text-left">{tb.positionLabel ?? "Pos"}</th>
-                  )}
-                  {tb.showWeight !== false && (
-                    <th className="border border-gray-300 px-2 py-1 text-left">{tb.weightLabel ?? "Wt"}</th>
-                  )}
-                  {tb.showHeight !== false && (
-                    <th className="border border-gray-300 px-2 py-1 text-left">{tb.heightLabel ?? "Ht"}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlayers.map((p) => (
-                  <tr key={p.id}>
-                    {tb.showJerseyNumber && (
-                      <td className="border border-gray-300 px-2 py-1">{p.jerseyNumber ?? ""}</td>
-                    )}
-                    {tb.showPlayerName && <td className="border border-gray-300 px-2 py-1">{p.name}</td>}
-                    {tb.showGrade && (
-                      <td className="border border-gray-300 px-2 py-1">{p.gradeLabel ?? p.grade ?? ""}</td>
-                    )}
-                    {tb.showPosition !== false && (
-                      <td className="border border-gray-300 px-2 py-1">{p.position ?? ""}</td>
-                    )}
-                    {tb.showWeight !== false && (
-                      <td className="border border-gray-300 px-2 py-1">{p.weight ?? ""}</td>
-                    )}
-                    {tb.showHeight !== false && (
-                      <td className="border border-gray-300 px-2 py-1">{p.height ?? ""}</td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {template.footer.showGeneratedDate && (
-              <p className="text-center text-xs text-gray-500 mt-4">
-                Generated: {new Date(generatedAt).toLocaleDateString()}
+          {flowStep === 3 && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Step 3 — Attachment preview (same columns as the PDF). This loads automatically; no extra action needed.
               </p>
-            )}
-          </div>
+              {filteredPlayers.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                  No players selected. Go back to step 1 to choose players.
+                </div>
+              ) : !previewFrameReady ? (
+                <div
+                  className="rounded-lg border border-border bg-white p-6 lg:p-8 shadow-inner max-h-[50vh] min-h-[200px] flex flex-col justify-center"
+                  aria-busy="true"
+                  aria-label="Generating preview"
+                >
+                  <div className="space-y-3 animate-pulse max-w-md mx-auto w-full">
+                    <div className="h-5 w-1/2 mx-auto rounded bg-muted" />
+                    <div className="h-4 w-full rounded bg-muted" />
+                    <div className="h-4 w-full rounded bg-muted" />
+                    <div className="h-4 w-4/5 rounded bg-muted" />
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border bg-white text-black p-6 lg:p-8 shadow-inner max-h-[50vh] overflow-y-auto">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Email attachment preview</p>
+                  <div className="text-center mb-4">
+                    {template.header.showYear && (
+                      <p className="text-sm text-gray-700">
+                        <strong>{template.header.yearLabel}:</strong> {team.year}
+                      </p>
+                    )}
+                    {template.header.showSchoolName && team.schoolName && (
+                      <p className="text-sm text-gray-700">
+                        <strong>{template.header.schoolNameLabel}:</strong> {team.schoolName}
+                      </p>
+                    )}
+                    {template.header.showTeamName && <h2 className="text-xl font-bold mt-1">{team.name}</h2>}
+                  </div>
+                  {message.trim() && (
+                    <div className="mb-4 p-3 bg-slate-50 border-l-4 border-blue-500 text-sm text-slate-700 whitespace-pre-wrap">
+                      {message}
+                    </div>
+                  )}
+                  {previewTable}
+                  {template.footer.showGeneratedDate && (
+                    <p className="text-center text-xs text-gray-500 mt-4">
+                      Generated: {new Date(generatedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  type="button"
+                  onClick={() => filteredPlayers.length > 0 && setFlowStep(4)}
+                  disabled={filteredPlayers.length === 0 || !previewFrameReady}
+                >
+                  Continue to send
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void handleSend()}
+                  disabled={
+                    sending ||
+                    !recipientEmail.trim() ||
+                    filteredPlayers.length === 0 ||
+                    !previewFrameReady ||
+                    postmarkLoading ||
+                    postmarkStatus?.configured === false
+                  }
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send email
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setFlowStep(2)}>
+                  Back
+                </Button>
+              </div>
+            </>
+          )}
 
-          <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
-            <Button
-              onClick={handleSend}
-              disabled={
-                sending || !recipientEmail.trim() || postmarkLoading || postmarkStatus?.configured === false
-              }
-              className="min-w-[160px]"
-            >
-              <Send className="h-4 w-4 mr-2" />
-              {sending ? "Sending…" : "Send email"}
-            </Button>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-          </div>
+          {flowStep === 4 && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Ready to send to <strong className="text-foreground">{recipientEmail || "—"}</strong>
+                {ccSummary.ok && ccSummary.cc ? (
+                  <>
+                    {" "}
+                    with Cc <strong className="text-foreground">{ccSummary.cc}</strong>
+                  </>
+                ) : null}{" "}
+                — <strong className="text-foreground">{filteredPlayers.length}</strong> player
+                {filteredPlayers.length === 1 ? "" : "s"} in the attachment.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
+                <Button
+                  onClick={handleSend}
+                  disabled={
+                    sending || !recipientEmail.trim() || postmarkLoading || postmarkStatus?.configured === false
+                  }
+                  className="min-w-[160px]"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {sending ? "Sending…" : "Send email"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setFlowStep(3)}>
+                  Back
+                </Button>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

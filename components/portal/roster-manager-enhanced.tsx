@@ -921,6 +921,24 @@ export function RosterManagerEnhanced({
     return list
   }, [players, rosterSearchQuery, rosterPositionFilter, rosterGradeFilter, rosterPlayerStatusFilter, readinessFilteredPlayerIds])
 
+  const rosterPaginationFilterKey = useMemo(
+    () =>
+      [
+        rosterSearchQuery,
+        rosterPositionFilter,
+        rosterGradeFilter,
+        rosterPlayerStatusFilter,
+        readinessFilter,
+      ].join("|"),
+    [
+      rosterSearchQuery,
+      rosterPositionFilter,
+      rosterGradeFilter,
+      rosterPlayerStatusFilter,
+      readinessFilter,
+    ]
+  )
+
   // Load depth chart data when modal opens
   useEffect(() => {
     if (isFootball && showDepthChartModal) {
@@ -1659,6 +1677,7 @@ export function RosterManagerEnhanced({
               ) : (
                 <RosterMobileView
                   players={filteredRosterPlayers}
+                  filterKey={rosterPaginationFilterKey}
                   sort={mobileRosterSort}
                   teamId={teamId}
                   canEdit={canEdit}
@@ -2597,6 +2616,7 @@ export function RosterManagerEnhanced({
           ) : rosterViewMode === "card" ? (
             <RosterGridView
               players={filteredRosterPlayers}
+              filterKey={rosterPaginationFilterKey}
               canEdit={canEdit}
               onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}
               onSendInvite={canEdit ? (p) => void handleSendInvite(p as Player) : undefined}

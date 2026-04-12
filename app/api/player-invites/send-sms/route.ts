@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
-import { buildJoinLink } from "@/lib/invites/build-join-link"
+import { buildPlayerJoinUrl } from "@/lib/invites/build-join-link"
 import { normalizePhone } from "@/lib/invites/normalize-phone"
 import { sendSMS } from "@/lib/twilio/sendSms"
 import { logInviteAction } from "@/lib/audit/structured-logger"
@@ -178,7 +178,15 @@ export async function POST(request: Request) {
     }
 
     const token = (invite as { token: string }).token
-    const joinLink = buildJoinLink(token)
+    const joinResult = buildPlayerJoinUrl(token, request)
+    if (!joinResult.ok) {
+      console.error("[POST /api/player-invites/send-sms] join URL:", joinResult.message)
+      return NextResponse.json(
+        { error: joinResult.message, code: joinResult.code },
+        { status: 503 }
+      )
+    }
+    const joinLink = joinResult.url
     const playerDisplayName = `${(player as { first_name: string }).first_name} ${(player as { last_name: string }).last_name}`.trim() || undefined
 
     // Optional: fetch team name for message

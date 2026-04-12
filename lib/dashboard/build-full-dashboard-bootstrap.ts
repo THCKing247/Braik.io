@@ -22,17 +22,11 @@ import { timedBootstrap } from "@/lib/debug/bootstrap-timing"
 import { lightweightCached, LW_TTL_DASHBOARD_BOOTSTRAP, tagTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
 import { isCoachBPlusEntitled } from "@/lib/braik-ai/coach-b-plus-entitlement"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { getTrustedAppOriginOrEmpty } from "@/lib/invites/resolve-invite-app-origin"
 
+/** Prefer env-based origin; avoids bad x-forwarded-* hosts. Used for roster join links in bootstrap. */
 export function requestAppOrigin(request: Request): string {
-  const h = request.headers
-  const host = h.get("x-forwarded-host")
-  const proto = h.get("x-forwarded-proto")
-  if (host && proto) return `${proto}://${host}`
-  try {
-    return process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin || ""
-  } catch {
-    return process.env.NEXT_PUBLIC_APP_URL || ""
-  }
+  return getTrustedAppOriginOrEmpty(request)
 }
 
 export function liteUserToSessionUser(u: RequestUserLite): SessionUser {

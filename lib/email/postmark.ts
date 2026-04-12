@@ -54,6 +54,8 @@ export type SendEmailInput = {
   messageStream?: string
   /** Passed through {@link sanitizePostmarkMetadata} — flat object, max 10 keys, Postmark limits apply. */
   metadata?: Record<string, unknown>
+  /** Postmark attachments — Content must be base64-encoded file bytes. */
+  attachments?: Array<{ name: string; contentBase64: string; contentType: string }>
 }
 
 function logPostmarkFailure(status: number, body: unknown, safeSummary: string) {
@@ -135,6 +137,14 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult>
     payload.Metadata = sanitizedMeta
   }
 
+  if (input.attachments && input.attachments.length > 0) {
+    payload.Attachments = input.attachments.map((a) => ({
+      Name: a.name,
+      Content: a.contentBase64,
+      ContentType: a.contentType,
+    }))
+  }
+
   try {
     const res = await fetch("https://api.postmarkapp.com/email", {
       method: "POST",
@@ -190,6 +200,7 @@ export async function sendPostmarkEmail(params: {
   tag?: string
   metadata?: Record<string, unknown>
   messageStream?: string
+  attachments?: Array<{ name: string; contentBase64: string; contentType: string }>
 }): Promise<PostmarkSendResult> {
   return sendEmail({
     to: params.to,
@@ -201,5 +212,6 @@ export async function sendPostmarkEmail(params: {
     tag: params.tag,
     metadata: params.metadata,
     messageStream: params.messageStream,
+    attachments: params.attachments,
   })
 }

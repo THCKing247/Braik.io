@@ -1,9 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { RosterPaginationControls, ROSTER_CARDS_PAGE_SIZE } from "@/components/portal/roster-pagination-controls"
 import {
   Eye,
   Pencil,
@@ -103,6 +104,8 @@ function sortPlayers(list: RosterMobilePlayer[], sort: MobileRosterSort): Roster
 
 interface RosterMobileViewProps {
   players: RosterMobilePlayer[]
+  /** Resets card pagination when search/filters change (must match desktop roster filters). */
+  filterKey: string
   sort: MobileRosterSort
   teamId: string
   canEdit: boolean
@@ -120,6 +123,7 @@ interface RosterMobileViewProps {
 
 export function RosterMobileView({
   players,
+  filterKey,
   sort,
   teamId,
   canEdit,
@@ -135,7 +139,22 @@ export function RosterMobileView({
   onImport,
 }: RosterMobileViewProps) {
   const [morePlayer, setMorePlayer] = useState<RosterMobilePlayer | null>(null)
+  const [page, setPage] = useState(1)
   const sorted = useMemo(() => sortPlayers(players, sort), [players, sort])
+
+  useEffect(() => {
+    setPage(1)
+  }, [filterKey])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sorted.length / ROSTER_CARDS_PAGE_SIZE))
+    setPage((p) => Math.min(p, maxPage))
+  }, [sorted.length])
+
+  const paged = useMemo(() => {
+    const start = (page - 1) * ROSTER_CARDS_PAGE_SIZE
+    return sorted.slice(start, start + ROSTER_CARDS_PAGE_SIZE)
+  }, [sorted, page])
 
   if (sorted.length === 0) {
     return (
@@ -171,8 +190,8 @@ export function RosterMobileView({
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-hidden pb-8">
-      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:gap-4">
-        {sorted.map((player) => (
+      <ul className="grid grid-cols-1 content-start gap-4 md:grid-cols-2 md:gap-5 lg:gap-4">
+        {paged.map((player) => (
           <li
             key={player.id}
             className="list-none min-w-0 max-w-full rounded-2xl border border-border bg-card p-4 shadow-sm"
@@ -303,6 +322,13 @@ export function RosterMobileView({
           </li>
         ))}
       </ul>
+      <RosterPaginationControls
+        page={page}
+        totalItems={sorted.length}
+        pageSize={ROSTER_CARDS_PAGE_SIZE}
+        onPageChange={setPage}
+        className="mt-2 rounded-lg border border-border"
+      />
 
       {/* Bottom sheet — secondary actions */}
       {morePlayer && (

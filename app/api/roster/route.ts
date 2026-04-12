@@ -10,6 +10,7 @@ import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { revalidateTeamRosterDerivedCaches } from "@/lib/cache/lightweight-get-cache"
+import { getTrustedAppOriginOrEmpty } from "@/lib/invites/resolve-invite-app-origin"
 
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
@@ -164,10 +165,7 @@ export async function GET(request: Request) {
       inviteByPlayer.set(row.player_id, row)
     }
 
-    const origin =
-      request.headers.get("x-forwarded-host") && request.headers.get("x-forwarded-proto")
-        ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
-        : process.env.NEXT_PUBLIC_APP_URL || (request.url ? new URL(request.url).origin : "") || ""
+    const origin = getTrustedAppOriginOrEmpty(request)
 
     type InviteStatus = "not_invited" | "invite_created" | "email_sent" | "sms_sent" | "claimed" | "invite_sent"
     const players = typedRows.map((p) => {

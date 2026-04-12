@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
-import { buildJoinLink } from "@/lib/invites/build-join-link"
+import { buildPlayerJoinUrl } from "@/lib/invites/build-join-link"
 import { sendPlayerInviteEmail } from "@/lib/email/braik-emails"
 import { logInviteAction } from "@/lib/audit/structured-logger"
 
@@ -62,7 +62,15 @@ export async function POST(request: Request) {
 
     const token = (invite as { token: string }).token
     const code = (invite as { code?: string | null }).code ?? ""
-    const joinLink = buildJoinLink(token)
+    const joinResult = buildPlayerJoinUrl(token, request)
+    if (!joinResult.ok) {
+      console.error("[POST /api/player-invites/send-email] join URL:", joinResult.message)
+      return NextResponse.json(
+        { error: joinResult.message, code: joinResult.code },
+        { status: 503 }
+      )
+    }
+    const joinLink = joinResult.url
     const playerName = `${(player as { first_name: string }).first_name} ${(player as { last_name: string }).last_name}`.trim() || "Player"
 
     const result = await sendPlayerInviteEmail({

@@ -5,6 +5,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePhone } from "@/lib/player-invite-auto-link"
 import { logInviteAction } from "@/lib/audit/structured-logger"
+import { resolveTrustedAppOrigin } from "@/lib/invites/resolve-invite-app-origin"
 
 function generateInviteCode(length = 8): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -55,6 +56,12 @@ export async function POST(
     }
 
     await requireTeamPermission(player.team_id, "edit_roster")
+
+    const originCheck = resolveTrustedAppOrigin({ request })
+    if (!originCheck.ok) {
+      console.error("[POST /api/roster/[playerId]/invite] app origin missing:", originCheck.message)
+      return NextResponse.json({ error: originCheck.message, code: originCheck.code }, { status: 503 })
+    }
 
     if ((player as { user_id?: string | null }).user_id) {
       return NextResponse.json(
@@ -182,17 +189,13 @@ export async function POST(
       console.warn("[POST /api/roster/[playerId]/invite] invite_codes player_claim_invite", typedInviteErr.message)
     }
 
-    const origin =
-      request.headers.get("x-forwarded-host") && request.headers.get("x-forwarded-proto")
-        ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
-        : process.env.NEXT_PUBLIC_APP_URL || (request.url ? new URL(request.url).origin : "") || ""
-    const joinLink = origin ? `${origin}/join?token=${encodeURIComponent(token)}` : ""
+    const joinLink = `${originCheck.origin}/join?token=${encodeURIComponent(token)}`
 
     const p = updated as { invite_code?: string | null; invite_status?: string }
     return NextResponse.json({
       inviteCode: p.invite_code ?? code,
       inviteStatus: (p.invite_status ?? "invited") as "invited",
-      joinLink: joinLink || undefined,
+      joinLink,
       token,
     })
   } catch (err: unknown) {

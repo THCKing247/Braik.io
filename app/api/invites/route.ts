@@ -6,13 +6,18 @@ import crypto from "crypto"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
 import { sendTeamInviteEmail } from "@/lib/email/braik-emails"
-import { buildTeamInviteAcceptUrl } from "@/lib/invites/team-invite-link"
+import { resolveTrustedAppOrigin } from "@/lib/invites/resolve-invite-app-origin"
 
 export async function POST(request: Request) {
   try {
     const session = await getServerSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const originGate = resolveTrustedAppOrigin({ request })
+    if (!originGate.ok) {
+      return NextResponse.json({ error: originGate.message, code: originGate.code }, { status: 503 })
     }
 
     const { teamId, email, role } = await request.json()
@@ -93,7 +98,7 @@ export async function POST(request: Request) {
     const inviterName =
       (inviterProfile as { full_name?: string | null } | null)?.full_name?.trim() || null
 
-    const inviteUrl = buildTeamInviteAcceptUrl(token)
+    const inviteUrl = `${originGate.origin}/invite/${encodeURIComponent(token)}`
     sendTeamInviteEmail({
       to: normalizedEmail,
       teamName,

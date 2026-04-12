@@ -1,11 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import Link from "next/link"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { PlayerCard } from "./player-card"
 import { PlayerPhotoCropModal } from "./player-photo-crop-modal"
-import { Button } from "@/components/ui/button"
-import { User } from "lucide-react"
+import { RosterPaginationControls, ROSTER_CARDS_PAGE_SIZE } from "@/components/portal/roster-pagination-controls"
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -54,6 +52,8 @@ interface RosterGridViewProps {
   onImageUploadSuccess?: (playerId: string, imageUrl: string) => void
   /** If provided, each player card gets a "View Profile" link to this URL (e.g. /dashboard/roster/[playerId]?teamId=xxx). */
   getProfileHref?: (player: Player) => string
+  /** When search/filters change, parent bumps this so pagination resets to page 1. */
+  filterKey: string
 }
 
 export function RosterGridView({
@@ -68,6 +68,7 @@ export function RosterGridView({
   onPromotePlayer,
   onImageUploadSuccess,
   getProfileHref,
+  filterKey,
 }: RosterGridViewProps) {
   const [uploadingPlayerId, setUploadingPlayerId] = useState<string | null>(null)
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
@@ -77,10 +78,25 @@ export function RosterGridView({
   const [cropPlayerId, setCropPlayerId] = useState<string | null>(null)
   const [cropFileName, setCropFileName] = useState<string>("photo.jpg")
   const [playersState, setPlayersState] = useState<Player[]>(players)
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     setPlayersState(players)
   }, [players])
+
+  useEffect(() => {
+    setPage(1)
+  }, [filterKey])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(players.length / ROSTER_CARDS_PAGE_SIZE))
+    setPage((p) => Math.min(p, maxPage))
+  }, [players.length])
+
+  const pagedPlayers = useMemo(() => {
+    const start = (page - 1) * ROSTER_CARDS_PAGE_SIZE
+    return playersState.slice(start, start + ROSTER_CARDS_PAGE_SIZE)
+  }, [playersState, page])
 
   useEffect(() => {
     return () => {
@@ -168,8 +184,7 @@ export function RosterGridView({
 
   return (
     <div
-      className="overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white/50 [scrollbar-gutter:stable] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-      style={{ minHeight: "420px", maxHeight: "800px" }}
+      className="flex flex-col overflow-hidden rounded-lg border border-[#E5E7EB] bg-white/50 [scrollbar-gutter:stable]"
       aria-label="Roster cards grid"
     >
       {cropOpen && cropImageUrl && (
@@ -186,8 +201,11 @@ export function RosterGridView({
           {uploadError}
         </div>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
-      {playersState.map((player) => (
+      <div
+        className="grid min-h-0 auto-rows-auto grid-cols-2 content-start gap-4 overflow-y-auto p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        style={{ maxHeight: "min(800px, calc(100vh - 12rem))" }}
+      >
+      {pagedPlayers.map((player) => (
         <div key={player.id} className="flex flex-col gap-2">
           <PlayerCard
             player={player}
@@ -217,6 +235,12 @@ export function RosterGridView({
         </div>
       )}
       </div>
+      <RosterPaginationControls
+        page={page}
+        totalItems={playersState.length}
+        pageSize={ROSTER_CARDS_PAGE_SIZE}
+        onPageChange={setPage}
+      />
     </div>
   )
 }

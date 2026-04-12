@@ -450,7 +450,7 @@ export function DashboardAnnouncementsCard({
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent
           showMobileSheetHandle={false}
-          className="relative flex min-h-0 w-full max-w-3xl flex-col overflow-hidden border border-[rgb(var(--border))] bg-white p-0 md:max-w-3xl"
+          className="flex min-h-0 w-full max-w-3xl flex-col overflow-hidden border border-[rgb(var(--border))] bg-white p-0 md:max-w-3xl"
         >
           <button
             type="button"
@@ -614,7 +614,7 @@ export function DashboardAnnouncementsCard({
 
       {/* Create modal */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="relative max-w-lg w-[calc(100%-2rem)] border border-[rgb(var(--border))] bg-white">
+        <DialogContent className="max-w-lg border border-[rgb(var(--border))] bg-white">
           <button
             type="button"
             className="absolute right-3 top-3 rounded-lg p-1.5 hover:bg-[rgb(var(--platinum))]"

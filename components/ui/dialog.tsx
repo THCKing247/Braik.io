@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { useEffect } from "react"
-import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface DialogProps {
@@ -46,25 +45,14 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
   if (!open) return null
 
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 grid min-h-0 grid-cols-1 grid-rows-1 overflow-hidden bg-black/50",
-        "p-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pl-4 pr-4",
-        "sm:p-6 sm:pt-[max(1.5rem,env(safe-area-inset-top,0px))] sm:pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
-      )}
-      onClick={() => onOpenChange(false)}
-    >
-      {/*
-        One grid cell fills the padded viewport. The shell uses max-h-full so panels never exceed
-        the visible frame; self-end = bottom sheet on phones, sm:self-center = true center on larger.
-      */}
+    <>
       <div
-        className="col-start-1 row-start-1 min-h-0 w-full max-h-full max-w-full justify-self-center self-end overflow-x-hidden sm:self-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
+        className="fixed inset-0 z-[999] bg-black/50"
+        onClick={() => onOpenChange(false)}
+        aria-hidden
+      />
+      {children}
+    </>
   )
 }
 
@@ -72,12 +60,14 @@ export function DialogContent({ className, children, showMobileSheetHandle = tru
   return (
     <div
       className={cn(
-        /* max-h-full: stay inside padded overlay grid; min-h-0: allow inner flex children to shrink */
-        "min-h-0 w-full max-w-none rounded-t-3xl border border-border bg-card p-4 shadow-2xl max-h-full overflow-y-auto",
-        "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:mx-0 md:max-w-lg md:rounded-2xl md:p-6",
-        /** Consumers (e.g. wide stat forms) may override `md:max-w-*` and flex layout via `className`. */
+        /* position: fixed; top/left 50%; transform: translate(-50%,-50%); z-index: 1000 */
+        "fixed left-1/2 top-1/2 z-[1000] w-[calc(100%-2rem)] max-w-[500px] -translate-x-1/2 -translate-y-1/2",
+        "min-h-0 max-h-[min(90dvh,calc(100dvh-2rem))] overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-2xl",
+        "pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:p-6",
+        /** Consumers may override width/max-width for wide modals via `className`. */
         className
       )}
+      onClick={(e) => e.stopPropagation()}
     >
       {showMobileSheetHandle ? (
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted md:hidden" aria-hidden />

@@ -154,8 +154,8 @@ export default function PrivacyPage() {
               </ul>
               <p>
                 Contact Braik:{" "}
-                <a href="mailto:support@braik.io" className="text-[#60A5FA] underline hover:text-slate-100">
-                  support@braik.io
+                <a href="mailto:support@apextsgroup.com" className="text-[#60A5FA] underline hover:text-slate-100">
+                  support@apextsgroup.com
                 </a>
               </p>
             </div>

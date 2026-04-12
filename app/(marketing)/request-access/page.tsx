@@ -86,7 +86,7 @@ export default function RequestAccessPage() {
                   <Link href={coachProgramHref}>{waitlist ? "Join program waitlist" : "Request coach access"}</Link>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="min-h-[48px] border-slate-300 flex-1">
-                  <a href="mailto:support@braik.io">Email us</a>
+                  <a href="mailto:support@apextsgroup.com">Email us</a>
                 </Button>
               </div>
 

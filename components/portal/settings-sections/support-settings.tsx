@@ -75,10 +75,10 @@ export function SupportSettings() {
         </CardHeader>
         <CardContent className="space-y-3">
           <a
-            href="mailto:support@braik.io?subject=Braik%20support%20request"
+            href="mailto:support@apextsgroup.com?subject=Braik%20support%20request"
             className="inline-flex text-sm font-semibold text-primary underline-offset-4 hover:underline"
           >
-            support@braik.io
+            support@apextsgroup.com
           </a>
           <p className="text-sm text-muted-foreground">
             Include your school or program name and your role. For urgent safety issues, say so in the subject line.

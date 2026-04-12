@@ -244,8 +244,8 @@ export default function TermsPage() {
               <h2 className="text-xl font-athletic font-semibold uppercase tracking-wide text-[#3B82F6]">15. Contact</h2>
               <p>
                 Questions about these Terms or the Braik service:{" "}
-                <a href="mailto:support@braik.io" className="text-[#60A5FA] underline hover:text-slate-100">
-                  support@braik.io
+                <a href="mailto:support@apextsgroup.com" className="text-[#60A5FA] underline hover:text-slate-100">
+                  support@apextsgroup.com
                 </a>
               </p>
               <p className="text-sm text-slate-300">Company: Apex Technical Solutions Group LLC</p>

@@ -96,11 +96,11 @@ export default function SupportPage() {
         </CardHeader>
         <CardContent>
           <a
-            href="mailto:support@braik.io?subject=Braik%20support%20request"
+            href="mailto:support@apextsgroup.com?subject=Braik%20support%20request"
             className="inline-flex text-sm font-semibold underline-offset-4 hover:underline"
             style={{ color: "rgb(var(--accent))" }}
           >
-            support@braik.io
+            support@apextsgroup.com
           </a>
           <p className="mt-3 text-sm" style={{ color: "rgb(var(--muted))" }}>
             Response times are fastest on business days. For urgent safety issues, say so in the subject line.

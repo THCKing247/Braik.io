@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
+import {
+  parseRosterFullFromSupabaseError,
+  PLAYER_SIGNUP_ROSTER_FULL_MESSAGE,
+  SIGNUP_ERROR_CODES,
+} from "@/lib/auth/signup-route-error"
 import { notifyTeamStaff } from "@/lib/notifications/team-staff-notify"
-import { upsertStaffTeamMember } from "@/lib/team-members-sync"
 import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
 import type { PlayerJoinAnalyzeResponse, PlayerJoinIntent } from "./claim-types"
 import {
@@ -123,7 +127,7 @@ export async function analyzePlayerJoinMatch(
 
 export type TeamJoinSignupResult =
   | { ok: true; teamId: string; playerId: string; mode: "claimed_existing" | "created_self_registered" }
-  | { ok: false; error: string; status: number }
+  | { ok: false; error: string; status: number; code?: string }
 
 /**
  * Claim-or-create after auth user exists. Call from signup-secure with service client.
@@ -229,14 +233,12 @@ export async function claimExistingPlayer(
     return { ok: false, error: "Could not link to roster. Ask your coach for help.", status: 500 }
   }
   if (!updated?.id) {
-    return { ok: false, error: "That roster spot was already claimed. Sign in or contact your coach.", status: 409 }
-  }
-
-  const { error: tmErr } = await upsertStaffTeamMember(supabase, params.teamId, params.userId, "player", {
-    source: "player_team_join_claim",
-  })
-  if (tmErr) {
-    console.error("[claimExistingPlayer] team_members", tmErr.message)
+    return {
+      ok: false,
+      error: "That roster spot was already claimed. Sign in or contact your coach.",
+      status: 409,
+      code: SIGNUP_ERROR_CODES.PLAYER_ALREADY_LINKED,
+    }
   }
 
   try {
@@ -271,8 +273,9 @@ export async function createSelfRegisteredPlayer(
   if (!capacity.ok) {
     return {
       ok: false,
-      error: capacity.message ?? "Roster limit reached. Ask your coach to upgrade or free a spot.",
-      status: 402,
+      error: PLAYER_SIGNUP_ROSTER_FULL_MESSAGE,
+      status: 403,
+      code: SIGNUP_ERROR_CODES.ROSTER_FULL,
     }
   }
 
@@ -299,17 +302,24 @@ export async function createSelfRegisteredPlayer(
 
   if (error || !inserted?.id) {
     console.error("[createSelfRegisteredPlayer]", error?.message)
-    return { ok: false, error: "Could not create your roster profile. Try again or contact support.", status: 500 }
+    const rf = parseRosterFullFromSupabaseError(error ?? null)
+    if (rf.isRosterFull) {
+      return {
+        ok: false,
+        error: PLAYER_SIGNUP_ROSTER_FULL_MESSAGE,
+        status: 403,
+        code: SIGNUP_ERROR_CODES.ROSTER_FULL,
+      }
+    }
+    return {
+      ok: false,
+      error: "Could not create your roster profile. Try again or contact support.",
+      status: 500,
+      code: SIGNUP_ERROR_CODES.DATABASE_FAILURE,
+    }
   }
 
   const playerId = inserted.id as string
-
-  const { error: tmErr } = await upsertStaffTeamMember(supabase, params.teamId, params.userId, "player", {
-    source: "player_team_join_self_reg",
-  })
-  if (tmErr) {
-    console.error("[createSelfRegisteredPlayer] team_members", tmErr.message)
-  }
 
   try {
     await notifyTeamStaff(supabase, params.teamId, {

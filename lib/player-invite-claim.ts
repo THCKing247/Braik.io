@@ -1,10 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logInviteAction } from "@/lib/audit/structured-logger"
-import { upsertStaffTeamMember } from "@/lib/team-members-sync"
+import { SIGNUP_ERROR_CODES } from "@/lib/auth/signup-route-error"
 
 export type ClaimPlayerInviteResult =
   | { ok: true; teamId: string; playerId: string }
-  | { ok: false; error: string; status: number }
+  | { ok: false; error: string; status: number; code?: string }
 
 /**
  * Links an authenticated user to a roster player via `player_invites` (token or table code)
@@ -18,7 +18,7 @@ export async function claimPlayerInviteForUser(
   const token = typeof opts.token === "string" ? opts.token.trim() : ""
   const codeRaw = typeof opts.code === "string" ? opts.code.trim().toUpperCase() : ""
   if (!token && !codeRaw) {
-    return { ok: false, error: "Token or code is required", status: 400 }
+    return { ok: false, error: "Token or code is required", status: 400, code: SIGNUP_ERROR_CODES.INVALID_INVITE_CODE }
   }
 
   type InviteRow = {
@@ -38,7 +38,7 @@ export async function claimPlayerInviteForUser(
       .maybeSingle()
     if (error) {
       logInviteAction("invite_redeem_failure", { reason: "db_error", error: error.message })
-      return { ok: false, error: "Invite not found or invalid.", status: 404 }
+      return { ok: false, error: "Invite not found or invalid.", status: 404, code: SIGNUP_ERROR_CODES.INVALID_INVITE_CODE }
     }
     invite = data as InviteRow | null
   } else {
@@ -49,7 +49,7 @@ export async function claimPlayerInviteForUser(
       .maybeSingle()
     if (error) {
       logInviteAction("invite_redeem_failure", { reason: "db_error", error: error.message })
-      return { ok: false, error: "Invite not found or invalid.", status: 404 }
+      return { ok: false, error: "Invite not found or invalid.", status: 404, code: SIGNUP_ERROR_CODES.INVALID_INVITE_CODE }
     }
     invite = data as InviteRow | null
   }
@@ -61,13 +61,18 @@ export async function claimPlayerInviteForUser(
   if (invite) {
     if (invite.status !== "pending" && invite.status !== "sent") {
       logInviteAction("invite_redeem_failure", { playerId: invite.player_id, inviteId: invite.id, reason: "already_used_or_revoked" })
-      return { ok: false, error: "This invite has already been used or revoked.", status: 400 }
+      return {
+        ok: false,
+        error: "This invite has already been used or revoked.",
+        status: 400,
+        code: SIGNUP_ERROR_CODES.INVALID_INVITE_CODE,
+      }
     }
     if (invite.expires_at) {
       const exp = new Date(invite.expires_at)
       if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
         logInviteAction("invite_redeem_failure", { playerId: invite.player_id, inviteId: invite.id, reason: "expired" })
-        return { ok: false, error: "This invite has expired.", status: 400 }
+        return { ok: false, error: "This invite has expired.", status: 400, code: SIGNUP_ERROR_CODES.INVITE_EXPIRED }
       }
     }
     playerId = invite.player_id
@@ -81,17 +86,22 @@ export async function claimPlayerInviteForUser(
       .maybeSingle()
     if (pErr || !playerRow) {
       logInviteAction("invite_redeem_failure", { reason: "not_found" })
-      return { ok: false, error: "Invite not found or invalid.", status: 404 }
+      return { ok: false, error: "Invite not found or invalid.", status: 404, code: SIGNUP_ERROR_CODES.INVALID_INVITE_CODE }
     }
     if ((playerRow as { user_id?: string | null }).user_id) {
       logInviteAction("invite_redeem_failure", { playerId: (playerRow as { id: string }).id, reason: "already_linked" })
-      return { ok: false, error: "This roster spot is already linked to another account.", status: 400 }
+      return {
+        ok: false,
+        error: "This roster spot is already linked to another account.",
+        status: 400,
+        code: SIGNUP_ERROR_CODES.PLAYER_ALREADY_LINKED,
+      }
     }
     playerId = (playerRow as { id: string }).id
     teamId = (playerRow as { team_id: string }).team_id
   } else {
     logInviteAction("invite_redeem_failure", { reason: "not_found" })
-    return { ok: false, error: "Invite not found or invalid.", status: 404 }
+    return { ok: false, error: "Invite not found or invalid.", status: 404, code: SIGNUP_ERROR_CODES.INVALID_INVITE_CODE }
   }
 
   const { data: player, error: playerErr } = await supabase
@@ -102,12 +112,17 @@ export async function claimPlayerInviteForUser(
 
   if (playerErr || !player) {
     logInviteAction("invite_redeem_failure", { playerId, inviteId: inviteId ?? undefined, reason: "player_not_found" })
-    return { ok: false, error: "Player record not found.", status: 404 }
+    return { ok: false, error: "Player record not found.", status: 404, code: SIGNUP_ERROR_CODES.INVALID_INVITE_CODE }
   }
 
   if ((player as { user_id: string | null }).user_id) {
     logInviteAction("invite_redeem_failure", { playerId, inviteId: inviteId ?? undefined, reason: "already_linked" })
-    return { ok: false, error: "This roster spot is already linked to another account.", status: 400 }
+    return {
+      ok: false,
+      error: "This roster spot is already linked to another account.",
+      status: 400,
+      code: SIGNUP_ERROR_CODES.PLAYER_ALREADY_LINKED,
+    }
   }
 
   const { error: updatePlayerErr } = await supabase
@@ -123,7 +138,7 @@ export async function claimPlayerInviteForUser(
   if (updatePlayerErr) {
     console.error("[claimPlayerInviteForUser] player update", updatePlayerErr)
     logInviteAction("invite_redeem_failure", { playerId, inviteId: inviteId ?? undefined, error: updatePlayerErr.message })
-    return { ok: false, error: "Failed to link profile", status: 500 }
+    return { ok: false, error: "Failed to link profile", status: 500, code: SIGNUP_ERROR_CODES.DATABASE_FAILURE }
   }
 
   if (inviteId) {
@@ -138,14 +153,6 @@ export async function claimPlayerInviteForUser(
     if (updateInviteErr) {
       console.error("[claimPlayerInviteForUser] player_invites update", updateInviteErr)
     }
-  }
-
-  const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, userId, "player", {
-    source: "player_invite_claim",
-  })
-  if (tmErr) {
-    console.error("[claimPlayerInviteForUser] team_members", tmErr)
-    return { ok: false, error: "Failed to save team membership", status: 500 }
   }
 
   logInviteAction("invite_redeem_success", { playerId, inviteId: inviteId ?? undefined })

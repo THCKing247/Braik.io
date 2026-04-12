@@ -14,19 +14,10 @@ import { claimPlayerInviteForUser } from "@/lib/player-invite-claim"
 import { isPublicSignupAllowed } from "@/lib/config/public-signup"
 import { processPlayerTeamJoinSignup, resolveTeamByPlayerJoinCode } from "@/lib/players/player-claim"
 import type { PlayerJoinIntent } from "@/lib/players/claim-types"
+import { cleanupSignupArtifacts } from "@/lib/auth/signup-cleanup"
+import { SignupRouteError, SIGNUP_ERROR_CODES, type SignupErrorCode } from "@/lib/auth/signup-route-error"
 
 const ALLOWED_ROLES = new Set(["admin", "head_coach", "assistant_coach", "player", "parent"])
-
-class SignupRouteError extends Error {
-  status: number
-  details?: string
-
-  constructor(status: number, message: string, details?: string) {
-    super(message)
-    this.status = status
-    this.details = details
-  }
-}
 
 type RawSignupBody = {
   fullName?: string
@@ -635,7 +626,9 @@ export async function POST(request: Request) {
     } else if (role === "player" && joinToken) {
       const claim = await claimPlayerInviteForUser(supabase, createdAuthUserId, { token: joinToken })
       if (!claim.ok) {
-        throw new SignupRouteError(claim.status, claim.error)
+        throw new SignupRouteError(claim.status, claim.error, {
+          code: claim.code as SignupErrorCode | undefined,
+        })
       }
       teamId = claim.teamId
     } else if (programCode && role === "player") {
@@ -743,7 +736,9 @@ export async function POST(request: Request) {
             confirmedPlayerId: confirmedPlayerId ?? null,
           })
           if (!joinRes.ok) {
-            throw new SignupRouteError(joinRes.status, joinRes.error)
+            throw new SignupRouteError(joinRes.status, joinRes.error, {
+              code: joinRes.code as SignupErrorCode | undefined,
+            })
           }
           teamId = joinRes.teamId
         }
@@ -890,8 +885,31 @@ export async function POST(request: Request) {
         staffStatus: role === "assistant_coach" ? "pending_assignment" : "active",
       })
       if (tmErr) {
-        throw new SignupRouteError(500, "Database failure while saving team membership", tmErr.message)
+        console.error(
+          "[signup-secure] team_members upsert failed",
+          JSON.stringify({
+            teamId,
+            userId: createdAuthUserId,
+            role: tmRole,
+            message: tmErr.message,
+            membershipAttempted: true,
+            committed: false,
+          })
+        )
+        throw new SignupRouteError(500, "We couldn't finish linking your account to the team. Please try again in a moment.", {
+          details: tmErr.message,
+          code: SIGNUP_ERROR_CODES.DATABASE_FAILURE,
+        })
       }
+      console.info(
+        "[signup-secure] team_members upsert committed",
+        JSON.stringify({
+          teamId,
+          userId: createdAuthUserId,
+          role: tmRole,
+          committed: true,
+        })
+      )
     } else if (teamId && role === "head_coach") {
       const { data: tmCheck } = await supabase
         .from("team_members")
@@ -967,6 +985,11 @@ export async function POST(request: Request) {
     if (createdAuthUserId) {
       const supabase = getSupabaseAdminClient()
       if (supabase) {
+        try {
+          await cleanupSignupArtifacts(supabase, createdAuthUserId)
+        } catch (cleanupErr) {
+          console.error("[signup-secure] cleanupSignupArtifacts failed", cleanupErr)
+        }
         await supabase.auth.admin.deleteUser(createdAuthUserId).catch(() => undefined)
       }
     }
@@ -976,6 +999,7 @@ export async function POST(request: Request) {
         {
           error: error.message,
           ...(error.details ? { details: error.details } : {}),
+          ...(error.code ? { code: error.code } : {}),
         },
         { status: error.status }
       )

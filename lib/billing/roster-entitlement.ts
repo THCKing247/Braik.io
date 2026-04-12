@@ -50,7 +50,10 @@ export async function getRosterEntitlement(
   return { scope: "none", limit: null, programId }
 }
 
-/** Active roster rows count toward purchased slots; inactive frees a slot. */
+/**
+ * Active roster rows count toward purchased slots; inactive frees a slot.
+ * DB trigger `players_enforce_active_roster_limit` enforces the same rule on insert/update (see migration 20260412150000).
+ */
 export async function countActivePlayersForEntitlement(
   supabase: SupabaseClient,
   teamId: string,

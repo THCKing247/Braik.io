@@ -73,7 +73,7 @@ function logPostmarkFailure(status: number, body: unknown, safeSummary: string) 
 }
 
 const POSTMARK_NOT_CONFIGURED_MESSAGE =
-  "Postmark is not configured. Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL, and make sure the sender is verified in Postmark."
+  "Postmark is not configured. Set POSTMARK_SERVER_TOKEN on the server (From defaults to noreply@apextsgroup.com when POSTMARK_FROM_EMAIL is unset)."
 
 /**
  * Send a transactional email via Postmark `/email` endpoint.
@@ -96,7 +96,7 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult>
   }
 
   const token = getPostmarkServerToken()!
-  const from = input.from?.trim() || getPostmarkFromEmail()!
+  const from = input.from?.trim() || getPostmarkFromEmail()
   const html = input.htmlBody?.trim() ?? ""
   const text = input.textBody?.trim() ?? (html ? stripHtml(html) : "")
 

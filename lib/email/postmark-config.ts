@@ -8,14 +8,17 @@
 
 let warnedMissingPostmark = false
 
+/** Verified sender in Postmark should match this domain (see apextsgroup.com DNS / Postmark). */
+export const DEFAULT_POSTMARK_FROM_EMAIL = "Braik <noreply@apextsgroup.com>"
+
 export type PostmarkRequiredEnvKey = "POSTMARK_SERVER_TOKEN" | "POSTMARK_FROM_EMAIL"
 
 export type PostmarkConfigStatus = {
   configured: boolean
   /** Whether a non-empty server token is present (never the secret value). */
   hasServerToken: boolean
-  /** Verified sender when set — safe to expose to authenticated coaches in status API. */
-  fromEmail: string | null
+  /** Resolved From address (env or default) — safe to expose to authenticated coaches in status API. */
+  fromEmail: string
   replyToEmail: string | null
   supportEmail: string | null
   messageStream: string
@@ -33,9 +36,15 @@ export function getPostmarkMessageStream(): string {
   return s && s.length > 0 ? s : "outbound"
 }
 
-export function getPostmarkFromEmail(): string | undefined {
-  const v = process.env.POSTMARK_FROM_EMAIL?.trim()
-  return v && v.length > 0 ? v : undefined
+/**
+ * Resolved From address for Postmark. Uses `POSTMARK_FROM_EMAIL` when set, except legacy
+ * `@braik.io` values are replaced so sending matches the apextsgroup.com verified sender.
+ */
+export function getPostmarkFromEmail(): string {
+  const raw = process.env.POSTMARK_FROM_EMAIL?.trim()
+  if (!raw) return DEFAULT_POSTMARK_FROM_EMAIL
+  if (/@braik\.io\b/i.test(raw)) return DEFAULT_POSTMARK_FROM_EMAIL
+  return raw
 }
 
 export function getPostmarkReplyToEmail(): string | undefined {
@@ -64,15 +73,15 @@ export function isPostmarkConfigured(): boolean {
  */
 export function getPostmarkConfigStatus(): PostmarkConfigStatus {
   const hasServerToken = Boolean(getPostmarkServerToken())
-  const fromEmail = getPostmarkFromEmail() ?? null
+  const fromEmail = getPostmarkFromEmail()
   const missing: PostmarkRequiredEnvKey[] = []
   if (!hasServerToken) missing.push("POSTMARK_SERVER_TOKEN")
-  if (!fromEmail) missing.push("POSTMARK_FROM_EMAIL")
 
-  const configured = missing.length === 0
+  /** Token is required; From falls back to {@link DEFAULT_POSTMARK_FROM_EMAIL} when unset. */
+  const configured = hasServerToken
   const userMessage = configured
     ? ""
-    : "Postmark is not configured. Set POSTMARK_SERVER_TOKEN and POSTMARK_FROM_EMAIL on the server, and make sure the sender is verified in Postmark."
+    : "Postmark is not configured. Set POSTMARK_SERVER_TOKEN on the server. Optionally set POSTMARK_FROM_EMAIL (defaults to noreply@apextsgroup.com); verify the sender domain in Postmark."
 
   return {
     configured,

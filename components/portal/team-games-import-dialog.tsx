@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ export function TeamGamesImportDialog({
   onImported: () => void
 }) {
   const { showToast } = usePlaybookToast()
+  const importLockRef = useRef(false)
   const [busy, setBusy] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [typeError, setTypeError] = useState<string | null>(null)
@@ -38,6 +39,8 @@ export function TeamGamesImportDialog({
   }, [open])
 
   const runImport = async (file: File) => {
+    if (importLockRef.current || busy) return
+    importLockRef.current = true
     setBusy(true)
     setLastErrors([])
     try {
@@ -49,10 +52,14 @@ export function TeamGamesImportDialog({
       })
       const data = (await res.json().catch(() => ({}))) as {
         success?: boolean
+        created?: number
+        updated?: number
         inserted?: number
+        skippedDuplicateInFile?: number
         parseErrors?: Array<{ row: number; message: string }>
         rowErrors?: Array<{ row: number; message: string }>
         error?: string
+        importRequestId?: string
       }
 
       if (!res.ok) {
@@ -67,17 +74,29 @@ export function TeamGamesImportDialog({
       const allErrs = [...parseErrs, ...rowErrs]
       setLastErrors(allErrs)
 
-      if (data.success && (data.inserted ?? 0) > 0) {
-        showToast(
-          allErrs.length
-            ? `Imported ${data.inserted} game(s). Some CSV rows had warnings — see below.`
-            : `Imported ${data.inserted} game(s).`,
-          "success"
-        )
-        onImported()
-        setSelectedFile(null)
-        setTypeError(null)
-        if (!allErrs.length) onOpenChange(false)
+      const created = data.created ?? data.inserted ?? 0
+      const updated = data.updated ?? 0
+      const skippedInFile = data.skippedDuplicateInFile ?? 0
+      const touched = created + updated
+
+      if (data.success && (touched > 0 || skippedInFile > 0)) {
+        const parts: string[] = []
+        if (created > 0) parts.push(`${created} new`)
+        if (updated > 0) parts.push(`${updated} updated`)
+        if (skippedInFile > 0) parts.push(`${skippedInFile} duplicate line(s) in file skipped`)
+        let msg = parts.length ? `Schedule: ${parts.join(", ")}.` : "No changes."
+        if (rowErrs.length > 0) {
+          msg += ` ${rowErrs.length} row(s) failed — see below.`
+        } else if (parseErrs.length > 0) {
+          msg += " Some rows had CSV warnings — see below."
+        }
+        showToast(msg, touched > 0 || (skippedInFile > 0 && rowErrs.length === 0) ? "success" : "error")
+        if (touched > 0) {
+          onImported()
+          setSelectedFile(null)
+          setTypeError(null)
+          if (!allErrs.length) onOpenChange(false)
+        }
       } else {
         showToast("No games were imported.", "error")
       }
@@ -85,6 +104,7 @@ export function TeamGamesImportDialog({
       showToast(e instanceof Error ? e.message : "Import failed", "error")
     } finally {
       setBusy(false)
+      importLockRef.current = false
     }
   }
 

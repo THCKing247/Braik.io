@@ -11,6 +11,8 @@ export type ParsedGameImportRow = {
   gameType: string | null
   conferenceGame: boolean
   notes: string | null
+  /** 1-based CSV line number (including header = 1) for logging and errors. */
+  sourceLine: number
 }
 
 export type GameImportParseResult = {
@@ -98,6 +100,7 @@ export function parseGamesScheduleCsv(text: string): GameImportParseResult {
       gameType,
       conferenceGame: confRaw ? parseBool(confRaw) : false,
       notes,
+      sourceLine: rowNum,
     })
   }
 

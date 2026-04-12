@@ -9,6 +9,7 @@ import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveSeasonIdForTeam } from "@/lib/team-season-resolve"
 import { scoringFieldsForInsert } from "@/lib/games-api-scoring"
 import { revalidateTeamCalendar, revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { normalizeOpponentForSchedule } from "@/lib/games/schedule-game-identity"
 import { upsertCalendarEventForGame } from "@/lib/games/sync-game-calendar-event"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
@@ -85,6 +86,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       (scoreBlock.result as string | undefined) ??
       resultFallback
 
+    const { data: dupCandidates } = await supabase
+      .from("games")
+      .select("id, opponent")
+      .eq("team_id", teamId)
+      .eq("game_date", game_date)
+    const duplicate = dupCandidates?.find(
+      (r: { opponent?: string | null }) =>
+        normalizeOpponentForSchedule(r.opponent ?? "") === normalizeOpponentForSchedule(opponent)
+    )
+    if (duplicate) {
+      return NextResponse.json(
+        { error: "A game already exists for this opponent and kickoff time.", code: "DUPLICATE_GAME" },
+        { status: 409 }
+      )
+    }
+
     const insertRow = {
       season_id,
       team_id: teamId,
@@ -111,6 +128,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
     }
 
     const { data: inserted, error } = await supabase.from("games").insert(insertRow).select("id").single()
+    if (error?.code === "23505") {
+      return NextResponse.json(
+        { error: "A game already exists for this opponent and kickoff time.", code: "DUPLICATE_GAME" },
+        { status: 409 }
+      )
+    }
     if (error || !inserted?.id) {
       console.error("[POST /api/teams/.../games]", error)
       return NextResponse.json({ error: "Failed to create game" }, { status: 500 })

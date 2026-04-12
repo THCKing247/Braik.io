@@ -1,4 +1,5 @@
 import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
+import { normalizePlayerInviteCode } from "@/lib/parent-player-code"
 
 /**
  * Canonical public site URL for share links and QR codes (no trailing slash).
@@ -15,4 +16,11 @@ export function buildPlayerSignupUrl(playerCode: string): string {
   const base = getPublicSiteUrl()
   const code = encodeURIComponent(normalizePlayerJoinCode(playerCode))
   return `${base}/signup/player?code=${code}`
+}
+
+/** Opens Join as player with the personal player invite code prefilled (not the shared team code). */
+export function buildPlayerInviteCodeSignupUrl(inviteCode: string): string {
+  const base = getPublicSiteUrl()
+  const code = encodeURIComponent(normalizePlayerInviteCode(inviteCode))
+  return `${base}/signup/player?playerCode=${code}`
 }

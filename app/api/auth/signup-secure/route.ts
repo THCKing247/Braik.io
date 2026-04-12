@@ -129,7 +129,11 @@ function parseSignupPayload(body: RawSignupBody) {
   const smsOptIn = parseOptIn(body.smsOptIn)
   const firstNameField = asNonEmptyString(body.firstName)
   const lastNameField = asNonEmptyString(body.lastName)
-  const playerJoinIntent = normalizePlayerJoinIntent(asNonEmptyString(body.playerJoinIntent))
+  const playerJoinIntentRaw = asNonEmptyString(body.playerJoinIntent)
+  const isPlayerClaimIntent = playerJoinIntentRaw?.trim().toLowerCase() === "player_claim"
+  const playerJoinIntent = isPlayerClaimIntent
+    ? null
+    : normalizePlayerJoinIntent(playerJoinIntentRaw ?? null)
   const confirmedPlayerId = asNonEmptyString(body.confirmedPlayerId)
   const graduationYear = parseOptionalInt(body.graduationYear)
   const jerseyNumber = parseOptionalInt(body.jerseyNumber)
@@ -151,6 +155,7 @@ function parseSignupPayload(body: RawSignupBody) {
     firstNameField,
     lastNameField,
     playerJoinIntent,
+    isPlayerClaimIntent,
     confirmedPlayerId,
     graduationYear,
     jerseyNumber,
@@ -191,11 +196,14 @@ export async function POST(request: Request) {
     const allowPlayerTeamJoinWithoutGlobalFlag =
       parsed.role === "player" && !!parsed.programCode && !!parsed.playerJoinIntent
     const allowPlayerInviteTokenWithoutGlobalFlag = parsed.role === "player" && !!parsed.joinToken
+    const allowPlayerClaimCodeWithoutGlobalFlag =
+      parsed.role === "player" && !!parsed.programCode && parsed.isPlayerClaimIntent
 
     if (
       !isPublicSignupAllowed() &&
       !allowPlayerTeamJoinWithoutGlobalFlag &&
-      !allowPlayerInviteTokenWithoutGlobalFlag
+      !allowPlayerInviteTokenWithoutGlobalFlag &&
+      !allowPlayerClaimCodeWithoutGlobalFlag
     ) {
       return NextResponse.json(
         {
@@ -221,6 +229,7 @@ export async function POST(request: Request) {
       firstNameField,
       lastNameField,
       playerJoinIntent,
+      isPlayerClaimIntent,
       confirmedPlayerId,
       graduationYear,
       jerseyNumber,
@@ -695,6 +704,13 @@ export async function POST(request: Request) {
             throw new SignupRouteError(500, "Failed to link your account to the roster.", linkErr.message)
           }
         }
+      }
+
+      if (!teamId && isPlayerClaimIntent) {
+        throw new SignupRouteError(
+          400,
+          "That player invite code is not valid, has expired, or was already used. Ask your coach for a new code."
+        )
       }
 
       if (!teamId) {

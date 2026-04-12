@@ -40,6 +40,7 @@ import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
 import { AddFollowUpModal } from "./add-follow-up-modal"
+import { buildPlayerInviteCodeSignupUrl } from "@/lib/app/public-site-url"
 import { PortalUnderlineTabs } from "./portal-underline-tabs"
 import { ScrollableListContainer } from "./scrollable-list-container"
 import { RosterPaginationControls } from "./roster-pagination-controls"
@@ -576,7 +577,7 @@ function InviteLinkModal({
   const [copiedWhich, setCopiedWhich] = useState<"code" | "link" | null>(null)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [sendingSms, setSendingSms] = useState(false)
-  const fallbackJoinUrl = typeof window !== "undefined" ? `${window.location.origin}/join` : ""
+  const fallbackPlayerSignupUrl = inviteCode ? buildPlayerInviteCodeSignupUrl(inviteCode) : ""
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(inviteCode).then(() => {
@@ -588,7 +589,9 @@ function InviteLinkModal({
   }
 
   const handleCopyLink = () => {
-    const text = joinLink || (fallbackJoinUrl ? `${fallbackJoinUrl}\n\nTeam/player code: ${inviteCode}` : inviteCode)
+    const text =
+      joinLink ||
+      (fallbackPlayerSignupUrl ? `${fallbackPlayerSignupUrl}\n\nPlayer invite code: ${inviteCode}` : inviteCode)
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
       setCopiedWhich("link")

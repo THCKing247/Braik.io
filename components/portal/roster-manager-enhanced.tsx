@@ -42,6 +42,7 @@ import { RosterEmailModal } from "./roster-email-modal"
 import { AddFollowUpModal } from "./add-follow-up-modal"
 import { PortalUnderlineTabs } from "./portal-underline-tabs"
 import { ScrollableListContainer } from "./scrollable-list-container"
+import { RosterPaginationControls } from "./roster-pagination-controls"
 import { usePlaybookToast } from "./playbook-toast"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
@@ -172,24 +173,45 @@ const TEAM_ACTIVITY_LABELS: Record<string, string> = {
   follow_up_resolved: "Follow-up resolved",
 }
 
-/** Coalesce concurrent full-readiness fetches (Strict Mode remounts, duplicate mounts). Bust via readinessRefetchNonce when data must refresh. */
-const teamReadinessFullInFlight = new Map<string, Promise<{ summary: TeamReadinessSummary; players: PlayerReadinessItem[] } | null>>()
+/** Coalesce concurrent readiness bundle fetches. */
+const readinessBundleInFlight = new Map<string, Promise<{ summary: TeamReadinessSummary; flags: PlayerReadinessItem[] } | null>>()
 
-function fetchTeamReadinessFullOnce(teamId: string, bustNonce: number) {
+function fetchReadinessBundleOnce(teamId: string, bustNonce: number) {
   const key = `${teamId}:${bustNonce}`
-  const existing = teamReadinessFullInFlight.get(key)
+  const existing = readinessBundleInFlight.get(key)
   if (existing) return existing
   const p = (async () => {
-    const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness`)
-    if (!res.ok) return null
-    const data = (await res.json()) as { summary?: TeamReadinessSummary; players?: PlayerReadinessItem[] }
-    if (data && data.summary && typeof data.summary.total === "number") {
-      return { summary: data.summary, players: data.players ?? [] }
-    }
-    return null
-  })().finally(() => teamReadinessFullInFlight.delete(key))
-  teamReadinessFullInFlight.set(key, p)
+    const [sumRes, flagsRes] = await Promise.all([
+      fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness?summaryOnly=1`),
+      fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness?playerFlagsOnly=1`),
+    ])
+    if (!sumRes.ok || !flagsRes.ok) return null
+    const sumData = (await sumRes.json()) as { summary?: TeamReadinessSummary }
+    const flagsData = (await flagsRes.json()) as { summary?: TeamReadinessSummary; players?: PlayerReadinessItem[] }
+    if (!sumData?.summary || typeof sumData.summary.total !== "number") return null
+    return { summary: sumData.summary, flags: flagsData.players ?? [] }
+  })().finally(() => readinessBundleInFlight.delete(key))
+  readinessBundleInFlight.set(key, p)
   return p
+}
+
+const READINESS_PAGE_SIZE = 10
+
+type ReadinessPaginatedResponse = {
+  summary: TeamReadinessSummary
+  players: PlayerReadinessItem[]
+  total: number
+  page: number
+  pageSize: number
+  section: "attention" | "checklist"
+}
+
+/** Full readiness (export / one-shot) — not coalesced with paginated table fetches. */
+async function fetchReadinessFullExport(teamId: string): Promise<PlayerReadinessItem[] | null> {
+  const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness`)
+  if (!res.ok) return null
+  const data = (await res.json()) as { players?: PlayerReadinessItem[] }
+  return Array.isArray(data.players) ? data.players : []
 }
 
 function EditPlayerModal({
@@ -657,10 +679,25 @@ export function RosterManagerEnhanced({
   const { showToast } = usePlaybookToast()
   const [players, setPlayers] = useState(initialPlayers)
   const [activeTab, setActiveTab] = useState<"roster" | "depth-chart" | "readiness" | "program-depth">(initialTab)
-  const [teamReadiness, setTeamReadiness] = useState<{
-    summary: TeamReadinessSummary
-    players: PlayerReadinessItem[]
-  } | null>(null)
+  const [readinessSummary, setReadinessSummary] = useState<TeamReadinessSummary | null>(
+    () => prefetchedReadinessDetail?.summary ?? null
+  )
+  const [readinessFilterPlayers, setReadinessFilterPlayers] = useState<PlayerReadinessItem[] | null>(() =>
+    prefetchedReadinessDetail?.players?.length ? prefetchedReadinessDetail.players : null
+  )
+  const [readinessBundleLoading, setReadinessBundleLoading] = useState(true)
+  /** Paginated "Needs attention" table (independent from checklist). */
+  const [attentionPage, setAttentionPage] = useState(1)
+  const [attentionQ, setAttentionQ] = useState("")
+  const [attentionRows, setAttentionRows] = useState<PlayerReadinessItem[]>([])
+  const [attentionTotal, setAttentionTotal] = useState(0)
+  const [attentionLoading, setAttentionLoading] = useState(false)
+  /** Paginated "Roster checklist" table. */
+  const [checklistPage, setChecklistPage] = useState(1)
+  const [checklistQ, setChecklistQ] = useState("")
+  const [checklistRows, setChecklistRows] = useState<PlayerReadinessItem[]>([])
+  const [checklistTotal, setChecklistTotal] = useState(0)
+  const [checklistLoading, setChecklistLoading] = useState(false)
   const [readinessFilter, setReadinessFilter] = useState<string>("all")
   const [teamActivity, setTeamActivity] = useState<Array<{
     id: string
@@ -774,30 +811,107 @@ export function RosterManagerEnhanced({
 
   useEffect(() => {
     if (!canEdit || !teamId) return
-    if (readinessRefetchNonce === 0 && prefetchedReadinessDetail) {
-      setTeamReadiness({
-        summary: prefetchedReadinessDetail.summary,
-        players: prefetchedReadinessDetail.players ?? [],
-      })
-      return
+    if (readinessRefetchNonce === 0 && prefetchedReadinessDetail?.summary) {
+      setReadinessSummary(prefetchedReadinessDetail.summary)
+      if (prefetchedReadinessDetail.players && prefetchedReadinessDetail.players.length > 0) {
+        setReadinessFilterPlayers(prefetchedReadinessDetail.players)
+      }
     }
     let cancelled = false
-    fetchTeamReadinessFullOnce(teamId, readinessRefetchNonce)
+    setReadinessBundleLoading(true)
+    fetchReadinessBundleOnce(teamId, readinessRefetchNonce)
       .then((data) => {
         if (cancelled) return
         if (data) {
-          setTeamReadiness({ summary: data.summary, players: data.players })
+          setReadinessSummary(data.summary)
+          setReadinessFilterPlayers(data.flags)
         } else {
-          setTeamReadiness(null)
+          setReadinessSummary(null)
+          setReadinessFilterPlayers(null)
         }
       })
       .catch(() => {
-        if (!cancelled) setTeamReadiness(null)
+        if (!cancelled) {
+          setReadinessSummary(null)
+          setReadinessFilterPlayers(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setReadinessBundleLoading(false)
       })
     return () => {
       cancelled = true
     }
   }, [canEdit, teamId, readinessRefetchNonce, prefetchedReadinessDetail])
+
+  useEffect(() => {
+    if (readinessRefetchNonce > 0) {
+      setAttentionPage(1)
+      setChecklistPage(1)
+    }
+  }, [readinessRefetchNonce])
+
+  useEffect(() => {
+    if (!canEdit || !teamId || activeTab !== "readiness") return
+    let cancelled = false
+    setAttentionLoading(true)
+    const q = new URLSearchParams({
+      section: "attention",
+      page: String(attentionPage),
+      limit: String(READINESS_PAGE_SIZE),
+    })
+    if (attentionQ.trim()) q.set("q", attentionQ.trim())
+    fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness?${q.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ReadinessPaginatedResponse | null) => {
+        if (cancelled || !data?.players) return
+        setAttentionRows(data.players)
+        setAttentionTotal(typeof data.total === "number" ? data.total : data.players.length)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAttentionRows([])
+          setAttentionTotal(0)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAttentionLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canEdit, teamId, activeTab, attentionPage, attentionQ, readinessRefetchNonce])
+
+  useEffect(() => {
+    if (!canEdit || !teamId || activeTab !== "readiness") return
+    let cancelled = false
+    setChecklistLoading(true)
+    const q = new URLSearchParams({
+      section: "checklist",
+      page: String(checklistPage),
+      limit: String(READINESS_PAGE_SIZE),
+    })
+    if (checklistQ.trim()) q.set("q", checklistQ.trim())
+    fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness?${q.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ReadinessPaginatedResponse | null) => {
+        if (cancelled || !data?.players) return
+        setChecklistRows(data.players)
+        setChecklistTotal(typeof data.total === "number" ? data.total : data.players.length)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setChecklistRows([])
+          setChecklistTotal(0)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setChecklistLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canEdit, teamId, activeTab, checklistPage, checklistQ, readinessRefetchNonce])
 
   useEffect(() => {
     if (!canEdit || !teamId || activeTab !== "readiness") return
@@ -875,8 +989,8 @@ export function RosterManagerEnhanced({
   }, [showDepthChartModal, isFootball])
 
   const readinessFilteredPlayerIds = useMemo(() => {
-    if (!teamReadiness || readinessFilter === "all") return null
-    const list = teamReadiness.players
+    if (!readinessFilterPlayers || readinessFilter === "all") return null
+    const list = readinessFilterPlayers
     if (readinessFilter === "ready") return new Set(list.filter((p) => p.ready).map((p) => p.playerId))
     if (readinessFilter === "incomplete") return new Set(list.filter((p) => !p.ready).map((p) => p.playerId))
     if (readinessFilter === "missing_physical") return new Set(list.filter((p) => !p.physicalOnFile).map((p) => p.playerId))
@@ -888,7 +1002,7 @@ export function RosterManagerEnhanced({
     if (readinessFilter === "no_guardians") return new Set(list.filter((p) => !p.hasGuardians).map((p) => p.playerId))
     if (readinessFilter === "eligibility_missing") return new Set(list.filter((p) => !p.eligibilityStatus?.trim()).map((p) => p.playerId))
     return null
-  }, [teamReadiness, readinessFilter])
+  }, [readinessFilterPlayers, readinessFilter])
 
   const filteredRosterPlayers = useMemo(() => {
     let list = players
@@ -1595,7 +1709,7 @@ export function RosterManagerEnhanced({
                   <option value="3">College Yr 3</option>
                   <option value="4">College Yr 4</option>
                 </select>
-                {canEdit && teamReadiness ? (
+                {canEdit && readinessFilterPlayers ? (
                   <>
                     <select
                       value={readinessFilter}
@@ -1734,7 +1848,7 @@ export function RosterManagerEnhanced({
                   <option value="P">P</option>
                 </optgroup>
               </select>
-              {canEdit && teamReadiness && (
+              {canEdit && readinessFilterPlayers && (
                 <select
                   value={readinessFilter}
                   onChange={(e) => setReadinessFilter(e.target.value)}
@@ -1826,11 +1940,17 @@ export function RosterManagerEnhanced({
       {/* Team Readiness Dashboard */}
       {activeTab === "readiness" && (
         <div className="space-y-6">
-          {!teamReadiness ? (
+          {readinessBundleLoading && !readinessSummary ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : teamReadiness.summary.total === 0 ? (
+          ) : !readinessSummary ? (
+            <Card className="border border-border bg-card">
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                Could not load readiness.
+              </CardContent>
+            </Card>
+          ) : readinessSummary.total === 0 ? (
             <Card className="border border-border bg-card">
               <CardContent className="py-12 text-center">
                 <ClipboardCheck className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -1844,63 +1964,63 @@ export function RosterManagerEnhanced({
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.total}</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{readinessSummary.total}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-emerald-200 bg-emerald-50/50">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Ready</p>
-                    <p className="mt-1 text-2xl font-semibold text-emerald-800">{teamReadiness.summary.readyCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-emerald-800">{readinessSummary.readyCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-amber-200 bg-amber-50/50">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Incomplete</p>
-                    <p className="mt-1 text-2xl font-semibold text-amber-800">{teamReadiness.summary.incompleteCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-amber-800">{readinessSummary.incompleteCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Missing physical</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.missingPhysicalCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{readinessSummary.missingPhysicalCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Missing waiver</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.missingWaiverCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{readinessSummary.missingWaiverCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Account not linked</p>
                     <p className="mt-1 text-2xl font-semibold text-foreground">
-                      {teamReadiness.summary.notAccountLinkedCount ?? 0}
+                      {readinessSummary.notAccountLinkedCount ?? 0}
                     </p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Incomplete profile</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.incompleteProfileCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{readinessSummary.incompleteProfileCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">No equipment</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.noEquipmentCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{readinessSummary.noEquipmentCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">No guardians</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.noGuardiansCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{readinessSummary.noGuardiansCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
                   <CardContent className="pt-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Eligibility not set</p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">{teamReadiness.summary.eligibilityMissingCount}</p>
+                    <p className="mt-1 text-2xl font-semibold text-foreground">{readinessSummary.eligibilityMissingCount}</p>
                   </CardContent>
                 </Card>
                 <Card className="border border-border bg-card">
@@ -1952,19 +2072,38 @@ export function RosterManagerEnhanced({
                   aria-labelledby="readiness-tab-attention"
                   className="border border-border bg-card"
                 >
-                  <CardHeader className="space-y-1">
-                    <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-                      <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
-                      Needs Attention
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">Players with missing items. Click a row to open profile.</p>
+                  <CardHeader className="space-y-3">
+                    <div className="space-y-1">
+                      <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                        <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
+                        Needs Attention
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">Players with missing items. Click a row to open profile.</p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <Input
+                        type="search"
+                        placeholder="Search by name…"
+                        value={attentionQ}
+                        onChange={(e) => {
+                          setAttentionQ(e.target.value)
+                          setAttentionPage(1)
+                        }}
+                        className="h-9 max-w-xs text-sm"
+                        aria-label="Search needs attention"
+                      />
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    {teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length === 0 ? (
+                    {attentionLoading ? (
+                      <div className="flex justify-center py-10">
+                        <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      </div>
+                    ) : attentionTotal === 0 ? (
                       <p className="py-6 text-center text-sm text-muted-foreground">All players are ready.</p>
                     ) : (
                       <ScrollableListContainer
-                        contentKey={teamReadiness.players.filter((p) => !p.ready || p.missingItems.length > 0).length}
+                        contentKey={`${attentionTotal}-${attentionPage}-${attentionQ}`}
                         backToTopAriaLabel="Back to top of needs attention list"
                       >
                         <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -1987,70 +2126,74 @@ export function RosterManagerEnhanced({
                             </tr>
                           </thead>
                           <tbody>
-                            {teamReadiness.players
-                              .filter((p) => !p.ready || p.missingItems.length > 0)
-                              .map((p) => {
-                                const params = new URLSearchParams()
-                                params.set("teamId", teamId)
-                                const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
-                                const openCount = teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length
-                                return (
-                                  <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
-                                    <td className="px-4 py-3.5 align-top">
-                                      <Link
-                                        href={profileHref}
-                                        className="font-medium text-primary hover:underline"
+                            {attentionRows.map((p) => {
+                              const params = new URLSearchParams()
+                              params.set("teamId", teamId)
+                              const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                              const openCount = teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length
+                              return (
+                                <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
+                                  <td className="px-4 py-3.5 align-top">
+                                    <Link
+                                      href={profileHref}
+                                      className="font-medium text-primary hover:underline"
+                                    >
+                                      {p.firstName} {p.lastName}
+                                    </Link>
+                                    {!p.hasGuardians && (
+                                      <span
+                                        className="ml-2 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+                                        title="No guardians linked"
                                       >
-                                        {p.firstName} {p.lastName}
-                                      </Link>
-                                      {!p.hasGuardians && (
-                                        <span
-                                          className="ml-2 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
-                                          title="No guardians linked"
-                                        >
-                                          No guardians
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                                      {p.ready ? (
-                                        <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                                          Ready
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-                                          Incomplete
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3.5 align-top text-muted-foreground leading-relaxed">
-                                      {p.missingItems.join(", ") || "—"}
-                                    </td>
-                                    {canEdit && (
-                                      <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                                        {openCount > 0 ? (
-                                          <span className="text-amber-700 text-xs font-medium">{openCount} open</span>
-                                        ) : null}
-                                        <button
-                                          type="button"
-                                          className="ml-2 text-xs text-primary hover:underline"
-                                          onClick={() =>
-                                            setFollowUpModalTarget({
-                                              playerId: p.playerId,
-                                              firstName: p.firstName,
-                                              lastName: p.lastName,
-                                            })
-                                          }
-                                        >
-                                          Add follow-up
-                                        </button>
-                                      </td>
+                                        No guardians
+                                      </span>
                                     )}
-                                  </tr>
-                                )
-                              })}
+                                  </td>
+                                  <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+                                    {p.ready ? (
+                                      <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                                        Ready
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                                        Incomplete
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3.5 align-top text-muted-foreground leading-relaxed">
+                                    {p.missingItems.join(", ") || "—"}
+                                  </td>
+                                  {canEdit && (
+                                    <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+                                      {openCount > 0 ? (
+                                        <span className="text-amber-700 text-xs font-medium">{openCount} open</span>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        className="ml-2 text-xs text-primary hover:underline"
+                                        onClick={() =>
+                                          setFollowUpModalTarget({
+                                            playerId: p.playerId,
+                                            firstName: p.firstName,
+                                            lastName: p.lastName,
+                                          })
+                                        }
+                                      >
+                                        Add follow-up
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
+                        <RosterPaginationControls
+                          page={attentionPage}
+                          totalItems={attentionTotal}
+                          pageSize={READINESS_PAGE_SIZE}
+                          onPageChange={setAttentionPage}
+                        />
                       </ScrollableListContainer>
                     )}
                   </CardContent>
@@ -2064,11 +2207,24 @@ export function RosterManagerEnhanced({
                   aria-labelledby="readiness-tab-checklist"
                   className="border border-border bg-card"
                 >
-                  <CardHeader className="space-y-1 lg:space-y-2">
-                    <CardTitle className="text-base font-semibold text-foreground">Roster Checklist</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Physical, waiver, required forms, and whether the player has linked their app account.
-                    </p>
+                  <CardHeader className="space-y-3 lg:space-y-3">
+                    <div className="space-y-1 lg:space-y-2">
+                      <CardTitle className="text-base font-semibold text-foreground">Roster Checklist</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Physical, waiver, required forms, and whether the player has linked their app account.
+                      </p>
+                    </div>
+                    <Input
+                      type="search"
+                      placeholder="Search by name…"
+                      value={checklistQ}
+                      onChange={(e) => {
+                        setChecklistQ(e.target.value)
+                        setChecklistPage(1)
+                      }}
+                      className="h-9 max-w-xs text-sm"
+                      aria-label="Search roster checklist"
+                    />
                   </CardHeader>
                   <CardContent className="space-y-4 lg:space-y-5">
                     <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
@@ -2081,45 +2237,51 @@ export function RosterManagerEnhanced({
                           size="sm"
                           className="lg:h-9"
                           onClick={() => {
-                            if (!teamReadiness) return
-                            const headers = [
-                              "First Name",
-                              "Last Name",
-                              "Ready",
-                              "Profile Complete",
-                              "Physical",
-                              "Waiver",
-                              "Forms complete",
-                              "Account linked",
-                              "Equipment",
-                              "Guardians",
-                              "Eligibility",
-                              "Open Follow-ups",
-                              "Missing Items",
-                            ]
-                            const rows = teamReadiness.players.map((p) => [
-                              p.firstName,
-                              p.lastName,
-                              p.ready ? "Yes" : "No",
-                              p.profileComplete ? "Yes" : "No",
-                              p.physicalOnFile ? "Yes" : "No",
-                              p.waiverOnFile ? "Yes" : "No",
-                              p.requiredDocsComplete ? "Yes" : "No",
-                              p.accountLinked ? "Yes" : "No",
-                              p.equipmentAssigned ? "Yes" : "No",
-                              p.hasGuardians ? "Yes" : "No",
-                              p.eligibilityStatus ?? "",
-                              String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
-                              p.missingItems.join("; ") || "",
-                            ])
-                            const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
-                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-                            const url = URL.createObjectURL(blob)
-                            const a = document.createElement("a")
-                            a.href = url
-                            a.download = `roster-readiness-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
-                            a.click()
-                            URL.revokeObjectURL(url)
+                            void (async () => {
+                              const full = await fetchReadinessFullExport(teamId)
+                              if (!full) {
+                                showToast("Could not load readiness data for export.", "error")
+                                return
+                              }
+                              const headers = [
+                                "First Name",
+                                "Last Name",
+                                "Ready",
+                                "Profile Complete",
+                                "Physical",
+                                "Waiver",
+                                "Forms complete",
+                                "Account linked",
+                                "Equipment",
+                                "Guardians",
+                                "Eligibility",
+                                "Open Follow-ups",
+                                "Missing Items",
+                              ]
+                              const rows = full.map((p) => [
+                                p.firstName,
+                                p.lastName,
+                                p.ready ? "Yes" : "No",
+                                p.profileComplete ? "Yes" : "No",
+                                p.physicalOnFile ? "Yes" : "No",
+                                p.waiverOnFile ? "Yes" : "No",
+                                p.requiredDocsComplete ? "Yes" : "No",
+                                p.accountLinked ? "Yes" : "No",
+                                p.equipmentAssigned ? "Yes" : "No",
+                                p.hasGuardians ? "Yes" : "No",
+                                p.eligibilityStatus ?? "",
+                                String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                                p.missingItems.join("; ") || "",
+                              ])
+                              const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                              const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement("a")
+                              a.href = url
+                              a.download = `roster-readiness-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                              a.click()
+                              URL.revokeObjectURL(url)
+                            })()
                           }}
                         >
                           Export readiness (CSV)
@@ -2129,95 +2291,115 @@ export function RosterManagerEnhanced({
                           size="sm"
                           className="lg:h-9"
                           onClick={() => {
-                            if (!teamReadiness) return
-                            const incomplete = teamReadiness.players.filter((p) => !p.ready)
-                            const headers = [
-                              "First Name",
-                              "Last Name",
-                              "Profile Complete",
-                              "Physical",
-                              "Waiver",
-                              "Forms complete",
-                              "Account linked",
-                              "Equipment",
-                              "Guardians",
-                              "Eligibility",
-                              "Open Follow-ups",
-                              "Missing Items",
-                            ]
-                            const rows = incomplete.map((p) => [
-                              p.firstName,
-                              p.lastName,
-                              p.profileComplete ? "Yes" : "No",
-                              p.physicalOnFile ? "Yes" : "No",
-                              p.waiverOnFile ? "Yes" : "No",
-                              p.requiredDocsComplete ? "Yes" : "No",
-                              p.accountLinked ? "Yes" : "No",
-                              p.equipmentAssigned ? "Yes" : "No",
-                              p.hasGuardians ? "Yes" : "No",
-                              p.eligibilityStatus ?? "",
-                              String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
-                              p.missingItems.join("; ") || "",
-                            ])
-                            const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
-                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-                            const url = URL.createObjectURL(blob)
-                            const a = document.createElement("a")
-                            a.href = url
-                            a.download = `roster-incomplete-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
-                            a.click()
-                            URL.revokeObjectURL(url)
+                            void (async () => {
+                              const full = await fetchReadinessFullExport(teamId)
+                              if (!full) {
+                                showToast("Could not load readiness data for export.", "error")
+                                return
+                              }
+                              const incomplete = full.filter((p) => !p.ready)
+                              const headers = [
+                                "First Name",
+                                "Last Name",
+                                "Profile Complete",
+                                "Physical",
+                                "Waiver",
+                                "Forms complete",
+                                "Account linked",
+                                "Equipment",
+                                "Guardians",
+                                "Eligibility",
+                                "Open Follow-ups",
+                                "Missing Items",
+                              ]
+                              const rows = incomplete.map((p) => [
+                                p.firstName,
+                                p.lastName,
+                                p.profileComplete ? "Yes" : "No",
+                                p.physicalOnFile ? "Yes" : "No",
+                                p.waiverOnFile ? "Yes" : "No",
+                                p.requiredDocsComplete ? "Yes" : "No",
+                                p.accountLinked ? "Yes" : "No",
+                                p.equipmentAssigned ? "Yes" : "No",
+                                p.hasGuardians ? "Yes" : "No",
+                                p.eligibilityStatus ?? "",
+                                String(teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length),
+                                p.missingItems.join("; ") || "",
+                              ])
+                              const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n")
+                              const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement("a")
+                              a.href = url
+                              a.download = `roster-incomplete-${teamId}-${new Date().toISOString().slice(0, 10)}.csv`
+                              a.click()
+                              URL.revokeObjectURL(url)
+                            })()
                           }}
                         >
                           Export incomplete only (CSV)
                         </Button>
                       </div>
                     </div>
-                    <ScrollableListContainer
-                      contentKey={teamReadiness.players.length}
-                      backToTopAriaLabel="Back to top of roster checklist"
-                    >
-                      <table className="w-full min-w-[36rem] border-collapse text-sm">
-                        <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC]">
-                          <tr>
-                            <th className="w-[40%] px-4 py-3 text-left text-sm font-semibold text-[#0F172A]">Player</th>
-                            <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Physical</th>
-                            <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Waiver</th>
-                            <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Forms</th>
-                            <th className="px-3 py-3 text-center text-sm font-semibold leading-tight text-[#0F172A]">
-                              Acct linked
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {teamReadiness.players.map((p) => {
-                            const params = new URLSearchParams()
-                            params.set("teamId", teamId)
-                            const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
-                            const cell = (ok: boolean) => (
-                              <span
-                                className={ok ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}
-                              >
-                                {ok ? "Yes" : "No"}
-                              </span>
-                            )
-                            return (
-                              <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
-                                <td className="px-4 py-3.5 align-middle">
-                                  <Link href={profileHref} className="font-medium text-primary hover:underline break-words">
-                                    {p.firstName} {p.lastName}
-                                  </Link>
-                                </td>
-                                <td className="px-2 py-3.5 text-center align-middle">{cell(p.physicalOnFile)}</td>
-                                <td className="px-2 py-3.5 text-center align-middle">{cell(p.waiverOnFile)}</td>
-                                <td className="px-2 py-3.5 text-center align-middle">{cell(p.requiredDocsComplete)}</td>
-                                <td className="px-2 py-3.5 text-center align-middle">{cell(Boolean(p.accountLinked))}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </ScrollableListContainer>
+                    {checklistLoading ? (
+                      <div className="flex justify-center py-10">
+                        <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      </div>
+                    ) : checklistTotal === 0 ? (
+                      <p className="py-6 text-center text-sm text-muted-foreground">No players on roster.</p>
+                    ) : (
+                      <ScrollableListContainer
+                        contentKey={`${checklistTotal}-${checklistPage}-${checklistQ}`}
+                        backToTopAriaLabel="Back to top of roster checklist"
+                      >
+                        <table className="w-full min-w-[36rem] border-collapse text-sm">
+                          <thead className="sticky top-0 z-[1] border-b border-[#E5E7EB] bg-[#F8FAFC]">
+                            <tr>
+                              <th className="w-[40%] px-4 py-3 text-left text-sm font-semibold text-[#0F172A]">Player</th>
+                              <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Physical</th>
+                              <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Waiver</th>
+                              <th className="px-3 py-3 text-center text-sm font-semibold text-[#0F172A]">Forms</th>
+                              <th className="px-3 py-3 text-center text-sm font-semibold leading-tight text-[#0F172A]">
+                                Acct linked
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {checklistRows.map((p) => {
+                              const params = new URLSearchParams()
+                              params.set("teamId", teamId)
+                              const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                              const cell = (ok: boolean) => (
+                                <span
+                                  className={ok ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}
+                                >
+                                  {ok ? "Yes" : "No"}
+                                </span>
+                              )
+                              return (
+                                <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
+                                  <td className="px-4 py-3.5 align-middle">
+                                    <Link href={profileHref} className="font-medium text-primary hover:underline break-words">
+                                      {p.firstName} {p.lastName}
+                                    </Link>
+                                  </td>
+                                  <td className="px-2 py-3.5 text-center align-middle">{cell(p.physicalOnFile)}</td>
+                                  <td className="px-2 py-3.5 text-center align-middle">{cell(p.waiverOnFile)}</td>
+                                  <td className="px-2 py-3.5 text-center align-middle">{cell(p.requiredDocsComplete)}</td>
+                                  <td className="px-2 py-3.5 text-center align-middle">{cell(Boolean(p.accountLinked))}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                        <RosterPaginationControls
+                          page={checklistPage}
+                          totalItems={checklistTotal}
+                          pageSize={READINESS_PAGE_SIZE}
+                          onPageChange={setChecklistPage}
+                        />
+                      </ScrollableListContainer>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -2785,19 +2967,30 @@ export function RosterManagerEnhanced({
       )}
       {showDepthChartModal && isFootball && depthChartIsDesktop && (
         <div className="fixed inset-0 z-50 flex flex-col bg-background">
-          <div className="flex items-center justify-between border-b border-border bg-card p-4">
-            <h2 className="text-2xl font-semibold text-foreground">Depth Chart</h2>
-            <div className="flex items-center gap-3">
-              {hasUnsavedChanges && (
-                <span className="text-sm font-medium text-amber-600">Unsaved changes</span>
-              )}
-              {hasUnsavedChanges && (
-                <Button onClick={handleSaveDepthChart} variant="default">
-                  Save
-                </Button>
-              )}
-              <Button variant="outline" onClick={handleCloseDepthChart}>
-                Close
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-3 shadow-sm">
+            <h2 className="text-xl font-semibold text-foreground lg:text-2xl">Depth Chart</h2>
+            <div className="flex items-center gap-2 sm:gap-3">
+              {hasUnsavedChanges ? (
+                <span className="hidden text-sm font-medium text-amber-600 sm:inline">Unsaved changes</span>
+              ) : null}
+              <Button
+                type="button"
+                onClick={handleSaveDepthChart}
+                variant="default"
+                disabled={!hasUnsavedChanges}
+                className="min-w-[88px]"
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={handleCloseDepthChart}
+                aria-label="Exit full view"
+              >
+                <X className="h-5 w-5" />
               </Button>
             </div>
           </div>

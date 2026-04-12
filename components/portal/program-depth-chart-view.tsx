@@ -1,7 +1,10 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { Printer } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { ProgramDepthPrintModal } from "./program-depth-print-modal"
 
 export interface ProgramDepthChartLevelEntry {
   id: string
@@ -40,6 +43,7 @@ export function ProgramDepthChartView({ programId }: ProgramDepthChartViewProps)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedUnit, setSelectedUnit] = useState<"offense" | "defense" | "special_teams">("offense")
+  const [printOpen, setPrintOpen] = useState(false)
 
   useEffect(() => {
     if (!programId) return
@@ -101,7 +105,14 @@ export function ProgramDepthChartView({ programId }: ProgramDepthChartViewProps)
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <ProgramDepthPrintModal
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+        levels={levels}
+        selectedUnit={selectedUnit}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
         {(["offense", "defense", "special_teams"] as const).map((unit) => (
           <button
             key={unit}
@@ -116,6 +127,11 @@ export function ProgramDepthChartView({ programId }: ProgramDepthChartViewProps)
             {unit === "special_teams" ? "Special teams" : unit.charAt(0).toUpperCase() + unit.slice(1)}
           </button>
         ))}
+        </div>
+        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setPrintOpen(true)}>
+          <Printer className="h-4 w-4" />
+          Print…
+        </Button>
       </div>
 
       <div className="space-y-6">

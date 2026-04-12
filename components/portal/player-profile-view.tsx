@@ -45,6 +45,19 @@ import { getPositionByCode } from "@/lib/constants/playbook-positions"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "health" | "history"
 
+type ReadinessResponse = {
+  profileComplete: boolean
+  physicalOnFile: boolean
+  waiverOnFile: boolean
+  eligibilityOnFile: boolean
+  eligibilityStatus: string | null
+  requiredDocsComplete: boolean
+  equipmentAssigned: boolean
+  assignedEquipmentCount: number
+  missingItems: string[]
+  ready: boolean
+}
+
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "info", label: "Info" },
@@ -145,6 +158,7 @@ export function PlayerProfileView({
   const [cropFileName, setCropFileName] = useState<string>("photo.jpg")
   const photoInputRef = useRef<HTMLInputElement | null>(null)
   const [smsConsentOptIn, setSmsConsentOptIn] = useState(false)
+  const [readinessOverview, setReadinessOverview] = useState<ReadinessResponse | null>(null)
 
   const hasEdits = Object.keys(editDraft).length > 0
 
@@ -268,17 +282,19 @@ export function PlayerProfileView({
   }, [saveMessage])
 
   const refetchProfile = useCallback(() => {
-    fetch(`/api/roster/${playerId}/profile?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => {
-        if (!res.ok) return
-        return res.json()
-      })
-      .then((data: { profile: PlayerProfile; canEdit: boolean; isOwnProfile?: boolean } | undefined) => {
+    const profileUrl = `/api/roster/${playerId}/profile?teamId=${encodeURIComponent(teamId)}`
+    const readinessUrl = `/api/roster/${playerId}/readiness?teamId=${encodeURIComponent(teamId)}`
+    Promise.all([
+      fetch(profileUrl).then((res) => (res.ok ? res.json() : null)),
+      fetch(readinessUrl).then((res) => (res.ok ? res.json() : null)),
+    ])
+      .then(([data, readiness]) => {
         if (data?.profile) {
           setProfile(data.profile)
           setCanEditProfile(data.canEdit)
           if (data.isOwnProfile !== undefined) setIsOwnProfileFromApi(!!data.isOwnProfile)
         }
+        if (readiness) setReadinessOverview(readiness as ReadinessResponse)
       })
       .catch(() => {})
   }, [playerId, teamId])
@@ -287,18 +303,22 @@ export function PlayerProfileView({
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetch(`/api/roster/${playerId}/profile?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => {
+    const profileUrl = `/api/roster/${playerId}/profile?teamId=${encodeURIComponent(teamId)}`
+    const readinessUrl = `/api/roster/${playerId}/readiness?teamId=${encodeURIComponent(teamId)}`
+    Promise.all([
+      fetch(profileUrl).then((res) => {
         if (!res.ok) throw new Error(res.status === 403 ? "You can only view your own profile." : "Failed to load profile")
-        return res.json()
-      })
-      .then((data: { profile: PlayerProfile; canEdit: boolean; isOwnProfile?: boolean }) => {
-        if (!cancelled) {
-          setProfile(data.profile)
-          setCanEditProfile(data.canEdit)
-          setIsOwnProfileFromApi(!!data.isOwnProfile)
-          setEditDraft({})
-        }
+        return res.json() as Promise<{ profile: PlayerProfile; canEdit: boolean; isOwnProfile?: boolean }>
+      }),
+      fetch(readinessUrl).then((res) => (res.ok ? res.json() : null) as Promise<ReadinessResponse | null>),
+    ])
+      .then(([data, readiness]) => {
+        if (cancelled) return
+        setProfile(data.profile)
+        setCanEditProfile(data.canEdit)
+        setIsOwnProfileFromApi(!!data.isOwnProfile)
+        setEditDraft({})
+        setReadinessOverview(readiness)
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load profile")
@@ -306,7 +326,9 @@ export function PlayerProfileView({
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [playerId, teamId])
 
   const handleSave = async () => {
@@ -585,10 +607,37 @@ export function PlayerProfileView({
       <Card>
         <CardContent className="pt-6">
           {activeTab === "overview" && (
-            <OverviewTab profile={profile} playerId={playerId} teamId={teamId} canEdit={canEditProfile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
+            <OverviewTab
+              profile={profile}
+              playerId={playerId}
+              teamId={teamId}
+              canEdit={canEditProfile}
+              canEditRoster={canEdit}
+              editDraft={editDraft}
+              setEditDraft={setEditDraft}
+              value={value}
+              readiness={readinessOverview}
+              onProfilePatched={(p) => {
+                setProfile(p)
+                void fetch(`/api/roster/${playerId}/readiness?teamId=${encodeURIComponent(teamId)}`)
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((r: ReadinessResponse | null) => setReadinessOverview(r))
+              }}
+            />
           )}
           {activeTab === "info" && (
-            <InfoTab profile={profile} playerId={playerId} teamId={teamId} canEdit={canEditProfile} editDraft={editDraft} setEditDraft={setEditDraft} value={value} />
+            <InfoTab
+              profile={profile}
+              playerId={playerId}
+              teamId={teamId}
+              canEdit={canEditProfile}
+              editDraft={editDraft}
+              setEditDraft={setEditDraft}
+              value={value}
+              smsConsentOptIn={smsConsentOptIn}
+              onSmsConsentChange={setSmsConsentOptIn}
+              saving={saving}
+            />
           )}
           {activeTab === "stats" && (
             <StatsTab
@@ -627,34 +676,10 @@ export function PlayerProfileView({
             <HistoryTab playerId={playerId} teamId={teamId} />
           )}
 
-          {canEditProfile && (activeTab === "overview" || activeTab === "info" || activeTab === "health") && mergedPhoneForSms.length > 0 && (
-            <div className="mt-6 border-t border-[#E5E7EB] pt-6">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Transactional SMS</p>
-              <SmsConsentCheckbox
-                id={`player-profile-sms-${playerId}`}
-                checked={smsConsentOptIn}
-                onChange={setSmsConsentOptIn}
-                disabled={saving}
-              />
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
   )
-}
-
-type ReadinessResponse = {
-  profileComplete: boolean
-  physicalOnFile: boolean
-  waiverOnFile: boolean
-  eligibilityOnFile: boolean
-  eligibilityStatus: string | null
-  requiredDocsComplete: boolean
-  equipmentAssigned: boolean
-  assignedEquipmentCount: number
-  missingItems: string[]
-  ready: boolean
 }
 
 type FollowUpItem = {
@@ -843,30 +868,67 @@ function ProfileNotesCard({
   )
 }
 
+const ELIGIBILITY_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "— Not set —" },
+  { value: "Eligible", label: "Eligible" },
+  { value: "Pending", label: "Pending" },
+  { value: "Ineligible", label: "Ineligible" },
+  { value: "Probation", label: "Probation" },
+  { value: "Unknown", label: "Unknown" },
+]
+
 function OverviewTab({
   profile,
   playerId,
   teamId,
   canEdit,
+  canEditRoster,
   editDraft,
   setEditDraft,
   value,
+  readiness,
+  onProfilePatched,
 }: {
   profile: PlayerProfile
   playerId: string
   teamId: string
   canEdit: boolean
+  /** Coach roster permission — eligibility edits */
+  canEditRoster: boolean
   editDraft: Partial<PlayerProfile>
   setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
   value: (k: keyof PlayerProfile) => unknown
+  readiness: ReadinessResponse | null
+  onProfilePatched: (p: PlayerProfile) => void
 }) {
-  const [readiness, setReadiness] = useState<ReadinessResponse | null>(null)
-  useEffect(() => {
-    fetch(`/api/roster/${playerId}/readiness?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: ReadinessResponse | null) => setReadiness(data))
-      .catch(() => setReadiness(null))
-  }, [playerId, teamId])
+  const [eligibilitySaving, setEligibilitySaving] = useState(false)
+  const [eligibilityError, setEligibilityError] = useState<string | null>(null)
+
+  const patchEligibility = async (raw: string) => {
+    if (!canEditRoster) return
+    const trimmed = raw.trim()
+    const next = trimmed === "" ? null : trimmed
+    setEligibilityError(null)
+    setEligibilitySaving(true)
+    try {
+      const res = await fetch(`/api/roster/${playerId}/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, eligibilityStatus: next }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error ?? "Could not update eligibility")
+      }
+      if ((data as { profile?: PlayerProfile }).profile) {
+        onProfilePatched((data as { profile: PlayerProfile }).profile)
+      }
+    } catch (e) {
+      setEligibilityError(e instanceof Error ? e.message : "Update failed")
+    } finally {
+      setEligibilitySaving(false)
+    }
+  }
 
   const readOnlyClass = "rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]"
   const statusDisplay = getProfileStatusDisplay(profile)
@@ -1044,7 +1106,44 @@ function OverviewTab({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Eligibility</Label>
-          <p className={readOnlyClass}>{profile.eligibilityStatus?.trim() || "—"}</p>
+          {canEditRoster ? (
+            <div className="space-y-1">
+              <select
+                className="h-10 w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+                value={(() => {
+                  const cur = profile.eligibilityStatus?.trim() ?? ""
+                  const standard = new Set(ELIGIBILITY_OPTIONS.map((o) => o.value).filter(Boolean))
+                  if (!cur) return ""
+                  return standard.has(cur) ? cur : cur
+                })()}
+                disabled={eligibilitySaving}
+                onChange={(e) => void patchEligibility(e.target.value)}
+                aria-label="Eligibility status"
+              >
+                {ELIGIBILITY_OPTIONS.map((o) => (
+                  <option key={o.label} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+                {(() => {
+                  const cur = profile.eligibilityStatus?.trim() ?? ""
+                  const standard = new Set(ELIGIBILITY_OPTIONS.map((o) => o.value).filter(Boolean))
+                  if (cur && !standard.has(cur)) {
+                    return (
+                      <option value={cur}>
+                        {cur} (current)
+                      </option>
+                    )
+                  }
+                  return null
+                })()}
+              </select>
+              {eligibilityError && <p className="text-xs text-red-600">{eligibilityError}</p>}
+              {eligibilitySaving && <p className="text-xs text-[#94A3B8]">Saving…</p>}
+            </div>
+          ) : (
+            <p className={readOnlyClass}>{profile.eligibilityStatus?.trim() || "—"}</p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Email</Label>
@@ -1155,6 +1254,9 @@ function InfoTab({
   editDraft,
   setEditDraft,
   value,
+  smsConsentOptIn,
+  onSmsConsentChange,
+  saving,
 }: {
   profile: PlayerProfile
   playerId: string
@@ -1163,6 +1265,9 @@ function InfoTab({
   editDraft: Partial<PlayerProfile>
   setEditDraft: (d: Partial<PlayerProfile> | ((prev: Partial<PlayerProfile>) => Partial<PlayerProfile>)) => void
   value: (k: keyof PlayerProfile) => unknown
+  smsConsentOptIn: boolean
+  onSmsConsentChange: (v: boolean) => void
+  saving: boolean
 }) {
   const dateOfBirthValue = ((): Date | null => {
     const v = value("dateOfBirth")
@@ -1453,6 +1558,16 @@ function InfoTab({
           )}
         </div>
       </div>
+      {canEdit && String(value("playerPhone") ?? profile.playerPhone ?? "").trim().length > 0 && (
+        <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+          <SmsConsentCheckbox
+            id={`player-profile-sms-info-${playerId}`}
+            checked={smsConsentOptIn}
+            onChange={onSmsConsentChange}
+            disabled={saving}
+          />
+        </div>
+      )}
       <LinkedGuardiansSection playerId={playerId} teamId={teamId} />
     </div>
   )
@@ -2107,7 +2222,7 @@ function EquipmentTab({
 const DOC_FILTER_OPTIONS = ["all", ...DOCUMENT_TYPES] as const
 
 /** Types highlighted as common for compliance (physical + waiver match readiness requiredDocsComplete; eligibility aligns with eligibilityOnFile). */
-const DOC_TYPE_COMPLIANCE_BADGE = new Set<string>(["physical", "waiver", "eligibility"])
+const DOC_TYPE_COMPLIANCE_BADGE = new Set<string>(["physical", "waiver", "eligibility", "media_consent"])
 
 type PlayerDocumentRow = {
   id: string
@@ -2625,7 +2740,7 @@ function HealthTab({
   const loadInjuries = useCallback(() => {
     setInjLoading(true)
     setInjuriesForbidden(false)
-    fetch(`/api/health/injuries?teamId=${encodeURIComponent(teamId)}`)
+    fetch(`/api/health/injuries?teamId=${encodeURIComponent(teamId)}&playerId=${encodeURIComponent(playerId)}`)
       .then((res) => {
         if (res.status === 403) {
           setInjuriesForbidden(true)
@@ -2999,22 +3114,90 @@ function HistoryTab({ playerId, teamId }: { playerId: string; teamId: string }) 
   const [items, setItems] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
   const [actionTypeFilter, setActionTypeFilter] = useState<string>("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    setPage(1)
+  }, [actionTypeFilter, pageSize, playerId, teamId])
 
   useEffect(() => {
     setLoading(true)
-    const params = new URLSearchParams({ teamId, limit: "50" })
+    const offset = (page - 1) * pageSize
+    const params = new URLSearchParams({
+      teamId,
+      limit: String(pageSize),
+      offset: String(offset),
+      pageMode: "1",
+    })
     if (actionTypeFilter) params.set("actionType", actionTypeFilter)
     fetch(`/api/roster/${playerId}/activity?${params.toString()}`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: ActivityItem[]) => setItems(Array.isArray(data) ? data : []))
-      .catch(() => setItems([]))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { items?: ActivityItem[]; total?: number } | ActivityItem[] | null) => {
+        if (data && !Array.isArray(data) && Array.isArray(data.items)) {
+          setItems(data.items)
+          setTotal(typeof data.total === "number" ? data.total : data.items.length)
+        } else if (Array.isArray(data)) {
+          setItems(data)
+          setTotal(data.length)
+        } else {
+          setItems([])
+          setTotal(0)
+        }
+      })
+      .catch(() => {
+        setItems([])
+        setTotal(0)
+      })
       .finally(() => setLoading(false))
-  }, [playerId, teamId, actionTypeFilter])
+  }, [playerId, teamId, actionTypeFilter, page, pageSize])
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const start = total === 0 ? 0 : (safePage - 1) * pageSize + 1
+  const end = Math.min(safePage * pageSize, total)
+
+  const filterBar = (
+    <div className="flex flex-wrap items-center gap-3">
+      <label htmlFor="history-type-filter" className="text-sm text-[#64748B]">
+        Filter:
+      </label>
+      <select
+        id="history-type-filter"
+        value={actionTypeFilter}
+        onChange={(e) => setActionTypeFilter(e.target.value)}
+        className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+      >
+        {ACTIVITY_TYPE_OPTIONS.map((o) => (
+          <option key={o.value || "all"} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="history-page-size" className="text-sm text-[#64748B]">
+        Per page:
+      </label>
+      <select
+        id="history-page-size"
+        value={String(pageSize)}
+        onChange={(e) => setPageSize(Number(e.target.value))}
+        className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
+      >
+        <option value="10">10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+      </select>
+    </div>
+  )
 
   if (loading) {
     return (
-      <div className="flex justify-center py-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      <div className="space-y-4">
+        {filterBar}
+        <div className="flex justify-center py-8">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+        </div>
       </div>
     )
   }
@@ -3022,18 +3205,9 @@ function HistoryTab({ playerId, teamId }: { playerId: string; teamId: string }) 
   if (items.length === 0) {
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="history-type-filter" className="text-sm text-[#64748B]">Filter:</label>
-          <select
-            id="history-type-filter"
-            value={actionTypeFilter}
-            onChange={(e) => setActionTypeFilter(e.target.value)}
-            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
-          >
-            {ACTIVITY_TYPE_OPTIONS.map((o) => (
-              <option key={o.value || "all"} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-[#64748B]">Recent changes to this profile (history).</p>
+          {filterBar}
         </div>
         <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8FAFC] p-8 text-center">
           <History className="mx-auto h-10 w-10 text-[#94A3B8]" />
@@ -3050,20 +3224,17 @@ function HistoryTab({ playerId, teamId }: { playerId: string; teamId: string }) 
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-[#64748B]">Recent changes to this profile (history).</p>
-        <div className="flex items-center gap-2">
-          <label htmlFor="history-type-filter-filled" className="text-sm text-[#64748B]">Filter:</label>
-          <select
-            id="history-type-filter-filled"
-            value={actionTypeFilter}
-            onChange={(e) => setActionTypeFilter(e.target.value)}
-            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#0F172A]"
-          >
-            {ACTIVITY_TYPE_OPTIONS.map((o) => (
-              <option key={o.value || "all"} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
+        {filterBar}
       </div>
+      <p className="text-xs text-[#64748B]">
+        {total} event{total === 1 ? "" : "s"}
+        {total > 0 ? (
+          <>
+            {" "}
+            · Showing {start}–{end} · Page {safePage} of {totalPages}
+          </>
+        ) : null}
+      </p>
       <ul className="divide-y divide-[#E5E7EB] rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
         {items.map((a) => (
           <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -3077,14 +3248,34 @@ function HistoryTab({ playerId, teamId }: { playerId: string; teamId: string }) 
               {a.metadata?.itemName != null && (
                 <span className="ml-2 text-sm text-[#64748B]">— {String(a.metadata.itemName)}</span>
               )}
-              {a.actor?.name && (
-                <p className="mt-0.5 text-xs text-[#94A3B8]">by {a.actor.name}</p>
-              )}
+              {a.actor?.name && <p className="mt-0.5 text-xs text-[#94A3B8]">by {a.actor.name}</p>}
             </div>
             <span className="text-xs text-[#94A3B8] shrink-0">{formatActivityTime(a.createdAt)}</span>
           </li>
         ))}
       </ul>
+      {total > pageSize && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E5E7EB] pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,12 +4,13 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 
-const DEFAULT_LIMIT = 50
+const DEFAULT_LIMIT = 25
 const MAX_LIMIT = 100
 
 /**
- * GET /api/roster/[playerId]/activity?teamId=xxx&limit=50
+ * GET /api/roster/[playerId]/activity?teamId=xxx&limit=25&offset=0
  * Returns recent activity for this player. Coach: any player. Player: own profile only.
+ * Response: { items, total, limit, offset } when offset or total is requested (page mode); else legacy array only.
  * Players see activity that is appropriate (e.g. photo/doc/equipment/stats; no sensitive audit detail).
  */
 export async function GET(
@@ -30,6 +31,8 @@ export async function GET(
       parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
       MAX_LIMIT
     )
+    const offset = Math.max(0, parseInt(searchParams.get("offset") ?? "0", 10) || 0)
+    const pageMode = searchParams.get("pageMode") === "1" || searchParams.has("offset")
 
     if (!playerId || !teamId) {
       return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
@@ -57,15 +60,17 @@ export async function GET(
 
     let query = supabase
       .from("player_profile_activity")
-      .select("id, player_id, team_id, actor_id, action_type, target_type, target_id, metadata_json, created_at")
+      .select("id, player_id, team_id, actor_id, action_type, target_type, target_id, metadata_json, created_at", {
+        count: pageMode ? "exact" : undefined,
+      })
       .eq("player_id", playerId)
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
-      .limit(limit)
+      .range(offset, offset + limit - 1)
     if (actionType) {
       query = query.eq("action_type", actionType)
     }
-    const { data: rows, error } = await query
+    const { data: rows, error, count } = await query
 
     if (error) {
       console.error("[GET /api/roster/.../activity]", error.message)
@@ -100,6 +105,14 @@ export async function GET(
       }
     })
 
+    if (pageMode) {
+      return NextResponse.json({
+        items: activities,
+        total: count ?? activities.length,
+        limit,
+        offset,
+      })
+    }
     return NextResponse.json(activities)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"

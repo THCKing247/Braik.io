@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
-import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
+import {
+  computeTeamReadinessPayload,
+  type TeamReadinessRequestOptions,
+} from "@/lib/server/compute-team-readiness"
 import {
   lightweightCached,
   LW_TTL_READINESS_SUMMARY,
@@ -14,6 +17,8 @@ import {
  * Team-wide readiness. Coach only.
  * summaryOnly=1: aggregated counts (RPC) + short-lived Data Cache per teamId (tags align with dashboard bootstrap).
  * Full: per-player rows, not cached so roster filters stay fresh after edits.
+ * section=attention|checklist&page=1&limit=10&q= : paginated rows for Needs attention or Roster checklist.
+ * playerFlagsOnly=1 : all players with readiness flags; missingItems omitted (lighter JSON for roster filters).
  */
 export async function GET(
   request: Request,
@@ -30,7 +35,22 @@ export async function GET(
       return NextResponse.json({ error: "Only coaches can view team readiness." }, { status: 403 })
     }
 
-    const summaryOnly = new URL(request.url).searchParams.get("summaryOnly") === "1"
+    const sp = new URL(request.url).searchParams
+    const summaryOnly = sp.get("summaryOnly") === "1"
+    const playerFlagsOnly = sp.get("playerFlagsOnly") === "1"
+    const sectionRaw = sp.get("section")?.trim().toLowerCase()
+    const section =
+      sectionRaw === "attention" || sectionRaw === "checklist" ? sectionRaw : undefined
+    const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(sp.get("limit") ?? "10", 10) || 10))
+    const q = sp.get("q")?.trim() ?? ""
+
+    const paginatedOpts: TeamReadinessRequestOptions | undefined =
+      section != null
+        ? { section, page, limit, q, playerFlagsOnly: false }
+        : playerFlagsOnly
+          ? { playerFlagsOnly: true }
+          : undefined
 
     const body = summaryOnly
       ? await lightweightCached(
@@ -41,7 +61,7 @@ export async function GET(
           },
           () => computeTeamReadinessPayload(teamId, true)
         )
-      : await computeTeamReadinessPayload(teamId, false)
+      : await computeTeamReadinessPayload(teamId, false, paginatedOpts)
 
     return NextResponse.json(body)
   } catch (err) {

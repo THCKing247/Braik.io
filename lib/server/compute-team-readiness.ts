@@ -279,15 +279,52 @@ async function computeSummaryHeavyFallback(teamId: string): Promise<{ summary: T
   )
 }
 
+export type TeamReadinessRequestOptions = {
+  /** Paginate "Needs attention" or full roster checklist table (server-backed). */
+  section?: "attention" | "checklist"
+  page?: number
+  limit?: number
+  /** Case-insensitive search on first + last name (pagination tables). */
+  q?: string
+  /** Omit long missing-items strings; keeps roster filter + client payloads smaller. */
+  playerFlagsOnly?: boolean
+}
+
+function filterAttentionPlayers(list: PlayerReadinessItem[]): PlayerReadinessItem[] {
+  return list.filter((p) => !p.ready || p.missingItems.length > 0)
+}
+
+function filterByNameQuery(list: PlayerReadinessItem[], q: string): PlayerReadinessItem[] {
+  const s = q.trim().toLowerCase()
+  if (!s) return list
+  return list.filter((p) => {
+    const name = `${p.firstName} ${p.lastName}`.toLowerCase()
+    return name.includes(s)
+  })
+}
+
 /**
  * Team readiness from Supabase.
  * - summaryOnly: DB aggregation RPC (fast); fallback aggregates in memory without building player rows.
  * - full: loads team-scoped documents/inventory + chunked guardian IN; builds per-player list.
+ * - section/page/limit/q: same full compute, then slice one page (for Needs attention or Roster checklist).
+ * - playerFlagsOnly: full row shape but missingItems cleared (smaller JSON for roster filters).
  */
 export async function computeTeamReadinessPayload(
   teamId: string,
-  summaryOnly: boolean
-): Promise<{ summary: TeamReadinessSummary; players?: PlayerReadinessItem[] }> {
+  summaryOnly: boolean,
+  opts?: TeamReadinessRequestOptions
+): Promise<
+  | { summary: TeamReadinessSummary; players?: PlayerReadinessItem[] }
+  | {
+      summary: TeamReadinessSummary
+      players: PlayerReadinessItem[]
+      total: number
+      page: number
+      pageSize: number
+      section: "attention" | "checklist"
+    }
+> {
   if (summaryOnly) {
     const rpcSummary = await computeSummaryMinimalRpc(teamId)
     if (rpcSummary) {
@@ -298,10 +335,20 @@ export async function computeTeamReadinessPayload(
 
   const ctx = await loadReadinessContext(teamId)
   if (!ctx) {
+    if (opts?.section) {
+      return {
+        summary: { ...EMPTY_SUMMARY },
+        players: [],
+        total: 0,
+        page: Math.max(1, opts.page ?? 1),
+        pageSize: Math.min(100, Math.max(1, opts.limit ?? 10)),
+        section: opts.section,
+      }
+    }
     return { summary: { ...EMPTY_SUMMARY }, players: [] }
   }
   const requiredDocCategories = await loadRequiredDocumentCategories(teamId)
-  return aggregateReadiness(
+  const aggregated = aggregateReadiness(
     ctx.players,
     ctx.docsByPlayer,
     ctx.equipmentByPlayer,
@@ -309,4 +356,30 @@ export async function computeTeamReadinessPayload(
     true,
     requiredDocCategories
   )
+  let players = aggregated.players ?? []
+
+  if (opts?.playerFlagsOnly) {
+    players = players.map((p) => ({ ...p, missingItems: [] as string[] }))
+  }
+
+  if (opts?.section) {
+    const page = Math.max(1, opts.page ?? 1)
+    const pageSize = Math.min(100, Math.max(1, opts.limit ?? 10))
+    let filtered =
+      opts.section === "attention" ? filterAttentionPlayers(players) : [...players]
+    filtered = filterByNameQuery(filtered, opts.q ?? "")
+    const total = filtered.length
+    const start = (page - 1) * pageSize
+    const slice = filtered.slice(start, start + pageSize)
+    return {
+      summary: aggregated.summary,
+      players: slice,
+      total,
+      page,
+      pageSize,
+      section: opts.section,
+    }
+  }
+
+  return aggregated
 }

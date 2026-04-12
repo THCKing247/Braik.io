@@ -18,6 +18,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
+    const playerId = searchParams.get("playerId")?.trim() || null
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
     await requireTeamPermission(teamId, "edit_roster")
 
     const supabase = getSupabaseServer()
-    const { data: injuries, error } = await supabase
+    let injuryQuery = supabase
       .from("player_injuries")
       .select(`
         id,
@@ -48,7 +49,10 @@ export async function GET(request: Request) {
         )
       `)
       .eq("team_id", teamId)
-      .order("injury_date", { ascending: false })
+    if (playerId) {
+      injuryQuery = injuryQuery.eq("player_id", playerId)
+    }
+    const { data: injuries, error } = await injuryQuery.order("injury_date", { ascending: false })
 
     if (error) {
       console.error("[GET /api/health/injuries]", error)

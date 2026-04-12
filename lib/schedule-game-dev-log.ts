@@ -85,5 +85,9 @@ export function logScheduleGamesPartitionDebug(games: TeamGameRow[], label = "me
     }
   })
   // eslint-disable-next-line no-console -- intentional dev diagnostics
-  console.debug(`[schedule-games-partition] ${label}`, { count: games.length, games: gamesOut })
+  console.debug(`[schedule-games-partition] ${label}`, {
+    count: games.length,
+    scheduleTabListsAllGames: true,
+    games: gamesOut,
+  })
 }

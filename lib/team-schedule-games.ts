@@ -172,7 +172,9 @@ export function buildCumulativeRecordBeforeMap(games: TeamGameRow[]): Map<string
   const sorted = [...games].sort((a, b) => {
     const y = (a.seasonYear ?? -1) - (b.seasonYear ?? -1)
     if (y !== 0) return y
-    return parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate)
+    const d = parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate)
+    if (d !== 0) return d
+    return a.id.localeCompare(b.id)
   })
   const out = new Map<string, WinLossRecord>()
   const runningBySeason = new Map<string | number, WinLossRecord>()
@@ -208,7 +210,11 @@ export function groupGamesByScheduleWeek(games: TeamGameRow[]): WeekGroup[] {
   for (const sk of seasonKeys) {
     const seasonGames = games
       .filter((g) => (g.seasonYear ?? "unknown") === sk)
-      .sort((a, b) => parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate))
+      .sort((a, b) => {
+        const d = parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate)
+        if (d !== 0) return d
+        return a.id.localeCompare(b.id)
+      })
 
     const weekStartToIndex = new Map<number, number>()
     let nextWeek = 1
@@ -299,7 +305,11 @@ export function isResultsTabGame(game: TeamGameRow, _nowMs?: number): boolean {
   return inferScheduleStatus(game) === "completed"
 }
 
-/** Complement of {@link isResultsTabGame} — every game with an id is in exactly one tab. */
+/**
+ * True when the game is not yet “final” for the Results tab (no full result/score classification).
+ * Note: the **Game Schedule** tab still lists all games including completed ones; this flag only
+ * classifies completion for the Results view.
+ */
 export function isScheduleTabGame(game: TeamGameRow, nowMs?: number): boolean {
   return !isResultsTabGame(game, nowMs)
 }
@@ -308,24 +318,29 @@ export function isScheduleTabGame(game: TeamGameRow, nowMs?: number): boolean {
 export const isGameInResults = isResultsTabGame
 export const isGameInSchedule = isScheduleTabGame
 
-export type SchedulePagePartition = { scheduleGames: TeamGameRow[]; resultsGames: TeamGameRow[] }
+export type SchedulePagePartition = {
+  /** Full season list, chronological (kickoff asc, id tiebreak). Shown on Game Schedule tab. */
+  scheduleGames: TeamGameRow[]
+  /** Subset: completed/final games only, most-recent first. Shown on Game Results tab. */
+  resultsGames: TeamGameRow[]
+}
 
 export function partitionGamesForScheduleTabs(
   games: TeamGameRow[],
   nowMs: number = Date.now()
 ): SchedulePagePartition {
-  const scheduleGames: TeamGameRow[] = []
-  const resultsGames: TeamGameRow[] = []
-  for (const g of games) {
-    if (isResultsTabGame(g, nowMs)) resultsGames.push(g)
-    else scheduleGames.push(g)
-  }
-  scheduleGames.sort((a, b) => parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate))
-  resultsGames.sort((a, b) => parseGameDateMs(b.gameDate) - parseGameDateMs(a.gameDate))
+  const scheduleGames = [...games].sort((a, b) => {
+    const d = parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate)
+    if (d !== 0) return d
+    return a.id.localeCompare(b.id)
+  })
+  const resultsGames = scheduleGames
+    .filter((g) => isResultsTabGame(g, nowMs))
+    .sort((a, b) => parseGameDateMs(b.gameDate) - parseGameDateMs(a.gameDate))
   return { scheduleGames, resultsGames }
 }
 
-/** Dev-only: every game appears in exactly one bucket. */
+/** Dev-only: schedule lists every game once; results lists exactly the completed subset. */
 export function assertSchedulePagePartitionCoversAll(
   games: TeamGameRow[],
   partition: SchedulePagePartition,
@@ -334,23 +349,28 @@ export function assertSchedulePagePartitionCoversAll(
   if (process.env.NODE_ENV === "production") return
   const t = nowMs ?? Date.now()
   const { scheduleGames, resultsGames } = partition
-  const seen = new Set<string>()
-  for (const g of scheduleGames) {
-    if (seen.has(g.id)) console.warn("[schedule partition] duplicate in schedule", g.id)
-    seen.add(g.id)
-    if (isResultsTabGame(g, t)) {
-      console.warn("[schedule partition] misclassified: schedule list contains results-tab game", g.id, g)
-    }
+  const scheduleIds = new Set(scheduleGames.map((g) => g.id))
+  if (scheduleGames.length !== games.length || scheduleIds.size !== games.length) {
+    console.warn("[schedule partition] scheduleGames must contain each game exactly once", {
+      total: games.length,
+      scheduleLen: scheduleGames.length,
+      uniqueIds: scheduleIds.size,
+    })
   }
+  for (const g of games) {
+    if (!scheduleIds.has(g.id)) console.warn("[schedule partition] game missing from scheduleGames", g.id)
+  }
+  const resultsIds = new Set(resultsGames.map((g) => g.id))
   for (const g of resultsGames) {
-    if (seen.has(g.id)) console.warn("[schedule partition] duplicate in results", g.id)
-    seen.add(g.id)
     if (!isResultsTabGame(g, t)) {
-      console.warn("[schedule partition] misclassified: results list contains schedule-tab game", g.id, g)
+      console.warn("[schedule partition] results list contains non-completed game", g.id, g)
     }
+    if (!scheduleIds.has(g.id)) console.warn("[schedule partition] results game not in scheduleGames", g.id)
   }
-  if (seen.size !== games.length) {
-    console.warn("[schedule partition] count mismatch", { total: games.length, merged: seen.size })
+  for (const g of games) {
+    if (isResultsTabGame(g, t) && !resultsIds.has(g.id)) {
+      console.warn("[schedule partition] completed game missing from resultsGames", g.id)
+    }
   }
 }
 

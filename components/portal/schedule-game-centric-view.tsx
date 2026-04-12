@@ -107,6 +107,8 @@ export function ScheduleGameCentricView({
   teamTrends: teamTrendsProp,
   surface = "schedule",
   onScoreSaved,
+  /** Full chronological list for Week N labels. Defaults to `games`. Pass season-wide list on Results so weeks match Schedule. */
+  weekGroupingGames,
 }: {
   teamId: string
   teamName: string
@@ -119,6 +121,7 @@ export function ScheduleGameCentricView({
   surface?: "schedule" | "results"
   /** Fires after scores/quarters/bulk save + refresh so the parent can route tabs and merge cache. */
   onScoreSaved?: (gameId: string, game?: TeamGameRow) => void
+  weekGroupingGames?: TeamGameRow[]
 }) {
   const { showToast } = usePlaybookToast()
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -138,10 +141,20 @@ export function ScheduleGameCentricView({
   }, [recordBeforeMap, games])
   const allGameIds = useMemo(() => games.map((g) => g.id), [games])
   const weekGroups = useMemo(() => {
-    const wg = groupGamesByScheduleWeek(games)
-    if (surface !== "results") return wg
-    return [...wg].reverse().map((w) => ({ ...w, games: [...w.games].reverse() }))
-  }, [games, surface])
+    const source = weekGroupingGames ?? games
+    const wg = groupGamesByScheduleWeek(source)
+    if (surface !== "results") {
+      return wg
+    }
+    const idSet = new Set(games.map((g) => g.id))
+    const filtered = wg
+      .map((w) => ({
+        ...w,
+        games: w.games.filter((g) => idSet.has(g.id)),
+      }))
+      .filter((w) => w.games.length > 0)
+    return [...filtered].reverse().map((w) => ({ ...w, games: [...w.games].reverse() }))
+  }, [weekGroupingGames, games, surface])
   const teamTrends = useMemo(
     () => teamTrendsProp ?? computeTeamTrends(games),
     [teamTrendsProp, games]

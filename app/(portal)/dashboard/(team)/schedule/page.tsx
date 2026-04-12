@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import {
   type TeamGameRow,
   buildCumulativeRecordBeforeMap,
-  isResultsTabGame,
   partitionGamesForScheduleTabs,
   assertSchedulePagePartitionCoversAll,
 } from "@/lib/team-schedule-games"
@@ -32,7 +31,6 @@ import {
   upsertTeamGameInGamesQueries,
 } from "@/lib/stats/fetch-team-games-client"
 import { getScheduleGamesWindows } from "@/lib/stats/schedule-games-windows"
-import { usePlaybookToast } from "@/components/portal/playbook-toast"
 
 const ScheduleGameCentricView = dynamic(
   () =>
@@ -82,7 +80,6 @@ function downloadScheduleCsv(games: TeamGameRow[], filenameSuffix: string) {
 function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { showToast } = usePlaybookToast()
   const windowsRef = useRef(getScheduleGamesWindows())
   const { prev, main, next } = windowsRef.current
 
@@ -91,8 +88,6 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<TeamGameRow | null>(null)
   const [scheduleTab, setScheduleTab] = useState<"schedule" | "results">("schedule")
-  const scheduleTabRef = useRef(scheduleTab)
-  scheduleTabRef.current = scheduleTab
 
   const rangeQueries = useQueries({
     queries: [
@@ -172,32 +167,6 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
     }
   }, [teamId])
 
-  /** After games data is refreshed, move the active tab if this game belongs on the other list. */
-  const routeScheduleTabForGame = useCallback(
-    (gameId: string, gameRow?: TeamGameRow | null) => {
-      const tuples = queryClient.getQueriesData<{ games?: TeamGameRow[] }>({
-        queryKey: [...teamGamesQueryKeyPrefix(teamId)],
-      })
-      const merged = mergeTeamGameRangeQueryResults(tuples.map(([, d]) => ({ data: d })))
-      const row = gameRow ?? merged.find((g) => g.id === gameId)
-      if (!row) {
-        logScheduleGameDev("post-save:game-missing-after-merge", { payload: { gameId, mergedCount: merged.length } })
-        return
-      }
-      const onResults = isResultsTabGame(row)
-      logScheduleGameDev("post-save:classify", { gameAfter: row })
-      const tab = scheduleTabRef.current
-      if (onResults && tab === "schedule") {
-        setScheduleTab("results")
-        showToast("Result saved — showing this game under Game Results.", "success")
-      } else if (!onResults && tab === "results") {
-        setScheduleTab("schedule")
-        showToast("Game updated — showing under Game Schedule.", "success")
-      }
-    },
-    [queryClient, showToast, teamId]
-  )
-
   const onSaved = useCallback(
     async (meta?: { gameId?: string | null; game?: TeamGameRow | null }) => {
       await refreshGames()
@@ -206,11 +175,8 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
       }
       router.refresh()
       emitTeamGamesChanged(teamId)
-      if (meta?.gameId) {
-        routeScheduleTabForGame(meta.gameId, meta.game ?? undefined)
-      }
     },
-    [queryClient, refreshGames, router, routeScheduleTabForGame, teamId]
+    [queryClient, refreshGames, router, teamId]
   )
 
   /** Inline score/quarter saves already ran `onRefresh`; merge PATCH row so lists stay consistent with server. */
@@ -219,9 +185,9 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
       if (game) {
         upsertTeamGameInGamesQueries(queryClient, teamId, game)
       }
-      routeScheduleTabForGame(gameId, game)
+      logScheduleGameDev("post-save:inline-score", { gameAfter: game ?? null, payload: { gameId } })
     },
-    [queryClient, routeScheduleTabForGame, teamId]
+    [queryClient, teamId]
   )
 
   const orderedGames = games
@@ -244,7 +210,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
           Schedule
         </h1>
         <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
-          Team games only. Practices, meetings, and other events live in{" "}
+          Team games only (upcoming and completed). Practices, meetings, and other events live in{" "}
           <Link href="/dashboard/calendar" className="font-medium text-[rgb(var(--accent))] underline-offset-2 hover:underline">
             Calendar
           </Link>
@@ -252,7 +218,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
         </p>
         {canEdit && (
           <p className="mt-2 text-sm font-medium" style={{ color: "rgb(var(--text2))" }}>
-            Use Game Schedule for upcoming games and imports; use Game Results for scores and outcomes.
+            Game Schedule lists every game in order. Game Results is a filtered view of finished games and scores.
           </p>
         )}
       </div>
@@ -296,7 +262,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
             variant="outline"
             className="gap-1.5"
             disabled={scheduleGames.length === 0}
-            onClick={() => downloadScheduleCsv(scheduleGames, "upcoming")}
+            onClick={() => downloadScheduleCsv(scheduleGames, "schedule")}
           >
             <Download className="h-4 w-4" aria-hidden />
             Export CSV
@@ -350,27 +316,6 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
                   </p>
                 )}
               </div>
-            ) : scheduleGames.length === 0 ? (
-              <div className="px-4 py-10 text-center md:px-0">
-                <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
-                  No upcoming games on the calendar.
-                </p>
-                <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
-                  Past games and scores are under Game Results.
-                </p>
-                {canEdit ? (
-                  <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
-                    <Button type="button" size="sm" onClick={openAdd}>
-                      <Plus className="h-4 w-4 mr-2" aria-hidden />
-                      Add game
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-                      <Upload className="h-4 w-4 mr-2" aria-hidden />
-                      Upload schedule (CSV)
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
             ) : (
               <ScheduleGameCentricView
                 teamId={teamId}
@@ -399,6 +344,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
               teamId={teamId}
               teamName={teamName}
               games={resultsGames}
+              weekGroupingGames={scheduleGames}
               canEdit={canEdit}
               onRefresh={refreshGames}
               onEditGame={(g) => openEdit(g)}

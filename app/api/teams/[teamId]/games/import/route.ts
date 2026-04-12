@@ -8,7 +8,8 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveSeasonIdForTeam } from "@/lib/team-season-resolve"
 import { parseGamesScheduleCsv } from "@/lib/games-import-csv"
-import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { revalidateTeamCalendar, revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { upsertCalendarEventForGame } from "@/lib/games/sync-game-calendar-event"
 
 const CSV_EXTENSION = /\.csv$/i
 const CSV_MIME = /^text\/(csv|plain)|application\/csv$/i
@@ -76,15 +77,53 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       updated_at: new Date().toISOString(),
     }))
 
-    const { error: insErr } = await supabase.from("games").insert(toInsert)
-    if (insErr) {
+    const { data: insertedRows, error: insErr } = await supabase.from("games").insert(toInsert).select("id, opponent, game_date, location, notes")
+    if (insErr || !insertedRows?.length) {
       console.error("[games import]", insErr)
       return NextResponse.json(
         {
           success: false,
           inserted: 0,
           parseErrors: parsed.errors,
-          rowErrors: [{ row: 0, message: insErr.message || "Database insert failed" }],
+          rowErrors: [{ row: 0, message: insErr?.message || "Database insert failed" }],
+        },
+        { status: 500 }
+      )
+    }
+
+    const insertedIds: string[] = []
+    try {
+      for (const row of insertedRows) {
+        const r = row as { id: string; opponent: string; game_date: string; location: string | null; notes: string | null }
+        insertedIds.push(r.id)
+        const cal = await upsertCalendarEventForGame(supabase, {
+          teamId,
+          gameId: r.id,
+          opponent: r.opponent ?? "",
+          gameDateIso: r.game_date,
+          location: r.location,
+          notes: r.notes,
+          actorUserId: session.user.id,
+          actorEmail: session.user.email,
+          actorName: session.user.name ?? null,
+          actorRole: session.user.role ?? null,
+        })
+        if (!cal.ok) {
+          throw new Error(cal.message)
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Calendar sync failed"
+      console.error("[games import] calendar sync", e)
+      if (insertedIds.length > 0) {
+        await supabase.from("games").delete().in("id", insertedIds)
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          inserted: 0,
+          parseErrors: parsed.errors,
+          rowErrors: [{ row: 0, message: msg }],
         },
         { status: 500 }
       )
@@ -92,11 +131,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
 
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidatePath("/dashboard/calendar")
     revalidateTeamGamesAndDashboard(teamId)
+    revalidateTeamCalendar(teamId)
 
     return NextResponse.json({
       success: true,
-      inserted: toInsert.length,
+      inserted: insertedRows.length,
       parseErrors: parsed.errors,
       rowErrors: [] as Array<{ row: number; message: string }>,
     })

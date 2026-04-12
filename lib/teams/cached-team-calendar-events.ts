@@ -1,4 +1,5 @@
 import { startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns"
+import { repairOrphanGameCalendarEventsInRange } from "@/lib/games/sync-game-calendar-event"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import {
   lightweightCached,
@@ -82,6 +83,7 @@ export async function loadTeamCalendarEventsInRange(
   rangeEndIso: string
 ): Promise<TeamCalendarEventApiRow[]> {
   const supabase = getSupabaseServer()
+  await repairOrphanGameCalendarEventsInRange(supabase, teamId, rangeStartIso, rangeEndIso)
   const { data: rows, error } = await supabase
     .from("events")
     .select(EVENT_SELECT_CALENDAR)

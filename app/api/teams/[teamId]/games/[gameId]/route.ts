@@ -7,7 +7,8 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { mergeGameScoringPatch, type GamesDbRow } from "@/lib/games-api-scoring"
-import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { revalidateTeamCalendar, revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { upsertCalendarEventForGame } from "@/lib/games/sync-game-calendar-event"
 import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
 import { GAMES_SCHEDULE_SELECT } from "@/lib/stats/cached-stats-games"
 import { effectiveTotalsFromGame, inferScheduleStatus } from "@/lib/team-schedule-games"
@@ -173,9 +174,31 @@ export async function PATCH(
       return NextResponse.json({ error: "Failed to update game" }, { status: 500 })
     }
 
+    if (updatedRow) {
+      const row = updatedRow as Record<string, unknown>
+      const cal = await upsertCalendarEventForGame(supabase, {
+        teamId,
+        gameId,
+        opponent: String(row.opponent ?? ""),
+        gameDateIso: String(row.game_date ?? ""),
+        location: (row.location as string | null | undefined) ?? null,
+        notes: (row.notes as string | null | undefined) ?? null,
+        actorUserId: session.user.id,
+        actorEmail: session.user.email,
+        actorName: session.user.name ?? null,
+        actorRole: session.user.role ?? null,
+      })
+      if (!cal.ok) {
+        console.error("[PATCH game] calendar sync failed", cal.message)
+        return NextResponse.json({ error: "Game saved but calendar sync failed. Try again." }, { status: 500 })
+      }
+    }
+
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidatePath("/dashboard/calendar")
     revalidateTeamGamesAndDashboard(teamId)
+    revalidateTeamCalendar(teamId)
 
     const game = updatedRow ? mapDbGameRowToTeamGameRow(updatedRow as Record<string, unknown>) : undefined
     if (process.env.NODE_ENV !== "production" && game) {
@@ -257,7 +280,9 @@ export async function DELETE(
 
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidatePath("/dashboard/calendar")
     revalidateTeamGamesAndDashboard(teamId)
+    revalidateTeamCalendar(teamId)
 
     return NextResponse.json({ success: true })
   } catch (err) {

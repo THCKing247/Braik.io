@@ -8,7 +8,8 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveSeasonIdForTeam } from "@/lib/team-season-resolve"
 import { scoringFieldsForInsert } from "@/lib/games-api-scoring"
-import { revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { revalidateTeamCalendar, revalidateTeamGamesAndDashboard } from "@/lib/cache/lightweight-get-cache"
+import { upsertCalendarEventForGame } from "@/lib/games/sync-game-calendar-event"
 
 const GAME_TYPES = new Set(["regular", "playoff", "scrimmage", "tournament"])
 const RESULTS = new Set(["win", "loss", "tie"])
@@ -115,11 +116,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       return NextResponse.json({ error: "Failed to create game" }, { status: 500 })
     }
 
+    const gameId = inserted.id as string
+    const cal = await upsertCalendarEventForGame(supabase, {
+      teamId,
+      gameId,
+      opponent,
+      gameDateIso: game_date,
+      location,
+      notes: insertRow.notes as string | null,
+      actorUserId: session.user.id,
+      actorEmail: session.user.email,
+      actorName: session.user.name ?? null,
+      actorRole: session.user.role ?? null,
+    })
+    if (!cal.ok) {
+      console.error("[POST /api/teams/.../games] calendar sync failed", cal.message)
+      await supabase.from("games").delete().eq("id", gameId)
+      return NextResponse.json({ error: "Failed to sync game to calendar" }, { status: 500 })
+    }
+
     revalidatePath("/dashboard")
     revalidatePath("/dashboard/schedule")
+    revalidatePath("/dashboard/calendar")
     revalidateTeamGamesAndDashboard(teamId)
+    revalidateTeamCalendar(teamId)
 
-    return NextResponse.json({ id: inserted.id as string }, { status: 201 })
+    return NextResponse.json({ id: gameId }, { status: 201 })
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { Button } from "@/components/ui/button"
@@ -7,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, BarChart3, TrendingUp } from "lucide-react"
+import { Plus, BarChart3, TrendingUp, Sparkles, Loader2 } from "lucide-react"
 
 type CoachTab = "assignments" | "library" | "mastery" | "progress"
 
@@ -35,13 +36,31 @@ function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
       items: { item_type: string; item_id: string }[]
     }[]
   >([])
+  const [playbookMap, setPlaybookMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/teams/${encodeURIComponent(teamId)}/study/my`)
-      .then((r) => (r.ok ? r.json() : { assignments: [] }))
-      .then((d) => setList(d.assignments ?? []))
-      .finally(() => setLoading(false))
+    let cancelled = false
+    Promise.all([
+      fetch(`/api/teams/${encodeURIComponent(teamId)}/study/my`).then((r) => (r.ok ? r.json() : { assignments: [] })),
+      fetch(`/api/playbooks?teamId=${encodeURIComponent(teamId)}`).then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([assignData, pb]) => {
+        if (cancelled) return
+        setList(assignData.assignments ?? [])
+        const arr = Array.isArray(pb) ? pb : []
+        const m: Record<string, string> = {}
+        for (const row of arr as { id?: string; name?: string }[]) {
+          if (row.id && typeof row.name === "string") m[row.id] = row.name
+        }
+        setPlaybookMap(m)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [teamId])
 
   if (loading) {
@@ -55,7 +74,9 @@ function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 pb-8 md:px-0">
       <h1 className="text-2xl font-bold text-[#0F172A]">Study guides</h1>
-      <p className="text-sm text-[#64748B]">Assignments from your coaches. Open each item in Playbooks as linked from your team.</p>
+      <p className="text-sm text-[#64748B]">
+        Assignments from your coaches. Open each item in Playbooks as linked from your team.
+      </p>
       <div className="space-y-3">
         {list.length === 0 && <p className="text-sm text-[#64748B]">No assignments yet.</p>}
         {list.map((a) => (
@@ -69,12 +90,28 @@ function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
                   </p>
                 </div>
               </div>
-              <ul className="mt-2 list-inside list-disc text-sm text-[#64748B]">
-                {a.items.map((it, i) => (
-                  <li key={i}>
-                    {it.item_type} · {it.item_id.slice(0, 8)}…
-                  </li>
-                ))}
+              <ul className="mt-2 space-y-1.5 text-sm text-[#64748B]">
+                {a.items.map((it, i) => {
+                  if (it.item_type === "playbook") {
+                    const name = playbookMap[it.item_id] ?? "Playbook"
+                    return (
+                      <li key={i}>
+                        <Link
+                          href={`/dashboard/playbooks/${encodeURIComponent(it.item_id)}`}
+                          className="font-medium text-[#2563EB] underline-offset-2 hover:text-[#1D4ED8] hover:underline"
+                        >
+                          {name}
+                        </Link>
+                        <span className="ml-1.5 text-xs text-[#94A3B8]">(playbook)</span>
+                      </li>
+                    )
+                  }
+                  return (
+                    <li key={i} className="list-inside list-disc">
+                      {it.item_type} · {it.item_id.slice(0, 8)}…
+                    </li>
+                  )
+                })}
               </ul>
             </CardContent>
           </Card>
@@ -84,21 +121,82 @@ function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
   )
 }
 
+type AssignmentRow = {
+  id: string
+  title: string
+  due_date: string | null
+  assigned_to_type: string
+  assigned_position_group?: string | null
+  counts: { notStarted: number; inProgress: number; completed: number; total: number }
+}
+
+function assignmentTargetLabel(a: Pick<AssignmentRow, "assigned_to_type" | "assigned_position_group">): string {
+  if (a.assigned_to_type === "team") return "Entire Team"
+  if (a.assigned_to_type === "position_group") {
+    const g = a.assigned_position_group?.trim()
+    return g ? g : "Position group"
+  }
+  if (a.assigned_to_type === "players") return "Selected Players"
+  return a.assigned_to_type
+}
+
+function completionPercent(counts: AssignmentRow["counts"]): number {
+  if (counts.total <= 0) return 0
+  return Math.round((counts.completed / counts.total) * 100)
+}
+
+function progressBarClass(pct: number): string {
+  if (pct >= 80) return "bg-green-500"
+  if (pct >= 40) return "bg-amber-500"
+  return "bg-slate-300"
+}
+
+function DueDateBadge({ dueDate }: { dueDate: string | null }) {
+  if (!dueDate) {
+    return (
+      <span className="inline-flex items-center rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-2 py-0.5 text-xs font-medium text-[#64748B]">
+        No due date
+      </span>
+    )
+  }
+  const d = new Date(dueDate)
+  const now = new Date()
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dueDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diffDays = Math.round((dueDay.getTime() - startToday.getTime()) / 86400000)
+
+  if (diffDays < 0) {
+    return (
+      <span className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800">
+        Past due
+      </span>
+    )
+  }
+  if (diffDays <= 3) {
+    return (
+      <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+        {diffDays === 0 ? "Due today" : diffDays === 1 ? "Due tomorrow" : `Due in ${diffDays} days`}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-2 py-0.5 text-xs font-medium text-[#64748B]">
+      Due {d.toLocaleDateString()}
+    </span>
+  )
+}
+
 function StudyGuidesCoachView({ teamId }: { teamId: string }) {
   const [tab, setTab] = useState<CoachTab>("assignments")
-  const [assignments, setAssignments] = useState<
-    {
-      id: string
-      title: string
-      due_date: string | null
-      assigned_to_type: string
-      counts: { notStarted: number; inProgress: number; completed: number; total: number }
-    }[]
-  >([])
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([])
   const [packs, setPacks] = useState<{ id: string; title: string; description: string | null; items: unknown[] }[]>([])
   const [playbooks, setPlaybooks] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<{ title?: string; playbookId?: string; notes?: string } | null>(
+    null
+  )
+  const [coachBOpen, setCoachBOpen] = useState(false)
 
   const base = `/api/teams/${encodeURIComponent(teamId)}/study`
 
@@ -122,6 +220,11 @@ function StudyGuidesCoachView({ teamId }: { teamId: string }) {
     load()
   }, [load])
 
+  const openNewAssignment = () => {
+    setCreatePrefill(null)
+    setCreateOpen(true)
+  }
+
   return (
     <div className="mx-auto min-w-0 max-w-5xl space-y-4 px-4 pb-8 md:px-0">
       <div className="flex flex-col gap-3 border-b border-[#E5E7EB] pb-4 md:flex-row md:items-start md:justify-between">
@@ -129,17 +232,18 @@ function StudyGuidesCoachView({ teamId }: { teamId: string }) {
           <h1 className="text-2xl font-bold text-[#0F172A]">Study guides</h1>
           <p className="mt-1 text-sm text-[#64748B]">Assignments, library packs, quizzes, and progress.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
           {tab === "assignments" && (
-            <Button type="button" size="sm" className="rounded-lg" onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-1 h-4 w-4" />
-              New Assignment
-            </Button>
-          )}
-          {tab === "library" && (
-            <Button type="button" size="sm" variant="outline" className="rounded-lg" onClick={load}>
-              Refresh
-            </Button>
+            <>
+              <Button type="button" size="sm" className="rounded-lg" onClick={openNewAssignment}>
+                <Plus className="mr-1 h-4 w-4" />
+                New Assignment
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => setCoachBOpen(true)}>
+                <Sparkles className="mr-1 h-4 w-4" />
+                Create with Coach B
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -154,22 +258,42 @@ function StudyGuidesCoachView({ teamId }: { teamId: string }) {
         <>
           {tab === "assignments" && (
             <div className="space-y-3">
-              {assignments.map((a) => (
-                <Card key={a.id} className="border-[#E5E7EB]">
-                  <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                    <div>
-                      <p className="font-semibold text-[#0F172A]">{a.title}</p>
-                      <p className="text-xs text-[#64748B]">
-                        Target: {a.assigned_to_type} · Due: {a.due_date ? new Date(a.due_date).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div className="text-xs text-[#64748B]">
-                      Not started {a.counts.notStarted} · In progress {a.counts.inProgress} · Done {a.counts.completed}{" "}
-                      / {a.counts.total}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {assignments.map((a) => {
+                const pct = completionPercent(a.counts)
+                return (
+                  <Card key={a.id} className="border-[#E5E7EB]">
+                    <CardContent className="space-y-3 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-[#0F172A]">{a.title}</p>
+                          <p className="mt-1 text-xs text-[#64748B]">
+                            Target: {assignmentTargetLabel(a)}
+                          </p>
+                        </div>
+                        <DueDateBadge dueDate={a.due_date} />
+                      </div>
+                      <div>
+                        <div className="mb-1 flex items-center justify-between gap-2 text-xs text-[#64748B]">
+                          <span>Progress</span>
+                          <span className="tabular-nums font-medium text-[#0F172A]">
+                            {a.counts.completed}/{a.counts.total} completed ({pct}%)
+                          </span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
+                          <div
+                            className={`h-full rounded-full transition-all ${progressBarClass(pct)}`}
+                            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                            role="progressbar"
+                            aria-valuenow={pct}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
               {assignments.length === 0 && <p className="text-sm text-[#64748B]">No assignments yet.</p>}
             </div>
           )}
@@ -184,7 +308,9 @@ function StudyGuidesCoachView({ teamId }: { teamId: string }) {
                   </CardContent>
                 </Card>
               ))}
-              {packs.length === 0 && <p className="text-sm text-[#64748B]">No study packs yet. Create packs via API or a future editor.</p>}
+              {packs.length === 0 && (
+                <p className="text-sm text-[#64748B]">No study packs yet. Create packs via API or a future editor.</p>
+              )}
             </div>
           )}
           {tab === "mastery" && (
@@ -206,17 +332,199 @@ function StudyGuidesCoachView({ teamId }: { teamId: string }) {
         </>
       )}
 
-      <CreateAssignmentDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+      <CoachBStudyAssignmentDialog
+        open={coachBOpen}
+        onClose={() => setCoachBOpen(false)}
         teamId={teamId}
         playbooks={playbooks}
+        onUseSuggestion={(prefill) => {
+          setCoachBOpen(false)
+          setCreatePrefill(prefill)
+          setCreateOpen(true)
+        }}
+      />
+
+      <CreateAssignmentDialog
+        open={createOpen}
+        onClose={() => {
+          setCreateOpen(false)
+          setCreatePrefill(null)
+        }}
+        teamId={teamId}
+        playbooks={playbooks}
+        prefill={createPrefill}
         onCreated={async () => {
           setCreateOpen(false)
+          setCreatePrefill(null)
           await load()
         }}
       />
     </div>
+  )
+}
+
+function parseCoachBAssignmentResponse(text: string): { title: string; description: string; playbookName: string | null } {
+  const titleM = text.match(/TITLE:\s*(.+)/im)
+  const descM = text.match(/DESCRIPTION:\s*([\s\S]*?)(?=\n\s*PLAYBOOK:|$)/i)
+  const pbM = text.match(/PLAYBOOK:\s*(.+)/im)
+  let title = (titleM?.[1] ?? "").trim()
+  const description = (descM?.[1] ?? "").trim()
+  let playbookName: string | null = (pbM?.[1] ?? "").trim()
+  if (!playbookName || /^none$/i.test(playbookName)) playbookName = null
+  if (!title && text.trim()) title = text.trim().slice(0, 120)
+  return { title, description, playbookName }
+}
+
+function buildCoachBStudyPrompt(userPrompt: string, playbookNames: string[]): string {
+  const list = playbookNames.length ? playbookNames.join("; ") : "(No playbooks listed — suggest PLAYBOOK: NONE)"
+  return `You are helping a high school football coach draft a study guide assignment for their team.
+
+Available team playbooks (reference by exact name when recommending one): ${list}
+
+Coach request:
+${userPrompt.trim()}
+
+Reply using exactly these lines:
+TITLE: <short assignment title>
+DESCRIPTION: <2-4 sentences: what players should review>
+PLAYBOOK: <exact playbook name from the list above, or NONE>`
+}
+
+function CoachBStudyAssignmentDialog({
+  open,
+  onClose,
+  teamId,
+  playbooks,
+  onUseSuggestion,
+}: {
+  open: boolean
+  onClose: () => void
+  teamId: string
+  playbooks: { id: string; name: string }[]
+  onUseSuggestion: (prefill: { title?: string; playbookId?: string; notes?: string }) => void
+}) {
+  const [prompt, setPrompt] = useState("")
+  const [output, setOutput] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setPrompt("")
+      setOutput("")
+      setError(null)
+      setLoading(false)
+    }
+  }, [open])
+
+  const generate = async () => {
+    const text = prompt.trim()
+    if (!text || loading) return
+    setLoading(true)
+    setError(null)
+    setOutput("")
+    try {
+      const names = playbooks.map((p) => p.name)
+      const message = buildCoachBStudyPrompt(text, names)
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId,
+          message,
+          conversationHistory: [],
+          enableActionTools: false,
+        }),
+      })
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Could not generate")
+        return
+      }
+      if (data.type === "action_proposal" && typeof data.message === "string") {
+        setOutput(data.message)
+        return
+      }
+      if (typeof data.response === "string") {
+        setOutput(data.response)
+        return
+      }
+      setError("Unexpected response from Coach B.")
+    } catch {
+      setError("Network error.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const useThis = () => {
+    const parsed = parseCoachBAssignmentResponse(output)
+    const name = parsed.playbookName
+    let playbookId = ""
+    if (name) {
+      const hit = playbooks.find((p) => p.name.trim().toLowerCase() === name.toLowerCase())
+      if (hit) playbookId = hit.id
+    }
+    onUseSuggestion({
+      title: parsed.title || undefined,
+      playbookId: playbookId || undefined,
+      notes: parsed.description || undefined,
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={() => onClose()}>
+      <DialogContent className="flex max-h-[min(90vh,720px)] flex-col bg-white sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create assignment with Coach B</DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+          <div>
+            <Label htmlFor="coach-b-study-prompt">What should players study?</Label>
+            <textarea
+              id="coach-b-study-prompt"
+              className="mt-1 flex min-h-[100px] w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/30"
+              placeholder='e.g. "Create a study assignment for the offensive line covering our base run formations"'
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+            />
+          </div>
+          <Button type="button" size="sm" className="rounded-lg" onClick={generate} disabled={loading || !prompt.trim()}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating…
+              </>
+            ) : (
+              "Generate"
+            )}
+          </Button>
+          {error && (
+            <p className="text-sm text-red-600" role="alert">
+              {error}
+            </p>
+          )}
+          <div>
+            <Label htmlFor="coach-b-study-output">Coach B response</Label>
+            <textarea
+              id="coach-b-study-output"
+              readOnly
+              className="mt-1 flex min-h-[160px] w-full rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]"
+              value={output}
+              placeholder="Generated title, description, and playbook suggestion will appear here."
+            />
+          </div>
+        </div>
+        <DialogFooter className="flex flex-wrap gap-2 border-t border-[#E5E7EB] pt-3">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={useThis} disabled={!output.trim()}>
+            Use this
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -225,12 +533,14 @@ function CreateAssignmentDialog({
   onClose,
   teamId,
   playbooks,
+  prefill,
   onCreated,
 }: {
   open: boolean
   onClose: () => void
   teamId: string
   playbooks: { id: string; name: string }[]
+  prefill: { title?: string; playbookId?: string; notes?: string } | null
   onCreated: () => Promise<void>
 }) {
   const [title, setTitle] = useState("")
@@ -238,7 +548,24 @@ function CreateAssignmentDialog({
   const [target, setTarget] = useState<"team" | "position_group" | "players">("team")
   const [pos, setPos] = useState("")
   const [playbookId, setPlaybookId] = useState("")
+  const [coachNotes, setCoachNotes] = useState("")
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    if (prefill) {
+      setTitle(prefill.title ?? "")
+      setPlaybookId(prefill.playbookId ?? "")
+      setCoachNotes(prefill.notes ?? "")
+    } else {
+      setTitle("")
+      setDue("")
+      setTarget("team")
+      setPos("")
+      setPlaybookId("")
+      setCoachNotes("")
+    }
+  }, [open, prefill])
 
   const save = async () => {
     if (!title.trim() || !playbookId) {
@@ -280,6 +607,16 @@ function CreateAssignmentDialog({
             <Label>Title</Label>
             <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
+          {coachNotes.trim() ? (
+            <div>
+              <Label>Suggested notes from Coach B (optional — not saved with assignment)</Label>
+              <textarea
+                className="mt-1 flex min-h-[72px] w-full rounded-md border border-[#E5E7EB] bg-[#FFFBEB] px-3 py-2 text-sm text-[#78350F]"
+                value={coachNotes}
+                onChange={(e) => setCoachNotes(e.target.value)}
+              />
+            </div>
+          ) : null}
           <div>
             <Label>Due date</Label>
             <Input className="mt-1" type="date" value={due} onChange={(e) => setDue(e.target.value)} />

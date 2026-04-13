@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
 import { Stethoscope, Plus, X } from "lucide-react"
 
@@ -60,6 +61,9 @@ export function HealthManager({ teamId }: HealthManagerProps) {
   const [detailSaving, setDetailSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [showPastInjuries, setShowPastInjuries] = useState(false)
+  const [healthPageSize, setHealthPageSize] = useState<10 | 25 | 50>(25)
+  const [healthPage, setHealthPage] = useState(1)
 
   const filteredPlayersForPick = useMemo(() => {
     const q = playerPickQuery.trim().toLowerCase()
@@ -323,6 +327,27 @@ export function HealthManager({ teamId }: HealthManagerProps) {
   const activeInjuries = injuries.filter((i) => i.status === "active")
   const resolvedInjuries = injuries.filter((i) => i.status === "resolved")
 
+  const healthTotalPlayers = players.length
+  const healthTotalPages = Math.max(1, Math.ceil(healthTotalPlayers / healthPageSize) || 1)
+  const healthPageSafe = Math.min(Math.max(1, healthPage), healthTotalPages)
+  const healthRangeStart = healthTotalPlayers === 0 ? 0 : (healthPageSafe - 1) * healthPageSize + 1
+  const healthRangeEnd = Math.min(healthPageSafe * healthPageSize, healthTotalPlayers)
+  const paginatedPlayers = players.slice((healthPageSafe - 1) * healthPageSize, healthPageSafe * healthPageSize)
+
+  useEffect(() => {
+    setHealthPage(1)
+  }, [teamId, healthPageSize])
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(players.length / healthPageSize) || 1)
+    setHealthPage((p) => Math.min(p, tp))
+  }, [players.length, healthPageSize])
+
+  const closeInjuryModal = () => {
+    setShowInjuryModal(false)
+    resetForm()
+  }
+
   const injuryCardSkeleton = (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {[1, 2, 3, 4].map((k) => (
@@ -365,25 +390,23 @@ export function HealthManager({ teamId }: HealthManagerProps) {
       )}
 
       {/* Injury Modal */}
-      {showInjuryModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle style={{ color: "rgb(var(--text))" }}>Record Injury</CardTitle>
-                <button
-                  onClick={() => {
-                    setShowInjuryModal(false)
-                    resetForm()
-                  }}
-                  style={{ color: "rgb(var(--muted))" }}
-                  className="hover:opacity-70"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      <Dialog open={showInjuryModal} onOpenChange={(open) => !open && closeInjuryModal()}>
+        <DialogContent className="max-w-md border-[rgb(var(--accent))] bg-white">
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-2">
+              <DialogTitle>Record Injury</DialogTitle>
+              <button
+                type="button"
+                onClick={closeInjuryModal}
+                className="shrink-0 rounded-lg p-1 hover:opacity-70"
+                style={{ color: "rgb(var(--muted))" }}
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </DialogHeader>
+          <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="playerSearch" style={{ color: "rgb(var(--text))" }}>Find player *</Label>
                 <Input
@@ -507,107 +530,170 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                 />
                 Exempt from practice
               </label>
-
-              <div className="flex gap-2 pt-2">
-                <Button 
-                  onClick={handleCreateInjury} 
-                  disabled={submitting} 
-                  className="flex-1"
-                  style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-                >
-                  {submitting ? "Recording..." : "Record Injury"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowInjuryModal(false)
-                    resetForm()
-                  }}
-                  style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+          </div>
+          <DialogFooter className="border-t border-border pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeInjuryModal}
+              style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCreateInjury}
+              disabled={submitting}
+              style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+            >
+              {submitting ? "Recording..." : "Record Injury"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Active Injuries */}
       <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
         <CardHeader>
-          <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-            ACTIVE INJURIES
-          </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
-            Currently injured players
-          </CardDescription>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                ACTIVE INJURIES
+              </CardTitle>
+              <CardDescription style={{ color: "rgb(var(--muted))" }}>
+                Currently injured players
+              </CardDescription>
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm shrink-0" style={{ color: "rgb(var(--text))" }}>
+              <input
+                type="checkbox"
+                checked={showPastInjuries}
+                onChange={(e) => setShowPastInjuries(e.target.checked)}
+                className="h-4 w-4 rounded border"
+                style={{ borderColor: "rgb(var(--border))" }}
+              />
+              Show past injuries
+            </label>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             injuryCardSkeleton
-          ) : activeInjuries.length === 0 ? (
-            <div
-              className="rounded-lg border border-dashed px-4 py-8 text-center"
-              style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}
-            >
-              <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
-                No active injuries
-              </p>
-              <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
-                When you record an injury, it appears here. Add players from the roster first if this list is empty.
-              </p>
-            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {activeInjuries.map((injury) => {
-                const player = injury.players
-                return (
-                  <button
-                    type="button"
-                    key={injury.id}
-                    onClick={() => setDetailInjury(injury)}
-                    className="rounded-lg p-4 border text-left min-h-[152px] flex flex-col transition-opacity hover:opacity-95"
-                    style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
-                  >
-                    <div className="flex items-start justify-between gap-2 flex-1">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-red-500 font-bold shrink-0">●</span>
-                          <h3 className="font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
-                            {player.jersey_number ? `#${player.jersey_number} ` : ""}
-                            {player.first_name} {player.last_name}
-                          </h3>
+            <>
+              {activeInjuries.length === 0 ? (
+                <div
+                  className="rounded-lg border border-dashed px-4 py-8 text-center"
+                  style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}
+                >
+                  <p className="text-sm font-medium" style={{ color: "rgb(var(--text))" }}>
+                    No active injuries
+                  </p>
+                  <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
+                    When you record an injury, it appears here. Add players from the roster first if this list is empty.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeInjuries.map((injury) => {
+                    const player = injury.players
+                    return (
+                      <button
+                        type="button"
+                        key={injury.id}
+                        onClick={() => setDetailInjury(injury)}
+                        className="rounded-lg p-4 border text-left min-h-[152px] flex flex-col transition-opacity hover:opacity-95"
+                        style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                      >
+                        <div className="flex items-start justify-between gap-2 flex-1">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-red-500 font-bold shrink-0">●</span>
+                              <h3 className="font-semibold truncate" style={{ color: "rgb(var(--text))" }}>
+                                {player.jersey_number ? `#${player.jersey_number} ` : ""}
+                                {player.first_name} {player.last_name}
+                              </h3>
+                            </div>
+                            <p className="mb-1 line-clamp-2" style={{ color: "rgb(var(--text))" }}>
+                              <strong>Injury:</strong> {injury.injury_reason}
+                            </p>
+                            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                              <strong>Date:</strong> {new Date(injury.injury_date).toLocaleDateString()}
+                            </p>
+                            {injury.severity && (
+                              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                                <strong>Severity:</strong> {injury.severity.replace(/_/g, " ")}
+                              </p>
+                            )}
+                            {injury.exempt_from_practice && (
+                              <p className="text-sm text-amber-700 font-medium">Practice exempt</p>
+                            )}
+                            {injury.expected_return_date && (
+                              <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                                <strong>Expected return:</strong>{" "}
+                                {new Date(injury.expected_return_date).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <p className="mb-1 line-clamp-2" style={{ color: "rgb(var(--text))" }}>
-                          <strong>Injury:</strong> {injury.injury_reason}
+                        <p className="text-xs mt-2" style={{ color: "rgb(var(--accent))" }}>
+                          Tap for details
                         </p>
-                        <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-                          <strong>Date:</strong> {new Date(injury.injury_date).toLocaleDateString()}
-                        </p>
-                        {injury.severity && (
-                          <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-                            <strong>Severity:</strong> {injury.severity.replace(/_/g, " ")}
-                          </p>
-                        )}
-                        {injury.exempt_from_practice && (
-                          <p className="text-sm text-amber-700 font-medium">Practice exempt</p>
-                        )}
-                        {injury.expected_return_date && (
-                          <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-                            <strong>Expected return:</strong>{" "}
-                            {new Date(injury.expected_return_date).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {showPastInjuries && (
+                <div
+                  className="mt-6 border-t pt-6"
+                  style={{ borderColor: "rgb(var(--border))" }}
+                >
+                  <p
+                    className="mb-3 text-xs font-bold uppercase tracking-wide"
+                    style={{ color: "rgb(var(--muted))" }}
+                  >
+                    Past Injuries
+                  </p>
+                  {resolvedInjuries.length === 0 ? (
+                    <div
+                      className="rounded-lg border border-dashed px-4 py-6 text-center text-sm"
+                      style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))", color: "rgb(var(--muted))" }}
+                    >
+                      No past injuries recorded
                     </div>
-                    <p className="text-xs mt-2" style={{ color: "rgb(var(--accent))" }}>
-                      Tap for details
-                    </p>
-                  </button>
-                )
-              })}
-            </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {resolvedInjuries.map((injury) => {
+                        const player = injury.players
+                        return (
+                          <div
+                            key={injury.id}
+                            className="rounded-lg p-3 border"
+                            style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-green-600">✓</span>
+                              <span style={{ color: "rgb(var(--text))" }}>
+                                {player.jersey_number ? `#${player.jersey_number} ` : ""}
+                                {player.first_name} {player.last_name}
+                              </span>
+                              <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                                — {injury.injury_reason} (Resolved{" "}
+                                {injury.actual_return_date
+                                  ? new Date(injury.actual_return_date).toLocaleDateString()
+                                  : "recently"}
+                                )
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -636,83 +722,98 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                 </div>
               ))}
             </div>
+          ) : players.length === 0 ? (
+            <div
+              className="rounded-lg border border-dashed px-4 py-8 text-center text-sm"
+              style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))", color: "rgb(var(--muted))" }}
+            >
+              No players on this roster yet.
+            </div>
           ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {players.map((player) => {
-              const playerInjury = activeInjuries.find((i) => i.player_id === player.id)
-              return (
-                <div
-                  key={player.id}
-                  className="rounded-lg p-3 border"
-                  style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
-                >
-                  <div className="flex items-center gap-2 mb-1">
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {paginatedPlayers.map((player) => {
+                  const playerInjury = activeInjuries.find((i) => i.player_id === player.id)
+                  return (
                     <div
-                      className={`w-3 h-3 rounded-full ${getStatusColor(player.healthStatus)}`}
-                    />
-                    <span className="font-medium" style={{ color: "rgb(var(--text))" }}>
-                      {player.jerseyNumber ? `#${player.jerseyNumber} ` : ""}
-                      {player.firstName} {player.lastName}
-                    </span>
+                      key={player.id}
+                      className="rounded-lg p-3 border"
+                      style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <div
+                          className={`w-3 h-3 rounded-full ${getStatusColor(player.healthStatus)}`}
+                        />
+                        <span className="font-medium" style={{ color: "rgb(var(--text))" }}>
+                          {player.jerseyNumber ? `#${player.jerseyNumber} ` : ""}
+                          {player.firstName} {player.lastName}
+                        </span>
+                      </div>
+                      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                        Status: {getStatusLabel(player.healthStatus)}
+                      </p>
+                      {playerInjury && (
+                        <p className="text-red-600 text-sm mt-1">
+                          {playerInjury.injury_reason}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div
+                className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+                style={{ borderColor: "rgb(var(--border))" }}
+              >
+                <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+                  Showing {healthRangeStart}–{healthRangeEnd} of {healthTotalPlayers} players
+                </p>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <label className="flex items-center gap-2 text-sm" style={{ color: "rgb(var(--text))" }}>
+                    <span className="whitespace-nowrap">Rows per page</span>
+                    <select
+                      value={healthPageSize}
+                      onChange={(e) => setHealthPageSize(Number(e.target.value) as 10 | 25 | 50)}
+                      className="rounded-md px-2 py-1.5 text-sm border"
+                      style={{
+                        backgroundColor: "#FFFFFF",
+                        borderColor: "rgb(var(--border))",
+                        color: "rgb(var(--text))",
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={healthPageSafe <= 1}
+                      onClick={() => setHealthPage((p) => Math.max(1, p - 1))}
+                      style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={healthPageSafe >= healthTotalPages}
+                      onClick={() => setHealthPage((p) => Math.min(healthTotalPages, p + 1))}
+                      style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
+                    >
+                      Next
+                    </Button>
                   </div>
-                  <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-                    Status: {getStatusLabel(player.healthStatus)}
-                  </p>
-                  {playerInjury && (
-                    <p className="text-red-600 text-sm mt-1">
-                      {playerInjury.injury_reason}
-                    </p>
-                  )}
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
-
-      {/* Resolved Injuries */}
-      {resolvedInjuries.length > 0 && (
-        <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
-          <CardHeader>
-            <CardTitle className="uppercase text-xs font-bold tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-              RESOLVED INJURIES
-            </CardTitle>
-            <CardDescription style={{ color: "rgb(var(--muted))" }}>
-              Recently resolved injuries
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {resolvedInjuries.slice(0, 10).map((injury) => {
-                const player = injury.players
-                return (
-                  <div
-                    key={injury.id}
-                    className="rounded-lg p-3 border"
-                    style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-600">✓</span>
-                      <span style={{ color: "rgb(var(--text))" }}>
-                        {player.jersey_number ? `#${player.jersey_number} ` : ""}
-                        {player.first_name} {player.last_name}
-                      </span>
-                      <span className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-                        - {injury.injury_reason} (Resolved{" "}
-                        {injury.actual_return_date
-                          ? new Date(injury.actual_return_date).toLocaleDateString()
-                          : "recently"}
-                        )
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {detailInjury && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

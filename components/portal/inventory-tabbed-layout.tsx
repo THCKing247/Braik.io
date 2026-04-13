@@ -232,6 +232,7 @@ function InventoryExpenseLedger({
   serverExpenseGroups,
   rollupPending,
   useServerExpenseRollup = false,
+  expenseBucketFilter = "All",
 }: {
   items: InventoryItem[]
   expenseBreakdown: "all" | "category" | "type"
@@ -243,6 +244,8 @@ function InventoryExpenseLedger({
     unitCost: number | null
   }) => Promise<void>
   recentUnitCostChanges: UnitCostChangeRow[]
+  /** Category tab (All vs Gear, Uniforms, …). Only "All" shows every group; specific tabs scope rollups. */
+  expenseBucketFilter?: BucketFilter
   /** Paginated inventory: wait for server expense rollup instead of using partial page `items`. */
   rollupPending?: boolean
   /** When true, prefer `serverExpenseGroups` for rollups (paginated list is incomplete). */
@@ -264,9 +267,16 @@ function InventoryExpenseLedger({
     dir: "asc" | "desc"
   }>({ key: "bucket", dir: "asc" })
 
+  /** Server may already filter by bucket query param; this also scopes if a full payload is cached. */
+  const scopedServerGroups = useMemo(() => {
+    if (!serverExpenseGroups) return undefined
+    if (expenseBucketFilter === "All") return serverExpenseGroups
+    return serverExpenseGroups.filter((g) => g.bucket === expenseBucketFilter)
+  }, [serverExpenseGroups, expenseBucketFilter])
+
   const compositeGroups = useMemo(() => {
-    if (useServerExpenseRollup && serverExpenseGroups) {
-      return serverExpenseGroups.map((g) => ({
+    if (useServerExpenseRollup && scopedServerGroups) {
+      return scopedServerGroups.map((g) => ({
         key: g.key,
         bucket: g.bucket,
         typeKey: g.typeKey,
@@ -277,19 +287,19 @@ function InventoryExpenseLedger({
       }))
     }
     return buildCompositeGroups(items)
-  }, [items, serverExpenseGroups, useServerExpenseRollup])
+  }, [items, scopedServerGroups, useServerExpenseRollup])
 
   const totalWithCosts = useMemo(() => {
-    if (useServerExpenseRollup && serverExpenseGroups) {
+    if (useServerExpenseRollup && scopedServerGroups) {
       return compositeGroups.reduce((s, g) => s + g.totalLine, 0)
     }
     return items.reduce((s, i) => s + (hasEnteredCost(i) ? lineInvestment(i) : 0), 0)
-  }, [items, compositeGroups, serverExpenseGroups, useServerExpenseRollup])
+  }, [items, compositeGroups, scopedServerGroups, useServerExpenseRollup])
   const anyCostEntered = totalWithCosts > 0
 
   const byCategoryTotals = useMemo(() => {
     const m = new Map<string, number>()
-    if (useServerExpenseRollup && serverExpenseGroups) {
+    if (useServerExpenseRollup && scopedServerGroups) {
       for (const g of compositeGroups) {
         m.set(g.bucket, (m.get(g.bucket) || 0) + g.totalLine)
       }
@@ -301,7 +311,12 @@ function InventoryExpenseLedger({
       m.set(b, (m.get(b) || 0) + lineInvestment(i))
     }
     return m
-  }, [items, compositeGroups, serverExpenseGroups, useServerExpenseRollup])
+  }, [items, compositeGroups, scopedServerGroups, useServerExpenseRollup])
+
+  const recentCostsForBucket = useMemo(() => {
+    if (expenseBucketFilter === "All") return recentUnitCostChanges
+    return recentUnitCostChanges.filter((u) => u.inventoryBucket === expenseBucketFilter)
+  }, [recentUnitCostChanges, expenseBucketFilter])
 
   const largestCategory = useMemo((): { name: string; v: number } | null => {
     let best: { name: string; v: number } | null = null
@@ -459,10 +474,10 @@ function InventoryExpenseLedger({
           <CardContent className="p-4">
             <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Recent cost updates</p>
             <ul className="text-sm space-y-1" style={{ color: "rgb(var(--text))" }}>
-              {recentUnitCostChanges.length === 0 ? (
+              {recentCostsForBucket.length === 0 ? (
                 <li style={{ color: "rgb(var(--muted))" }}>No costs entered yet</li>
               ) : (
-                recentUnitCostChanges.slice(0, 3).map((u, idx) => (
+                recentCostsForBucket.slice(0, 3).map((u, idx) => (
                   <li key={`${u.inventoryBucket}-${u.equipmentType}-${u.changedAt}-${idx}`} className="truncate">
                     <span className="font-medium">{u.equipmentType}</span>{" "}
                     {u.newCost != null ? formatMoney(u.newCost) : "—"}{" "}
@@ -934,7 +949,8 @@ export function InventoryTabbedLayout({
   useEffect(() => {
     if (mainView !== "expenses" || !teamId) return
     let cancelled = false
-    fetch(`/api/teams/${teamId}/inventory?expenseGroups=1`)
+    const expenseUrl = `/api/teams/${teamId}/inventory?expenseGroups=1&bucket=${encodeURIComponent(bucketFilter)}`
+    fetch(expenseUrl)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { expenseGroups?: NonNullable<typeof serverExpenseGroups> }) => {
         if (cancelled) return
@@ -951,7 +967,7 @@ export function InventoryTabbedLayout({
     return () => {
       cancelled = true
     }
-  }, [mainView, teamId, recentCostsSignature, expenseLedgerRefresh])
+  }, [mainView, teamId, bucketFilter, recentCostsSignature, expenseLedgerRefresh])
 
   useEffect(() => {
     if (!teamId) return
@@ -978,10 +994,9 @@ export function InventoryTabbedLayout({
   }, [assignModalItem])
 
   const bucketFilteredItems = useMemo(() => {
-    if (inventoryPagination?.enabled) return items
     if (bucketFilter === "All") return items
     return items.filter((item) => (item.inventoryBucket || "Gear") === bucketFilter)
-  }, [items, bucketFilter, inventoryPagination?.enabled])
+  }, [items, bucketFilter])
 
   // Group items by equipment type (within bucket filter)
   const groupedItems = useMemo(() => {
@@ -998,7 +1013,23 @@ export function InventoryTabbedLayout({
   const equipmentTypes = Object.keys(groupedItems).sort()
 
   const searchFilteredItems = useMemo(() => {
-    if (inventoryPagination?.enabled) return items
+    if (inventoryPagination?.enabled) {
+      if (!searchQuery.trim()) return bucketFilteredItems
+      const query = searchQuery.toLowerCase().trim()
+      return bucketFilteredItems.filter((item) => {
+        if (item.itemCode?.toLowerCase().includes(query)) return true
+        if (item.inventoryBucket?.toLowerCase().includes(query)) return true
+        if (item.assignedPlayer) {
+          const playerName = `${item.assignedPlayer.firstName} ${item.assignedPlayer.lastName}`.toLowerCase()
+          if (playerName.includes(query)) return true
+          if (item.assignedPlayer.jerseyNumber?.toString().includes(query)) return true
+        }
+        if (item.name.toLowerCase().includes(query)) return true
+        if (item.size?.toLowerCase().includes(query)) return true
+        if (item.make?.toLowerCase().includes(query)) return true
+        return false
+      })
+    }
     if (!searchQuery.trim()) return bucketFilteredItems
     const query = searchQuery.toLowerCase().trim()
     return bucketFilteredItems.filter((item) => {
@@ -1014,7 +1045,7 @@ export function InventoryTabbedLayout({
       if (item.make?.toLowerCase().includes(query)) return true
       return false
     })
-  }, [bucketFilteredItems, searchQuery, inventoryPagination?.enabled, items])
+  }, [bucketFilteredItems, searchQuery, inventoryPagination?.enabled])
 
   const groupedSearchItems = useMemo(() => {
     return searchFilteredItems.reduce((acc, item) => {
@@ -1268,20 +1299,11 @@ export function InventoryTabbedLayout({
       (inventoryPagination.serverTabStats?.total ?? 0) > 0
     )
 
-  if (showGlobalEmpty) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">No equipment items yet</p>
-        {permissions.canCreate && (
-          <Button
-            onClick={() => setShowAddModal(true)}
-            style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
-          >
-            Add Your First Equipment
-          </Button>
-        )}
-      </div>
-    )
+  const emptyShellStats = inventoryPagination?.serverTabStats ?? {
+    total: 0,
+    available: 0,
+    assigned: 0,
+    needsAttention: 0,
   }
 
   return (
@@ -1312,7 +1334,93 @@ export function InventoryTabbedLayout({
         ariaLabel="Inventory Items or Expenses"
       />
 
-      {mainView === "expenses" ? (
+      {showGlobalEmpty ? (
+        <div className="flex flex-col flex-1 min-h-0 gap-3">
+          {mainView === "expenses" ? (
+            <>
+              <PortalUnderlineTabs
+                compact
+                tabs={bucketTabs}
+                value={bucketFilter}
+                onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+                ariaLabel="Inventory category filter"
+              />
+              {bucketFilter !== "All" && (
+                <p className="text-[11px] -mt-1 lg:max-w-5xl" style={{ color: "rgb(var(--muted))" }}>
+                  {isPlayerAssignableBucket(bucketFilter)
+                    ? "Player equipment — costs roll up to assignable gear and uniforms."
+                    : "Program inventory — replacement and facility costs (not assigned to players)."}
+                </p>
+              )}
+              <Card className="border flex-1 min-h-[280px] flex flex-col" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+                <CardContent className="flex flex-1 flex-col items-center justify-center gap-4 p-10">
+                  <p className="text-center text-muted-foreground max-w-md">
+                    No equipment to show yet. Add items to track costs by category.
+                  </p>
+                  {permissions.canCreate && (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setMainView("items")
+                        setShowAddModal(true)
+                      }}
+                      style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                    >
+                      Add equipment
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <>
+              <PortalUnderlineTabs
+                compact
+                tabs={bucketTabs}
+                value={bucketFilter}
+                onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+                ariaLabel="Inventory category filter"
+                className="w-full"
+                navClassName="w-full flex-wrap"
+              />
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+                  <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Total Items</p>
+                  <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>{emptyShellStats.total}</p>
+                </div>
+                <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+                  <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Available</p>
+                  <p className="text-2xl font-bold" style={{ color: "#059669" }}>{emptyShellStats.available}</p>
+                </div>
+                <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+                  <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Assigned</p>
+                  <p className="text-2xl font-bold" style={{ color: "#d97706" }}>{emptyShellStats.assigned}</p>
+                </div>
+                <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
+                  <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>Needs Attention</p>
+                  <p className="text-2xl font-bold" style={{ color: "#dc2626" }}>{emptyShellStats.needsAttention}</p>
+                </div>
+              </div>
+              <Card className="border flex-1 min-h-[280px] flex flex-col" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+                <CardContent className="flex flex-1 flex-col items-center justify-center gap-4 p-10">
+                  <p className="text-center text-muted-foreground max-w-lg">
+                    No equipment items assigned yet. Add your first piece of equipment to get started.
+                  </p>
+                  {permissions.canCreate && (
+                    <Button
+                      type="button"
+                      onClick={() => setShowAddModal(true)}
+                      style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                    >
+                      Add equipment
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      ) : mainView === "expenses" ? (
         <>
           <PortalUnderlineTabs
             compact
@@ -1338,6 +1446,7 @@ export function InventoryTabbedLayout({
             serverExpenseGroups={serverExpenseGroups}
             rollupPending={expenseRollupPending}
             useServerExpenseRollup={!!inventoryPagination?.enabled}
+            expenseBucketFilter={bucketFilter}
           />
         </>
       ) : inventoryPagination?.enabled && !inventoryPagination.invType ? (

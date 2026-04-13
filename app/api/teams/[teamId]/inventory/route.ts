@@ -104,7 +104,8 @@ export async function GET(
       const supabase = getSupabaseServer()
 
       if (url.searchParams.get("expenseGroups") === "1") {
-        const groups = await loadInventoryExpenseGroups(teamId)
+        const bucketFilter = url.searchParams.get("bucket") || "All"
+        const groups = await loadInventoryExpenseGroups(teamId, { bucketFilter })
         return NextResponse.json({ expenseGroups: groups })
       }
 

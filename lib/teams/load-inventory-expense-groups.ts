@@ -26,15 +26,24 @@ export type ExpenseGroupSummary = {
 
 /**
  * Server-side rollup for Expenses tab — minimal columns; total_line from inventory_type_totals when present.
+ * @param opts.bucketFilter When set to a concrete bucket (not "All"), only aggregate rows in that category.
  */
-export async function loadInventoryExpenseGroups(teamId: string): Promise<ExpenseGroupSummary[]> {
+export async function loadInventoryExpenseGroups(
+  teamId: string,
+  opts?: { bucketFilter?: string }
+): Promise<ExpenseGroupSummary[]> {
   const supabase = getSupabaseServer()
+  const bf = opts?.bucketFilter?.trim()
+  let itemsQ = supabase
+    .from("inventory_items")
+    .select("inventory_bucket, equipment_type, category, quantity_total, cost_per_unit, notes")
+    .eq("team_id", teamId)
+    .eq("archive_status", "active")
+  if (bf && bf !== "All" && BUCKETS.includes(bf as InventoryBucket)) {
+    itemsQ = itemsQ.eq("inventory_bucket", bf)
+  }
   const [itemsRes, costsRes, totalsRes] = await Promise.all([
-    supabase
-      .from("inventory_items")
-      .select("inventory_bucket, equipment_type, category, quantity_total, cost_per_unit, notes")
-      .eq("team_id", teamId)
-      .eq("archive_status", "active"),
+    itemsQ,
     supabase.from("inventory_unit_costs").select("inventory_bucket, equipment_type, unit_cost").eq("team_id", teamId),
     supabase.from("inventory_type_totals").select("inventory_bucket, equipment_type, total_line_cost").eq("team_id", teamId),
   ])

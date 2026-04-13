@@ -230,6 +230,8 @@ function InventoryExpenseLedger({
   onBulkSetCost,
   recentUnitCostChanges,
   serverExpenseGroups,
+  rollupPending,
+  useServerExpenseRollup = false,
 }: {
   items: InventoryItem[]
   expenseBreakdown: "all" | "category" | "type"
@@ -241,6 +243,10 @@ function InventoryExpenseLedger({
     unitCost: number | null
   }) => Promise<void>
   recentUnitCostChanges: UnitCostChangeRow[]
+  /** Paginated inventory: wait for server expense rollup instead of using partial page `items`. */
+  rollupPending?: boolean
+  /** When true, prefer `serverExpenseGroups` for rollups (paginated list is incomplete). */
+  useServerExpenseRollup?: boolean
   /** When set (server rollup), expense tables use this instead of iterating client items. */
   serverExpenseGroups?: {
     key: string
@@ -259,7 +265,7 @@ function InventoryExpenseLedger({
   }>({ key: "bucket", dir: "asc" })
 
   const compositeGroups = useMemo(() => {
-    if (serverExpenseGroups) {
+    if (useServerExpenseRollup && serverExpenseGroups) {
       return serverExpenseGroups.map((g) => ({
         key: g.key,
         bucket: g.bucket,
@@ -271,19 +277,19 @@ function InventoryExpenseLedger({
       }))
     }
     return buildCompositeGroups(items)
-  }, [items, serverExpenseGroups])
+  }, [items, serverExpenseGroups, useServerExpenseRollup])
 
   const totalWithCosts = useMemo(() => {
-    if (serverExpenseGroups) {
+    if (useServerExpenseRollup && serverExpenseGroups) {
       return compositeGroups.reduce((s, g) => s + g.totalLine, 0)
     }
     return items.reduce((s, i) => s + (hasEnteredCost(i) ? lineInvestment(i) : 0), 0)
-  }, [items, compositeGroups, serverExpenseGroups])
+  }, [items, compositeGroups, serverExpenseGroups, useServerExpenseRollup])
   const anyCostEntered = totalWithCosts > 0
 
   const byCategoryTotals = useMemo(() => {
     const m = new Map<string, number>()
-    if (serverExpenseGroups) {
+    if (useServerExpenseRollup && serverExpenseGroups) {
       for (const g of compositeGroups) {
         m.set(g.bucket, (m.get(g.bucket) || 0) + g.totalLine)
       }
@@ -295,7 +301,7 @@ function InventoryExpenseLedger({
       m.set(b, (m.get(b) || 0) + lineInvestment(i))
     }
     return m
-  }, [items, compositeGroups, serverExpenseGroups])
+  }, [items, compositeGroups, serverExpenseGroups, useServerExpenseRollup])
 
   const largestCategory = useMemo((): { name: string; v: number } | null => {
     let best: { name: string; v: number } | null = null
@@ -315,7 +321,8 @@ function InventoryExpenseLedger({
   ]
 
   const saveUnit = async (g: ExpenseGroupRow, cost: number | null) => {
-    if (!serverExpenseGroups && g.items.length === 0) return
+    if (!useServerExpenseRollup && g.items.length === 0) return
+    if (useServerExpenseRollup && serverExpenseGroups === undefined) return
     setSavingKey(g.key)
     try {
       await onBulkSetCost({
@@ -390,6 +397,34 @@ function InventoryExpenseLedger({
   }, [compositeGroups])
 
   const budgetDen = totalWithCosts > 0 ? totalWithCosts : 1
+
+  if (rollupPending) {
+    return (
+      <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto inventory-modal-scroll p-1">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+              <CardContent className="space-y-2 p-4">
+                <div className="h-3 w-28 animate-pulse rounded bg-muted" />
+                <div className="h-9 w-36 animate-pulse rounded bg-muted" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <div className="h-9 w-44 animate-pulse rounded-lg bg-muted" />
+          <div className="h-9 w-24 animate-pulse rounded-lg bg-muted" />
+        </div>
+        <div className="min-h-[220px] rounded-lg border bg-white p-4" style={{ borderColor: "rgb(var(--border))" }}>
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5, 6].map((r) => (
+              <div key={r} className="h-10 w-full animate-pulse rounded-md bg-muted/60" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto inventory-modal-scroll p-1">
@@ -739,6 +774,8 @@ interface InventoryTabbedLayoutProps {
   viewer: { canReportCondition: boolean; canApproveConditionReports: boolean }
   onRefreshInventory: () => Promise<void>
   inventoryBootstrapLoading?: boolean
+  /** Bumps when unit-cost mutations need expense rollup refetch (paginated mode). */
+  expenseLedgerRefresh?: number
   /** When set, empty state uses this instead of items.length (paginated mode). */
   totalInventoryCount?: number
   /** Catalog drill + breadcrumb (inventory page). */
@@ -804,6 +841,7 @@ export function InventoryTabbedLayout({
   viewer,
   onRefreshInventory,
   inventoryBootstrapLoading = false,
+  expenseLedgerRefresh = 0,
   totalInventoryCount,
   catalogNavigate,
   inventoryPagination,
@@ -881,23 +919,39 @@ export function InventoryTabbedLayout({
     | undefined
   >(undefined)
 
+  const recentCostsSignature = useMemo(
+    () =>
+      recentUnitCostChanges
+        .map((u) => `${u.inventoryBucket}|${u.equipmentType}|${String(u.newCost)}|${u.changedAt}`)
+        .join("~"),
+    [recentUnitCostChanges]
+  )
+
+  useEffect(() => {
+    setServerExpenseGroups(undefined)
+  }, [teamId])
+
   useEffect(() => {
     if (mainView !== "expenses" || !teamId) return
     let cancelled = false
     fetch(`/api/teams/${teamId}/inventory?expenseGroups=1`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { expenseGroups?: NonNullable<typeof serverExpenseGroups> }) => {
-        if (!cancelled && Array.isArray(d?.expenseGroups)) {
+        if (cancelled) return
+        if (Array.isArray(d?.expenseGroups)) {
           setServerExpenseGroups(d.expenseGroups)
+        } else {
+          setServerExpenseGroups([])
         }
       })
       .catch(() => {
-        if (!cancelled) setServerExpenseGroups(undefined)
+        if (cancelled) return
+        setServerExpenseGroups([])
       })
     return () => {
       cancelled = true
     }
-  }, [mainView, teamId, recentUnitCostChanges])
+  }, [mainView, teamId, recentCostsSignature, expenseLedgerRefresh])
 
   useEffect(() => {
     if (!teamId) return
@@ -913,7 +967,7 @@ export function InventoryTabbedLayout({
     return () => {
       cancelled = true
     }
-  }, [teamId, mainView, pendingConditionReportCount])
+  }, [teamId, pendingConditionReportCount])
 
   useEffect(() => {
     if (assignModalItem) {
@@ -993,6 +1047,16 @@ export function InventoryTabbedLayout({
       ).length,
     }
   }, [searchFilteredItems, inventoryPagination])
+
+  const expenseRollupPending = useMemo(
+    () =>
+      Boolean(
+        inventoryPagination?.enabled &&
+          mainView === "expenses" &&
+          serverExpenseGroups === undefined
+      ),
+    [inventoryPagination?.enabled, mainView, serverExpenseGroups]
+  )
 
   const handleBulkEdit = (equipmentType: string) => {
     setBulkEditEquipmentType(equipmentType)
@@ -1272,62 +1336,9 @@ export function InventoryTabbedLayout({
             onBulkSetCost={onBulkSetCostForItems}
             recentUnitCostChanges={recentUnitCostChanges}
             serverExpenseGroups={serverExpenseGroups}
+            rollupPending={expenseRollupPending}
+            useServerExpenseRollup={!!inventoryPagination?.enabled}
           />
-        </>
-      ) : mainView === "items" && inventoryBootstrapLoading ? (
-        <>
-          <PortalUnderlineTabs
-            compact
-            tabs={bucketTabs}
-            value={bucketFilter}
-            onValueChange={(id) => setBucketFilter(id as BucketFilter)}
-            ariaLabel="Inventory category filter"
-            className="w-full"
-            navClassName="w-full flex-wrap"
-          />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
-              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
-                Total Items
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>
-                —
-              </p>
-            </div>
-            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
-              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
-                Available
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "#059669" }}>
-                —
-              </p>
-            </div>
-            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
-              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
-                Assigned
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "#d97706" }}>
-                —
-              </p>
-            </div>
-            <div className="p-3 rounded border bg-white" style={{ borderColor: "rgb(var(--border))" }}>
-              <p className="text-xs mb-1" style={{ color: "rgb(var(--muted))" }}>
-                Needs Attention
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "#dc2626" }}>
-                —
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div
-                key={i}
-                className="h-48 rounded-lg border bg-white animate-pulse"
-                style={{ borderColor: "rgb(var(--border))" }}
-              />
-            ))}
-          </div>
         </>
       ) : inventoryPagination?.enabled && !inventoryPagination.invType ? (
         <div className="flex flex-col gap-3 flex-1 min-h-0">
@@ -1474,7 +1485,38 @@ export function InventoryTabbedLayout({
             </div>
           )}
         </div>
-      ) : equipmentTypes.length === 0 ? (
+      ) : inventoryBootstrapLoading && inventoryPagination?.enabled && inventoryPagination.invType ? (
+        <div className="flex flex-col gap-3 flex-1 min-h-0">
+          <PortalUnderlineTabs
+            compact
+            tabs={bucketTabs}
+            value={bucketFilter}
+            onValueChange={(id) => setBucketFilter(id as BucketFilter)}
+            ariaLabel="Inventory category filter"
+            className="w-full"
+            navClassName="w-full flex-wrap"
+          />
+          {catalogNavigate && inventoryPagination?.invType ? (
+            <div className="h-5 w-72 max-w-full animate-pulse rounded bg-muted" aria-hidden />
+          ) : null}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded border bg-white p-3" style={{ borderColor: "rgb(var(--border))" }}>
+                <div className="mb-1 h-3 w-20 animate-pulse rounded bg-muted" />
+                <div className="h-8 w-14 animate-pulse rounded bg-muted" />
+              </div>
+            ))}
+          </div>
+          <div className="h-10 w-full max-w-lg animate-pulse rounded-md bg-muted" aria-hidden />
+          <div className="min-h-[200px] flex-1 rounded-lg border bg-white p-4" style={{ borderColor: "rgb(var(--border))" }}>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((r) => (
+                <div key={r} className="h-14 w-full animate-pulse rounded-md bg-muted/50" aria-hidden />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : equipmentTypes.length === 0 && !inventoryBootstrapLoading ? (
         <div className="flex flex-col gap-3">
           <PortalUnderlineTabs
             compact

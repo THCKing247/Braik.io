@@ -180,10 +180,13 @@ function InventoryManagerInner({
     needsAttention: number
   } | null>(null)
   const [catalogCards, setCatalogCards] = useState<InventoryCatalogCardRow[]>([])
-  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogLoading, setCatalogLoading] = useState(() => bootstrapInventory && !invType)
   const [fetchAllLoading, setFetchAllLoading] = useState(false)
   const [pageSizeChoice, setPageSizeChoice] = useState<PageSizeChoice>(25)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Ignores stale bootstrap responses when deps change quickly (tab/bucket/search). */
+  const bootstrapSeqRef = useRef(0)
+  const [expenseLedgerRefresh, setExpenseLedgerRefresh] = useState(0)
 
   useEffect(() => {
     setPageSizeChoice(readPageSizeFromSession())
@@ -222,24 +225,32 @@ function InventoryManagerInner({
 
   const runBootstrap = useCallback(async () => {
     if (!bootstrapInventory || !teamId) return
-    setBootstrapLoading(true)
-    try {
-      const metaRes = await fetch(
-        `/api/teams/${teamId}/inventory?meta=1&bucket=${encodeURIComponent(bucketFilter)}`
-      )
-      if (!metaRes.ok) {
-        setBootstrapLoading(false)
-        return
-      }
-      const meta = (await metaRes.json()) as Parameters<typeof applyMeta>[0]
-      applyMeta(meta)
+    const seq = ++bootstrapSeqRef.current
+    const isLatest = () => seq === bootstrapSeqRef.current
 
+    setBootstrapLoading(true)
+    if (!invType) setCatalogLoading(true)
+    else setCatalogLoading(false)
+
+    const bucketQ = encodeURIComponent(bucketFilter)
+    const metaUrl = `/api/teams/${teamId}/inventory?meta=1&bucket=${bucketQ}`
+
+    try {
       if (!invType) {
-        setCatalogLoading(true)
-        const catRes = await fetch(
-          `/api/teams/${teamId}/inventory?catalog=1&bucket=${encodeURIComponent(bucketFilter)}`
-        )
+        const [metaRes, catRes] = await Promise.all([
+          fetch(metaUrl),
+          fetch(`/api/teams/${teamId}/inventory?catalog=1&bucket=${bucketQ}`),
+        ])
+        if (!isLatest()) return
+        if (!metaRes.ok) {
+          setBootstrapLoading(false)
+          setCatalogLoading(false)
+          return
+        }
+        const meta = (await metaRes.json()) as Parameters<typeof applyMeta>[0]
+        applyMeta(meta)
         const catJ = catRes.ok ? await catRes.json() : { catalog: [] }
+        if (!isLatest()) return
         setCatalogCards(Array.isArray(catJ.catalog) ? catJ.catalog : [])
         setCatalogLoading(false)
         setItems([])
@@ -250,15 +261,26 @@ function InventoryManagerInner({
 
       const limitNum = pageSizeChoice === "all" ? 200 : pageSizeChoice
       const etQ = `&equipmentType=${encodeURIComponent(invType)}`
+      const searchQ = encodeURIComponent(debouncedSearch)
 
       if (pageSizeChoice === "all") {
         setFetchAllLoading(true)
+        const metaRes = await fetch(metaUrl)
+        if (!isLatest()) return
+        if (!metaRes.ok) {
+          setFetchAllLoading(false)
+          setBootstrapLoading(false)
+          return
+        }
+        applyMeta((await metaRes.json()) as Parameters<typeof applyMeta>[0])
+
         let allItems: InventoryItem[] = []
         let page = 1
         let total = 0
         while (true) {
+          if (!isLatest()) return
           const pageRes = await fetch(
-            `/api/teams/${teamId}/inventory?paginated=1&page=${page}&limit=200&bucket=${encodeURIComponent(bucketFilter)}&search=${encodeURIComponent(debouncedSearch)}${etQ}`
+            `/api/teams/${teamId}/inventory?paginated=1&page=${page}&limit=200&bucket=${bucketQ}&search=${searchQ}${etQ}`
           )
           if (!pageRes.ok) break
           const pg = (await pageRes.json()) as {
@@ -272,6 +294,7 @@ function InventoryManagerInner({
           if (chunk.length < 200 || allItems.length >= total) break
           page += 1
         }
+        if (!isLatest()) return
         setItems(allItems)
         setTotalItemCount(total)
         setFetchAllLoading(false)
@@ -279,23 +302,27 @@ function InventoryManagerInner({
         return
       }
 
-      const pageRes = await fetch(
-        `/api/teams/${teamId}/inventory?paginated=1&page=${inventoryPage}&limit=${limitNum}&bucket=${encodeURIComponent(bucketFilter)}&search=${encodeURIComponent(debouncedSearch)}${etQ}`
-      )
-      if (!pageRes.ok) {
+      const pageUrl = `/api/teams/${teamId}/inventory?paginated=1&page=${inventoryPage}&limit=${limitNum}&bucket=${bucketQ}&search=${searchQ}${etQ}`
+      const [metaRes, pageRes] = await Promise.all([fetch(metaUrl), fetch(pageUrl)])
+      if (!isLatest()) return
+      if (!metaRes.ok || !pageRes.ok) {
         setBootstrapLoading(false)
         return
       }
-      const pg = (await pageRes.json()) as {
+      const [meta, pg] = await Promise.all([metaRes.json(), pageRes.json()])
+      if (!isLatest()) return
+      applyMeta(meta as Parameters<typeof applyMeta>[0])
+      const pageJson = pg as {
         items?: InventoryItem[]
         totalCount?: number
         viewer?: InventoryViewer
       }
-      setItems(Array.isArray(pg.items) ? pg.items : [])
-      setTotalItemCount(typeof pg.totalCount === "number" ? pg.totalCount : 0)
-      if (pg.viewer) setViewer(pg.viewer)
+      setItems(Array.isArray(pageJson.items) ? pageJson.items : [])
+      setTotalItemCount(typeof pageJson.totalCount === "number" ? pageJson.totalCount : 0)
+      if (pageJson.viewer) setViewer(pageJson.viewer)
       setBootstrapLoading(false)
     } catch {
+      if (!isLatest()) return
       setBootstrapLoading(false)
       setFetchAllLoading(false)
       setCatalogLoading(false)
@@ -672,6 +699,7 @@ function InventoryManagerInner({
           return item
         })
       )
+      setExpenseLedgerRefresh((k) => k + 1)
     } catch (error: unknown) {
       alert(error instanceof Error ? error.message : "Error updating unit price")
       throw error
@@ -871,6 +899,7 @@ function InventoryManagerInner({
       onDeleteItem={handleDeleteItem}
       loading={loading}
       inventoryBootstrapLoading={bootstrapInventory ? bootstrapLoading : false}
+      expenseLedgerRefresh={expenseLedgerRefresh}
       totalInventoryCount={bootstrapInventory ? totalItemCount : undefined}
       inventoryPagination={
         bootstrapInventory
@@ -899,7 +928,15 @@ function InventoryManagerInner({
 
 export function InventoryManager(props: InventoryManagerProps) {
   return (
-    <Suspense fallback={<div className="min-h-[40vh] w-full animate-pulse rounded-xl bg-muted" aria-hidden />}>
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-3 p-1" aria-busy="true" aria-label="Loading inventory">
+          <div className="h-10 max-w-md animate-pulse rounded-lg bg-muted" />
+          <div className="h-9 max-w-xs animate-pulse rounded-lg bg-muted" />
+          <div className="min-h-[180px] animate-pulse rounded-xl bg-muted" />
+        </div>
+      }
+    >
       <InventoryManagerInner {...props} />
     </Suspense>
   )

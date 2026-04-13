@@ -69,7 +69,7 @@ interface LitePlayer {
   jerseyNumber: number | null
 }
 
-export function WeightRoomModule({ teamId }: { teamId: string }) {
+export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; canEdit?: boolean }) {
   const { showToast } = usePlaybookToast()
   const [tab, setTab] = useState<TabId>("schedule")
   const [sessions, setSessions] = useState<WorkoutSessionRow[]>([])
@@ -193,6 +193,7 @@ export function WeightRoomModule({ teamId }: { teamId: string }) {
               roster={roster}
               positionOptions={positionOptions}
               onRefresh={loadSchedule}
+              canEdit={canEdit}
             />
           )}
           {tab === "maxes" && (
@@ -202,6 +203,7 @@ export function WeightRoomModule({ teamId }: { teamId: string }) {
               roster={roster}
               positionOptions={positionOptions}
               onRefresh={loadMaxes}
+              canEdit={canEdit}
               showToast={showToast}
               onMaxCrossedThousand={async (detail) => {
                 const k = `braik-1000lb-cert-${teamId}-${detail.playerId}`
@@ -236,6 +238,7 @@ export function WeightRoomModule({ teamId }: { teamId: string }) {
           {tab === "achievements" && (
             <AchievementsTab
               base={base}
+              canEdit={canEdit}
               onOpenCertificate={(d) => {
                 setCertData(d)
                 setCertOpen(true)
@@ -304,6 +307,7 @@ function ScheduleTab({
   roster,
   positionOptions,
   onRefresh,
+  canEdit,
 }: {
   teamId: string
   base: string
@@ -311,6 +315,7 @@ function ScheduleTab({
   roster: LitePlayer[]
   positionOptions: string[]
   onRefresh: () => Promise<void>
+  canEdit: boolean
 }) {
   const [editor, setEditor] = useState<WorkoutSessionRow | "new" | null>(null)
   const [attSession, setAttSession] = useState<WorkoutSessionRow | null>(null)
@@ -352,12 +357,14 @@ function ScheduleTab({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" className="rounded-lg" onClick={() => setEditor("new")}>
-          <Plus className="mr-1 h-4 w-4" />
-          Add Session
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" className="rounded-lg" onClick={() => setEditor("new")}>
+            <Plus className="mr-1 h-4 w-4" />
+            Add Session
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-7">
         {DAY_LABELS.map((label, day) => (
@@ -374,39 +381,41 @@ function ScheduleTab({
                     <p className="text-[#64748B]">
                       {String(s.start_time).slice(0, 5)} · {s.duration_minutes}m
                     </p>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-1.5 text-[11px]"
-                        onClick={() => setEditor(s)}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-1.5 text-[11px]"
-                        onClick={() => setAttSession(s)}
-                      >
-                        <Calendar className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-1.5 text-[11px] text-red-600"
-                        onClick={async () => {
-                          if (!confirm("Delete this session block?")) return
-                          const res = await fetch(`${base}/schedule/${s.id}`, { method: "DELETE" })
-                          if (res.ok) await onRefresh()
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    {canEdit && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-1.5 text-[11px]"
+                          onClick={() => setEditor(s)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-1.5 text-[11px]"
+                          onClick={() => setAttSession(s)}
+                        >
+                          <Calendar className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-1.5 text-[11px] text-red-600"
+                          onClick={async () => {
+                            if (!confirm("Delete this session block?")) return
+                            const res = await fetch(`${base}/schedule/${s.id}`, { method: "DELETE" })
+                            if (res.ok) await onRefresh()
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1043,6 +1052,7 @@ function MaxesTab({
   roster,
   positionOptions,
   onRefresh,
+  canEdit,
   showToast,
   onMaxCrossedThousand,
 }: {
@@ -1051,6 +1061,7 @@ function MaxesTab({
   roster: LitePlayer[]
   positionOptions: string[]
   onRefresh: () => Promise<void>
+  canEdit: boolean
   showToast: (message: string, variant?: "success" | "error") => void
   onMaxCrossedThousand?: (detail: {
     playerId: string
@@ -1136,14 +1147,18 @@ function MaxesTab({
             ))}
           </select>
         </div>
-        <Button type="button" size="sm" className="rounded-lg" onClick={() => setLogOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          Log Max
-        </Button>
-        <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => setImportOpen(true)}>
-          <Upload className="mr-1 h-4 w-4" />
-          Import CSV
-        </Button>
+        {canEdit && (
+          <>
+            <Button type="button" size="sm" className="rounded-lg" onClick={() => setLogOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" />
+              Log Max
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1 h-4 w-4" />
+              Import CSV
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1582,9 +1597,11 @@ function LeaderboardTab({
 
 function AchievementsTab({
   base,
+  canEdit,
   onOpenCertificate,
 }: {
   base: string
+  canEdit: boolean
   onOpenCertificate: (data: ThousandLbCertificateData) => void
 }) {
   const [data, setData] = useState<{
@@ -1631,7 +1648,7 @@ function AchievementsTab({
                       <span className="font-medium text-[#0F172A]">{p.combinedThree}</span> lbs
                     </p>
                   </div>
-                  {p.combinedThree >= 1000 && (
+                  {p.combinedThree >= 1000 && canEdit && (
                     <Button
                       type="button"
                       size="sm"

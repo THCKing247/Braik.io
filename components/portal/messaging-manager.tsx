@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { dashboardBootstrapQueryKey } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -117,6 +120,8 @@ interface MessagingManagerProps {
 
 export function MessagingManager({ teamId, userRole, userId, initialThreads = [] }: MessagingManagerProps) {
   const searchParams = useSearchParams()
+  const shell = useAppBootstrapOptional()
+  const queryClient = useQueryClient()
   const [threads, setThreads] = useState<Thread[]>(initialThreads)
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -407,7 +412,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   /** Update inbox row preview from a thread detail payload (avoids refetching the full thread list). */
   const patchThreadListFromDetailMessages = (threadId: string, detailMessages: Message[], isViewingThread: boolean) => {
-    if (!detailMessages.length) return
+    if (!detailMessages.length) {
+      if (!isViewingThread) return
+      setThreads((prev) =>
+        prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t))
+      )
+      return
+    }
     const last = detailMessages[detailMessages.length - 1]
     const previewMessages: Message[] = [
       {
@@ -434,6 +445,28 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       )
     )
   }
+
+  const markThreadReadAndSync = useCallback(
+    async (threadId: string) => {
+      try {
+        const res = await fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          unreadNotifications?: number
+          markedNotificationCount?: number
+        }
+        if (typeof data.unreadNotifications === "number") {
+          shell?.syncUnreadFromServerCount(data.unreadNotifications)
+        } else if (typeof data.markedNotificationCount === "number" && data.markedNotificationCount > 0) {
+          shell?.applyUnreadDelta(-data.markedNotificationCount)
+        }
+        queryClient.invalidateQueries({ queryKey: dashboardBootstrapQueryKey(teamId) })
+      } catch (e) {
+        console.error("markThreadReadAndSync", e)
+      }
+    },
+    [shell, queryClient, teamId]
+  )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
     if (senderId === userId) {
@@ -477,6 +510,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const loadMessages = async (threadId: string, showLoading = true) => {
     if (showLoading) {
       setMessagesLoading(true)
+      setThreads((prev) =>
+        prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t))
+      )
     }
     try {
       const response = await fetch(`/api/messages/threads/${threadId}`)
@@ -500,24 +536,26 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       // Update selectedThread metadata only if it's missing or different
       setSelectedThread(prev => {
         if (!prev || prev.id !== threadId) {
-          return { ...data, canModerate: data.canModerate === true }
+          return { ...data, canModerate: data.canModerate === true, unreadCount: 0 }
         }
         return {
           ...prev,
           ...data,
           canModerate: data.canModerate === true,
           messages: sortedMessages,
+          unreadCount: 0,
         }
       })
       
       setError(null)
-      
-      // Mark thread as read when messages are loaded
-      if (showLoading) {
-        // Mark as read in background (non-blocking)
-        fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
-          .catch(err => console.error("Error marking thread as read:", err))
+
+      if (sortedMessages.length) {
+        patchThreadListFromDetailMessages(threadId, sortedMessages, true)
+      } else {
+        patchThreadListFromDetailMessages(threadId, [], true)
       }
+
+      void markThreadReadAndSync(threadId)
       
       // Setup realtime subscription for this thread (only on initial load)
       if (showLoading) {
@@ -544,15 +582,18 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       scrollIntentAfterNextMessagesRef.current =
         c && isNearBottomEl(c) ? "bottom" : "keep"
     }
+    const wasNearBottom = messagesContainerRef.current ? isNearBottomEl(messagesContainerRef.current) : false
     try {
       // Fetch latest messages without showing loading spinner
       const response = await fetch(`/api/messages/threads/${threadId}`)
       if (response.ok) {
         const data = await response.json()
 
+        let hadNewFromPoll = false
         setMessages((prev) => {
           const existingIds = new Set(prev.map((m) => m.id))
           const newMessages = (data.messages || []).filter((m: Message) => !existingIds.has(m.id))
+          hadNewFromPoll = newMessages.length > 0
 
           if (newMessages.length === 0) {
             const allIds = new Set(data.messages?.map((m: Message) => m.id) || [])
@@ -580,8 +621,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           const bTime = new Date(b.createdAt).getTime()
           return aTime - bTime
         }) as Message[]
+        const viewing = selectedThreadIdRef.current === threadId
+        const clearUnreadInList = viewing && (!hadNewFromPoll || wasNearBottom)
         if (mergedForPreview.length) {
-          patchThreadListFromDetailMessages(threadId, mergedForPreview, selectedThreadIdRef.current === threadId)
+          patchThreadListFromDetailMessages(threadId, mergedForPreview, clearUnreadInList)
+        }
+        if (hadNewFromPoll && wasNearBottom && viewing) {
+          void markThreadReadAndSync(threadId)
         }
       }
     } catch (error) {
@@ -661,7 +707,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             creator: resolveRealtimeCreator(senderId),
           }
           appendRealtimeMessage(newMessage)
-          patchThreadListFromDetailMessages(threadId, [newMessage], selectedThreadIdRef.current === threadId)
+          const viewing = selectedThreadIdRef.current === threadId
+          patchThreadListFromDetailMessages(threadId, [newMessage], viewing)
+          if (viewing) {
+            void markThreadReadAndSync(threadId)
+          }
         }
       )
       .subscribe()

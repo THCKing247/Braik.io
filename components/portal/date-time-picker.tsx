@@ -502,3 +502,153 @@ export function DateTimePicker({
     </div>
   )
 }
+
+const TIME_PICKER_ANCHOR = new Date(2000, 0, 1, 0, 0, 0, 0)
+
+export interface TimePickerProps {
+  label: string
+  value: Date | null
+  onChange: (date: Date | null) => void
+  className?: string
+  id?: string
+  placeholder?: string
+}
+
+/**
+ * Time only — same hour/minute/AM-PM controls as DateTimePicker, without calendar or date behavior.
+ */
+export function TimePicker({
+  label,
+  value,
+  onChange,
+  className,
+  id,
+  placeholder = "Select time",
+}: TimePickerProps) {
+  const [open, setOpen] = React.useState(false)
+  const effective = value ?? TIME_PICKER_ANCHOR
+  const [draftHour, setDraftHour] = React.useState(() => to12Hour(getHours(effective)).hour)
+  const [draftMinute, setDraftMinute] = React.useState(() => Math.floor(getMinutes(effective) / 5) * 5)
+  const [draftAmPm, setDraftAmPm] = React.useState<"AM" | "PM">(() => to12Hour(getHours(effective)).ampm)
+
+  const openPopover = React.useCallback(() => {
+    const b = value ?? TIME_PICKER_ANCHOR
+    setDraftHour(to12Hour(getHours(b)).hour)
+    setDraftMinute(Math.floor(getMinutes(b) / 5) * 5)
+    setDraftAmPm(to12Hour(getHours(b)).ampm)
+    setOpen(true)
+  }, [value])
+
+  React.useEffect(() => {
+    if (!open || !value) return
+    setDraftHour(to12Hour(getHours(value)).hour)
+    setDraftMinute(Math.floor(getMinutes(value) / 5) * 5)
+    setDraftAmPm(to12Hour(getHours(value)).ampm)
+  }, [value, open])
+
+  const apply = React.useCallback(() => {
+    const d = new Date(TIME_PICKER_ANCHOR)
+    const h = to24Hour(draftHour, draftAmPm)
+    d.setHours(h, draftMinute, 0, 0)
+    onChange(d)
+    setOpen(false)
+  }, [draftHour, draftMinute, draftAmPm, onChange])
+
+  const cancel = React.useCallback(() => setOpen(false), [])
+  const handleKeyDown = React.useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape") cancel()
+    },
+    [cancel]
+  )
+
+  const displayValue = value ? format(value, "h:mm a") : ""
+
+  return (
+    <div className={cn("space-y-2", className)}>
+      {label && (
+        <label htmlFor={id} className="text-sm font-medium text-[#0F172A]">
+          {label}
+        </label>
+      )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            id={id}
+            type="button"
+            onClick={openPopover}
+            className={cn(
+              "flex h-11 w-full items-center rounded-xl border-2 border-border bg-background px-4 py-2.5 text-left text-sm",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "transition-all duration-200 text-foreground",
+              !displayValue && "text-muted-foreground"
+            )}
+          >
+            {displayValue || placeholder}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={6}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="w-auto max-w-[95vw] p-0 overflow-hidden border border-border bg-card shadow-lg z-[100]"
+          onKeyDown={handleKeyDown}
+        >
+          <div className="p-3 flex flex-col gap-2 min-w-[200px]">
+            <div className="text-xs font-medium text-muted-foreground">Time</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={draftHour}
+                onChange={(e) => setDraftHour(Number(e.target.value))}
+                className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                aria-label="Hour"
+              >
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+              <span className="text-foreground font-medium">:</span>
+              <select
+                value={draftMinute}
+                onChange={(e) => setDraftMinute(Number(e.target.value))}
+                className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                aria-label="Minute"
+              >
+                {MINUTES.map((m) => (
+                  <option key={m} value={m}>
+                    {String(m).padStart(2, "0")}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={draftAmPm}
+                onChange={(e) => setDraftAmPm(e.target.value as "AM" | "PM")}
+                className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                aria-label="AM or PM"
+              >
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 p-3 border-t border-border">
+            <Button type="button" variant="outline" size="sm" onClick={cancel} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={apply}
+              className="rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow"
+            >
+              Apply
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}

@@ -29,12 +29,25 @@ import {
   Trash2,
   Trophy,
   Upload,
+  X,
 } from "lucide-react"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import {
   ThousandLbCertificateDialog,
   type ThousandLbCertificateData,
 } from "@/components/portal/weight-room-thousand-lb-certificate"
+import { TimePicker } from "@/components/portal/date-time-picker"
+import { WorkoutSessionDetailDialog } from "@/components/portal/workout-session-detail-dialog"
+import {
+  DURATION_QUICK_MINUTES,
+  initialWorkoutEditorRows,
+  normalizeWorkoutItemsForSave,
+  parseSessionStartTimeToDate,
+  parseWorkoutItemsFromDb,
+  sessionPickerDateToApiTime,
+  type WorkoutItem,
+  workoutItemsSummaryLine,
+} from "@/lib/weight-room/workout-items"
 
 type TabId = "schedule" | "maxes" | "leaderboard" | "achievements"
 
@@ -54,6 +67,9 @@ type ScheduleCalendarView = "day" | "week" | "list"
 const SCHEDULE_WEEK_OPTIONS = { weekStartsOn: 0 as const }
 
 function weightRoomScheduleSessionDetail(session: WorkoutSessionRow): string | null {
+  const items = parseWorkoutItemsFromDb(session.workout_items)
+  const summary = workoutItemsSummaryLine(items, 2)
+  if (summary) return summary
   const desc = session.description?.trim()
   if (desc) return desc
   const pg = Array.isArray(session.position_groups) ? (session.position_groups as string[]).filter(Boolean) : []
@@ -69,6 +85,8 @@ interface WorkoutSessionRow {
   start_time: string
   duration_minutes: number
   position_groups: string[] | unknown
+  /** JSONB array of { lift, reps } */
+  workout_items?: unknown
 }
 
 interface PlayerMaxRow {
@@ -143,10 +161,12 @@ export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; c
   useEffect(() => {
     setLoading(true)
     setErr(null)
-    Promise.all([loadSchedule(), loadMaxes(), loadRoster()])
+    const loads = [loadSchedule(), loadRoster()] as Promise<unknown>[]
+    if (canEdit) loads.push(loadMaxes())
+    Promise.all(loads)
       .catch((e) => setErr(e instanceof Error ? e.message : "Load failed"))
       .finally(() => setLoading(false))
-  }, [loadSchedule, loadMaxes, loadRoster])
+  }, [loadSchedule, loadMaxes, loadRoster, canEdit])
 
   const positionOptions = useMemo(() => {
     const s = new Set<string>()
@@ -312,6 +332,7 @@ function WeightRoomScheduleSessionCard({
   session,
   canEdit,
   density,
+  onViewDetails,
   onEdit,
   onAttendance,
   onDelete,
@@ -319,6 +340,7 @@ function WeightRoomScheduleSessionCard({
   session: WorkoutSessionRow
   canEdit: boolean
   density: "compact" | "comfortable"
+  onViewDetails: () => void
   onEdit: () => void
   onAttendance: () => void
   onDelete: () => void
@@ -328,45 +350,63 @@ function WeightRoomScheduleSessionCard({
   const detail = weightRoomScheduleSessionDetail(session)
   return (
     <div className={`rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] ${pad}`}>
-      <p className={`${titleCls} text-[#0F172A]`}>{session.title}</p>
-      <p className="text-[#64748B]">
-        {String(session.start_time).slice(0, 5)} · {session.duration_minutes} min
-      </p>
-      {detail ? <p className="mt-0.5 line-clamp-2 text-[#64748B]">{detail}</p> : null}
-      {canEdit && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-1.5 text-[11px]"
-            onClick={onEdit}
-            aria-label="Edit session"
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-1.5 text-[11px]"
-            onClick={onAttendance}
-            aria-label="Attendance"
-          >
-            <Calendar className="h-3 w-3" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-1.5 text-[11px] text-red-600"
-            onClick={onDelete}
-            aria-label="Delete session"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
+      <div className="flex gap-1">
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={onViewDetails}
+          aria-label={`View workout: ${session.title}`}
+        >
+          <p className={`${titleCls} text-[#0F172A]`}>{session.title}</p>
+          <p className="text-[#64748B]">
+            {String(session.start_time).slice(0, 5)} · {session.duration_minutes} min
+          </p>
+          {detail ? <p className="mt-0.5 line-clamp-2 text-[#64748B]">{detail}</p> : null}
+        </button>
+        {canEdit && (
+          <div className="flex shrink-0 flex-col gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-[11px]"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit()
+              }}
+              aria-label="Edit session"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-[11px]"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAttendance()
+              }}
+              aria-label="Attendance"
+            >
+              <Calendar className="h-3 w-3" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-[11px] text-red-600"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              aria-label="Delete session"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -392,6 +432,7 @@ function ScheduleTab({
   const [attSession, setAttSession] = useState<WorkoutSessionRow | null>(null)
   const [attDate, setAttDate] = useState(format(new Date(), "yyyy-MM-dd"))
   const [attMap, setAttMap] = useState<Record<string, "present" | "absent">>({})
+  const [detailSession, setDetailSession] = useState<{ session: WorkoutSessionRow; calendarDay: Date } | null>(null)
 
   const anchorStart = useMemo(() => startOfDay(anchorDate), [anchorDate])
   const weekStart = useMemo(() => startOfWeek(anchorStart, SCHEDULE_WEEK_OPTIONS), [anchorStart])
@@ -429,6 +470,10 @@ function ScheduleTab({
     setAttDate(format(startOfDay(calendarDay), "yyyy-MM-dd"))
   }
 
+  const openWorkoutDetail = (session: WorkoutSessionRow, calendarDay: Date) => {
+    setDetailSession({ session, calendarDay })
+  }
+
   const deleteSession = async (session: WorkoutSessionRow) => {
     if (!confirm("Delete this session block?")) return
     const res = await fetch(`${base}/schedule/${session.id}`, { method: "DELETE" })
@@ -436,6 +481,7 @@ function ScheduleTab({
   }
 
   const sessionCardHandlers = (session: WorkoutSessionRow, calendarDay: Date, density: "compact" | "comfortable") => ({
+    onViewDetails: () => openWorkoutDetail(session, calendarDay),
     onEdit: () => setEditor(session),
     onAttendance: () => openAttendance(session, calendarDay),
     onDelete: () => void deleteSession(session),
@@ -609,7 +655,11 @@ function ScheduleTab({
                       return (
                         <li key={s.id}>
                           <div className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0 flex-1">
+                            <button
+                              type="button"
+                              className="min-w-0 flex-1 text-left"
+                              onClick={() => openWorkoutDetail(s, calDay)}
+                            >
                               <p className="font-semibold text-[#0F172A]">{s.title}</p>
                               <p className="mt-0.5 text-sm text-[#64748B]">
                                 {format(calDay, "MMM d, yyyy")} · {String(s.start_time).slice(0, 5)} ·{" "}
@@ -618,38 +668,49 @@ function ScheduleTab({
                               {detail ? (
                                 <p className="mt-1 text-sm text-[#64748B]">{detail}</p>
                               ) : null}
+                            </button>
+                            <div className="flex shrink-0 flex-wrap items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg"
+                                onClick={() => openWorkoutDetail(s, calDay)}
+                              >
+                                View workout
+                              </Button>
+                              {canEdit && (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 px-2"
+                                    onClick={() => setEditor(s)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 px-2"
+                                    onClick={() => openAttendance(s, calDay)}
+                                  >
+                                    <Calendar className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 px-2 text-red-600"
+                                    onClick={() => void deleteSession(s)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
-                            {canEdit && (
-                              <div className="flex shrink-0 gap-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-9 px-2"
-                                  onClick={() => setEditor(s)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-9 px-2"
-                                  onClick={() => openAttendance(s, calDay)}
-                                >
-                                  <Calendar className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-9 px-2 text-red-600"
-                                  onClick={() => void deleteSession(s)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
                           </div>
                         </li>
                       )
@@ -672,6 +733,15 @@ function ScheduleTab({
           setEditor(null)
           await onRefresh()
         }}
+      />
+
+      <WorkoutSessionDetailDialog
+        open={detailSession !== null}
+        onOpenChange={(o) => {
+          if (!o) setDetailSession(null)
+        }}
+        session={detailSession?.session ?? null}
+        calendarDay={detailSession?.calendarDay ?? null}
       />
 
       <Dialog open={!!attSession} onOpenChange={() => setAttSession(null)}>
@@ -735,9 +805,9 @@ function SessionDialog({
 }) {
   const [dayOfWeek, setDayOfWeek] = useState(1)
   const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [startTime, setStartTime] = useState("07:00")
+  const [startTimeDate, setStartTimeDate] = useState<Date | null>(() => parseSessionStartTimeToDate("07:00:00"))
   const [duration, setDuration] = useState(60)
+  const [workoutRows, setWorkoutRows] = useState<WorkoutItem[]>([{ lift: "", reps: "" }])
   const [groups, setGroups] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -746,16 +816,16 @@ function SessionDialog({
     if (session) {
       setDayOfWeek(session.day_of_week)
       setTitle(session.title)
-      setDescription(session.description ?? "")
-      setStartTime(String(session.start_time).slice(0, 5))
+      setStartTimeDate(parseSessionStartTimeToDate(String(session.start_time)))
       setDuration(session.duration_minutes)
+      setWorkoutRows(initialWorkoutEditorRows(session.workout_items, session.description))
       setGroups(Array.isArray(session.position_groups) ? (session.position_groups as string[]) : [])
     } else {
       setDayOfWeek(1)
       setTitle("")
-      setDescription("")
-      setStartTime("07:00")
+      setStartTimeDate(parseSessionStartTimeToDate("07:00:00"))
       setDuration(60)
+      setWorkoutRows([{ lift: "", reps: "" }])
       setGroups([])
     }
   }, [open, session])
@@ -764,16 +834,30 @@ function SessionDialog({
     setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]))
   }
 
+  const addLiftRow = () => setWorkoutRows((r) => [...r, { lift: "", reps: "" }])
+  const removeLiftRow = (index: number) =>
+    setWorkoutRows((r) => (r.length <= 1 ? r : r.filter((_, i) => i !== index)))
+  const setLiftRow = (index: number, field: keyof WorkoutItem, value: string) => {
+    setWorkoutRows((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
+  }
+
   const save = async () => {
+    if (!startTimeDate) {
+      alert("Choose a start time.")
+      return
+    }
+    const workoutItems = normalizeWorkoutItemsForSave(workoutRows)
+    const dur = Math.max(1, Math.min(480, Math.round(Number(duration)) || 60))
     setSaving(true)
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         dayOfWeek,
-        title,
-        description,
-        startTime: startTime.length === 5 ? `${startTime}:00` : startTime,
-        durationMinutes: duration,
+        title: title.trim(),
+        startTime: sessionPickerDateToApiTime(startTimeDate),
+        durationMinutes: dur,
         positionGroups: groups,
+        workoutItems,
+        description: null,
       }
       const url = session ? `${base}/schedule/${session.id}` : `${base}/schedule`
       const res = await fetch(url, {
@@ -794,11 +878,11 @@ function SessionDialog({
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
-      <DialogContent className="bg-white sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(92vh,840px)] flex-col bg-white sm:max-w-lg">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{session ? "Edit session" : "Add session"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-0.5 py-1">
           <div>
             <Label>Day</Label>
             <select
@@ -815,26 +899,74 @@ function SessionDialog({
           </div>
           <div>
             <Label>Title</Label>
-            <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Session name" />
           </div>
-          <div>
-            <Label>Description</Label>
-            <Input className="mt-1" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TimePicker
+              id="wr-session-start"
+              label="Start *"
+              value={startTimeDate}
+              onChange={setStartTimeDate}
+              placeholder="Select start time"
+            />
             <div>
-              <Label>Start</Label>
-              <Input className="mt-1" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-            </div>
-            <div>
-              <Label>Duration (min)</Label>
+              <Label htmlFor="wr-session-duration">Duration (minutes)</Label>
               <Input
+                id="wr-session-duration"
                 className="mt-1"
                 type="number"
                 min={1}
+                max={480}
+                list="wr-duration-presets"
                 value={duration}
                 onChange={(e) => setDuration(Number(e.target.value))}
               />
+              <datalist id="wr-duration-presets">
+                {DURATION_QUICK_MINUTES.map((m) => (
+                  <option key={m} value={m} label={`${m} min`} />
+                ))}
+              </datalist>
+              <p className="mt-1 text-xs text-[#64748B]">Type any duration or choose a suggested value.</p>
+            </div>
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="mb-0">Workout</Label>
+              <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={addLiftRow}>
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add lift
+              </Button>
+            </div>
+            <div className="mt-2 max-h-[min(40vh,280px)] space-y-2 overflow-y-auto pr-0.5">
+              {workoutRows.map((row, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    className="min-w-0 flex-1"
+                    placeholder="Lift"
+                    value={row.lift}
+                    onChange={(e) => setLiftRow(i, "lift", e.target.value)}
+                    aria-label={`Lift ${i + 1}`}
+                  />
+                  <Input
+                    className="min-w-0 flex-1"
+                    placeholder="e.g. 3 x 10"
+                    value={row.reps}
+                    onChange={(e) => setLiftRow(i, "reps", e.target.value)}
+                    aria-label={`Reps ${i + 1}`}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 text-[#64748B] hover:text-red-600"
+                    onClick={() => removeLiftRow(i)}
+                    disabled={workoutRows.length <= 1}
+                    aria-label="Remove row"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
             </div>
           </div>
           <div>
@@ -847,16 +979,18 @@ function SessionDialog({
                 </label>
               ))}
               {positionOptions.length === 0 && (
-                <span className="text-xs text-[#64748B]">No position groups on roster yet — leave all unchecked for whole team.</span>
+                <span className="text-xs text-[#64748B]">
+                  No position groups on roster yet — leave all unchecked for whole team.
+                </span>
               )}
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t border-[#E5E7EB] pt-3">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" disabled={saving || !title.trim()} onClick={save}>
+          <Button type="button" disabled={saving || !title.trim() || !startTimeDate} onClick={save}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

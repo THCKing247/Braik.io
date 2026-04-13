@@ -15,10 +15,7 @@ export async function GET(
     const { teamId } = await params
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 })
 
-    const { membership } = await requireTeamAccess(teamId)
-    if (!canEditRoster(membership.role)) {
-      return NextResponse.json({ error: "Coach access only" }, { status: 403 })
-    }
+    await requireTeamAccess(teamId)
 
     const supabase = getSupabaseServer()
     const { data, error } = await supabase
@@ -64,6 +61,7 @@ export async function POST(
       startTime?: string
       durationMinutes?: number
       positionGroups?: string[]
+      workoutItems?: { lift?: string; reps?: string }[]
     }
 
     const dayOfWeek = Number(body.dayOfWeek)
@@ -75,6 +73,15 @@ export async function POST(
     const dur = Number(body.durationMinutes)
     if (!Number.isFinite(dur) || dur < 1) return NextResponse.json({ error: "durationMinutes required" }, { status: 400 })
 
+    const workoutItems = Array.isArray(body.workoutItems)
+      ? body.workoutItems
+          .map((r) => ({
+            lift: typeof r?.lift === "string" ? r.lift.trim() : "",
+            reps: typeof r?.reps === "string" ? r.reps.trim() : "",
+          }))
+          .filter((r) => r.lift.length > 0 || r.reps.length > 0)
+      : []
+
     const supabase = getSupabaseServer()
     const { data, error } = await supabase
       .from("workout_sessions")
@@ -82,7 +89,9 @@ export async function POST(
         team_id: teamId,
         day_of_week: dayOfWeek,
         title: body.title.trim(),
-        description: body.description?.trim() || null,
+        description:
+          workoutItems.length > 0 ? null : typeof body.description === "string" ? body.description.trim() || null : null,
+        workout_items: workoutItems,
         start_time: body.startTime,
         duration_minutes: dur,
         position_groups: Array.isArray(body.positionGroups) ? body.positionGroups : [],

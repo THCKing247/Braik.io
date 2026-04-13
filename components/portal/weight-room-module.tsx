@@ -900,14 +900,15 @@ function ImportMaxesCsvDialog({
         {step === 1 && (
           <div className="space-y-4">
             <p className="text-sm text-[#64748B]">
-              Match players by jersey number. Player name is for reference only.
+              Match players by jersey number. Player name is for reference only.{" "}
+              <code className="rounded bg-[#F1F5F9] px-1">date_logged</code> is optional — defaults to today.
             </p>
             <div>
               <Label>CSV file</Label>
               <Input
                 className="mt-1"
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv"
                 onChange={(e) => {
                   const f = e.target.files?.[0]
                   if (!f) return
@@ -927,19 +928,15 @@ function ImportMaxesCsvDialog({
               className="text-sm font-medium text-[#2563EB] underline"
               onClick={downloadTemplate}
             >
-              Download sample CSV template
+              Download template
             </button>
-            <p className="text-xs text-[#64748B]">
-              <code className="rounded bg-[#F1F5F9] px-1">date_logged</code> is optional — defaults to today if
-              blank.
-            </p>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-[#0F172A]">
-              {readyCount} rows ready to import, {skipCount} rows will be skipped
+              {readyCount} rows ready, {skipCount} rows will be skipped
             </p>
             <div className="max-h-[50vh] overflow-auto rounded-lg border border-[#E5E7EB]">
               <table className="w-full min-w-[560px] text-left text-xs">
@@ -1063,9 +1060,15 @@ function MaxesTab({
 }) {
   const [liftFilter, setLiftFilter] = useState<string>("ALL")
   const [posFilter, setPosFilter] = useState<string>("ALL")
+  const [pageSize, setPageSize] = useState(25)
+  const [currentPage, setCurrentPage] = useState(1)
   const [openId, setOpenId] = useState<string | null>(null)
   const [logOpen, setLogOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [liftFilter, posFilter])
 
   const byPlayer = useMemo(() => {
     const m = new Map<string, PlayerMaxRow[]>()
@@ -1079,6 +1082,17 @@ function MaxesTab({
   }, [maxes])
 
   const filteredRoster = roster.filter((p) => (posFilter === "ALL" ? true : (p.position_group ?? "") === posFilter))
+
+  const totalPlayers = filteredRoster.length
+  const totalPages = Math.max(1, Math.ceil(totalPlayers / pageSize) || 1)
+  useEffect(() => {
+    setCurrentPage((c) => Math.min(c, totalPages))
+  }, [totalPlayers, pageSize, totalPages])
+
+  const pageClamped = Math.min(currentPage, totalPages)
+  const paginatedRoster = filteredRoster.slice((pageClamped - 1) * pageSize, pageClamped * pageSize)
+  const showFrom = totalPlayers === 0 ? 0 : (pageClamped - 1) * pageSize + 1
+  const showTo = Math.min(pageClamped * pageSize, totalPlayers)
 
   const currentFor = (pid: string, lift: string) => {
     const rows = (byPlayer.get(pid) ?? []).filter((r) => r.lift_type === lift)
@@ -1132,6 +1146,22 @@ function MaxesTab({
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Label className="text-xs">Rows per page</Label>
+        <select
+          className="h-9 w-[88px] rounded-md border border-[#E5E7EB] bg-white px-2 text-sm"
+          value={String(pageSize)}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value))
+            setCurrentPage(1)
+          }}
+        >
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-[#F8FAFC] text-left text-xs font-semibold uppercase text-[#64748B]">
@@ -1146,7 +1176,7 @@ function MaxesTab({
             </tr>
           </thead>
           <tbody>
-            {filteredRoster.map((p) => (
+            {paginatedRoster.map((p) => (
               <Fragment key={p.id}>
                 <tr className="border-t border-[#E5E7EB]">
                   <td className="px-3 py-2 font-medium text-[#0F172A]">
@@ -1203,6 +1233,34 @@ function MaxesTab({
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-[#64748B]">
+          Showing {showFrom}–{showTo} of {totalPlayers} players
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            disabled={pageClamped <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Prev
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            disabled={pageClamped >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       <LogMaxDialog
@@ -1372,9 +1430,15 @@ function LeaderboardTab({
 }) {
   const [scope, setScope] = useState<"overall" | "position">("overall")
   const [pos, setPos] = useState<string>("")
+  const [pageSize, setPageSize] = useState(25)
+  const [currentPage, setCurrentPage] = useState(1)
   const [data, setData] = useState<{
     overall: { rank: number; name: string; combined: number; bench: number; squat: number; clean: number; dead: number }[]
   } | null>(null)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [scope, pos])
 
   useEffect(() => {
     if (scope === "position" && !pos) {
@@ -1391,6 +1455,16 @@ function LeaderboardTab({
   }, [base, scope, pos])
 
   const rows = data?.overall ?? []
+  const totalRows = rows.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize) || 1)
+  useEffect(() => {
+    setCurrentPage((c) => Math.min(c, totalPages))
+  }, [totalRows, pageSize, totalPages])
+
+  const pageClamped = Math.min(currentPage, totalPages)
+  const paginatedRows = rows.slice((pageClamped - 1) * pageSize, pageClamped * pageSize)
+  const showFrom = totalRows === 0 ? 0 : (pageClamped - 1) * pageSize + 1
+  const showTo = Math.min(pageClamped * pageSize, totalRows)
 
   return (
     <div className="space-y-4">
@@ -1428,6 +1502,25 @@ function LeaderboardTab({
           </select>
         )}
       </div>
+
+      {(scope === "overall" || (scope === "position" && pos)) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Label className="text-xs">Rows per page</Label>
+          <select
+            className="h-9 w-[88px] rounded-md border border-[#E5E7EB] bg-white px-2 text-sm"
+            value={String(pageSize)}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+          >
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+      )}
+
       <Card className="border-[#E5E7EB]">
         <CardContent className="p-0">
           <div className="flex items-center gap-2 border-b border-[#E5E7EB] px-4 py-3">
@@ -1443,7 +1536,7 @@ function LeaderboardTab({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {paginatedRows.map((r) => (
                 <tr key={r.name + r.rank} className="border-t border-[#E5E7EB]">
                   <td className="px-4 py-2">{r.rank}</td>
                   <td className="px-4 py-2 font-medium">{r.name}</td>
@@ -1452,6 +1545,35 @@ function LeaderboardTab({
               ))}
             </tbody>
           </table>
+          {(scope === "overall" || (scope === "position" && pos)) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] px-4 py-3">
+              <p className="text-sm text-[#64748B]">
+                Showing {showFrom}–{showTo} of {totalRows}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  disabled={pageClamped <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  Prev
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  disabled={pageClamped >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

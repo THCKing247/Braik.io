@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { ConfirmDestructiveDialog } from "@/components/portal/confirm-destructive-dialog"
 import { PlayerSignupQrCard } from "@/components/portal/player-signup-qr-card"
-import { TeamCodeCard } from "@/components/portal/team-code-card"
+import { CardIntegrationSettings } from "@/components/portal/settings-sections/card-integration-settings"
 import { usePlaybookToast } from "@/components/portal/playbook-toast"
 import { Loader2, ImagePlus } from "lucide-react"
 
@@ -54,26 +54,7 @@ export function TeamSettingsSection({ team: initialTeam, onTeamUpdated }: TeamSe
   const [uploading, setUploading] = useState(false)
   const [removeLogoDialogOpen, setRemoveLogoDialogOpen] = useState(false)
   const [removingLogo, setRemovingLogo] = useState(false)
-  const [teamIdCode, setTeamIdCode] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    const loadCode = async () => {
-      try {
-        const res = await fetch(`/api/roster/codes?teamId=${encodeURIComponent(team.id)}`)
-        if (!res.ok || cancelled) return
-        const data = (await res.json()) as { teamIdCode?: string }
-        if (!cancelled) setTeamIdCode(data.teamIdCode || "")
-      } catch {
-        /* ignore */
-      }
-    }
-    void loadCode()
-    return () => {
-      cancelled = true
-    }
-  }, [team.id])
 
   const handleSaveIdentity = async () => {
     if (!teamName.trim()) {
@@ -315,8 +296,6 @@ export function TeamSettingsSection({ team: initialTeam, onTeamUpdated }: TeamSe
         </CardContent>
       </Card>
 
-      <TeamCodeCard teamIdCode={teamIdCode} />
-
       <PlayerSignupQrCard teamId={team.id} />
 
       {/* Team Logo */}
@@ -510,6 +489,8 @@ export function TeamSettingsSection({ team: initialTeam, onTeamUpdated }: TeamSe
           </div>
         </CardContent>
       </Card>
+
+      <CardIntegrationSettings teamId={team.id} />
 
       <ConfirmDestructiveDialog
         open={removeLogoDialogOpen}

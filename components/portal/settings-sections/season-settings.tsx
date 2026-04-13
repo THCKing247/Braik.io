@@ -1,13 +1,49 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, Loader2 } from "lucide-react"
+
+const rolloverStorageKey = (teamId: string) => `braik.settings.seasonRollover.v1:${teamId}`
+
+function loadRolloverSelection(teamId: string, playerIds: string[]): Record<string, boolean> {
+  if (typeof window === "undefined") {
+    return Object.fromEntries(playerIds.map((id) => [id, true]))
+  }
+  try {
+    const raw = localStorage.getItem(rolloverStorageKey(teamId))
+    const parsed = raw ? (JSON.parse(raw) as Record<string, boolean>) : {}
+    const out: Record<string, boolean> = {}
+    for (const id of playerIds) {
+      out[id] = typeof parsed[id] === "boolean" ? parsed[id] : true
+    }
+    return out
+  } catch {
+    return Object.fromEntries(playerIds.map((id) => [id, true]))
+  }
+}
+
+function persistRolloverSelection(teamId: string, next: Record<string, boolean>) {
+  try {
+    localStorage.setItem(rolloverStorageKey(teamId), JSON.stringify(next))
+  } catch {
+    /* ignore quota */
+  }
+}
+
+type LitePlayer = {
+  id: string
+  firstName: string
+  lastName: string
+  jerseyNumber: number | null
+  positionGroup: string | null
+}
 
 interface Team {
   id: string
@@ -21,6 +57,9 @@ interface SeasonSettingsProps {
 
 export function SeasonSettings({ team }: SeasonSettingsProps) {
   const [loading, setLoading] = useState(false)
+  const [rosterLoading, setRosterLoading] = useState(true)
+  const [liteRoster, setLiteRoster] = useState<LitePlayer[]>([])
+  const [rollingOver, setRollingOver] = useState<Record<string, boolean>>({})
   const [showRollover, setShowRollover] = useState(false)
   const [newSeasonName, setNewSeasonName] = useState("")
   const [newSeasonStart, setNewSeasonStart] = useState<Date | null>(null)
@@ -51,6 +90,38 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
     }
     loadSeasonData()
   }, [team.id])
+
+  const loadLiteRoster = useCallback(async () => {
+    setRosterLoading(true)
+    try {
+      const res = await fetch(`/api/roster?teamId=${encodeURIComponent(team.id)}&lite=1`)
+      if (!res.ok) {
+        setLiteRoster([])
+        setRollingOver({})
+        return
+      }
+      const data = (await res.json()) as LitePlayer[]
+      const list = Array.isArray(data) ? data : []
+      setLiteRoster(list)
+      setRollingOver(loadRolloverSelection(team.id, list.map((p) => p.id)))
+    } catch {
+      setLiteRoster([])
+    } finally {
+      setRosterLoading(false)
+    }
+  }, [team.id])
+
+  useEffect(() => {
+    void loadLiteRoster()
+  }, [loadLiteRoster])
+
+  const setPlayerRolling = (playerId: string, checked: boolean) => {
+    setRollingOver((prev) => {
+      const next = { ...prev, [playerId]: checked }
+      persistRolloverSelection(team.id, next)
+      return next
+    })
+  }
 
   const handleSaveDivisionStanding = async () => {
     setLoading(true)
@@ -181,16 +252,69 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
       {/* Roster Cap */}
       <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-foreground">Roster Cap</CardTitle>
+          <CardTitle className="text-foreground">Roster cap</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Purchased roster slot limit for this team (read-only).
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <Label className="text-foreground">Maximum Players</Label>
-            <p className="text-lg font-semibold tabular-nums text-foreground">{team.rosterCap}</p>
-            <p className="text-xs text-muted-foreground">
-              (Contact support to change)
+            <Label className="text-foreground">Maximum active roster slots</Label>
+            <p className="text-lg font-semibold tabular-nums text-foreground">
+              {team.rosterCap > 0 ? team.rosterCap : "—"}
             </p>
+            <p className="text-xs text-muted-foreground">Contact support to change.</p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Rollover intent (tracking only — does not change roster) */}
+      <Card className="border border-border bg-card">
+        <CardHeader>
+          <CardTitle className="text-foreground">Season rollover — returning players</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Mark who you expect to return next season versus not continuing. This is planning only — it does not remove
+            anyone from the roster and stays on this device until you change it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {rosterLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              Loading roster…
+            </div>
+          ) : liteRoster.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No players on the roster yet.</p>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {liteRoster.map((p) => {
+                const label = [p.firstName, p.lastName].filter(Boolean).join(" ").trim() || "Player"
+                const sub = [p.jerseyNumber != null ? `#${p.jerseyNumber}` : null, p.positionGroup]
+                  .filter(Boolean)
+                  .join(" · ")
+                const checked = rollingOver[p.id] !== false
+                return (
+                  <label
+                    key={p.id}
+                    className="flex cursor-pointer items-start gap-3 rounded-md border border-border/80 bg-muted/20 px-3 py-2 text-sm"
+                  >
+                    <Checkbox
+                      className="mt-0.5 accent-primary"
+                      checked={checked}
+                      onCheckedChange={(c) => setPlayerRolling(p.id, c === true)}
+                      aria-label={`${label} rolling over`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="font-medium text-foreground">{label}</span>
+                      {sub ? (
+                        <span className="block text-xs text-muted-foreground">{sub}</span>
+                      ) : null}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

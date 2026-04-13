@@ -134,8 +134,8 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border border-border bg-card">
+    <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr,minmax(260px,380px)] lg:items-start lg:gap-6">
+      <Card className="border border-border bg-card lg:min-w-0">
         <CardHeader>
           <CardTitle className="text-foreground">Roster Print/Email Template</CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -144,9 +144,10 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Header Settings */}
-          <div className="space-y-4">
-            <h3 className="text-foreground font-semibold">Header Information</h3>
-            
+          <div className="space-y-3">
+            <h3 className="text-foreground text-sm font-semibold">Header Information</h3>
+
+            <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showYear"
@@ -224,7 +225,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
               <Label htmlFor="showTeamName" className="text-foreground">Show Team Name</Label>
             </div>
             {template.header.showTeamName && (
-              <div className="ml-6 space-y-2">
+              <div className="sm:col-span-2 ml-6 space-y-2">
                 <Label htmlFor="teamNameLabel" className="text-muted-foreground">Team Name Label</Label>
                 <Input
                   id="teamNameLabel"
@@ -239,12 +240,14 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                 />
               </div>
             )}
+            </div>
           </div>
 
           {/* Body Settings */}
-          <div className="space-y-4">
-            <h3 className="text-foreground font-semibold">Roster Columns</h3>
-            
+          <div className="space-y-3">
+            <h3 className="text-foreground text-sm font-semibold">Roster Columns</h3>
+
+            <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="showJerseyNumber"
@@ -430,6 +433,7 @@ export function RosterTemplateSettings({ teamId }: RosterTemplateSettingsProps) 
                 />
               </div>
             )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="sortBy" className="text-foreground">Sort Players By</Label>

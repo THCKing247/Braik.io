@@ -42,6 +42,7 @@ type BundleJson = {
     sport: string | null
     season_name: string | null
     logo_url: string | null
+    roster_slot_limit?: number | null
   } | null
   calendarSettings: Record<string, unknown> & {
     id: string
@@ -124,6 +125,10 @@ export function SettingsPageClient() {
   }
 
   if (teamData) {
+    const cap =
+      teamData.roster_slot_limit != null && !Number.isNaN(Number(teamData.roster_slot_limit))
+        ? Number(teamData.roster_slot_limit)
+        : 0
     team = {
       id: teamData.id,
       name: teamData.name || "",
@@ -132,7 +137,7 @@ export function SettingsPageClient() {
       seasonName: teamData.season_name || "",
       seasonStart: new Date(),
       seasonEnd: new Date(),
-      rosterCap: 0,
+      rosterCap: cap,
       duesAmount: 0,
       duesDueDate: null,
       logoUrl: teamData.logo_url,

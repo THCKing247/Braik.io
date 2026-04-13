@@ -29,8 +29,11 @@ export function DocumentSettingsSection({ teamId }: { teamId: string }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/teams/${teamId}/roster-template`)
-      if (!res.ok) return
+      const res = await fetch(`/api/teams/${teamId}/roster-template`, { cache: "no-store" })
+      if (!res.ok) {
+        setRequired(defaultRequiredMap())
+        return
+      }
       const data = (await res.json()) as {
         template?: { documentReadinessRequired?: Partial<Record<string, boolean>> }
       }
@@ -44,6 +47,8 @@ export function DocumentSettingsSection({ teamId }: { teamId: string }) {
       } else {
         setRequired(defaultRequiredMap())
       }
+    } catch {
+      setRequired(defaultRequiredMap())
     } finally {
       setLoading(false)
     }
@@ -76,6 +81,7 @@ export function DocumentSettingsSection({ teamId }: { teamId: string }) {
         alert((err as { error?: string }).error || "Failed to save document requirements")
         return
       }
+      await load()
       alert("Document requirements saved.")
     } catch {
       alert("Failed to save document requirements")
@@ -102,7 +108,7 @@ export function DocumentSettingsSection({ teamId }: { teamId: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-2">
           {DOCUMENT_TYPES.map((t) => (
             <div key={t} className="flex items-center gap-3">
               <Checkbox

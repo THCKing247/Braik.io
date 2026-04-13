@@ -17,6 +17,7 @@ type TeamsRow = {
   sport: string | null
   season_name: string | null
   logo_url: string | null
+  roster_slot_limit: number | null
 }
 
 type CalendarSettingsRow = Record<string, unknown> & {
@@ -69,7 +70,7 @@ export async function fetchSettingsPageBundle(
 
     const teamQuery = supabase
       .from("teams")
-      .select("id, name, slogan, sport, season_name, logo_url")
+      .select("id, name, slogan, sport, season_name, logo_url, roster_slot_limit")
       .eq("id", teamId)
       .maybeSingle()
 
@@ -109,7 +110,7 @@ export async function fetchSettingsPageBundle(
 
   const teamQuery = supabase
     .from("teams")
-    .select("id, name, slogan, sport, season_name, logo_url")
+    .select("id, name, slogan, sport, season_name, logo_url, roster_slot_limit")
     .eq("id", teamId)
     .maybeSingle()
 

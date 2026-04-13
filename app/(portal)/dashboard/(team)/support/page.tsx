@@ -22,49 +22,10 @@ export default function SupportPage() {
             Support
           </h1>
           <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-            Help articles and how to reach the Braik team
+            Send feedback, contact the team, and browse legal links — full help articles are coming soon
           </p>
         </div>
       </div>
-
-      <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg" style={{ color: "rgb(var(--text))" }}>
-            <BookOpen className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
-            Help articles
-          </CardTitle>
-          <CardDescription style={{ color: "rgb(var(--muted))" }}>
-            Policies and product guides (opens in a new tab where noted).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <Button variant="outline" asChild className="border-border justify-start">
-            <Link href="/terms" target="_blank" rel="noopener noreferrer">
-              Terms of Service
-            </Link>
-          </Button>
-          <Button variant="outline" asChild className="border-border justify-start">
-            <Link href="/privacy" target="_blank" rel="noopener noreferrer">
-              Privacy Policy
-            </Link>
-          </Button>
-          <Button variant="outline" asChild className="border-border justify-start">
-            <Link href="/acceptable-use" target="_blank" rel="noopener noreferrer">
-              Acceptable use
-            </Link>
-          </Button>
-          <Button variant="outline" asChild className="border-border justify-start">
-            <Link href="/ai-transparency" target="_blank" rel="noopener noreferrer">
-              AI transparency
-            </Link>
-          </Button>
-          <Button variant="outline" asChild className="border-border justify-start">
-            <Link href="/why-braik" target="_blank" rel="noopener noreferrer">
-              Why Braik
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
 
       <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
         <CardHeader>
@@ -105,6 +66,58 @@ export default function SupportPage() {
           <p className="mt-3 text-sm" style={{ color: "rgb(var(--muted))" }}>
             Response times are fastest on business days. For urgent safety issues, say so in the subject line.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg" style={{ color: "rgb(var(--text))" }}>
+            <BookOpen className="h-5 w-5" style={{ color: "rgb(var(--accent))" }} />
+            Help articles
+          </CardTitle>
+          <p className="mt-1 text-sm leading-relaxed" style={{ color: "rgb(var(--muted))" }}>
+            Help articles are coming soon and will be available through{" "}
+            <a
+              href="https://help.braik.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+              style={{ color: "rgb(var(--accent))" }}
+            >
+              help.braik.io
+            </a>
+            .
+          </p>
+          <CardDescription className="pt-1" style={{ color: "rgb(var(--muted))" }}>
+            Policies and product guides (opens in a new tab where noted).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <Button variant="outline" asChild className="border-border justify-start">
+            <Link href="/terms" target="_blank" rel="noopener noreferrer">
+              Terms of Service
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="border-border justify-start">
+            <Link href="/privacy" target="_blank" rel="noopener noreferrer">
+              Privacy Policy
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="border-border justify-start">
+            <Link href="/acceptable-use" target="_blank" rel="noopener noreferrer">
+              Acceptable use
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="border-border justify-start">
+            <Link href="/ai-transparency" target="_blank" rel="noopener noreferrer">
+              AI transparency
+            </Link>
+          </Button>
+          <Button variant="outline" asChild className="border-border justify-start">
+            <Link href="/why-braik" target="_blank" rel="noopener noreferrer">
+              Why Braik
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     </div>

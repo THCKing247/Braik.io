@@ -15,6 +15,12 @@ function formatMoney(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
 }
 
+/** `amount_due` is stored as total collection goal; split evenly across targeted recipients. */
+function evenSharePerRecipient(total: number, recipientCount: number): number {
+  if (recipientCount <= 0 || !Number.isFinite(total)) return 0
+  return Math.round((total / recipientCount) * 100) / 100
+}
+
 export type DueCollectionRow = {
   id: string
   team_id?: string
@@ -316,6 +322,8 @@ export function DueCollectionsTab({
 
   const dTotal = detailRecipients.length
   const dCollected = detailRecipients.filter((r) => r.contribution_status === "collected").length
+  const detailGoalTotal = detailCollection ? Number(detailCollection.amount_due) || 0 : 0
+  const detailShareEach = evenSharePerRecipient(detailGoalTotal, dTotal)
   const detailSummary = useMemo(() => {
     if (!detailCollection) return null
     return progressMeta({
@@ -375,6 +383,9 @@ export function DueCollectionsTab({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((r) => {
             const pm = progressMeta(r)
+            const goal = Number(r.amount_due) || 0
+            const n = r.total_targets ?? 0
+            const share = evenSharePerRecipient(goal, n)
             return (
               <Card
                 key={r.id}
@@ -395,10 +406,16 @@ export function DueCollectionsTab({
                       Due {String(r.due_date).slice(0, 10)} · {targetSummary(r)}
                     </p>
                     <p className="mt-2 text-lg font-semibold tabular-nums" style={{ color: "rgb(var(--text))" }}>
-                      {formatMoney(Number(r.amount_due) || 0)}{" "}
-                      <span className="text-xs font-normal" style={{ color: "rgb(var(--muted))" }}>
-                        per recipient
-                      </span>
+                      {formatMoney(goal)}
+                    </p>
+                    <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                      Total collection goal
+                      {n > 0 ? (
+                        <>
+                          {" "}
+                          · ~{formatMoney(share)} each ({n} {n === 1 ? "recipient" : "recipients"})
+                        </>
+                      ) : null}
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <span
@@ -450,7 +467,7 @@ export function DueCollectionsTab({
                 <thead>
                   <tr className="border-b text-left" style={{ borderColor: "rgb(var(--border))" }}>
                     <th className="px-4 py-2">Description</th>
-                    <th className="px-4 py-2">Per recipient</th>
+                    <th className="px-4 py-2">Goal / share</th>
                     <th className="px-4 py-2">Due</th>
                     <th className="px-4 py-2">Targets</th>
                     <th className="px-4 py-2">Progress</th>
@@ -461,6 +478,9 @@ export function DueCollectionsTab({
                 <tbody>
                   {rows.map((r) => {
                     const pm = progressMeta(r)
+                    const goal = Number(r.amount_due) || 0
+                    const n = r.total_targets ?? 0
+                    const share = evenSharePerRecipient(goal, n)
                     return (
                       <tr key={r.id} className="border-b" style={{ borderColor: "rgb(var(--border))" }}>
                         <td className="px-4 py-2">
@@ -473,7 +493,20 @@ export function DueCollectionsTab({
                             {r.description}
                           </button>
                         </td>
-                        <td className="px-4 py-2 tabular-nums">{formatMoney(Number(r.amount_due) || 0)}</td>
+                        <td className="px-4 py-2">
+                          <div className="tabular-nums font-medium" style={{ color: "rgb(var(--text))" }}>
+                            {formatMoney(goal)}
+                          </div>
+                          {n > 0 ? (
+                            <div className="text-xs tabular-nums" style={{ color: "rgb(var(--muted))" }}>
+                              ~{formatMoney(share)} each
+                            </div>
+                          ) : (
+                            <div className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                              No recipients yet
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-2 whitespace-nowrap">{String(r.due_date).slice(0, 10)}</td>
                         <td className="px-4 py-2 text-xs" style={{ color: "rgb(var(--muted))" }}>
                           {targetSummary(r)}
@@ -542,7 +575,7 @@ export function DueCollectionsTab({
               />
             </div>
             <div>
-              <Label htmlFor="dc-amt">Final amount due (per recipient)</Label>
+              <Label htmlFor="dc-amt">Total collection goal</Label>
               <Input
                 id="dc-amt"
                 inputMode="decimal"
@@ -550,6 +583,10 @@ export function DueCollectionsTab({
                 onChange={(e) => setDraft((d) => ({ ...d, amountDue: e.target.value }))}
                 className="mt-1 bg-white text-foreground"
               />
+              <p className="mt-1 text-xs" style={{ color: "rgb(var(--muted))" }}>
+                Enter the full amount to collect across the group. Each targeted recipient’s expected share is this total
+                divided evenly (same for everyone).
+              </p>
             </div>
             <DatePicker
               id="dc-date"
@@ -691,10 +728,16 @@ export function DueCollectionsTab({
             {detailCollection ? (
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
                 <span>
-                  Final per recipient:{" "}
+                  Total goal:{" "}
                   <strong className="tabular-nums" style={{ color: "rgb(var(--text))" }}>
-                    {formatMoney(Number(detailCollection.amount_due) || 0)}
+                    {formatMoney(detailGoalTotal)}
                   </strong>
+                  {dTotal > 0 ? (
+                    <>
+                      {" "}
+                      · ~{formatMoney(detailShareEach)} each ({dTotal} {dTotal === 1 ? "recipient" : "recipients"})
+                    </>
+                  ) : null}
                 </span>
                 <span>Due {String(detailCollection.due_date).slice(0, 10)}</span>
                 <span>Targets: {targetSummary(detailCollection)}</span>
@@ -769,7 +812,7 @@ export function DueCollectionsTab({
                       <th className="px-3 py-2">Name</th>
                       <th className="px-3 py-2">Group</th>
                       <th className="px-3 py-2">Position</th>
-                      <th className="px-3 py-2">Expected</th>
+                      <th className="px-3 py-2">Expected share</th>
                       <th className="px-3 py-2">Contribution status</th>
                     </tr>
                   </thead>
@@ -784,7 +827,7 @@ export function DueCollectionsTab({
                           {rec.role_kind === "player" ? rec.position_group ?? "—" : "—"}
                         </td>
                         <td className="px-3 py-2 tabular-nums">
-                          {detailCollection ? formatMoney(Number(detailCollection.amount_due) || 0) : "—"}
+                          {detailCollection && dTotal > 0 ? formatMoney(detailShareEach) : detailCollection ? "—" : "—"}
                         </td>
                         <td className="px-3 py-2">
                           {canEdit ? (

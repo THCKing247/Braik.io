@@ -43,19 +43,30 @@ export function SupportFeedbackForm({ teamId: teamIdProp }: { teamId?: string | 
         throw new Error(typeof data.error === "string" ? data.error : "Could not send feedback")
       }
       setStatus("done")
-      setBody("")
-      setSubject("")
     } catch (err) {
       setStatus("error")
       setError(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
+  function submitAnother() {
+    setStatus("idle")
+    setError("")
+    setCategory("support_question")
+    setSubject("")
+    setBody("")
+  }
+
   if (status === "done") {
     return (
-      <p className="text-sm text-muted-foreground">
-        Thanks — your message was sent to the team. We will follow up by email when needed.
-      </p>
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Thanks — your message was sent to the team. We will follow up by email when needed.
+        </p>
+        <Button type="button" variant="outline" className="border-border" onClick={submitAnother}>
+          Submit another request
+        </Button>
+      </div>
     )
   }
 

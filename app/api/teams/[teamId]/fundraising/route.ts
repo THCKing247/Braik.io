@@ -332,6 +332,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       const seasonY = Math.max(2000, parseInt(String(body.seasonYear), 10) || new Date().getFullYear())
       const description = String(body.description ?? "").trim()
       if (!description) return NextResponse.json({ error: "description is required" }, { status: 400 })
+      /** Total collection goal for the group; clients divide evenly by recipient count for display. */
       const amountDue = Math.max(0, Number(body.amountDue) || 0)
       const dueDate = String(body.dueDate || "").trim()
       if (!dueDate) return NextResponse.json({ error: "dueDate is required" }, { status: 400 })

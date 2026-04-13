@@ -35,6 +35,9 @@ const TIME_PICKER_ANCHOR = new Date(2000, 0, 1, 0, 0, 0, 0)
 const TIME_SELECT_CLASS =
   "h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
 
+/** Portal `Dialog` panels use z-[1000]; popovers must stack above so the mini-calendar is clickable inside modals (e.g. Due collections). */
+const DATE_POPOVER_Z_CLASS = "z-[1100]"
+
 /** For APIs that expect YYYY-MM-DD */
 export function dateToYmd(d: Date | null): string {
   if (!d) return ""
@@ -155,7 +158,10 @@ function MiniCalendarGrid({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-semibold min-w-[120px] text-center text-foreground">
+          <span
+            className="min-w-[120px] text-center text-sm font-semibold"
+            style={{ color: "rgb(var(--text))" }}
+          >
             {format(month, "MMMM yyyy")}
           </span>
           <Button
@@ -170,9 +176,12 @@ function MiniCalendarGrid({
           </Button>
         </div>
       )}
-      <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-medium mb-1 text-muted-foreground shrink-0">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div key={d}>{d}</div>
+      <div
+        className="mb-1 grid shrink-0 grid-cols-7 gap-0.5 py-1 text-center text-xs font-medium"
+        style={{ color: "rgb(var(--muted))" }}
+      >
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div key={`wday-${i}`}>{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-0.5 min-h-0">
@@ -293,7 +302,8 @@ export function DatePicker({
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
           className={cn(
-            "w-auto max-w-[min(95vw,320px)] p-0 overflow-hidden border border-border bg-card shadow-lg z-[100]",
+            "w-auto max-w-[min(95vw,320px)] overflow-hidden border border-border bg-card p-0 shadow-lg",
+            DATE_POPOVER_Z_CLASS,
             birthdateNav && "max-h-[min(85vh,400px)]"
           )}
           onKeyDown={handleKeyDown}
@@ -437,7 +447,10 @@ export function DateTimePicker({
           sideOffset={6}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
-          className="w-auto max-w-[95vw] p-0 overflow-hidden border border-border bg-card shadow-lg z-[100]"
+          className={cn(
+            "w-auto max-w-[95vw] overflow-hidden border border-border bg-card p-0 shadow-lg",
+            DATE_POPOVER_Z_CLASS
+          )}
           onKeyDown={handleKeyDown}
         >
           <div className="flex flex-col sm:flex-row">
@@ -682,7 +695,10 @@ export function TimePicker({
           sideOffset={6}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
-          className="w-auto max-w-[95vw] p-0 overflow-hidden border border-border bg-card shadow-lg z-[100]"
+          className={cn(
+            "w-auto max-w-[95vw] overflow-hidden border border-border bg-card p-0 shadow-lg",
+            DATE_POPOVER_Z_CLASS
+          )}
           onKeyDown={handleKeyDown}
         >
           <div className="p-3 flex flex-col gap-2 min-w-[200px]">

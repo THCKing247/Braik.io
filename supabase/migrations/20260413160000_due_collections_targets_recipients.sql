@@ -7,7 +7,7 @@ alter table public.fundraising_due_collections
   add column if not exists target_parents boolean not null default false;
 
 comment on column public.fundraising_due_collections.amount_due is
-  'Final per-recipient contribution amount for this collection (tracking only; not processed in Braik).';
+  'Total collection goal; expected share per recipient is this amount divided by targeted count (tracking only).';
 
 alter table public.fundraising_due_collections drop constraint if exists fundraising_due_collections_status_check;
 

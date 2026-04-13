@@ -142,6 +142,9 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const [editWeeklyEntry, setEditWeeklyEntry] = useState<WeeklyStatEntryApi | null>(null)
   const [tableViewMode, setTableViewMode] = useState<"full" | "position">("full")
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [weeklyEntriesAll, setWeeklyEntriesAll] = useState<WeeklyStatEntryApi[]>([])
+  const [allStatsPageSize, setAllStatsPageSize] = useState<10 | 25 | 50>(25)
+  const [allStatsPage, setAllStatsPage] = useState(1)
 
   const canConfirmImport = Boolean(
     selectedFile &&
@@ -183,7 +186,53 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     setSelectedRowKeys(new Set())
   }, [statsTab])
 
-  // Single round-trip for weekly tab: games + weekly entries in parallel (removes waterfall).
+  useEffect(() => {
+    if (!teamId) return
+    let cancelled = false
+    const gamesQ = new URLSearchParams({ teamId })
+    if (season.trim()) gamesQ.set("seasonYear", season.trim())
+    fetch(`/api/stats/games?${gamesQ.toString()}`)
+      .then(async (res) => {
+        if (!res.ok) return { games: [] as typeof scheduleGames }
+        return res.json() as Promise<{ games?: typeof scheduleGames }>
+      })
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.games)) setScheduleGames(data.games)
+      })
+      .catch(() => {
+        if (!cancelled) setScheduleGames([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, season, refreshTrigger])
+
+  useEffect(() => {
+    if (!teamId) return
+    let cancelled = false
+    const params = new URLSearchParams({ teamId })
+    if (season.trim()) params.set("seasonYear", season.trim())
+    fetch(`/api/stats/weekly?${params.toString()}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed")
+        return res.json() as Promise<{ entries?: WeeklyStatEntryApi[] }>
+      })
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.entries)) setWeeklyEntriesAll(data.entries)
+      })
+      .catch(() => {
+        if (!cancelled) setWeeklyEntriesAll([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, season, refreshTrigger])
+
+  useEffect(() => {
+    setAllStatsPage(1)
+  }, [season, searchQuery, positionFilter, sideFilter, allStatsPageSize, refreshTrigger])
+
+  // Weekly tab: filtered weekly entries (games + unfiltered list loaded separately).
   useEffect(() => {
     if (statsTab !== "weekly" || !teamId) return
     let cancelled = false
@@ -198,28 +247,19 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       params.set("dateFrom", dateFilter.trim())
       params.set("dateTo", dateFilter.trim())
     }
-    const gamesQ = new URLSearchParams({ teamId })
-    if (season.trim()) gamesQ.set("seasonYear", season.trim())
 
-    Promise.all([
-      fetch(`/api/stats/weekly?${params.toString()}`).then((res) => {
+    fetch(`/api/stats/weekly?${params.toString()}`)
+      .then((res) => {
         if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
         return res.json() as Promise<{ entries?: WeeklyStatEntryApi[] }>
-      }),
-      fetch(`/api/stats/games?${gamesQ.toString()}`).then(async (res) => {
-        if (!res.ok) return { games: [] as Array<{ id: string; opponent: string; gameDate: string; seasonYear: number | null }> }
-        return res.json() as Promise<{ games?: typeof scheduleGames }>
-      }),
-    ])
-      .then(([weeklyData, gamesData]) => {
+      })
+      .then((weeklyData) => {
         if (cancelled) return
         if (Array.isArray(weeklyData?.entries)) setWeeklyEntries(weeklyData.entries)
-        if (Array.isArray(gamesData?.games)) setScheduleGames(gamesData.games)
       })
       .catch((err) => {
         if (!cancelled) {
           setWeeklyError(err instanceof Error ? err.message : "Failed to load weekly stats")
-          setScheduleGames([])
         }
       })
       .finally(() => {
@@ -282,7 +322,33 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     return list
   }, [weeklyEntries, searchQuery, positionFilter, sideFilter])
 
-  const seasonTableRows = useMemo(() => filteredRows.map(playerToStatsTableRow), [filteredRows])
+  const gpCountByPlayerId = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const e of weeklyEntriesAll) {
+      map.set(e.playerId, (map.get(e.playerId) ?? 0) + 1)
+    }
+    return map
+  }, [weeklyEntriesAll])
+
+  const seasonTableRows = useMemo(
+    () =>
+      filteredRows.map((p) => ({
+        ...playerToStatsTableRow(p),
+        gamesPlayed: gpCountByPlayerId.get(p.id) ?? 0,
+      })),
+    [filteredRows, gpCountByPlayerId]
+  )
+
+  const allStatsTotalRows = seasonTableRows.length
+  const allStatsTotalPages = Math.max(1, Math.ceil(allStatsTotalRows / allStatsPageSize) || 1)
+  const allStatsPageSafe = Math.min(Math.max(1, allStatsPage), allStatsTotalPages)
+  const allStatsRangeStart = allStatsTotalRows === 0 ? 0 : (allStatsPageSafe - 1) * allStatsPageSize + 1
+  const allStatsRangeEnd = Math.min(allStatsPageSafe * allStatsPageSize, allStatsTotalRows)
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(allStatsTotalRows / allStatsPageSize) || 1)
+    setAllStatsPage((p) => Math.min(p, tp))
+  }, [allStatsTotalRows, allStatsPageSize])
 
   const positions = useMemo(() => {
     const set = new Set<string>()
@@ -383,7 +449,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     }
 
     const headers = [...STATS_SEASON_CSV_HEADERS]
-    const rows = filteredRows.map((r) => buildSeasonStatsCsvRow(r))
+    const rows = seasonTableRows.map((r) => buildSeasonStatsCsvRow(r))
     const csv = [
       headers.join(","),
       ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")),
@@ -587,6 +653,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         seasonYear={season}
         games={scheduleGames}
         editEntry={editWeeklyEntry}
+        weeklyEntriesForHints={weeklyEntriesAll}
         onSaved={() => setRefreshTrigger((t) => t + 1)}
       />
 
@@ -1063,7 +1130,21 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               </span>
             )}
           </div>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <label className="flex items-center gap-2 text-sm" style={{ color: "rgb(var(--text))" }}>
+              <span className="whitespace-nowrap">Rows per page</span>
+              <select
+                value={allStatsPageSize}
+                onChange={(e) => setAllStatsPageSize(Number(e.target.value) as 10 | 25 | 50)}
+                className="mobile-select"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </label>
+          </div>
+          <div className="mt-2">
             <AllStatsTable
               mode="season"
               rows={seasonTableRows}
@@ -1073,7 +1154,33 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
               onToggleRow={toggleRowSelect}
               onToggleAllVisible={toggleAllVisible}
               statColumnKeys={positionViewTableStatKeys}
+              pagination={{ page: allStatsPageSafe, pageSize: allStatsPageSize }}
             />
+          </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+              Showing {allStatsRangeStart}–{allStatsRangeEnd} of {allStatsTotalRows} players
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={allStatsPageSafe <= 1}
+                onClick={() => setAllStatsPage((p) => Math.max(1, p - 1))}
+              >
+                Prev
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={allStatsPageSafe >= allStatsTotalPages}
+                onClick={() => setAllStatsPage((p) => Math.min(allStatsTotalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </>
       )}

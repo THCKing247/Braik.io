@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -67,6 +67,8 @@ export interface AddWeeklyStatsDialogProps {
   games: GameOption[]
   editEntry?: WeeklyStatEntryApi | null
   prefillPlayerId?: string | null
+  /** Used to suggest next week/game # for new rows (count of existing entries per player). */
+  weeklyEntriesForHints?: WeeklyStatEntryApi[] | null
   onSaved: () => void
 }
 
@@ -79,9 +81,12 @@ export function AddWeeklyStatsDialog({
   games,
   editEntry = null,
   prefillPlayerId = null,
+  weeklyEntriesForHints = null,
   onSaved,
 }: AddWeeklyStatsDialogProps) {
   const isEdit = Boolean(editEntry)
+
+  const weekNumberUserTouchedRef = useRef(false)
 
   const [seasonYearInput, setSeasonYearInput] = useState("")
   const [weekNumber, setWeekNumber] = useState("")
@@ -96,6 +101,7 @@ export function AddWeeklyStatsDialog({
     if (!open) return
     setError(null)
     setSaving(false)
+    weekNumberUserTouchedRef.current = false
     if (editEntry) {
       setSeasonYearInput(editEntry.seasonYear != null ? String(editEntry.seasonYear) : "")
       setWeekNumber(editEntry.weekNumber != null ? String(editEntry.weekNumber) : "")
@@ -137,6 +143,33 @@ export function AddWeeklyStatsDialog({
     const w = parseInt(weekNumber, 10)
     return weekNumber.trim() === "" ? null : Number.isFinite(w) ? w : null
   }, [weekNumber])
+
+  const applyAutoWeekForNewEntry = useCallback(
+    (playerId: string) => {
+      if (isEdit) return
+      if (weekNumberUserTouchedRef.current) return
+      if (!playerId) {
+        setWeekNumber("")
+        return
+      }
+      const hints = weeklyEntriesForHints ?? []
+      let n = 0
+      for (const e of hints) {
+        if (e.playerId !== playerId) continue
+        if (seasonYearNum != null && e.seasonYear !== seasonYearNum) continue
+        n++
+      }
+      setWeekNumber(String(n + 1))
+    },
+    [isEdit, seasonYearNum, weeklyEntriesForHints]
+  )
+
+  useEffect(() => {
+    if (!open || isEdit) return
+    if (weekNumberUserTouchedRef.current) return
+    const pid = lines.find((l) => l.playerId)?.playerId ?? ""
+    applyAutoWeekForNewEntry(pid)
+  }, [open, isEdit, lines, applyAutoWeekForNewEntry])
 
   const addLine = () => setLines((prev) => [...prev, newLine()])
   const removeLine = (id: string) => setLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.id !== id)))
@@ -307,7 +340,10 @@ export function AddWeeklyStatsDialog({
                 max={30}
                 placeholder="e.g. 5"
                 value={weekNumber}
-                onChange={(e) => setWeekNumber(e.target.value)}
+                onChange={(e) => {
+                  weekNumberUserTouchedRef.current = true
+                  setWeekNumber(e.target.value)
+                }}
               />
             </div>
             <div className="space-y-2 lg:col-span-1">

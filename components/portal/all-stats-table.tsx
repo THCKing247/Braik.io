@@ -90,6 +90,8 @@ export interface AllStatsTableProps {
   onEditWeeklyRow?: (row: StatsTableRow) => void
   /** When set, show only these stat columns (identity + stats). Full schema when omitted. */
   statColumnKeys?: readonly (keyof PlayerStatsRow)[] | null
+  /** Client-side page slice applied after sort. Omit to show all sorted rows. */
+  pagination?: { page: number; pageSize: number }
 }
 
 type SortKey = keyof PlayerStatsRow | "weekNumber" | "gameLabel" | "gameOpponent" | "gameDate"
@@ -116,6 +118,7 @@ export function AllStatsTable({
   onToggleAllVisible,
   onEditWeeklyRow,
   statColumnKeys,
+  pagination,
 }: AllStatsTableProps) {
   const router = useRouter()
   const showWeeklyEdit = mode === "weekly" && Boolean(onEditWeeklyRow)
@@ -172,7 +175,14 @@ export function AllStatsTable({
     return arr
   }, [rows, sortKey, sortDir])
 
-  const visibleKeys = useMemo(() => sortedRows.map((r) => r.rowKey), [sortedRows])
+  const displayRows = useMemo(() => {
+    if (!pagination) return sortedRows
+    const { page, pageSize } = pagination
+    const start = (Math.max(1, page) - 1) * pageSize
+    return sortedRows.slice(start, start + pageSize)
+  }, [sortedRows, pagination])
+
+  const visibleKeys = useMemo(() => displayRows.map((r) => r.rowKey), [displayRows])
 
   const allSelected =
     selectionEnabled &&
@@ -275,7 +285,7 @@ export function AllStatsTable({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => {
+          {displayRows.map((row) => {
             const href = getProfileHref(row)
             const checked = selectedRowKeys?.has(row.rowKey) ?? false
             return (

@@ -72,4 +72,5 @@ export function sessionPickerDateToApiTime(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:00`
 }
 
-export const DURATION_QUICK_MINUTES = [15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180] as const
+/** Session editor: visible duration presets (15 min steps, up to 2 hours). */
+export const WEIGHT_SESSION_DURATION_PRESETS = [15, 30, 45, 60, 75, 90, 105, 120] as const

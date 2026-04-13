@@ -49,7 +49,13 @@ export function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
   const [detailReload, setDetailReload] = useState(0)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detail, setDetail] = useState<{
-    assignment: { id: string; title: string; due_date: string | null; assignment_type: string }
+    assignment: {
+      id: string
+      title: string
+      due_date: string | null
+      assignment_type: string
+      review_player_summary?: string | null
+    }
     myProgress: Record<string, unknown>
     items: ItemRow[]
     quiz: Record<string, unknown> | null
@@ -264,7 +270,13 @@ function PlayerAssignmentDetailDialog({
   open: boolean
   loading: boolean
   data: {
-    assignment: { id: string; title: string; due_date: string | null; assignment_type: string }
+    assignment: {
+      id: string
+      title: string
+      due_date: string | null
+      assignment_type: string
+      review_player_summary?: string | null
+    }
     myProgress: Record<string, unknown>
     items: ItemRow[]
     quiz: Record<string, unknown> | null
@@ -353,6 +365,16 @@ function PlayerAssignmentDetailDialog({
                 Status: {(data.myProgress.displayStatus as string) ?? "—"}
               </span>
             </div>
+
+            {(data.assignment.assignment_type === "review" || data.assignment.assignment_type === "mixed") &&
+              data.assignment.review_player_summary?.trim() && (
+                <div className="rounded-md border border-[#E5E7EB] bg-[#F8FAFC] p-4 text-[#334155]">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Coach summary</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#0F172A]">
+                    {data.assignment.review_player_summary.trim()}
+                  </p>
+                </div>
+              )}
 
             {(data.assignment.assignment_type === "review" || data.assignment.assignment_type === "mixed") && (
               <div>

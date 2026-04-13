@@ -39,7 +39,7 @@ import {
 import { TimePicker } from "@/components/portal/date-time-picker"
 import { WorkoutSessionDetailDialog } from "@/components/portal/workout-session-detail-dialog"
 import {
-  DURATION_QUICK_MINUTES,
+  WEIGHT_SESSION_DURATION_PRESETS,
   initialWorkoutEditorRows,
   normalizeWorkoutItemsForSave,
   parseSessionStartTimeToDate,
@@ -905,28 +905,46 @@ function SessionDialog({
             <TimePicker
               id="wr-session-start"
               label="Start *"
+              variant="inline"
               value={startTimeDate}
               onChange={setStartTimeDate}
               placeholder="Select start time"
             />
             <div>
               <Label htmlFor="wr-session-duration">Duration (minutes)</Label>
-              <Input
-                id="wr-session-duration"
-                className="mt-1"
-                type="number"
-                min={1}
-                max={480}
-                list="wr-duration-presets"
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-              />
-              <datalist id="wr-duration-presets">
-                {DURATION_QUICK_MINUTES.map((m) => (
-                  <option key={m} value={m} label={`${m} min`} />
-                ))}
-              </datalist>
-              <p className="mt-1 text-xs text-[#64748B]">Type any duration or choose a suggested value.</p>
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <Input
+                  id="wr-session-duration"
+                  className="min-w-0 flex-1"
+                  type="number"
+                  min={1}
+                  max={480}
+                  value={duration}
+                  onChange={(e) => setDuration(Number(e.target.value))}
+                />
+                <select
+                  id="wr-session-duration-presets"
+                  className="h-10 shrink-0 rounded-md border border-[#E5E7EB] bg-white px-3 text-sm sm:w-44"
+                  aria-label="Duration presets: 15 minute steps up to 2 hours"
+                  value={
+                    WEIGHT_SESSION_DURATION_PRESETS.some((m) => m === duration) ? String(duration) : ""
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v) setDuration(Number(v))
+                  }}
+                >
+                  <option value="">Presets (15 min…2 hr)</option>
+                  {WEIGHT_SESSION_DURATION_PRESETS.map((m) => (
+                    <option key={m} value={m}>
+                      {m} min
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1 text-xs text-[#64748B]">
+                Type any duration (up to 480 min) or pick a 15-minute preset up to 2 hours.
+              </p>
             </div>
           </div>
           <div>

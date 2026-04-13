@@ -30,6 +30,11 @@ import { cn } from "@/lib/utils"
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 1) // 1-12
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5) // 0, 5, 10, ..., 55
 
+const TIME_PICKER_ANCHOR = new Date(2000, 0, 1, 0, 0, 0, 0)
+
+const TIME_SELECT_CLASS =
+  "h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+
 /** For APIs that expect YYYY-MM-DD */
 export function dateToYmd(d: Date | null): string {
   if (!d) return ""
@@ -450,7 +455,7 @@ export function DateTimePicker({
                 <select
                   value={draftHour}
                   onChange={(e) => setDraftHour(Number(e.target.value))}
-                  className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={TIME_SELECT_CLASS}
                   aria-label="Hour"
                 >
                   {HOURS.map((h) => (
@@ -463,7 +468,7 @@ export function DateTimePicker({
                 <select
                   value={draftMinute}
                   onChange={(e) => setDraftMinute(Number(e.target.value))}
-                  className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={TIME_SELECT_CLASS}
                   aria-label="Minute"
                 >
                   {MINUTES.map((m) => (
@@ -475,7 +480,7 @@ export function DateTimePicker({
                 <select
                   value={draftAmPm}
                   onChange={(e) => setDraftAmPm(e.target.value as "AM" | "PM")}
-                  className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={TIME_SELECT_CLASS}
                   aria-label="AM/PM"
                 >
                   <option value="AM">AM</option>
@@ -503,8 +508,6 @@ export function DateTimePicker({
   )
 }
 
-const TIME_PICKER_ANCHOR = new Date(2000, 0, 1, 0, 0, 0, 0)
-
 export interface TimePickerProps {
   label: string
   value: Date | null
@@ -512,6 +515,11 @@ export interface TimePickerProps {
   className?: string
   id?: string
   placeholder?: string
+  /**
+   * `popover` — trigger opens the same clock panel as before.
+   * `inline` — hour / minute / AM-PM row only (matches DateTimePicker time controls in the calendar flows).
+   */
+  variant?: "popover" | "inline"
 }
 
 /**
@@ -524,12 +532,22 @@ export function TimePicker({
   className,
   id,
   placeholder = "Select time",
+  variant = "popover",
 }: TimePickerProps) {
   const [open, setOpen] = React.useState(false)
   const effective = value ?? TIME_PICKER_ANCHOR
   const [draftHour, setDraftHour] = React.useState(() => to12Hour(getHours(effective)).hour)
   const [draftMinute, setDraftMinute] = React.useState(() => Math.floor(getMinutes(effective) / 5) * 5)
   const [draftAmPm, setDraftAmPm] = React.useState<"AM" | "PM">(() => to12Hour(getHours(effective)).ampm)
+
+  const commitClock = React.useCallback(
+    (hour12: number, minute: number, ampm: "AM" | "PM") => {
+      const d = new Date(TIME_PICKER_ANCHOR)
+      d.setHours(to24Hour(hour12, ampm), minute, 0, 0)
+      onChange(d)
+    },
+    [onChange]
+  )
 
   const openPopover = React.useCallback(() => {
     const b = value ?? TIME_PICKER_ANCHOR
@@ -546,13 +564,18 @@ export function TimePicker({
     setDraftAmPm(to12Hour(getHours(value)).ampm)
   }, [value, open])
 
+  React.useEffect(() => {
+    if (variant !== "inline") return
+    const b = value ?? TIME_PICKER_ANCHOR
+    setDraftHour(to12Hour(getHours(b)).hour)
+    setDraftMinute(Math.floor(getMinutes(b) / 5) * 5)
+    setDraftAmPm(to12Hour(getHours(b)).ampm)
+  }, [value, variant])
+
   const apply = React.useCallback(() => {
-    const d = new Date(TIME_PICKER_ANCHOR)
-    const h = to24Hour(draftHour, draftAmPm)
-    d.setHours(h, draftMinute, 0, 0)
-    onChange(d)
+    commitClock(draftHour, draftMinute, draftAmPm)
     setOpen(false)
-  }, [draftHour, draftMinute, draftAmPm, onChange])
+  }, [draftHour, draftMinute, draftAmPm, commitClock])
 
   const cancel = React.useCallback(() => setOpen(false), [])
   const handleKeyDown = React.useCallback(
@@ -563,6 +586,73 @@ export function TimePicker({
   )
 
   const displayValue = value ? format(value, "h:mm a") : ""
+
+  if (variant === "inline") {
+    const labelledBy = id && label ? `${id}-title` : undefined
+    return (
+      <div className={cn(className)}>
+        {label && (
+          <span id={labelledBy} className="text-sm font-medium text-[#0F172A]">
+            {label}
+          </span>
+        )}
+        <div
+          id={id}
+          className={cn("flex flex-wrap items-center gap-2", label && "mt-1")}
+          role="group"
+          aria-labelledby={labelledBy}
+          aria-label={!labelledBy ? label || "Time" : undefined}
+        >
+          <select
+            value={draftHour}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              setDraftHour(next)
+              commitClock(next, draftMinute, draftAmPm)
+            }}
+            className={TIME_SELECT_CLASS}
+            aria-label="Hour"
+          >
+            {HOURS.map((h) => (
+              <option key={h} value={h}>
+                {h}
+              </option>
+            ))}
+          </select>
+          <span className="text-foreground font-medium">:</span>
+          <select
+            value={draftMinute}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              setDraftMinute(next)
+              commitClock(draftHour, next, draftAmPm)
+            }}
+            className={TIME_SELECT_CLASS}
+            aria-label="Minute"
+          >
+            {MINUTES.map((m) => (
+              <option key={m} value={m}>
+                {String(m).padStart(2, "0")}
+              </option>
+            ))}
+          </select>
+          <select
+            value={draftAmPm}
+            onChange={(e) => {
+              const next = e.target.value as "AM" | "PM"
+              setDraftAmPm(next)
+              commitClock(draftHour, draftMinute, next)
+            }}
+            className={TIME_SELECT_CLASS}
+            aria-label="AM or PM"
+          >
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -601,7 +691,7 @@ export function TimePicker({
               <select
                 value={draftHour}
                 onChange={(e) => setDraftHour(Number(e.target.value))}
-                className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className={TIME_SELECT_CLASS}
                 aria-label="Hour"
               >
                 {HOURS.map((h) => (
@@ -614,7 +704,7 @@ export function TimePicker({
               <select
                 value={draftMinute}
                 onChange={(e) => setDraftMinute(Number(e.target.value))}
-                className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className={TIME_SELECT_CLASS}
                 aria-label="Minute"
               >
                 {MINUTES.map((m) => (
@@ -626,7 +716,7 @@ export function TimePicker({
               <select
                 value={draftAmPm}
                 onChange={(e) => setDraftAmPm(e.target.value as "AM" | "PM")}
-                className="h-9 rounded-lg border-2 border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className={TIME_SELECT_CLASS}
                 aria-label="AM or PM"
               >
                 <option value="AM">AM</option>

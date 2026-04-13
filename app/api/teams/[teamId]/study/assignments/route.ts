@@ -140,6 +140,7 @@ export async function POST(
       publishStatus?: "draft" | "published"
       items?: { itemType: StudyItemType; itemId: string }[]
       questions?: DraftStudyQuestion[]
+      reviewPlayerSummary?: string | null
     }
 
     if (!body.title?.trim()) return NextResponse.json({ error: "title required" }, { status: 400 })
@@ -183,6 +184,11 @@ export async function POST(
 
     const publishStatus = body.publishStatus === "draft" ? "draft" : "published"
 
+    const reviewSummary =
+      typeof body.reviewPlayerSummary === "string" && body.reviewPlayerSummary.trim()
+        ? body.reviewPlayerSummary.trim()
+        : null
+
     const { data: assignment, error: aErr } = await supabase
       .from("study_assignments")
       .insert({
@@ -196,6 +202,7 @@ export async function POST(
         publish_status: publishStatus,
         assigned_player_ids:
           body.assignedToType === "players" && body.playerIds?.length ? body.playerIds : null,
+        review_player_summary: reviewSummary,
         created_by: auth.user.id,
       })
       .select("*")

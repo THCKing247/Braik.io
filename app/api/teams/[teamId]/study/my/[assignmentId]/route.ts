@@ -48,7 +48,7 @@ export async function GET(
 
     const { data: assignment } = await supabase
       .from("study_assignments")
-      .select("id, title, due_date, assignment_type, publish_status")
+      .select("id, title, due_date, assignment_type, publish_status, review_player_summary")
       .eq("id", assignmentId)
       .eq("team_id", teamId)
       .eq("publish_status", "published")
@@ -143,6 +143,7 @@ export async function GET(
         title: assignment.title,
         due_date: assignment.due_date,
         assignment_type: assignmentType,
+        review_player_summary: (assignment.review_player_summary as string | null | undefined) ?? null,
       },
       myProgress: { ...prog, displayStatus },
       items,

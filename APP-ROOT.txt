@@ -1,0 +1,4 @@
+This directory (Braik.io) is the Next.js application root and the only git repository for braik.io.
+
+Run: npm run dev
+Deploy / CI use this folder.

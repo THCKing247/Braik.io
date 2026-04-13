@@ -25,16 +25,31 @@ export async function GET(
 
     if (error) return NextResponse.json({ error: "Failed" }, { status: 500 })
 
-    const withItems = await Promise.all(
-      (packs ?? []).map(async (p) => {
-        const { data: items } = await supabase
-          .from("study_pack_items")
-          .select("item_type, item_id, sort_order")
-          .eq("pack_id", p.id)
-          .order("sort_order")
-        return { ...p, items: items ?? [] }
-      })
-    )
+    const packList = packs ?? []
+    const packIds = packList.map((p) => p.id)
+    const itemsByPack = new Map<string, { item_type: string; item_id: string; sort_order: number }[]>()
+    if (packIds.length) {
+      const { data: allItems } = await supabase
+        .from("study_pack_items")
+        .select("pack_id, item_type, item_id, sort_order")
+        .in("pack_id", packIds)
+        .order("sort_order")
+      for (const row of allItems ?? []) {
+        const pid = row.pack_id as string
+        const arr = itemsByPack.get(pid) ?? []
+        arr.push({
+          item_type: row.item_type as string,
+          item_id: row.item_id as string,
+          sort_order: row.sort_order as number,
+        })
+        itemsByPack.set(pid, arr)
+      }
+    }
+
+    const withItems = packList.map((p) => ({
+      ...p,
+      items: itemsByPack.get(p.id) ?? [],
+    }))
 
     return NextResponse.json({ packs: withItems })
   } catch (e) {

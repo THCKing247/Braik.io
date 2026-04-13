@@ -8,8 +8,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Copy, Pencil, Plus, QrCode, Trash2 } from "lucide-react"
+import { Copy, Pencil, Plus, Share2, Trash2 } from "lucide-react"
 import { QrCodeImage } from "@/components/ui/qr-code-image"
+import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
+import { DueCollectionsTab, type DueCollectionRow } from "@/components/portal/due-collections-tab"
 
 function formatMoney(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
@@ -81,18 +83,6 @@ type RefRow = {
   handle_or_url: string
   display_label: string | null
   sort_order: number
-}
-
-type DueCollectionRow = {
-  id: string
-  team_id?: string
-  season_year: number
-  description: string
-  amount_due: number
-  due_date: string
-  status: "pending" | "collected"
-  notes: string | null
-  created_at?: string
 }
 
 type RecentRow = {
@@ -1146,273 +1136,6 @@ function DonationsTab({
   )
 }
 
-function DueCollectionsTab({
-  teamId,
-  rows,
-  seasonYear,
-  canEdit,
-  onSaved,
-}: {
-  teamId: string
-  rows: DueCollectionRow[]
-  seasonYear: number
-  canEdit: boolean
-  onSaved: () => Promise<void>
-}) {
-  const [editor, setEditor] = useState<DueCollectionRow | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [draft, setDraft] = useState({
-    description: "",
-    amountDue: "",
-    dueDate: new Date().toISOString().slice(0, 10),
-    status: "pending" as "pending" | "collected",
-    notes: "",
-  })
-
-  const post = async (body: Record<string, unknown>) => {
-    const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/fundraising`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}))
-      alert((j as { error?: string }).error || "Request failed")
-      return false
-    }
-    return true
-  }
-
-  const save = async () => {
-    if (!draft.description.trim()) {
-      alert("Enter a description.")
-      return
-    }
-    const ok = editor
-      ? await post({
-          action: "update_due_collection",
-          id: editor.id,
-          description: draft.description.trim(),
-          amountDue: Number(draft.amountDue) || 0,
-          dueDate: draft.dueDate,
-          status: draft.status,
-          notes: draft.notes.trim() || null,
-        })
-      : await post({
-          action: "add_due_collection",
-          seasonYear,
-          description: draft.description.trim(),
-          amountDue: Number(draft.amountDue) || 0,
-          dueDate: draft.dueDate,
-          status: draft.status,
-          notes: draft.notes.trim() || null,
-        })
-    if (!ok) return
-    setEditor(null)
-    setCreating(false)
-    await onSaved()
-  }
-
-  const deleteRow = async (id: string) => {
-    if (!confirm("Remove this due collection entry?")) return
-    const ok = await post({ action: "delete_due_collection", id })
-    if (ok) await onSaved()
-  }
-
-  const openCreate = () => {
-    setCreating(true)
-    setEditor(null)
-    setDraft({
-      description: "",
-      amountDue: "",
-      dueDate: new Date().toISOString().slice(0, 10),
-      status: "pending",
-      notes: "",
-    })
-  }
-
-  const openEdit = (row: DueCollectionRow) => {
-    setEditor(row)
-    setCreating(false)
-    setDraft({
-      description: row.description,
-      amountDue: String(row.amount_due ?? 0),
-      dueDate: String(row.due_date).slice(0, 10),
-      status: row.status === "collected" ? "collected" : "pending",
-      notes: row.notes ?? "",
-    })
-  }
-
-  const pending = useMemo(() => rows.filter((r) => r.status === "pending").length, [rows])
-
-  return (
-    <div className="space-y-3">
-      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-        Track amounts owed to the program (e.g. fees, shared costs). This is an internal ledger only — not invoicing,
-        billing, or in-app payment collection.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {canEdit && (
-          <Button type="button" size="sm" onClick={openCreate}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add due collection
-          </Button>
-        )}
-      </div>
-      {rows.length > 0 ? (
-        <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-          {pending} pending · {rows.length} total this season
-        </p>
-      ) : null}
-
-      <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
-        <CardContent className="p-0">
-          {rows.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
-              No due collection entries for this season.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="border-b text-left" style={{ borderColor: "rgb(var(--border))" }}>
-                    <th className="px-4 py-2">Description</th>
-                    <th className="px-4 py-2">Amount due</th>
-                    <th className="px-4 py-2">Due date</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Notes</th>
-                    {canEdit ? <th className="px-4 py-2 text-right">Actions</th> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id} className="border-b" style={{ borderColor: "rgb(var(--border))" }}>
-                      <td className="px-4 py-2 font-medium" style={{ color: "rgb(var(--text))" }}>
-                        {r.description}
-                      </td>
-                      <td className="px-4 py-2 tabular-nums">{formatMoney(Number(r.amount_due) || 0)}</td>
-                      <td className="px-4 py-2">{String(r.due_date).slice(0, 10)}</td>
-                      <td className="px-4 py-2 capitalize">{r.status === "collected" ? "Collected" : "Pending"}</td>
-                      <td className="max-w-[200px] truncate px-4 py-2 text-xs" style={{ color: "rgb(var(--muted))" }}>
-                        {r.notes ?? "—"}
-                      </td>
-                      {canEdit ? (
-                        <td className="px-4 py-2 text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => openEdit(r)}
-                            aria-label="Edit entry"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => void deleteRow(r.id)}
-                            aria-label="Delete entry"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog
-        open={creating || !!editor}
-        onOpenChange={(o) => {
-          if (!o) {
-            setCreating(false)
-            setEditor(null)
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editor ? "Edit due collection" : "Add due collection"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="dc-desc">Description</Label>
-              <Input
-                id="dc-desc"
-                value={draft.description}
-                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                placeholder="e.g. Team travel share"
-              />
-            </div>
-            <div>
-              <Label htmlFor="dc-amt">Amount due</Label>
-              <Input
-                id="dc-amt"
-                inputMode="decimal"
-                value={draft.amountDue}
-                onChange={(e) => setDraft((d) => ({ ...d, amountDue: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="dc-date">Due date</Label>
-              <Input
-                id="dc-date"
-                type="date"
-                value={draft.dueDate}
-                onChange={(e) => setDraft((d) => ({ ...d, dueDate: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="dc-status">Status</Label>
-              <select
-                id="dc-status"
-                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={draft.status}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, status: e.target.value === "collected" ? "collected" : "pending" }))
-                }
-              >
-                <option value="pending">Pending</option>
-                <option value="collected">Collected</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="dc-notes">Notes (optional)</Label>
-              <textarea
-                id="dc-notes"
-                value={draft.notes}
-                onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
-                rows={2}
-                className={cn(
-                  "flex min-h-[72px] w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/90",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary",
-                  "disabled:cursor-not-allowed disabled:opacity-50 transition-colors input-theme"
-                )}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => (setCreating(false), setEditor(null))}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void save()}>
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
-
 function PaymentRefsSection({
   teamId,
   refs,
@@ -1429,6 +1152,7 @@ function PaymentRefsSection({
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<RefRow | null>(null)
   const [qrFor, setQrFor] = useState<RefRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<RefRow | null>(null)
   const [draft, setDraft] = useState({ platform: "venmo", handleOrUrl: "", displayLabel: "" })
 
   const qrDialogValue = qrFor ? paymentRefToQrValue(qrFor.platform, qrFor.handle_or_url) : null
@@ -1480,10 +1204,43 @@ function PaymentRefsSection({
     await onChanged()
   }
 
-  const deleteRef = async (id: string) => {
-    if (!confirm("Remove this payment reference?")) return
+  const executeDeleteRef = async () => {
+    if (!deleteTarget) return
+    const id = deleteTarget.id
     const ok = await post({ action: "delete_payment_ref", id })
-    if (ok) await onChanged()
+    if (ok) {
+      setDeleteTarget(null)
+      await onChanged()
+    }
+  }
+
+  const platformLabel = (p: string) => PLATFORMS.find((x) => x.value === p)?.label ?? p
+
+  const sharePaymentRef = async (r: RefRow) => {
+    const label = platformLabel(r.platform)
+    const body = [
+      label,
+      r.display_label ? `${r.display_label}: ${r.handle_or_url}` : r.handle_or_url,
+    ].join("\n")
+    const qrUrl = paymentRefToQrValue(r.platform, r.handle_or_url)
+    const url = qrUrl || (r.handle_or_url.trim().startsWith("http") ? r.handle_or_url.trim() : undefined)
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({
+          title: "Payment reference",
+          text: url ? `${body}\n${url}` : body,
+          url: url || undefined,
+        })
+        return
+      }
+    } catch (e) {
+      if ((e as { name?: string }).name === "AbortError") return
+    }
+    try {
+      await navigator.clipboard.writeText(url ? `${body}\n${url}` : body)
+    } catch {
+      alert("Could not share or copy this reference.")
+    }
   }
 
   const copyText = async (text: string) => {
@@ -1493,8 +1250,6 @@ function PaymentRefsSection({
       alert("Could not copy")
     }
   }
-
-  const platformLabel = (p: string) => PLATFORMS.find((x) => x.value === p)?.label ?? p
 
   return (
     <div className="space-y-3">
@@ -1554,60 +1309,111 @@ function PaymentRefsSection({
             const qrValue = paymentRefToQrValue(r.platform, r.handle_or_url)
             return (
             <Card key={r.id} className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
-              <CardContent className="space-y-3 pt-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-                      {platformLabel(r.platform)}
-                    </p>
-                    <p className="mt-1 break-all text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
-                      {r.display_label || r.handle_or_url}
-                    </p>
-                    {r.display_label ? (
-                      <p className="mt-1 break-all text-xs" style={{ color: "rgb(var(--muted))" }}>
-                        {r.handle_or_url}
+              <CardContent className="pt-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
+                        {platformLabel(r.platform)}
                       </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-shrink-0 flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => void copyText(r.handle_or_url)}>
-                      <Copy className="mr-1.5 h-4 w-4" />
-                      Copy
-                    </Button>
-                    {qrValue ? (
-                      <Button type="button" variant="outline" size="sm" onClick={() => setQrFor(r)}>
-                        <QrCode className="mr-1.5 h-4 w-4" />
-                        Show QR
+                      <p className="mt-1 break-all text-sm font-semibold" style={{ color: "rgb(var(--text))" }}>
+                        {r.display_label || r.handle_or_url}
+                      </p>
+                      {r.display_label ? (
+                        <p className="mt-1 break-all text-xs" style={{ color: "rgb(var(--muted))" }}>
+                          {r.handle_or_url}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => void sharePaymentRef(r)}>
+                        <Share2 className="mr-1.5 h-4 w-4" />
+                        Share
                       </Button>
+                    </div>
+                    {canEdit ? (
+                      <div className="flex gap-2 border-t pt-3" style={{ borderColor: "rgb(var(--border))" }}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditing(r)
+                            setOpen(true)
+                          }}
+                        >
+                          <Pencil className="mr-1 h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setDeleteTarget(r)}
+                        >
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          Delete
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
+                  {qrValue ? (
+                    <div className="flex shrink-0 flex-col items-center gap-1 sm:min-w-[7.5rem]">
+                      <button
+                        type="button"
+                        className="rounded-lg border p-1.5 transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]"
+                        style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
+                        onClick={() => setQrFor(r)}
+                        aria-label="Enlarge QR code"
+                      >
+                        <QrCodeImage value={qrValue} size={104} />
+                      </button>
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="h-auto py-0 text-xs"
+                        onClick={() => setQrFor(r)}
+                      >
+                        Enlarge
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
-                {canEdit ? (
-                  <div className="flex gap-2 border-t pt-3" style={{ borderColor: "rgb(var(--border))" }}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditing(r)
-                        setOpen(true)
-                      }}
-                    >
-                      <Pencil className="mr-1 h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => void deleteRef(r.id)}>
-                      <Trash2 className="mr-1 h-4 w-4" />
-                      Delete
-                    </Button>
-                  </div>
-                ) : null}
               </CardContent>
             </Card>
             );
           })}
         </div>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove payment reference?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+            This removes{" "}
+            <span className="font-medium" style={{ color: "rgb(var(--text))" }}>
+              {deleteTarget?.display_label || deleteTarget?.handle_or_url}
+            </span>{" "}
+            from your payment references. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void executeDeleteRef()}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!qrFor} onOpenChange={(o) => !o && setQrFor(null)}>
         <DialogContent className="max-w-md">

@@ -1,7 +1,9 @@
 import { readFile } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { getUploadRoot } from "@/lib/upload-path"
+import { downloadTeamDocumentFromStorage } from "@/lib/documents/team-documents-bucket"
 
 /**
  * Resolve disk path for team documents stored under /api/uploads/team-documents/...
@@ -44,4 +46,28 @@ export async function readTeamDocumentFromUrl(
   const contentType =
     mimeType && mimeType.trim().length > 0 ? mimeType : contentTypeFromPath(diskPath)
   return { buffer, contentType }
+}
+
+/**
+ * Load bytes for a team document row: private Storage first, then legacy local disk via file_url.
+ */
+export async function loadTeamDocumentContent(
+  supabase: SupabaseClient,
+  row: {
+    file_path?: string | null
+    file_url?: string | null
+    mime_type?: string | null
+  }
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const storagePath = row.file_path?.trim()
+  if (storagePath) {
+    const { data, error } = await downloadTeamDocumentFromStorage(supabase, storagePath)
+    if (error || !data) {
+      return null
+    }
+    const contentType =
+      row.mime_type && row.mime_type.trim().length > 0 ? row.mime_type : "application/octet-stream"
+    return { buffer: data, contentType }
+  }
+  return readTeamDocumentFromUrl(row.file_url, row.mime_type)
 }

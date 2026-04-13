@@ -4,9 +4,10 @@ import { existsSync } from "fs"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
-import { ROLES, type Role } from "@/lib/auth/roles"
+import { ROLES, type Role, canManageTeam } from "@/lib/auth/roles"
 import { teamDocumentVisibleToMember } from "@/lib/documents/document-visibility"
-import { getTeamDocumentDiskPath, readTeamDocumentFromUrl } from "@/lib/documents/team-document-storage"
+import { getTeamDocumentDiskPath, loadTeamDocumentContent } from "@/lib/documents/team-document-storage"
+import { removeTeamDocumentFromStorage } from "@/lib/documents/team-documents-bucket"
 
 async function assertDocumentReadAccess(
   supabase: ReturnType<typeof getSupabaseServer>,
@@ -72,7 +73,7 @@ export async function GET(
     const supabase = getSupabaseServer()
     const { data: doc, error } = await supabase
       .from("documents")
-      .select("id, team_id, file_url, file_name, mime_type, visibility, assigned_player_ids")
+      .select("id, team_id, file_url, file_path, file_name, mime_type, visibility, assigned_player_ids")
       .eq("id", documentId)
       .maybeSingle()
 
@@ -82,9 +83,12 @@ export async function GET(
 
     await assertDocumentReadAccess(supabase, session.user.id, doc)
 
-    const file = await readTeamDocumentFromUrl(doc.file_url, doc.mime_type)
+    const file = await loadTeamDocumentContent(supabase, doc)
     if (!file) {
-      return NextResponse.json({ error: "File not found on server" }, { status: 404 })
+      return NextResponse.json(
+        { error: "File not found in storage. It may not have been migrated yet — re-upload if needed." },
+        { status: 404 }
+      )
     }
 
     const disposition = `inline; filename="${encodeURIComponent(doc.file_name || "document")}"`
@@ -127,7 +131,7 @@ export async function DELETE(
     const supabase = getSupabaseServer()
     const { data: doc, error } = await supabase
       .from("documents")
-      .select("id, team_id, file_url")
+      .select("id, team_id, file_url, file_path")
       .eq("id", documentId)
       .maybeSingle()
 
@@ -136,16 +140,23 @@ export async function DELETE(
     }
 
     const { membership } = await requireTeamAccess(doc.team_id)
-    if (membership.role !== ROLES.HEAD_COACH) {
+    if (!canManageTeam(membership.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const diskPath = getTeamDocumentDiskPath(doc.file_url)
-    if (diskPath && existsSync(diskPath)) {
-      try {
-        await unlink(diskPath)
-      } catch (unlinkErr) {
-        console.warn("[DELETE /api/documents/[documentId]] file unlink", unlinkErr)
+    const row = doc as { file_path?: string | null; file_url?: string | null }
+    if (row.file_path?.trim()) {
+      await removeTeamDocumentFromStorage(supabase, row.file_path.trim()).catch((e) =>
+        console.warn("[DELETE /api/documents/[documentId]] storage remove", e)
+      )
+    } else {
+      const diskPath = getTeamDocumentDiskPath(row.file_url)
+      if (diskPath && existsSync(diskPath)) {
+        try {
+          await unlink(diskPath)
+        } catch (unlinkErr) {
+          console.warn("[DELETE /api/documents/[documentId]] file unlink", unlinkErr)
+        }
       }
     }
 

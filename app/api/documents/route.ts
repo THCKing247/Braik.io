@@ -1,13 +1,17 @@
+import { randomUUID } from "crypto"
 import { NextResponse } from "next/server"
-import { mkdir, writeFile } from "fs/promises"
-import { join } from "path"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { ROLES, type Role } from "@/lib/auth/roles"
 import { teamDocumentVisibleToMember } from "@/lib/documents/document-visibility"
-import { getUploadRoot } from "@/lib/upload-path"
 import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
+import {
+  buildTeamDocumentStoragePath,
+  sanitizeTeamDocumentFileName,
+  uploadTeamDocumentToStorage,
+  removeTeamDocumentFromStorage,
+} from "@/lib/documents/team-documents-bucket"
 
 const ALLOWED_MIME = [
   "application/pdf",
@@ -55,7 +59,7 @@ export async function GET(request: Request) {
     const { data: rows, error } = await supabase
       .from("documents")
       .select(
-        "id, title, file_name, category, folder, visibility, scoped_unit, scoped_position_groups, assigned_player_ids, created_by, created_at, mime_type, public_share_token"
+        "id, title, file_name, category, folder, visibility, scoped_unit, scoped_position_groups, assigned_player_ids, created_by, created_at, mime_type, public_share_token, file_path"
       )
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
@@ -135,6 +139,7 @@ export async function GET(request: Request) {
         createdAt: d.created_at,
         mimeType: d.mime_type ?? null,
         publicShareToken: d.public_share_token ?? null,
+        storageBacked: Boolean((d as { file_path?: string | null }).file_path),
         sharedWith: sharesByDoc.get(d.id) ?? [],
         creator: creator ? { name: creator.name, email: creator.email } : { name: null, email: "" },
         acknowledgements: acksMap.get(d.id) ?? [],
@@ -188,10 +193,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File exceeds 15MB limit" }, { status: 400 })
     }
 
-    const mime = file.type || ""
+    const mimeRaw = file.type || ""
     const ext = file.name.split(".").pop()?.toLowerCase() || ""
     const extOk = ["pdf", "txt", "doc", "docx", "jpg", "jpeg", "png", "gif", "webp"].includes(ext)
-    const mimeOk = !mime || ALLOWED_MIME.includes(mime)
+    const mimeOk = !mimeRaw || ALLOWED_MIME.includes(mimeRaw)
     if (!mimeOk && !extOk) {
       return NextResponse.json(
         { error: "File type not supported. Use PDF, TXT, DOC/DOCX, or common images." },
@@ -199,26 +204,58 @@ export async function POST(request: Request) {
       )
     }
 
+    const inferredFromExt: Record<string, string> = {
+      pdf: "application/pdf",
+      txt: "text/plain",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+    }
+    const mime = mimeRaw || inferredFromExt[ext] || ""
+
     const buffer = Buffer.from(await file.arrayBuffer())
-    const timestamp = Date.now()
-    const random = Math.random().toString(36).substring(2, 15)
-    const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
-    const secureName = `${timestamp}-${random}-${sanitized}`
-
-    const uploadsDir = join(getUploadRoot(), "uploads", "team-documents")
-    await mkdir(uploadsDir, { recursive: true })
-    const filePath = join(uploadsDir, secureName)
-    await writeFile(filePath, buffer)
-    const fileUrl = `/api/uploads/team-documents/${secureName}`
-
     const supabase = getSupabaseServer()
+
+    const { data: teamRow } = await supabase.from("teams").select("id, program_id").eq("id", teamId).maybeSingle()
+    let programId: string | null = (teamRow as { program_id?: string } | null)?.program_id ?? null
+    let orgId: string | null = null
+    if (programId) {
+      const { data: pr } = await supabase
+        .from("programs")
+        .select("organization_id")
+        .eq("id", programId)
+        .maybeSingle()
+      orgId = (pr as { organization_id?: string } | null)?.organization_id ?? null
+    }
+
+    const docId = randomUUID()
+    const safeName = sanitizeTeamDocumentFileName(file.name)
+    const storagePath = buildTeamDocumentStoragePath({
+      orgId,
+      teamId,
+      documentId: docId,
+      safeFileName: safeName,
+    })
+
+    const contentType = mime || "application/octet-stream"
+    const up = await uploadTeamDocumentToStorage(supabase, storagePath, buffer, contentType)
+    if (up.error) {
+      return NextResponse.json({ error: `Storage upload failed: ${up.error}` }, { status: 500 })
+    }
+
     const { data: doc, error: insertErr } = await supabase
       .from("documents")
       .insert({
+        id: docId,
         team_id: teamId,
         title,
         file_name: file.name,
-        file_url: fileUrl,
+        file_url: null,
+        file_path: storagePath,
         file_size: file.size,
         mime_type: mime || null,
         category,
@@ -227,13 +264,14 @@ export async function POST(request: Request) {
         created_by: session.user.id,
       })
       .select(
-        "id, title, file_name, category, folder, visibility, scoped_unit, scoped_position_groups, assigned_player_ids, created_by, created_at, mime_type, public_share_token"
+        "id, title, file_name, category, folder, visibility, scoped_unit, scoped_position_groups, assigned_player_ids, created_by, created_at, mime_type, public_share_token, file_path"
       )
       .single()
 
     if (insertErr || !doc) {
+      await removeTeamDocumentFromStorage(supabase, storagePath).catch(() => undefined)
       console.error("[POST /api/documents] insert", insertErr?.message)
-      return NextResponse.json({ error: "Failed to save document" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to save document metadata after upload" }, { status: 500 })
     }
 
     if (isExtractableMime(mime)) {
@@ -262,6 +300,7 @@ export async function POST(request: Request) {
       createdAt: doc.created_at,
       mimeType: doc.mime_type ?? null,
       publicShareToken: doc.public_share_token ?? null,
+      storageBacked: Boolean((doc as { file_path?: string | null }).file_path),
       sharedWith: [] as Array<{ id: string; name: string | null; email: string }>,
       creator: creatorRow
         ? { name: creatorRow.name ?? null, email: creatorRow.email ?? "" }

@@ -13,6 +13,8 @@ export const DOCUMENT_TYPES = [
   "permission_slip",
   "medical_release",
   "media_consent",
+  "insurance",
+  "identification",
   "other",
 ] as const
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
@@ -24,6 +26,8 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   permission_slip: "Permission Slip",
   medical_release: "Medical Release",
   media_consent: "Media Consent",
+  insurance: "Insurance",
+  identification: "ID / Other",
   other: "Other",
 }
 

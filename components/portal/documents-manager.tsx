@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { format } from "date-fns"
 import { FileText, File, Lock, Users, User, Trash2, Plus, Share2, Copy } from "lucide-react"
+import { canManageTeam, type Role } from "@/lib/auth/roles"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import {
   Dialog,
@@ -30,6 +31,8 @@ interface Document {
   createdAt: Date
   mimeType?: string | null
   publicShareToken?: string | null
+  /** True when file bytes live in Supabase Storage (private bucket); legacy rows may be disk-only. */
+  storageBacked?: boolean
   sharedWith?: Array<{ id: string; name: string | null; email: string }>
   creator: { name: string | null; email: string }
   acknowledgements: Array<{ id: string }>
@@ -253,18 +256,14 @@ export function DocumentsManager({
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to upload document")
+        const error = await response.json().catch(() => ({}))
+        throw new Error((error as { error?: string }).error || "Failed to upload document")
       }
 
-      const newDocument = await response.json()
-      setDocuments([
-        {
-          ...newDocument,
-          createdAt: new Date(newDocument.createdAt),
-        },
-        ...documents,
-      ])
+      const refreshed = await refreshDocuments()
+      if (!refreshed) {
+        throw new Error("Upload saved but failed to refresh the document list. Try reloading the page.")
+      }
       setTitle("")
       setFolder("")
       setFile(null)
@@ -645,7 +644,7 @@ export function DocumentsManager({
             <DocumentCard
               key={doc.id}
               doc={doc}
-              canDelete={canUploadCoachCategories && userRole === "HEAD_COACH"}
+              canDelete={Boolean(userRole && canManageTeam(userRole as Role))}
               canShare={canUploadCoachCategories}
               onDelete={handleDelete}
               onClick={handleCardClick}

@@ -56,10 +56,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "You cannot upload documents for this player." }, { status: 403 })
     }
 
-    const check = assertMimeAndSize(file.type || null, file.size)
+    const check = assertMimeAndSize(file.type || null, file.size, file.name)
     if (!check.ok) {
       return NextResponse.json({ error: check.error }, { status: 400 })
     }
+    const effectiveMime = check.effectiveMime
 
     const { data: team } = await supabase
       .from("teams")
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
     })
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const up = await uploadPlayerDocumentToStorage(supabase, storagePath, buffer, file.type || "application/octet-stream")
+    const up = await uploadPlayerDocumentToStorage(supabase, storagePath, buffer, effectiveMime)
     if (up.error) {
       return NextResponse.json({ error: up.error }, { status: 500 })
     }
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
         file_url: null,
         file_size: file.size,
         file_size_bytes: file.size,
-        mime_type: file.type || null,
+        mime_type: effectiveMime,
         category: documentType,
         document_type: documentType,
         created_by: session.user.id,
@@ -151,9 +152,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to save document metadata" }, { status: 500 })
     }
 
-    if (isExtractableMime(file.type || null)) {
+    if (isExtractableMime(effectiveMime)) {
       try {
-        const result = await extractDocumentText(buffer, file.type || null, file.name)
+        const result = await extractDocumentText(buffer, effectiveMime, file.name)
         if ("text" in result && result.text) {
           await supabase.from("player_documents").update({ extracted_text: result.text }).eq("id", docId)
         }

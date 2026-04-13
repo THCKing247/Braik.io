@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { readTeamDocumentFromUrl } from "@/lib/documents/team-document-storage"
+import { loadTeamDocumentContent } from "@/lib/documents/team-document-storage"
 
 /**
  * GET /api/documents/public/[token]
@@ -19,7 +19,7 @@ export async function GET(
     const supabase = getSupabaseServer()
     const { data: doc, error } = await supabase
       .from("documents")
-      .select("id, file_url, file_name, mime_type, public_share_token")
+      .select("id, file_url, file_path, file_name, mime_type, public_share_token")
       .eq("public_share_token", token)
       .maybeSingle()
 
@@ -27,7 +27,7 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    const file = await readTeamDocumentFromUrl(doc.file_url, doc.mime_type)
+    const file = await loadTeamDocumentContent(supabase, doc)
     if (!file) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }

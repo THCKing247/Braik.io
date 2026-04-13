@@ -20,17 +20,38 @@ export function buildPlayerDocumentStoragePath(input: {
   return `orgs/${orgSeg}/teams/${input.teamId}/players/${input.playerId}/${input.documentType}/${input.documentId}-${input.safeFileName}`
 }
 
-export function assertMimeAndSize(mime: string | null, size: number): { ok: true } | { ok: false; error: string } {
+function inferMimeFromFileName(name: string): string | null {
+  const ext = name.split(".").pop()?.toLowerCase() ?? ""
+  const map: Record<string, string> = {
+    pdf: "application/pdf",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+    txt: "text/plain",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  }
+  return map[ext] ?? null
+}
+
+export function assertMimeAndSize(
+  mime: string | null,
+  size: number,
+  fileName?: string
+): { ok: true; effectiveMime: string } | { ok: false; error: string } {
   if (size > MAX_PLAYER_DOC_BYTES) {
     return { ok: false, error: `File size exceeds ${MAX_PLAYER_DOC_BYTES / (1024 * 1024)}MB limit` }
   }
-  if (mime && !(ALLOWED_PLAYER_DOC_MIME_TYPES as readonly string[]).includes(mime)) {
+  let effective = (mime && mime.trim() ? mime : null) || (fileName ? inferMimeFromFileName(fileName) : null)
+  if (!effective) {
+    return { ok: false, error: "Could not determine file type. Rename the file with an extension (e.g. .pdf) or try another browser." }
+  }
+  if (!(ALLOWED_PLAYER_DOC_MIME_TYPES as readonly string[]).includes(effective)) {
     return { ok: false, error: "File type not allowed. Use PDF, images, or Word documents." }
   }
-  if (!mime) {
-    return { ok: false, error: "File type is required" }
-  }
-  return { ok: true }
+  return { ok: true, effectiveMime: effective }
 }
 
 export async function uploadPlayerDocumentToStorage(

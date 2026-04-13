@@ -2264,6 +2264,7 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [docSearchQuery, setDocSearchQuery] = useState("")
   const [visibilityTogglingId, setVisibilityTogglingId] = useState<string | null>(null)
   const [consentChecked, setConsentChecked] = useState(false)
   const [includeExpired, setIncludeExpired] = useState(false)
@@ -2296,8 +2297,20 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
     loadDocs()
   }, [loadDocs])
 
-  const filteredDocs =
-    categoryFilter === "all" ? docs : docs.filter((d) => d.documentType === categoryFilter)
+  const filteredDocs = useMemo(() => {
+    const base = categoryFilter === "all" ? docs : docs.filter((d) => d.documentType === categoryFilter)
+    const q = docSearchQuery.trim().toLowerCase()
+    if (!q) return base
+    return base.filter((d) => {
+      const typeLabel = (DOCUMENT_TYPE_LABELS[d.documentType as DocumentType] ?? d.documentType).toLowerCase()
+      return (
+        d.title.toLowerCase().includes(q) ||
+        d.fileName.toLowerCase().includes(q) ||
+        typeLabel.includes(q) ||
+        (d.uploadedBy && d.uploadedBy.toLowerCase().includes(q))
+      )
+    })
+  }, [docs, categoryFilter, docSearchQuery])
 
   const openSigned = async (docId: string, intent: "view" | "download", fileName: string) => {
     setOpeningId(docId)
@@ -2427,10 +2440,22 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
         `/api/player-documents/${docId}?teamId=${encodeURIComponent(teamId)}&playerId=${encodeURIComponent(playerId)}`,
         { method: "DELETE" }
       )
-      if (!res.ok) throw new Error("Delete failed")
+      if (!res.ok) {
+        const text = await res.text()
+        let msg = "Delete failed"
+        if (text) {
+          try {
+            const j = JSON.parse(text) as { error?: string }
+            if (j.error) msg = j.error
+          } catch {
+            /* non-JSON error body */
+          }
+        }
+        throw new Error(msg)
+      }
       loadDocs()
-    } catch {
-      setUploadError("Failed to delete")
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Failed to delete")
     } finally {
       setDeleteId(null)
     }
@@ -2549,9 +2574,25 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
         </div>
       )}
 
+      {docs.length > 0 && (
+        <div className="hidden lg:block">
+          <PortalUnderlineTabs
+            emphasized
+            tabs={DOC_FILTER_OPTIONS.map((c) => ({
+              id: c,
+              label: c === "all" ? "All" : DOCUMENT_TYPE_LABELS[c as DocumentType],
+            }))}
+            value={categoryFilter}
+            onValueChange={setCategoryFilter}
+            ariaLabel="Filter by document type"
+            className="mb-1"
+          />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         {docs.length > 0 && (
-          <>
+          <div className="flex flex-wrap items-center gap-2 lg:hidden">
             <Label className="text-[#64748B] text-sm">Type</Label>
             <select
               value={categoryFilter}
@@ -2564,7 +2605,20 @@ function DocumentsTab({ playerId, teamId }: { playerId: string; teamId: string }
                 </option>
               ))}
             </select>
-          </>
+          </div>
+        )}
+        {docs.length > 0 && (
+          <div className="flex min-w-[180px] max-w-xs flex-1 flex-col gap-1 sm:max-w-sm">
+            <Label className="text-[#64748B] text-xs sr-only">Search</Label>
+            <Input
+              type="search"
+              placeholder="Search by title, file, type, uploader…"
+              value={docSearchQuery}
+              onChange={(e) => setDocSearchQuery(e.target.value)}
+              className="h-9 text-sm"
+              aria-label="Search documents"
+            />
+          </div>
         )}
         <label className="flex items-center gap-2 text-sm text-[#64748B]">
           <input

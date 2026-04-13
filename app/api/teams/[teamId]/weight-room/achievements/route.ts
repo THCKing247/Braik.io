@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { requireTeamAccess } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { getThreeLiftTotal } from "@/lib/weight-room-server"
+import { getHeadCoachUserIds, getThreeLiftBreakdown, getThreeLiftTotal } from "@/lib/weight-room-server"
 
 /**
  * GET — 1000 lb club members + recent PR flags (maxes where weight > prior best for that lift)
@@ -21,20 +21,48 @@ export async function GET(
     }
 
     const supabase = getSupabaseServer()
+
+    const { data: teamRow } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle()
+    const teamName = (teamRow as { name?: string | null } | null)?.name?.trim() ?? ""
+
+    const headIds = await getHeadCoachUserIds(supabase, teamId)
+    let headCoachName = ""
+    if (headIds[0]) {
+      const { data: u } = await supabase.from("users").select("name").eq("id", headIds[0]).maybeSingle()
+      headCoachName = String((u as { name?: string | null } | null)?.name ?? "").trim()
+    }
+
     const { data: players } = await supabase
       .from("players")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, jersey_number, position_group")
       .eq("team_id", teamId)
       .neq("status", "inactive")
 
-    const club: { playerId: string; name: string; combinedThree: number }[] = []
+    const club: {
+      playerId: string
+      name: string
+      jerseyNumber: number | null
+      positionGroup: string | null
+      benchLbs: number
+      squatLbs: number
+      cleanLbs: number
+      combinedThree: number
+      dateAchieved: string
+    }[] = []
     for (const p of players ?? []) {
       const t = await getThreeLiftTotal(supabase, teamId, p.id)
       if (t >= 1000) {
+        const bd = await getThreeLiftBreakdown(supabase, teamId, p.id)
         club.push({
           playerId: p.id,
           name: `${p.first_name} ${p.last_name}`.trim(),
+          jerseyNumber: (p as { jersey_number?: number | null }).jersey_number ?? null,
+          positionGroup: (p as { position_group?: string | null }).position_group ?? null,
+          benchLbs: bd.bench,
+          squatLbs: bd.squat,
+          cleanLbs: bd.clean,
           combinedThree: t,
+          dateAchieved: bd.dateAchieved,
         })
       }
     }
@@ -71,7 +99,12 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ thousandLbClub: club, recentPRs: prFlags.slice(0, 30) })
+    return NextResponse.json({
+      thousandLbClub: club,
+      recentPRs: prFlags.slice(0, 30),
+      teamName,
+      headCoachName,
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error"
     if (msg.includes("Access denied")) return NextResponse.json({ error: msg }, { status: 403 })

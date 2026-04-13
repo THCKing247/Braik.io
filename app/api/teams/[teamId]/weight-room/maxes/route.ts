@@ -6,6 +6,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import {
   syncPlayerMaxColumnsToProfile,
   getThreeLiftTotal,
+  getThreeLiftBreakdown,
   getHeadCoachUserIds,
 } from "@/lib/weight-room-server"
 import { createNotifications } from "@/lib/utils/notifications"
@@ -133,7 +134,9 @@ export async function POST(
     await syncPlayerMaxColumnsToProfile(supabase, teamId, body.playerId)
 
     const newTotal = await getThreeLiftTotal(supabase, teamId, body.playerId)
-    if (prevTotal < 1000 && newTotal >= 1000) {
+    const breakdown = await getThreeLiftBreakdown(supabase, teamId, body.playerId)
+    const crossedThousand = prevTotal < 1000 && newTotal >= 1000
+    if (crossedThousand) {
       const heads = await getHeadCoachUserIds(supabase, teamId)
       if (heads.length > 0) {
         await createNotifications({
@@ -148,7 +151,17 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ max: inserted })
+    return NextResponse.json({
+      max: inserted,
+      threeLiftTotal: newTotal,
+      crossedThousand,
+      threeLiftBreakdown: {
+        benchLbs: breakdown.bench,
+        squatLbs: breakdown.squat,
+        cleanLbs: breakdown.clean,
+        dateAchieved: breakdown.dateAchieved,
+      },
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error"
     if (msg.includes("Access denied")) return NextResponse.json({ error: msg }, { status: 403 })

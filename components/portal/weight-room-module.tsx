@@ -20,7 +20,13 @@ import {
   Pencil,
   Trash2,
   Trophy,
+  Upload,
 } from "lucide-react"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
+import {
+  ThousandLbCertificateDialog,
+  type ThousandLbCertificateData,
+} from "@/components/portal/weight-room-thousand-lb-certificate"
 
 type TabId = "schedule" | "maxes" | "leaderboard" | "achievements"
 
@@ -60,15 +66,19 @@ interface LitePlayer {
   firstName: string
   lastName: string
   position_group: string | null
+  jerseyNumber: number | null
 }
 
 export function WeightRoomModule({ teamId }: { teamId: string }) {
+  const { showToast } = usePlaybookToast()
   const [tab, setTab] = useState<TabId>("schedule")
   const [sessions, setSessions] = useState<WorkoutSessionRow[]>([])
   const [maxes, setMaxes] = useState<PlayerMaxRow[]>([])
   const [roster, setRoster] = useState<LitePlayer[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  const [certOpen, setCertOpen] = useState(false)
+  const [certData, setCertData] = useState<ThousandLbCertificateData | null>(null)
 
   const base = `/api/teams/${encodeURIComponent(teamId)}/weight-room`
 
@@ -92,12 +102,21 @@ export function WeightRoomModule({ teamId }: { teamId: string }) {
     const data = await res.json()
     const players = Array.isArray(data) ? data : []
     setRoster(
-      players.map((p: { id: string; firstName?: string; lastName?: string; positionGroup?: string | null }) => ({
-        id: p.id,
-        firstName: p.firstName ?? "",
-        lastName: p.lastName ?? "",
-        position_group: p.positionGroup ?? null,
-      }))
+      players.map(
+        (p: {
+          id: string
+          firstName?: string
+          lastName?: string
+          positionGroup?: string | null
+          jerseyNumber?: number | null
+        }) => ({
+          id: p.id,
+          firstName: p.firstName ?? "",
+          lastName: p.lastName ?? "",
+          position_group: p.positionGroup ?? null,
+          jerseyNumber: p.jerseyNumber ?? null,
+        })
+      )
     )
   }, [teamId])
 
@@ -183,12 +202,56 @@ export function WeightRoomModule({ teamId }: { teamId: string }) {
               roster={roster}
               positionOptions={positionOptions}
               onRefresh={loadMaxes}
+              showToast={showToast}
+              onMaxCrossedThousand={async (detail) => {
+                const k = `braik-1000lb-cert-${teamId}-${detail.playerId}`
+                if (typeof localStorage !== "undefined" && localStorage.getItem(k)) return
+                const pl = roster.find((p) => p.id === detail.playerId)
+                let teamName = ""
+                let headCoachName = ""
+                const ar = await fetch(`${base}/achievements`)
+                if (ar.ok) {
+                  const aj = (await ar.json()) as { teamName?: string; headCoachName?: string }
+                  teamName = aj.teamName ?? ""
+                  headCoachName = aj.headCoachName ?? ""
+                }
+                if (typeof localStorage !== "undefined") localStorage.setItem(k, "1")
+                setCertData({
+                  playerName: pl ? `${pl.firstName} ${pl.lastName}`.trim() : "Player",
+                  jerseyNumber: pl?.jerseyNumber ?? null,
+                  position: pl?.position_group ?? null,
+                  benchLbs: detail.breakdown.benchLbs,
+                  squatLbs: detail.breakdown.squatLbs,
+                  cleanLbs: detail.breakdown.cleanLbs,
+                  combinedThree: detail.threeLiftTotal,
+                  dateAchieved: detail.breakdown.dateAchieved,
+                  teamName,
+                  headCoachName,
+                })
+                setCertOpen(true)
+              }}
             />
           )}
           {tab === "leaderboard" && <LeaderboardTab base={base} positionOptions={positionOptions} />}
-          {tab === "achievements" && <AchievementsTab base={base} />}
+          {tab === "achievements" && (
+            <AchievementsTab
+              base={base}
+              onOpenCertificate={(d) => {
+                setCertData(d)
+                setCertOpen(true)
+              }}
+            />
+          )}
         </>
       )}
+      <ThousandLbCertificateDialog
+        open={certOpen}
+        onOpenChange={(o) => {
+          setCertOpen(o)
+          if (!o) setCertData(null)
+        }}
+        data={certData}
+      />
     </div>
   )
 }
@@ -555,23 +618,454 @@ function SessionDialog({
   )
 }
 
+type MaxImportPreviewRow = {
+  lineIndex: number
+  jerseyRaw: string
+  csvName: string
+  status: "matched" | "unmatched" | "invalid"
+  player?: LitePlayer
+  bench?: number
+  squat?: number
+  clean?: number
+  deadlift?: number
+  loggedDate: string
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ""
+  let i = 0
+  let inQuotes = false
+  const pushField = () => {
+    row.push(field)
+    field = ""
+  }
+  const pushRow = () => {
+    rows.push(row)
+    row = []
+  }
+  while (i < text.length) {
+    const c = text[i]
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') {
+        field += '"'
+        i += 2
+        continue
+      }
+      if (c === '"') {
+        inQuotes = false
+        i++
+        continue
+      }
+      field += c
+      i++
+      continue
+    }
+    if (c === '"') {
+      inQuotes = true
+      i++
+      continue
+    }
+    if (c === ",") {
+      pushField()
+      i++
+      continue
+    }
+    if (c === "\n") {
+      pushField()
+      pushRow()
+      i++
+      continue
+    }
+    if (c === "\r") {
+      i++
+      continue
+    }
+    field += c
+    i++
+  }
+  pushField()
+  if (row.length) pushRow()
+  return rows
+}
+
+function parseWeightCell(s: string): number | null {
+  const t = s.trim()
+  if (!t) return null
+  const n = Number(t)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.round(n)
+}
+
+function ImportMaxesCsvDialog({
+  open,
+  onClose,
+  base,
+  roster,
+  showToast,
+  onImported,
+}: {
+  open: boolean
+  onClose: () => void
+  base: string
+  roster: LitePlayer[]
+  showToast: (message: string, variant?: "success" | "error") => void
+  onImported: () => Promise<void>
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [fileLabel, setFileLabel] = useState("")
+  const [rawText, setRawText] = useState("")
+  const [preview, setPreview] = useState<MaxImportPreviewRow[]>([])
+  const [importing, setImporting] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setStep(1)
+    setFileLabel("")
+    setRawText("")
+    setPreview([])
+  }, [open])
+
+  const defaultDate = () => format(new Date(), "yyyy-MM-dd")
+
+  const downloadTemplate = () => {
+    const template =
+      "jersey_number,player_name,bench_lbs,squat_lbs,clean_lbs,deadlift_lbs,date_logged\n14,Example Player,225,315,185,275,2026-04-12"
+    const blob = new Blob([template], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "player-maxes-template.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const findByJersey = (jersey: number): LitePlayer | undefined =>
+    roster.find((p) => p.jerseyNumber != null && Number(p.jerseyNumber) === jersey)
+
+  const buildPreview = (text: string) => {
+    const rows = parseCsv(text)
+    if (rows.length < 2) {
+      setPreview([])
+      return
+    }
+    const header = rows[0].map((h) => h.trim().toLowerCase())
+    const idx = (name: string) => header.indexOf(name)
+    const ji = idx("jersey_number")
+    const out: MaxImportPreviewRow[] = []
+    for (let r = 1; r < rows.length; r++) {
+      const cells = rows[r]
+      const lineIndex = r + 1
+      const jerseyRaw = ji >= 0 && cells[ji] != null ? String(cells[ji]) : ""
+      const jn = Number(String(jerseyRaw).trim())
+      const nameCol = idx("player_name") >= 0 ? String(cells[idx("player_name")] ?? "") : ""
+      const bench = idx("bench_lbs") >= 0 ? parseWeightCell(String(cells[idx("bench_lbs")] ?? "")) : null
+      const squat = idx("squat_lbs") >= 0 ? parseWeightCell(String(cells[idx("squat_lbs")] ?? "")) : null
+      const clean = idx("clean_lbs") >= 0 ? parseWeightCell(String(cells[idx("clean_lbs")] ?? "")) : null
+      const deadlift = idx("deadlift_lbs") >= 0 ? parseWeightCell(String(cells[idx("deadlift_lbs")] ?? "")) : null
+      let loggedDate = defaultDate()
+      const di = idx("date_logged")
+      if (di >= 0 && String(cells[di] ?? "").trim()) {
+        const d = String(cells[di]).trim().slice(0, 10)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) loggedDate = d
+      }
+
+      if (!Number.isFinite(jn) || !Number.isInteger(jn) || jn < 0 || jn > 99) {
+        out.push({
+          lineIndex,
+          jerseyRaw,
+          csvName: nameCol,
+          status: "invalid",
+          loggedDate,
+        })
+        continue
+      }
+
+      const player = findByJersey(jn)
+      if (!player) {
+        out.push({
+          lineIndex,
+          jerseyRaw,
+          csvName: nameCol,
+          status: "unmatched",
+          loggedDate,
+        })
+        continue
+      }
+
+      if (bench == null || squat == null || clean == null || deadlift == null) {
+        out.push({
+          lineIndex,
+          jerseyRaw,
+          csvName: nameCol,
+          status: "invalid",
+          player,
+          loggedDate,
+        })
+        continue
+      }
+
+      out.push({
+        lineIndex,
+        jerseyRaw,
+        csvName: nameCol,
+        status: "matched",
+        player,
+        bench,
+        squat,
+        clean,
+        deadlift,
+        loggedDate,
+      })
+    }
+    setPreview(out)
+  }
+
+  const matchedRows = preview.filter((p) => p.status === "matched")
+  const readyCount = matchedRows.length
+  const skipCount = preview.length - readyCount
+
+  const runImport = async () => {
+    setImporting(true)
+    try {
+      const lifts = ["BENCH", "SQUAT", "CLEAN", "DEADLIFT"] as const
+      const tasks: { label: string; promise: Promise<Response> }[] = []
+      for (const row of matchedRows) {
+        if (!row.player || row.bench == null || row.squat == null || row.clean == null || row.deadlift == null)
+          continue
+        const pl = row.player
+        const weights = [row.bench, row.squat, row.clean, row.deadlift]
+        weights.forEach((w, i) => {
+          tasks.push({
+            label: `CSV row ${row.lineIndex} (${lifts[i]})`,
+            promise: fetch(`${base}/maxes`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                playerId: pl.id,
+                liftType: lifts[i],
+                weightLbs: w,
+                loggedDate: row.loggedDate,
+                notes: null,
+              }),
+            }),
+          })
+        })
+      }
+      const settled = await Promise.all(
+        tasks.map(async (t) => {
+          const res = await t.promise
+          return { label: t.label, ok: res.ok }
+        })
+      )
+      const failed = settled.filter((s) => !s.ok)
+      const okCount = settled.filter((s) => s.ok).length
+      if (okCount > 0) {
+        showToast(`${okCount} maxes imported successfully`, "success")
+        await onImported()
+      }
+      if (failed.length > 0) {
+        const sample = failed
+          .slice(0, 8)
+          .map((f) => f.label)
+          .join("; ")
+        showToast(
+          `Some imports failed (${failed.length}): ${sample}${failed.length > 8 ? "…" : ""}`,
+          "error"
+        )
+      } else if (settled.length === 0 && matchedRows.length === 0) {
+        showToast("No rows to import.", "error")
+      }
+      if (okCount > 0) {
+        onClose()
+      }
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
+      <DialogContent className="max-h-[90vh] overflow-y-auto bg-white sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Import maxes from CSV</DialogTitle>
+        </DialogHeader>
+
+        {step === 1 && (
+          <div className="space-y-4">
+            <p className="text-sm text-[#64748B]">
+              Match players by jersey number. Player name is for reference only.
+            </p>
+            <div>
+              <Label>CSV file</Label>
+              <Input
+                className="mt-1"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (!f) return
+                  setFileLabel(f.name)
+                  const reader = new FileReader()
+                  reader.onload = () => {
+                    const text = String(reader.result ?? "")
+                    setRawText(text)
+                  }
+                  reader.readAsText(f)
+                }}
+              />
+              {fileLabel ? <p className="mt-1 text-xs text-[#64748B]">Selected: {fileLabel}</p> : null}
+            </div>
+            <button
+              type="button"
+              className="text-sm font-medium text-[#2563EB] underline"
+              onClick={downloadTemplate}
+            >
+              Download sample CSV template
+            </button>
+            <p className="text-xs text-[#64748B]">
+              <code className="rounded bg-[#F1F5F9] px-1">date_logged</code> is optional — defaults to today if
+              blank.
+            </p>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-[#0F172A]">
+              {readyCount} rows ready to import, {skipCount} rows will be skipped
+            </p>
+            <div className="max-h-[50vh] overflow-auto rounded-lg border border-[#E5E7EB]">
+              <table className="w-full min-w-[560px] text-left text-xs">
+                <thead className="bg-[#F8FAFC] text-[10px] font-semibold uppercase text-[#64748B]">
+                  <tr>
+                    <th className="px-2 py-2">Row</th>
+                    <th className="px-2 py-2">Jersey</th>
+                    <th className="px-2 py-2">CSV name</th>
+                    <th className="px-2 py-2">Match</th>
+                    <th className="px-2 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row) => {
+                    let bg = "bg-white"
+                    let statusLabel = ""
+                    if (row.status === "matched") {
+                      bg = "bg-green-50"
+                      statusLabel = "Matched"
+                    } else if (row.status === "unmatched") {
+                      bg = "bg-amber-50"
+                      statusLabel = "Unmatched jersey"
+                    } else {
+                      bg = "bg-red-50"
+                      statusLabel = row.player ? "Invalid lifts" : "Invalid jersey / lifts"
+                    }
+                    return (
+                      <tr key={row.lineIndex} className={`border-t border-[#E5E7EB] ${bg}`}>
+                        <td className="px-2 py-1.5 tabular-nums">{row.lineIndex}</td>
+                        <td className="px-2 py-1.5">{row.jerseyRaw}</td>
+                        <td className="px-2 py-1.5">{row.csvName}</td>
+                        <td className="px-2 py-1.5">
+                          {row.player ? `${row.player.lastName}, ${row.player.firstName}` : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 font-medium">{statusLabel}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-2 text-sm text-[#0F172A]">
+            <p>
+              You are about to import <strong>{readyCount}</strong> row{readyCount === 1 ? "" : "s"} (
+              {readyCount * 4} max entries).
+            </p>
+            <p className="text-[#64748B]">Each row posts four lifts (bench, squat, clean, deadlift) in parallel.</p>
+          </div>
+        )}
+
+        <DialogFooter className="flex flex-wrap gap-2 sm:justify-between">
+          <div className="flex gap-2">
+            {step > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={importing}
+                onClick={() => setStep((s) => (s === 3 ? 2 : 1) as 1 | 2 | 3)}
+              >
+                Back
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" disabled={importing} onClick={onClose}>
+              Cancel
+            </Button>
+            {step === 1 && (
+              <Button
+                type="button"
+                disabled={!rawText.trim()}
+                onClick={() => {
+                  buildPreview(rawText)
+                  setStep(2)
+                }}
+              >
+                Next
+              </Button>
+            )}
+            {step === 2 && (
+              <Button type="button" disabled={readyCount === 0} onClick={() => setStep(3)}>
+                Next
+              </Button>
+            )}
+            {step === 3 && (
+              <Button type="button" disabled={importing || readyCount === 0} onClick={runImport}>
+                {importing ? "Importing…" : "Confirm import"}
+              </Button>
+            )}
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function MaxesTab({
   base,
   maxes,
   roster,
   positionOptions,
   onRefresh,
+  showToast,
+  onMaxCrossedThousand,
 }: {
   base: string
   maxes: PlayerMaxRow[]
   roster: LitePlayer[]
   positionOptions: string[]
   onRefresh: () => Promise<void>
+  showToast: (message: string, variant?: "success" | "error") => void
+  onMaxCrossedThousand?: (detail: {
+    playerId: string
+    threeLiftTotal: number
+    breakdown: { benchLbs: number; squatLbs: number; cleanLbs: number; dateAchieved: string }
+  }) => void | Promise<void>
 }) {
   const [liftFilter, setLiftFilter] = useState<string>("ALL")
   const [posFilter, setPosFilter] = useState<string>("ALL")
   const [openId, setOpenId] = useState<string | null>(null)
   const [logOpen, setLogOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   const byPlayer = useMemo(() => {
     const m = new Map<string, PlayerMaxRow[]>()
@@ -631,6 +1125,10 @@ function MaxesTab({
         <Button type="button" size="sm" className="rounded-lg" onClick={() => setLogOpen(true)}>
           <Plus className="mr-1 h-4 w-4" />
           Log Max
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => setImportOpen(true)}>
+          <Upload className="mr-1 h-4 w-4" />
+          Import CSV
         </Button>
       </div>
 
@@ -712,10 +1210,25 @@ function MaxesTab({
         onClose={() => setLogOpen(false)}
         base={base}
         roster={roster}
-        onSaved={async () => {
+        onSaved={async (detail) => {
           setLogOpen(false)
           await onRefresh()
+          if (detail?.crossedThousand && detail.playerId && onMaxCrossedThousand) {
+            await onMaxCrossedThousand({
+              playerId: detail.playerId,
+              threeLiftTotal: detail.threeLiftTotal,
+              breakdown: detail.breakdown,
+            })
+          }
         }}
+      />
+      <ImportMaxesCsvDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        base={base}
+        roster={roster}
+        showToast={showToast}
+        onImported={onRefresh}
       />
     </div>
   )
@@ -732,7 +1245,14 @@ function LogMaxDialog({
   onClose: () => void
   base: string
   roster: LitePlayer[]
-  onSaved: () => Promise<void>
+  onSaved: (
+    detail?: {
+      crossedThousand: boolean
+      playerId: string
+      threeLiftTotal: number
+      breakdown: { benchLbs: number; squatLbs: number; cleanLbs: number; dateAchieved: string }
+    } | null
+  ) => Promise<void>
 }) {
   const [playerId, setPlayerId] = useState("")
   const [lift, setLift] = useState<string>("BENCH")
@@ -759,7 +1279,27 @@ function LogMaxDialog({
         alert((e as { error?: string }).error ?? "Failed")
         return
       }
-      await onSaved()
+      const json = (await res.json()) as {
+        crossedThousand?: boolean
+        threeLiftTotal?: number
+        threeLiftBreakdown?: {
+          benchLbs: number
+          squatLbs: number
+          cleanLbs: number
+          dateAchieved: string
+        }
+      }
+      await onSaved({
+        crossedThousand: Boolean(json.crossedThousand),
+        playerId,
+        threeLiftTotal: Number(json.threeLiftTotal ?? 0),
+        breakdown: {
+          benchLbs: Number(json.threeLiftBreakdown?.benchLbs ?? 0),
+          squatLbs: Number(json.threeLiftBreakdown?.squatLbs ?? 0),
+          cleanLbs: Number(json.threeLiftBreakdown?.cleanLbs ?? 0),
+          dateAchieved: String(json.threeLiftBreakdown?.dateAchieved ?? "").slice(0, 10) || format(new Date(), "yyyy-MM-dd"),
+        },
+      })
     } finally {
       setSaving(false)
     }
@@ -918,41 +1458,98 @@ function LeaderboardTab({
   )
 }
 
-function AchievementsTab({ base }: { base: string }) {
-  const [data, setData] = useState<{ thousandLbClub: { name: string; combinedThree: number }[]; recentPRs: unknown[] } | null>(
-    null
-  )
+function AchievementsTab({
+  base,
+  onOpenCertificate,
+}: {
+  base: string
+  onOpenCertificate: (data: ThousandLbCertificateData) => void
+}) {
+  const [data, setData] = useState<{
+    thousandLbClub: {
+      playerId: string
+      name: string
+      jerseyNumber: number | null
+      positionGroup: string | null
+      benchLbs: number
+      squatLbs: number
+      cleanLbs: number
+      combinedThree: number
+      dateAchieved: string
+    }[]
+    recentPRs: unknown[]
+    teamName?: string
+    headCoachName?: string
+  } | null>(null)
+
   useEffect(() => {
     fetch(`${base}/achievements`)
       .then((r) => (r.ok ? r.json() : null))
       .then(setData)
   }, [base])
 
+  const club = data?.thousandLbClub ?? []
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card className="border-[#E5E7EB]">
         <CardContent className="p-4">
-          <h3 className="mb-2 font-semibold text-[#0F172A]">1000 lb Club (Bench + Squat + Clean)</h3>
-          <ul className="space-y-1 text-sm">
-            {(data?.thousandLbClub ?? []).map((p) => (
-              <li key={p.name} className="flex justify-between gap-2">
-                <span>{p.name}</span>
-                <span className="tabular-nums text-[#64748B]">{p.combinedThree} lbs</span>
-              </li>
+          <h3 className="mb-3 font-semibold text-[#0F172A]">1000 lb Club (Bench + Squat + Clean)</h3>
+          <div className="space-y-3">
+            {club.map((p) => (
+              <div
+                key={p.playerId}
+                className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-[#0F172A]">{p.name}</p>
+                    <p className="text-xs text-[#64748B]">
+                      Bench {p.benchLbs} · Squat {p.squatLbs} · Clean {p.cleanLbs} · Total{" "}
+                      <span className="font-medium text-[#0F172A]">{p.combinedThree}</span> lbs
+                    </p>
+                  </div>
+                  {p.combinedThree >= 1000 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 rounded-lg"
+                      onClick={() =>
+                        onOpenCertificate({
+                          playerName: p.name,
+                          jerseyNumber: p.jerseyNumber,
+                          position: p.positionGroup,
+                          benchLbs: p.benchLbs,
+                          squatLbs: p.squatLbs,
+                          cleanLbs: p.cleanLbs,
+                          combinedThree: p.combinedThree,
+                          dateAchieved: p.dateAchieved,
+                          teamName: data?.teamName ?? "",
+                          headCoachName: data?.headCoachName ?? "",
+                        })
+                      }
+                    >
+                      <Trophy className="mr-1 h-4 w-4 text-amber-500" />
+                      Generate Certificate
+                    </Button>
+                  )}
+                </div>
+              </div>
             ))}
-            {(data?.thousandLbClub ?? []).length === 0 && (
-              <li className="text-[#64748B]">No players at 1,000+ lbs combined yet.</li>
+            {club.length === 0 && (
+              <p className="text-sm text-[#64748B]">No players at 1,000+ lbs combined yet.</p>
             )}
-          </ul>
+          </div>
         </CardContent>
       </Card>
       <Card className="border-[#E5E7EB]">
         <CardContent className="p-4">
           <h3 className="mb-2 font-semibold text-[#0F172A]">Recent PRs</h3>
           <ul className="space-y-1 text-xs text-[#64748B]">
-            {(data?.recentPRs as { liftType: string; weightLbs: number }[] | undefined)?.slice(0, 12).map((p, i) => (
+            {(data?.recentPRs as { liftType: string; weightLbs: number }[] | undefined)?.slice(0, 12).map((pr, i) => (
               <li key={i}>
-                {p.liftType} — {p.weightLbs} lbs
+                {pr.liftType} — {pr.weightLbs} lbs
               </li>
             ))}
           </ul>

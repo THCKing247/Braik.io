@@ -86,6 +86,52 @@ export async function getThreeLiftTotal(
   return sum
 }
 
+/** Latest bench / squat / clean weights and combined total (same basis as 1000 lb club). */
+export async function getThreeLiftBreakdown(
+  supabase: SupabaseClient,
+  teamId: string,
+  playerId: string
+): Promise<{
+  bench: number
+  squat: number
+  clean: number
+  total: number
+  /** Latest logged_date among the three current PR rows (ISO date). */
+  dateAchieved: string
+}> {
+  const lifts = ["BENCH", "SQUAT", "CLEAN"] as const
+  const weights: [number, number, number] = [0, 0, 0]
+  const dates: string[] = []
+  for (let i = 0; i < lifts.length; i++) {
+    const lift = lifts[i]
+    const { data: row } = await supabase
+      .from("player_maxes")
+      .select("weight_lbs, logged_date")
+      .eq("team_id", teamId)
+      .eq("player_id", playerId)
+      .eq("lift_type", lift)
+      .order("logged_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    weights[i] = row?.weight_lbs ?? 0
+    const d = row?.logged_date
+    if (d && String(d).trim()) dates.push(String(d).slice(0, 10))
+  }
+  const total = weights[0] + weights[1] + weights[2]
+  let dateAchieved = new Date().toISOString().slice(0, 10)
+  if (dates.length > 0) {
+    dateAchieved = dates.reduce((a, b) => (a >= b ? a : b))
+  }
+  return {
+    bench: weights[0],
+    squat: weights[1],
+    clean: weights[2],
+    total,
+    dateAchieved,
+  }
+}
+
 export async function getHeadCoachUserIds(supabase: SupabaseClient, teamId: string): Promise<string[]> {
   const { data } = await supabase
     .from("team_members")

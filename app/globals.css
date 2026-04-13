@@ -381,3 +381,23 @@
     @apply min-h-[110px] py-3;
   }
 }
+
+/* Weight room — 1000 lb Club certificate: print only the certificate (see .certificate-print-target) */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .certificate-print-target,
+  .certificate-print-target * {
+    visibility: visible;
+  }
+  .certificate-print-target {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

@@ -2,8 +2,25 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { CalendarWidgetEnhanced } from "./calendar-widget-enhanced"
-import { CreateEventOverlay, type CreateEventCreatedPayload } from "./create-event-overlay"
-import type { CalendarFetchView } from "@/lib/calendar/calendar-events-client"
+import {
+  CreateEventOverlay,
+  type CreateEventCreatedPayload,
+  type CreateEventEditingValues,
+} from "./create-event-overlay"
+import {
+  dispatchCalendarEventsChanged,
+  type CalendarFetchView,
+} from "@/lib/calendar/calendar-events-client"
+import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { usePlaybookToast } from "@/components/portal/playbook-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 interface Event {
   id: string
@@ -31,6 +48,8 @@ interface Event {
   }>
   linkedFollowUpId?: string | null
   followUpPlayerId?: string | null
+  linkedGameId?: string | null
+  linkedInjuryId?: string | null
 }
 
 export interface CalendarManagerProps {
@@ -46,6 +65,27 @@ export interface CalendarManagerProps {
   onEventWrite?: () => void
 }
 
+function dbEventTypeToForm(t: string): CreateEventEditingValues["type"] {
+  const u = (t || "").toUpperCase()
+  if (u === "PRACTICE") return "practice"
+  if (u === "GAME") return "game"
+  if (u === "MEETING") return "meeting"
+  return "other"
+}
+
+function eventToEditingValues(e: Event): CreateEventEditingValues {
+  return {
+    id: e.id,
+    type: dbEventTypeToForm(e.type),
+    title: e.title,
+    start: e.start,
+    end: e.end,
+    location: e.location,
+    notes: e.notes,
+    audience: e.audience,
+  }
+}
+
 export function CalendarManager({
   teamId,
   events: initialEvents,
@@ -55,15 +95,27 @@ export function CalendarManager({
   onVisibleRangeChange,
   onEventWrite,
 }: CalendarManagerProps) {
+  const { showToast } = usePlaybookToast()
   const [events, setEvents] = useState(initialEvents)
   const [createOpen, setCreateOpen] = useState(false)
   const [createKey, setCreateKey] = useState(0)
   const [createRange, setCreateRange] = useState<{ start: Date; end: Date } | null>(null)
+  const [editEvent, setEditEvent] = useState<Event | null>(null)
+  const [editKey, setEditKey] = useState(0)
+  const [deleteTarget, setDeleteTarget] = useState<Event | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const openCreateModal = useCallback((opts?: { start: Date; end: Date }) => {
+    setEditEvent(null)
     setCreateRange(opts ?? null)
     setCreateKey((k) => k + 1)
     setCreateOpen(true)
+  }, [])
+
+  const openEditModal = useCallback((e: Event) => {
+    setCreateOpen(false)
+    setEditEvent(e)
+    setEditKey((k) => k + 1)
   }, [])
 
   useEffect(() => {
@@ -105,6 +157,67 @@ export function CalendarManager({
     setEvents((prev) => prev.filter((e) => e.id !== tempId))
   }, [])
 
+  const handleUpdated = useCallback(
+    (payload: CreateEventCreatedPayload) => {
+      setEvents((prev) =>
+        prev.map((row) =>
+          row.id === payload.id
+            ? {
+                ...row,
+                type: payload.type,
+                title: payload.title,
+                start: new Date(payload.start),
+                end: new Date(payload.end),
+                location: payload.location,
+                notes: payload.notes,
+                audience: payload.audience,
+              }
+            : row
+        )
+      )
+      onEventWrite?.()
+      dispatchCalendarEventsChanged(teamId)
+      showToast("Event updated.", "success")
+    },
+    [onEventWrite, teamId, showToast]
+  )
+
+  const confirmDeleteEvent = useCallback(async () => {
+    if (!deleteTarget || !teamId) return
+    setDeleteLoading(true)
+    try {
+      const res = await fetchWithTimeout(
+        `/api/teams/${encodeURIComponent(teamId)}/calendar/events/${encodeURIComponent(deleteTarget.id)}`,
+        { method: "DELETE" }
+      )
+      const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } }
+      if (!res.ok) {
+        const code = body.error?.code ?? ""
+        let msg = body.error?.message ?? "Could not delete this event."
+        if (code === "PERMISSION_DENIED") {
+          msg = "You don't have permission to delete events for this team."
+        } else if (code === "EVENT_LINKED_TO_GAME") {
+          msg = "This event is tied to a game. Remove or change it from Schedule / Games."
+        } else if (code === "EVENT_LINKED_TO_FOLLOW_UP") {
+          msg = "This event is linked to a follow-up and can't be deleted from the calendar."
+        } else if (code === "EVENT_LINKED_TO_INJURY") {
+          msg = "This event is linked to an injury record and can't be deleted here."
+        }
+        showToast(msg, "error")
+        return
+      }
+      setEvents((prev) => prev.filter((e) => e.id !== deleteTarget.id))
+      onEventWrite?.()
+      dispatchCalendarEventsChanged(teamId)
+      showToast("Event deleted.", "success")
+      setDeleteTarget(null)
+    } catch {
+      showToast("Could not delete this event.", "error")
+    } finally {
+      setDeleteLoading(false)
+    }
+  }, [deleteTarget, teamId, onEventWrite, showToast])
+
   const handleCreated = useCallback(
     (payload: CreateEventCreatedPayload) => {
       setEvents((prev) => {
@@ -145,8 +258,9 @@ export function CalendarManager({
         ]
       })
       onEventWrite?.()
+      dispatchCalendarEventsChanged(teamId)
     },
-    [onEventWrite]
+    [onEventWrite, teamId]
   )
 
   const calendarEvents = events.map((event) => ({
@@ -158,22 +272,33 @@ export function CalendarManager({
     location: event.location || undefined,
     highlight: false,
     description: event.notes ?? null,
+    audience: event.audience,
     creator: event.creator,
     linkedDocuments: event.linkedDocuments,
     linkedFollowUpId: event.linkedFollowUpId ?? undefined,
     followUpPlayerId: event.followUpPlayerId ?? undefined,
+    linkedGameId: event.linkedGameId ?? undefined,
+    linkedInjuryId: event.linkedInjuryId ?? undefined,
   }))
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col">
       {canEdit && (
         <CreateEventOverlay
-          open={createOpen}
-          onOpenChange={setCreateOpen}
+          open={createOpen || !!editEvent}
+          onOpenChange={(o) => {
+            if (!o) {
+              setCreateOpen(false)
+              setEditEvent(null)
+            }
+          }}
           teamId={teamId}
+          mode={editEvent ? "edit" : "create"}
+          editingEvent={editEvent ? eventToEditingValues(editEvent) : null}
           initialRange={createRange}
-          openKey={createKey}
+          openKey={editEvent ? editKey : createKey}
           onCreated={handleCreated}
+          onUpdated={handleUpdated}
           onOptimisticCreate={handleOptimisticCreate}
           onOptimisticRollback={handleOptimisticRollback}
         />
@@ -186,6 +311,18 @@ export function CalendarManager({
           canEdit={canEdit}
           defaultView={defaultView}
           onCreateEvent={canEdit ? openCreateModal : undefined}
+          onRequestEditEvent={
+            canEdit
+              ? (calEv) => {
+                  const row = events.find((e) => e.id === calEv.id)
+                  if (row) openEditModal(row)
+                }
+              : undefined
+          }
+          onRequestDeleteEvent={canEdit ? (calEv) => {
+            const row = events.find((e) => e.id === calEv.id)
+            if (row) setDeleteTarget(row)
+          } : undefined}
           onVisibleRangeChange={onVisibleRangeChange}
           onEventWrite={onEventWrite}
         />
@@ -203,6 +340,28 @@ export function CalendarManager({
           </div>
         ) : null}
       </div>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleteLoading && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this event?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete this event? This cannot be undone.
+          </p>
+          {deleteTarget ? (
+            <p className="text-sm font-medium text-foreground">&ldquo;{deleteTarget.title}&rdquo;</p>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={() => void confirmDeleteEvent()} disabled={deleteLoading}>
+              {deleteLoading ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

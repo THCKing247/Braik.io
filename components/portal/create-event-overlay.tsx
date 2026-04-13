@@ -34,15 +34,32 @@ export type CreateEventCreatedPayload = {
 
 const selectClass = "mobile-select"
 
+export type CreateEventEditingValues = {
+  id: string
+  /** Form values: practice | game | meeting | other */
+  type: string
+  title: string
+  start: Date
+  end: Date
+  location: string | null
+  notes: string | null
+  audience: string
+}
+
 type CreateEventOverlayProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   teamId: string
+  mode?: "create" | "edit"
+  /** Required when mode is edit — current event fields to prefill. */
+  editingEvent?: CreateEventEditingValues | null
   /** When opening, use this range; if omitted, uses smart default from "now". */
   initialRange?: { start: Date; end: Date } | null
   /** Bumped each time the parent opens the overlay so the form re-inits. */
   openKey: number
   onCreated?: (payload: CreateEventCreatedPayload) => void
+  /** After a successful PATCH (edit mode). */
+  onUpdated?: (payload: CreateEventCreatedPayload) => void
   /** Only used when there are no file attachments — safe optimistic row on the calendar. */
   onOptimisticCreate?: (draft: {
     tempId: string
@@ -61,9 +78,12 @@ export function CreateEventOverlay({
   open,
   onOpenChange,
   teamId,
+  mode = "create",
+  editingEvent = null,
   initialRange,
   openKey,
   onCreated,
+  onUpdated,
   onOptimisticCreate,
   onOptimisticRollback,
 }: CreateEventOverlayProps) {
@@ -94,10 +114,29 @@ export function CreateEventOverlay({
     setFiles([])
   }, [initialRange])
 
+  const applyEditingEvent = useCallback(() => {
+    if (!editingEvent) return
+    setType(editingEvent.type)
+    setTitle(editingEvent.title)
+    let s = new Date(editingEvent.start)
+    let e = new Date(editingEvent.end)
+    if (e <= s) e = addHours(s, 1)
+    setStartDate(s)
+    setEndDate(e)
+    setLocation(editingEvent.location ?? "")
+    setNotes(editingEvent.notes ?? "")
+    setAudience(editingEvent.audience)
+    setFiles([])
+  }, [editingEvent])
+
   useEffect(() => {
     if (!open) return
+    if (mode === "edit" && editingEvent) {
+      applyEditingEvent()
+      return
+    }
     resetFormFromRange()
-  }, [open, openKey, resetFormFromRange])
+  }, [open, openKey, mode, editingEvent, applyEditingEvent, resetFormFromRange])
 
   useEffect(() => {
     if (!startDate) return
@@ -129,10 +168,14 @@ export function CreateEventOverlay({
       alert("No team selected. Switch to a team in the header and try again.")
       return
     }
+    if (mode === "edit" && !editingEvent?.id) {
+      alert("Missing event to update.")
+      return
+    }
 
     const start = startDate.toISOString()
     const end = endDate.toISOString()
-    const tempId = files.length === 0 ? `tmp-cal-${Date.now()}` : null
+    const tempId = mode === "create" && files.length === 0 ? `tmp-cal-${Date.now()}` : null
     if (tempId) {
       onOptimisticCreate?.({
         tempId,
@@ -148,8 +191,12 @@ export function CreateEventOverlay({
 
     setLoading(true)
     try {
-      const response = await fetchWithTimeout(`/api/teams/${encodeURIComponent(teamId)}/calendar/events`, {
-        method: "POST",
+      const isEdit = mode === "edit" && editingEvent
+      const url = isEdit
+        ? `/api/teams/${encodeURIComponent(teamId)}/calendar/events/${encodeURIComponent(editingEvent.id)}`
+        : `/api/teams/${encodeURIComponent(teamId)}/calendar/events`
+      const response = await fetchWithTimeout(url, {
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
@@ -176,23 +223,32 @@ export function CreateEventOverlay({
             typeof (nested as { message?: string }).message === "string" &&
             (nested as { message: string }).message) ||
           (typeof nested === "string" && nested) ||
-          "Failed to create event."
+          (isEdit ? "Failed to update event." : "Failed to create event.")
         if (code === "TEAM_NOT_FOUND") {
           msg = "Team not found. Try switching teams in the header or refreshing the page."
         } else if (code === "TEAM_ACCESS_DENIED" || code === "PERMISSION_DENIED") {
-          msg = "You don't have permission to create events for this team."
+          msg = isEdit
+            ? "You don't have permission to update events for this team."
+            : "You don't have permission to create events for this team."
         } else if (code === "TEAM_ID_REQUIRED") {
           msg = "No team selected. Switch to a team in the header and try again."
+        } else if (code === "EVENT_LINKED_TO_GAME") {
+          msg =
+            "This event is tied to a scheduled game. Edit it from Schedule / Games instead of the calendar form."
+        } else if (code === "EVENT_LINKED_TO_FOLLOW_UP") {
+          msg = "This event is linked to a roster follow-up. Manage it from the follow-up, not here."
+        } else if (code === "EVENT_LINKED_TO_INJURY") {
+          msg = "This event is linked to an injury record. Update it from the injury timeline, not here."
         }
         throw new Error(msg)
       }
 
       const newEvent = errBody as Record<string, unknown>
-      const eventId = typeof newEvent.id === "string" ? newEvent.id : ""
+      const eventId = typeof newEvent.id === "string" ? newEvent.id : isEdit ? editingEvent.id : ""
       const startRaw = newEvent.start as string
       const endRaw = newEvent.end as string
 
-      if (files.length > 0 && eventId) {
+      if (!isEdit && files.length > 0 && eventId) {
         setUploadingFiles(true)
         try {
           for (const file of files) {
@@ -222,7 +278,7 @@ export function CreateEventOverlay({
         }
       }
 
-      onCreated?.({
+      const payload: CreateEventCreatedPayload = {
         id: eventId || crypto.randomUUID(),
         type,
         title: title.trim(),
@@ -232,11 +288,16 @@ export function CreateEventOverlay({
         notes: (newEvent.description as string | null | undefined) ?? (notes.trim() || null),
         audience,
         replacesTempId: tempId ?? undefined,
-      })
+      }
+      if (isEdit) {
+        onUpdated?.(payload)
+      } else {
+        onCreated?.(payload)
+      }
       close()
     } catch (error) {
       if (tempId) onOptimisticRollback?.(tempId)
-      alert(error instanceof Error ? error.message : "Error creating event")
+      alert(error instanceof Error ? error.message : mode === "edit" ? "Error updating event" : "Error creating event")
     } finally {
       setLoading(false)
     }
@@ -310,6 +371,7 @@ export function CreateEventOverlay({
               <option value="staff">Staff</option>
             </select>
           </div>
+          {mode === "create" ? (
           <div className="flex flex-col gap-2">
             <Label>Attach files</Label>
             <Input type="file" multiple onChange={handleFileChange} className="h-11 cursor-pointer py-2" />
@@ -335,6 +397,7 @@ export function CreateEventOverlay({
               </div>
             )}
           </div>
+          ) : null}
         </div>
       </div>
       <div className="flex shrink-0 flex-col gap-3 border-t border-border bg-card px-4 py-3 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-3 sm:flex-row sm:justify-end sm:gap-3 sm:px-8 max-md:[&>button]:w-full">
@@ -348,7 +411,15 @@ export function CreateEventOverlay({
           className="h-11 w-full text-white sm:w-auto"
           style={{ backgroundColor: "rgb(var(--accent))" }}
         >
-          {uploadingFiles ? "Uploading…" : loading ? "Creating…" : "Create event"}
+          {uploadingFiles
+            ? "Uploading…"
+            : loading
+              ? mode === "edit"
+                ? "Saving…"
+                : "Creating…"
+              : mode === "edit"
+                ? "Save changes"
+                : "Create event"}
         </Button>
       </div>
     </>
@@ -370,7 +441,7 @@ export function CreateEventOverlay({
         >
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-6 py-4 sm:px-8 sm:py-5">
             <h2 id="create-event-title" className="text-xl font-semibold text-[rgb(var(--text))] pr-8">
-              Create event
+              {mode === "edit" ? "Edit event" : "Create event"}
             </h2>
             <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={close} aria-label="Close">
               <X className="h-5 w-5" />
@@ -396,7 +467,7 @@ export function CreateEventOverlay({
         </div>
         <div className="flex shrink-0 items-start justify-between gap-2 border-b border-border px-5 pb-3 pt-1">
           <h2 id="create-event-title-mobile" className="text-lg font-semibold text-[rgb(var(--text))]">
-            Create event
+            {mode === "edit" ? "Edit event" : "Create event"}
           </h2>
           <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={close} aria-label="Close">
             <X className="h-5 w-5" />

@@ -9,7 +9,7 @@ import {
 
 /** Lean row select — no `*`. `description` maps to UI notes; `visibility` → audience; `created_by` for creator batch. */
 const EVENT_SELECT_CALENDAR =
-  "id, event_type, title, description, start, end, location, visibility, created_by, linked_follow_up_id"
+  "id, event_type, title, description, start, end, location, visibility, created_by, linked_follow_up_id, linked_game_id, linked_injury_id"
 
 export type TeamCalendarEventApiRow = {
   id: string
@@ -28,6 +28,10 @@ export type TeamCalendarEventApiRow = {
   /** Present when this event was created from a roster follow-up */
   linkedFollowUpId?: string | null
   followUpPlayerId?: string | null
+  /** Mirrors a row on the Games / Schedule tab — edit via games, not calendar delete. */
+  linkedGameId?: string | null
+  /** Linked injury timeline event — managed from health/injury flows. */
+  linkedInjuryId?: string | null
 }
 
 function mapRowsToApi(
@@ -45,6 +49,8 @@ function mapRowsToApi(
     const createdBy = e.created_by as string
     const creator = creatorMap.get(createdBy)
     const linkedFu = (e.linked_follow_up_id as string | null | undefined) ?? null
+    const linkedGame = (e.linked_game_id as string | null | undefined) ?? null
+    const linkedInjury = (e.linked_injury_id as string | null | undefined) ?? null
     return {
       id: e.id as string,
       type: (e.event_type as string) ?? "CUSTOM",
@@ -59,6 +65,8 @@ function mapRowsToApi(
       linkedDocuments: [],
       linkedFollowUpId: linkedFu,
       followUpPlayerId: linkedFu ? followUpToPlayer.get(linkedFu) ?? null : null,
+      linkedGameId: linkedGame,
+      linkedInjuryId: linkedInjury,
     }
   })
 }

@@ -38,6 +38,12 @@ interface EventDetailModalProps {
   /** Coach can mark linked follow-up resolved from calendar */
   canEdit?: boolean
   onFollowUpResolved?: () => void
+  /** Standalone calendar event — show edit/delete when set with callbacks. */
+  manageable?: boolean
+  /** Why the calendar editor is disabled (linked rows). */
+  linkedSource?: "game" | "follow_up" | "injury" | null
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 export function EventDetailModal({
@@ -47,6 +53,10 @@ export function EventDetailModal({
   teamId,
   canEdit = false,
   onFollowUpResolved,
+  manageable = false,
+  linkedSource = null,
+  onEdit,
+  onDelete,
 }: EventDetailModalProps) {
   const [documents, setDocuments] = useState<EventDocument[]>([])
   const [resolving, setResolving] = useState(false)
@@ -220,6 +230,60 @@ export function EventDetailModal({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {linkedSource === "game" && (
+              <div
+                className="rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-950/25"
+                style={{ color: "rgb(var(--text))" }}
+              >
+                This event is tied to a game on your schedule. To change date, opponent, or location, edit it from{" "}
+                <strong>Schedule / Games</strong>.
+              </div>
+            )}
+            {linkedSource === "follow_up" && (
+              <div
+                className="rounded-lg border border-violet-200 bg-violet-50/80 p-3 text-sm dark:border-violet-900/50 dark:bg-violet-950/30"
+                style={{ color: "rgb(var(--text))" }}
+              >
+                This event is linked to a player follow-up. Manage it from the roster follow-up, not the calendar editor.
+              </div>
+            )}
+            {linkedSource === "injury" && (
+              <div
+                className="rounded-lg border border-sky-200 bg-sky-50/90 p-3 text-sm dark:border-sky-900/40 dark:bg-sky-950/25"
+                style={{ color: "rgb(var(--text))" }}
+              >
+                This event is linked to an injury timeline. Update it from the injury record.
+              </div>
+            )}
+
+            {manageable && onEdit && onDelete && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="font-semibold"
+                  style={{ backgroundColor: "rgb(var(--platinum))", color: "rgb(var(--text))" }}
+                  onClick={() => {
+                    onEdit()
+                    onClose()
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="font-semibold"
+                  onClick={() => {
+                    onDelete()
+                    onClose()
+                  }}
+                >
+                  Delete
+                </Button>
               </div>
             )}
 

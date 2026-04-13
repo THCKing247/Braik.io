@@ -29,7 +29,7 @@ import {
 } from "date-fns"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Pencil, Trash2 } from "lucide-react"
 import { EventDetailModal } from "./event-detail-modal"
 import { DayEventsModal } from "./day-events-modal"
 import {
@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { teamCalendarEventIsMutableFromCalendarUi } from "@/lib/calendar/calendar-events-client"
 
 interface CalendarEvent {
   id: string
@@ -50,8 +51,12 @@ interface CalendarEvent {
   color?: string
   highlight: boolean
   description?: string | null
+  audience?: string
+  creator?: { name: string | null; email: string }
   linkedFollowUpId?: string
   followUpPlayerId?: string
+  linkedGameId?: string
+  linkedInjuryId?: string
 }
 
 type CalendarView = "agenda" | "day" | "week" | "month" | "year"
@@ -63,6 +68,10 @@ interface CalendarWidgetProps {
   onEventClick?: (event: CalendarEvent) => void
   /** Open create-event modal; optional start/end from day/week grid selection */
   onCreateEvent?: (opts?: { start: Date; end: Date }) => void
+  /** Open edit overlay with full event (authorized + standalone events only). */
+  onRequestEditEvent?: (event: CalendarEvent) => void
+  /** Open delete confirmation (parent owns dialog). */
+  onRequestDeleteEvent?: (event: CalendarEvent) => void
   defaultView?: "day" | "week" | "month" | "year"
   /** Fired when the visible date range or view changes — parent can refetch events for that window. */
   onVisibleRangeChange?: (payload: {
@@ -95,12 +104,32 @@ interface CalendarFilter {
   enabled: boolean
 }
 
+function calendarEventIsManageable(ev: CalendarEvent, canEditUser: boolean): boolean {
+  if (!canEditUser) return false
+  return teamCalendarEventIsMutableFromCalendarUi({
+    linkedGameId: ev.linkedGameId ?? null,
+    linkedFollowUpId: ev.linkedFollowUpId ?? null,
+    linkedInjuryId: ev.linkedInjuryId ?? null,
+  })
+}
+
+function linkedCalendarSource(
+  ev: CalendarEvent
+): "game" | "follow_up" | "injury" | null {
+  if (ev.linkedGameId) return "game"
+  if (ev.linkedFollowUpId) return "follow_up"
+  if (ev.linkedInjuryId) return "injury"
+  return null
+}
+
 export function CalendarWidgetEnhanced({
   teamId,
   events: initialEvents,
   canEdit,
   onEventClick,
   onCreateEvent,
+  onRequestEditEvent,
+  onRequestDeleteEvent,
   defaultView = "day",
   onVisibleRangeChange,
   onEventWrite,
@@ -278,6 +307,14 @@ export function CalendarWidgetEnhanced({
   useEffect(() => {
     setEvents(initialEvents)
   }, [initialEvents])
+
+  useEffect(() => {
+    if (!selectedEvent) return
+    if (!initialEvents.some((e) => e.id === selectedEvent.id)) {
+      setSelectedEvent(null)
+      setShowEventDetail(false)
+    }
+  }, [initialEvents, selectedEvent])
 
   // Update current time every minute
   useEffect(() => {
@@ -483,35 +520,70 @@ export function CalendarWidgetEnhanced({
                   dayEvents.map((event) => {
                     const es = new Date(event.start)
                     const ee = new Date(event.end)
+                    const showActions =
+                      calendarEventIsManageable(event, canEdit) &&
+                      onRequestEditEvent &&
+                      onRequestDeleteEvent
                     return (
-                      <button
+                      <div
                         key={event.id}
-                        type="button"
-                        onClick={() => handleEventClick(event)}
-                        className="flex w-full min-w-0 gap-3 px-4 py-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+                        className="flex w-full min-w-0 items-stretch gap-0 transition-colors hover:bg-gray-50 active:bg-gray-100"
                       >
-                        <div
-                          className="mt-0.5 h-14 w-1 shrink-0 rounded-full"
-                          style={{ backgroundColor: calendarEventChipColor(event) }}
-                          aria-hidden
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
-                            {event.title}
-                          </div>
-                          <div className="mt-1.5 text-sm" style={{ color: "rgb(var(--text2))" }}>
-                            {format(es, "h:mm a")} – {format(ee, "h:mm a")}
-                          </div>
-                          <div className="mt-1 text-xs font-medium capitalize" style={{ color: "rgb(var(--muted))" }}>
-                            {event.eventType}
-                          </div>
-                          {event.location ? (
-                            <div className="mt-1.5 truncate text-sm" style={{ color: "rgb(var(--text2))" }}>
-                              📍 {event.location}
+                        <button
+                          type="button"
+                          onClick={() => handleEventClick(event)}
+                          className="flex min-w-0 flex-1 gap-3 px-4 py-5 text-left"
+                        >
+                          <div
+                            className="mt-0.5 h-14 w-1 shrink-0 rounded-full"
+                            style={{ backgroundColor: calendarEventChipColor(event) }}
+                            aria-hidden
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
+                              {event.title}
                             </div>
-                          ) : null}
-                        </div>
-                      </button>
+                            <div className="mt-1.5 text-sm" style={{ color: "rgb(var(--text2))" }}>
+                              {format(es, "h:mm a")} – {format(ee, "h:mm a")}
+                            </div>
+                            <div className="mt-1 text-xs font-medium capitalize" style={{ color: "rgb(var(--muted))" }}>
+                              {event.eventType}
+                            </div>
+                            {event.location ? (
+                              <div className="mt-1.5 truncate text-sm" style={{ color: "rgb(var(--text2))" }}>
+                                📍 {event.location}
+                              </div>
+                            ) : null}
+                          </div>
+                        </button>
+                        {showActions ? (
+                          <div
+                            className="flex shrink-0 flex-col items-center justify-center gap-1 border-l border-border py-2 pr-3 pl-1 sm:flex-row"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10"
+                              aria-label="Edit event"
+                              onClick={() => onRequestEditEvent(event)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10 text-destructive"
+                              aria-label="Delete event"
+                              onClick={() => onRequestDeleteEvent(event)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
                     )
                   })
                 )}
@@ -1693,7 +1765,7 @@ export function CalendarWidgetEnhanced({
             end: selectedEvent.end,
             location: selectedEvent.location || null,
             description: selectedEvent.description ?? null,
-            creator: { name: null, email: "" },
+            creator: selectedEvent.creator ?? { name: null, email: "" },
             linkedDocuments: [],
             linkedFollowUpId: selectedEvent.linkedFollowUpId ?? null,
             followUpPlayerId: selectedEvent.followUpPlayerId ?? null,
@@ -1705,6 +1777,14 @@ export function CalendarWidgetEnhanced({
           }}
           teamId={teamId}
           canEdit={canEdit}
+          manageable={
+            !!onRequestEditEvent &&
+            !!onRequestDeleteEvent &&
+            calendarEventIsManageable(selectedEvent, canEdit)
+          }
+          linkedSource={linkedCalendarSource(selectedEvent)}
+          onEdit={onRequestEditEvent ? () => onRequestEditEvent(selectedEvent) : undefined}
+          onDelete={onRequestDeleteEvent ? () => onRequestDeleteEvent(selectedEvent) : undefined}
           onFollowUpResolved={() => {
             onEventWrite?.()
             setShowEventDetail(false)
@@ -1731,6 +1811,9 @@ export function CalendarWidgetEnhanced({
             s.setHours(9, 0, 0, 0)
             onCreateEvent({ start: s, end: addHours(s, 1) })
           }}
+          canManageEvent={(ev) => calendarEventIsManageable(ev, canEdit)}
+          onRequestEditEvent={onRequestEditEvent}
+          onRequestDeleteEvent={onRequestDeleteEvent}
         />
       )}
     </>

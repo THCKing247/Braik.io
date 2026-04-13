@@ -54,6 +54,8 @@ type EventItem = {
   linkedDocuments?: Array<{ document: { id: string; title: string; fileName: string; fileUrl: string; fileSize: number | null; mimeType: string | null } }>
   linkedFollowUpId?: string | null
   followUpPlayerId?: string | null
+  linkedGameId?: string | null
+  linkedInjuryId?: string | null
 }
 
 function mapApiToEventItems(rows: TeamCalendarEventApiRow[]): EventItem[] {
@@ -71,6 +73,8 @@ function mapApiToEventItems(rows: TeamCalendarEventApiRow[]): EventItem[] {
     linkedDocuments: Array.isArray(e.linkedDocuments) ? e.linkedDocuments : [],
     linkedFollowUpId: e.linkedFollowUpId ?? null,
     followUpPlayerId: e.followUpPlayerId ?? null,
+    linkedGameId: e.linkedGameId ?? null,
+    linkedInjuryId: e.linkedInjuryId ?? null,
   }))
 }
 

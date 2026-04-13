@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
-import { assignmentTypeLabel, DueDateBadge } from "./study-guides-shared"
+import {
+  assignmentTypeLabel,
+  DueDateBadge,
+  StudyGuideDetailPaneSkeleton,
+  StudyGuidePlayerListSkeleton,
+} from "./study-guides-shared"
 
 type MyListRow = {
   id: string
@@ -37,7 +42,8 @@ export function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
   const [activeList, setActiveList] = useState<MyListRow[]>([])
   const [archiveList, setArchiveList] = useState<MyListRow[]>([])
   const [archiveNext, setArchiveNext] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [activeLoading, setActiveLoading] = useState(true)
+  const [activeHydrated, setActiveHydrated] = useState(false)
   const [loadingArchive, setLoadingArchive] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detailReload, setDetailReload] = useState(0)
@@ -74,19 +80,28 @@ export function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
   )
 
   useEffect(() => {
+    setActiveHydrated(false)
+    setActiveList([])
+    setArchiveList([])
+    setArchiveNext(null)
+  }, [teamId])
+
+  useEffect(() => {
+    if (tab !== "active") return
+    if (activeHydrated) return
     let cancelled = false
-    setLoading(true)
+    setActiveLoading(true)
     loadActive()
       .then(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setActiveHydrated(true)
       })
-      .catch(() => {
-        if (!cancelled) setLoading(false)
+      .finally(() => {
+        if (!cancelled) setActiveLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [loadActive])
+  }, [tab, activeHydrated, loadActive])
 
   useEffect(() => {
     if (tab !== "archive") return
@@ -137,16 +152,6 @@ export function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
     })
   }
 
-  const list = tab === "active" ? activeList : archiveList
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#0B2A5B] border-t-transparent" />
-      </div>
-    )
-  }
-
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 pb-8 md:px-0">
       <h1 className="text-2xl font-bold text-[#0F172A]">Study guides</h1>
@@ -162,30 +167,59 @@ export function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
         ariaLabel="Study assignments"
       />
 
-      <div className="space-y-3">
-        {list.length === 0 && (
-          <p className="text-sm text-[#64748B]">{tab === "active" ? "No active assignments." : "No completed assignments yet."}</p>
+      <div className="min-h-[200px] space-y-3">
+        {tab === "active" && activeLoading && <StudyGuidePlayerListSkeleton />}
+        {tab === "active" && !activeLoading && activeList.length === 0 && (
+          <p className="text-sm text-[#64748B]">No active assignments.</p>
         )}
-        {list.map((a) => (
-          <Card key={a.id} className="border-[#E5E7EB]">
-            <CardContent className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 text-left"
-                  onClick={() => setDetailId(a.id)}
-                >
-                  <p className="font-semibold text-[#0F172A]">{a.title}</p>
-                  <p className="mt-0.5 text-xs text-[#64748B]">
-                    {assignmentTypeLabel(a.assignment_type)} · {a.displayStatus ?? a.myStatus ?? "—"}
-                    {typeof a.score_percent === "number" ? ` · Score ${a.score_percent}%` : ""}
-                  </p>
-                </button>
-                <DueDateBadge dueDate={a.due_date} />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {tab === "active" &&
+          !activeLoading &&
+          activeList.map((a) => (
+            <Card key={a.id} className="border-[#E5E7EB]">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => setDetailId(a.id)}
+                  >
+                    <p className="font-semibold text-[#0F172A]">{a.title}</p>
+                    <p className="mt-0.5 text-xs text-[#64748B]">
+                      {assignmentTypeLabel(a.assignment_type)} · {a.displayStatus ?? a.myStatus ?? "—"}
+                      {typeof a.score_percent === "number" ? ` · Score ${a.score_percent}%` : ""}
+                    </p>
+                  </button>
+                  <DueDateBadge dueDate={a.due_date} />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+        {tab === "archive" && loadingArchive && archiveList.length === 0 && <StudyGuidePlayerListSkeleton count={3} />}
+        {tab === "archive" && !loadingArchive && archiveList.length === 0 && (
+          <p className="text-sm text-[#64748B]">No completed assignments yet.</p>
+        )}
+        {tab === "archive" &&
+          archiveList.map((a) => (
+            <Card key={a.id} className="border-[#E5E7EB]">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => setDetailId(a.id)}
+                  >
+                    <p className="font-semibold text-[#0F172A]">{a.title}</p>
+                    <p className="mt-0.5 text-xs text-[#64748B]">
+                      {assignmentTypeLabel(a.assignment_type)} · {a.displayStatus ?? a.myStatus ?? "—"}
+                      {typeof a.score_percent === "number" ? ` · Score ${a.score_percent}%` : ""}
+                    </p>
+                  </button>
+                  <DueDateBadge dueDate={a.due_date} />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
       </div>
 
       {tab === "archive" && archiveNext !== null && (
@@ -310,7 +344,7 @@ function PlayerAssignmentDetailDialog({
           <DialogTitle>{data?.assignment.title ?? "Assignment"}</DialogTitle>
         </DialogHeader>
         {loading || !data ? (
-          <div className="flex justify-center py-12 text-sm text-[#64748B]">Loading…</div>
+          <StudyGuideDetailPaneSkeleton />
         ) : (
           <div className="space-y-4 text-sm">
             <div className="flex flex-wrap items-center gap-2 text-[#64748B]">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +16,10 @@ import {
   DueDateBadge,
   EmptyStateCard,
   progressBarClass,
+  StudyGuideAssignmentListSkeleton,
+  StudyGuideDetailPaneSkeleton,
+  StudyGuideLibraryPackSkeleton,
+  StudyGuideProgressSnapshotSkeleton,
   type CoachAssignmentSummary,
 } from "./study-guides-shared"
 
@@ -43,7 +47,7 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
   const [assignments, setAssignments] = useState<CoachAssignmentSummary[]>([])
   const [packs, setPacks] = useState<{ id: string; title: string; description: string | null; items: unknown[] }[]>([])
   const [packsLoaded, setPacksLoaded] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [assignmentsLoading, setAssignmentsLoading] = useState(true)
   const [builderOpen, setBuilderOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
 
@@ -64,11 +68,10 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    loadAssignments()
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+    setAssignmentsLoading(true)
+    loadAssignments().finally(() => {
+      if (!cancelled) setAssignmentsLoading(false)
+    })
     return () => {
       cancelled = true
     }
@@ -79,15 +82,19 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
     void loadPacks()
   }, [tab, packsLoaded, loadPacks])
 
-  const progressAgg = assignments.reduce(
-    (acc, a) => {
-      acc.total += a.counts.total
-      acc.completed += a.counts.completed
-      acc.notStarted += a.counts.notStarted
-      acc.overdue += a.counts.overdue
-      return acc
-    },
-    { total: 0, completed: 0, notStarted: 0, overdue: 0 }
+  const progressAgg = useMemo(
+    () =>
+      assignments.reduce(
+        (acc, a) => {
+          acc.total += a.counts.total
+          acc.completed += a.counts.completed
+          acc.notStarted += a.counts.notStarted
+          acc.overdue += a.counts.overdue
+          return acc
+        },
+        { total: 0, completed: 0, notStarted: 0, overdue: 0 }
+      ),
+    [assignments]
   )
 
   return (
@@ -109,113 +116,115 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
 
       <PortalUnderlineTabs tabs={COACH_TABS} value={tab} onValueChange={(id) => setTab(id as CoachTab)} ariaLabel="Study guides" />
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#0B2A5B] border-t-transparent" />
-        </div>
-      ) : (
-        <>
-          {tab === "assignments" && (
-            <div className="space-y-3">
-              {assignments.map((a) => {
-                const pct = completionPercent(a.counts)
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    className="w-full text-left"
-                    onClick={() => setDetailId(a.id)}
-                  >
-                    <Card className="border-[#E5E7EB] transition-colors hover:border-[#CBD5E1]">
-                      <CardContent className="space-y-3 p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-[#0F172A]">{a.title}</p>
-                            <p className="mt-1 text-xs text-[#64748B]">
-                              {assignmentTypeLabel(a.assignment_type)} · Target: {assignmentTargetLabel(a)}
-                              {a.publish_status === "draft" ? " · Draft" : ""}
+      <div className="min-h-[240px]">
+        {tab === "assignments" && (
+          <div className="space-y-3">
+            {assignmentsLoading ? (
+              <StudyGuideAssignmentListSkeleton />
+            ) : (
+              <>
+                {assignments.map((a) => {
+                  const pct = completionPercent(a.counts)
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => setDetailId(a.id)}
+                    >
+                      <Card className="border-[#E5E7EB] transition-colors hover:border-[#CBD5E1]">
+                        <CardContent className="space-y-3 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-[#0F172A]">{a.title}</p>
+                              <p className="mt-1 text-xs text-[#64748B]">
+                                {assignmentTypeLabel(a.assignment_type)} · Target: {assignmentTargetLabel(a)}
+                                {a.publish_status === "draft" ? " · Draft" : ""}
+                              </p>
+                              <p className="mt-1 text-xs text-[#64748B]">
+                                Avg score: {a.avgScore !== null && a.avgScore !== undefined ? `${a.avgScore}%` : "—"} · Overdue
+                                players: {a.counts.overdue ?? 0}
+                              </p>
+                            </div>
+                            <DueDateBadge dueDate={a.due_date} />
+                          </div>
+                          <div>
+                            <div className="mb-1 flex items-center justify-between gap-2 text-xs text-[#64748B]">
+                              <span>Progress</span>
+                              <span className="tabular-nums font-medium text-[#0F172A]">
+                                {a.counts.completed}/{a.counts.total} completed ({pct}%)
+                              </span>
+                            </div>
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
+                              <div
+                                className={`h-full rounded-full transition-all ${progressBarClass(pct)}`}
+                                style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                                role="progressbar"
+                                aria-valuenow={pct}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                              />
+                            </div>
+                            <p className="mt-1 text-xs text-[#94A3B8]">
+                              Not started {a.counts.notStarted} · In progress {a.counts.inProgress}
                             </p>
-                            <p className="mt-1 text-xs text-[#64748B]">
-                              Avg score: {a.avgScore !== null && a.avgScore !== undefined ? `${a.avgScore}%` : "—"} · Overdue
-                              players: {a.counts.overdue ?? 0}
-                            </p>
                           </div>
-                          <DueDateBadge dueDate={a.due_date} />
-                        </div>
-                        <div>
-                          <div className="mb-1 flex items-center justify-between gap-2 text-xs text-[#64748B]">
-                            <span>Progress</span>
-                            <span className="tabular-nums font-medium text-[#0F172A]">
-                              {a.counts.completed}/{a.counts.total} completed ({pct}%)
-                            </span>
-                          </div>
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
-                            <div
-                              className={`h-full rounded-full transition-all ${progressBarClass(pct)}`}
-                              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                              role="progressbar"
-                              aria-valuenow={pct}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                            />
-                          </div>
-                          <p className="mt-1 text-xs text-[#94A3B8]">
-                            Not started {a.counts.notStarted} · In progress {a.counts.inProgress}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </button>
-                )
-              })}
-              {assignments.length === 0 && <p className="text-sm text-[#64748B]">No assignments yet.</p>}
-            </div>
-          )}
-          {tab === "library" && (
-            <div className="space-y-3">
-              {!packsLoaded ? (
-                <div className="flex justify-center py-10 text-sm text-[#64748B]">Loading packs…</div>
-              ) : (
-                <>
-                  {packs.map((p) => (
-                    <Card key={p.id} className="border-[#E5E7EB]">
-                      <CardContent className="p-4">
-                        <p className="font-medium text-[#0F172A]">{p.title}</p>
-                        <p className="text-sm text-[#64748B]">{p.description || "—"}</p>
-                        <p className="mt-1 text-xs text-[#94A3B8]">{p.items?.length ?? 0} content items</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {packs.length === 0 && (
-                    <p className="text-sm text-[#64748B]">No study packs yet. Build packs from the API or a future editor.</p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-          {tab === "mastery" && (
-            <EmptyStateCard icon={BarChart3}>
-              Open an assignment card to view per-player quiz scores and review completion in the Results tab.
-            </EmptyStateCard>
-          )}
-          {tab === "progress" && (
-            <Card className="border-[#E5E7EB]">
-              <CardContent className="flex flex-col gap-2 p-6 text-sm text-[#64748B]">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="h-8 w-8 shrink-0 text-[#94A3B8]" />
-                  <div>
-                    <p className="font-medium text-[#0F172A]">Team snapshot</p>
-                    <p className="mt-1 text-xs">
-                      Total player slots: {progressAgg.total} · Completed: {progressAgg.completed} · Not started:{" "}
-                      {progressAgg.notStarted} · Overdue (incomplete past due): {progressAgg.overdue}
-                    </p>
+                        </CardContent>
+                      </Card>
+                    </button>
+                  )
+                })}
+                {assignments.length === 0 && <p className="text-sm text-[#64748B]">No assignments yet.</p>}
+              </>
+            )}
+          </div>
+        )}
+        {tab === "library" && (
+          <div className="space-y-3">
+            {!packsLoaded ? <StudyGuideLibraryPackSkeleton /> : null}
+            {packsLoaded &&
+              packs.map((p) => (
+                <Card key={p.id} className="border-[#E5E7EB]">
+                  <CardContent className="p-4">
+                    <p className="font-medium text-[#0F172A]">{p.title}</p>
+                    <p className="text-sm text-[#64748B]">{p.description || "—"}</p>
+                    <p className="mt-1 text-xs text-[#94A3B8]">{p.items?.length ?? 0} content items</p>
+                  </CardContent>
+                </Card>
+              ))}
+            {packsLoaded && packs.length === 0 && (
+              <p className="text-sm text-[#64748B]">No study packs yet. Build packs from the API or a future editor.</p>
+            )}
+          </div>
+        )}
+        {tab === "mastery" && (
+          <EmptyStateCard icon={BarChart3}>
+            Open an assignment card to view per-player quiz scores and review completion in the Results tab.
+          </EmptyStateCard>
+        )}
+        {tab === "progress" && (
+          <>
+            {assignmentsLoading ? (
+              <StudyGuideProgressSnapshotSkeleton />
+            ) : (
+              <Card className="border-[#E5E7EB]">
+                <CardContent className="flex flex-col gap-2 p-6 text-sm text-[#64748B]">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="h-8 w-8 shrink-0 text-[#94A3B8]" />
+                    <div>
+                      <p className="font-medium text-[#0F172A]">Team snapshot</p>
+                      <p className="mt-1 text-xs">
+                        Total player slots: {progressAgg.total} · Completed: {progressAgg.completed} · Not started:{" "}
+                        {progressAgg.notStarted} · Overdue (incomplete past due): {progressAgg.overdue}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+      </div>
 
       <AssignmentBuilderDialog
         open={builderOpen}
@@ -851,7 +860,7 @@ function CoachAssignmentDetailDialog({
           <DialogTitle>{(detail?.assignment?.title as string) ?? "Assignment"}</DialogTitle>
         </DialogHeader>
         {loading || !detail ? (
-          <p className="py-10 text-center text-sm text-[#64748B]">Loading…</p>
+          <StudyGuideDetailPaneSkeleton />
         ) : (
           <div className="space-y-4 text-sm">
             <div className="flex flex-wrap gap-2 border-b border-[#E5E7EB] pb-2">

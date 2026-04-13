@@ -101,5 +101,14 @@ export async function resolveDueCollectionRecipients(
     }
   }
 
-  return Array.from(byUser.values())
+  const resolved = Array.from(byUser.values())
+  if (resolved.length === 0) return []
+
+  // Only include IDs that exist in public.users (matches FK on fundraising_due_collection_recipients).
+  // Roster/parent rows can theoretically reference UUIDs not present in users; skip those safely.
+  const ids = resolved.map((r) => r.user_id)
+  const { data: existingRows, error: usersErr } = await supabase.from("users").select("id").in("id", ids)
+  if (usersErr) throw new Error(usersErr.message)
+  const allowed = new Set((existingRows ?? []).map((u) => String((u as { id: string }).id)))
+  return resolved.filter((r) => allowed.has(r.user_id))
 }

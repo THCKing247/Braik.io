@@ -22,7 +22,7 @@ create table if not exists public.fundraising_due_collection_recipients (
   id uuid primary key default gen_random_uuid(),
   collection_id uuid not null references public.fundraising_due_collections (id) on delete cascade,
   team_id uuid not null references public.teams (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
   role_kind text not null check (role_kind in ('assistant_coach', 'player', 'parent')),
   player_id uuid references public.players (id) on delete set null,
   contribution_status text not null default 'pending' check (contribution_status in ('pending', 'collected')),

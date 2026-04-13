@@ -1,7 +1,14 @@
 "use client"
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
-import { format } from "date-fns"
+import {
+  addDays,
+  addWeeks,
+  eachDayOfInterval,
+  format,
+  startOfDay,
+  startOfWeek,
+} from "date-fns"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,6 +21,7 @@ import {
   ArrowUp,
   Calendar,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Download,
   Plus,
@@ -39,6 +47,18 @@ const TAB_DEFS: { id: TabId; label: string }[] = [
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const LIFT_TYPES = ["BENCH", "SQUAT", "CLEAN", "DEADLIFT"] as const
+
+type ScheduleCalendarView = "day" | "week" | "list"
+
+/** Sunday-first weeks, aligned with `day_of_week` (JS: 0 = Sun … 6 = Sat). */
+const SCHEDULE_WEEK_OPTIONS = { weekStartsOn: 0 as const }
+
+function weightRoomScheduleSessionDetail(session: WorkoutSessionRow): string | null {
+  const desc = session.description?.trim()
+  if (desc) return desc
+  const pg = Array.isArray(session.position_groups) ? (session.position_groups as string[]).filter(Boolean) : []
+  return pg.length ? pg.join(", ") : null
+}
 
 interface WorkoutSessionRow {
   id: string
@@ -155,15 +175,7 @@ export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; c
           <h1 className="text-2xl font-bold text-[#0F172A]">Weight room</h1>
           <p className="mt-1 text-sm text-[#64748B]">Schedule, maxes, and team strength leaderboard.</p>
         </div>
-        <WeightRoomToolbar
-          teamId={teamId}
-          tab={tab}
-          maxes={maxes}
-          onRefresh={async () => {
-            await loadSchedule()
-            await loadMaxes()
-          }}
-        />
+        <WeightRoomToolbar teamId={teamId} tab={tab} maxes={maxes} />
       </div>
 
       <PortalUnderlineTabs
@@ -187,7 +199,6 @@ export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; c
         <>
           {tab === "schedule" && (
             <ScheduleTab
-              teamId={teamId}
               base={base}
               byDay={byDay}
               roster={roster}
@@ -263,12 +274,10 @@ function WeightRoomToolbar({
   teamId,
   tab,
   maxes,
-  onRefresh,
 }: {
   teamId: string
   tab: TabId
   maxes: PlayerMaxRow[]
-  onRefresh: () => Promise<void>
 }) {
   const exportCsv = () => {
     const rows = [["playerId", "liftType", "weightLbs", "loggedDate", "notes"]]
@@ -285,23 +294,84 @@ function WeightRoomToolbar({
     URL.revokeObjectURL(a.href)
   }
 
+  if (tab !== "maxes") {
+    return null
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={() => onRefresh()}>
-        Refresh
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={exportCsv}>
+        <Download className="mr-1 h-4 w-4" />
+        Export CSV
       </Button>
-      {tab === "maxes" && (
-        <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={exportCsv}>
-          <Download className="mr-1 h-4 w-4" />
-          Export CSV
-        </Button>
+    </div>
+  )
+}
+
+function WeightRoomScheduleSessionCard({
+  session,
+  canEdit,
+  density,
+  onEdit,
+  onAttendance,
+  onDelete,
+}: {
+  session: WorkoutSessionRow
+  canEdit: boolean
+  density: "compact" | "comfortable"
+  onEdit: () => void
+  onAttendance: () => void
+  onDelete: () => void
+}) {
+  const pad = density === "compact" ? "p-2 text-xs" : "p-3 text-sm"
+  const titleCls = density === "compact" ? "text-xs font-semibold" : "text-sm font-semibold"
+  const detail = weightRoomScheduleSessionDetail(session)
+  return (
+    <div className={`rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] ${pad}`}>
+      <p className={`${titleCls} text-[#0F172A]`}>{session.title}</p>
+      <p className="text-[#64748B]">
+        {String(session.start_time).slice(0, 5)} · {session.duration_minutes} min
+      </p>
+      {detail ? <p className="mt-0.5 line-clamp-2 text-[#64748B]">{detail}</p> : null}
+      {canEdit && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-1.5 text-[11px]"
+            onClick={onEdit}
+            aria-label="Edit session"
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-1.5 text-[11px]"
+            onClick={onAttendance}
+            aria-label="Attendance"
+          >
+            <Calendar className="h-3 w-3" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-1.5 text-[11px] text-red-600"
+            onClick={onDelete}
+            aria-label="Delete session"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       )}
     </div>
   )
 }
 
 function ScheduleTab({
-  teamId,
   base,
   byDay,
   roster,
@@ -309,7 +379,6 @@ function ScheduleTab({
   onRefresh,
   canEdit,
 }: {
-  teamId: string
   base: string
   byDay: Record<number, WorkoutSessionRow[]>
   roster: LitePlayer[]
@@ -317,10 +386,61 @@ function ScheduleTab({
   onRefresh: () => Promise<void>
   canEdit: boolean
 }) {
+  const [scheduleView, setScheduleView] = useState<ScheduleCalendarView>("week")
+  const [anchorDate, setAnchorDate] = useState(() => startOfDay(new Date()))
   const [editor, setEditor] = useState<WorkoutSessionRow | "new" | null>(null)
   const [attSession, setAttSession] = useState<WorkoutSessionRow | null>(null)
   const [attDate, setAttDate] = useState(format(new Date(), "yyyy-MM-dd"))
   const [attMap, setAttMap] = useState<Record<string, "present" | "absent">>({})
+
+  const anchorStart = useMemo(() => startOfDay(anchorDate), [anchorDate])
+  const weekStart = useMemo(() => startOfWeek(anchorStart, SCHEDULE_WEEK_OPTIONS), [anchorStart])
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
+  const listDays = useMemo(
+    () => eachDayOfInterval({ start: weekStart, end: weekEnd }),
+    [weekStart, weekEnd]
+  )
+
+  const rangeLabel = useMemo(() => {
+    if (scheduleView === "day") {
+      return format(anchorStart, "EEEE, MMMM d, yyyy")
+    }
+    return `${format(weekStart, "MMM d, yyyy")} – ${format(weekEnd, "MMM d, yyyy")}`
+  }, [scheduleView, anchorStart, weekStart, weekEnd])
+
+  const navigateBack = () => {
+    if (scheduleView === "day") {
+      setAnchorDate((d) => addDays(startOfDay(d), -1))
+    } else {
+      setAnchorDate((d) => addWeeks(startOfDay(d), -1))
+    }
+  }
+
+  const navigateForward = () => {
+    if (scheduleView === "day") {
+      setAnchorDate((d) => addDays(startOfDay(d), 1))
+    } else {
+      setAnchorDate((d) => addWeeks(startOfDay(d), 1))
+    }
+  }
+
+  const openAttendance = (session: WorkoutSessionRow, calendarDay: Date) => {
+    setAttSession(session)
+    setAttDate(format(startOfDay(calendarDay), "yyyy-MM-dd"))
+  }
+
+  const deleteSession = async (session: WorkoutSessionRow) => {
+    if (!confirm("Delete this session block?")) return
+    const res = await fetch(`${base}/schedule/${session.id}`, { method: "DELETE" })
+    if (res.ok) await onRefresh()
+  }
+
+  const sessionCardHandlers = (session: WorkoutSessionRow, calendarDay: Date, density: "compact" | "comfortable") => ({
+    onEdit: () => setEditor(session),
+    onAttendance: () => openAttendance(session, calendarDay),
+    onDelete: () => void deleteSession(session),
+    density,
+  })
 
   useEffect(() => {
     if (!attSession || !attDate) return
@@ -355,74 +475,192 @@ function ScheduleTab({
     else await onRefresh()
   }
 
+  const dayIndex = anchorStart.getDay()
+  const daySessions = byDay[dayIndex] ?? []
+
   return (
     <div className="space-y-6">
-      {canEdit && (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" className="rounded-lg" onClick={() => setEditor("new")}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        {canEdit && (
+          <Button type="button" size="sm" className="w-full rounded-lg sm:w-auto" onClick={() => setEditor("new")}>
             <Plus className="mr-1 h-4 w-4" />
             Add Session
           </Button>
+        )}
+        <div className="flex w-full min-w-0 flex-col gap-3 sm:ml-auto sm:max-w-md sm:flex-1 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+          <div className="flex items-center justify-center rounded-lg border border-[#E5E7EB] p-1 sm:justify-end">
+            {(["day", "week", "list"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setScheduleView(v)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
+                  scheduleView === v ? "bg-[#0B2A5B] text-white" : "text-[#64748B] hover:bg-[#F8FAFC]"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-lg"
+              onClick={navigateBack}
+              aria-label={scheduleView === "day" ? "Previous day" : "Previous week"}
+            >
+              <ChevronLeft className="h-4 w-4 text-[#64748B]" />
+            </Button>
+            <p className="min-w-0 flex-1 text-center text-sm font-semibold leading-snug text-[#0F172A] sm:text-base">
+              {rangeLabel}
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-lg"
+              onClick={navigateForward}
+              aria-label={scheduleView === "day" ? "Next day" : "Next week"}
+            >
+              <ChevronRight className="h-4 w-4 text-[#64748B]" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {scheduleView === "day" && (
+        <div className="space-y-3">
+          {daySessions.length === 0 ? (
+            <Card className="border-[#E5E7EB]">
+              <CardContent className="py-10 text-center text-sm text-[#64748B]">
+                No sessions scheduled for {format(anchorStart, "EEEE, MMM d")}.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {daySessions.map((s) => (
+                <WeightRoomScheduleSessionCard
+                  key={s.id}
+                  session={s}
+                  canEdit={canEdit}
+                  {...sessionCardHandlers(s, anchorStart, "comfortable")}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-7">
-        {DAY_LABELS.map((label, day) => (
-          <Card key={label} className="min-h-[140px] border-[#E5E7EB]">
-            <CardContent className="p-3">
-              <p className="mb-2 text-center text-xs font-bold uppercase text-[#64748B]">{label}</p>
-              <div className="space-y-2">
-                {(byDay[day] ?? []).map((s) => (
-                  <div
-                    key={s.id}
-                    className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-2 text-xs"
-                  >
-                    <p className="font-semibold text-[#0F172A]">{s.title}</p>
-                    <p className="text-[#64748B]">
-                      {String(s.start_time).slice(0, 5)} · {s.duration_minutes}m
+      {scheduleView === "week" && (
+        <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
+          <div className="grid min-w-[720px] grid-cols-7 gap-2 md:min-w-0 md:gap-3">
+            {listDays.map((calDay) => {
+              const dow = calDay.getDay()
+              const label = DAY_LABELS[dow]
+              const dayItems = byDay[dow] ?? []
+              return (
+                <Card key={calDay.toISOString()} className="flex min-h-[160px] flex-col border-[#E5E7EB]">
+                  <CardContent className="flex flex-1 flex-col p-2">
+                    <p className="mb-1 text-center text-[10px] font-bold uppercase leading-tight text-[#64748B]">
+                      {label}
                     </p>
-                    {canEdit && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-1.5 text-[11px]"
-                          onClick={() => setEditor(s)}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-1.5 text-[11px]"
-                          onClick={() => setAttSession(s)}
-                        >
-                          <Calendar className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-1.5 text-[11px] text-red-600"
-                          onClick={async () => {
-                            if (!confirm("Delete this session block?")) return
-                            const res = await fetch(`${base}/schedule/${s.id}`, { method: "DELETE" })
-                            if (res.ok) await onRefresh()
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    <p className="mb-2 text-center text-xs font-semibold text-[#0B2A5B]">{format(calDay, "d")}</p>
+                    <div className="flex min-h-0 flex-1 flex-col gap-2">
+                      {dayItems.length === 0 ? (
+                        <p className="text-center text-[10px] text-[#94A3B8]">—</p>
+                      ) : (
+                        dayItems.map((s) => (
+                          <WeightRoomScheduleSessionCard
+                            key={s.id}
+                            session={s}
+                            canEdit={canEdit}
+                            {...sessionCardHandlers(s, calDay, "compact")}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {scheduleView === "list" && (
+        <div className="space-y-0 divide-y divide-[#E5E7EB] rounded-xl border border-[#E5E7EB] bg-white">
+          {listDays.map((calDay) => {
+            const dow = calDay.getDay()
+            const rows = byDay[dow] ?? []
+            return (
+              <section key={calDay.toISOString()} className="px-4 py-4 first:pt-4 last:pb-4">
+                <div className="mb-3 border-b border-[#F1F5F9] pb-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#64748B]">{format(calDay, "EEEE")}</p>
+                  <p className="text-lg font-semibold text-[#0F172A]">{format(calDay, "MMMM d, yyyy")}</p>
+                </div>
+                {rows.length === 0 ? (
+                  <p className="text-sm text-[#64748B]">No sessions this day.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {rows.map((s) => {
+                      const detail = weightRoomScheduleSessionDetail(s)
+                      return (
+                        <li key={s.id}>
+                          <div className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-[#0F172A]">{s.title}</p>
+                              <p className="mt-0.5 text-sm text-[#64748B]">
+                                {format(calDay, "MMM d, yyyy")} · {String(s.start_time).slice(0, 5)} ·{" "}
+                                {s.duration_minutes} min
+                              </p>
+                              {detail ? (
+                                <p className="mt-1 text-sm text-[#64748B]">{detail}</p>
+                              ) : null}
+                            </div>
+                            {canEdit && (
+                              <div className="flex shrink-0 gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-9 px-2"
+                                  onClick={() => setEditor(s)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-9 px-2"
+                                  onClick={() => openAttendance(s, calDay)}
+                                >
+                                  <Calendar className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-9 px-2 text-red-600"
+                                  onClick={() => void deleteSession(s)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            )
+          })}
+        </div>
+      )}
 
       <SessionDialog
         open={editor !== null}

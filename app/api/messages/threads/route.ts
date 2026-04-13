@@ -3,10 +3,29 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 
+type InboxStatRow = {
+  thread_id: string
+  message_count: number | string
+  unread_count: number | string
+  last_message_id: string | null
+  last_message_content: string | null
+  last_message_created_at: string | null
+  last_sender_id: string | null
+}
+
+type ThreadInboxStats = {
+  messageCount: number
+  unreadCount: number
+  lastMessageId: string | null
+  lastContent: string | null
+  lastCreatedAt: string | null
+  lastSenderId: string | null
+}
+
 /**
  * GET /api/messages/threads?teamId=xxx
  * Returns threads for the team that the current user is a participant in.
- * Includes last message preview, unread counts, roster-based display names, and participant role hints for UI.
+ * Uses DB-side aggregates for counts/unread and latest message (no full message-table scan in Node).
  */
 export async function GET(request: Request) {
   try {
@@ -44,10 +63,6 @@ export async function GET(request: Request) {
       return NextResponse.json([])
     }
 
-    const lastReadByThread = new Map(
-      (participantThreads ?? []).map((p) => [p.thread_id, p.last_read_at as string | null])
-    )
-
     const { data: threads, error: threadsError } = await supabase
       .from("message_threads")
       .select("id, title, thread_type, created_by, created_at, updated_at, team_id")
@@ -66,31 +81,36 @@ export async function GET(request: Request) {
       return NextResponse.json([])
     }
 
+    const { data: statsRows, error: statsError } = await supabase.rpc("message_threads_inbox_stats", {
+      p_user_id: userId,
+      p_thread_ids: selectedThreadIds,
+    })
+
+    if (statsError) {
+      console.error("[GET /api/messages/threads] message_threads_inbox_stats", statsError)
+      return NextResponse.json({ error: "Failed to load threads" }, { status: 500 })
+    }
+
+    const statsByThread = new Map<string, ThreadInboxStats>(
+      (statsRows ?? []).map((r: InboxStatRow) => [
+        r.thread_id,
+        {
+          messageCount: Number(r.message_count ?? 0),
+          unreadCount: Number(r.unread_count ?? 0),
+          lastMessageId: r.last_message_id,
+          lastContent: r.last_message_content,
+          lastCreatedAt: r.last_message_created_at,
+          lastSenderId: r.last_sender_id,
+        },
+      ])
+    )
+
     const creatorIds = [...new Set((threads ?? []).map((t) => t.created_by))]
     let creatorMap = new Map<string, { id: string; name: string | null; email: string }>()
     if (creatorIds.length > 0) {
-      const { data: users } = await supabase
-        .from("users")
-        .select("id, name, email")
-        .in("id", creatorIds)
+      const { data: users } = await supabase.from("users").select("id, name, email").in("id", creatorIds)
       creatorMap = new Map((users ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
     }
-
-    const countMap = new Map<string, number>()
-    const unreadCounts = new Map<string, number>()
-    const { data: messageStatsRows } = await supabase
-      .from("messages")
-      .select("thread_id, sender_id, created_at")
-      .in("thread_id", selectedThreadIds)
-      .is("deleted_at", null)
-    ;(messageStatsRows ?? []).forEach((m) => {
-      countMap.set(m.thread_id, (countMap.get(m.thread_id) ?? 0) + 1)
-      if (m.sender_id === userId) return
-      const lastReadAt = lastReadByThread.get(m.thread_id)
-      if (!lastReadAt || new Date(m.created_at).getTime() > new Date(lastReadAt).getTime()) {
-        unreadCounts.set(m.thread_id, (unreadCounts.get(m.thread_id) ?? 0) + 1)
-      }
-    })
 
     const { data: allParticipants } = await supabase
       .from("message_thread_participants")
@@ -137,10 +157,7 @@ export async function GET(request: Request) {
 
     const teamRoleByUserId = new Map((teamMembers ?? []).map((m) => [m.user_id, m.role]))
 
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, role")
-      .in("id", allParticipantUserIds)
+    const { data: profiles } = await supabase.from("profiles").select("id, role").in("id", allParticipantUserIds)
 
     const profileRoleByUserId = new Map((profiles ?? []).map((p) => [p.id, p.role]))
 
@@ -152,20 +169,13 @@ export async function GET(request: Request) {
       return "staff"
     }
 
-    const { data: recentMessages } = await supabase
-      .from("messages")
-      .select("id, thread_id, sender_id, content, created_at")
-      .in("thread_id", selectedThreadIds)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(400)
-
-    const latestByThread = new Map<string, (typeof recentMessages extends (infer R)[] | null ? R : never)>()
-    for (const m of recentMessages ?? []) {
-      if (!latestByThread.has(m.thread_id)) latestByThread.set(m.thread_id, m)
-    }
-
-    const latestSenderIds = [...new Set([...latestByThread.values()].map((m) => m.sender_id))]
+    const latestSenderIds = [
+      ...new Set(
+        (statsRows ?? [])
+          .map((r: InboxStatRow) => r.last_sender_id)
+          .filter((id): id is string => typeof id === "string" && !!id)
+      ),
+    ]
     const { data: latestSenders } =
       latestSenderIds.length > 0
         ? await supabase.from("users").select("id, name, email").in("id", latestSenderIds)
@@ -203,7 +213,7 @@ export async function GET(request: Request) {
           user: { id: string; name: string | null; email: string; displayName: string }
         }>
 
-      const latest = latestByThread.get(t.id)
+      const st = statsByThread.get(t.id)
       let messages: Array<{
         id: string
         body: string
@@ -212,19 +222,19 @@ export async function GET(request: Request) {
         creator: { id: string; name: string | null; email: string }
       }> = []
 
-      if (latest) {
-        const s = latestSenderMap.get(latest.sender_id)
+      if (st?.lastMessageId && st.lastSenderId) {
+        const s = latestSenderMap.get(st.lastSenderId)
         const senderName = s?.name ?? null
-        const roster = rosterNameByUserId.get(latest.sender_id)
+        const roster = rosterNameByUserId.get(st.lastSenderId)
         const resolvedName = roster || senderName || s?.email || ""
         messages = [
           {
-            id: latest.id,
-            body: latest.content,
+            id: st.lastMessageId,
+            body: st.lastContent ?? "",
             attachments: [],
-            createdAt: latest.created_at,
+            createdAt: st.lastCreatedAt ?? t.updated_at,
             creator: {
-              id: latest.sender_id,
+              id: st.lastSenderId,
               name: resolvedName || senderName,
               email: s?.email ?? "",
             },
@@ -241,8 +251,8 @@ export async function GET(request: Request) {
         creator,
         participants,
         messages,
-        unreadCount: unreadCounts.get(t.id) ?? 0,
-        _count: { messages: countMap.get(t.id) || 0 },
+        unreadCount: st?.unreadCount ?? 0,
+        _count: { messages: st?.messageCount ?? 0 },
         isReadOnly: false,
         canReply: true,
       }

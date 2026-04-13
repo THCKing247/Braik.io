@@ -144,6 +144,8 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const isUserScrollingRef = useRef<boolean>(false)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const urlThreadIdProcessedRef = useRef<boolean>(false)
+  const contactsFetchStartedRef = useRef(false)
+  const selectedThreadIdRef = useRef<string | null>(null)
   const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(new Set())
   const [isWide, setIsWide] = useState(false)
   const [mobileShowList, setMobileShowList] = useState(true)
@@ -158,11 +160,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const canCreateThread = permissions.canCreateThread()
 
   useEffect(() => {
+    contactsFetchStartedRef.current = false
     setInitialLoading(true)
     setError(null)
     const loadData = async () => {
       try {
-        await Promise.all([loadThreads(), loadContacts()])
+        await loadThreads()
       } catch (err) {
         console.error("Error loading initial data:", err)
         setError("Failed to load messages. Please refresh the page.")
@@ -173,6 +176,17 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId])
+
+  /** Contacts are only needed for compose / participant picker — lazy load on first use. */
+  useEffect(() => {
+    const needsContacts =
+      (showCreateThread && threadType !== null) ||
+      (showParticipantsModal && participantsModalPurpose === "pick")
+    if (!needsContacts || contactsFetchStartedRef.current) return
+    contactsFetchStartedRef.current = true
+    void loadContacts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreateThread, threadType, showParticipantsModal, participantsModalPurpose])
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)")
@@ -200,6 +214,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     const generalChat = threads.find((t) => t.threadType === "GENERAL")
     setSelectedThread(generalChat || threads[0])
   }, [isWide, threads, selectedThread, searchParams])
+
+  useEffect(() => {
+    selectedThreadIdRef.current = selectedThread?.id ?? null
+  }, [selectedThread?.id])
 
   // Load messages only when threadId changes (not when selectedThread object changes)
   useEffect(() => {
@@ -387,6 +405,52 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
   }
 
+  /** Update inbox row preview from a thread detail payload (avoids refetching the full thread list). */
+  const patchThreadListFromDetailMessages = (threadId: string, detailMessages: Message[], isViewingThread: boolean) => {
+    if (!detailMessages.length) return
+    const last = detailMessages[detailMessages.length - 1]
+    const previewMessages: Message[] = [
+      {
+        id: last.id,
+        body: last.body,
+        attachments: Array.isArray(last.attachments) ? last.attachments : [],
+        createdAt: last.createdAt instanceof Date ? last.createdAt : new Date(last.createdAt),
+        creator: last.creator,
+      },
+    ]
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id !== threadId
+          ? t
+          : {
+              ...t,
+              updatedAt: new Date(
+                last.createdAt instanceof Date ? last.createdAt : new Date(last.createdAt)
+              ),
+              messages: previewMessages,
+              unreadCount: isViewingThread ? 0 : t.unreadCount ?? 0,
+              _count: { messages: detailMessages.length },
+            }
+      )
+    )
+  }
+
+  const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
+    if (senderId === userId) {
+      const c = contacts.find((x) => x.id === userId)
+      return { id: userId, name: c?.name ?? null, email: c?.email ?? "" }
+    }
+    const p = selectedThread?.participants.find((pp) => pp.userId === senderId)
+    if (p) {
+      const name =
+        (displayNameForParticipantUser(p.user) || p.user.name || p.user.email || "").trim() || null
+      return { id: senderId, name, email: p.user.email }
+    }
+    const c = contacts.find((x) => x.id === senderId)
+    if (c) return { id: senderId, name: c.name, email: c.email }
+    return { id: senderId, name: null, email: "" }
+  }
+
   const handleModerateMessage = async (messageId: string) => {
     if (!selectedThread?.id) return
     if (!window.confirm("Remove this message for all participants?")) return
@@ -400,8 +464,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         const err = await res.json().catch(() => ({}))
         throw new Error((err as { error?: string }).error || "Moderation failed")
       }
-      await loadMessages(selectedThread.id, false)
-      await loadThreads()
+      const refreshed = await loadMessages(selectedThread.id, false)
+      if (refreshed?.messages?.length) {
+        patchThreadListFromDetailMessages(selectedThread.id, refreshed.messages, true)
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to remove message"
       alert(msg)
@@ -457,9 +523,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       if (showLoading) {
         setupRealtimeSubscription(threadId)
       }
+
+      return { messages: sortedMessages as Message[], raw: data }
     } catch (error: any) {
       console.error("Error loading messages:", error)
       setError(error.message || "Failed to load messages")
+      return null
     } finally {
       if (showLoading) {
         setMessagesLoading(false)
@@ -505,10 +574,16 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             return aTime - bTime
           })
         })
+
+        const mergedForPreview = [...(data.messages || [])].sort((a: Message, b: Message) => {
+          const aTime = new Date(a.createdAt).getTime()
+          const bTime = new Date(b.createdAt).getTime()
+          return aTime - bTime
+        }) as Message[]
+        if (mergedForPreview.length) {
+          patchThreadListFromDetailMessages(threadId, mergedForPreview, selectedThreadIdRef.current === threadId)
+        }
       }
-      
-      // Refresh thread list to update last message timestamps (non-blocking)
-      loadThreads().catch(err => console.error("Error refreshing threads:", err))
     } catch (error) {
       console.error("Error refreshing messages:", error)
     } finally {
@@ -578,29 +653,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             })
           }
 
-          try {
-            const senderResponse = await fetch(`/api/messages/sender/${senderId}`)
-            const senderData = senderResponse.ok ? await senderResponse.json() : null
-
-            const newMessage: Message = {
-              id: newMessageId,
-              body: content,
-              attachments: [],
-              createdAt: new Date(createdAt),
-              creator: senderData || { id: senderId, name: null, email: "" },
-            }
-
-            appendRealtimeMessage(newMessage)
-          } catch (err) {
-            console.error("Error fetching sender info for realtime message:", err)
-            appendRealtimeMessage({
-              id: newMessageId,
-              body: content,
-              attachments: [],
-              createdAt: new Date(createdAt),
-              creator: { id: senderId, name: null, email: "" },
-            })
+          const newMessage: Message = {
+            id: newMessageId,
+            body: content,
+            attachments: [],
+            createdAt: new Date(createdAt),
+            creator: resolveRealtimeCreator(senderId),
           }
+          appendRealtimeMessage(newMessage)
+          patchThreadListFromDetailMessages(threadId, [newMessage], selectedThreadIdRef.current === threadId)
         }
       )
       .subscribe()
@@ -702,8 +763,21 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         })
       })
 
-      // Refresh thread list to update last message (non-blocking)
-      loadThreads().catch(err => console.error("Error refreshing threads:", err))
+      if (newMessage && typeof newMessage === "object" && "id" in newMessage) {
+        patchThreadListFromDetailMessages(
+          selectedThread.id,
+          [
+            {
+              id: String((newMessage as Message).id),
+              body: String((newMessage as Message).body ?? ""),
+              attachments: (newMessage as Message).attachments ?? [],
+              createdAt: new Date((newMessage as Message).createdAt),
+              creator: (newMessage as Message).creator,
+            },
+          ],
+          true
+        )
+      }
     } catch (error: any) {
       const errorMessage = error.message || "Error sending message"
       setError(errorMessage)

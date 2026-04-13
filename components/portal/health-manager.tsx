@@ -77,9 +77,13 @@ export function HealthManager({ teamId }: HealthManagerProps) {
 
   const loadData = async () => {
     setLoading(true)
+    setLoadError(null)
     try {
-      // Load players
-      const playersRes = await fetch(`/api/roster?teamId=${teamId}`)
+      const [playersRes, injuriesRes] = await Promise.all([
+        fetch(`/api/roster?teamId=${teamId}`),
+        fetch(`/api/health/injuries?teamId=${teamId}`),
+      ])
+
       if (playersRes.ok) {
         const playersData = await playersRes.json()
         setPlayers(playersData.map((p: any) => ({
@@ -91,8 +95,6 @@ export function HealthManager({ teamId }: HealthManagerProps) {
         })))
       }
 
-      // Load injuries
-      const injuriesRes = await fetch(`/api/health/injuries?teamId=${teamId}`)
       if (injuriesRes.ok) {
         const injuriesData = await injuriesRes.json()
         const raw = injuriesData.injuries || []
@@ -104,8 +106,13 @@ export function HealthManager({ teamId }: HealthManagerProps) {
           }))
         )
       }
+
+      if (!playersRes.ok || !injuriesRes.ok) {
+        setLoadError("Some data could not be loaded. Try refreshing the page.")
+      }
     } catch (error) {
       console.error("Failed to load health data:", error)
+      setLoadError("Failed to load health data.")
     } finally {
       setLoading(false)
     }
@@ -135,10 +142,35 @@ export function HealthManager({ teamId }: HealthManagerProps) {
       })
 
       if (response.ok) {
+        const payload = await response.json()
+        const inj = payload?.injury as Injury | undefined
+        if (inj) {
+          const pl = players.find((p) => p.id === inj.player_id)
+          const enriched: Injury = {
+            ...inj,
+            severity: inj.severity ?? null,
+            exempt_from_practice: inj.exempt_from_practice === true,
+            players: pl
+              ? {
+                  id: pl.id,
+                  first_name: pl.firstName,
+                  last_name: pl.lastName,
+                  jersey_number: pl.jerseyNumber ?? null,
+                }
+              : {
+                  id: inj.player_id,
+                  first_name: "",
+                  last_name: "",
+                  jersey_number: null,
+                },
+          }
+          setInjuries((prev) => [enriched, ...prev])
+        } else {
+          await loadData()
+        }
         alert("Injury recorded successfully!")
         setShowInjuryModal(false)
         resetForm()
-        loadData()
       } else {
         const error = await response.json()
         alert(error.error || "Failed to record injury")
@@ -165,7 +197,26 @@ export function HealthManager({ teamId }: HealthManagerProps) {
       })
 
       if (response.ok) {
-        loadData()
+        const payload = await response.json().catch(() => ({}))
+        const updated = payload?.injury as Injury | undefined
+        if (updated) {
+          setInjuries((prev) =>
+            prev.map((i) =>
+              i.id === updated.id
+                ? {
+                    ...i,
+                    ...updated,
+                    players: i.players,
+                    severity: updated.severity ?? i.severity,
+                    exempt_from_practice:
+                      updated.exempt_from_practice === true || i.exempt_from_practice === true,
+                  }
+                : i
+            )
+          )
+        } else {
+          await loadData()
+        }
       } else {
         alert("Failed to resolve injury")
       }
@@ -207,7 +258,26 @@ export function HealthManager({ teamId }: HealthManagerProps) {
         }),
       })
       if (response.ok) {
-        await loadData()
+        const payload = await response.json().catch(() => ({}))
+        const updated = payload?.injury as Injury | undefined
+        if (updated) {
+          setInjuries((prev) =>
+            prev.map((i) =>
+              i.id === updated.id
+                ? {
+                    ...i,
+                    ...updated,
+                    players: i.players,
+                    severity: updated.severity ?? i.severity,
+                    exempt_from_practice:
+                      updated.exempt_from_practice === true || i.exempt_from_practice === true,
+                  }
+                : i
+            )
+          )
+        } else {
+          await loadData()
+        }
         setDetailInjury(null)
       } else {
         let msg = "Failed to save injury details."
@@ -250,12 +320,24 @@ export function HealthManager({ teamId }: HealthManagerProps) {
     }
   }
 
-  if (loading) {
-    return <div className="p-8 text-center">Loading health data...</div>
-  }
-
   const activeInjuries = injuries.filter((i) => i.status === "active")
   const resolvedInjuries = injuries.filter((i) => i.status === "resolved")
+
+  const injuryCardSkeleton = (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {[1, 2, 3, 4].map((k) => (
+        <div
+          key={k}
+          className="rounded-lg p-4 border min-h-[152px] animate-pulse"
+          style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+        >
+          <div className="h-4 w-2/3 rounded bg-slate-200 mb-3" />
+          <div className="h-3 w-full rounded bg-slate-200/80 mb-2" />
+          <div className="h-3 w-4/5 rounded bg-slate-200/80" />
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     <div className="space-y-6">
@@ -275,6 +357,12 @@ export function HealthManager({ teamId }: HealthManagerProps) {
           Record Injury
         </Button>
       </div>
+
+      {loadError && (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          {loadError}
+        </p>
+      )}
 
       {/* Injury Modal */}
       {showInjuryModal && (
@@ -456,7 +544,9 @@ export function HealthManager({ teamId }: HealthManagerProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {activeInjuries.length === 0 ? (
+          {loading ? (
+            injuryCardSkeleton
+          ) : activeInjuries.length === 0 ? (
             <div
               className="rounded-lg border border-dashed px-4 py-8 text-center"
               style={{ borderColor: "rgb(var(--border))", backgroundColor: "rgb(var(--platinum))" }}
@@ -533,6 +623,20 @@ export function HealthManager({ teamId }: HealthManagerProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((k) => (
+                <div
+                  key={k}
+                  className="rounded-lg p-3 border h-24 animate-pulse"
+                  style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "rgb(var(--border))" }}
+                >
+                  <div className="h-3 w-1/2 rounded bg-slate-200 mb-2" />
+                  <div className="h-3 w-3/4 rounded bg-slate-200/80" />
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {players.map((player) => {
               const playerInjury = activeInjuries.find((i) => i.player_id === player.id)
@@ -563,6 +667,7 @@ export function HealthManager({ teamId }: HealthManagerProps) {
               )
             })}
           </div>
+          )}
         </CardContent>
       </Card>
 

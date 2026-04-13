@@ -6,7 +6,12 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PlaybookBreadcrumbs } from "@/components/portal/playbook-breadcrumbs"
 import { PlaybookCard } from "@/components/portal/playbook-card"
-import type { PlaybookRecord, FormationRecord, PlayRecord } from "@/types/playbook"
+import type { PlaybookRecord } from "@/types/playbook"
+
+type PlaybookSummaryRow = PlaybookRecord & {
+  formationCount: number
+  playCount: number
+}
 
 interface PlaybooksBrowseProps {
   teamId: string
@@ -15,23 +20,18 @@ interface PlaybooksBrowseProps {
 
 export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
   const router = useRouter()
-  const [playbooks, setPlaybooks] = useState<PlaybookRecord[]>([])
-  const [formations, setFormations] = useState<FormationRecord[]>([])
-  const [plays, setPlays] = useState<PlayRecord[]>([])
+  const [playbooks, setPlaybooks] = useState<PlaybookSummaryRow[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     if (!teamId) return
     setLoading(true)
     try {
-      const [pbRes, fRes, pRes] = await Promise.all([
-        fetch(`/api/playbooks?teamId=${teamId}`),
-        fetch(`/api/formations?teamId=${teamId}`),
-        fetch(`/api/plays?teamId=${teamId}`),
-      ])
-      if (pbRes.ok) setPlaybooks(await pbRes.json())
-      if (fRes.ok) setFormations(await fRes.json())
-      if (pRes.ok) setPlays(await pRes.json())
+      const res = await fetch(`/api/playbooks/summary?teamId=${teamId}`)
+      if (res.ok) {
+        const data = (await res.json()) as PlaybookSummaryRow[]
+        setPlaybooks(Array.isArray(data) ? data : [])
+      }
     } catch (e) {
       console.error("Failed to load playbooks data", e)
     } finally {
@@ -42,11 +42,6 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
   useEffect(() => {
     load()
   }, [load])
-
-  const formationCountByPlaybook = (playbookId: string) =>
-    formations.filter((f) => f.playbookId === playbookId).length
-  const playCountByPlaybook = (playbookId: string) =>
-    plays.filter((p) => p.playbookId === playbookId).length
 
   const handleNewPlaybook = () => {
     router.push("/dashboard/playbooks/new")
@@ -116,8 +111,8 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
               <PlaybookCard
                 key={pb.id}
                 playbook={pb}
-                formationCount={formationCountByPlaybook(pb.id)}
-                playCount={playCountByPlaybook(pb.id)}
+                formationCount={pb.formationCount}
+                playCount={pb.playCount}
                 onSelect={() => handleOpenPlaybook(pb.id)}
                 onPresenter={() => router.push(`/dashboard/playbooks/${pb.id}/present`)}
                 onEdit={canEdit ? () => router.push(`/dashboard/playbooks/${pb.id}/edit`) : undefined}

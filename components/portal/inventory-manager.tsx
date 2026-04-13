@@ -237,21 +237,20 @@ function InventoryManagerInner({
 
     try {
       if (!invType) {
-        const [metaRes, catRes] = await Promise.all([
-          fetch(metaUrl),
-          fetch(`/api/teams/${teamId}/inventory?catalog=1&bucket=${bucketQ}`),
-        ])
+        const combinedRes = await fetch(
+          `/api/teams/${teamId}/inventory?bootstrapCatalog=1&bucket=${bucketQ}`
+        )
         if (!isLatest()) return
-        if (!metaRes.ok) {
+        if (!combinedRes.ok) {
           setBootstrapLoading(false)
           setCatalogLoading(false)
           return
         }
-        const meta = (await metaRes.json()) as Parameters<typeof applyMeta>[0]
-        applyMeta(meta)
-        const catJ = catRes.ok ? await catRes.json() : { catalog: [] }
-        if (!isLatest()) return
-        setCatalogCards(Array.isArray(catJ.catalog) ? catJ.catalog : [])
+        const payload = (await combinedRes.json()) as Parameters<typeof applyMeta>[0] & {
+          catalog?: InventoryCatalogCardRow[]
+        }
+        applyMeta(payload)
+        setCatalogCards(Array.isArray(payload.catalog) ? payload.catalog : [])
         setCatalogLoading(false)
         setItems([])
         setTotalItemCount(0)
@@ -409,9 +408,48 @@ function InventoryManagerInner({
         throw new Error(error.error || "Failed to create item")
       }
 
-      await response.json()
+      const createdPayload = await response.json()
       if (bootstrapInventory) {
-        await reloadInventoryAfterMutation()
+        if (data.quantity > 1) {
+          await reloadInventoryAfterMutation()
+        } else if (!invType) {
+          const bucketQ = encodeURIComponent(bucketFilter)
+          const catRes = await fetch(`/api/teams/${teamId}/inventory?catalog=1&bucket=${bucketQ}`)
+          if (catRes.ok) {
+            const catJ = await catRes.json()
+            setCatalogCards(Array.isArray(catJ.catalog) ? catJ.catalog : [])
+          }
+          const metaRes = await fetch(`/api/teams/${teamId}/inventory?meta=1&bucket=${bucketQ}`)
+          if (metaRes.ok) {
+            applyMeta((await metaRes.json()) as Parameters<typeof applyMeta>[0])
+          }
+        } else {
+          const newItem = createdPayload as InventoryItem
+          const matchesType =
+            (newItem.equipmentType || newItem.category || "").trim() === (invType || "").trim()
+          const matchesBucket =
+            bucketFilter === "All" ||
+            (newItem.inventoryBucket || "Gear") === bucketFilter
+          if (matchesType && matchesBucket && inventoryPage === 1) {
+            setItems((prev) => [newItem, ...prev])
+            setTotalItemCount((c) => c + 1)
+            setServerTabStats((stats) => {
+              if (!stats) return stats
+              const st = newItem.status || ""
+              const needs =
+                st === "DAMAGED" || st === "NEEDS_REPAIR" || !!(newItem.damageReportText || "").trim()
+              return {
+                total: stats.total + 1,
+                available:
+                  stats.available + (st === "AVAILABLE" || st === "" ? 1 : 0),
+                assigned: stats.assigned + (st === "ASSIGNED" ? 1 : 0),
+                needsAttention: stats.needsAttention + (needs ? 1 : 0),
+              }
+            })
+          } else {
+            await reloadInventoryAfterMutation()
+          }
+        }
       } else {
         const itemsResponse = await fetch(`/api/teams/${teamId}/inventory`)
         if (itemsResponse.ok) {
@@ -607,7 +645,12 @@ function InventoryManagerInner({
         throw new Error(error.error || "Failed to update item")
       }
 
-      await reloadInventoryAfterMutation()
+      const updated = (await response.json()) as InventoryItem
+      if (bootstrapInventory) {
+        setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, ...updated } : it)))
+      } else {
+        await reloadInventoryAfterMutation()
+      }
     } catch (error: any) {
       alert(error.message || "Error updating item")
       throw error
@@ -628,7 +671,27 @@ function InventoryManagerInner({
         throw new Error(error.error || "Failed to delete item")
       }
 
-      await reloadInventoryAfterMutation()
+      if (bootstrapInventory) {
+        const removed = items.find((i) => i.id === itemId)
+        setItems((prev) => prev.filter((i) => i.id !== itemId))
+        setTotalItemCount((c) => Math.max(0, c - 1))
+        setServerTabStats((stats) => {
+          if (!stats || !removed) return stats
+          const st = removed.status || ""
+          const needs =
+            st === "DAMAGED" || st === "NEEDS_REPAIR" || !!(removed.damageReportText || "").trim()
+          return {
+            total: Math.max(0, stats.total - 1),
+            available:
+              stats.available -
+              (st === "AVAILABLE" || st === "" ? 1 : 0),
+            assigned: stats.assigned - (st === "ASSIGNED" ? 1 : 0),
+            needsAttention: stats.needsAttention - (needs ? 1 : 0),
+          }
+        })
+      } else {
+        await reloadInventoryAfterMutation()
+      }
     } catch (error: any) {
       alert(error.message || "Error deleting item")
     } finally {

@@ -75,6 +75,7 @@ function mapItemRow(
  *
  * Query params:
  * - `meta=1` — bootstrap only (players, recent costs, type totals, tab stats, pending count); no items.
+ * - `bootstrapCatalog=1&bucket=All` — single response: meta + catalog cards (first-screen inventory hub).
  * - `paginated=1&page=1&limit=25&bucket=All&search=` — paged item list + assignments map.
  * - `expenseGroups=1` — server-rolled expense rows for the Expenses tab (no per-item array).
  * Default — full cached payload (backward compatible for player profile, etc.).
@@ -123,6 +124,19 @@ export async function GET(
         }
         const assignedItems = await loadInventoryArchiveAssignments(supabase, teamId, inventoryBucket, equipmentType)
         return NextResponse.json({ assignedItems })
+      }
+
+      if (url.searchParams.get("bootstrapCatalog") === "1") {
+        const bucketFilter = url.searchParams.get("bucket") || "All"
+        const [boot, catalog] = await Promise.all([
+          loadInventoryBootstrap(teamId, membership, { bucketFilter }),
+          loadInventoryCatalog(supabase, teamId, bucketFilter),
+        ])
+        return NextResponse.json({
+          ...boot,
+          catalog,
+          viewer,
+        })
       }
 
       if (url.searchParams.get("meta") === "1") {

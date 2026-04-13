@@ -126,7 +126,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   {
     id: "fundraising",
     href: "/dashboard/fundraising",
-    label: "Fundraising",
+    label: "Finances",
     icon: CircleDollarSign,
     roles: ["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"],
   },

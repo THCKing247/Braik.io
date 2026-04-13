@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { Copy, Pencil, Plus, Trash2 } from "lucide-react"
+import { Copy, Pencil, Plus, QrCode, Trash2 } from "lucide-react"
+import { QrCodeImage } from "@/components/ui/qr-code-image"
 
 function formatMoney(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
@@ -30,6 +31,25 @@ const PLATFORMS = [
   { value: "paypal", label: "PayPal (URL)" },
   { value: "other", label: "Other" },
 ] as const
+
+/** Returns a shareable URL for QR encoding, or null if we cannot derive one safely. */
+function paymentRefToQrValue(platform: string, raw: string): string | null {
+  const t = raw.trim()
+  if (!t) return null
+  if (/^https?:\/\//i.test(t)) return t
+  if (platform === "cashapp") {
+    const tag = t.startsWith("$") ? t.slice(1) : t
+    if (!tag) return null
+    return `https://cash.app/$${encodeURIComponent(tag)}`
+  }
+  if (platform === "venmo") {
+    const h = t.startsWith("@") ? t.slice(1) : t
+    if (!h) return null
+    return `https://venmo.com/${encodeURIComponent(h)}`
+  }
+  if (platform === "paypal") return null
+  return null
+}
 
 type BudgetRow = {
   id?: string
@@ -63,6 +83,18 @@ type RefRow = {
   sort_order: number
 }
 
+type DueCollectionRow = {
+  id: string
+  team_id?: string
+  season_year: number
+  description: string
+  amount_due: number
+  due_date: string
+  status: "pending" | "collected"
+  notes: string | null
+  created_at?: string
+}
+
 type RecentRow = {
   kind: "budget" | "donation"
   label: string
@@ -76,6 +108,7 @@ type FullPayload = {
   budget: BudgetRow | null
   entries: EntryRow[]
   paymentRefs: RefRow[]
+  dueCollections: DueCollectionRow[]
   recentActivity: RecentRow[]
   canEdit: boolean
   canEditPaymentRefs: boolean
@@ -87,9 +120,17 @@ type PaymentOnlyPayload = {
   canEditPaymentRefs: boolean
 }
 
+type FinancesTab =
+  | "overview"
+  | "budget"
+  | "fundraising"
+  | "donations"
+  | "payment_refs"
+  | "due_collections"
+
 export function FundraisingView({ teamId }: { teamId: string }) {
   const [seasonYear, setSeasonYear] = useState(() => new Date().getFullYear())
-  const [tab, setTab] = useState<"overview" | "budget" | "donations" | "payment_refs">("overview")
+  const [tab, setTab] = useState<FinancesTab>("overview")
   const [data, setData] = useState<FullPayload | PaymentOnlyPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -101,7 +142,7 @@ export function FundraisingView({ teamId }: { teamId: string }) {
       const r = await fetch(`/api/teams/${encodeURIComponent(teamId)}/fundraising?seasonYear=${seasonYear}`)
       if (!r.ok) {
         const j = await r.json().catch(() => ({}))
-        throw new Error((j as { error?: string }).error || "Failed to load fundraising")
+        throw new Error((j as { error?: string }).error || "Failed to load finances")
       }
       const j = (await r.json()) as FullPayload | PaymentOnlyPayload
       setData(j)
@@ -122,10 +163,10 @@ export function FundraisingView({ teamId }: { teamId: string }) {
       <div className="min-w-0 space-y-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
-            Fundraising
+            Finances
           </h1>
           <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
-            Payment references only. Braik does not process payments — share these with families and supporters.
+            Payment references only — for sharing with families. Braik does not process payments.
           </p>
         </div>
         <PaymentRefsSection
@@ -149,7 +190,7 @@ export function FundraisingView({ teamId }: { teamId: string }) {
       ) : err || !data ? (
         <Card className="border mt-4" style={{ borderColor: "rgb(var(--border))" }}>
           <CardContent className="py-8 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
-            {err || "Unable to load fundraising."}
+            {err || "Unable to load finances."}
           </CardContent>
         </Card>
       ) : data.access === "full" ? (
@@ -166,6 +207,58 @@ export function FundraisingView({ teamId }: { teamId: string }) {
   )
 }
 
+function SeasonPickerModal({
+  open,
+  onOpenChange,
+  year,
+  onSelect,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  year: number
+  onSelect: (y: number) => void
+}) {
+  const years = useMemo(() => {
+    const cy = new Date().getFullYear()
+    return Array.from({ length: 14 }, (_, i) => cy - 6 + i)
+  }, [])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Select season</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+          Data below is filtered by the selected season year.
+        </p>
+        <div className="grid max-h-[min(50vh,20rem)] gap-1 overflow-y-auto py-1">
+          {years.map((y) => (
+            <Button
+              key={y}
+              type="button"
+              variant={y === year ? "default" : "ghost"}
+              className="justify-start"
+              style={y === year ? { backgroundColor: "rgb(var(--accent))", color: "white" } : undefined}
+              onClick={() => {
+                onSelect(y)
+                onOpenChange(false)
+              }}
+            >
+              {seasonLabel(y)}
+            </Button>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function FundraisingShell({
   seasonYear,
   setSeasonYear,
@@ -175,47 +268,57 @@ function FundraisingShell({
 }: {
   seasonYear: number
   setSeasonYear: (y: number) => void
-  tab: "overview" | "budget" | "donations" | "payment_refs"
-  setTab: (t: "overview" | "budget" | "donations" | "payment_refs") => void
+  tab: FinancesTab
+  setTab: (t: FinancesTab) => void
   children: ReactNode
 }) {
+  const [seasonModalOpen, setSeasonModalOpen] = useState(false)
+
   return (
     <div className="min-w-0 space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
-            Fundraising
+            Finances
           </h1>
           <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
             Ledger and reference links — Braik does not process payments.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="fundraising-season" className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-            Season
-          </Label>
-          <Input
-            id="fundraising-season"
-            type="number"
-            className="h-9 w-28"
-            value={seasonYear}
-            min={2000}
-            max={2100}
-            onChange={(e) => setSeasonYear(Math.max(2000, parseInt(e.target.value, 10) || new Date().getFullYear()))}
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0"
+            onClick={() => setSeasonModalOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={seasonModalOpen}
+          >
+            Season: {seasonLabel(seasonYear)}
+          </Button>
         </div>
       </div>
+
+      <SeasonPickerModal
+        open={seasonModalOpen}
+        onOpenChange={setSeasonModalOpen}
+        year={seasonYear}
+        onSelect={setSeasonYear}
+      />
 
       <PortalUnderlineTabs
         tabs={[
           { id: "overview", label: "Overview" },
           { id: "budget", label: "Budget" },
+          { id: "fundraising", label: "Fundraising" },
           { id: "donations", label: "Donations & Revenue" },
           { id: "payment_refs", label: "Payment References" },
+          { id: "due_collections", label: "Due Collections" },
         ]}
         value={tab}
-        onValueChange={(id) => setTab(id as typeof tab)}
-        ariaLabel="Fundraising sections"
+        onValueChange={(id) => setTab(id as FinancesTab)}
+        ariaLabel="Finances sections"
       />
 
       {children}
@@ -235,15 +338,16 @@ function FundraisingFullTabPanels({
   payload: FullPayload
   seasonYear: number
   setSeasonYear: (y: number) => void
-  tab: "overview" | "budget" | "donations" | "payment_refs"
+  tab: FinancesTab
   reload: () => Promise<void>
 }) {
   const canEdit = payload.canEdit
+  const dueCollections = payload.dueCollections ?? []
 
   return (
     <>
       {tab === "overview" && (
-        <OverviewTab payload={payload} seasonYear={seasonYear} />
+        <FinancesOverviewTab payload={payload} seasonYear={seasonYear} />
       )}
       {tab === "budget" && (
         <BudgetTab
@@ -254,6 +358,9 @@ function FundraisingFullTabPanels({
           canEdit={canEdit}
           onSaved={reload}
         />
+      )}
+      {tab === "fundraising" && (
+        <FundraisingProgressTab payload={payload} seasonYear={seasonYear} />
       )}
       {tab === "donations" && (
         <DonationsTab teamId={teamId} payload={payload} seasonYear={seasonYear} canEdit={canEdit} onSaved={reload} />
@@ -274,11 +381,20 @@ function FundraisingFullTabPanels({
           onChanged={reload}
         />
       )}
+      {tab === "due_collections" && (
+        <DueCollectionsTab
+          teamId={teamId}
+          rows={dueCollections}
+          seasonYear={seasonYear}
+          canEdit={canEdit}
+          onSaved={reload}
+        />
+      )}
     </>
   )
 }
 
-function OverviewTab({ payload, seasonYear }: { payload: FullPayload; seasonYear: number }) {
+function FinancesOverviewTab({ payload, seasonYear }: { payload: FullPayload; seasonYear: number }) {
   const budget = payload.budget
   const entries = payload.entries
 
@@ -295,13 +411,15 @@ function OverviewTab({ payload, seasonYear }: { payload: FullPayload; seasonYear
   const combined =
     hasSchool || hasDonations ? (schoolNum ?? 0) + (hasDonations ? donationTotal : 0) : null
 
-  const recent = payload.recentActivity ?? []
-
   return (
     <div className="space-y-4">
+      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+        Internal tracking and reference links only — not payment processing. Use the tabs above for budgets, revenue,
+        payment references, and amounts owed.
+      </p>
       <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Season summary · {seasonLabel(seasonYear)}</CardTitle>
+          <CardTitle className="text-base">At a glance · {seasonLabel(seasonYear)}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {!hasSchool && !hasDonations && (goal == null || goal <= 0) ? (
@@ -363,11 +481,46 @@ function OverviewTab({ payload, seasonYear }: { payload: FullPayload; seasonYear
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
-          {goal != null && goal > 0 && (
+function FundraisingProgressTab({ payload, seasonYear }: { payload: FullPayload; seasonYear: number }) {
+  const budget = payload.budget
+  const entries = payload.entries
+
+  const donationTotal = useMemo(
+    () => entries.reduce((s, e) => s + (Number(e.amount) || 0), 0),
+    [entries]
+  )
+  const hasSchool =
+    budget != null && budget.school_allocation != null && !Number.isNaN(Number(budget.school_allocation))
+  const hasDonations = entries.length > 0
+  const schoolNum = hasSchool ? Number(budget!.school_allocation) : null
+  const goal =
+    budget?.goal_amount != null && !Number.isNaN(Number(budget.goal_amount)) ? Number(budget.goal_amount) : null
+  const combined =
+    hasSchool || hasDonations ? (schoolNum ?? 0) + (hasDonations ? donationTotal : 0) : null
+
+  const recent = payload.recentActivity ?? []
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+        Track progress toward your program goals. Figures are entered manually for planning — Braik does not process
+        payments.
+      </p>
+      <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Fundraising · {seasonLabel(seasonYear)}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {goal != null && goal > 0 ? (
             <div>
               <div className="mb-1 flex justify-between text-xs" style={{ color: "rgb(var(--muted))" }}>
-                <span>Fundraising goal</span>
+                <span>Goal</span>
                 <span>{formatMoney(goal)}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-[rgb(var(--platinum))]">
@@ -380,6 +533,10 @@ function OverviewTab({ payload, seasonYear }: { payload: FullPayload; seasonYear
                 />
               </div>
             </div>
+          ) : (
+            <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+              Set an optional goal in the Budget tab to see progress here.
+            </p>
           )}
         </CardContent>
       </Card>
@@ -989,6 +1146,273 @@ function DonationsTab({
   )
 }
 
+function DueCollectionsTab({
+  teamId,
+  rows,
+  seasonYear,
+  canEdit,
+  onSaved,
+}: {
+  teamId: string
+  rows: DueCollectionRow[]
+  seasonYear: number
+  canEdit: boolean
+  onSaved: () => Promise<void>
+}) {
+  const [editor, setEditor] = useState<DueCollectionRow | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [draft, setDraft] = useState({
+    description: "",
+    amountDue: "",
+    dueDate: new Date().toISOString().slice(0, 10),
+    status: "pending" as "pending" | "collected",
+    notes: "",
+  })
+
+  const post = async (body: Record<string, unknown>) => {
+    const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/fundraising`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      alert((j as { error?: string }).error || "Request failed")
+      return false
+    }
+    return true
+  }
+
+  const save = async () => {
+    if (!draft.description.trim()) {
+      alert("Enter a description.")
+      return
+    }
+    const ok = editor
+      ? await post({
+          action: "update_due_collection",
+          id: editor.id,
+          description: draft.description.trim(),
+          amountDue: Number(draft.amountDue) || 0,
+          dueDate: draft.dueDate,
+          status: draft.status,
+          notes: draft.notes.trim() || null,
+        })
+      : await post({
+          action: "add_due_collection",
+          seasonYear,
+          description: draft.description.trim(),
+          amountDue: Number(draft.amountDue) || 0,
+          dueDate: draft.dueDate,
+          status: draft.status,
+          notes: draft.notes.trim() || null,
+        })
+    if (!ok) return
+    setEditor(null)
+    setCreating(false)
+    await onSaved()
+  }
+
+  const deleteRow = async (id: string) => {
+    if (!confirm("Remove this due collection entry?")) return
+    const ok = await post({ action: "delete_due_collection", id })
+    if (ok) await onSaved()
+  }
+
+  const openCreate = () => {
+    setCreating(true)
+    setEditor(null)
+    setDraft({
+      description: "",
+      amountDue: "",
+      dueDate: new Date().toISOString().slice(0, 10),
+      status: "pending",
+      notes: "",
+    })
+  }
+
+  const openEdit = (row: DueCollectionRow) => {
+    setEditor(row)
+    setCreating(false)
+    setDraft({
+      description: row.description,
+      amountDue: String(row.amount_due ?? 0),
+      dueDate: String(row.due_date).slice(0, 10),
+      status: row.status === "collected" ? "collected" : "pending",
+      notes: row.notes ?? "",
+    })
+  }
+
+  const pending = useMemo(() => rows.filter((r) => r.status === "pending").length, [rows])
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+        Track amounts owed to the program (e.g. fees, shared costs). This is an internal ledger only — not invoicing,
+        billing, or in-app payment collection.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {canEdit && (
+          <Button type="button" size="sm" onClick={openCreate}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add due collection
+          </Button>
+        )}
+      </div>
+      {rows.length > 0 ? (
+        <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+          {pending} pending · {rows.length} total this season
+        </p>
+      ) : null}
+
+      <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
+        <CardContent className="p-0">
+          {rows.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
+              No due collection entries for this season.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead>
+                  <tr className="border-b text-left" style={{ borderColor: "rgb(var(--border))" }}>
+                    <th className="px-4 py-2">Description</th>
+                    <th className="px-4 py-2">Amount due</th>
+                    <th className="px-4 py-2">Due date</th>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Notes</th>
+                    {canEdit ? <th className="px-4 py-2 text-right">Actions</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-b" style={{ borderColor: "rgb(var(--border))" }}>
+                      <td className="px-4 py-2 font-medium" style={{ color: "rgb(var(--text))" }}>
+                        {r.description}
+                      </td>
+                      <td className="px-4 py-2 tabular-nums">{formatMoney(Number(r.amount_due) || 0)}</td>
+                      <td className="px-4 py-2">{String(r.due_date).slice(0, 10)}</td>
+                      <td className="px-4 py-2 capitalize">{r.status === "collected" ? "Collected" : "Pending"}</td>
+                      <td className="max-w-[200px] truncate px-4 py-2 text-xs" style={{ color: "rgb(var(--muted))" }}>
+                        {r.notes ?? "—"}
+                      </td>
+                      {canEdit ? (
+                        <td className="px-4 py-2 text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEdit(r)}
+                            aria-label="Edit entry"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => void deleteRow(r.id)}
+                            aria-label="Delete entry"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={creating || !!editor}
+        onOpenChange={(o) => {
+          if (!o) {
+            setCreating(false)
+            setEditor(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editor ? "Edit due collection" : "Add due collection"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="dc-desc">Description</Label>
+              <Input
+                id="dc-desc"
+                value={draft.description}
+                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                placeholder="e.g. Team travel share"
+              />
+            </div>
+            <div>
+              <Label htmlFor="dc-amt">Amount due</Label>
+              <Input
+                id="dc-amt"
+                inputMode="decimal"
+                value={draft.amountDue}
+                onChange={(e) => setDraft((d) => ({ ...d, amountDue: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="dc-date">Due date</Label>
+              <Input
+                id="dc-date"
+                type="date"
+                value={draft.dueDate}
+                onChange={(e) => setDraft((d) => ({ ...d, dueDate: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="dc-status">Status</Label>
+              <select
+                id="dc-status"
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={draft.status}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, status: e.target.value === "collected" ? "collected" : "pending" }))
+                }
+              >
+                <option value="pending">Pending</option>
+                <option value="collected">Collected</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="dc-notes">Notes (optional)</Label>
+              <textarea
+                id="dc-notes"
+                value={draft.notes}
+                onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+                rows={2}
+                className={cn(
+                  "flex min-h-[72px] w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/90",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary",
+                  "disabled:cursor-not-allowed disabled:opacity-50 transition-colors input-theme"
+                )}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => (setCreating(false), setEditor(null))}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void save()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 function PaymentRefsSection({
   teamId,
   refs,
@@ -1004,7 +1428,10 @@ function PaymentRefsSection({
 }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<RefRow | null>(null)
+  const [qrFor, setQrFor] = useState<RefRow | null>(null)
   const [draft, setDraft] = useState({ platform: "venmo", handleOrUrl: "", displayLabel: "" })
+
+  const qrDialogValue = qrFor ? paymentRefToQrValue(qrFor.platform, qrFor.handle_or_url) : null
 
   useEffect(() => {
     if (editing) {
@@ -1071,6 +1498,9 @@ function PaymentRefsSection({
 
   return (
     <div className="space-y-3">
+      <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
+        Reference links and QR codes for families to use elsewhere — Braik does not process payments.
+      </p>
       <div className="flex flex-wrap gap-2">
         {canEdit && (
           <Button
@@ -1092,7 +1522,7 @@ function PaymentRefsSection({
           <CardContent className="flex flex-col gap-2 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
-                External fundraising link
+                External program link
               </p>
               <a
                 href={affiliate.url.startsWith("http") ? affiliate.url : `https://${affiliate.url}`}
@@ -1120,11 +1550,13 @@ function PaymentRefsSection({
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {refs.map((r) => (
+          {refs.map((r) => {
+            const qrValue = paymentRefToQrValue(r.platform, r.handle_or_url)
+            return (
             <Card key={r.id} className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
               <CardContent className="space-y-3 pt-6">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "rgb(var(--muted))" }}>
                       {platformLabel(r.platform)}
                     </p>
@@ -1137,10 +1569,18 @@ function PaymentRefsSection({
                       </p>
                     ) : null}
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => void copyText(r.handle_or_url)}>
-                    <Copy className="mr-1.5 h-4 w-4" />
-                    Copy
-                  </Button>
+                  <div className="flex flex-shrink-0 flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => void copyText(r.handle_or_url)}>
+                      <Copy className="mr-1.5 h-4 w-4" />
+                      Copy
+                    </Button>
+                    {qrValue ? (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setQrFor(r)}>
+                        <QrCode className="mr-1.5 h-4 w-4" />
+                        Show QR
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
                 {canEdit ? (
                   <div className="flex gap-2 border-t pt-3" style={{ borderColor: "rgb(var(--border))" }}>
@@ -1164,9 +1604,38 @@ function PaymentRefsSection({
                 ) : null}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <Dialog open={!!qrFor} onOpenChange={(o) => !o && setQrFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Payment reference QR</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+            Scan to open this link or profile on a phone. For reference only — Braik does not process payments.
+          </p>
+          {qrDialogValue ? (
+            <div className="flex flex-col items-center gap-3 py-2">
+              <QrCodeImage value={qrDialogValue} size={200} />
+              <p className="max-w-full break-all text-center text-xs" style={{ color: "rgb(var(--muted))" }}>
+                {qrDialogValue}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-center" style={{ color: "rgb(var(--muted))" }}>
+              No encodable link for this entry.
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setQrFor(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

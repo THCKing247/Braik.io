@@ -92,7 +92,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ team
       })
     }
 
-    const [budgetRes, entriesRes, refsRes] = await Promise.all([
+    const [budgetRes, entriesRes, refsRes, dueRes] = await Promise.all([
       supabase.from("fundraising_budget").select("*").eq("team_id", teamId).eq("season_year", seasonYear).maybeSingle(),
       supabase
         .from("fundraising_entries")
@@ -101,11 +101,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ team
         .eq("season_year", seasonYear)
         .order("received_date", { ascending: false }),
       supabase.from("fundraising_payment_refs").select("*").eq("team_id", teamId).order("sort_order", { ascending: true }),
+      supabase
+        .from("fundraising_due_collections")
+        .select("*")
+        .eq("team_id", teamId)
+        .eq("season_year", seasonYear)
+        .order("due_date", { ascending: true }),
     ])
 
     if (budgetRes.error) return NextResponse.json({ error: budgetRes.error.message }, { status: 500 })
     if (entriesRes.error) return NextResponse.json({ error: entriesRes.error.message }, { status: 500 })
     if (refsRes.error) return NextResponse.json({ error: refsRes.error.message }, { status: 500 })
+    if (dueRes.error) return NextResponse.json({ error: dueRes.error.message }, { status: 500 })
 
     const entries = entriesRes.data ?? []
     const budget = budgetRes.data ?? null
@@ -133,6 +140,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ team
       budget,
       entries,
       paymentRefs: refsRes.data ?? [],
+      dueCollections: dueRes.data ?? [],
       recentActivity,
       canEdit,
       canEditPaymentRefs: canEdit,
@@ -284,6 +292,62 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       const id = String(body.id || "")
       if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
       const { error } = await supabase.from("fundraising_payment_refs").delete().eq("id", id).eq("team_id", teamId)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === "add_due_collection") {
+      const seasonY = Math.max(2000, parseInt(String(body.seasonYear), 10) || new Date().getFullYear())
+      const description = String(body.description ?? "").trim()
+      if (!description) return NextResponse.json({ error: "description is required" }, { status: 400 })
+      const amountDue = Math.max(0, Number(body.amountDue) || 0)
+      const dueDate = String(body.dueDate || "").trim()
+      if (!dueDate) return NextResponse.json({ error: "dueDate is required" }, { status: 400 })
+      const statusRaw = String(body.status || "pending")
+      const status = statusRaw === "collected" ? "collected" : "pending"
+      const { data, error } = await supabase
+        .from("fundraising_due_collections")
+        .insert({
+          team_id: teamId,
+          season_year: seasonY,
+          description,
+          amount_due: amountDue,
+          due_date: dueDate,
+          status,
+          notes: typeof body.notes === "string" ? body.notes.trim() || null : null,
+          created_by: session.user.id,
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ dueCollection: data })
+    }
+
+    if (action === "update_due_collection") {
+      const id = String(body.id || "")
+      if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (body.description != null) patch.description = String(body.description).trim() || "—"
+      if (body.amountDue != null) patch.amount_due = Math.max(0, Number(body.amountDue) || 0)
+      if (body.dueDate != null) patch.due_date = String(body.dueDate)
+      if (body.status != null) patch.status = String(body.status) === "collected" ? "collected" : "pending"
+      if (body.notes !== undefined) patch.notes = typeof body.notes === "string" ? body.notes.trim() || null : null
+      const { data, error } = await supabase
+        .from("fundraising_due_collections")
+        .update(patch)
+        .eq("id", id)
+        .eq("team_id", teamId)
+        .select()
+        .single()
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ dueCollection: data })
+    }
+
+    if (action === "delete_due_collection") {
+      const id = String(body.id || "")
+      if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
+      const { error } = await supabase.from("fundraising_due_collections").delete().eq("id", id).eq("team_id", teamId)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ ok: true })
     }

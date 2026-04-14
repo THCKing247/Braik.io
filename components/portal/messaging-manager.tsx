@@ -457,7 +457,8 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     scrollToBottom()
   }
 
-  const loadThreads = useCallback(async () => {
+  const loadThreads = useCallback(
+    async (opts?: { skipMessagingBadgeSync?: boolean }) => {
     try {
       const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
       if (!response.ok) {
@@ -467,7 +468,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       const raw = await response.json()
       const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
       const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
-      if (typeof meta?.totalUnread === "number") {
+      if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
         messagingUnread?.syncThreadUnreadFromServer(meta.totalUnread)
       }
       setThreads(data)
@@ -497,7 +498,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       const msg = error instanceof Error ? error.message : "Failed to load threads"
       setError(msg)
     }
-  }, [teamId, searchParams, messagingUnread])
+  },
+    [teamId, searchParams, messagingUnread]
+  )
 
   const loadContacts = async () => {
     try {
@@ -570,14 +573,19 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         const data = (await res.json()) as {
           unreadNotifications?: number
           markedNotificationCount?: number
+          teamThreadUnread?: number
         }
         if (typeof data.unreadNotifications === "number") {
           shell?.syncUnreadFromServerCount(data.unreadNotifications)
         } else if (typeof data.markedNotificationCount === "number" && data.markedNotificationCount > 0) {
           shell?.applyUnreadDelta(-data.markedNotificationCount)
         }
+        const teamTu = data.teamThreadUnread
+        if (typeof teamTu === "number") {
+          messagingUnread?.syncThreadUnreadFromServer(teamTu)
+        }
         queryClient.invalidateQueries({ queryKey: dashboardBootstrapQueryKey(teamId) })
-        await loadThreads()
+        await loadThreads({ skipMessagingBadgeSync: typeof teamTu === "number" })
         return true
       } catch (e) {
         if (rollback?.threadId === threadId) {

@@ -173,6 +173,20 @@ export async function POST(
     const markedNotificationCount = markedRows?.length ?? 0
     const unreadNotifications = await getUnreadNotificationCount(userId, thread.team_id)
 
+    /** Authoritative thread-unread total for nav badge (same RPC as GET /threads meta). */
+    const { data: teamUnreadRaw, error: teamUnreadErr } = await supabase.rpc(
+      "messaging_unread_total_for_team_user",
+      { p_user_id: userId, p_team_id: thread.team_id }
+    )
+    if (teamUnreadErr) {
+      console.warn(`${LOG} messaging_unread_total_for_team_user`, {
+        threadId,
+        userId,
+        message: teamUnreadErr.message,
+      })
+    }
+    const teamThreadUnread = teamUnreadErr ? undefined : Number(teamUnreadRaw ?? 0)
+
     return NextResponse.json({
       success: true,
       lastReadAt,
@@ -185,6 +199,7 @@ export async function POST(
         : null,
       markedNotificationCount,
       unreadNotifications,
+      teamThreadUnread,
     })
   } catch (error: unknown) {
     console.error(LOG, error)

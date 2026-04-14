@@ -727,6 +727,7 @@ function ScheduleTab({
         open={editor !== null}
         onClose={() => setEditor(null)}
         base={base}
+        canEdit={canEdit}
         session={editor === "new" ? null : editor}
         positionOptions={positionOptions}
         onSaved={async () => {
@@ -788,10 +789,18 @@ function ScheduleTab({
   )
 }
 
+type WorkoutPresetRow = {
+  id: string
+  name: string
+  default_title: string | null
+  workout_items: unknown
+}
+
 function SessionDialog({
   open,
   onClose,
   base,
+  canEdit,
   session,
   positionOptions,
   onSaved,
@@ -799,10 +808,12 @@ function SessionDialog({
   open: boolean
   onClose: () => void
   base: string
+  canEdit: boolean
   session: WorkoutSessionRow | null
   positionOptions: string[]
   onSaved: () => Promise<void>
 }) {
+  const { showToast } = usePlaybookToast()
   const [dayOfWeek, setDayOfWeek] = useState(1)
   const [title, setTitle] = useState("")
   const [startTimeDate, setStartTimeDate] = useState<Date | null>(() => parseSessionStartTimeToDate("07:00:00"))
@@ -810,6 +821,28 @@ function SessionDialog({
   const [workoutRows, setWorkoutRows] = useState<WorkoutItem[]>([{ lift: "", reps: "" }])
   const [groups, setGroups] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+
+  const [presets, setPresets] = useState<WorkoutPresetRow[]>([])
+  const [presetsLoading, setPresetsLoading] = useState(false)
+  const [presetPick, setPresetPick] = useState("")
+  const [appliedPresetId, setAppliedPresetId] = useState<string | null>(null)
+  const [newPresetName, setNewPresetName] = useState("")
+  const [presetSaving, setPresetSaving] = useState(false)
+
+  const presetsBase = `${base}/presets`
+
+  const loadPresets = useCallback(async () => {
+    if (!canEdit) return
+    setPresetsLoading(true)
+    try {
+      const res = await fetch(presetsBase)
+      if (!res.ok) return
+      const data = (await res.json()) as { presets?: WorkoutPresetRow[] }
+      setPresets(data.presets ?? [])
+    } finally {
+      setPresetsLoading(false)
+    }
+  }, [canEdit, presetsBase])
 
   useEffect(() => {
     if (!open) return
@@ -828,7 +861,15 @@ function SessionDialog({
       setWorkoutRows([{ lift: "", reps: "" }])
       setGroups([])
     }
+    setPresetPick("")
+    setAppliedPresetId(null)
+    setNewPresetName("")
   }, [open, session])
+
+  useEffect(() => {
+    if (!open || !canEdit) return
+    void loadPresets()
+  }, [open, canEdit, loadPresets])
 
   const toggleGroup = (g: string) => {
     setGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]))
@@ -839,6 +880,102 @@ function SessionDialog({
     setWorkoutRows((r) => (r.length <= 1 ? r : r.filter((_, i) => i !== index)))
   const setLiftRow = (index: number, field: keyof WorkoutItem, value: string) => {
     setWorkoutRows((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
+  }
+
+  const applyPresetById = (id: string) => {
+    const p = presets.find((x) => x.id === id)
+    if (!p) return
+    const rows = parseWorkoutItemsFromDb(p.workout_items)
+    setWorkoutRows(rows.length > 0 ? rows.map((r) => ({ ...r })) : [{ lift: "", reps: "" }])
+    if (p.default_title?.trim()) setTitle(p.default_title.trim())
+    setAppliedPresetId(p.id)
+    setPresetPick("")
+    showToast(`Loaded preset: ${p.name}`, "success")
+  }
+
+  const saveNewPreset = async () => {
+    const name = newPresetName.trim()
+    if (!name) {
+      showToast("Enter a preset name", "error")
+      return
+    }
+    const workoutItems = normalizeWorkoutItemsForSave(workoutRows)
+    if (workoutItems.length === 0) {
+      showToast("Add at least one lift row first", "error")
+      return
+    }
+    setPresetSaving(true)
+    try {
+      const res = await fetch(presetsBase, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          defaultTitle: title.trim() || null,
+          workoutItems,
+        }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        showToast((e as { error?: string }).error ?? "Could not save preset", "error")
+        return
+      }
+      showToast("Preset saved", "success")
+      setNewPresetName("")
+      await loadPresets()
+    } finally {
+      setPresetSaving(false)
+    }
+  }
+
+  const updateAppliedPreset = async () => {
+    if (!appliedPresetId) return
+    const p = presets.find((x) => x.id === appliedPresetId)
+    if (!p) return
+    const workoutItems = normalizeWorkoutItemsForSave(workoutRows)
+    if (workoutItems.length === 0) {
+      showToast("Add at least one lift row first", "error")
+      return
+    }
+    setPresetSaving(true)
+    try {
+      const res = await fetch(`${presetsBase}/${appliedPresetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: p.name,
+          defaultTitle: title.trim() || null,
+          workoutItems,
+        }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        showToast((e as { error?: string }).error ?? "Could not update preset", "error")
+        return
+      }
+      showToast("Preset updated", "success")
+      await loadPresets()
+    } finally {
+      setPresetSaving(false)
+    }
+  }
+
+  const deleteAppliedPreset = async () => {
+    if (!appliedPresetId) return
+    if (!confirm("Delete this preset from the team library?")) return
+    setPresetSaving(true)
+    try {
+      const res = await fetch(`${presetsBase}/${appliedPresetId}`, { method: "DELETE" })
+      if (!res.ok) {
+        showToast("Could not delete preset", "error")
+        return
+      }
+      showToast("Preset removed", "success")
+      setAppliedPresetId(null)
+      await loadPresets()
+    } finally {
+      setPresetSaving(false)
+    }
   }
 
   const save = async () => {
@@ -947,6 +1084,81 @@ function SessionDialog({
               </p>
             </div>
           </div>
+          {canEdit && (
+            <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3 space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+                <div className="min-w-0 flex-1 sm:min-w-[220px]">
+                  <Label className="text-xs text-[#64748B]">Use preset</Label>
+                  <select
+                    className="mt-1 flex h-10 w-full rounded-md border border-[#E5E7EB] bg-white px-3 text-sm"
+                    value={presetPick}
+                    disabled={presetsLoading || presets.length === 0}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v) applyPresetById(v)
+                    }}
+                  >
+                    <option value="">
+                      {presetsLoading ? "Loading…" : presets.length === 0 ? "No presets saved yet" : "— Load a saved workout —"}
+                    </option>
+                    {presets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {appliedPresetId ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg"
+                      disabled={presetSaving}
+                      onClick={() => void updateAppliedPreset()}
+                    >
+                      Update preset
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-lg text-red-600 hover:text-red-700"
+                      disabled={presetSaving}
+                      onClick={() => void deleteAppliedPreset()}
+                    >
+                      Delete preset
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-2 border-t border-[#E5E7EB] pt-3 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <Label className="text-xs text-[#64748B]">Save as new preset</Label>
+                  <Input
+                    className="mt-1"
+                    placeholder="e.g. Upper Body Monday"
+                    value={newPresetName}
+                    onChange={(e) => setNewPresetName(e.target.value)}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0 rounded-lg"
+                  disabled={presetSaving}
+                  onClick={() => void saveNewPreset()}
+                >
+                  Save preset
+                </Button>
+              </div>
+              <p className="text-[11px] leading-snug text-[#64748B]">
+                Presets store lifts and reps (and optional default title). Loading a preset fills this form only — save the session to keep it on the schedule.
+              </p>
+            </div>
+          )}
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="mb-0">Workout</Label>

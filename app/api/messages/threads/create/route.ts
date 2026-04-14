@@ -85,22 +85,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create thread" }, { status: 500 })
     }
 
-    // Add participants (including creator)
+    console.info("[POST /api/messages/threads/create] thread inserted", {
+      threadId: thread.id,
+      teamId,
+      createdBy: session.user.id,
+      threadType: thread.thread_type,
+    })
+
+    const joinedAt = new Date().toISOString()
     const participantInserts = allParticipantIds.map((userId) => ({
       thread_id: thread.id,
       user_id: userId,
+      joined_at: joinedAt,
     }))
 
     const { error: participantsError } = await supabase
       .from("message_thread_participants")
-      .insert(participantInserts)
+      .upsert(participantInserts, { onConflict: "thread_id,user_id", ignoreDuplicates: true })
 
     if (participantsError) {
       console.error("[POST /api/messages/threads/create] participants", participantsError)
-      // Clean up thread if participants insert fails
       await supabase.from("message_threads").delete().eq("id", thread.id)
       return NextResponse.json({ error: "Failed to add participants" }, { status: 500 })
     }
+
+    console.info("[POST /api/messages/threads/create] participants upserted", {
+      threadId: thread.id,
+      teamId,
+      rowCount: allParticipantIds.length,
+      userIds: allParticipantIds,
+    })
 
     // Get creator info
     const { data: creator } = await supabase

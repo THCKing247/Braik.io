@@ -5,6 +5,7 @@ import { getUserMembershipForUserId, requireTeamAccessWithUser } from "@/lib/aut
 import { canAdminDeleteMessages } from "@/lib/auth/roles"
 import { isAdminUserRole } from "@/lib/auth/user-roles"
 import { MODERATED_MESSAGE_PLACEHOLDER } from "@/lib/messaging/moderation-copy"
+import { repairThreadParticipantsFromThreadAndMessages } from "@/lib/messaging/thread-participants"
 
 /**
  * GET /api/messages/threads/[threadId]
@@ -53,6 +54,25 @@ export async function GET(
       } catch {
         return NextResponse.json({ error: "Access denied" }, { status: 403 })
       }
+      const repair = await repairThreadParticipantsFromThreadAndMessages(
+        supabase,
+        threadId,
+        [userId],
+        "getThread:repairMissingParticipants"
+      )
+      if (repair.error) {
+        console.error("[GET /api/messages/threads/[threadId]] participant repair", {
+          threadId,
+          userId,
+          message: repair.error.message,
+        })
+        return NextResponse.json({ error: "Failed to load thread" }, { status: 500 })
+      }
+      console.info("[GET /api/messages/threads/[threadId]] repaired participants", {
+        threadId,
+        userId,
+        upsertedUserIds: repair.userIds,
+      })
     }
 
     const [partsRes, msgsRes, mem] = await Promise.all([

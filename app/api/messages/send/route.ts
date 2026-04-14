@@ -5,6 +5,10 @@ import { requireTeamAccess } from "@/lib/auth/rbac"
 import { createNotifications } from "@/lib/utils/notifications"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import {
+  ensureUserThreadParticipant,
+  repairThreadParticipantsFromThreadAndMessages,
+} from "@/lib/messaging/thread-participants"
 
 /**
  * POST /api/messages/send
@@ -54,8 +58,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Thread not found" }, { status: 404 })
     }
 
-    // Verify user is a participant FIRST (participants can send even if not team members)
-    const { data: participant, error: participantError } = await supabase
+    const repair = await repairThreadParticipantsFromThreadAndMessages(
+      supabase,
+      threadId,
+      [session.user.id],
+      "send:repairThreadParticipantsFromThreadAndMessages"
+    )
+    if (repair.error) {
+      return NextResponse.json({ error: "Failed to sync thread participants" }, { status: 500 })
+    }
+
+    let { data: participant, error: participantError } = await supabase
       .from("message_thread_participants")
       .select("user_id")
       .eq("thread_id", threadId)
@@ -68,49 +81,41 @@ export async function POST(request: Request) {
     }
 
     if (!participant) {
-      // Debug: Get all participants to see what's in the thread
-      const { data: allParticipants, error: allParticipantsError } = await supabase
+      try {
+        await requireTeamAccess(thread.team_id)
+      } catch {
+        return NextResponse.json(
+          { error: "Access denied: You are not a participant in this thread and not a team member" },
+          { status: 403 }
+        )
+      }
+      const grant = await ensureUserThreadParticipant(
+        supabase,
+        threadId,
+        session.user.id,
+        "send:teamMemberParticipantGrant"
+      )
+      if (grant.error) {
+        return NextResponse.json({ error: "Failed to add you to this thread" }, { status: 500 })
+      }
+      const again = await supabase
         .from("message_thread_participants")
         .select("user_id")
         .eq("thread_id", threadId)
-      
-      if (allParticipantsError) {
-        console.error("[POST /api/messages/send] Error fetching all participants:", allParticipantsError)
-      }
-
-      console.log("[POST /api/messages/send] User not a participant. Debug info:", {
-        currentUserId: session.user.id,
-        threadId,
-        teamId: thread.team_id,
-        participantsInThread: allParticipants?.map(p => p.user_id) || []
-      })
-
-      // If not a participant, check team access as fallback
-      try {
-        await requireTeamAccess(thread.team_id)
-        console.log("[POST /api/messages/send] Team access granted as fallback")
-      } catch (error: any) {
-        console.error("[POST /api/messages/send] Team access check failed:", {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        })
-        return NextResponse.json({ 
-          error: "Access denied: You are not a participant in this thread and not a team member",
-          debug: process.env.NODE_ENV === "development" ? {
-            currentUserId: session.user.id,
-            threadId,
-            participantsInThread: allParticipants?.map(p => p.user_id) || [],
-            teamId: thread.team_id
-          } : undefined
-        }, { status: 403 })
-      }
-    } else {
-      console.log("[POST /api/messages/send] User is a participant, allowing message send:", {
-        userId: session.user.id,
-        threadId
-      })
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+      participant = again.data
     }
+
+    if (!participant) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    }
+
+    console.info("[POST /api/messages/send] participant ok", {
+      threadId,
+      userId: session.user.id,
+      teamId: thread.team_id,
+    })
 
     // Verify sender_id exists in users table (required for FK constraint)
     const { data: senderCheck, error: senderCheckError } = await supabase

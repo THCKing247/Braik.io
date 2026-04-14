@@ -48,6 +48,25 @@ export async function GET(request: Request) {
     const { user } = await requireTeamAccessWithUser(teamId, session.user)
     const userId = user.id
 
+    const { data: repairedRows, error: repairError } = await supabase.rpc(
+      "repair_missing_message_thread_participants_for_team_user",
+      { p_team_id: teamId, p_user_id: userId }
+    )
+    if (repairError) {
+      console.error("[GET /api/messages/threads] repair_missing_message_thread_participants_for_team_user", {
+        teamId,
+        userId,
+        code: repairError.code,
+        message: repairError.message,
+      })
+    } else {
+      console.info("[GET /api/messages/threads] participant repair", {
+        teamId,
+        userId,
+        rowsInserted: repairedRows,
+      })
+    }
+
     const { data: participantThreads, error: participantError } = await supabase
       .from("message_thread_participants")
       .select("thread_id, last_read_at")
@@ -90,6 +109,17 @@ export async function GET(request: Request) {
       console.error("[GET /api/messages/threads] message_threads_inbox_stats", statsError)
       return NextResponse.json({ error: "Failed to load threads" }, { status: 500 })
     }
+
+    const totalUnread = (statsRows ?? []).reduce(
+      (acc, r: InboxStatRow) => acc + Number(r.unread_count ?? 0),
+      0
+    )
+    console.info("[GET /api/messages/threads] inbox_stats", {
+      userId,
+      teamId,
+      threadCount: selectedThreadIds.length,
+      totalUnreadAcrossThreads: totalUnread,
+    })
 
     const statsByThread = new Map<string, ThreadInboxStats>(
       (statsRows ?? []).map((r: InboxStatRow) => [

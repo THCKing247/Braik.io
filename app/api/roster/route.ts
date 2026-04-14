@@ -40,7 +40,7 @@ type PlayerRow = {
 /**
  * GET /api/roster?teamId=xxx
  * Returns team roster (players) for RosterManagerEnhanced.
- * `lite=1`: minimal fields only (id, names, jersey, position) — skips injuries, invites, user join; use for pickers (playbook, schedule stats).
+ * `lite=1`: minimal fields only (id, names, grade, jersey, position) — skips injuries, invites, user join; use for pickers (playbook, schedule stats, settings).
  * Lite + full use `getRequestAuth` (no portal path). POST still uses full session.
  */
 export async function GET(request: Request) {
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
       const { data: rows, error } = await routePerf(sink, "query_players_lite", async () =>
         await supabase
           .from("players")
-          .select("id, first_name, last_name, jersey_number, position_group")
+          .select("id, first_name, last_name, grade, jersey_number, position_group")
           .eq("team_id", teamId)
           .order("last_name", { ascending: true })
           .order("first_name", { ascending: true })
@@ -81,6 +81,12 @@ export async function GET(request: Request) {
         id: p.id as string,
         firstName: (p.first_name as string) ?? "",
         lastName: (p.last_name as string) ?? "",
+        grade:
+          p.grade == null || p.grade === ""
+            ? null
+            : typeof p.grade === "number"
+              ? p.grade
+              : Number(p.grade),
         jerseyNumber: (p.jersey_number as number | null) ?? null,
         positionGroup: (p.position_group as string | null) ?? null,
       }))

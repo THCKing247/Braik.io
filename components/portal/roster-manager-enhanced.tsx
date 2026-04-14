@@ -956,6 +956,14 @@ export function RosterManagerEnhanced({
 
   const isFootball = teamSport?.toLowerCase() === "football"
 
+  /** Deep link `?tab=depth-chart` should open the full-view depth chart (same as clicking the tab). */
+  useEffect(() => {
+    if (initialTab === "depth-chart" && isFootball) {
+      setActiveTab("depth-chart")
+      setShowDepthChartModal(true)
+    }
+  }, [initialTab, isFootball])
+
   useEffect(() => {
     if (!programId) {
       setProgramHasJvOrFreshmanForCallups(false)
@@ -2979,27 +2987,30 @@ export function RosterManagerEnhanced({
       {showDepthChartModal && isFootball && depthChartIsDesktop && (
         <div className="fixed inset-0 z-50 flex flex-col bg-background">
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-3 shadow-sm">
-            <h2 className="text-xl font-semibold text-foreground lg:text-2xl">Depth Chart</h2>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <h2 className="min-w-0 flex-1 text-xl font-semibold text-foreground lg:text-2xl">Depth Chart</h2>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               {hasUnsavedChanges ? (
                 <span className="hidden text-sm font-medium text-amber-600 sm:inline">Unsaved changes</span>
               ) : null}
+              {canEdit && (
+                <Button
+                  type="button"
+                  onClick={() => void handleSaveDepthChart()}
+                  variant="default"
+                  disabled={!hasUnsavedChanges}
+                  className="min-w-[88px]"
+                  title={!hasUnsavedChanges ? "No changes to save" : undefined}
+                >
+                  Save
+                </Button>
+              )}
               <Button
                 type="button"
-                onClick={handleSaveDepthChart}
-                variant="default"
-                disabled={!hasUnsavedChanges}
-                className="min-w-[88px]"
-              >
-                Save
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 className="h-10 w-10 shrink-0"
                 onClick={handleCloseDepthChart}
-                aria-label="Exit full view"
+                aria-label="Close depth chart"
               >
                 <X className="h-5 w-5" />
               </Button>

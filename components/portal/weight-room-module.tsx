@@ -349,7 +349,11 @@ function WeightRoomScheduleSessionCard({
   const titleCls = density === "compact" ? "text-xs font-semibold" : "text-sm font-semibold"
   const detail = weightRoomScheduleSessionDetail(session)
   return (
-    <div className={`rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] ${pad}`}>
+    <div
+      className={`rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] ${pad}`}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
       <div className="flex gap-1">
         <button
           type="button"
@@ -429,6 +433,8 @@ function ScheduleTab({
   const [scheduleView, setScheduleView] = useState<ScheduleCalendarView>("week")
   const [anchorDate, setAnchorDate] = useState(() => startOfDay(new Date()))
   const [editor, setEditor] = useState<WorkoutSessionRow | "new" | null>(null)
+  /** When opening Add Session from a calendar day, 0–6 (Sun–Sat); null = default (Monday) in dialog */
+  const [newSessionInitialDay, setNewSessionInitialDay] = useState<number | null>(null)
   const [attSession, setAttSession] = useState<WorkoutSessionRow | null>(null)
   const [attDate, setAttDate] = useState(format(new Date(), "yyyy-MM-dd"))
   const [attMap, setAttMap] = useState<Record<string, "present" | "absent">>({})
@@ -524,11 +530,26 @@ function ScheduleTab({
   const dayIndex = anchorStart.getDay()
   const daySessions = byDay[dayIndex] ?? []
 
+  const openNewSession = (dayOfWeek?: number) => {
+    setNewSessionInitialDay(typeof dayOfWeek === "number" && dayOfWeek >= 0 && dayOfWeek <= 6 ? dayOfWeek : null)
+    setEditor("new")
+  }
+
+  const closeSessionEditor = () => {
+    setEditor(null)
+    setNewSessionInitialDay(null)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         {canEdit && (
-          <Button type="button" size="sm" className="w-full rounded-lg sm:w-auto" onClick={() => setEditor("new")}>
+          <Button
+            type="button"
+            size="sm"
+            className="w-full rounded-lg sm:w-auto"
+            onClick={() => openNewSession(scheduleView === "day" ? dayIndex : undefined)}
+          >
             <Plus className="mr-1 h-4 w-4" />
             Add Session
           </Button>
@@ -579,13 +600,38 @@ function ScheduleTab({
       {scheduleView === "day" && (
         <div className="space-y-3">
           {daySessions.length === 0 ? (
-            <Card className="border-[#E5E7EB]">
+            <Card
+              className={`border-[#E5E7EB] ${canEdit ? "cursor-pointer transition hover:border-[#0B2A5B]/40 hover:bg-[#F8FAFC]" : ""}`}
+              role={canEdit ? "button" : undefined}
+              tabIndex={canEdit ? 0 : undefined}
+              onClick={() => canEdit && openNewSession(dayIndex)}
+              onKeyDown={(e) => {
+                if (!canEdit) return
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  openNewSession(dayIndex)
+                }
+              }}
+            >
               <CardContent className="py-10 text-center text-sm text-[#64748B]">
                 No sessions scheduled for {format(anchorStart, "EEEE, MMM d")}.
+                {canEdit ? (
+                  <span className="mt-2 block text-[#0B2A5B] font-medium">Click to add a session for this day</span>
+                ) : null}
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-3">
+              {canEdit ? (
+                <button
+                  type="button"
+                  className="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-white px-3 py-2 text-left text-sm text-[#0B2A5B] transition hover:border-[#0B2A5B]/50 hover:bg-[#F8FAFC]"
+                  onClick={() => openNewSession(dayIndex)}
+                >
+                  <Plus className="mr-1 inline h-4 w-4 align-text-bottom" />
+                  Add another session this day
+                </button>
+              ) : null}
               {daySessions.map((s) => (
                 <WeightRoomScheduleSessionCard
                   key={s.id}
@@ -607,7 +653,22 @@ function ScheduleTab({
               const label = DAY_LABELS[dow]
               const dayItems = byDay[dow] ?? []
               return (
-                <Card key={calDay.toISOString()} className="flex min-h-[160px] flex-col border-[#E5E7EB]">
+                <Card
+                  key={calDay.toISOString()}
+                  className={`flex min-h-[160px] flex-col border-[#E5E7EB] ${
+                    canEdit ? "cursor-pointer transition hover:border-[#0B2A5B]/35 hover:shadow-sm" : ""
+                  }`}
+                  role={canEdit ? "button" : undefined}
+                  tabIndex={canEdit ? 0 : undefined}
+                  onClick={() => canEdit && openNewSession(dow)}
+                  onKeyDown={(e) => {
+                    if (!canEdit) return
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      openNewSession(dow)
+                    }
+                  }}
+                >
                   <CardContent className="flex flex-1 flex-col p-2">
                     <p className="mb-1 text-center text-[10px] font-bold uppercase leading-tight text-[#64748B]">
                       {label}
@@ -615,7 +676,9 @@ function ScheduleTab({
                     <p className="mb-2 text-center text-xs font-semibold text-[#0B2A5B]">{format(calDay, "d")}</p>
                     <div className="flex min-h-0 flex-1 flex-col gap-2">
                       {dayItems.length === 0 ? (
-                        <p className="text-center text-[10px] text-[#94A3B8]">—</p>
+                        <p className="text-center text-[10px] text-[#94A3B8]">
+                          {canEdit ? "Tap to add" : "—"}
+                        </p>
                       ) : (
                         dayItems.map((s) => (
                           <WeightRoomScheduleSessionCard
@@ -642,9 +705,28 @@ function ScheduleTab({
             const rows = byDay[dow] ?? []
             return (
               <section key={calDay.toISOString()} className="px-4 py-4 first:pt-4 last:pb-4">
-                <div className="mb-3 border-b border-[#F1F5F9] pb-2">
+                <div
+                  className={`mb-3 border-b border-[#F1F5F9] pb-2 ${
+                    canEdit
+                      ? "cursor-pointer rounded-lg px-1 -mx-1 pt-1 transition hover:bg-[#F8FAFC]"
+                      : ""
+                  }`}
+                  role={canEdit ? "button" : undefined}
+                  tabIndex={canEdit ? 0 : undefined}
+                  onClick={() => canEdit && openNewSession(dow)}
+                  onKeyDown={(e) => {
+                    if (!canEdit) return
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      openNewSession(dow)
+                    }
+                  }}
+                >
                   <p className="text-xs font-bold uppercase tracking-wide text-[#64748B]">{format(calDay, "EEEE")}</p>
                   <p className="text-lg font-semibold text-[#0F172A]">{format(calDay, "MMMM d, yyyy")}</p>
+                  {canEdit ? (
+                    <p className="mt-1 text-xs text-[#0B2A5B]">Click to add a session · {format(calDay, "MMM d")}</p>
+                  ) : null}
                 </div>
                 {rows.length === 0 ? (
                   <p className="text-sm text-[#64748B]">No sessions this day.</p>
@@ -725,13 +807,14 @@ function ScheduleTab({
 
       <SessionDialog
         open={editor !== null}
-        onClose={() => setEditor(null)}
+        onClose={closeSessionEditor}
         base={base}
         canEdit={canEdit}
         session={editor === "new" ? null : editor}
+        initialDayOfWeek={editor === "new" ? newSessionInitialDay : null}
         positionOptions={positionOptions}
         onSaved={async () => {
-          setEditor(null)
+          closeSessionEditor()
           await onRefresh()
         }}
       />
@@ -802,6 +885,7 @@ function SessionDialog({
   base,
   canEdit,
   session,
+  initialDayOfWeek,
   positionOptions,
   onSaved,
 }: {
@@ -810,6 +894,8 @@ function SessionDialog({
   base: string
   canEdit: boolean
   session: WorkoutSessionRow | null
+  /** 0–Sun … 6–Sat when creating from a calendar day; null = default Monday */
+  initialDayOfWeek: number | null
   positionOptions: string[]
   onSaved: () => Promise<void>
 }) {
@@ -836,13 +922,22 @@ function SessionDialog({
     setPresetsLoading(true)
     try {
       const res = await fetch(presetsBase)
-      if (!res.ok) return
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string }
+        if (res.status === 403) return
+        showToast(
+          err.error ??
+            "Could not load workout presets. Deploy the `workout_presets` migration to your database, then redeploy.",
+          "error"
+        )
+        return
+      }
       const data = (await res.json()) as { presets?: WorkoutPresetRow[] }
       setPresets(data.presets ?? [])
     } finally {
       setPresetsLoading(false)
     }
-  }, [canEdit, presetsBase])
+  }, [canEdit, presetsBase, showToast])
 
   useEffect(() => {
     if (!open) return
@@ -854,7 +949,9 @@ function SessionDialog({
       setWorkoutRows(initialWorkoutEditorRows(session.workout_items, session.description))
       setGroups(Array.isArray(session.position_groups) ? (session.position_groups as string[]) : [])
     } else {
-      setDayOfWeek(1)
+      const dow =
+        initialDayOfWeek != null && initialDayOfWeek >= 0 && initialDayOfWeek <= 6 ? initialDayOfWeek : 1
+      setDayOfWeek(dow)
       setTitle("")
       setStartTimeDate(parseSessionStartTimeToDate("07:00:00"))
       setDuration(60)
@@ -864,7 +961,7 @@ function SessionDialog({
     setPresetPick("")
     setAppliedPresetId(null)
     setNewPresetName("")
-  }, [open, session])
+  }, [open, session, initialDayOfWeek])
 
   useEffect(() => {
     if (!open || !canEdit) return

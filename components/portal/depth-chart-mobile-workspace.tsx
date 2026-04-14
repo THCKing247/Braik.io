@@ -571,8 +571,15 @@ export function DepthChartMobileWorkspace({
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
         <h1 className="min-w-0 truncate text-lg font-semibold text-foreground">Depth Chart</h1>
         <div className="flex shrink-0 items-center gap-2">
-          {hasUnsavedChanges && onSave && (
-            <Button type="button" size="sm" className="min-h-10 rounded-xl" onClick={() => void onSave()}>
+          {canEdit && onSave && (
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-10 rounded-xl"
+              disabled={!hasUnsavedChanges}
+              onClick={() => void onSave()}
+              title={!hasUnsavedChanges ? "No changes to save" : undefined}
+            >
               Save
             </Button>
           )}

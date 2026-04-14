@@ -10,6 +10,7 @@ import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickAc
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { usePortalTeam } from "@/components/portal/portal-team-context"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
 
 const tabs = [
   {
@@ -54,7 +55,9 @@ export function DashboardMobileTabBar() {
   const portal = usePortalTeam()
   const identity = useDashboardShellIdentity()
   const bootstrap = useAppBootstrapOptional()
+  const messagingUnread = useMessagingUnreadOptional()
   const shellUnread = bootstrap?.effectiveUnreadNotifications ?? 0
+  const messagesTabBadgeCount = shellUnread + (messagingUnread?.effectiveThreadUnread ?? 0)
   const videoClipsNavVisible = bootstrap?.payload?.videoClips?.navVisible
   const { openMoreSheet, moreSheetOpen } = useMobileDashboardNav()
   const contextTeamId =
@@ -85,7 +88,7 @@ export function DashboardMobileTabBar() {
         {tabs.map(({ href, label, icon: Icon, match }) => {
           const active = match(pathname)
           const resolvedHref = href === "/dashboard" ? homeDashboardHref : href
-          const showMsgBadge = href === "/dashboard/messages" && shellUnread > 0
+          const showMsgBadge = href === "/dashboard/messages" && messagesTabBadgeCount > 0
           return (
             <Link
               key={href}
@@ -103,9 +106,9 @@ export function DashboardMobileTabBar() {
                 {showMsgBadge ? (
                   <span
                     className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[9px] font-bold text-white"
-                    aria-label={`${Math.min(shellUnread, 99)} unread notifications`}
+                    aria-label={`${Math.min(messagesTabBadgeCount, 99)} unread messages or notifications`}
                   >
-                    {shellUnread > 9 ? "9+" : shellUnread}
+                    {messagesTabBadgeCount > 9 ? "9+" : messagesTabBadgeCount}
                   </span>
                 ) : null}
               </span>

@@ -6,6 +6,7 @@ import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { signOut } from "@/lib/auth/client-auth"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
@@ -40,7 +41,10 @@ function SidebarSectionLabel({ children }: { children: React.ReactNode }) {
 export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const identity = useDashboardShellIdentity()
   const shell = useAppBootstrapOptional()
+  const messagingUnread = useMessagingUnreadOptional()
   const shellUnread = shell?.effectiveUnreadNotifications ?? 0
+  const threadUnread = messagingUnread?.effectiveThreadUnread ?? 0
+  const messagesTabBadgeCount = shellUnread + threadUnread
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const coachB = useCoachB()
@@ -109,7 +113,9 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
                   label={action.label}
                   icon={action.icon}
                   badgeCount={
-                    action.id === "messages" && shellUnread > 0 ? Math.min(shellUnread, 99) : undefined
+                    action.id === "messages" && messagesTabBadgeCount > 0
+                      ? Math.min(messagesTabBadgeCount, 99)
+                      : undefined
                   }
                   isActive={
                     pathname === action.href ||

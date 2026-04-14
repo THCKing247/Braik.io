@@ -78,8 +78,24 @@ export async function GET(request: Request) {
     }
 
     const threadIds = [...new Set((participantThreads ?? []).map((p) => p.thread_id))]
+
+    const { data: teamUnreadTotalRaw, error: teamUnreadErr } = await supabase.rpc(
+      "messaging_unread_total_for_team_user",
+      { p_user_id: userId, p_team_id: teamId }
+    )
+    let teamTotalUnread = Number(teamUnreadTotalRaw ?? 0)
+    if (teamUnreadErr) {
+      console.warn("[GET /api/messages/threads] messaging_unread_total_for_team_user (fallback 0)", {
+        teamId,
+        userId,
+        message: teamUnreadErr.message,
+        code: teamUnreadErr.code,
+      })
+      teamTotalUnread = 0
+    }
+
     if (threadIds.length === 0) {
-      return NextResponse.json([])
+      return NextResponse.json({ threads: [], meta: { totalUnread: teamTotalUnread } })
     }
 
     const { data: threads, error: threadsError } = await supabase
@@ -97,7 +113,7 @@ export async function GET(request: Request) {
 
     const selectedThreadIds = [...new Set((threads ?? []).map((t) => t.id))]
     if (selectedThreadIds.length === 0) {
-      return NextResponse.json([])
+      return NextResponse.json({ threads: [], meta: { totalUnread: teamTotalUnread } })
     }
 
     const { data: statsRows, error: statsError } = await supabase.rpc("message_threads_inbox_stats", {
@@ -110,7 +126,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to load threads" }, { status: 500 })
     }
 
-    const totalUnread = (statsRows ?? []).reduce(
+    const pageUnreadSum = (statsRows ?? []).reduce(
       (acc, r: InboxStatRow) => acc + Number(r.unread_count ?? 0),
       0
     )
@@ -118,7 +134,9 @@ export async function GET(request: Request) {
       userId,
       teamId,
       threadCount: selectedThreadIds.length,
-      totalUnreadAcrossThreads: totalUnread,
+      pageUnreadSum,
+      teamTotalUnread,
+      at: new Date().toISOString(),
     })
 
     const statsByThread = new Map<string, ThreadInboxStats>(
@@ -288,7 +306,13 @@ export async function GET(request: Request) {
       }
     })
 
-    return NextResponse.json(formatted)
+    return NextResponse.json({
+      threads: formatted,
+      meta: {
+        /** Sum of unread across all threads in this team (not only this page). */
+        totalUnread: teamTotalUnread,
+      },
+    })
   } catch (error: unknown) {
     console.error("[GET /api/messages/threads]", error)
     const msg = error instanceof Error ? error.message : "Failed to load threads"

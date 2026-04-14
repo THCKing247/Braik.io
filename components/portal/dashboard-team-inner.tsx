@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { useSession } from "@/lib/auth/client-auth"
 import { PortalTeamProvider, useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { AppBootstrapProvider } from "@/components/portal/app-bootstrap-context"
+import { MessagingUnreadProvider } from "@/components/portal/messaging-unread-context"
 import { AdPortalLinkProvider } from "@/components/portal/ad-portal-link-context"
 import { rememberActiveDashboardTeam } from "@/lib/dashboard/active-team-session"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
@@ -45,7 +46,9 @@ function UrlResolvedTeamBootstrap({ teams, children }: { teams: Team[]; children
 
   return (
     <AdPortalLinkProvider>
-      <AppBootstrapProvider teamId={tid}>{children}</AppBootstrapProvider>
+      <AppBootstrapProvider teamId={tid}>
+        <MessagingUnreadProvider>{children}</MessagingUnreadProvider>
+      </AppBootstrapProvider>
     </AdPortalLinkProvider>
   )
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useQueryClient } from "@tanstack/react-query"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { dashboardBootstrapQueryKey } from "@/lib/dashboard/dashboard-bootstrap-query"
+import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -121,6 +122,7 @@ interface MessagingManagerProps {
 export function MessagingManager({ teamId, userRole, userId, initialThreads = [] }: MessagingManagerProps) {
   const searchParams = useSearchParams()
   const shell = useAppBootstrapOptional()
+  const messagingUnread = useMessagingUnreadOptional()
   const queryClient = useQueryClient()
   const [threads, setThreads] = useState<Thread[]>(initialThreads)
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
@@ -160,9 +162,20 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const messageIngressRef = useRef<"idle" | "full-load" | "poll" | "realtime" | "user-send" | "optimistic">("idle")
   const scrollIntentAfterNextMessagesRef = useRef<"bottom" | "keep">("keep")
   const lastMessageCountRef = useRef<number>(0)
+  /** Snapshot for rollback if POST /read fails after optimistic UI. */
+  const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
+
+  const isThreadActivelyViewed = useCallback((threadId: string) => {
+    if (typeof document === "undefined") return false
+    return (
+      selectedThreadIdRef.current === threadId &&
+      document.visibilityState === "visible" &&
+      (typeof document.hasFocus !== "function" || document.hasFocus())
+    )
+  }, [])
 
   useEffect(() => {
     contactsFetchStartedRef.current = false
@@ -363,7 +376,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || "Failed to load threads")
       }
-      const data = await response.json()
+      const raw = await response.json()
+      const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
+      const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
+      if (typeof meta?.totalUnread === "number") {
+        messagingUnread?.syncThreadUnreadFromServer(meta.totalUnread)
+      }
       setThreads(data)
       setSelectedThread((prev) => {
         if (!prev) return prev
@@ -391,7 +409,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       const msg = error instanceof Error ? error.message : "Failed to load threads"
       setError(msg)
     }
-  }, [teamId, searchParams])
+  }, [teamId, searchParams, messagingUnread])
 
   const loadContacts = async () => {
     try {
@@ -445,10 +463,22 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }
 
   const markThreadReadAndSync = useCallback(
-    async (threadId: string) => {
+    async (threadId: string): Promise<boolean> => {
+      const rollback = optimisticReadRef.current
       try {
         const res = await fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
-        if (!res.ok) return
+        if (!res.ok) {
+          if (rollback?.threadId === threadId) {
+            setThreads((prev) =>
+              prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rollback.prevUnread } : t))
+            )
+            messagingUnread?.applyThreadUnreadDelta(rollback.prevUnread)
+          }
+          optimisticReadRef.current = null
+          console.error("[messaging] mark-as-read failed", { threadId, status: res.status })
+          return false
+        }
+        optimisticReadRef.current = null
         const data = (await res.json()) as {
           unreadNotifications?: number
           markedNotificationCount?: number
@@ -460,11 +490,20 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         }
         queryClient.invalidateQueries({ queryKey: dashboardBootstrapQueryKey(teamId) })
         await loadThreads()
+        return true
       } catch (e) {
+        if (rollback?.threadId === threadId) {
+          setThreads((prev) =>
+            prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rollback.prevUnread } : t))
+          )
+          messagingUnread?.applyThreadUnreadDelta(rollback.prevUnread)
+        }
+        optimisticReadRef.current = null
         console.error("markThreadReadAndSync", e)
+        return false
       }
     },
-    [shell, queryClient, teamId, loadThreads]
+    [shell, queryClient, teamId, loadThreads, messagingUnread]
   )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
@@ -509,6 +548,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const loadMessages = async (threadId: string, showLoading = true) => {
     if (showLoading) {
       setMessagesLoading(true)
+      const prevU = threads.find((t) => t.id === threadId)?.unreadCount ?? 0
+      optimisticReadRef.current = { threadId, prevUnread: prevU }
+      messagingUnread?.applyThreadUnreadDelta(-prevU)
       setThreads((prev) =>
         prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t))
       )
@@ -564,6 +606,16 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       return { messages: sortedMessages as Message[], raw: data }
     } catch (error: any) {
       console.error("Error loading messages:", error)
+      if (showLoading) {
+        const rb = optimisticReadRef.current
+        if (rb?.threadId === threadId) {
+          setThreads((prev) =>
+            prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rb.prevUnread } : t))
+          )
+          messagingUnread?.applyThreadUnreadDelta(rb.prevUnread)
+          optimisticReadRef.current = null
+        }
+      }
       setError(error.message || "Failed to load messages")
       return null
     } finally {
@@ -706,10 +758,27 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             creator: resolveRealtimeCreator(senderId),
           }
           appendRealtimeMessage(newMessage)
-          const viewing = selectedThreadIdRef.current === threadId
-          patchThreadListFromDetailMessages(threadId, [newMessage], viewing)
-          if (viewing) {
+
+          if (senderId === userId) {
+            patchThreadListFromDetailMessages(threadId, [newMessage], true)
+            return
+          }
+
+          const active = isThreadActivelyViewed(threadId)
+          patchThreadListFromDetailMessages(threadId, [newMessage], active)
+          if (active) {
             void markThreadReadAndSync(threadId)
+          } else {
+            setThreads((prev) =>
+              prev.map((t) =>
+                t.id === threadId ? { ...t, unreadCount: (t.unreadCount ?? 0) + 1 } : t
+              )
+            )
+            messagingUnread?.applyThreadUnreadDelta(1)
+            console.info("[messaging:realtime] background message → increment unread", {
+              threadId,
+              userId,
+            })
           }
         }
       )
@@ -717,6 +786,56 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
     realtimeSubscriptionRef.current = subscription
   }
+
+  /** Sync list when this user's participant rows change (e.g. read on another device). */
+  useEffect(() => {
+    const channel = supabaseClient
+      .channel(`message-thread-participants:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_thread_participants",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const row = payload.new as { thread_id?: string; last_read_at?: string | null }
+          console.info("[messaging:realtime] participant UPDATE", {
+            threadId: row.thread_id,
+            userId,
+            lastReadAt: row.last_read_at,
+            at: new Date().toISOString(),
+          })
+          void loadThreads()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void supabaseClient.removeChannel(channel)
+    }
+  }, [userId, loadThreads])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        void loadThreads()
+      }
+    }
+    const onFocus = () => {
+      const tid = selectedThreadIdRef.current
+      if (tid && isThreadActivelyViewed(tid)) {
+        void markThreadReadAndSync(tid)
+      }
+    }
+    document.addEventListener("visibilitychange", onVis)
+    window.addEventListener("focus", onFocus)
+    return () => {
+      document.removeEventListener("visibilitychange", onVis)
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [loadThreads, markThreadReadAndSync, isThreadActivelyViewed])
 
   const handleSendMessage = async () => {
     if (!selectedThread || !messageBody.trim()) return
@@ -1188,7 +1307,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 </span>
               )}
               {unread && (
-                <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[rgb(var(--accent))] px-2 py-0.5 text-[11px] font-semibold text-white">
+                <span
+                  className={cn(
+                    "ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[rgb(var(--accent))] px-2 py-0.5 text-[11px] font-semibold text-white",
+                    "motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out"
+                  )}
+                >
                   {(thread.unreadCount ?? 0) > 9 ? "9+" : thread.unreadCount}
                 </span>
               )}

@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
+import { repairThreadParticipantsFromThreadAndMessages } from "@/lib/messaging/thread-participants"
 
 const LOG = "[POST /api/messages/threads/[threadId]/read]"
 
@@ -39,6 +40,21 @@ export async function POST(
 
     if (threadErr || !thread?.team_id) {
       return NextResponse.json({ error: "Thread not found" }, { status: 404 })
+    }
+
+    const repair = await repairThreadParticipantsFromThreadAndMessages(
+      supabase,
+      threadId,
+      [userId],
+      "markRead:repairParticipants"
+    )
+    if (repair.error) {
+      console.error(`${LOG} repair participants`, {
+        threadId,
+        userId,
+        message: repair.error.message,
+      })
+      return NextResponse.json({ error: "Failed to sync participants" }, { status: 500 })
     }
 
     const readAt = new Date().toISOString()
@@ -123,11 +139,20 @@ export async function POST(
       }
     }
 
+    const { data: participantRow } = await supabase
+      .from("message_thread_participants")
+      .select("joined_at, last_read_at")
+      .eq("thread_id", threadId)
+      .eq("user_id", userId)
+      .maybeSingle()
+
     console.info(`${LOG} marked read`, {
       threadId,
       userId,
       rowsUpdated,
       lastReadAt,
+      joinedAt: participantRow?.joined_at,
+      at: new Date().toISOString(),
     })
 
     const readTimestamp = new Date().toISOString()
@@ -152,6 +177,12 @@ export async function POST(
       success: true,
       lastReadAt,
       rowsUpdated,
+      participant: participantRow
+        ? {
+            joinedAt: participantRow.joined_at,
+            lastReadAt: participantRow.last_read_at,
+          }
+        : null,
       markedNotificationCount,
       unreadNotifications,
     })

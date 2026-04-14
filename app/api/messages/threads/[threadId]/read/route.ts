@@ -3,14 +3,15 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
-import { ensureUserThreadParticipant } from "@/lib/messaging/thread-participants"
 
 const LOG = "[POST /api/messages/threads/[threadId]/read]"
 
 /**
  * POST /api/messages/threads/[threadId]/read
- * Ensures a participant row exists, sets last_read_at = now() for the current user,
- * marks matching in-app notifications read (shell badge), returns updated timestamps.
+ *
+ * 1) UPDATE message_thread_participants SET last_read_at = now() WHERE thread_id AND user_id
+ * 2) If 0 rows updated: INSERT (thread_id, user_id, joined_at, last_read_at) for team members, then UPDATE again on duplicate key
+ * 3) Mark matching notifications read (shell badge)
  */
 export async function POST(
   _request: Request,
@@ -40,33 +41,10 @@ export async function POST(
       return NextResponse.json({ error: "Thread not found" }, { status: 404 })
     }
 
-    const { data: existing } = await supabase
-      .from("message_thread_participants")
-      .select("user_id, last_read_at")
-      .eq("thread_id", threadId)
-      .eq("user_id", userId)
-      .maybeSingle()
-
-    if (!existing) {
-      try {
-        await requireTeamAccessWithUser(thread.team_id, session.user)
-      } catch {
-        console.warn(`${LOG} denied`, { threadId, userId, reason: "not_participant_not_team" })
-        return NextResponse.json({ error: "Not a participant in this thread" }, { status: 403 })
-      }
-      const ensured = await ensureUserThreadParticipant(supabase, threadId, userId, "markRead:repairTeamMember")
-      if (ensured.error) {
-        console.error(`${LOG} ensure participant failed`, {
-          threadId,
-          userId,
-          message: ensured.error.message,
-        })
-        return NextResponse.json({ error: "Failed to join thread" }, { status: 500 })
-      }
-      console.info(`${LOG} repaired missing participant row`, { threadId, userId })
-    }
-
     const readAt = new Date().toISOString()
+
+    let rowsUpdated = 0
+    let lastReadAt = readAt
 
     const { data: updatedRows, error: updateError } = await supabase
       .from("message_thread_participants")
@@ -76,7 +54,7 @@ export async function POST(
       .select("last_read_at")
 
     if (updateError) {
-      console.error(`${LOG} last_read_at update`, {
+      console.error(`${LOG} update failed`, {
         threadId,
         userId,
         code: updateError.code,
@@ -85,12 +63,70 @@ export async function POST(
       return NextResponse.json({ error: "Failed to mark as read" }, { status: 500 })
     }
 
-    const lastReadAt = (updatedRows?.[0] as { last_read_at?: string } | undefined)?.last_read_at ?? readAt
+    if (updatedRows && updatedRows.length > 0) {
+      rowsUpdated = updatedRows.length
+      lastReadAt =
+        (updatedRows[0] as { last_read_at?: string }).last_read_at ?? readAt
+    } else {
+      try {
+        await requireTeamAccessWithUser(thread.team_id, session.user)
+      } catch {
+        console.warn(`${LOG} no row + not team member`, { threadId, userId })
+        return NextResponse.json({ error: "Not a participant in this thread" }, { status: 403 })
+      }
+
+      const { error: insertError } = await supabase.from("message_thread_participants").insert({
+        thread_id: threadId,
+        user_id: userId,
+        joined_at: readAt,
+        last_read_at: readAt,
+      })
+
+      if (insertError) {
+        if (insertError.code === "23505") {
+          const retry = await supabase
+            .from("message_thread_participants")
+            .update({ last_read_at: readAt })
+            .eq("thread_id", threadId)
+            .eq("user_id", userId)
+            .select("last_read_at")
+
+          if (retry.error) {
+            console.error(`${LOG} retry update after duplicate`, {
+              threadId,
+              userId,
+              message: retry.error.message,
+            })
+            return NextResponse.json({ error: "Failed to mark as read" }, { status: 500 })
+          }
+          rowsUpdated = retry.data?.length ?? 0
+          lastReadAt =
+            (retry.data?.[0] as { last_read_at?: string } | undefined)?.last_read_at ?? readAt
+          console.info(`${LOG} insert conflict, retry update ok`, {
+            threadId,
+            userId,
+            rowsUpdated,
+          })
+        } else {
+          console.error(`${LOG} insert failed`, {
+            threadId,
+            userId,
+            code: insertError.code,
+            message: insertError.message,
+          })
+          return NextResponse.json({ error: "Failed to mark as read" }, { status: 500 })
+        }
+      } else {
+        rowsUpdated = 1
+        lastReadAt = readAt
+        console.info(`${LOG} inserted participant + last_read_at`, { threadId, userId })
+      }
+    }
 
     console.info(`${LOG} marked read`, {
       threadId,
       userId,
-      rowsUpdated: updatedRows?.length ?? 0,
+      rowsUpdated,
       lastReadAt,
     })
 
@@ -112,16 +148,10 @@ export async function POST(
     const markedNotificationCount = markedRows?.length ?? 0
     const unreadNotifications = await getUnreadNotificationCount(userId, thread.team_id)
 
-    console.info(`${LOG} inbox_notifications`, {
-      threadId,
-      userId,
-      markedNotificationCount,
-      unreadNotifications,
-    })
-
     return NextResponse.json({
       success: true,
       lastReadAt,
+      rowsUpdated,
       markedNotificationCount,
       unreadNotifications,
     })

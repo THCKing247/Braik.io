@@ -356,7 +356,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     scrollToBottom()
   }
 
-  const loadThreads = async () => {
+  const loadThreads = useCallback(async () => {
     try {
       const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
       if (!response.ok) {
@@ -374,26 +374,24 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
       // Check for threadId in URL params (from notification deep link)
       const urlThreadId = searchParams?.get("threadId")
-      
+
       if (urlThreadId && !urlThreadIdProcessedRef.current) {
-        // Find thread by ID from URL
         const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
         if (threadFromUrl) {
           setSelectedThread(threadFromUrl)
           setMobileShowList(false)
           urlThreadIdProcessedRef.current = true
         } else {
-          // Thread not found, might not be loaded yet or user doesn't have access
-          // This is handled by role-based access in the API
           console.warn(`Thread ${urlThreadId} not found or access denied`)
         }
       }
       setError(null)
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error loading threads:", error)
-      setError(error.message || "Failed to load threads")
+      const msg = error instanceof Error ? error.message : "Failed to load threads"
+      setError(msg)
     }
-  }
+  }, [teamId, searchParams])
 
   const loadContacts = async () => {
     try {
@@ -461,11 +459,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           shell?.applyUnreadDelta(-data.markedNotificationCount)
         }
         queryClient.invalidateQueries({ queryKey: dashboardBootstrapQueryKey(teamId) })
+        await loadThreads()
       } catch (e) {
         console.error("markThreadReadAndSync", e)
       }
     },
-    [shell, queryClient, teamId]
+    [shell, queryClient, teamId, loadThreads]
   )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {

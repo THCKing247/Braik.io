@@ -26,8 +26,8 @@ import {
   UserRound,
   Shield,
   Heart,
-  UsersRound,
   Trash2,
+  LayoutGrid,
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
 import { supabaseClient } from "@/src/lib/supabaseClient"
@@ -103,6 +103,12 @@ function messageDaySeparatorLabel(d: Date | string) {
   return format(date, "MMMM d, yyyy")
 }
 
+function messageAttachmentIsImage(att: { mimeType?: string; fileName?: string }) {
+  if (att.mimeType && att.mimeType.startsWith("image/")) return true
+  const n = (att.fileName || "").toLowerCase()
+  return /\.(webp|png|jpe?g|gif|bmp|avif)$/i.test(n)
+}
+
 interface Contact {
   id: string
   name: string
@@ -110,6 +116,8 @@ interface Contact {
   image: string | null
   role: string
   type: string
+  /** Player position group (e.g. WR, OL); null for non-players */
+  positionGroup: string | null
 }
 
 interface MessagingManagerProps {
@@ -135,7 +143,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [messageBody, setMessageBody] = useState("")
   const [attachments, setAttachments] = useState<any[]>([])
   const [showCreateThread, setShowCreateThread] = useState(false)
-  const [threadType, setThreadType] = useState<"coach" | "player" | "parent" | "group" | null>(null)
+  const [threadType, setThreadType] = useState<"all" | "player" | "parent" | "group" | null>(null)
   const [newThreadSubject, setNewThreadSubject] = useState("")
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
@@ -156,7 +164,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(new Set())
   const [isWide, setIsWide] = useState(false)
   const [mobileShowList, setMobileShowList] = useState(true)
-  const [composeGroupFilter, setComposeGroupFilter] = useState<null | "staff">(null)
+  const [composeGroupFilter, setComposeGroupFilter] = useState<null | "coachStaff">(null)
+  /** Narrow player list by roster position group; omit non-players when set */
+  const [contactPositionFilter, setContactPositionFilter] = useState<string | null>(null)
   const [participantsModalPurpose, setParticipantsModalPurpose] = useState<"pick" | "view">("pick")
   const [priorityCollapsed, setPriorityCollapsed] = useState(false)
   const messageIngressRef = useRef<"idle" | "full-load" | "poll" | "realtime" | "user-send" | "optimistic">("idle")
@@ -1039,26 +1049,40 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   }
 
   const handleCreateThread = async () => {
-    // Validation
-    if (threadType === "group" && !newThreadSubject.trim()) {
-      alert("Group name is required")
-      return
-    }
     if (selectedContacts.length === 0) {
       alert("Please select at least one participant")
       return
     }
-    if (threadType !== "group" && selectedContacts.length !== 1) {
-      alert(`Please select exactly one ${threadType}`)
+
+    if (threadType === "group") {
+      const coachStaff = composeGroupFilter === "coachStaff"
+      if (coachStaff && selectedContacts.length > 1 && !newThreadSubject.trim()) {
+        alert("Group name is required when messaging multiple people")
+        return
+      }
+      if (!coachStaff && !newThreadSubject.trim()) {
+        alert("Group name is required")
+        return
+      }
+    } else if (selectedContacts.length !== 1) {
+      alert(`Please select exactly one ${threadType ?? "contact"}`)
       return
     }
 
     setLoading(true)
     try {
-      // For individual threads, generate subject from contact name if not provided
       let subject = newThreadSubject.trim()
+      if (
+        !subject &&
+        threadType === "group" &&
+        composeGroupFilter === "coachStaff" &&
+        selectedContacts.length === 1
+      ) {
+        const contact = contacts.find((c) => c.id === selectedContacts[0])
+        subject = contact ? `Chat with ${contact.name}` : "New Conversation"
+      }
       if (!subject && threadType !== "group" && selectedContacts.length === 1) {
-        const contact = contacts.find(c => c.id === selectedContacts[0])
+        const contact = contacts.find((c) => c.id === selectedContacts[0])
         subject = contact ? `Chat with ${contact.name}` : "New Conversation"
       }
 
@@ -1231,10 +1255,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     return { starred, rest }
   }, [threads, searchQuery, starredThreadIds])
 
-  const getFilteredContacts = () => {
+  const baseFilteredContacts = useMemo(() => {
     if (!threadType) return contacts
 
-    if (threadType === "group" && composeGroupFilter === "staff") {
+    if (threadType === "group" && composeGroupFilter === "coachStaff") {
       return contacts.filter((c) => {
         const typeUpper = (c.type || "").toUpperCase()
         return typeUpper !== "PLAYER" && typeUpper !== "PARENT"
@@ -1242,52 +1266,75 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
 
     switch (threadType) {
-      case "coach":
-        return contacts.filter(c => {
-          const typeUpper = c.type?.toUpperCase() || ""
-          const roleLower = c.role?.toLowerCase() || ""
-          return typeUpper === "HEAD_COACH" || 
-                 typeUpper === "ASSISTANT_COACH" || 
-                 roleLower === "head_coach" || 
-                 roleLower === "assistant_coach"
+      case "all":
+        return [...contacts].sort((a, b) => {
+          const n = a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+          return n !== 0 ? n : a.id.localeCompare(b.id)
         })
       case "player":
-        return contacts.filter(c => {
+        return contacts.filter((c) => {
           const typeUpper = c.type?.toUpperCase() || ""
           const roleLower = c.role?.toLowerCase() || ""
           return typeUpper === "PLAYER" || roleLower === "player"
         })
       case "parent":
-        return contacts.filter(c => {
+        return contacts.filter((c) => {
           const typeUpper = c.type?.toUpperCase() || ""
           const roleLower = c.role?.toLowerCase() || ""
           return typeUpper === "PARENT" || roleLower === "parent"
         })
       case "group":
-        return contacts // Show all for group
+        return contacts
       default:
         return contacts
     }
-  }
+  }, [contacts, threadType, composeGroupFilter])
+
+  const positionGroupOptions = useMemo(() => {
+    const s = new Set<string>()
+    for (const c of contacts) {
+      const pg = (c.positionGroup || "").trim()
+      if (pg) s.add(pg)
+    }
+    return [...s].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+  }, [contacts])
+
+  const contactsForParticipantPicker = useMemo(() => {
+    const list = baseFilteredContacts
+    if (!contactPositionFilter) return list
+    return list.filter((c) => {
+      const pg = (c.positionGroup || "").trim()
+      if (!pg) return false
+      return pg.toUpperCase() === contactPositionFilter.toUpperCase()
+    })
+  }, [baseFilteredContacts, contactPositionFilter])
+
+  useEffect(() => {
+    setContactPositionFilter(null)
+  }, [threadType, composeGroupFilter])
 
   const handleCancelCreate = () => {
     setShowCreateThread(false)
     setThreadType(null)
     setComposeGroupFilter(null)
+    setContactPositionFilter(null)
     setNewThreadSubject("")
     setSelectedContacts([])
   }
 
-  const openComposeCategory = (type: "coach" | "player" | "parent" | "group") => {
+  const openComposeCategory = (type: "all" | "player" | "parent" | "group") => {
     setComposeGroupFilter(null)
+    setContactPositionFilter(null)
     setThreadType(type)
     setShowCreateThread(true)
     setSelectedContacts([])
     setNewThreadSubject("")
   }
 
-  const openStaffCompose = () => {
-    setComposeGroupFilter("staff")
+  /** Coaches + team staff: group thread, same participant list as legacy “Staff” (non-player, non-parent). */
+  const openCoachesStaffCompose = () => {
+    setComposeGroupFilter("coachStaff")
+    setContactPositionFilter(null)
     setThreadType("group")
     setShowCreateThread(true)
     setSelectedContacts([])
@@ -1451,19 +1498,19 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:gap-3">
               <button
                 type="button"
+                onClick={() => openComposeCategory("all")}
+                className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
+              >
+                <LayoutGrid className="h-5 w-5 text-slate-700" aria-hidden />
+                <span className="text-xs font-semibold text-[rgb(var(--text))]">All</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => openComposeCategory("player")}
                 className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
               >
                 <UserRound className="h-5 w-5 text-emerald-600" aria-hidden />
                 <span className="text-xs font-semibold text-[rgb(var(--text))]">Players</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => openComposeCategory("coach")}
-                className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
-              >
-                <Shield className="h-5 w-5 text-orange-600" aria-hidden />
-                <span className="text-xs font-semibold text-[rgb(var(--text))]">Coaches</span>
               </button>
               <button
                 type="button"
@@ -1475,15 +1522,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               </button>
               <button
                 type="button"
-                onClick={() => openStaffCompose()}
+                onClick={() => openCoachesStaffCompose()}
                 className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-[rgb(var(--border))] bg-white px-2 py-3 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow md:min-h-[56px]"
               >
-                <UsersRound className="h-5 w-5 text-slate-600" aria-hidden />
-                <span className="text-xs font-semibold text-[rgb(var(--text))]">Staff</span>
+                <Shield className="h-5 w-5 text-orange-600" aria-hidden />
+                <span className="text-xs font-semibold leading-tight text-[rgb(var(--text))]">Coaches &amp; Staff</span>
               </button>
             </div>
             <p className="mt-2 text-center text-[11px] leading-snug text-[rgb(var(--muted))] md:text-left">
-              Staff opens a group chat with coaches & team staff (multi-select).
+              All lists everyone you can message. Coaches &amp; Staff opens a group thread — pick one person or several (name required for multiple).
             </p>
           </div>
         )}
@@ -1520,20 +1567,22 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         {showCreateThread && threadType && (
           <div className="flex-shrink-0 border-b px-4 py-4" style={{ backgroundColor: "rgb(var(--platinum))", borderBottomColor: "rgb(var(--border))" }}>
             <div className="space-y-3">
-              {composeGroupFilter === "staff" && (
+              {composeGroupFilter === "coachStaff" && (
                 <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-                  Choose one or more staff members for this group.
+                  Choose coaches and team staff. One selection starts a direct-style thread; multiple selections need a group name.
                 </p>
               )}
-              {threadType === "group" && (
+              {threadType === "group" && (composeGroupFilter !== "coachStaff" || selectedContacts.length > 1) && (
                 <div>
                   <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>
-                    Group name
+                    Group name{composeGroupFilter === "coachStaff" && selectedContacts.length > 1 ? " *" : ""}
                   </Label>
                   <Input
                     value={newThreadSubject}
                     onChange={(e) => setNewThreadSubject(e.target.value)}
-                    placeholder={composeGroupFilter === "staff" ? "e.g. Staff coordination" : "Enter group name"}
+                    placeholder={
+                      composeGroupFilter === "coachStaff" ? "e.g. Staff coordination" : "Enter group name"
+                    }
                     className="mt-1 h-9 rounded-xl text-sm"
                     style={{
                       backgroundColor: "#FFFFFF",
@@ -1546,10 +1595,12 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               <div>
                 <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>
                   {threadType === "group"
-                    ? composeGroupFilter === "staff"
-                      ? "Select staff"
+                    ? composeGroupFilter === "coachStaff"
+                      ? "Select coaches & staff"
                       : "Select members"
-                    : `Select ${threadType.charAt(0).toUpperCase() + threadType.slice(1)}`}
+                    : threadType === "all"
+                      ? "Select contact"
+                      : `Select ${threadType.charAt(0).toUpperCase() + threadType.slice(1)}`}
                 </Label>
                 <Button
                   size="sm"
@@ -1601,9 +1652,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                   onClick={handleCreateThread}
                   disabled={
                     loading ||
-                    (threadType === "group" && !newThreadSubject.trim()) ||
                     selectedContacts.length === 0 ||
-                    (threadType !== "group" && selectedContacts.length !== 1)
+                    (threadType !== "group" && selectedContacts.length !== 1) ||
+                    (threadType === "group" &&
+                      composeGroupFilter === "coachStaff" &&
+                      selectedContacts.length > 1 &&
+                      !newThreadSubject.trim()) ||
+                    (threadType === "group" &&
+                      composeGroupFilter !== "coachStaff" &&
+                      !newThreadSubject.trim())
                   }
                   className="rounded-xl"
                   style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
@@ -1639,7 +1696,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               <p className="text-sm font-medium text-[rgb(var(--text))]">No conversations yet</p>
               <p className="mt-2 text-sm leading-relaxed text-[rgb(var(--muted))]">
                 {canCreateThread
-                  ? "Use the buttons above to message players, coaches, parents, or staff."
+                  ? "Use All, Players, Parents, or Coaches & Staff above to start a conversation."
                   : "When your team adds you to a thread, it will show up here."}
               </p>
             </div>
@@ -1794,22 +1851,46 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                     >
                       <p className={`text-sm whitespace-pre-wrap ${removed ? "italic opacity-90" : ""}`}>{message.body}</p>
                       {message.attachments && Array.isArray(message.attachments) && message.attachments.length > 0 && (
-                        <div className="mt-2 space-y-1">
+                        <div className="mt-2 space-y-2">
                           {message.attachments.map((att: any, idx: number) => {
-                            // Use secure endpoint for file access
-                            const secureUrl = att.id 
+                            const secureUrl = att.id
                               ? `/api/messages/attachments/${att.id}`
                               : `/api/messages/attachments/serve?fileUrl=${encodeURIComponent(att.fileUrl)}`
+                            const isImg = messageAttachmentIsImage(att)
                             return (
-                              <a
-                                key={idx}
-                                href={secureUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs underline block"
-                              >
-                                📎 {att.fileName}
-                              </a>
+                              <div key={idx}>
+                                {isImg ? (
+                                  <a
+                                    href={secureUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={secureUrl}
+                                      alt={att.fileName || "Image attachment"}
+                                      className={cn(
+                                        "max-h-64 max-w-full rounded-lg object-contain",
+                                        isOwnMessage
+                                          ? "border border-white/25"
+                                          : "border border-[rgb(var(--border))]"
+                                      )}
+                                      loading="lazy"
+                                      decoding="async"
+                                    />
+                                  </a>
+                                ) : (
+                                  <a
+                                    href={secureUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs underline block"
+                                  >
+                                    📎 {att.fileName}
+                                  </a>
+                                )}
+                              </div>
                             )
                           })}
                         </div>
@@ -1945,7 +2026,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         open={showParticipantsModal}
         onOpenChange={(open) => {
           setShowParticipantsModal(open)
-          if (!open) setParticipantsModalPurpose("pick")
+          if (!open) {
+            setParticipantsModalPurpose("pick")
+            setContactPositionFilter(null)
+          }
         }}
       >
         <DialogContent className={`max-h-[85vh] overflow-y-auto bg-white ${msgScrollHide}`}>
@@ -1954,13 +2038,36 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               {participantsModalPurpose === "view"
                 ? "People in this thread"
                 : threadType === "group"
-                  ? composeGroupFilter === "staff"
-                    ? "Select staff members"
+                  ? composeGroupFilter === "coachStaff"
+                    ? "Select coaches & staff"
                     : "Select group members"
-                  : `Select ${threadType ? threadType.charAt(0).toUpperCase() + threadType.slice(1) : "someone"}`}
+                  : threadType === "all"
+                    ? "Select contact"
+                    : `Select ${threadType ? threadType.charAt(0).toUpperCase() + threadType.slice(1) : "someone"}`}
             </DialogTitle>
           </DialogHeader>
           <div className="mt-4 space-y-4">
+            {participantsModalPurpose === "pick" &&
+              positionGroupOptions.length > 0 &&
+              (threadType === "player" || threadType === "all" || (threadType === "group" && composeGroupFilter === "coachStaff")) && (
+                <div className="space-y-1">
+                  <Label className="text-xs" style={{ color: "rgb(var(--text))" }}>
+                    Position group
+                  </Label>
+                  <select
+                    value={contactPositionFilter ?? ""}
+                    onChange={(e) => setContactPositionFilter(e.target.value || null)}
+                    className="mt-0.5 flex h-9 w-full rounded-xl border border-[rgb(var(--border))] bg-white px-3 text-sm text-[rgb(var(--text))]"
+                  >
+                    <option value="">All positions</option>
+                    {positionGroupOptions.map((pg) => (
+                      <option key={pg} value={pg}>
+                        {pg}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             {participantsModalPurpose === "view" && selectedThread ? (
               <div className={`messages-thread-list max-h-96 space-y-2 overflow-y-auto ${msgScrollHide}`}>
                 {selectedThread.participants.map((p) => {
@@ -1994,12 +2101,16 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               </div>
             ) : (
               <div className={`messages-thread-list max-h-96 space-y-2 overflow-y-auto ${msgScrollHide}`}>
-                {getFilteredContacts().length === 0 ? (
+                {contactsForParticipantPicker.length === 0 ? (
                   <p className="py-4 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
-                    {threadType ? `No ${threadType}s available` : "No contacts available"}
+                    {contactPositionFilter
+                      ? "No contacts match this position filter."
+                      : threadType
+                        ? "No contacts available."
+                        : "No contacts available"}
                   </p>
                 ) : (
-                  getFilteredContacts().map((contact) => (
+                  contactsForParticipantPicker.map((contact) => (
                     <label
                       key={contact.id}
                       className="flex cursor-pointer items-center space-x-3 rounded-xl p-2 hover:bg-gray-100"
@@ -2043,6 +2154,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                           </p>
                           <p className="truncate text-xs" style={{ color: "rgb(var(--muted))" }}>
                             {contact.email} · {contact.role}
+                            {contact.positionGroup ? ` · ${contact.positionGroup}` : ""}
                           </p>
                         </div>
                       </div>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import sharp from "sharp"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess } from "@/lib/auth/rbac"
@@ -106,14 +107,37 @@ export async function POST(request: Request) {
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 15)
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-    const secureFileName = `${timestamp}-${random}-${sanitizedName}`
+
+    let fileBuffer = Buffer.from(await file.arrayBuffer())
+    let uploadContentType = file.type || "application/octet-stream"
+    let uploadFileName = sanitizedName
+    let uploadSize = file.size
+
+    // Raster photos → WebP for smaller storage (skip GIF to avoid breaking animation; WebP already optimal)
+    const isRaster =
+      file.type.startsWith("image/") &&
+      file.type !== "image/gif" &&
+      file.type !== "image/webp"
+    if (isRaster) {
+      try {
+        const webpBuffer = await sharp(fileBuffer).webp({ quality: 85 }).toBuffer()
+        fileBuffer = Buffer.from(webpBuffer)
+        uploadContentType = "image/webp"
+        uploadFileName = sanitizedName.replace(/\.[^.]+$/i, "") + ".webp"
+        uploadSize = webpBuffer.length
+      } catch (e) {
+        console.error("[POST /api/messages/attachments] webp conversion failed, using original", e)
+        // keep original buffer / metadata
+      }
+    }
+
+    const secureFileName = `${timestamp}-${random}-${uploadFileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`
     const storagePath = `${teamId}/${threadId}/${secureFileName}`
 
-    const fileBuffer = Buffer.from(await file.arrayBuffer())
     const { error: uploadError } = await supabase.storage
       .from(STORAGE_BUCKET)
       .upload(storagePath, fileBuffer, {
-        contentType: file.type || "application/octet-stream",
+        contentType: uploadContentType,
         upsert: false,
       })
 
@@ -122,16 +146,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to upload file" }, { status: 500 })
     }
 
+    const displayFileName = isRaster && uploadContentType === "image/webp"
+      ? file.name.replace(/\.[^.]+$/i, "") + ".webp"
+      : file.name
+
     const { data: attachment, error: attachmentError } = await supabase
       .from("message_attachments")
       .insert({
         message_id: null,
         thread_id: threadId,
         team_id: teamId,
-        file_name: file.name,
+        file_name: displayFileName,
         file_url: storagePath,
-        file_size: file.size,
-        mime_type: file.type,
+        file_size: uploadSize,
+        mime_type: uploadContentType,
         uploaded_by: session.user.id,
       })
       .select("id, file_name, file_url, file_size, mime_type")

@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         .eq("active", true),
       supabase
         .from("players")
-        .select("user_id, first_name, last_name, email")
+        .select("user_id, first_name, last_name, email, position_group")
         .eq("team_id", teamId)
         .eq("status", "active")
         .not("user_id", "is", null),
@@ -83,7 +83,15 @@ export async function GET(request: Request) {
     const playerMap = new Map(
       (players ?? [])
         .filter((p) => p.user_id !== null)
-        .map((p) => [p.user_id!, { firstName: p.first_name, lastName: p.last_name, email: p.email }])
+        .map((p) => [
+          p.user_id!,
+          {
+            firstName: p.first_name,
+            lastName: p.last_name,
+            email: p.email,
+            positionGroup: (p as { position_group?: string | null }).position_group ?? null,
+          },
+        ])
     )
 
     // Build contacts list
@@ -106,6 +114,7 @@ export async function GET(request: Request) {
           image: null,
           role: profileRole,
           type: teamRole,
+          positionGroup: playerInfo?.positionGroup?.trim() || null,
         }
       })
       .filter((c) => c.id !== user.id) // Exclude self

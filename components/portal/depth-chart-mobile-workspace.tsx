@@ -65,8 +65,10 @@ export interface DepthChartMobileWorkspaceProps {
   /** When false, hide Suggested Call-Ups (e.g. program has no JV/Freshman teams). */
   showCallUpSuggestions?: boolean
   onClose: () => void
-  onSave?: () => void | Promise<void>
+  onSave?: () => void | Promise<void> | Promise<boolean>
   hasUnsavedChanges?: boolean
+  /** When true, Save shows a saving state and close is disabled. */
+  isSaving?: boolean
 }
 
 function getInitials(first: string, last: string) {
@@ -85,6 +87,7 @@ export function DepthChartMobileWorkspace({
   onClose,
   onSave,
   hasUnsavedChanges = false,
+  isSaving = false,
 }: DepthChartMobileWorkspaceProps) {
   const [mode, setMode] = useState<MobileMode>("roster")
   const [selectedUnit, setSelectedUnit] = useState<Side>("offense")
@@ -568,19 +571,26 @@ export function DepthChartMobileWorkspace({
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
-        <h1 className="min-w-0 truncate text-lg font-semibold text-foreground">Depth Chart</h1>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <h1 id="depth-chart-sheet-title" className="truncate text-lg font-semibold text-foreground">
+            Depth Chart
+          </h1>
+          {hasUnsavedChanges ? (
+            <span className="shrink-0 text-xs font-medium text-amber-600 sm:text-sm">Unsaved</span>
+          ) : null}
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           {canEdit && onSave && (
             <Button
               type="button"
               size="sm"
-              className="min-h-10 rounded-xl"
-              disabled={!hasUnsavedChanges}
+              className="min-h-10 min-w-[88px] rounded-xl"
+              disabled={!hasUnsavedChanges || isSaving}
               onClick={() => void onSave()}
               title={!hasUnsavedChanges ? "No changes to save" : undefined}
             >
-              Save
+              {isSaving ? "Saving…" : "Save"}
             </Button>
           )}
           <Button
@@ -589,6 +599,7 @@ export function DepthChartMobileWorkspace({
             size="icon"
             className="h-11 w-11 shrink-0 rounded-full"
             onClick={onClose}
+            disabled={isSaving}
             aria-label="Close"
           >
             <X className="h-5 w-5" />

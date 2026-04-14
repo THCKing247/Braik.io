@@ -727,6 +727,7 @@ export function RosterManagerEnhanced({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showDepthChartModal, setShowDepthChartModal] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+  const [isSavingDepthChart, setIsSavingDepthChart] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportForm, setShowImportForm] = useState(false)
@@ -1099,6 +1100,7 @@ export function RosterManagerEnhanced({
   }
 
   const handleCloseDepthChart = () => {
+    if (isSavingDepthChart) return
     if (hasUnsavedChanges) {
       setShowSavePrompt(true)
     } else {
@@ -1108,10 +1110,15 @@ export function RosterManagerEnhanced({
   }
 
   const handleSaveAndClose = async () => {
-    await handleSaveDepthChart()
+    const ok = await handleSaveDepthChart()
+    if (!ok) return
     setShowSavePrompt(false)
     setShowDepthChartModal(false)
     setActiveTab("roster")
+  }
+
+  const handleCancelDepthChartSavePrompt = () => {
+    setShowSavePrompt(false)
   }
 
   const handleDiscardAndClose = () => {
@@ -1560,8 +1567,8 @@ export function RosterManagerEnhanced({
     setHasUnsavedChanges(true)
   }
 
-  const handleSaveDepthChart = async () => {
-    // Get all current entries and save them (formation/specialTeamType preserved; API returns them on reload)
+  const handleSaveDepthChart = async (): Promise<boolean> => {
+    if (!canEdit) return false
     const updates = depthChart.map((e) => ({
       unit: e.unit,
       position: e.position,
@@ -1571,27 +1578,34 @@ export function RosterManagerEnhanced({
       specialTeamType: e.specialTeamType || null,
     }))
 
+    setIsSavingDepthChart(true)
     try {
       await handleDepthChartUpdate(updates)
-      
-      // Reload to get saved state
+
       const reloadResponse = await fetch(`/api/roster/depth-chart?teamId=${teamId}`)
-      if (reloadResponse.ok) {
-        const data = await reloadResponse.json()
-        const entries = (data.entries || []).map((e: DepthChartEntry) => {
-          // Ensure player object is populated if playerId exists
-          if (e.playerId && !e.player) {
-            const player = players.find(p => p.id === e.playerId)
-            return { ...e, player: player || null }
-          }
-          return e
-        })
-        setDepthChart(entries)
-        setDepthChartSnapshot(JSON.parse(JSON.stringify(entries)))
-        setHasUnsavedChanges(false)
+      if (!reloadResponse.ok) {
+        showToast("Could not refresh the depth chart after saving. Try again.", "error")
+        return false
       }
+      const data = await reloadResponse.json()
+      const entries = (data.entries || []).map((e: DepthChartEntry) => {
+        if (e.playerId && !e.player) {
+          const player = players.find((p) => p.id === e.playerId)
+          return { ...e, player: player || null }
+        }
+        return e
+      })
+      setDepthChart(entries)
+      setDepthChartSnapshot(JSON.parse(JSON.stringify(entries)))
+      setHasUnsavedChanges(false)
+      showToast("Depth chart saved", "success")
+      return true
     } catch (error) {
       console.error("Failed to save depth chart:", error)
+      showToast(error instanceof Error ? error.message : "Failed to save depth chart", "error")
+      return false
+    } finally {
+      setIsSavingDepthChart(false)
     }
   }
 
@@ -2979,6 +2993,7 @@ export function RosterManagerEnhanced({
                 onClose={handleCloseDepthChart}
                 onSave={handleSaveDepthChart}
                 hasUnsavedChanges={hasUnsavedChanges}
+                isSaving={isSavingDepthChart}
               />
             </div>
           </div>
@@ -2986,22 +3001,24 @@ export function RosterManagerEnhanced({
       )}
       {showDepthChartModal && isFootball && depthChartIsDesktop && (
         <div className="fixed inset-0 z-50 flex flex-col bg-background">
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-3 shadow-sm">
-            <h2 className="min-w-0 flex-1 text-xl font-semibold text-foreground lg:text-2xl">Depth Chart</h2>
+          <div className="sticky top-0 z-10 flex min-h-[3.25rem] items-center justify-between gap-2 border-b border-border bg-card px-3 py-2 shadow-sm sm:px-4 sm:py-3">
+            <h2 className="min-w-0 flex-1 text-lg font-semibold text-foreground sm:text-xl lg:text-2xl">Depth Chart</h2>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               {hasUnsavedChanges ? (
-                <span className="hidden text-sm font-medium text-amber-600 sm:inline">Unsaved changes</span>
+                <span className="max-w-[40vw] truncate text-xs font-medium text-amber-600 sm:max-w-none sm:text-sm">
+                  Unsaved changes
+                </span>
               ) : null}
               {canEdit && (
                 <Button
                   type="button"
                   onClick={() => void handleSaveDepthChart()}
                   variant="default"
-                  disabled={!hasUnsavedChanges}
-                  className="min-w-[88px]"
+                  disabled={!hasUnsavedChanges || isSavingDepthChart}
+                  className="min-h-10 min-w-[88px] shrink-0"
                   title={!hasUnsavedChanges ? "No changes to save" : undefined}
                 >
-                  Save
+                  {isSavingDepthChart ? "Saving…" : "Save"}
                 </Button>
               )}
               <Button
@@ -3010,6 +3027,7 @@ export function RosterManagerEnhanced({
                 size="icon"
                 className="h-10 w-10 shrink-0"
                 onClick={handleCloseDepthChart}
+                disabled={isSavingDepthChart}
                 aria-label="Close depth chart"
               >
                 <X className="h-5 w-5" />
@@ -3056,11 +3074,28 @@ export function RosterManagerEnhanced({
                 You have unsaved changes to the depth chart. What would you like to do?
               </p>
               <div className="mt-4 flex flex-col gap-3">
-                <Button className="min-h-[48px] w-full rounded-xl" onClick={handleSaveAndClose}>
-                  Save &amp; close
+                <Button
+                  className="min-h-[48px] w-full rounded-xl"
+                  disabled={isSavingDepthChart}
+                  onClick={() => void handleSaveAndClose()}
+                >
+                  {isSavingDepthChart ? "Saving…" : "Save and exit"}
                 </Button>
-                <Button variant="outline" className="min-h-[48px] w-full rounded-xl" onClick={handleDiscardAndClose}>
-                  Discard changes
+                <Button
+                  variant="outline"
+                  className="min-h-[48px] w-full rounded-xl"
+                  disabled={isSavingDepthChart}
+                  onClick={handleDiscardAndClose}
+                >
+                  Exit without saving
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="min-h-[48px] w-full rounded-xl"
+                  disabled={isSavingDepthChart}
+                  onClick={handleCancelDepthChartSavePrompt}
+                >
+                  Cancel
                 </Button>
               </div>
             </div>
@@ -3077,12 +3112,15 @@ export function RosterManagerEnhanced({
                 <p className="text-sm text-muted-foreground">
                   You have unsaved changes to the depth chart. What would you like to do?
                 </p>
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={handleDiscardAndClose}>
-                    Discard Changes
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3">
+                  <Button variant="outline" disabled={isSavingDepthChart} onClick={handleCancelDepthChartSavePrompt}>
+                    Cancel
                   </Button>
-                  <Button onClick={handleSaveAndClose}>
-                    Save & Close
+                  <Button variant="outline" disabled={isSavingDepthChart} onClick={handleDiscardAndClose}>
+                    Exit without saving
+                  </Button>
+                  <Button disabled={isSavingDepthChart} onClick={() => void handleSaveAndClose()}>
+                    {isSavingDepthChart ? "Saving…" : "Save and exit"}
                   </Button>
                 </div>
               </CardContent>

@@ -162,8 +162,27 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const messageIngressRef = useRef<"idle" | "full-load" | "poll" | "realtime" | "user-send" | "optimistic">("idle")
   const scrollIntentAfterNextMessagesRef = useRef<"bottom" | "keep">("keep")
   const lastMessageCountRef = useRef<number>(0)
+  /** Dedupe: last message id that triggered the in-thread “new messages” banner (jump pill). */
+  const lastBannerMessageIdRef = useRef<string | null>(null)
   /** Snapshot for rollback if POST /read fails after optimistic UI. */
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
+
+  const logThreadMessageBanner = useCallback(
+    (
+      event: "show" | "clear",
+      reason: string,
+      detail?: { threadId?: string | null; messageId?: string | null }
+    ) => {
+      console.info(`[messaging:thread-banner] ${event}`, {
+        reason,
+        userId,
+        threadId: detail?.threadId ?? selectedThreadIdRef.current ?? null,
+        messageId: detail?.messageId ?? null,
+        at: new Date().toISOString(),
+      })
+    },
+    [userId]
+  )
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
@@ -242,9 +261,17 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     const threadId = selectedThread?.id
     if (threadId) {
       lastMessageCountRef.current = 0
+      lastBannerMessageIdRef.current = null
+      setShowJumpToNewest(false)
+      setUnreadCount(0)
+      logThreadMessageBanner("clear", "thread_changed", { threadId })
       loadMessages(threadId)
     } else {
       setMessages([])
+      lastBannerMessageIdRef.current = null
+      setShowJumpToNewest(false)
+      setUnreadCount(0)
+      logThreadMessageBanner("clear", "no_thread_selected", {})
       // Cleanup subscription when no thread selected
       if (realtimeSubscriptionRef.current) {
         realtimeSubscriptionRef.current.unsubscribe()
@@ -259,7 +286,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedThread?.id]) // Only depend on threadId, not the whole object
+  }, [selectedThread?.id, logThreadMessageBanner]) // Only depend on threadId, not the whole object
 
   useLayoutEffect(() => {
     const ingress = messageIngressRef.current
@@ -276,6 +303,8 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       if (curr > 0) scrollToEndInstant()
       setShowJumpToNewest(false)
       setUnreadCount(0)
+      lastBannerMessageIdRef.current = null
+      logThreadMessageBanner("clear", "full_load", { threadId: selectedThreadIdRef.current })
       lastMessageCountRef.current = curr
       scrollIntentAfterNextMessagesRef.current = "keep"
       return
@@ -295,29 +324,75 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         scrollToEndInstant()
         setShowJumpToNewest(false)
         setUnreadCount(0)
+        lastBannerMessageIdRef.current = null
+        logThreadMessageBanner("clear", "user_send_near_bottom", { threadId: selectedThreadIdRef.current })
       } else {
         setShowJumpToNewest(true)
         setUnreadCount((u) => u + delta)
+        logThreadMessageBanner("show", "user_send_while_scrolled_up", { threadId: selectedThreadIdRef.current })
       }
       lastMessageCountRef.current = curr
       return
     }
 
     if (ingress === "poll" || ingress === "realtime") {
+      const tid = selectedThreadIdRef.current
+      const newSlice = delta > 0 ? messages.slice(-delta) : []
+      const hasIncomingFromOthers = newSlice.some((m) => m.creator.id !== userId)
+
+      /** Open + focused: never show the jump / “new messages” pill for realtime/poll (read path marks the thread). */
+      if (tid && isThreadActivelyViewed(tid)) {
+        if (intent === "bottom") {
+          scrollToEndInstant()
+        }
+        setShowJumpToNewest(false)
+        setUnreadCount(0)
+        lastBannerMessageIdRef.current = null
+        const lastIncoming = [...newSlice].reverse().find((m) => m.creator.id !== userId)
+        logThreadMessageBanner("clear", "active_focused_thread", {
+          threadId: tid,
+          messageId: lastIncoming?.id ?? newSlice[newSlice.length - 1]?.id,
+        })
+        lastMessageCountRef.current = curr
+        return
+      }
+
+      if (!hasIncomingFromOthers) {
+        lastMessageCountRef.current = curr
+        logThreadMessageBanner("clear", "own_messages_only_no_banner", {
+          threadId: tid,
+          messageId: newSlice[newSlice.length - 1]?.id,
+        })
+        return
+      }
+
       if (intent === "bottom") {
         scrollToEndInstant()
         setShowJumpToNewest(false)
         setUnreadCount(0)
+        lastBannerMessageIdRef.current = null
+        logThreadMessageBanner("clear", "poll_or_realtime_intent_bottom", { threadId: tid })
       } else {
+        const lastIncoming = [...newSlice].reverse().find((m) => m.creator.id !== userId)
+        const bannerMsgId = lastIncoming?.id ?? newSlice[newSlice.length - 1]?.id
+        if (bannerMsgId && lastBannerMessageIdRef.current === bannerMsgId) {
+          lastMessageCountRef.current = curr
+          return
+        }
+        if (bannerMsgId) lastBannerMessageIdRef.current = bannerMsgId
         setShowJumpToNewest(true)
         setUnreadCount((u) => u + delta)
+        logThreadMessageBanner("show", "incoming_while_scrolled_up_background_tab", {
+          threadId: tid ?? undefined,
+          messageId: bannerMsgId,
+        })
       }
       lastMessageCountRef.current = curr
       return
     }
 
     lastMessageCountRef.current = curr
-  }, [messages])
+  }, [messages, isThreadActivelyViewed, logThreadMessageBanner, userId])
 
   // Monitor scroll position to hide/show jump button
   useEffect(() => {
@@ -328,6 +403,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       if (isNearBottomEl(container)) {
         setShowJumpToNewest(false)
         setUnreadCount(0)
+        lastBannerMessageIdRef.current = null
       }
       
       // Track if user is actively scrolling
@@ -363,6 +439,8 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     // Hide jump button when manually scrolling to bottom
     setShowJumpToNewest(false)
     setUnreadCount(0)
+    lastBannerMessageIdRef.current = null
+    logThreadMessageBanner("clear", "user_jump_to_newest_click", { threadId: selectedThreadIdRef.current })
   }
   
   const handleJumpToNewest = () => {
@@ -548,6 +626,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const loadMessages = async (threadId: string, showLoading = true) => {
     if (showLoading) {
       setMessagesLoading(true)
+      lastBannerMessageIdRef.current = null
+      setShowJumpToNewest(false)
+      setUnreadCount(0)
+      logThreadMessageBanner("clear", "load_messages_start", { threadId })
       const prevU = threads.find((t) => t.id === threadId)?.unreadCount ?? 0
       optimisticReadRef.current = { threadId, prevUnread: prevU }
       messagingUnread?.applyThreadUnreadDelta(-prevU)

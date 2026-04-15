@@ -4,6 +4,7 @@
  */
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import { jwtDecode } from "jwt-decode"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getSupabaseAnonKey, getSupabaseProjectUrl, isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
@@ -65,6 +66,14 @@ export type RequestUserLite = {
 export type RequestUserLiteResult = {
   user: RequestUserLite
   refreshedSession?: RefreshedSession
+}
+
+type SupabaseJwt = {
+  sub: string
+  email?: string
+  exp?: number
+  aud?: string | string[]
+  role?: string
 }
 
 /**
@@ -130,7 +139,7 @@ async function buildSessionUser(
   let isPlatformOwner = false
   const { data: appUser } = await supabase
     .from("users")
-    .select("role")
+    .select("role, is_platform_owner")
     .eq("id", userId)
     .maybeSingle()
   if (appUser) {
@@ -195,6 +204,7 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
   const logAuth = (payload: Record<string, unknown>) => {
     perfLogAuthVerbose("auth.getRequestUserLite", payload)
   }
+
   if (!isSupabaseServerConfigured()) {
     logAuth({ ms: Math.round(performance.now() - tAll), outcome: "no_supabase_config" })
     return null
@@ -204,26 +214,43 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
   const accessToken = cookieStore.get("sb-access-token")?.value
   const refreshToken = cookieStore.get("sb-refresh-token")?.value
 
-  const supabase = getSupabaseServer()
-
   if (accessToken) {
     const devLog = shouldLogAdTeamsFlowPerf()
+    let decoded: SupabaseJwt | null = null
     const tJwt = performance.now()
-    const { data: userData, error } = await supabase.auth.getUser(accessToken)
-    if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "auth_getUser", performance.now() - tJwt)
-    if (!error && userData?.user?.email) {
+
+    try {
+      decoded = jwtDecode<SupabaseJwt>(accessToken)
+    } catch (err) {
+      if (AUTH_DEBUG) console.warn("[auth] lite: jwt decode failed", err)
+      decoded = null
+    }
+
+    if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "jwt_decode", performance.now() - tJwt)
+
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const tokenExpired = decoded?.exp ? decoded.exp <= nowSeconds : false
+
+    if (decoded?.sub && decoded?.email && !tokenExpired) {
       const tLite = performance.now()
-      const user = await buildSessionUserLite(userData.user.id, userData.user.email)
+      const user = await buildSessionUserLite(decoded.sub, decoded.email)
       if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "buildSessionUserLite", performance.now() - tLite)
       logAuth({
         ms: Math.round(performance.now() - tAll),
-        outcome: "ok_access_token",
+        outcome: "ok_jwt_decode",
         userId: user.id,
         profile_ms: Math.round(performance.now() - tLite),
       })
       return { user }
     }
-    if (AUTH_DEBUG) console.warn("[auth] lite: access token invalid or expired:", error?.message ?? "no user")
+
+    if (AUTH_DEBUG) {
+      console.warn("[auth] lite: access token missing required claims or expired", {
+        hasSub: Boolean(decoded?.sub),
+        hasEmail: Boolean(decoded?.email),
+        tokenExpired,
+      })
+    }
   }
 
   if (refreshToken) {

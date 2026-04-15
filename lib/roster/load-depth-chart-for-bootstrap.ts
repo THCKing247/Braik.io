@@ -1,5 +1,4 @@
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 
 export type DepthChartBootstrapEntry = {
@@ -23,11 +22,7 @@ export type DepthChartBootstrapEntry = {
  * Same rows as GET /api/roster/depth-chart (for dashboard bootstrap / React Query cache).
  */
 export async function loadDepthChartForBootstrap(teamId: string): Promise<DepthChartBootstrapEntry[]> {
-  await requireTeamAccess(teamId)
   const supabase = getSupabaseServer()
-
-  const { data: team } = await supabase.from("teams").select("id").eq("id", teamId).maybeSingle()
-  if (!team) return []
 
   const { data: entries, error: entriesError } = await supabase
     .from("depth_chart_entries")

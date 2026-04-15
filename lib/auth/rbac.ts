@@ -139,36 +139,42 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
 
   const supabase = getSupabaseServer()
 
-  const { data: teamMeta, error: teamError } = await supabase
+  const { data: teamWithMembership, error: teamError } = await supabase
     .from("teams")
-    .select("created_by, program_id, team_level")
+    .select(`
+      created_by,
+      program_id,
+      team_level,
+      team_members!left(role, staff_status, is_primary, user_id, active)
+    `)
     .eq("id", teamId)
+    .eq("team_members.user_id", userId)
+    .eq("team_members.active", true)
     .maybeSingle()
 
   if (teamError) {
-    console.error("[getUserMembership] teams lookup failed", { userId, teamId, error: teamError })
+    console.error("[getUserMembership] teams/team_members lookup failed", { userId, teamId, error: teamError })
     throw new MembershipLookupError("Database error during membership lookup", teamError)
   }
 
-  const createdBy = (teamMeta as { created_by?: string } | null)?.created_by
-  const programIdFromTeam = (teamMeta as { program_id?: string | null } | null)?.program_id ?? null
-  const teamLevel = (teamMeta as { team_level?: string | null } | null)?.team_level ?? null
+  const createdBy = (teamWithMembership as { created_by?: string } | null)?.created_by
+  const programIdFromTeam = (teamWithMembership as { program_id?: string | null } | null)?.program_id ?? null
+  const teamLevel = (teamWithMembership as { team_level?: string | null } | null)?.team_level ?? null
 
-  const { data: tmRow, error: tmError } = await supabase
-    .from("team_members")
-    .select("role, staff_status, is_primary")
-    .eq("team_id", teamId)
-    .eq("user_id", userId)
-    .eq("active", true)
-    .maybeSingle()
-
-  if (tmError) {
-    console.error("[getUserMembership] team_members lookup failed", { userId, teamId, error: tmError })
-    throw new MembershipLookupError("Database error during membership lookup", tmError)
-  }
+  const tmRow = Array.isArray((teamWithMembership as { team_members?: unknown[] } | null)?.team_members)
+    ? (
+        (teamWithMembership as {
+          team_members?: Array<{
+            role?: string
+            staff_status?: string
+            is_primary?: boolean | null
+          }>
+        }).team_members?.[0] ?? null
+      )
+    : null
 
   const staffStatusFromRow: StaffStatus | undefined =
-    tmRow && String((tmRow as { staff_status?: string }).staff_status || "") === "pending_assignment"
+    tmRow && String(tmRow.staff_status || "") === "pending_assignment"
       ? "pending_assignment"
       : tmRow
         ? "active"
@@ -199,7 +205,7 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
 
   if (tmRow?.role) {
     const role = teamMemberDbRoleToNormalizedRole(String(tmRow.role))
-    const ip = (tmRow as { is_primary?: boolean | null }).is_primary
+    const ip = tmRow.is_primary
     return withDelegation(role, staffStatusFromRow ?? "active", ip)
   }
 
@@ -224,7 +230,12 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
       }
     } catch (err) {
       if (err instanceof MembershipLookupError) throw err
-      console.warn("[getUserMembership] program membership check failed", { userId, teamId, programId: programIdFromTeam, err })
+      console.warn("[getUserMembership] program membership check failed", {
+        userId,
+        teamId,
+        programId: programIdFromTeam,
+        err,
+      })
     }
   }
 

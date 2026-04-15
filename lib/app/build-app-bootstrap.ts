@@ -28,21 +28,37 @@ export async function buildAppBootstrapPayloadLite(input: {
   liteRole: string
   isPlatformOwner: boolean
   membership: UserMembership
-  /** When set by a cache wrapper, skips a duplicate entitlement query */
   coachBPlusEntitled?: boolean
 }): Promise<AppBootstrapPayload> {
   const supabase = getSupabaseServer()
 
+  const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+    const started = performance.now()
+    try {
+      return await fn()
+    } finally {
+      console.info(
+        `[shell-lite] ${label} teamId=${input.teamId} userId=${input.userId} ms=${Math.round(performance.now() - started)}`
+      )
+    }
+  }
+
   const coachBPlusPromise =
     input.coachBPlusEntitled !== undefined
       ? Promise.resolve(input.coachBPlusEntitled)
-      : isCoachBPlusEntitled(supabase, input.teamId, input.userId, {
-          isPlatformOwner: input.isPlatformOwner,
-        })
+      : timed("coachBPlus", () =>
+          isCoachBPlusEntitled(supabase, input.teamId, input.userId, {
+            isPlatformOwner: input.isPlatformOwner,
+          })
+        )
 
   const [profileRes, teamRes, coachBPlus] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
-    supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
+    timed("profile", () =>
+      supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle()
+    ),
+    timed("team", () =>
+      supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle()
+    ),
     coachBPlusPromise,
   ])
 

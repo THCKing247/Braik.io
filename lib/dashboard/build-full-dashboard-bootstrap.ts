@@ -19,7 +19,11 @@ import {
 } from "@/lib/dashboard/merge-dashboard-bootstrap"
 import type { BootstrapTimingSink } from "@/lib/debug/bootstrap-timing"
 import { timedBootstrap } from "@/lib/debug/bootstrap-timing"
-import { lightweightCached, LW_TTL_DASHBOARD_BOOTSTRAP, tagTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
+import {
+  lightweightCached,
+  LW_TTL_DASHBOARD_BOOTSTRAP,
+  tagTeamDashboardBootstrap,
+} from "@/lib/cache/lightweight-get-cache"
 import { isCoachBPlusEntitled } from "@/lib/braik-ai/coach-b-plus-entitlement"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getTrustedAppOriginOrEmpty } from "@/lib/invites/resolve-invite-app-origin"
@@ -74,7 +78,7 @@ export async function buildLightFullDashboardBootstrapData(
   coachBPlusEntitled?: boolean
 ): Promise<FullDashboardBootstrapPayload> {
   const dashboardPromise = timing
-    ? timedBootstrap(timing, "dashboard_minimal", () => buildMinimalDashboardBootstrapPayload(teamId))
+    ? timedBootstrap(timing, "dashboard_minimal", () => getCachedMinimalDashboardBootstrapPayload(teamId))
     : getCachedMinimalDashboardBootstrapPayload(teamId)
 
   const shellPayloadIn = {
@@ -82,9 +86,34 @@ export async function buildLightFullDashboardBootstrapData(
     ...(coachBPlusEntitled !== undefined ? { coachBPlusEntitled } : {}),
   }
 
+  const shellCacheKey = [
+    "app-bootstrap-lite-v1",
+    teamId,
+    userId,
+    liteRole,
+    isPlatformOwner ? "owner" : "not-owner",
+    coachBPlusEntitled ? "coachbplus" : "standard",
+    access.canEditRoster ? "coach" : "noncoach",
+  ]
+
+  const shellCacheConfig = {
+    revalidate: 60,
+    tags: [tagTeamDashboardBootstrap(teamId)],
+  }
+
   const shellPromise = timing
-    ? timedBootstrap(timing, "shell_lite", () => buildAppBootstrapPayloadLite(shellPayloadIn))
-    : buildAppBootstrapPayloadLite(shellPayloadIn)
+    ? timedBootstrap(timing, "shell_lite", () =>
+        lightweightCached(
+          shellCacheKey,
+          shellCacheConfig,
+          () => buildAppBootstrapPayloadLite(shellPayloadIn)
+        )
+      )
+    : lightweightCached(
+        shellCacheKey,
+        shellCacheConfig,
+        () => buildAppBootstrapPayloadLite(shellPayloadIn)
+      )
 
   const [dashboard, shellBase] = await Promise.all([dashboardPromise, shellPromise])
 
@@ -115,6 +144,7 @@ export async function getCachedLightFullDashboardBootstrap(
 ): Promise<FullDashboardBootstrapPayload> {
   const supabase = getSupabaseServer()
   const coachBPlus = await isCoachBPlusEntitled(supabase, teamId, userId, { isPlatformOwner })
+
   return lightweightCached(
     [
       "dashboard-bootstrap-light-v4",
@@ -193,13 +223,21 @@ export async function buildFullDashboardBootstrapData(
     access,
     timing
   )
+
   const core = timing
     ? await timedBootstrap(timing, "deferred_core", () =>
         buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
       )
     : await buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
+
   const heavy = timing
-    ? await timedBootstrap(timing, "deferred_heavy", () => buildDashboardBootstrapDeferredHeavyData(teamId))
+    ? await timedBootstrap(timing, "deferred_heavy", () =>
+        buildDashboardBootstrapDeferredHeavyData(teamId)
+      )
     : await buildDashboardBootstrapDeferredHeavyData(teamId)
-  return mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
+
+  return mergeDashboardBootstrapDeferredHeavy(
+    mergeDashboardBootstrapDeferredCore(light, core),
+    heavy
+  )
 }

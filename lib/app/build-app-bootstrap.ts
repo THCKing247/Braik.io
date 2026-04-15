@@ -49,16 +49,7 @@ export async function buildAppBootstrapPayloadLite(input: {
     }
   }
 
-  const coachBPlusPromise =
-    input.coachBPlusEntitled !== undefined
-      ? Promise.resolve(input.coachBPlusEntitled)
-      : timed("coachBPlus", async () =>
-          isCoachBPlusEntitled(supabase, input.teamId, input.userId, {
-            isPlatformOwner: input.isPlatformOwner,
-          })
-        )
-
-  const [profileRes, teamRes, coachBPlus] = await Promise.all([
+  const [profileRes, teamRes] = await Promise.all([
     timed("profile", async () => {
       return await supabase
         .from("profiles")
@@ -73,8 +64,9 @@ export async function buildAppBootstrapPayloadLite(input: {
         .eq("id", input.teamId)
         .maybeSingle()
     }),
-    coachBPlusPromise,
   ])
+
+  const coachBPlus = input.coachBPlusEntitled ?? false
 
   const profileData = profileRes?.data as { full_name?: string | null } | null
   const fullName = profileData?.full_name?.trim() ?? null

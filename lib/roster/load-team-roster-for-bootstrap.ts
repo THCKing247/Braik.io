@@ -15,7 +15,6 @@ type PlayerRow = {
   notes: string | null
   image_url: string | null
   user_id: string | null
-  email?: string | null
   player_phone?: string | null
   invite_code?: string | null
   invite_status?: string | null
@@ -25,6 +24,9 @@ type PlayerRow = {
   height?: string | null
   secondary_position?: string | null
   updated_at?: string | null
+  health_status?: string | null
+  missing_forms?: unknown
+  users?: { email: string | null } | null
 }
 
 type InjuryRow = {
@@ -46,12 +48,32 @@ export async function loadTeamRosterForBootstrap(
   await requireTeamAccessWithUser(teamId, sessionUser)
   const supabase = getSupabaseServer()
 
-  const [playersResult, injuriesResult] = await Promise.all([
+  const [playersResult, injuriesResult, invitesResult] = await Promise.all([
     supabase
       .from("players")
-      .select(
-        "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, health_status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
-      )
+      .select(`
+        id,
+        first_name,
+        last_name,
+        grade,
+        jersey_number,
+        position_group,
+        secondary_position,
+        status,
+        health_status,
+        notes,
+        image_url,
+        user_id,
+        player_phone,
+        invite_code,
+        invite_status,
+        claimed_at,
+        created_by,
+        updated_at,
+        users:user_id (
+          email
+        )
+      `)
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true }),
@@ -60,6 +82,11 @@ export async function loadTeamRosterForBootstrap(
       .select("player_id, injury_reason, severity, exempt_from_practice, expected_return_date, status")
       .eq("team_id", teamId)
       .eq("status", "active"),
+    supabase
+      .from("player_invites")
+      .select("player_id, status, token, sent_email_at, sent_sms_at")
+      .eq("team_id", teamId)
+      .in("status", ["pending", "sent", "claimed"]),
   ])
 
   const { data: rows, error } = playersResult
@@ -81,21 +108,6 @@ export async function loadTeamRosterForBootstrap(
     /* optional */
   }
 
-  const userIds = [...new Set(typedRows.map((r) => r.user_id).filter(Boolean))] as string[]
-
-  const [usersResult, invitesResult] = await Promise.all([
-    userIds.length > 0
-      ? supabase.from("users").select("id, email").in("id", userIds)
-      : Promise.resolve({ data: [] as { id: string; email: string }[], error: null }),
-    supabase
-      .from("player_invites")
-      .select("player_id, status, token, sent_email_at, sent_sms_at")
-      .eq("team_id", teamId)
-      .in("status", ["pending", "sent", "claimed"]),
-  ])
-
-  const userMap = new Map((usersResult.data ?? []).map((u) => [u.id, u]))
-  const inviteRows = invitesResult.data
   type InviteRow = {
     player_id: string
     status: string
@@ -103,15 +115,18 @@ export async function loadTeamRosterForBootstrap(
     sent_email_at?: string | null
     sent_sms_at?: string | null
   }
+
   const inviteByPlayer = new Map<string, InviteRow>()
-  for (const row of (inviteRows ?? []) as InviteRow[]) {
+  for (const row of (invitesResult.data ?? []) as InviteRow[]) {
     inviteByPlayer.set(row.player_id, row)
   }
 
   type InviteStatus = "not_invited" | "invite_created" | "email_sent" | "sms_sent" | "claimed" | "invite_sent"
+
   const players = typedRows.map((p) => {
     const invite = inviteByPlayer.get(p.id)
     const hasClaimedUser = !!p.user_id
+
     let inviteStatus: InviteStatus = "not_invited"
     if (hasClaimedUser) {
       inviteStatus = "claimed"
@@ -121,11 +136,13 @@ export async function loadTeamRosterForBootstrap(
       else if (invite.sent_email_at) inviteStatus = "email_sent"
       else inviteStatus = "invite_created"
     }
+
     const hasInvite = invite && invite.status !== "claimed"
     const joinLink =
       hasInvite && invite?.token && appOrigin
         ? `${appOrigin.replace(/\/$/, "")}${buildPlayerInviteSignupPath(invite.token)}`
         : undefined
+
     return {
       id: p.id,
       firstName: p.first_name ?? "",
@@ -138,22 +155,24 @@ export async function loadTeamRosterForBootstrap(
       updatedAt: p.updated_at ?? null,
       notes: p.notes ?? null,
       imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
-      email: p.email ?? null,
+      email: p.users?.email ?? null,
       playerPhone: p.player_phone ?? null,
       inviteCode: p.invite_code ?? null,
       inviteStatus,
       joinLink,
       claimedAt: p.claimed_at ?? null,
-      healthStatus: ((p as PlayerRow & { health_status?: string }).health_status ?? "active") as
+      healthStatus: (p.health_status ?? "active") as
         | "active"
         | "injured"
         | "unavailable",
       weight: p.weight ?? null,
       height: p.height ?? null,
-      missingForms: Array.isArray((p as PlayerRow & { missing_forms?: unknown }).missing_forms)
-        ? ((p as PlayerRow & { missing_forms: unknown[] }).missing_forms as unknown[])
+      missingForms: Array.isArray(p.missing_forms)
+        ? (p.missing_forms as unknown[])
         : [],
-      user: p.user_id ? (userMap.get(p.user_id) ? { email: userMap.get(p.user_id)!.email } : null) : null,
+      user: p.user_id && p.users
+        ? { email: p.users.email }
+        : null,
       guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
       activeInjury: (() => {
         const inj = injuryByPlayer.get(p.id)

@@ -29,33 +29,52 @@ export async function buildDashboardBootstrapDeferredCoreData(
 ): Promise<DashboardBootstrapDeferredCorePayload> {
   const canCoach = access.canEditRoster
 
+  const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+    const started = performance.now()
+    try {
+      return await fn()
+    } finally {
+      console.info(
+        `[deferred-core] ${label} teamId=${teamId} ms=${Math.round(performance.now() - started)}`
+      )
+    }
+  }
+
   const [dashboard, roster, notifications, announcements, readinessDetail] = await Promise.all([
-    getCachedDashboardBootstrapData(teamId, userId, canCoach),
-    loadTeamRosterForBootstrap(teamId, sessionUser, appOrigin).catch((e) => {
-      console.error("[buildDashboardBootstrapDeferredCoreData] roster", e)
-      return []
-    }),
-    loadNotificationsApiPayload({
-      userId,
-      teamId,
-      unreadOnly: true,
-      limit: 15,
-      offset: 0,
-      previewMode: true,
-    }).catch((e) => {
-      console.error("[buildDashboardBootstrapDeferredCoreData] notifications", e)
-      return { notifications: [], unreadCount: 0, hasMore: false }
-    }),
-    getCachedVisibleTeamAnnouncements(teamId, access.membership.role).catch((e): TeamAnnouncementRow[] => {
-      console.error("[buildDashboardBootstrapDeferredCoreData] announcements", e)
-      return []
-    }),
-    canCoach
-      ? computeTeamReadinessPayload(teamId, false).catch((e) => {
-          console.error("[buildDashboardBootstrapDeferredCoreData] readinessDetail", e)
-          return null
-        })
-      : Promise.resolve(null),
+    timed("dashboard", () => getCachedDashboardBootstrapData(teamId, userId, canCoach)),
+    timed("roster", () =>
+      loadTeamRosterForBootstrap(teamId, sessionUser, appOrigin).catch((e) => {
+        console.error("[buildDashboardBootstrapDeferredCoreData] roster", e)
+        return []
+      })
+    ),
+    timed("notifications", () =>
+      loadNotificationsApiPayload({
+        userId,
+        teamId,
+        unreadOnly: true,
+        limit: 15,
+        offset: 0,
+        previewMode: true,
+      }).catch((e) => {
+        console.error("[buildDashboardBootstrapDeferredCoreData] notifications", e)
+        return { notifications: [], unreadCount: 0, hasMore: false }
+      })
+    ),
+    timed("announcements", () =>
+      getCachedVisibleTeamAnnouncements(teamId, access.membership.role).catch((e): TeamAnnouncementRow[] => {
+        console.error("[buildDashboardBootstrapDeferredCoreData] announcements", e)
+        return []
+      })
+    ),
+    timed("readinessDetail", () =>
+      canCoach
+        ? computeTeamReadinessPayload(teamId, false).catch((e) => {
+            console.error("[buildDashboardBootstrapDeferredCoreData] readinessDetail", e)
+            return null
+          })
+        : Promise.resolve(null)
+    ),
   ])
 
   return {

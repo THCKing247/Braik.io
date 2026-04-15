@@ -26,7 +26,7 @@ type PlayerRow = {
   updated_at?: string | null
   health_status?: string | null
   missing_forms?: unknown
-  users?: { email: string | null } | null
+  users?: { email: string | null }[] | null
 }
 
 type InjuryRow = {
@@ -95,7 +95,7 @@ export async function loadTeamRosterForBootstrap(
     return []
   }
 
-  const typedRows = (rows ?? []) as PlayerRow[]
+  const typedRows = (rows ?? []) as unknown as PlayerRow[]
 
   const injuryByPlayer = new Map<string, InjuryRow>()
   try {
@@ -155,7 +155,7 @@ export async function loadTeamRosterForBootstrap(
       updatedAt: p.updated_at ?? null,
       notes: p.notes ?? null,
       imageUrl: normalizePlayerImageUrl(p.image_url) ?? null,
-      email: p.users?.email ?? null,
+      email: p.users?.[0]?.email ?? null,
       playerPhone: p.player_phone ?? null,
       inviteCode: p.invite_code ?? null,
       inviteStatus,
@@ -170,8 +170,8 @@ export async function loadTeamRosterForBootstrap(
       missingForms: Array.isArray(p.missing_forms)
         ? (p.missing_forms as unknown[])
         : [],
-      user: p.user_id && p.users
-        ? { email: p.users.email }
+      user: p.user_id && p.users?.[0]
+        ? { email: p.users[0].email }
         : null,
       guardianLinks: [] as Array<{ guardian: { user: { email: string } } }>,
       activeInjury: (() => {

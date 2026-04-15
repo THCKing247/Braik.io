@@ -8,7 +8,11 @@ import {
 } from "@/lib/auth/roles"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
 import { loadEngagementHintCounts } from "@/lib/engagement/dashboard-hints-data"
-import type { AppBootstrapPayload, AppBootstrapTeamFlags, AppBootstrapVideoClips } from "@/lib/app/app-bootstrap-types"
+import type {
+  AppBootstrapPayload,
+  AppBootstrapTeamFlags,
+  AppBootstrapVideoClips,
+} from "@/lib/app/app-bootstrap-types"
 import {
   effectiveVideoClipsProductEnabled,
   loadTeamOrgVideoFlags,
@@ -38,7 +42,9 @@ export async function buildAppBootstrapPayloadLite(input: {
       return await fn()
     } finally {
       console.info(
-        `[shell-lite] ${label} teamId=${input.teamId} userId=${input.userId} ms=${Math.round(performance.now() - started)}`
+        `[shell-lite] ${label} teamId=${input.teamId} userId=${input.userId} ms=${Math.round(
+          performance.now() - started
+        )}`
       )
     }
   }
@@ -46,27 +52,41 @@ export async function buildAppBootstrapPayloadLite(input: {
   const coachBPlusPromise =
     input.coachBPlusEntitled !== undefined
       ? Promise.resolve(input.coachBPlusEntitled)
-      : timed("coachBPlus", () =>
+      : timed("coachBPlus", async () =>
           isCoachBPlusEntitled(supabase, input.teamId, input.userId, {
             isPlatformOwner: input.isPlatformOwner,
           })
         )
 
   const [profileRes, teamRes, coachBPlus] = await Promise.all([
-    timed("profile", () =>
-      supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle()
-    ),
-    timed("team", () =>
-      supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle()
-    ),
+    timed("profile", async () => {
+      return await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", input.userId)
+        .maybeSingle()
+    }),
+    timed("team", async () => {
+      return await supabase
+        .from("teams")
+        .select("id, name, logo_url")
+        .eq("id", input.teamId)
+        .maybeSingle()
+    }),
     coachBPlusPromise,
   ])
 
-  const fullName = (profileRes.data as { full_name?: string | null } | null)?.full_name?.trim() ?? null
+  const profileData = profileRes?.data as { full_name?: string | null } | null
+  const fullName = profileData?.full_name?.trim() ?? null
   const displayName = fullName && fullName.length > 0 ? fullName : null
 
-  const tr = teamRes.data as { id?: string; name?: string | null; logo_url?: string | null } | null
-  if (!tr?.id) {
+  const teamData = teamRes?.data as {
+    id?: string
+    name?: string | null
+    logo_url?: string | null
+  } | null
+
+  if (!teamData?.id) {
     throw new Error("TEAM_NOT_FOUND")
   }
 
@@ -92,9 +112,9 @@ export async function buildAppBootstrapPayloadLite(input: {
       isPlatformOwner: input.isPlatformOwner,
     },
     team: {
-      id: tr.id,
-      name: tr.name ?? "",
-      logoUrl: tr.logo_url ?? null,
+      id: teamData.id,
+      name: teamData.name ?? "",
+      logoUrl: teamData.logo_url ?? null,
     },
     flags: flagsFromMembership(input.membership),
     coachBPlus,
@@ -133,17 +153,20 @@ export async function buildAppBootstrapPayload(input: {
   const coachBPlusPromise =
     input.coachBPlusEntitled !== undefined
       ? Promise.resolve(input.coachBPlusEntitled)
-      : isCoachBPlusEntitled(supabase, input.teamId, input.userId, { isPlatformOwner: input.isPlatformOwner })
+      : isCoachBPlusEntitled(supabase, input.teamId, input.userId, {
+          isPlatformOwner: input.isPlatformOwner,
+        })
 
-  const [profileRes, teamRes, unread, hintCounts, videoFlags, videoPerms, coachBPlus] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
-    supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
-    getUnreadNotificationCount(input.userId, input.teamId),
-    loadHints ? loadEngagementHintCounts(input.teamId) : Promise.resolve(null),
-    loadTeamOrgVideoFlags(supabase, input.teamId),
-    loadUserVideoPermissions(supabase, input.userId),
-    coachBPlusPromise,
-  ])
+  const [profileRes, teamRes, unread, hintCounts, videoFlags, videoPerms, coachBPlus] =
+    await Promise.all([
+      supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
+      supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
+      getUnreadNotificationCount(input.userId, input.teamId),
+      loadHints ? loadEngagementHintCounts(input.teamId) : Promise.resolve(null),
+      loadTeamOrgVideoFlags(supabase, input.teamId),
+      loadUserVideoPermissions(supabase, input.userId),
+      coachBPlusPromise,
+    ])
 
   const fullName = (profileRes.data as { full_name?: string | null } | null)?.full_name?.trim() ?? null
   const displayName = fullName && fullName.length > 0 ? fullName : null
@@ -158,6 +181,7 @@ export async function buildAppBootstrapPayload(input: {
     organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
     athleticDepartmentVideoClipsEnabled: videoFlags.athleticDepartmentVideoClipsEnabled,
   })
+
   const videoClips: AppBootstrapVideoClips = {
     productEnabled,
     navVisible: resolveVideoClipsNavVisible({

@@ -112,10 +112,11 @@ async function loadReadinessContext(teamId: string): Promise<{
 } | null> {
   const supabase = getSupabaseServer()
 
-  const timed = async <T>(label: string, fn: () => PromiseLike<T>): Promise<T> => {
+  const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
     const started = performance.now()
     try {
-      return await fn()
+      const result = await fn()
+      return result
     } finally {
       console.info(
         `[readiness] ${label} teamId=${teamId} ms=${Math.round(performance.now() - started)}`
@@ -123,8 +124,8 @@ async function loadReadinessContext(teamId: string): Promise<{
     }
   }
 
-  const { data: players, error: playersErr } = await timed("players", async () =>
-    supabase
+  const { data: players, error: playersErr } = await timed("players", async () => {
+    return await supabase
       .from("players")
       .select(
         "id, first_name, last_name, email, player_phone, parent_guardian_contact, eligibility_status, user_id"
@@ -132,7 +133,7 @@ async function loadReadinessContext(teamId: string): Promise<{
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
-  )
+  })
 
   if (playersErr || !players?.length) {
     return null
@@ -142,21 +143,23 @@ async function loadReadinessContext(teamId: string): Promise<{
   const playerIds = typedPlayers.map((p) => p.id)
 
   const [docsRes, equipmentRes, guardiansByPlayer] = await Promise.all([
-    timed("player_documents", async () =>
-      supabase
+    timed("player_documents", async () => {
+      return await supabase
         .from("player_documents")
         .select("player_id, category, document_type, expires_at")
         .eq("team_id", teamId)
         .is("deleted_at", null)
-    ),
-    timed("inventory_items", async () =>
-      supabase
+    }),
+    timed("inventory_items", async () => {
+      return await supabase
         .from("inventory_items")
         .select("assigned_to_player_id")
         .eq("team_id", teamId)
         .not("assigned_to_player_id", "is", null)
-    ),
-    timed("guardian_links", () => guardianPlayerIdSet(supabase, playerIds)),
+    }),
+    timed("guardian_links", async () => {
+      return await guardianPlayerIdSet(supabase, playerIds)
+    }),
   ])
 
   const byPlayerRaw = new Map<

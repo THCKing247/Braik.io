@@ -231,7 +231,6 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
   console.warn("[getUserMembership] no membership", {
     userId,
     teamId,
-    profileTeamId: profile?.team_id ?? null,
     teamCreatedBy: createdBy ?? null,
     programId: programIdFromTeam ?? null,
   })

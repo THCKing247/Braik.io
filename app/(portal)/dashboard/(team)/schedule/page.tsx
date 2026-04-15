@@ -1,8 +1,8 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQueries, useQueryClient } from "@tanstack/react-query"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { format } from "date-fns"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -16,9 +16,9 @@ import {
   buildCumulativeRecordBeforeMap,
   partitionGamesForScheduleTabs,
   assertSchedulePagePartitionCoversAll,
+  parseGameDateMs,
 } from "@/lib/team-schedule-games"
 import { computeTeamTrends } from "@/lib/schedule-team-trends"
-import { mergeTeamGameRangeQueryResults } from "@/lib/schedule-team-games-merge"
 import { logScheduleGameDev, logScheduleGamesPartitionDebug } from "@/lib/schedule-game-dev-log"
 import { ListOrdered, Plus, Upload, Download } from "lucide-react"
 import { emitTeamGamesChanged, TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
@@ -27,10 +27,9 @@ import {
   invalidateTeamGamesQueries,
   SCHEDULE_TEAM_GAMES_STALE_MS,
   teamGamesQueryKey,
-  teamGamesQueryKeyPrefix,
   upsertTeamGameInGamesQueries,
 } from "@/lib/stats/fetch-team-games-client"
-import { getScheduleGamesWindows } from "@/lib/stats/schedule-games-windows"
+import { getSchedulePageGamesRange } from "@/lib/stats/schedule-games-windows"
 
 const ScheduleGameCentricView = dynamic(
   () =>
@@ -80,8 +79,9 @@ function downloadScheduleCsv(games: TeamGameRow[], filenameSuffix: string) {
 function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const windowsRef = useRef(getScheduleGamesWindows())
-  const { prev, main, next } = windowsRef.current
+
+  /** Stable for the lifetime of this mount — one query key + one network round-trip per team. */
+  const scheduleRange = useMemo(() => getSchedulePageGamesRange(), [])
 
   const [teamName, setTeamName] = useState<string>("Your team")
   const [formOpen, setFormOpen] = useState(false)
@@ -89,39 +89,24 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const [editing, setEditing] = useState<TeamGameRow | null>(null)
   const [scheduleTab, setScheduleTab] = useState<"schedule" | "results">("schedule")
 
-  const rangeQueries = useQueries({
-    queries: [
-      {
-        queryKey: teamGamesQueryKey(teamId, prev.startIso, prev.endIso),
-        queryFn: () => fetchTeamGamesForRange(teamId, prev.startIso, prev.endIso),
-        enabled: Boolean(teamId),
-        staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-      },
-      {
-        queryKey: teamGamesQueryKey(teamId, main.startIso, main.endIso),
-        queryFn: () => fetchTeamGamesForRange(teamId, main.startIso, main.endIso),
-        enabled: Boolean(teamId),
-        staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-      },
-      {
-        queryKey: teamGamesQueryKey(teamId, next.startIso, next.endIso),
-        queryFn: () => fetchTeamGamesForRange(teamId, next.startIso, next.endIso),
-        enabled: Boolean(teamId),
-        staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-      },
-    ],
+  const gamesQuery = useQuery({
+    queryKey: teamGamesQueryKey(teamId, scheduleRange.startIso, scheduleRange.endIso),
+    queryFn: () => fetchTeamGamesForRange(teamId, scheduleRange.startIso, scheduleRange.endIso),
+    enabled: Boolean(teamId?.trim()),
+    staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
+    gcTime: SCHEDULE_TEAM_GAMES_STALE_MS * 2,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
-  const gamesLoading = rangeQueries.some((q) => q.isPending)
-  const gamesError = rangeQueries.some((q) => q.isError)
+  const gamesLoading = gamesQuery.isPending
+  const gamesError = gamesQuery.isError
 
-  const games = useMemo(() => mergeTeamGameRangeQueryResults(rangeQueries), [rangeQueries])
+  const games = useMemo(() => {
+    const list = gamesQuery.data?.games ?? []
+    if (list.length <= 1) return list
+    return [...list].sort((a, b) => parseGameDateMs(a.gameDate) - parseGameDateMs(b.gameDate))
+  }, [gamesQuery.data?.games])
 
   const partition = useMemo(() => partitionGamesForScheduleTabs(games), [games])
 

@@ -1,30 +1,15 @@
-import { addDays, addMonths, addYears, endOfDay, startOfDay, subDays, subMonths, subYears } from "date-fns"
+import { addMonths, endOfDay, startOfDay, subMonths } from "date-fns"
 
-export type ScheduleGamesWindow = { startIso: string; endIso: string }
+export type ScheduleGamesRange = { startIso: string; endIso: string }
 
 /**
- * Three contiguous windows so merged results cover long team history without one huge query.
- * - prev: deep history up to the day before `main` starts
- * - main: recent past through near-future (primary UX window)
- * - next: far-future games after `main` ends
+ * Single bounded window for the team schedule page.
+ * Week/month/list views all group this same list client-side — no extra fetches per view.
+ *
+ * Keeps the API scan index-friendly vs. unbounded history/future chunks.
  */
-export function getScheduleGamesWindows(now: Date = new Date()): {
-  prev: ScheduleGamesWindow
-  main: ScheduleGamesWindow
-  next: ScheduleGamesWindow
-} {
-  const mainStart = startOfDay(subMonths(now, 30))
-  const mainEnd = endOfDay(addMonths(now, 18))
-
-  const prevStart = startOfDay(subYears(now, 25))
-  const prevEnd = endOfDay(subDays(mainStart, 1))
-
-  const nextStart = startOfDay(addDays(mainEnd, 1))
-  const nextEnd = endOfDay(addYears(now, 15))
-
-  return {
-    prev: { startIso: prevStart.toISOString(), endIso: prevEnd.toISOString() },
-    main: { startIso: mainStart.toISOString(), endIso: mainEnd.toISOString() },
-    next: { startIso: nextStart.toISOString(), endIso: nextEnd.toISOString() },
-  }
+export function getSchedulePageGamesRange(now: Date = new Date()): ScheduleGamesRange {
+  const start = startOfDay(subMonths(now, 36))
+  const end = endOfDay(addMonths(now, 36))
+  return { startIso: start.toISOString(), endIso: end.toISOString() }
 }

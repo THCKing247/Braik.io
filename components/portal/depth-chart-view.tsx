@@ -59,6 +59,13 @@ interface DepthChartViewProps {
   isHeadCoach?: boolean
   /** Optional team name for print header */
   teamName?: string | null
+  /** Full-page depth editor: sticky save/cancel aligned with Print / position labels */
+  editorExitActions?: {
+    onSave: () => void | Promise<void>
+    onCancel: () => void
+    hasUnsavedChanges: boolean
+    isSaving: boolean
+  }
 }
 
 type Side = "offense" | "defense" | "special_teams"
@@ -128,6 +135,7 @@ export function DepthChartView({
   canEdit,
   isHeadCoach = false,
   teamName = null,
+  editorExitActions,
 }: DepthChartViewProps) {
   const printRef = useRef<HTMLDivElement>(null)
   const [selectedUnit, setSelectedUnit] = useState<Side>("offense")
@@ -831,6 +839,78 @@ export function DepthChartView({
         <div
           className="flex flex-col p-6 flex justify-start items-stretch lg:min-w-0"
         >
+          {editorExitActions ? (
+            <div className="sticky top-0 z-20 -mx-2 mb-4 flex w-full min-w-0 flex-wrap items-center gap-2 border-b border-border/80 bg-[rgb(var(--platinum))] px-2 pb-3 pt-1 print:hidden">
+              <div className="min-w-0 flex-1 basis-full sm:basis-auto sm:min-h-[2.25rem] sm:max-w-[50%]">
+                {editorExitActions.hasUnsavedChanges ? (
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-400/90 sm:text-sm">
+                    Unsaved changes
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-none sm:justify-end">
+                {canEdit ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-9 shrink-0"
+                      disabled={editorExitActions.isSaving}
+                      onClick={editorExitActions.onCancel}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className="min-h-9 min-w-[7.5rem] shrink-0"
+                      disabled={!editorExitActions.hasUnsavedChanges || editorExitActions.isSaving}
+                      onClick={() => void editorExitActions.onSave()}
+                      title={!editorExitActions.hasUnsavedChanges ? "No changes to save" : undefined}
+                    >
+                      {editorExitActions.isSaving ? "Saving…" : "Save Changes"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-9 shrink-0"
+                    disabled={editorExitActions.isSaving}
+                    onClick={editorExitActions.onCancel}
+                  >
+                    Close
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPrintPreview(true)}
+                  className="shrink-0"
+                >
+                  <Printer className="h-4 w-4 mr-1.5" />
+                  Print
+                </Button>
+                {isHeadCoach && labelsLoaded && preset && (
+                  <PositionLabelEditor
+                    teamId={teamId}
+                    unit={selectedUnit}
+                    positions={getFormationSlots(presetWithLabels ?? preset).map((s) => ({
+                      position: s.slotKey,
+                      label: s.displayLabel,
+                    }))}
+                    specialTeamType={selectedUnit === "special_teams" ? currentSpecialTeamType : null}
+                    onLabelsUpdated={handleLabelsUpdated}
+                  />
+                )}
+              </div>
+            </div>
+          ) : null}
+
           {/* Unit tabs + Formation selector + Print */}
           <div className="mb-4 flex flex-wrap gap-2 items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
@@ -901,30 +981,34 @@ export function DepthChartView({
                 </label>
               )}
             </div>
-            <div className="flex items-center gap-2 print:hidden">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPrintPreview(true)}
-                className="shrink-0"
-              >
-                <Printer className="h-4 w-4 mr-1.5" />
-                Print
-              </Button>
-            </div>
-            {isHeadCoach && labelsLoaded && preset && (
-              <PositionLabelEditor
-                teamId={teamId}
-                unit={selectedUnit}
-                positions={getFormationSlots(presetWithLabels ?? preset).map((s) => ({
-                  position: s.slotKey,
-                  label: s.displayLabel,
-                }))}
-                specialTeamType={selectedUnit === "special_teams" ? currentSpecialTeamType : null}
-                onLabelsUpdated={handleLabelsUpdated}
-              />
-            )}
+            {!editorExitActions ? (
+              <>
+                <div className="flex flex-wrap items-center justify-end gap-2 print:hidden sm:justify-start">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPrintPreview(true)}
+                    className="shrink-0"
+                  >
+                    <Printer className="h-4 w-4 mr-1.5" />
+                    Print
+                  </Button>
+                </div>
+                {isHeadCoach && labelsLoaded && preset && (
+                  <PositionLabelEditor
+                    teamId={teamId}
+                    unit={selectedUnit}
+                    positions={getFormationSlots(presetWithLabels ?? preset).map((s) => ({
+                      position: s.slotKey,
+                      label: s.displayLabel,
+                    }))}
+                    specialTeamType={selectedUnit === "special_teams" ? currentSpecialTeamType : null}
+                    onLabelsUpdated={handleLabelsUpdated}
+                  />
+                )}
+              </>
+            ) : null}
           </div>
 
           {missingBannerSlots.length > 0 && !missingBannerDismissed && (

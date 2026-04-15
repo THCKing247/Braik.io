@@ -48,6 +48,7 @@ import { usePlaybookToast } from "./playbook-toast"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { depthChartAssignmentsEqual } from "@/lib/depth-chart/compare-assignments"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
 const ROSTER_BILLING_WARNING =
@@ -724,7 +725,10 @@ export function RosterManagerEnhanced({
   const [readinessRefetchNonce, setReadinessRefetchNonce] = useState(0)
   const [depthChart, setDepthChart] = useState<DepthChartEntry[]>([])
   const [depthChartSnapshot, setDepthChartSnapshot] = useState<DepthChartEntry[]>([])
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const hasUnsavedChanges = useMemo(
+    () => !depthChartAssignmentsEqual(depthChart, depthChartSnapshot),
+    [depthChart, depthChartSnapshot]
+  )
   const [showDepthChartModal, setShowDepthChartModal] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [isSavingDepthChart, setIsSavingDepthChart] = useState(false)
@@ -1087,7 +1091,6 @@ export function RosterManagerEnhanced({
         })
         setDepthChart(entries)
         setDepthChartSnapshot(JSON.parse(JSON.stringify(entries))) // Deep copy for comparison
-        setHasUnsavedChanges(false)
       }
     } catch (error) {
       console.error("Failed to load depth chart:", error)
@@ -1126,7 +1129,6 @@ export function RosterManagerEnhanced({
     setDepthChart(JSON.parse(JSON.stringify(depthChartSnapshot)))
     setShowSavePrompt(false)
     setShowDepthChartModal(false)
-    setHasUnsavedChanges(false)
     setActiveTab("roster")
   }
 
@@ -1564,7 +1566,6 @@ export function RosterManagerEnhanced({
     })
 
     setDepthChart(updatedChart)
-    setHasUnsavedChanges(true)
   }
 
   const handleSaveDepthChart = async (): Promise<boolean> => {
@@ -1597,7 +1598,6 @@ export function RosterManagerEnhanced({
       })
       setDepthChart(entries)
       setDepthChartSnapshot(JSON.parse(JSON.stringify(entries)))
-      setHasUnsavedChanges(false)
       showToast("Depth chart saved", "success")
       return true
     } catch (error) {
@@ -1608,6 +1608,16 @@ export function RosterManagerEnhanced({
       setIsSavingDepthChart(false)
     }
   }
+
+  useEffect(() => {
+    if (!showDepthChartModal || !hasUnsavedChanges) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [showDepthChartModal, hasUnsavedChanges])
 
   const rosterProfileHref = (p: Player) => {
     const params = new URLSearchParams()
@@ -3001,38 +3011,19 @@ export function RosterManagerEnhanced({
       )}
       {showDepthChartModal && isFootball && depthChartIsDesktop && (
         <div className="fixed inset-0 z-50 flex flex-col bg-background">
-          <div className="sticky top-0 z-10 flex min-h-[3.25rem] items-center justify-between gap-2 border-b border-border bg-card px-3 py-2 shadow-sm sm:px-4 sm:py-3">
+          <div className="sticky top-0 z-30 flex min-h-[3.25rem] items-center justify-between gap-2 border-b border-border bg-card px-3 py-2 shadow-sm sm:px-4 sm:py-3">
             <h2 className="min-w-0 flex-1 text-lg font-semibold text-foreground sm:text-xl lg:text-2xl">Depth Chart</h2>
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-              {hasUnsavedChanges ? (
-                <span className="max-w-[40vw] truncate text-xs font-medium text-amber-600 sm:max-w-none sm:text-sm">
-                  Unsaved changes
-                </span>
-              ) : null}
-              {canEdit && (
-                <Button
-                  type="button"
-                  onClick={() => void handleSaveDepthChart()}
-                  variant="default"
-                  disabled={!hasUnsavedChanges || isSavingDepthChart}
-                  className="min-h-10 min-w-[88px] shrink-0"
-                  title={!hasUnsavedChanges ? "No changes to save" : undefined}
-                >
-                  {isSavingDepthChart ? "Saving…" : "Save"}
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 shrink-0"
-                onClick={handleCloseDepthChart}
-                disabled={isSavingDepthChart}
-                aria-label="Close depth chart"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={handleCloseDepthChart}
+              disabled={isSavingDepthChart}
+              aria-label="Close depth chart"
+            >
+              <X className="h-5 w-5" />
+            </Button>
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <div className="min-h-0 min-w-0 flex-1 overflow-auto">
@@ -3043,6 +3034,12 @@ export function RosterManagerEnhanced({
                 onUpdate={handleDepthChartChange}
                 canEdit={canEdit}
                 isHeadCoach={userRole === "HEAD_COACH"}
+                editorExitActions={{
+                  onSave: () => void handleSaveDepthChart(),
+                  onCancel: handleCloseDepthChart,
+                  hasUnsavedChanges,
+                  isSaving: isSavingDepthChart,
+                }}
               />
             </div>
             {programId && canEdit && programHasJvOrFreshmanForCallups && (
@@ -3079,7 +3076,7 @@ export function RosterManagerEnhanced({
                   disabled={isSavingDepthChart}
                   onClick={() => void handleSaveAndClose()}
                 >
-                  {isSavingDepthChart ? "Saving…" : "Save and exit"}
+                  {isSavingDepthChart ? "Saving…" : "Save and Exit"}
                 </Button>
                 <Button
                   variant="outline"
@@ -3087,7 +3084,7 @@ export function RosterManagerEnhanced({
                   disabled={isSavingDepthChart}
                   onClick={handleDiscardAndClose}
                 >
-                  Exit without saving
+                  Discard Changes
                 </Button>
                 <Button
                   variant="ghost"
@@ -3117,10 +3114,10 @@ export function RosterManagerEnhanced({
                     Cancel
                   </Button>
                   <Button variant="outline" disabled={isSavingDepthChart} onClick={handleDiscardAndClose}>
-                    Exit without saving
+                    Discard Changes
                   </Button>
                   <Button disabled={isSavingDepthChart} onClick={() => void handleSaveAndClose()}>
-                    {isSavingDepthChart ? "Saving…" : "Save and exit"}
+                    {isSavingDepthChart ? "Saving…" : "Save and Exit"}
                   </Button>
                 </div>
               </CardContent>

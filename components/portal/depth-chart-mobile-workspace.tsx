@@ -580,18 +580,30 @@ export function DepthChartMobileWorkspace({
             <span className="shrink-0 text-xs font-medium text-amber-600 sm:text-sm">Unsaved</span>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex max-w-[min(100%,24rem)] shrink-0 flex-wrap items-center justify-end gap-2">
           {canEdit && onSave && (
-            <Button
-              type="button"
-              size="sm"
-              className="min-h-10 min-w-[88px] rounded-xl"
-              disabled={!hasUnsavedChanges || isSaving}
-              onClick={() => void onSave()}
-              title={!hasUnsavedChanges ? "No changes to save" : undefined}
-            >
-              {isSaving ? "Saving…" : "Save"}
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-10 shrink-0 rounded-xl"
+                disabled={isSaving}
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="min-h-10 min-w-[7.5rem] shrink-0 rounded-xl"
+                disabled={!hasUnsavedChanges || isSaving}
+                onClick={() => void onSave()}
+                title={!hasUnsavedChanges ? "No changes to save" : undefined}
+              >
+                {isSaving ? "Saving…" : "Save Changes"}
+              </Button>
+            </>
           )}
           <Button
             type="button"

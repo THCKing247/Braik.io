@@ -2975,7 +2975,7 @@ export function RosterManagerEnhanced({
       {/* Depth Chart: mobile/tablet UX (bottom sheet) · desktop uses full-screen below */}
       {showDepthChartModal && isFootball && !depthChartIsDesktop && (
         <div
-          className="fixed inset-0 z-50"
+          className="fixed inset-0 z-[70]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="depth-chart-sheet-title"
@@ -3010,7 +3010,7 @@ export function RosterManagerEnhanced({
         </div>
       )}
       {showDepthChartModal && isFootball && depthChartIsDesktop && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+        <div className="fixed inset-0 z-[70] flex flex-col bg-background">
           <div className="sticky top-0 z-30 flex min-h-[3.25rem] items-center justify-between gap-2 border-b border-border bg-card px-3 py-2 shadow-sm sm:px-4 sm:py-3">
             <h2 className="min-w-0 flex-1 text-lg font-semibold text-foreground sm:text-xl lg:text-2xl">Depth Chart</h2>
             <Button
@@ -3054,7 +3054,7 @@ export function RosterManagerEnhanced({
       {/* Depth chart unsaved prompt: bottom sheet on mobile, centered on lg+ */}
       {showSavePrompt && (
         <>
-          <div className="fixed inset-0 z-[60] lg:hidden">
+          <div className="fixed inset-0 z-[80] lg:hidden">
             <button
               type="button"
               className="absolute inset-0 bg-black/40"
@@ -3097,7 +3097,7 @@ export function RosterManagerEnhanced({
               </div>
             </div>
           </div>
-          <div className="hidden lg:fixed lg:inset-0 lg:z-[60] lg:flex lg:items-center lg:justify-center lg:bg-black/50 lg:p-4">
+          <div className="hidden lg:fixed lg:inset-0 lg:z-[80] lg:flex lg:items-center lg:justify-center lg:bg-black/50 lg:p-4">
             <Card
               className="w-full max-w-md border border-border bg-card"
               onClick={(e) => e.stopPropagation()}

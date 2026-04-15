@@ -11,6 +11,7 @@ import {
   tagTeamReadinessSummary,
 } from "@/lib/cache/lightweight-get-cache"
 import { mapDbGameRowToTeamGameRow } from "@/lib/team-game-row-map"
+import { getDefaultStatsGamesDateBounds } from "@/lib/stats/games-default-date-window"
 import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { BootstrapTimingSink } from "@/lib/debug/bootstrap-timing"
@@ -58,13 +59,16 @@ export async function buildDashboardBootstrapData(
         .eq("id", teamId)
         .maybeSingle()
     ),
-    timedBootstrap(timing, "games", async () =>
-      supabase
+    timedBootstrap(timing, "games", async () => {
+      const { startIso, endIso } = getDefaultStatsGamesDateBounds()
+      return supabase
         .from("games")
         .select(GAMES_SELECT_BOOTSTRAP)
         .eq("team_id", teamId)
+        .gte("game_date", startIso)
+        .lte("game_date", endIso)
         .order("game_date", { ascending: true })
-    ),
+    }),
     timedBootstrap(timing, "calendar_events", async () =>
       supabase
         .from("events")

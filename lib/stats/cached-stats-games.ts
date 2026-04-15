@@ -6,6 +6,7 @@ import {
   LW_TTL_STATS_GAMES,
   tagTeamStatsGames,
 } from "@/lib/cache/lightweight-get-cache"
+import { getDefaultStatsGamesDateBounds } from "@/lib/stats/games-default-date-window"
 
 export type StatsGamesApiPayload = { games: TeamGameRow[] }
 
@@ -16,6 +17,15 @@ export type StatsGamesLoadOpts = {
   endDate?: string | null
 }
 
+/** When both bounds omitted, use a rolling window so cache keys stay stable and queries stay index-friendly. */
+export function resolveStatsGamesDateOpts(opts: StatsGamesLoadOpts = {}): StatsGamesLoadOpts {
+  if (opts.startDate == null && opts.endDate == null) {
+    const b = getDefaultStatsGamesDateBounds()
+    return { startDate: b.startIso, endDate: b.endIso }
+  }
+  return opts
+}
+
 /**
  * Columns required for schedule UI (scores, quarters, status, season grouping, CSV export).
  * `game_date` is the persisted kickoff time. `seasons(year)` is one FK hop for seasonYear.
@@ -24,8 +34,9 @@ export type StatsGamesLoadOpts = {
 export const GAMES_SCHEDULE_SELECT =
   "id, opponent, game_date, location, game_type, result, notes, conference_game, team_score, opponent_score, confirmed_by_coach, season_id, seasons(year), q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
 
-async function loadStatsGamesForTeam(teamId: string, opts: StatsGamesLoadOpts = {}): Promise<StatsGamesApiPayload> {
+async function loadStatsGamesForTeam(teamId: string, opts: StatsGamesLoadOpts): Promise<StatsGamesApiPayload> {
   const supabase = getSupabaseServer()
+
   let q = supabase
     .from("games")
     .select(GAMES_SCHEDULE_SELECT)
@@ -50,7 +61,7 @@ async function loadStatsGamesForTeam(teamId: string, opts: StatsGamesLoadOpts = 
 
 function cacheKeyParts(teamId: string, opts: StatsGamesLoadOpts): string[] {
   return [
-    "stats-games-api-v2",
+    "stats-games-api-v3",
     teamId,
     opts.startDate?.trim() ?? "",
     opts.endDate?.trim() ?? "",
@@ -65,9 +76,10 @@ export function getCachedStatsGamesPayload(
   teamId: string,
   opts: StatsGamesLoadOpts = {}
 ): Promise<StatsGamesApiPayload> {
+  const resolved = resolveStatsGamesDateOpts(opts)
   return lightweightCached(
-    cacheKeyParts(teamId, opts),
+    cacheKeyParts(teamId, resolved),
     { revalidate: LW_TTL_STATS_GAMES, tags: [tagTeamStatsGames(teamId)] },
-    () => loadStatsGamesForTeam(teamId, opts)
+    () => loadStatsGamesForTeam(teamId, resolved)
   )
 }

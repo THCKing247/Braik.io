@@ -29,6 +29,8 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get("limit") || "50", 10)
     const offset = parseInt(searchParams.get("offset") || "0", 10)
     const previewMode = searchParams.get("preview") === "1"
+    /** Optional ISO lower bound for notification rows (list only; unread total is still all-time). */
+    const sinceIso = searchParams.get("since")?.trim() || null
 
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
@@ -43,8 +45,16 @@ export async function GET(request: Request) {
 
     const payload = await routePerf(sink, "notifications_query", () =>
       useCache
-        ? getCachedNotificationsPayload(userId, teamId, unreadOnly, limit, offset, previewMode)
-        : loadNotificationsApiPayload({ userId, teamId, unreadOnly, limit, offset, previewMode })
+        ? getCachedNotificationsPayload(userId, teamId, unreadOnly, limit, offset, previewMode, sinceIso)
+        : loadNotificationsApiPayload({
+            userId,
+            teamId,
+            unreadOnly,
+            limit,
+            offset,
+            previewMode,
+            sinceIso,
+          })
     )
 
     if (sink) {

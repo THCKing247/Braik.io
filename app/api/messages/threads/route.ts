@@ -48,10 +48,24 @@ export async function GET(request: Request) {
     const { user } = await requireTeamAccessWithUser(teamId, session.user)
     const userId = user.id
 
-    const { data: participantThreads, error: participantError } = await supabase
-      .from("message_thread_participants")
-      .select("thread_id, last_read_at")
-      .eq("user_id", userId)
+    const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+      const started = performance.now()
+      try {
+        return await fn()
+      } finally {
+        console.info(
+          `[messages-threads] ${label} teamId=${teamId} userId=${userId} ms=${Math.round(performance.now() - started)}`
+        )
+      }
+    }
+
+    const participantsResult = await timed("participants_query", async () => {
+      return await supabase
+        .from("message_thread_participants")
+        .select("thread_id, last_read_at")
+        .eq("user_id", userId)
+    })
+    const { data: participantThreads, error: participantError } = participantsResult
 
     if (participantError) {
       console.error("[GET /api/messages/threads] participants", participantError)
@@ -60,10 +74,12 @@ export async function GET(request: Request) {
 
     const threadIds = [...new Set((participantThreads ?? []).map((p) => p.thread_id))]
 
-    const { data: teamUnreadTotalRaw, error: teamUnreadErr } = await supabase.rpc(
-      "messaging_unread_total_for_team_user",
-      { p_user_id: userId, p_team_id: teamId }
-    )
+    const { data: teamUnreadTotalRaw, error: teamUnreadErr } = await timed("team_unread_count", async () => {
+      return await supabase.rpc("messaging_unread_total_for_team_user", {
+        p_user_id: userId,
+        p_team_id: teamId,
+      })
+    })
     let teamTotalUnread = Number(teamUnreadTotalRaw ?? 0)
     if (teamUnreadErr) {
       console.warn("[GET /api/messages/threads] messaging_unread_total_for_team_user (fallback 0)", {
@@ -79,13 +95,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ threads: [], meta: { totalUnread: teamTotalUnread } })
     }
 
-    const { data: threads, error: threadsError } = await supabase
-      .from("message_threads")
-      .select("id, title, thread_type, created_by, created_at, updated_at, team_id")
-      .eq("team_id", teamId)
-      .in("id", threadIds)
-      .order("updated_at", { ascending: false })
-      .range(offset, offset + limit - 1)
+    const { data: threads, error: threadsError } = await timed("threads_query", async () => {
+      return await supabase
+        .from("message_threads")
+        .select("id, title, thread_type, created_by, created_at, updated_at, team_id")
+        .eq("team_id", teamId)
+        .in("id", threadIds)
+        .order("updated_at", { ascending: false })
+        .range(offset, offset + limit - 1)
+    })
 
     if (threadsError) {
       console.error("[GET /api/messages/threads] threads", threadsError)
@@ -97,9 +115,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ threads: [], meta: { totalUnread: teamTotalUnread } })
     }
 
-    const { data: statsRows, error: statsError } = await supabase.rpc("message_threads_inbox_stats", {
-      p_user_id: userId,
-      p_thread_ids: selectedThreadIds,
+    const { data: statsRows, error: statsError } = await timed("inbox_stats", async () => {
+      return await supabase.rpc("message_threads_inbox_stats", {
+        p_user_id: userId,
+        p_thread_ids: selectedThreadIds,
+      })
     })
 
     if (statsError) {
@@ -137,14 +157,18 @@ export async function GET(request: Request) {
     const creatorIds = [...new Set((threads ?? []).map((t) => t.created_by))]
     let creatorMap = new Map<string, { id: string; name: string | null; email: string }>()
     if (creatorIds.length > 0) {
-      const { data: users } = await supabase.from("users").select("id, name, email").in("id", creatorIds)
+      const { data: users } = await timed("users_query", async () => {
+        return await supabase.from("users").select("id, name, email").in("id", creatorIds)
+      })
       creatorMap = new Map((users ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
     }
 
-    const { data: allParticipants } = await supabase
-      .from("message_thread_participants")
-      .select("thread_id, user_id")
-      .in("thread_id", selectedThreadIds)
+    const { data: allParticipants } = await timed("participants_by_threads_query", async () => {
+      return await supabase
+        .from("message_thread_participants")
+        .select("thread_id, user_id")
+        .in("thread_id", selectedThreadIds)
+    })
 
     const participantsByThread = new Map<string, string[]>()
     ;(allParticipants ?? []).forEach((p) => {
@@ -153,21 +177,22 @@ export async function GET(request: Request) {
     })
 
     const allParticipantUserIds = [...new Set((allParticipants ?? []).map((p) => p.user_id))]
-    const { data: participantUsers } = await supabase
-      .from("users")
-      .select("id, name, email")
-      .in("id", allParticipantUserIds)
+    const { data: participantUsers } = await timed("users_query", async () => {
+      return await supabase.from("users").select("id, name, email").in("id", allParticipantUserIds)
+    })
 
     const participantUserMap = new Map(
       (participantUsers ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }])
     )
 
-    const { data: rosterPlayers } = await supabase
-      .from("players")
-      .select("user_id, first_name, last_name")
-      .eq("team_id", teamId)
-      .eq("status", "active")
-      .not("user_id", "is", null)
+    const { data: rosterPlayers } = await timed("roster_players_query", async () => {
+      return await supabase
+        .from("players")
+        .select("user_id, first_name, last_name")
+        .eq("team_id", teamId)
+        .eq("status", "active")
+        .not("user_id", "is", null)
+    })
 
     const rosterNameByUserId = new Map<string, string>()
     for (const p of rosterPlayers ?? []) {
@@ -178,15 +203,19 @@ export async function GET(request: Request) {
 
     const rosterUserIds = new Set((rosterPlayers ?? []).map((p) => p.user_id).filter(Boolean) as string[])
 
-    const { data: teamMembers } = await supabase
-      .from("team_members")
-      .select("user_id, role")
-      .eq("team_id", teamId)
-      .eq("active", true)
+    const { data: teamMembers } = await timed("team_members_query", async () => {
+      return await supabase
+        .from("team_members")
+        .select("user_id, role")
+        .eq("team_id", teamId)
+        .eq("active", true)
+    })
 
     const teamRoleByUserId = new Map((teamMembers ?? []).map((m) => [m.user_id, m.role]))
 
-    const { data: profiles } = await supabase.from("profiles").select("id, role").in("id", allParticipantUserIds)
+    const { data: profiles } = await timed("profiles_query", async () => {
+      return await supabase.from("profiles").select("id, role").in("id", allParticipantUserIds)
+    })
 
     const profileRoleByUserId = new Map((profiles ?? []).map((p) => [p.id, p.role]))
 
@@ -205,10 +234,13 @@ export async function GET(request: Request) {
           .filter((id): id is string => typeof id === "string" && !!id)
       ),
     ]
-    const { data: latestSenders } =
+    const latestSendersResult =
       latestSenderIds.length > 0
-        ? await supabase.from("users").select("id, name, email").in("id", latestSenderIds)
+        ? await timed("users_query", async () => {
+            return await supabase.from("users").select("id, name, email").in("id", latestSenderIds)
+          })
         : { data: [] as { id: string; name: string | null; email: string }[] }
+    const { data: latestSenders } = latestSendersResult
 
     const latestSenderMap = new Map((latestSenders ?? []).map((u) => [u.id, u]))
 

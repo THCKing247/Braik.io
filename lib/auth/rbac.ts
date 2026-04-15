@@ -499,13 +499,13 @@ export async function requireProgramTeamsListAccess(programId: string): Promise<
   }
 
   const { data: tm, error: tmErr } = await supabase
-    .from("team_members")
-    .select("id")
-    .in("team_id", teamIds)
-    .eq("user_id", user.id)
-    .eq("active", true)
-    .in("role", ["head_coach", "assistant_coach"])
-    .limit(1)
+  .from("team_members")
+  .select("team_id")
+  .in("team_id", teamIds)
+  .eq("user_id", user.id)
+  .eq("active", true)
+  .in("role", ["head_coach", "assistant_coach"])
+  .limit(1)
 
   if (tmErr) {
     console.error("[requireProgramTeamsListAccess] team_members", tmErr)

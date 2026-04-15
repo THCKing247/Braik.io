@@ -203,22 +203,6 @@ export async function getUserMembershipForUserId(teamId: string, userId: string)
     return withDelegation(role, staffStatusFromRow ?? "active", ip)
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("team_id, role")
-    .eq("id", userId)
-    .maybeSingle()
-
-  if (profileError) {
-    console.error("[getUserMembership] profiles lookup failed", { userId, teamId, error: profileError })
-    throw new MembershipLookupError("Database error during membership lookup", profileError)
-  }
-
-  if (profile?.team_id === teamId) {
-    const role = profileRoleToNormalizedRole(profile.role)
-    return withDelegation(role, "active")
-  }
-
   if (createdBy === userId) {
     return withDelegation(ROLES.HEAD_COACH, "active")
   }

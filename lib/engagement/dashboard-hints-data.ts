@@ -30,10 +30,10 @@ export async function loadEngagementHintCounts(teamId: string): Promise<HintCoun
   if (error) throw error
 
   const counts: HintCounts = {
-    playerCount: data.playerCount ?? 0,
-    playbookCount: data.playbookCount ?? 0,
-    openInjuryCount: data.openInjuryCount ?? 0,
-    announcementCount: data.announcementCount ?? 0,
+    playerCount: data?.playerCount ?? 0,
+    playbookCount: data?.playbookCount ?? 0,
+    openInjuryCount: data?.openInjuryCount ?? 0,
+    announcementCount: data?.announcementCount ?? 0,
   }
 
   return counts

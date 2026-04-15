@@ -20,26 +20,23 @@ export type HintCounts = {
   announcementCount: number
 }
 
-/** Parallel head counts only — no row payloads. */
+/** Single RPC for head counts — no row payloads. */
 export async function loadEngagementHintCounts(teamId: string): Promise<HintCounts> {
   const supabase = getSupabaseServer()
-  const [playerC, playbookC, injuryC, annC] = await Promise.all([
-    supabase.from("players").select("id", { count: "exact", head: true }).eq("team_id", teamId),
-    supabase.from("playbooks").select("id", { count: "exact", head: true }).eq("team_id", teamId),
-    supabase
-      .from("player_injuries")
-      .select("id", { count: "exact", head: true })
-      .eq("team_id", teamId)
-      .eq("status", "active"),
-    supabase.from("team_announcements").select("id", { count: "exact", head: true }).eq("team_id", teamId),
-  ])
+  const { data, error } = await supabase.rpc("get_engagement_hint_counts_fast", {
+    team_id_param: teamId,
+  })
 
-  return {
-    playerCount: playerC.count ?? 0,
-    playbookCount: playbookC.count ?? 0,
-    openInjuryCount: injuryC.count ?? 0,
-    announcementCount: annC.count ?? 0,
+  if (error) throw error
+
+  const counts: HintCounts = {
+    playerCount: data.playerCount ?? 0,
+    playbookCount: data.playbookCount ?? 0,
+    openInjuryCount: data.openInjuryCount ?? 0,
+    announcementCount: data.announcementCount ?? 0,
   }
+
+  return counts
 }
 
 export function buildEngagementHints(teamId: string, c: HintCounts): EngagementHint[] {

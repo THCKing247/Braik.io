@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "@/lib/auth/server-auth"
+import { applyRefreshedSessionCookies, type SessionUser } from "@/lib/auth/server-auth"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
@@ -13,7 +14,7 @@ import { linkPendingPlayerToRosterRow, approvePendingPlayer, markPlayerInactive 
 export async function GET(request: Request) {
   try {
     let teamId: string | null = null
-    let session: Awaited<ReturnType<typeof getServerSession>> | null = null
+    let sessionResult: Awaited<ReturnType<typeof getRequestAuth>> | null = null
 
     const started = performance.now()
     const timed = async <T extends any>(label: string, fn: () => Promise<T>): Promise<T> => {
@@ -22,15 +23,16 @@ export async function GET(request: Request) {
         return await fn()
       } finally {
         console.info(
-          `[claim-review] ${label} teamId=${teamId ?? "unknown"} userId=${session?.user?.id ?? "unknown"} ms=${Math.round(performance.now() - s)}`
+          `[claim-review] ${label} teamId=${teamId ?? "unknown"} userId=${sessionResult?.user?.id ?? "unknown"} ms=${Math.round(performance.now() - s)}`
         )
       }
     }
 
-    session = await timed("auth", () => getServerSession())
-    if (!session?.user?.id) {
+    sessionResult = await timed("auth", () => getRequestAuth())
+    if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const sessionUser = sessionResult.user as SessionUser
 
     const { searchParams } = new URL(request.url)
     teamId = searchParams.get("teamId")
@@ -38,7 +40,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const { membership } = await requireTeamAccessWithUser(teamId, session.user)
+    const { membership } = await requireTeamAccessWithUser(teamId, sessionUser)
     if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
@@ -85,14 +87,18 @@ export async function GET(request: Request) {
     }
 
     console.info(
-      `[claim-review] total teamId=${teamId} userId=${session.user.id} ms=${Math.round(performance.now() - started)}`
+      `[claim-review] total teamId=${teamId} userId=${sessionUser.id} ms=${Math.round(performance.now() - started)}`
     )
-    return NextResponse.json({
+    const res = NextResponse.json({
       unclaimed,
       pendingReview,
       claimed,
       duplicateHints,
     })
+    if (sessionResult.refreshedSession) {
+      applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+    }
+    return res
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
@@ -108,10 +114,11 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const sessionResult = await getRequestAuth()
+    if (!sessionResult?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const sessionUser = sessionResult.user as SessionUser
 
     const body = (await request.json()) as {
       teamId?: string
@@ -126,12 +133,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    const { membership } = await requireTeamAccessWithUser(teamId, session.user)
+    const { membership } = await requireTeamAccessWithUser(teamId, sessionUser)
     if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
     const supabase = getSupabaseServer()
-    const coachId = session.user.id
+    const coachId = sessionUser.id
+
+    const withRefreshedCookies = (res: NextResponse) => {
+      if (sessionResult.refreshedSession) {
+        applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
+      }
+      return res
+    }
 
     if (body.action === "approve") {
       const playerId = typeof body.playerId === "string" ? body.playerId.trim() : ""
@@ -139,7 +153,7 @@ export async function POST(request: Request) {
       const r = await approvePendingPlayer(supabase, { teamId, playerId, coachUserId: coachId })
       if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status })
       revalidateTeamRosterDerivedCaches(teamId)
-      return NextResponse.json({ success: true })
+      return withRefreshedCookies(NextResponse.json({ success: true }))
     }
 
     if (body.action === "link") {
@@ -156,7 +170,7 @@ export async function POST(request: Request) {
       })
       if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status })
       revalidateTeamRosterDerivedCaches(teamId)
-      return NextResponse.json({ success: true })
+      return withRefreshedCookies(NextResponse.json({ success: true }))
     }
 
     if (body.action === "dismiss") {
@@ -165,7 +179,7 @@ export async function POST(request: Request) {
       const r = await markPlayerInactive(supabase, { teamId, playerId, coachUserId: coachId })
       if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status })
       revalidateTeamRosterDerivedCaches(teamId)
-      return NextResponse.json({ success: true })
+      return withRefreshedCookies(NextResponse.json({ success: true }))
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 })

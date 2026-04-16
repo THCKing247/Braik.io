@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { getQuickActionsForRole } from "@/config/quickActions"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { cn } from "@/lib/utils"
 
@@ -56,8 +57,9 @@ export function QuickActionsSidebar() {
         onMouseLeave={() => setHoveredItem(null)}
       >
         {/* Icon box - base size */}
-        <Link 
-          href={href} 
+        <Link
+          href={href}
+          prefetch={prefetchPropForDashboardScheduleHref(href)}
           className="block no-underline"
         >
           <Card 

@@ -313,7 +313,7 @@ export function SeasonSettings({ team }: SeasonSettingsProps) {
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="border-border text-foreground">
-            <Link href={`/dashboard/schedule?teamId=${encodeURIComponent(team.id)}`}>
+            <Link href={`/dashboard/schedule?teamId=${encodeURIComponent(team.id)}`} prefetch={false}>
               <CalendarDays className="mr-2 h-4 w-4" aria-hidden />
               Open Schedule
             </Link>

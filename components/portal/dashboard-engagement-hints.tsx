@@ -10,6 +10,7 @@ import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 
 type Hint = {
   id: string
@@ -127,7 +128,9 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <Button asChild size="sm" variant="default" className="bg-primary text-primary-foreground">
-          <Link href={nextHint.ctaHref}>{nextHint.ctaLabel}</Link>
+          <Link href={nextHint.ctaHref} prefetch={prefetchPropForDashboardScheduleHref(nextHint.ctaHref)}>
+            {nextHint.ctaLabel}
+          </Link>
         </Button>
         <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={dismiss} aria-label="Dismiss hint">
           <X className="h-4 w-4" />

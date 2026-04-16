@@ -10,6 +10,7 @@ import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { cn } from "@/lib/utils"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
@@ -208,6 +209,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
   return (
     <Link
       href={href}
+      prefetch={prefetchPropForDashboardScheduleHref(href)}
       className={cn(
         "group flex min-h-[44px] items-center gap-3 rounded-md border-l-4 py-2.5 pr-4 text-sm font-medium transition-colors duration-150",
         "focus:outline-none focus:ring-2 focus:ring-orange-500/35 focus:ring-offset-2 focus:ring-offset-[#0f172a]",

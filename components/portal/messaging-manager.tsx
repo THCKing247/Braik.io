@@ -30,7 +30,7 @@ import {
   LayoutGrid,
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
-import { supabaseClient } from "@/src/lib/supabaseClient"
+import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
 interface Message {
@@ -131,6 +131,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const searchParams = useSearchParams()
   const shell = useAppBootstrapOptional()
   const messagingUnread = useMessagingUnreadOptional()
+  const searchParamsRef = useRef(searchParams)
+  searchParamsRef.current = searchParams
+  const messagingUnreadRef = useRef(messagingUnread)
+  messagingUnreadRef.current = messagingUnread
   const queryClient = useQueryClient()
   const [threads, setThreads] = useState<Thread[]>(initialThreads)
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
@@ -176,6 +180,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const lastBannerMessageIdRef = useRef<string | null>(null)
   /** Snapshot for rollback if POST /read fails after optimistic UI. */
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
+  const isLoadingRef = useRef(false)
 
   const logThreadMessageBanner = useCallback(
     (
@@ -205,24 +210,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       (typeof document.hasFocus !== "function" || document.hasFocus())
     )
   }, [])
-
-  useEffect(() => {
-    contactsFetchStartedRef.current = false
-    setInitialLoading(true)
-    setError(null)
-    const loadData = async () => {
-      try {
-        await loadThreads()
-      } catch (err) {
-        console.error("Error loading initial data:", err)
-        setError("Failed to load messages. Please refresh the page.")
-      } finally {
-        setInitialLoading(false)
-      }
-    }
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId])
 
   /** Contacts are only needed for compose / participant picker — lazy load on first use. */
   useEffect(() => {
@@ -459,48 +446,63 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   const loadThreads = useCallback(
     async (opts?: { skipMessagingBadgeSync?: boolean }) => {
-    try {
-      const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Failed to load threads")
-      }
-      const raw = await response.json()
-      const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
-      const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
-      if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
-        messagingUnread?.syncThreadUnreadFromServer(meta.totalUnread)
-      }
-      setThreads(data)
-      setSelectedThread((prev) => {
-        if (!prev) return prev
-        const match = data.find((t: Thread) => t.id === prev.id)
-        if (!match) return prev
-        return { ...match, messages: prev.messages }
-      })
-
-      // Check for threadId in URL params (from notification deep link)
-      const urlThreadId = searchParams?.get("threadId")
-
-      if (urlThreadId && !urlThreadIdProcessedRef.current) {
-        const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
-        if (threadFromUrl) {
-          setSelectedThread(threadFromUrl)
-          setMobileShowList(false)
-          urlThreadIdProcessedRef.current = true
-        } else {
-          console.warn(`Thread ${urlThreadId} not found or access denied`)
+      if (isLoadingRef.current) return
+      isLoadingRef.current = true
+      try {
+        const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || "Failed to load threads")
         }
+        const raw = await response.json()
+        const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
+        const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
+        const mu = messagingUnreadRef.current
+        if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
+          mu?.syncThreadUnreadFromServer(meta.totalUnread)
+        }
+        setThreads((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(data)) return prev
+          return data
+        })
+        setSelectedThread((prev) => {
+          if (!prev) return prev
+          const match = data.find((t: Thread) => t.id === prev.id)
+          if (!match) return prev
+          return { ...match, messages: prev.messages }
+        })
+
+        // Check for threadId in URL params (from notification deep link)
+        const urlThreadId = searchParamsRef.current?.get("threadId")
+
+        if (urlThreadId && !urlThreadIdProcessedRef.current) {
+          const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
+          if (threadFromUrl) {
+            setSelectedThread(threadFromUrl)
+            setMobileShowList(false)
+            urlThreadIdProcessedRef.current = true
+          } else {
+            console.warn(`Thread ${urlThreadId} not found or access denied`)
+          }
+        }
+        setError(null)
+      } catch (error: unknown) {
+        console.error("Error loading threads:", error)
+        const msg = error instanceof Error ? error.message : "Failed to load threads"
+        setError(msg)
+      } finally {
+        isLoadingRef.current = false
+        setInitialLoading(false)
       }
-      setError(null)
-    } catch (error: unknown) {
-      console.error("Error loading threads:", error)
-      const msg = error instanceof Error ? error.message : "Failed to load threads"
-      setError(msg)
-    }
-  },
-    [teamId, searchParams, messagingUnread]
+    },
+    [teamId]
   )
+
+  useEffect(() => {
+    if (!teamId) return
+    loadThreads()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped
+  }, [teamId])
 
   const loadContacts = async () => {
     try {
@@ -585,7 +587,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           messagingUnread?.syncThreadUnreadFromServer(teamTu)
         }
         queryClient.invalidateQueries({ queryKey: dashboardBootstrapQueryKey(teamId) })
-        await loadThreads({ skipMessagingBadgeSync: typeof teamTu === "number" })
+        // removed to stop refetch loop
         return true
       } catch (e) {
         if (rollback?.threadId === threadId) {
@@ -599,7 +601,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         return false
       }
     },
-    [shell, queryClient, teamId, loadThreads, messagingUnread]
+    [shell, queryClient, teamId, messagingUnread]
   )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
@@ -696,7 +698,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         patchThreadListFromDetailMessages(threadId, [], true)
       }
 
-      void markThreadReadAndSync(threadId)
+      await markThreadReadAndSync(threadId)
       
       // Setup realtime subscription for this thread (only on initial load)
       if (showLoading) {
@@ -809,7 +811,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
 
     // Subscribe to new messages for this thread
-    const subscription = supabaseClient
+    const subscription = supabase
       .channel(`messages:${threadId}`)
       .on(
         'postgres_changes',
@@ -887,55 +889,44 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     realtimeSubscriptionRef.current = subscription
   }
 
-  /** Sync list when this user's participant rows change (e.g. read on another device). */
   useEffect(() => {
-    const channel = supabaseClient
-      .channel(`message-thread-participants:${userId}`)
+    if (!teamId) return
+
+    const channel = supabase
+      .channel(`messages-${teamId}`)
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "INSERT",
           schema: "public",
-          table: "message_thread_participants",
-          filter: `user_id=eq.${userId}`,
+          table: "messages",
         },
-        (payload) => {
-          const row = payload.new as { thread_id?: string; last_read_at?: string | null }
-          console.info("[messaging:realtime] participant UPDATE", {
-            threadId: row.thread_id,
-            userId,
-            lastReadAt: row.last_read_at,
-            at: new Date().toISOString(),
-          })
-          void loadThreads()
+        () => {
+          loadThreads()
         }
       )
       .subscribe()
 
     return () => {
-      void supabaseClient.removeChannel(channel)
+      supabase.removeChannel(channel)
     }
-  }, [userId, loadThreads])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped
+  }, [teamId])
 
   useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        void loadThreads()
-      }
-    }
     const onFocus = () => {
       const tid = selectedThreadIdRef.current
-      if (tid && isThreadActivelyViewed(tid)) {
+      if (tid) {
         void markThreadReadAndSync(tid)
       }
     }
-    document.addEventListener("visibilitychange", onVis)
+
     window.addEventListener("focus", onFocus)
+
     return () => {
-      document.removeEventListener("visibilitychange", onVis)
       window.removeEventListener("focus", onFocus)
     }
-  }, [loadThreads, markThreadReadAndSync, isThreadActivelyViewed])
+  }, [markThreadReadAndSync])
 
   const handleSendMessage = async () => {
     if (!selectedThread || !messageBody.trim()) return

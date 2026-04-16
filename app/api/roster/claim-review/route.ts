@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamPermission, MembershipLookupError } from "@/lib/auth/rbac"
+import { requireTeamAccessWithUser, MembershipLookupError } from "@/lib/auth/rbac"
+import { canEditRoster } from "@/lib/auth/roles"
 import { revalidateTeamRosterDerivedCaches } from "@/lib/cache/lightweight-get-cache"
 import { linkPendingPlayerToRosterRow, approvePendingPlayer, markPlayerInactive } from "@/lib/players/roster-claim-review-actions"
 
@@ -37,7 +38,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    await timed("permission", () => requireTeamPermission(teamId, "edit_roster"))
+    const { membership } = await requireTeamAccessWithUser(teamId, session.user)
+    if (!canEditRoster(membership.role)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    }
     const supabase = getSupabaseServer()
 
     const { data: rows, error } = await timed("players_query", async () => {
@@ -122,7 +126,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    await requireTeamPermission(teamId, "edit_roster")
+    const { membership } = await requireTeamAccessWithUser(teamId, session.user)
+    if (!canEditRoster(membership.role)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    }
     const supabase = getSupabaseServer()
     const coachId = session.user.id
 

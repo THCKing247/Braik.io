@@ -2,9 +2,8 @@ import { randomUUID } from "crypto"
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { requireTeamAccess, requireTeamAccessWithUser } from "@/lib/auth/rbac"
-import { ROLES, type Role } from "@/lib/auth/roles"
-import { teamDocumentVisibleToMember } from "@/lib/documents/document-visibility"
+import { requireTeamAccess } from "@/lib/auth/rbac"
+import { loadTeamDocumentsListForViewer } from "@/lib/documents/load-team-documents-list-for-viewer"
 import { extractDocumentText, isExtractableMime } from "@/lib/documents/extract-text"
 import {
   buildTeamDocumentStoragePath,

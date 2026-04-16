@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { warmDashboardBootstrapLight } from "@/lib/dashboard/warm-dashboard-bootstrap-light"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -181,9 +180,8 @@ export function AdFootballProgramHub() {
               <Button className="w-full sm:w-auto" asChild>
                 <Link
                   href={`/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`}
-                  prefetch
-                  onMouseEnter={() => warmDashboardBootstrapLight(selectedTeamId)}
-                  onFocus={() => warmDashboardBootstrapLight(selectedTeamId)}
+                  // Same as AD teams table: no hover prefetch for heavy `/dashboard?teamId=` navigation.
+                  prefetch={false}
                 >
                   Open {selectedLevelLabel} portal ({selectedTeam.name})
                 </Link>

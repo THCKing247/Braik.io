@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { warmDashboardBootstrapLight } from "@/lib/dashboard/warm-dashboard-bootstrap-light"
 import { AdTeamStatusBadge } from "./ad-team-status-badge"
 
 export type TeamRow = {
@@ -99,10 +98,9 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                     <div className="flex flex-wrap justify-end gap-3">
                       <Link
                         href={`/dashboard?teamId=${encodeURIComponent(team.id)}`}
-                        prefetch
+                        // Heavy team-scoped dashboard route: disable Link prefetch so hover does not fetch RSC/bootstrap.
+                        prefetch={false}
                         className="text-[#3B82F6] hover:underline font-medium"
-                        onMouseEnter={() => warmDashboardBootstrapLight(team.id)}
-                        onFocus={() => warmDashboardBootstrapLight(team.id)}
                       >
                         Portal access
                       </Link>

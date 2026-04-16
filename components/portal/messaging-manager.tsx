@@ -498,10 +498,22 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     [teamId]
   )
 
+  const loadThreadsFrom = useCallback(
+    async (source: string, opts?: { skipMessagingBadgeSync?: boolean }) => {
+      console.info("[messaging] loadThreads source", {
+        source,
+        teamId,
+        at: new Date().toISOString(),
+      })
+      await loadThreads(opts)
+    },
+    [teamId, loadThreads]
+  )
+
   useEffect(() => {
     if (!teamId) return
-    loadThreads()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped
+    void loadThreadsFrom("initial-load")
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreadsFrom is [teamId]-scoped
   }, [teamId])
 
   const loadContacts = async () => {
@@ -795,7 +807,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     setRefreshing(true)
     try {
       await loadMessages(selectedThread.id, true)
-      await loadThreads()
+      await loadThreadsFrom("manual-refresh")
     } catch (error) {
       console.error("Error refreshing messages:", error)
     } finally {
@@ -902,7 +914,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           table: "messages",
         },
         () => {
-          loadThreads()
+          loadThreadsFrom("messages-realtime")
         }
       )
       .subscribe()
@@ -910,7 +922,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     return () => {
       supabase.removeChannel(channel)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreadsFrom is [teamId]-scoped
   }, [teamId])
 
   useEffect(() => {

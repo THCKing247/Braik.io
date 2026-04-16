@@ -11,27 +11,44 @@ import { linkPendingPlayerToRosterRow, approvePendingPlayer, markPlayerInactive 
  */
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession()
+    let teamId: string | null = null
+    let session: Awaited<ReturnType<typeof getServerSession>> | null = null
+
+    const started = performance.now()
+    const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+      const s = performance.now()
+      try {
+        return await fn()
+      } finally {
+        console.info(
+          `[claim-review] ${label} teamId=${teamId ?? "unknown"} userId=${session?.user?.id ?? "unknown"} ms=${Math.round(performance.now() - s)}`
+        )
+      }
+    }
+
+    session = await timed("auth", () => getServerSession())
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const teamId = searchParams.get("teamId")
+    teamId = searchParams.get("teamId")
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
 
-    await requireTeamPermission(teamId, "edit_roster")
+    await timed("permission", () => requireTeamPermission(teamId, "edit_roster"))
     const supabase = getSupabaseServer()
 
-    const { data: rows, error } = await supabase
-      .from("players")
-      .select(
-        "id, first_name, last_name, jersey_number, position_group, graduation_year, user_id, email, claim_status, self_registered, created_source, status, claimed_at, created_at"
-      )
-      .eq("team_id", teamId)
-      .order("last_name", { ascending: true })
+    const { data: rows, error } = await timed("players_query", () =>
+      supabase
+        .from("players")
+        .select(
+          "id, first_name, last_name, jersey_number, position_group, graduation_year, user_id, email, claim_status, self_registered, created_source, status, claimed_at, created_at"
+        )
+        .eq("team_id", teamId)
+        .order("last_name", { ascending: true })
+    )
 
     if (error) {
       console.error("[GET /api/roster/claim-review]", error.message)
@@ -63,6 +80,9 @@ export async function GET(request: Request) {
       }
     }
 
+    console.info(
+      `[claim-review] total teamId=${teamId} userId=${session.user.id} ms=${Math.round(performance.now() - started)}`
+    )
     return NextResponse.json({
       unclaimed,
       pendingReview,

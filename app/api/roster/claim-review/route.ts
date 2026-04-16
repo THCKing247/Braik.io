@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     let session: Awaited<ReturnType<typeof getServerSession>> | null = null
 
     const started = performance.now()
-    const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+    const timed = async <T extends any>(label: string, fn: () => Promise<T>): Promise<T> => {
       const s = performance.now()
       try {
         return await fn()
@@ -40,15 +40,15 @@ export async function GET(request: Request) {
     await timed("permission", () => requireTeamPermission(teamId, "edit_roster"))
     const supabase = getSupabaseServer()
 
-    const { data: rows, error } = await timed("players_query", () =>
-      supabase
+    const { data: rows, error } = await timed("players_query", async () => {
+      return await supabase
         .from("players")
         .select(
           "id, first_name, last_name, jersey_number, position_group, graduation_year, user_id, email, claim_status, self_registered, created_source, status, claimed_at, created_at"
         )
         .eq("team_id", teamId)
         .order("last_name", { ascending: true })
-    )
+    })
 
     if (error) {
       console.error("[GET /api/roster/claim-review]", error.message)

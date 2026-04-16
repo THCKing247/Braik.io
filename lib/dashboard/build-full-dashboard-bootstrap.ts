@@ -77,9 +77,16 @@ export async function buildLightFullDashboardBootstrapData(
   /** When set by cache wrapper, avoids a duplicate Coach B+ entitlement query */
   coachBPlusEntitled?: boolean
 ): Promise<FullDashboardBootstrapPayload> {
-  const dashboardPromise = timing
-    ? timedBootstrap(timing, "dashboard_minimal", () => getCachedMinimalDashboardBootstrapPayload(teamId))
-    : getCachedMinimalDashboardBootstrapPayload(teamId)
+  const start = performance.now()
+
+  const dashboardPromise = (async () => {
+    const sectionStart = performance.now()
+    const result = timing
+      ? await timedBootstrap(timing, "dashboard_minimal", () => getCachedMinimalDashboardBootstrapPayload(teamId))
+      : await getCachedMinimalDashboardBootstrapPayload(teamId)
+    console.log("⏱️ [team]:", performance.now() - sectionStart)
+    return result
+  })()
 
   const shellPayloadIn = {
     ...shellLiteInput({ userId, email, teamId, liteTeamId, liteRole, isPlatformOwner, access }),
@@ -101,24 +108,31 @@ export async function buildLightFullDashboardBootstrapData(
     tags: [tagTeamDashboardBootstrap(teamId)],
   }
 
-  const shellPromise = timing
-    ? timedBootstrap(timing, "shell_lite", () =>
-        lightweightCached(
+  const shellPromise = (async () => {
+    const sectionStart = performance.now()
+    const result = timing
+      ? await timedBootstrap(timing, "shell_lite", () =>
+          lightweightCached(
+            shellCacheKey,
+            shellCacheConfig,
+            () => buildAppBootstrapPayloadLite(shellPayloadIn)
+          )
+        )
+      : await lightweightCached(
           shellCacheKey,
           shellCacheConfig,
           () => buildAppBootstrapPayloadLite(shellPayloadIn)
         )
-      )
-    : lightweightCached(
-        shellCacheKey,
-        shellCacheConfig,
-        () => buildAppBootstrapPayloadLite(shellPayloadIn)
-      )
+    console.log("⏱️ [bootstrap]:", performance.now() - sectionStart)
+    return result
+  })()
 
   /** Minimal dashboard + lite shell load together (not sequential). */
   const [dashboard, shellBase] = await Promise.all([dashboardPromise, shellPromise])
 
   const unread = shellBase.unreadNotifications
+
+  console.log("⏱️ TOTAL:", performance.now() - start)
 
   return {
     shell: shellBase,
@@ -143,10 +157,15 @@ export async function getCachedLightFullDashboardBootstrap(
   isPlatformOwner: boolean,
   access: ResolvedTeamAccess
 ): Promise<FullDashboardBootstrapPayload> {
-  const supabase = getSupabaseServer()
-  const coachBPlus = await isCoachBPlusEntitled(supabase, teamId, userId, { isPlatformOwner })
+  const start = performance.now()
 
-  return lightweightCached(
+  const supabase = getSupabaseServer()
+  const sectionStartPermissions = performance.now()
+  const coachBPlus = await isCoachBPlusEntitled(supabase, teamId, userId, { isPlatformOwner })
+  console.log("⏱️ [permissions]:", performance.now() - sectionStartPermissions)
+
+  const sectionStartBootstrap = performance.now()
+  const payload = await lightweightCached(
     [
       "dashboard-bootstrap-light-v4",
       teamId,
@@ -171,6 +190,10 @@ export async function getCachedLightFullDashboardBootstrap(
         coachBPlus
       )
   )
+  console.log("⏱️ [light-cache]:", performance.now() - sectionStartBootstrap)
+  console.log("⏱️ TOTAL:", performance.now() - start)
+
+  return payload
 }
 
 /** Single GET: minimal light + cached core + cached heavy (full dashboard snapshot). */
@@ -185,21 +208,39 @@ export function getCachedFullDashboardBootstrap(
   sessionUser: SessionUser,
   appOrigin: string
 ): Promise<FullDashboardBootstrapPayload> {
+  const start = performance.now()
+
   return Promise.all([
-    getCachedLightFullDashboardBootstrap(
-      teamId,
-      userId,
-      email,
-      liteTeamId,
-      liteRole,
-      isPlatformOwner,
-      access
-    ),
-    getCachedDashboardBootstrapDeferredCore(teamId, userId, access, sessionUser, appOrigin),
-    getCachedDashboardBootstrapDeferredHeavy(teamId),
-  ]).then(([light, core, heavy]) =>
-    mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
-  )
+    (async () => {
+      const sectionStart = performance.now()
+      const result = await getCachedLightFullDashboardBootstrap(
+        teamId,
+        userId,
+        email,
+        liteTeamId,
+        liteRole,
+        isPlatformOwner,
+        access
+      )
+      console.log("⏱️ [light]:", performance.now() - sectionStart)
+      return result
+    })(),
+    (async () => {
+      const sectionStart = performance.now()
+      const result = await getCachedDashboardBootstrapDeferredCore(teamId, userId, access, sessionUser, appOrigin)
+      console.log("⏱️ [players]:", performance.now() - sectionStart)
+      return result
+    })(),
+    (async () => {
+      const sectionStart = performance.now()
+      const result = await getCachedDashboardBootstrapDeferredHeavy(teamId)
+      console.log("⏱️ [deferred-heavy]:", performance.now() - sectionStart)
+      return result
+    })(),
+  ]).then(([light, core, heavy]) => {
+    console.log("⏱️ TOTAL:", performance.now() - start)
+    return mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
+  })
 }
 
 export async function buildFullDashboardBootstrapData(
@@ -214,10 +255,25 @@ export async function buildFullDashboardBootstrapData(
   appOrigin: string,
   timing: BootstrapTimingSink | null
 ): Promise<FullDashboardBootstrapPayload> {
+  const start = performance.now()
+
   const [light, core, heavy] = await Promise.all([
-    timing
-      ? timedBootstrap(timing, "light", () =>
-          buildLightFullDashboardBootstrapData(
+    (async () => {
+      const sectionStart = performance.now()
+      const result = timing
+        ? await timedBootstrap(timing, "light", () =>
+            buildLightFullDashboardBootstrapData(
+              teamId,
+              userId,
+              email,
+              liteTeamId,
+              liteRole,
+              isPlatformOwner,
+              access,
+              timing
+            )
+          )
+        : await buildLightFullDashboardBootstrapData(
             teamId,
             userId,
             email,
@@ -227,26 +283,30 @@ export async function buildFullDashboardBootstrapData(
             access,
             timing
           )
-        )
-      : buildLightFullDashboardBootstrapData(
-          teamId,
-          userId,
-          email,
-          liteTeamId,
-          liteRole,
-          isPlatformOwner,
-          access,
-          timing
-        ),
-    timing
-      ? timedBootstrap(timing, "deferred_core", () =>
-          buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
-        )
-      : buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin),
-    timing
-      ? timedBootstrap(timing, "deferred_heavy", () => buildDashboardBootstrapDeferredHeavyData(teamId))
-      : buildDashboardBootstrapDeferredHeavyData(teamId),
+      console.log("⏱️ [light]:", performance.now() - sectionStart)
+      return result
+    })(),
+    (async () => {
+      const sectionStart = performance.now()
+      const result = timing
+        ? await timedBootstrap(timing, "deferred_core", () =>
+            buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
+          )
+        : await buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
+      console.log("⏱️ [players]:", performance.now() - sectionStart)
+      return result
+    })(),
+    (async () => {
+      const sectionStart = performance.now()
+      const result = timing
+        ? await timedBootstrap(timing, "deferred_heavy", () => buildDashboardBootstrapDeferredHeavyData(teamId))
+        : await buildDashboardBootstrapDeferredHeavyData(teamId)
+      console.log("⏱️ [deferred-heavy]:", performance.now() - sectionStart)
+      return result
+    })(),
   ])
+
+  console.log("⏱️ TOTAL:", performance.now() - start)
 
   return mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
 }

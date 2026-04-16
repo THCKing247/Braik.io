@@ -154,15 +154,6 @@ export async function GET(request: Request) {
       ])
     )
 
-    const creatorIds = [...new Set((threads ?? []).map((t) => t.created_by))]
-    let creatorMap = new Map<string, { id: string; name: string | null; email: string }>()
-    if (creatorIds.length > 0) {
-      const { data: users } = await timed("users_query", async () => {
-        return await supabase.from("users").select("id, name, email").in("id", creatorIds)
-      })
-      creatorMap = new Map((users ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
-    }
-
     const { data: allParticipants } = await timed("participants_by_threads_query", async () => {
       return await supabase
         .from("message_thread_participants")
@@ -176,14 +167,33 @@ export async function GET(request: Request) {
       participantsByThread.set(p.thread_id, [...existing, p.user_id])
     })
 
-    const allParticipantUserIds = [...new Set((allParticipants ?? []).map((p) => p.user_id))]
-    const { data: participantUsers } = await timed("users_query", async () => {
-      return await supabase.from("users").select("id, name, email").in("id", allParticipantUserIds)
-    })
+    const creatorIds = [...new Set((threads ?? []).map((t) => t.created_by).filter(Boolean))]
+    const allParticipantUserIds = [...new Set((allParticipants ?? []).map((p) => p.user_id).filter(Boolean))]
+    const latestSenderIds = [
+      ...new Set(
+        (statsRows ?? [])
+          .map((r: InboxStatRow) => r.last_sender_id)
+          .filter((id): id is string => typeof id === "string" && !!id)
+      ),
+    ]
 
-    const participantUserMap = new Map(
-      (participantUsers ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }])
+    const allUserIds = [...new Set([...creatorIds, ...allParticipantUserIds, ...latestSenderIds])]
+
+    const allUsersResult =
+      allUserIds.length > 0
+        ? await timed("users_query", async () => {
+            return await supabase.from("users").select("id, name, email").in("id", allUserIds)
+          })
+        : { data: [] as { id: string; name: string | null; email: string }[] }
+
+    const allUsers = allUsersResult.data ?? []
+    const allUserMap = new Map(
+      allUsers.map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }])
     )
+
+    const creatorMap = allUserMap
+    const participantUserMap = allUserMap
+    const latestSenderMap = allUserMap
 
     const { data: rosterPlayers } = await timed("roster_players_query", async () => {
       return await supabase
@@ -226,23 +236,6 @@ export async function GET(request: Request) {
       if (tr.includes("COACH") || tr.includes("HEAD") || tr === "HEAD_COACH" || tr === "ASSISTANT_COACH") return "coach"
       return "staff"
     }
-
-    const latestSenderIds = [
-      ...new Set(
-        (statsRows ?? [])
-          .map((r: InboxStatRow) => r.last_sender_id)
-          .filter((id): id is string => typeof id === "string" && !!id)
-      ),
-    ]
-    const latestSendersResult =
-      latestSenderIds.length > 0
-        ? await timed("users_query", async () => {
-            return await supabase.from("users").select("id, name, email").in("id", latestSenderIds)
-          })
-        : { data: [] as { id: string; name: string | null; email: string }[] }
-    const { data: latestSenders } = latestSendersResult
-
-    const latestSenderMap = new Map((latestSenders ?? []).map((u) => [u.id, u]))
 
     const formatted = (threads ?? []).map((t) => {
       const creator = creatorMap.get(t.created_by) || { id: t.created_by, name: null, email: "" }

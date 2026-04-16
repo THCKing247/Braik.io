@@ -16,9 +16,18 @@ type PlaybookSummaryRow = PlaybookRecord & {
 interface PlaybooksBrowseProps {
   teamId: string
   canEdit: boolean
+  /** From dashboard deferred-core bootstrap — avoids GET /api/playbooks/summary on first paint. */
+  initialPlaybooksSummary?: PlaybookSummaryRow[]
+  /** True once deferred-core has merged (or full bootstrap ready). */
+  bootstrapCoreReady?: boolean
 }
 
-export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
+export function PlaybooksBrowse({
+  teamId,
+  canEdit,
+  initialPlaybooksSummary,
+  bootstrapCoreReady,
+}: PlaybooksBrowseProps) {
   const router = useRouter()
   const [playbooks, setPlaybooks] = useState<PlaybookSummaryRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,8 +49,18 @@ export function PlaybooksBrowse({ teamId, canEdit }: PlaybooksBrowseProps) {
   }, [teamId])
 
   useEffect(() => {
-    load()
-  }, [load])
+    if (!teamId) return
+    if (bootstrapCoreReady === false) {
+      setLoading(true)
+      return
+    }
+    if (bootstrapCoreReady === true && initialPlaybooksSummary !== undefined) {
+      setPlaybooks(initialPlaybooksSummary)
+      setLoading(false)
+      return
+    }
+    void load()
+  }, [teamId, bootstrapCoreReady, initialPlaybooksSummary, load])
 
   const handleNewPlaybook = () => {
     router.push("/dashboard/playbooks/new")

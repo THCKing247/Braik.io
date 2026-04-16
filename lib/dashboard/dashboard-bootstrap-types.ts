@@ -4,6 +4,9 @@ import type { NotificationsApiPayload } from "@/lib/notifications/notifications-
 import type { TeamAnnouncementRow } from "@/lib/team-announcements"
 import type { DepthChartBootstrapEntry } from "@/lib/roster/load-depth-chart-for-bootstrap"
 import type { PlayerReadinessItem, TeamReadinessSummary } from "@/lib/server/compute-team-readiness"
+import type { MessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
+import type { PlaybookSummaryRow } from "@/lib/playbooks/load-playbooks-summary-for-team"
+import type { TeamDocumentListItem } from "@/lib/documents/load-team-documents-list-for-viewer"
 
 /** Minimal rows for `DashboardCalendar` (matches calendar API fields used by the home grid). */
 export type DashboardBootstrapCalendarEvent = {
@@ -57,6 +60,12 @@ export type FullDashboardBootstrapPayload = {
   notifications: NotificationsApiPayload
   announcements: TeamAnnouncementRow[]
   readinessDetail: DashboardReadinessDetailPayload | null
+  /** Filled after deferred-core merge; same shape as GET /api/messages/threads (threads + meta). */
+  messageThreadsInbox: MessageThreadsInboxPayload | null
+  /** Playbook browse cards; same shape as GET /api/playbooks/summary. */
+  playbooksSummary: PlaybookSummaryRow[]
+  /** Team documents list; same shape as GET /api/documents. */
+  teamDocumentsList: TeamDocumentListItem[]
   generatedAt: string
   /**
    * When true, core deferred slice (games, calendar, roster, notification rows, etc.) has not merged yet.
@@ -75,6 +84,9 @@ export type DashboardBootstrapDeferredCorePayload = {
   notifications: NotificationsApiPayload
   announcements: TeamAnnouncementRow[]
   readinessDetail: DashboardReadinessDetailPayload | null
+  messageThreadsInbox: MessageThreadsInboxPayload | null
+  playbooksSummary: PlaybookSummaryRow[]
+  teamDocumentsList: TeamDocumentListItem[]
   generatedAt: string
 }
 

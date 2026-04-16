@@ -174,7 +174,7 @@ export async function loadMessageThreadsInboxPayload(
       : { data: [] as { id: string; name: string | null; email: string }[] }
 
   const allUsers = allUsersResult.data ?? []
-  const allUserMap = new Map(allUsers.map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? ""]]))
+  const allUserMap = new Map(allUsers.map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
 
   const creatorMap = allUserMap
   const participantUserMap = allUserMap

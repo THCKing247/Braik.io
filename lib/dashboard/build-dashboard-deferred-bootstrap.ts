@@ -11,6 +11,10 @@ import { loadDepthChartForBootstrap } from "@/lib/roster/load-depth-chart-for-bo
 import { loadNotificationsApiPayload } from "@/lib/notifications/notifications-api-query"
 import { getCachedVisibleTeamAnnouncements } from "@/lib/team-announcements/visible-announcements-query"
 import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
+import { loadMessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
+import { loadPlaybooksSummaryForTeam } from "@/lib/playbooks/load-playbooks-summary-for-team"
+import { loadTeamDocumentsListForViewer } from "@/lib/documents/load-team-documents-list-for-viewer"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import {
   lightweightCached,
   LW_TTL_DASHBOARD_BOOTSTRAP,
@@ -40,7 +44,18 @@ export async function buildDashboardBootstrapDeferredCoreData(
     }
   }
 
-  const [dashboard, roster, notifications, announcements, readinessDetail] = await Promise.all([
+  const supabase = getSupabaseServer()
+
+  const [
+    dashboard,
+    roster,
+    notifications,
+    announcements,
+    readinessDetail,
+    messageThreadsInbox,
+    playbooksSummary,
+    teamDocumentsList,
+  ] = await Promise.all([
     timed("dashboard", () => getCachedDashboardBootstrapData(teamId, userId, canCoach)),
     timed("roster", () =>
       loadTeamRosterForBootstrap(teamId, sessionUser, appOrigin).catch((e) => {
@@ -75,6 +90,24 @@ export async function buildDashboardBootstrapDeferredCoreData(
           })
         : Promise.resolve(null)
     ),
+    timed("message_threads_inbox", () =>
+      loadMessageThreadsInboxPayload(supabase, teamId, userId).catch((e) => {
+        console.error("[buildDashboardBootstrapDeferredCoreData] messageThreadsInbox", e)
+        return null
+      })
+    ),
+    timed("playbooks_summary", () =>
+      loadPlaybooksSummaryForTeam(supabase, teamId).catch((e) => {
+        console.error("[buildDashboardBootstrapDeferredCoreData] playbooksSummary", e)
+        return []
+      })
+    ),
+    timed("team_documents", () =>
+      loadTeamDocumentsListForViewer(supabase, teamId, sessionUser).catch((e) => {
+        console.error("[buildDashboardBootstrapDeferredCoreData] teamDocumentsList", e)
+        return []
+      })
+    ),
   ])
 
   return {
@@ -83,6 +116,9 @@ export async function buildDashboardBootstrapDeferredCoreData(
     notifications,
     announcements: announcements as TeamAnnouncementRow[],
     readinessDetail,
+    messageThreadsInbox,
+    playbooksSummary,
+    teamDocumentsList,
     generatedAt: new Date().toISOString(),
   }
 }
@@ -95,7 +131,7 @@ export function getCachedDashboardBootstrapDeferredCore(
   appOrigin: string
 ): Promise<DashboardBootstrapDeferredCorePayload> {
   return lightweightCached(
-    ["dashboard-bootstrap-deferred-core-v1", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-deferred-core-v2", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [

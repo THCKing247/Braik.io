@@ -30,6 +30,7 @@ import {
   LayoutGrid,
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
+import type { MessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
@@ -124,10 +125,19 @@ interface MessagingManagerProps {
   teamId: string
   userRole: string
   userId: string
-  initialThreads?: Thread[]
+  /** Same shape as GET /api/messages/threads after deferred-core bootstrap. */
+  bootstrapThreadsInbox?: MessageThreadsInboxPayload | null
+  /** False until dashboard deferred-core has merged (wait before inbox GET). */
+  bootstrapCoreReady?: boolean
 }
 
-export function MessagingManager({ teamId, userRole, userId, initialThreads = [] }: MessagingManagerProps) {
+export function MessagingManager({
+  teamId,
+  userRole,
+  userId,
+  bootstrapThreadsInbox,
+  bootstrapCoreReady,
+}: MessagingManagerProps) {
   const searchParams = useSearchParams()
   const shell = useAppBootstrapOptional()
   const messagingUnread = useMessagingUnreadOptional()
@@ -136,7 +146,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const messagingUnreadRef = useRef(messagingUnread)
   messagingUnreadRef.current = messagingUnread
   const queryClient = useQueryClient()
-  const [threads, setThreads] = useState<Thread[]>(initialThreads)
+  const [threads, setThreads] = useState<Thread[]>([])
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -508,9 +518,52 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   useEffect(() => {
     if (!teamId) return
+
+    if (bootstrapCoreReady === false) {
+      return
+    }
+
+    if (bootstrapCoreReady === true && bootstrapThreadsInbox != null) {
+      const raw = bootstrapThreadsInbox.threads
+      const data = (Array.isArray(raw) ? raw : []) as Thread[]
+      const meta = bootstrapThreadsInbox.meta
+      if (typeof meta?.totalUnread === "number") {
+        messagingUnreadRef.current?.syncThreadUnreadFromServer(meta.totalUnread)
+      }
+      setThreads((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(data)) return prev
+        return data
+      })
+      setSelectedThread((prev) => {
+        if (!prev) return prev
+        const match = data.find((t: Thread) => t.id === prev.id)
+        if (!match) return prev
+        return { ...match, messages: prev.messages }
+      })
+      const urlThreadId = searchParamsRef.current?.get("threadId")
+      if (urlThreadId && !urlThreadIdProcessedRef.current) {
+        const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
+        if (threadFromUrl) {
+          setSelectedThread(threadFromUrl)
+          setMobileShowList(false)
+          urlThreadIdProcessedRef.current = true
+        } else {
+          console.warn(`Thread ${urlThreadId} not found or access denied`)
+        }
+      }
+      setError(null)
+      setInitialLoading(false)
+      return
+    }
+
+    if (bootstrapCoreReady === true && bootstrapThreadsInbox === null) {
+      void loadThreadsFrom("bootstrap-inbox-fallback")
+      return
+    }
+
     void loadThreadsFrom("initial-load")
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreadsFrom is [teamId]-scoped
-  }, [teamId])
+  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox])
 
   const loadContacts = async () => {
     try {

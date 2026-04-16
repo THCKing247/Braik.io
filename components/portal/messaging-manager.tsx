@@ -895,53 +895,59 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   /** Sync list when this user's participant rows change (e.g. read on another device). */
   useEffect(() => {
-    const channel = supabaseClient
-      .channel(`message-thread-participants:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "message_thread_participants",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const row = payload.new as { thread_id?: string; last_read_at?: string | null }
-          console.info("[messaging:realtime] participant UPDATE", {
-            threadId: row.thread_id,
-            userId,
-            lastReadAt: row.last_read_at,
-            at: new Date().toISOString(),
-          })
-          void loadThreads()
-        }
-      )
-      .subscribe()
+    if (!teamId) return
 
-    return () => {
-      void supabaseClient.removeChannel(channel)
+    function subscribeToMessages(onUpdate: () => void) {
+      const channel = supabaseClient
+        .channel(`message-thread-participants:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "message_thread_participants",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const row = payload.new as { thread_id?: string; last_read_at?: string | null }
+            console.info("[messaging:realtime] participant UPDATE", {
+              threadId: row.thread_id,
+              userId,
+              lastReadAt: row.last_read_at,
+              at: new Date().toISOString(),
+            })
+            onUpdate()
+          }
+        )
+        .subscribe()
+
+      return {
+        unsubscribe: () => {
+          void supabaseClient.removeChannel(channel)
+        },
+      }
     }
-  }, [userId, loadThreads])
+
+    const sub = subscribeToMessages(() => {
+      void loadThreads()
+    })
+
+    return () => sub.unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped; deps are teamId only
+  }, [teamId])
 
   useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        void loadThreads()
-      }
+    const handleFocus = () => {
+      void loadThreads()
     }
-    const onFocus = () => {
-      const tid = selectedThreadIdRef.current
-      if (tid && isThreadActivelyViewed(tid)) {
-        void markThreadReadAndSync(tid)
-      }
-    }
-    document.addEventListener("visibilitychange", onVis)
-    window.addEventListener("focus", onFocus)
+
+    window.addEventListener("focus", handleFocus)
+
     return () => {
-      document.removeEventListener("visibilitychange", onVis)
-      window.removeEventListener("focus", onFocus)
+      window.removeEventListener("focus", handleFocus)
     }
-  }, [loadThreads, markThreadReadAndSync, isThreadActivelyViewed])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped; deps are teamId only
+  }, [teamId])
 
   const handleSendMessage = async () => {
     if (!selectedThread || !messageBody.trim()) return

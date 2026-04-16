@@ -102,8 +102,9 @@ export function QuickActionsSidebar() {
               pointerEvents: 'none',
             }}
           >
-            <Link 
-              href={href} 
+            <Link
+              href={href}
+              prefetch={prefetchPropForDashboardScheduleHref(href)}
               className="block no-underline"
               style={{ pointerEvents: 'auto' }}
             >

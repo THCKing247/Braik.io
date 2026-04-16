@@ -7,6 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { useAdPortalDepartmentLink } from "@/components/portal/ad-portal-link-context"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 
 interface Team {
   id: string
@@ -104,6 +105,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
           <div className="flex min-w-0 justify-center">
             <Link
               href="/dashboard"
+              prefetch={prefetchPropForDashboardScheduleHref("/dashboard")}
               className="flex max-w-[min(300px,42vw)] min-w-0 items-center justify-center active:opacity-80"
               aria-label="Braik - Home"
             >
@@ -146,6 +148,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
             <div className="flex min-w-0 flex-1 items-center gap-4">
               <Link
                 href={dashboardHomeHref}
+                prefetch={prefetchPropForDashboardScheduleHref(dashboardHomeHref)}
                 className="flex shrink-0 items-center rounded-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2"
                 aria-label="Braik - Return to dashboard"
               >

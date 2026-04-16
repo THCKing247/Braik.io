@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { format } from "date-fns"
 import Link from "next/link"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
@@ -196,7 +197,11 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
         </h1>
         <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
           Team games only (upcoming and completed). Practices, meetings, and other events live in{" "}
-          <Link href="/dashboard/calendar" className="font-medium text-[rgb(var(--accent))] underline-offset-2 hover:underline">
+          <Link
+            href="/dashboard/calendar"
+            prefetch={prefetchPropForDashboardScheduleHref("/dashboard/calendar")}
+            className="font-medium text-[rgb(var(--accent))] underline-offset-2 hover:underline"
+          >
             Calendar
           </Link>
           .

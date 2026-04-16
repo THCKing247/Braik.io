@@ -500,11 +500,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   const loadThreadsFrom = useCallback(
     async (source: string, opts?: { skipMessagingBadgeSync?: boolean }) => {
-      console.info("[messaging] loadThreads source", {
-        source,
-        teamId,
-        at: new Date().toISOString(),
-      })
+      console.info(`[messaging] loadThreads source=${source} teamId=${teamId} at=${new Date().toISOString()}`)
       await loadThreads(opts)
     },
     [teamId, loadThreads]

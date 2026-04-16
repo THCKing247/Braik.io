@@ -901,10 +901,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `team_id=eq.${teamId}`,
         },
         () => {
           loadThreads()

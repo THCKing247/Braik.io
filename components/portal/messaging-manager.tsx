@@ -587,7 +587,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           messagingUnread?.syncThreadUnreadFromServer(teamTu)
         }
         queryClient.invalidateQueries({ queryKey: dashboardBootstrapQueryKey(teamId) })
-        await loadThreads({ skipMessagingBadgeSync: typeof teamTu === "number" })
+        // removed to stop refetch loop
         return true
       } catch (e) {
         if (rollback?.threadId === threadId) {
@@ -601,7 +601,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         return false
       }
     },
-    [shell, queryClient, teamId, loadThreads, messagingUnread]
+    [shell, queryClient, teamId, messagingUnread]
   )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
@@ -698,7 +698,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         patchThreadListFromDetailMessages(threadId, [], true)
       }
 
-      void markThreadReadAndSync(threadId)
+      await markThreadReadAndSync(threadId)
       
       // Setup realtime subscription for this thread (only on initial load)
       if (showLoading) {
@@ -912,6 +912,21 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped
   }, [teamId])
+
+  useEffect(() => {
+    const onFocus = () => {
+      const tid = selectedThreadIdRef.current
+      if (tid) {
+        void markThreadReadAndSync(tid)
+      }
+    }
+
+    window.addEventListener("focus", onFocus)
+
+    return () => {
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [markThreadReadAndSync])
 
   const handleSendMessage = async () => {
     if (!selectedThread || !messageBody.trim()) return

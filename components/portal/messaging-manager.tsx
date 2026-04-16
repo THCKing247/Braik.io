@@ -131,6 +131,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const searchParams = useSearchParams()
   const shell = useAppBootstrapOptional()
   const messagingUnread = useMessagingUnreadOptional()
+  const searchParamsRef = useRef(searchParams)
+  searchParamsRef.current = searchParams
+  const messagingUnreadRef = useRef(messagingUnread)
+  messagingUnreadRef.current = messagingUnread
   const queryClient = useQueryClient()
   const [threads, setThreads] = useState<Thread[]>(initialThreads)
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
@@ -205,24 +209,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       (typeof document.hasFocus !== "function" || document.hasFocus())
     )
   }, [])
-
-  useEffect(() => {
-    contactsFetchStartedRef.current = false
-    setInitialLoading(true)
-    setError(null)
-    const loadData = async () => {
-      try {
-        await loadThreads()
-      } catch (err) {
-        console.error("Error loading initial data:", err)
-        setError("Failed to load messages. Please refresh the page.")
-      } finally {
-        setInitialLoading(false)
-      }
-    }
-    loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId])
 
   /** Contacts are only needed for compose / participant picker — lazy load on first use. */
   useEffect(() => {
@@ -468,8 +454,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       const raw = await response.json()
       const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
       const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
+      const mu = messagingUnreadRef.current
       if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
-        messagingUnread?.syncThreadUnreadFromServer(meta.totalUnread)
+        mu?.syncThreadUnreadFromServer(meta.totalUnread)
       }
       setThreads(data)
       setSelectedThread((prev) => {
@@ -480,7 +467,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       })
 
       // Check for threadId in URL params (from notification deep link)
-      const urlThreadId = searchParams?.get("threadId")
+      const urlThreadId = searchParamsRef.current?.get("threadId")
 
       if (urlThreadId && !urlThreadIdProcessedRef.current) {
         const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
@@ -499,8 +486,27 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       setError(msg)
     }
   },
-    [teamId, searchParams, messagingUnread]
+    [teamId]
   )
+
+  useEffect(() => {
+    if (!teamId) return
+    contactsFetchStartedRef.current = false
+    setInitialLoading(true)
+    setError(null)
+    const loadData = async () => {
+      try {
+        await loadThreads()
+      } catch (err) {
+        console.error("Error loading initial data:", err)
+        setError("Failed to load messages. Please refresh the page.")
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+    void loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped; deps are teamId only
+  }, [teamId])
 
   const loadContacts = async () => {
     try {

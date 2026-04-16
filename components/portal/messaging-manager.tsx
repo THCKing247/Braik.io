@@ -180,6 +180,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const lastBannerMessageIdRef = useRef<string | null>(null)
   /** Snapshot for rollback if POST /read fails after optimistic UI. */
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
+  const isLoadingRef = useRef(false)
 
   const logThreadMessageBanner = useCallback(
     (
@@ -445,67 +446,62 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   const loadThreads = useCallback(
     async (opts?: { skipMessagingBadgeSync?: boolean }) => {
-    try {
-      const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Failed to load threads")
-      }
-      const raw = await response.json()
-      const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
-      const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
-      const mu = messagingUnreadRef.current
-      if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
-        mu?.syncThreadUnreadFromServer(meta.totalUnread)
-      }
-      setThreads(data)
-      setSelectedThread((prev) => {
-        if (!prev) return prev
-        const match = data.find((t: Thread) => t.id === prev.id)
-        if (!match) return prev
-        return { ...match, messages: prev.messages }
-      })
-
-      // Check for threadId in URL params (from notification deep link)
-      const urlThreadId = searchParamsRef.current?.get("threadId")
-
-      if (urlThreadId && !urlThreadIdProcessedRef.current) {
-        const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
-        if (threadFromUrl) {
-          setSelectedThread(threadFromUrl)
-          setMobileShowList(false)
-          urlThreadIdProcessedRef.current = true
-        } else {
-          console.warn(`Thread ${urlThreadId} not found or access denied`)
+      if (isLoadingRef.current) return
+      isLoadingRef.current = true
+      try {
+        const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || "Failed to load threads")
         }
+        const raw = await response.json()
+        const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
+        const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
+        const mu = messagingUnreadRef.current
+        if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
+          mu?.syncThreadUnreadFromServer(meta.totalUnread)
+        }
+        setThreads((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(data)) return prev
+          return data
+        })
+        setSelectedThread((prev) => {
+          if (!prev) return prev
+          const match = data.find((t: Thread) => t.id === prev.id)
+          if (!match) return prev
+          return { ...match, messages: prev.messages }
+        })
+
+        // Check for threadId in URL params (from notification deep link)
+        const urlThreadId = searchParamsRef.current?.get("threadId")
+
+        if (urlThreadId && !urlThreadIdProcessedRef.current) {
+          const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
+          if (threadFromUrl) {
+            setSelectedThread(threadFromUrl)
+            setMobileShowList(false)
+            urlThreadIdProcessedRef.current = true
+          } else {
+            console.warn(`Thread ${urlThreadId} not found or access denied`)
+          }
+        }
+        setError(null)
+      } catch (error: unknown) {
+        console.error("Error loading threads:", error)
+        const msg = error instanceof Error ? error.message : "Failed to load threads"
+        setError(msg)
+      } finally {
+        isLoadingRef.current = false
+        setInitialLoading(false)
       }
-      setError(null)
-    } catch (error: unknown) {
-      console.error("Error loading threads:", error)
-      const msg = error instanceof Error ? error.message : "Failed to load threads"
-      setError(msg)
-    }
-  },
+    },
     [teamId]
   )
 
   useEffect(() => {
     if (!teamId) return
-    contactsFetchStartedRef.current = false
-    setInitialLoading(true)
-    setError(null)
-    const loadData = async () => {
-      try {
-        await loadThreads()
-      } catch (err) {
-        console.error("Error loading initial data:", err)
-        setError("Failed to load messages. Please refresh the page.")
-      } finally {
-        setInitialLoading(false)
-      }
-    }
-    void loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped; deps are teamId only
+    loadThreads()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped
   }, [teamId])
 
   const loadContacts = async () => {
@@ -914,19 +910,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [teamId])
-
-  useEffect(() => {
-    const handleFocus = () => {
-      void loadThreads()
-    }
-
-    window.addEventListener("focus", handleFocus)
-
-    return () => {
-      window.removeEventListener("focus", handleFocus)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped; deps are teamId only
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped
   }, [teamId])
 
   const handleSendMessage = async () => {

@@ -30,7 +30,7 @@ import {
   LayoutGrid,
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
-import { supabaseClient } from "@/src/lib/supabaseClient"
+import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
 interface Message {
@@ -815,7 +815,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
 
     // Subscribe to new messages for this thread
-    const subscription = supabaseClient
+    const subscription = supabase
       .channel(`messages:${threadId}`)
       .on(
         'postgres_changes',
@@ -893,47 +893,28 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     realtimeSubscriptionRef.current = subscription
   }
 
-  /** Sync list when this user's participant rows change (e.g. read on another device). */
   useEffect(() => {
     if (!teamId) return
 
-    function subscribeToMessages(onUpdate: () => void) {
-      const channel = supabaseClient
-        .channel(`message-thread-participants:${userId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "message_thread_participants",
-            filter: `user_id=eq.${userId}`,
-          },
-          (payload) => {
-            const row = payload.new as { thread_id?: string; last_read_at?: string | null }
-            console.info("[messaging:realtime] participant UPDATE", {
-              threadId: row.thread_id,
-              userId,
-              lastReadAt: row.last_read_at,
-              at: new Date().toISOString(),
-            })
-            onUpdate()
-          }
-        )
-        .subscribe()
-
-      return {
-        unsubscribe: () => {
-          void supabaseClient.removeChannel(channel)
+    const channel = supabase
+      .channel(`messages-${teamId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `team_id=eq.${teamId}`,
         },
-      }
+        () => {
+          loadThreads()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
-
-    const sub = subscribeToMessages(() => {
-      void loadThreads()
-    })
-
-    return () => sub.unsubscribe()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreads is [teamId]-scoped; deps are teamId only
   }, [teamId])
 
   useEffect(() => {

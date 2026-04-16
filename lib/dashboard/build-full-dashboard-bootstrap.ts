@@ -246,6 +246,11 @@ export function getCachedFullDashboardBootstrap(
   })
 }
 
+/**
+ * Parallel light + deferred-core + deferred-heavy snapshot for GET /api/dashboard/bootstrap.
+ * Heavy browse lists (playbooks summary, team documents) and engagement hint counts are not loaded here —
+ * see `buildDashboardBootstrapDeferredCoreData` and `buildAppBootstrapPayload`.
+ */
 export async function buildFullDashboardBootstrapData(
   teamId: string,
   userId: string,

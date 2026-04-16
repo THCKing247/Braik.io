@@ -16,7 +16,7 @@ type PlaybookSummaryRow = PlaybookRecord & {
 interface PlaybooksBrowseProps {
   teamId: string
   canEdit: boolean
-  /** From dashboard deferred-core bootstrap — avoids GET /api/playbooks/summary on first paint. */
+  /** Optional seed when caller already has summary rows (e.g. tests). Route default: fetch GET /api/playbooks/summary. */
   initialPlaybooksSummary?: PlaybookSummaryRow[]
   /** True once deferred-core has merged (or full bootstrap ready). */
   bootstrapCoreReady?: boolean

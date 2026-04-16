@@ -12,8 +12,6 @@ import { loadNotificationsApiPayload } from "@/lib/notifications/notifications-a
 import { getCachedVisibleTeamAnnouncements } from "@/lib/team-announcements/visible-announcements-query"
 import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
 import { loadMessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
-import { loadPlaybooksSummaryForTeam } from "@/lib/playbooks/load-playbooks-summary-for-team"
-import { loadTeamDocumentsListForViewer } from "@/lib/documents/load-team-documents-list-for-viewer"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import {
   lightweightCached,
@@ -23,7 +21,10 @@ import {
   tagNotificationsUserTeam,
 } from "@/lib/cache/lightweight-get-cache"
 
-/** Home slice (games, calendar, readiness summary) + roster + notifications + announcements + readiness detail — no depth chart. */
+/**
+ * Home slice (games, calendar, readiness summary) + roster + notifications + announcements + readiness detail — no depth chart.
+ * Playbooks browse + team documents lists are loaded on those routes (GET /api/playbooks/summary, GET /api/documents), not here.
+ */
 export async function buildDashboardBootstrapDeferredCoreData(
   teamId: string,
   userId: string,
@@ -46,69 +47,49 @@ export async function buildDashboardBootstrapDeferredCoreData(
 
   const supabase = getSupabaseServer()
 
-  const [
-    dashboard,
-    roster,
-    notifications,
-    announcements,
-    readinessDetail,
-    messageThreadsInbox,
-    playbooksSummary,
-    teamDocumentsList,
-  ] = await Promise.all([
-    timed("dashboard", () => getCachedDashboardBootstrapData(teamId, userId, canCoach)),
-    timed("roster", () =>
-      loadTeamRosterForBootstrap(teamId, sessionUser, appOrigin).catch((e) => {
-        console.error("[buildDashboardBootstrapDeferredCoreData] roster", e)
-        return []
-      })
-    ),
-    timed("notifications", () =>
-      loadNotificationsApiPayload({
-        userId,
-        teamId,
-        unreadOnly: true,
-        limit: 15,
-        offset: 0,
-        previewMode: true,
-      }).catch((e) => {
-        console.error("[buildDashboardBootstrapDeferredCoreData] notifications", e)
-        return { notifications: [], unreadCount: 0, hasMore: false }
-      })
-    ),
-    timed("announcements", () =>
-      getCachedVisibleTeamAnnouncements(teamId, access.membership.role).catch((e): TeamAnnouncementRow[] => {
-        console.error("[buildDashboardBootstrapDeferredCoreData] announcements", e)
-        return []
-      })
-    ),
-    timed("readinessDetail", () =>
-      canCoach
-        ? computeTeamReadinessPayload(teamId, false).catch((e) => {
-            console.error("[buildDashboardBootstrapDeferredCoreData] readinessDetail", e)
-            return null
-          })
-        : Promise.resolve(null)
-    ),
-    timed("message_threads_inbox", () =>
-      loadMessageThreadsInboxPayload(supabase, teamId, userId).catch((e) => {
-        console.error("[buildDashboardBootstrapDeferredCoreData] messageThreadsInbox", e)
-        return null
-      })
-    ),
-    timed("playbooks_summary", () =>
-      loadPlaybooksSummaryForTeam(supabase, teamId).catch((e) => {
-        console.error("[buildDashboardBootstrapDeferredCoreData] playbooksSummary", e)
-        return []
-      })
-    ),
-    timed("team_documents", () =>
-      loadTeamDocumentsListForViewer(supabase, teamId, sessionUser).catch((e) => {
-        console.error("[buildDashboardBootstrapDeferredCoreData] teamDocumentsList", e)
-        return []
-      })
-    ),
-  ])
+  const [dashboard, roster, notifications, announcements, readinessDetail, messageThreadsInbox] =
+    await Promise.all([
+      timed("dashboard", () => getCachedDashboardBootstrapData(teamId, userId, canCoach)),
+      timed("roster", () =>
+        loadTeamRosterForBootstrap(teamId, sessionUser, appOrigin).catch((e) => {
+          console.error("[buildDashboardBootstrapDeferredCoreData] roster", e)
+          return []
+        })
+      ),
+      timed("notifications", () =>
+        loadNotificationsApiPayload({
+          userId,
+          teamId,
+          unreadOnly: true,
+          limit: 15,
+          offset: 0,
+          previewMode: true,
+        }).catch((e) => {
+          console.error("[buildDashboardBootstrapDeferredCoreData] notifications", e)
+          return { notifications: [], unreadCount: 0, hasMore: false }
+        })
+      ),
+      timed("announcements", () =>
+        getCachedVisibleTeamAnnouncements(teamId, access.membership.role).catch((e): TeamAnnouncementRow[] => {
+          console.error("[buildDashboardBootstrapDeferredCoreData] announcements", e)
+          return []
+        })
+      ),
+      timed("readinessDetail", () =>
+        canCoach
+          ? computeTeamReadinessPayload(teamId, false).catch((e) => {
+              console.error("[buildDashboardBootstrapDeferredCoreData] readinessDetail", e)
+              return null
+            })
+          : Promise.resolve(null)
+      ),
+      timed("message_threads_inbox", () =>
+        loadMessageThreadsInboxPayload(supabase, teamId, userId).catch((e) => {
+          console.error("[buildDashboardBootstrapDeferredCoreData] messageThreadsInbox", e)
+          return null
+        })
+      ),
+    ])
 
   return {
     dashboard,
@@ -117,8 +98,8 @@ export async function buildDashboardBootstrapDeferredCoreData(
     announcements: announcements as TeamAnnouncementRow[],
     readinessDetail,
     messageThreadsInbox,
-    playbooksSummary,
-    teamDocumentsList,
+    playbooksSummary: [],
+    teamDocumentsList: [],
     generatedAt: new Date().toISOString(),
   }
 }
@@ -131,7 +112,7 @@ export function getCachedDashboardBootstrapDeferredCore(
   appOrigin: string
 ): Promise<DashboardBootstrapDeferredCorePayload> {
   return lightweightCached(
-    ["dashboard-bootstrap-deferred-core-v2", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-deferred-core-v3", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [

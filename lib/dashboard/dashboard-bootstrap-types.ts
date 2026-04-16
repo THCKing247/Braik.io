@@ -62,9 +62,9 @@ export type FullDashboardBootstrapPayload = {
   readinessDetail: DashboardReadinessDetailPayload | null
   /** Filled after deferred-core merge; same shape as GET /api/messages/threads (threads + meta). */
   messageThreadsInbox: MessageThreadsInboxPayload | null
-  /** Playbook browse cards; same shape as GET /api/playbooks/summary. */
+  /** Reserved; always empty from bootstrap — playbooks page loads GET /api/playbooks/summary. */
   playbooksSummary: PlaybookSummaryRow[]
-  /** Team documents list; same shape as GET /api/documents. */
+  /** Reserved; always empty from bootstrap — documents page loads GET /api/documents. */
   teamDocumentsList: TeamDocumentListItem[]
   generatedAt: string
   /**
@@ -85,7 +85,9 @@ export type DashboardBootstrapDeferredCorePayload = {
   announcements: TeamAnnouncementRow[]
   readinessDetail: DashboardReadinessDetailPayload | null
   messageThreadsInbox: MessageThreadsInboxPayload | null
+  /** Always [] from server — browse lists load on those routes. */
   playbooksSummary: PlaybookSummaryRow[]
+  /** Always [] from server — browse lists load on those routes. */
   teamDocumentsList: TeamDocumentListItem[]
   generatedAt: string
 }

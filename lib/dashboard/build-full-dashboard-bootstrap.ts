@@ -115,6 +115,7 @@ export async function buildLightFullDashboardBootstrapData(
         () => buildAppBootstrapPayloadLite(shellPayloadIn)
       )
 
+  /** Minimal dashboard + lite shell load together (not sequential). */
   const [dashboard, shellBase] = await Promise.all([dashboardPromise, shellPromise])
 
   const unread = shellBase.unreadNotifications
@@ -213,31 +214,39 @@ export async function buildFullDashboardBootstrapData(
   appOrigin: string,
   timing: BootstrapTimingSink | null
 ): Promise<FullDashboardBootstrapPayload> {
-  const light = await buildLightFullDashboardBootstrapData(
-    teamId,
-    userId,
-    email,
-    liteTeamId,
-    liteRole,
-    isPlatformOwner,
-    access,
+  const [light, core, heavy] = await Promise.all([
     timing
-  )
+      ? timedBootstrap(timing, "light", () =>
+          buildLightFullDashboardBootstrapData(
+            teamId,
+            userId,
+            email,
+            liteTeamId,
+            liteRole,
+            isPlatformOwner,
+            access,
+            timing
+          )
+        )
+      : buildLightFullDashboardBootstrapData(
+          teamId,
+          userId,
+          email,
+          liteTeamId,
+          liteRole,
+          isPlatformOwner,
+          access,
+          timing
+        ),
+    timing
+      ? timedBootstrap(timing, "deferred_core", () =>
+          buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
+        )
+      : buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin),
+    timing
+      ? timedBootstrap(timing, "deferred_heavy", () => buildDashboardBootstrapDeferredHeavyData(teamId))
+      : buildDashboardBootstrapDeferredHeavyData(teamId),
+  ])
 
-  const core = timing
-    ? await timedBootstrap(timing, "deferred_core", () =>
-        buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
-      )
-    : await buildDashboardBootstrapDeferredCoreData(teamId, userId, access, sessionUser, appOrigin)
-
-  const heavy = timing
-    ? await timedBootstrap(timing, "deferred_heavy", () =>
-        buildDashboardBootstrapDeferredHeavyData(teamId)
-      )
-    : await buildDashboardBootstrapDeferredHeavyData(teamId)
-
-  return mergeDashboardBootstrapDeferredHeavy(
-    mergeDashboardBootstrapDeferredCore(light, core),
-    heavy
-  )
+  return mergeDashboardBootstrapDeferredHeavy(mergeDashboardBootstrapDeferredCore(light, core), heavy)
 }

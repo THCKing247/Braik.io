@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Loader2, Trash2, Scissors, Sparkles } from "lucide-react"
+import { CheckCircle2, Loader2, Trash2, Scissors, Sparkles } from "lucide-react"
 
 type GameVideoRow = {
   id: string
@@ -26,6 +26,28 @@ type ClipRow = {
   description?: string | null
   tags?: string[] | null
   share_token?: string | null
+}
+
+type UploadUiState = {
+  phase: "preparing" | "uploading" | "finalizing" | "success"
+  /** 0–100 for bar + label */
+  pct: number
+  fileName: string
+}
+
+function uploadPhaseLabel(phase: UploadUiState["phase"]): string {
+  switch (phase) {
+    case "preparing":
+      return "Preparing upload…"
+    case "uploading":
+      return "Uploading to storage…"
+    case "finalizing":
+      return "Finishing upload…"
+    case "success":
+      return "Upload complete"
+    default:
+      return "Working…"
+  }
 }
 
 function formatBytes(n: number): string {
@@ -72,8 +94,16 @@ export function GameVideoLibrary({
   const [clipDescription, setClipDescription] = useState("")
   const [clipTags, setClipTags] = useState("")
   const [clipSaving, setClipSaving] = useState(false)
-  const [uploadPct, setUploadPct] = useState<number | null>(null)
+  const [uploadUi, setUploadUi] = useState<UploadUiState | null>(null)
+  const uploadSuccessClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
+
+  const clearUploadSuccessTimer = useCallback(() => {
+    if (uploadSuccessClearRef.current != null) {
+      clearTimeout(uploadSuccessClearRef.current)
+      uploadSuccessClearRef.current = null
+    }
+  }, [])
 
   const selected = useMemo(() => videos.find((v) => v.id === selectedId) ?? null, [videos, selectedId])
 
@@ -95,6 +125,8 @@ export function GameVideoLibrary({
   useEffect(() => {
     void loadList()
   }, [loadList])
+
+  useEffect(() => () => clearUploadSuccessTimer(), [clearUploadSuccessTimer])
 
   const loadPlayback = useCallback(
     async (videoId: string) => {
@@ -246,8 +278,9 @@ export function GameVideoLibrary({
 
   const onUploadFile = async (file: File) => {
     if (!canUpload) return
+    clearUploadSuccessTimer()
     setError(null)
-    setUploadPct(0)
+    setUploadUi({ phase: "preparing", pct: 0, fileName: file.name })
     try {
       const initRes = await fetch(`/api/teams/${teamId}/game-videos/upload/init`, {
         method: "POST",
@@ -264,12 +297,16 @@ export function GameVideoLibrary({
       if (!initRes.ok) throw new Error(init.error || "Upload init failed")
 
       if (init.mode === "single_put" && init.uploadUrl) {
+        setUploadUi({ phase: "uploading", pct: 0, fileName: file.name })
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest()
           xhr.open("PUT", init.uploadUrl)
           xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream")
           xhr.upload.onprogress = (ev) => {
-            if (ev.lengthComputable) setUploadPct(Math.round((ev.loaded / ev.total) * 100))
+            if (ev.lengthComputable && ev.total > 0) {
+              const pct = Math.round((ev.loaded / ev.total) * 100)
+              setUploadUi({ phase: "uploading", pct, fileName: file.name })
+            }
           }
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) resolve()
@@ -287,6 +324,7 @@ export function GameVideoLibrary({
           durationSeconds = null
         }
 
+        setUploadUi({ phase: "finalizing", pct: 100, fileName: file.name })
         const compRes = await fetch(`/api/teams/${teamId}/game-videos/upload/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -300,7 +338,12 @@ export function GameVideoLibrary({
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
         await loadList()
         setSelectedId(vid)
-        setUploadPct(null)
+        setUploadUi({ phase: "success", pct: 100, fileName: file.name })
+        clearUploadSuccessTimer()
+        uploadSuccessClearRef.current = setTimeout(() => {
+          setUploadUi(null)
+          uploadSuccessClearRef.current = null
+        }, 2800)
         return
       }
 
@@ -308,6 +351,8 @@ export function GameVideoLibrary({
         const partSize: number = init.partSizeBytes
         const totalParts: number = Math.ceil(file.size / partSize)
         const parts: Array<{ partNumber: number; etag: string }> = []
+
+        setUploadUi({ phase: "uploading", pct: 0, fileName: file.name })
 
         for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
           const start = (partNumber - 1) * partSize
@@ -324,16 +369,29 @@ export function GameVideoLibrary({
           const urlData = await urlRes.json().catch(() => ({}))
           if (!urlRes.ok) throw new Error(urlData.error || "Part URL failed")
 
-          const put = await fetch(urlData.uploadUrl, {
-            method: "PUT",
-            body: blob,
+          const xhr = new XMLHttpRequest()
+          await new Promise<void>((resolve, reject) => {
+            xhr.open("PUT", urlData.uploadUrl)
+            xhr.upload.onprogress = (ev) => {
+              if (ev.lengthComputable && ev.total > 0 && totalParts > 0) {
+                const base = (partNumber - 1) / totalParts
+                const frac = ev.loaded / ev.total / totalParts
+                const overall = Math.min(100, Math.round((base + frac) * 100))
+                setUploadUi({ phase: "uploading", pct: overall, fileName: file.name })
+              }
+            }
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) resolve()
+              else reject(new Error(`Part ${partNumber} upload failed (${xhr.status})`))
+            }
+            xhr.onerror = () => reject(new Error(`Network error on part ${partNumber}`))
+            xhr.send(blob)
           })
-          if (!put.ok) throw new Error(`Part ${partNumber} upload failed`)
-          const etag = put.headers.get("etag") || put.headers.get("ETag")
-          if (!etag) throw new Error(`Missing ETag for part ${partNumber}`)
-          const clean = etag.replace(/^"|"$/g, "")
+
+          const etagHeader = xhr.getResponseHeader("etag") || xhr.getResponseHeader("ETag")
+          if (!etagHeader) throw new Error(`Missing ETag for part ${partNumber}`)
+          const clean = etagHeader.replace(/^"|"$/g, "")
           parts.push({ partNumber, etag: clean })
-          setUploadPct(Math.round((partNumber / totalParts) * 100))
         }
 
         let durationSeconds: number | null = null
@@ -343,6 +401,7 @@ export function GameVideoLibrary({
           durationSeconds = null
         }
 
+        setUploadUi({ phase: "finalizing", pct: 100, fileName: file.name })
         const compRes = await fetch(`/api/teams/${teamId}/game-videos/upload/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -358,14 +417,20 @@ export function GameVideoLibrary({
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
         await loadList()
         setSelectedId(init.videoId as string)
-        setUploadPct(null)
+        setUploadUi({ phase: "success", pct: 100, fileName: file.name })
+        clearUploadSuccessTimer()
+        uploadSuccessClearRef.current = setTimeout(() => {
+          setUploadUi(null)
+          uploadSuccessClearRef.current = null
+        }, 2800)
         return
       }
 
       throw new Error("Unexpected upload response")
     } catch (e) {
+      clearUploadSuccessTimer()
       setError(e instanceof Error ? e.message : "Upload failed")
-      setUploadPct(null)
+      setUploadUi(null)
     }
   }
 
@@ -417,6 +482,12 @@ export function GameVideoLibrary({
                   type="button"
                   variant="default"
                   size="sm"
+                  disabled={
+                    !!uploadUi &&
+                    (uploadUi.phase === "preparing" ||
+                      uploadUi.phase === "uploading" ||
+                      uploadUi.phase === "finalizing")
+                  }
                   onClick={() => fileRef.current?.click()}
                 >
                   Upload video
@@ -424,10 +495,39 @@ export function GameVideoLibrary({
               </>
             )}
           </div>
-          {uploadPct != null && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              Uploading… {uploadPct}%
+          {uploadUi && (
+            <div
+              className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+              role="status"
+              aria-live="polite"
+              aria-valuenow={uploadUi.pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <div className="flex min-w-0 items-center gap-2">
+                  {uploadUi.phase === "success" ? (
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                  ) : (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
+                  )}
+                  <span className="font-medium text-foreground">{uploadPhaseLabel(uploadUi.phase)}</span>
+                </div>
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">{uploadUi.pct}%</span>
+              </div>
+              <p className="mt-1 truncate text-xs text-muted-foreground" title={uploadUi.fileName}>
+                {uploadUi.fileName}
+              </p>
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-150 ease-out ${
+                    uploadUi.phase === "success"
+                      ? "bg-emerald-600 dark:bg-emerald-500"
+                      : "bg-[#2563EB]"
+                  }`}
+                  style={{ width: `${uploadUi.pct}%` }}
+                />
+              </div>
             </div>
           )}
           {loading ? (

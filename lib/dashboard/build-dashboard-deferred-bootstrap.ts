@@ -23,6 +23,7 @@ import {
 
 /**
  * Home slice (games, calendar, readiness summary) + roster + notifications + announcements + coach engagement counts — no depth chart.
+ * Independent slices run in parallel via Promise.all (dashboard + roster + …); see `buildDashboardBootstrapData` for parallel team/games/calendar inside the dashboard slice.
  * Full per-player readiness is not loaded here (roster tab uses GET /api/teams/.../readiness).
  * Calendar rows for `dashboard.calendarEvents` use a bounded query via `getCachedCalendarEventsForBootstrap` inside
  * `getCachedDashboardBootstrapData` (see build-dashboard-bootstrap-data).

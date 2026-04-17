@@ -49,12 +49,21 @@ export async function loadMessageThreadsInboxPayload(
     }
   }
 
-  const participantsResult = await timed("participants_query", async () => {
-    return await supabase
-      .from("message_thread_participants")
-      .select("thread_id, last_read_at")
-      .eq("user_id", userId)
-  })
+  const [participantsResult, teamUnreadResult] = await Promise.all([
+    timed("participants_query", async () => {
+      return await supabase
+        .from("message_thread_participants")
+        .select("thread_id, last_read_at")
+        .eq("user_id", userId)
+    }),
+    timed("team_unread_count", async () => {
+      return await supabase.rpc("messaging_unread_total_for_team_user", {
+        p_user_id: userId,
+        p_team_id: teamId,
+      })
+    }),
+  ])
+
   const { data: participantThreads, error: participantError } = participantsResult
 
   if (participantError) {
@@ -64,12 +73,7 @@ export async function loadMessageThreadsInboxPayload(
 
   const threadIds = [...new Set((participantThreads ?? []).map((p) => p.thread_id))]
 
-  const { data: teamUnreadTotalRaw, error: teamUnreadErr } = await timed("team_unread_count", async () => {
-    return await supabase.rpc("messaging_unread_total_for_team_user", {
-      p_user_id: userId,
-      p_team_id: teamId,
-    })
-  })
+  const { data: teamUnreadTotalRaw, error: teamUnreadErr } = teamUnreadResult
   let teamTotalUnread = Number(teamUnreadTotalRaw ?? 0)
   if (teamUnreadErr) {
     console.warn("[loadMessageThreadsInboxPayload] messaging_unread_total_for_team_user (fallback 0)", {
@@ -105,17 +109,40 @@ export async function loadMessageThreadsInboxPayload(
     return { threads: [], meta: { totalUnread: teamTotalUnread } }
   }
 
-  const { data: statsRows, error: statsError } = await timed("inbox_stats", async () => {
-    return await supabase.rpc("message_threads_inbox_stats", {
-      p_user_id: userId,
-      p_thread_ids: selectedThreadIds,
-    })
-  })
+  const [statsResult, participantsByThreadsResult, rosterResult, teamMembersResult] = await Promise.all([
+    timed("inbox_stats", async () => {
+      return await supabase.rpc("message_threads_inbox_stats", {
+        p_user_id: userId,
+        p_thread_ids: selectedThreadIds,
+      })
+    }),
+    timed("participants_by_threads_query", async () => {
+      return await supabase
+        .from("message_thread_participants")
+        .select("thread_id, user_id")
+        .in("thread_id", selectedThreadIds)
+    }),
+    timed("roster_players_query", async () => {
+      return await supabase
+        .from("players")
+        .select("user_id, first_name, last_name")
+        .eq("team_id", teamId)
+        .eq("status", "active")
+        .not("user_id", "is", null)
+    }),
+    timed("team_members_query", async () => {
+      return await supabase.from("team_members").select("user_id, role").eq("team_id", teamId).eq("active", true)
+    }),
+  ])
+
+  const { data: statsRows, error: statsError } = statsResult
 
   if (statsError) {
     console.error("[loadMessageThreadsInboxPayload] message_threads_inbox_stats", statsError)
     throw new Error("Failed to load threads")
   }
+
+  const { data: allParticipants } = participantsByThreadsResult
 
   const pageUnreadSum = (statsRows ?? []).reduce(
     (acc, r: InboxStatRow) => acc + Number(r.unread_count ?? 0),
@@ -144,10 +171,6 @@ export async function loadMessageThreadsInboxPayload(
     ])
   )
 
-  const { data: allParticipants } = await timed("participants_by_threads_query", async () => {
-    return await supabase.from("message_thread_participants").select("thread_id, user_id").in("thread_id", selectedThreadIds)
-  })
-
   const participantsByThread = new Map<string, string[]>()
   ;(allParticipants ?? []).forEach((p) => {
     const existing = participantsByThread.get(p.thread_id) || []
@@ -166,28 +189,8 @@ export async function loadMessageThreadsInboxPayload(
 
   const allUserIds = [...new Set([...creatorIds, ...allParticipantUserIds, ...latestSenderIds])]
 
-  const allUsersResult =
-    allUserIds.length > 0
-      ? await timed("users_query", async () => {
-          return await supabase.from("users").select("id, name, email").in("id", allUserIds)
-        })
-      : { data: [] as { id: string; name: string | null; email: string }[] }
-
-  const allUsers = allUsersResult.data ?? []
-  const allUserMap = new Map(allUsers.map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
-
-  const creatorMap = allUserMap
-  const participantUserMap = allUserMap
-  const latestSenderMap = allUserMap
-
-  const { data: rosterPlayers } = await timed("roster_players_query", async () => {
-    return await supabase
-      .from("players")
-      .select("user_id, first_name, last_name")
-      .eq("team_id", teamId)
-      .eq("status", "active")
-      .not("user_id", "is", null)
-  })
+  const { data: rosterPlayers } = rosterResult
+  const { data: teamMembers } = teamMembersResult
 
   const rosterNameByUserId = new Map<string, string>()
   for (const p of rosterPlayers ?? []) {
@@ -198,15 +201,29 @@ export async function loadMessageThreadsInboxPayload(
 
   const rosterUserIds = new Set((rosterPlayers ?? []).map((p) => p.user_id).filter(Boolean) as string[])
 
-  const { data: teamMembers } = await timed("team_members_query", async () => {
-    return await supabase.from("team_members").select("user_id, role").eq("team_id", teamId).eq("active", true)
-  })
-
   const teamRoleByUserId = new Map((teamMembers ?? []).map((m) => [m.user_id, m.role]))
 
-  const { data: profiles } = await timed("profiles_query", async () => {
-    return await supabase.from("profiles").select("id, role").in("id", allParticipantUserIds)
-  })
+  const [allUsersResult, profilesResult] = await Promise.all([
+    allUserIds.length > 0
+      ? timed("users_query", async () => {
+          return await supabase.from("users").select("id, name, email").in("id", allUserIds)
+        })
+      : Promise.resolve({ data: [] as { id: string; name: string | null; email: string }[] }),
+    allParticipantUserIds.length > 0
+      ? timed("profiles_query", async () => {
+          return await supabase.from("profiles").select("id, role").in("id", allParticipantUserIds)
+        })
+      : Promise.resolve({ data: [] as { id: string; role: string | null }[] }),
+  ])
+
+  const allUsers = allUsersResult.data ?? []
+  const allUserMap = new Map(allUsers.map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
+
+  const creatorMap = allUserMap
+  const participantUserMap = allUserMap
+  const latestSenderMap = allUserMap
+
+  const { data: profiles } = profilesResult
 
   const profileRoleByUserId = new Map((profiles ?? []).map((p) => [p.id, p.role]))
 

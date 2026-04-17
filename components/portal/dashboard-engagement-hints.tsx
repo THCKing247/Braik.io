@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
-import { buildEngagementHints } from "@/lib/engagement/dashboard-hints-data"
+import { buildEngagementHints, type HintCounts } from "@/lib/engagement/dashboard-hints-data"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ function storageKey(teamId: string, hintId: string) {
 
 /**
  * Single dismissible setup nudge for coaches on the main dashboard only.
+ * Hint counts prefer shell.engagement (merged from bootstrap-deferred-core) — avoids racing/cancelled GET /api/engagement/hints.
  */
 export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: string }) {
   const pathname = usePathname()
@@ -40,49 +41,55 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
   const [hints, setHints] = useState<Hint[]>([])
   const [loading, setLoading] = useState(false)
   const [dismissTick, setDismissTick] = useState(0)
-  const abortRef = useRef<AbortController | null>(null)
 
   const coachRole = identity.roleUpper
   const showStrip = pathname === "/dashboard" && Boolean(currentTeamId) && COACH_ROLES.has(coachRole)
 
-  const shellPhase = shell?.phase
-  const shellTeamId = shell?.payload?.team?.id
-  const countsSerialized = useMemo(
+  const deferredCorePending = shell?.deferredCorePending ?? false
+  const engagementCountsKey = useMemo(
     () => JSON.stringify(shell?.payload?.engagement?.counts ?? null),
     [shell?.payload?.engagement?.counts]
   )
 
   useEffect(() => {
     if (!currentTeamId || !showStrip) {
-      abortRef.current?.abort()
-      abortRef.current = null
       setHints([])
       setLoading(false)
       return
     }
-    const counts = shell?.payload?.engagement?.counts ?? null
-    if (shellPhase === "ok" && shellTeamId === currentTeamId && counts) {
-      setHints(buildEngagementHints(currentTeamId, counts))
+    /** Wait for deferred-core merge so shell carries engagement counts (same RPC as /api/engagement/hints). */
+    if (deferredCorePending) {
+      setHints([])
       setLoading(false)
       return
     }
-    abortRef.current?.abort()
-    const ac = new AbortController()
-    abortRef.current = ac
 
-    let cancelled = false
+    if (engagementCountsKey !== "null") {
+      try {
+        const parsed = JSON.parse(engagementCountsKey) as HintCounts
+        if (parsed && typeof parsed === "object") {
+          setHints(buildEngagementHints(currentTeamId, parsed))
+          setLoading(false)
+          return
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     const mem = readLightweightMemoryRaw(hintsMemKey(currentTeamId))
     if (mem && mem.ageMs < 45_000) {
       const v = mem.value as { hints?: Hint[] }
       if (Array.isArray(v.hints)) {
         setHints(v.hints)
         setLoading(false)
-      } else {
-        setLoading(true)
+        return
       }
-    } else {
-      setLoading(true)
     }
+
+    setLoading(true)
+    const ac = new AbortController()
+    let cancelled = false
     fetchWithTimeout(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`, {
       credentials: "same-origin",
       signal: ac.signal,
@@ -94,13 +101,12 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
           const list = data.hints as Hint[]
           setHints(list)
           writeLightweightMemory(hintsMemKey(currentTeamId), { hints: list })
-        } else if (!mem) {
+        } else {
           setHints([])
         }
       })
       .catch(() => {
-        if (cancelled || ac.signal.aborted) return
-        if (!mem) setHints([])
+        if (!cancelled && !ac.signal.aborted) setHints([])
       })
       .finally(() => {
         if (!cancelled && !ac.signal.aborted) setLoading(false)
@@ -109,7 +115,7 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
       cancelled = true
       ac.abort()
     }
-  }, [currentTeamId, showStrip, shellPhase, shellTeamId, countsSerialized])
+  }, [currentTeamId, showStrip, deferredCorePending, engagementCountsKey])
 
   const nextHint = useMemo(() => {
     for (const h of hints) {

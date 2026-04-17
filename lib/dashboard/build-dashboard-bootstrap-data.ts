@@ -21,16 +21,19 @@ const READINESS_CACHE_KEY = "braik-team-readiness-summary-v4"
 
 /** Home/calendar strip: bounded window + LIMIT so bootstrap never scans full events history (uses idx_events_team_start). */
 const BOOTSTRAP_EVENTS_LOOKBACK_DAYS = 30
-const BOOTSTRAP_EVENTS_LOOKAHEAD_DAYS = 365
+/** Preview only — full calendar page uses wider range via `/api/teams/.../calendar/events`. */
+const BOOTSTRAP_EVENTS_LOOKAHEAD_DAYS = 60
 const BOOTSTRAP_EVENTS_LIMIT = 50
 
-const EVENTS_SELECT_BOOTSTRAP = "id, event_type, title, start, end, location"
+/** Slim preview: colors use `event_type`; location omitted (fetched with month API when needed). */
+const EVENTS_SELECT_BOOTSTRAP = "id, event_type, title, start, end"
 
 /** Games columns needed for banner record + next-game card (scores/quarters for outcomes; no game_type / confirmed_by_coach on home). */
 const GAMES_SELECT_BOOTSTRAP =
   "id, opponent, game_date, location, result, notes, conference_game, team_score, opponent_score, season_id, seasons(year), q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
 
 async function loadCalendarEventsForBootstrapFast(teamId: string): Promise<DashboardBootstrapPayload["calendarEvents"]> {
+  const started = performance.now()
   const supabase = getSupabaseServer()
   const now = new Date()
   const startMin = new Date(now)
@@ -51,20 +54,22 @@ async function loadCalendarEventsForBootstrapFast(teamId: string): Promise<Dashb
     throw new Error(`CALENDAR_QUERY_FAILED:${error.message}`)
   }
 
+  console.info(`[bootstrap-calendar-events] teamId=${teamId} ms=${Math.round(performance.now() - started)}`)
+
   return (data ?? []).map((e: Record<string, unknown>) => ({
     id: e.id as string,
     type: (e.event_type as string) ?? "CUSTOM",
     title: (e.title as string) ?? "",
     start: e.start as string,
     end: e.end as string,
-    location: (e.location as string | null) ?? null,
+    location: null as string | null,
   }))
 }
 
 /** Isolated cache for calendar rows — bounded query; does not invalidate whole dashboard payload alone. */
 export function getCachedCalendarEventsForBootstrap(teamId: string): Promise<DashboardBootstrapPayload["calendarEvents"]> {
   return lightweightCached(
-    ["dashboard-bootstrap-calendar-events-v1", teamId],
+    ["dashboard-bootstrap-calendar-events-v2", teamId],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [tagTeamDashboardBootstrap(teamId)],

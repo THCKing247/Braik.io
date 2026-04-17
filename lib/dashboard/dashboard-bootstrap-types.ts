@@ -7,6 +7,7 @@ import type { PlayerReadinessItem, TeamReadinessSummary } from "@/lib/server/com
 import type { MessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
 import type { PlaybookSummaryRow } from "@/lib/playbooks/load-playbooks-summary-for-team"
 import type { TeamDocumentListItem } from "@/lib/documents/load-team-documents-list-for-viewer"
+import type { HintCounts } from "@/lib/engagement/dashboard-hints-data"
 
 /** Minimal rows for `DashboardCalendar` (matches calendar API fields used by the home grid). */
 export type DashboardBootstrapCalendarEvent = {
@@ -77,14 +78,17 @@ export type FullDashboardBootstrapPayload = {
   deferredHeavyPending?: boolean
 }
 
-/** Core deferred slice — replaces `dashboard` and fills roster / notification previews / announcements / readiness detail. */
+/** Core deferred slice — replaces `dashboard` and fills roster / notification previews / announcements. */
 export type DashboardBootstrapDeferredCorePayload = {
   dashboard: DashboardBootstrapPayload
   roster: unknown[]
   notifications: NotificationsApiPayload
   announcements: TeamAnnouncementRow[]
+  /** Heavy per-player readiness — loaded from roster page APIs; omitted here to keep deferred-core fast. */
   readinessDetail: DashboardReadinessDetailPayload | null
   messageThreadsInbox: MessageThreadsInboxPayload | null
+  /** Coach-only; merged into shell.engagement — same source as GET /api/engagement/hints counts. */
+  engagementHintCounts: HintCounts | null
   /** Always [] from server — browse lists load on those routes. */
   playbooksSummary: PlaybookSummaryRow[]
   /** Always [] from server — browse lists load on those routes. */

@@ -68,11 +68,7 @@ import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { NotificationApiRow } from "@/lib/notifications/notifications-api-query"
-import { useQueryClient } from "@tanstack/react-query"
-import {
-  kickDeferredCoreMerge,
-  useDashboardBootstrapQuery,
-} from "@/lib/dashboard/dashboard-bootstrap-query"
+import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
 import { RosterClaimReviewDashboardBanner } from "@/components/portal/roster-claim-review-dashboard-banner"
@@ -896,7 +892,6 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
     shell?.payload?.user?.teamId,
     shell?.payload?.team?.name,
   ])
-  const queryClient = useQueryClient()
   const bootstrapQueryTeamId = (shell?.teamId?.trim() || tid).trim()
   const dashQ = useDashboardBootstrapQuery(bootstrapQueryTeamId)
   useBraikPerfDashboardBootstrapReady(bootstrapQueryTeamId, Boolean(dashQ.data?.dashboard))
@@ -904,13 +899,6 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
   const [dashNetworkHint, setDashNetworkHint] = useState<string | null>(null)
-
-  /** Ensure deferred-core merge runs on entry (do not rely only on sentinel/timer — AD portal → dashboard must load widgets). */
-  useEffect(() => {
-    const t = bootstrapQueryTeamId.trim()
-    if (!t) return
-    kickDeferredCoreMerge(t, queryClient)
-  }, [bootstrapQueryTeamId, queryClient])
 
   useEffect(() => {
     devDashboardHandoffLog("TeamDashboard", {
@@ -1074,7 +1062,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
           <DashboardCalendar
             teamId={dataTeamId}
             canAddEvents={canAddCalendarEvents}
-            bootstrapLoading={dashboardBootstrapState === "loading"}
+            bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
             initialCalendarEvents={
               dashboardBootstrapState === "ok" && bootstrapAligned && !awaitingDeferredCore
                 ? bootstrapAligned.calendarEvents

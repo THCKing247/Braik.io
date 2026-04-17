@@ -3,7 +3,7 @@
  *
  * Single round-trip for the team dashboard: `shell` (nav / app bootstrap shape), `dashboard` (home:
  * team header, games, calendar, readiness summary), full `roster`, `depthChart`, notifications preview,
- * announcements, and coach-only `readinessDetail` (full per-player readiness for roster tab).
+ * announcements, and coach engagement counts for hints. Full per-player readiness loads from roster routes.
  *
  * Caching:
  * - Full payload: `unstable_cache` (LW_TTL_DASHBOARD_BOOTSTRAP), key teamId + userId + coach bucket.

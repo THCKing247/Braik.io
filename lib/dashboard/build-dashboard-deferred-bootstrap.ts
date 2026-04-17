@@ -10,8 +10,8 @@ import { loadTeamRosterForBootstrap } from "@/lib/roster/load-team-roster-for-bo
 import { loadDepthChartForBootstrap } from "@/lib/roster/load-depth-chart-for-bootstrap"
 import { loadNotificationsApiPayload } from "@/lib/notifications/notifications-api-query"
 import { getCachedVisibleTeamAnnouncements } from "@/lib/team-announcements/visible-announcements-query"
-import { computeTeamReadinessPayload } from "@/lib/server/compute-team-readiness"
 import { loadMessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
+import { getCachedEngagementHintCounts } from "@/lib/engagement/dashboard-hints-data"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import {
   lightweightCached,
@@ -22,7 +22,8 @@ import {
 } from "@/lib/cache/lightweight-get-cache"
 
 /**
- * Home slice (games, calendar, readiness summary) + roster + notifications + announcements + readiness detail — no depth chart.
+ * Home slice (games, calendar, readiness summary) + roster + notifications + announcements + coach engagement counts — no depth chart.
+ * Full per-player readiness is not loaded here (roster tab uses GET /api/teams/.../readiness).
  * Calendar rows for `dashboard.calendarEvents` use a bounded query via `getCachedCalendarEventsForBootstrap` inside
  * `getCachedDashboardBootstrapData` (see build-dashboard-bootstrap-data).
  * Playbooks browse + team documents lists are loaded on those routes (GET /api/playbooks/summary, GET /api/documents), not here.
@@ -35,6 +36,9 @@ export async function buildDashboardBootstrapDeferredCoreData(
   appOrigin: string
 ): Promise<DashboardBootstrapDeferredCorePayload> {
   const canCoach = access.canEditRoster
+  const hintEngagementRoles = new Set(["HEAD_COACH", "ASSISTANT_COACH", "ATHLETIC_DIRECTOR"])
+  const roleUpper = access.membership.role.toUpperCase().replace(/ /g, "_")
+  const shouldLoadEngagementCounts = hintEngagementRoles.has(roleUpper)
 
   const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
     const started = performance.now()
@@ -49,7 +53,7 @@ export async function buildDashboardBootstrapDeferredCoreData(
 
   const supabase = getSupabaseServer()
 
-  const [dashboard, roster, notifications, announcements, readinessDetail, messageThreadsInbox] =
+  const [dashboard, roster, notifications, announcements, messageThreadsInbox, engagementHintCounts] =
     await Promise.all([
       timed("dashboard", () => getCachedDashboardBootstrapData(teamId, userId, canCoach)),
       timed("roster", () =>
@@ -77,19 +81,19 @@ export async function buildDashboardBootstrapDeferredCoreData(
           return []
         })
       ),
-      timed("readinessDetail", () =>
-        canCoach
-          ? computeTeamReadinessPayload(teamId, false).catch((e) => {
-              console.error("[buildDashboardBootstrapDeferredCoreData] readinessDetail", e)
-              return null
-            })
-          : Promise.resolve(null)
-      ),
       timed("message_threads_inbox", () =>
         loadMessageThreadsInboxPayload(supabase, teamId, userId).catch((e) => {
           console.error("[buildDashboardBootstrapDeferredCoreData] messageThreadsInbox", e)
           return null
         })
+      ),
+      timed("engagement_hint_counts", () =>
+        shouldLoadEngagementCounts
+          ? getCachedEngagementHintCounts(teamId).catch((e) => {
+              console.error("[buildDashboardBootstrapDeferredCoreData] engagementHintCounts", e)
+              return null
+            })
+          : Promise.resolve(null)
       ),
     ])
 
@@ -98,8 +102,9 @@ export async function buildDashboardBootstrapDeferredCoreData(
     roster,
     notifications,
     announcements: announcements as TeamAnnouncementRow[],
-    readinessDetail,
+    readinessDetail: null,
     messageThreadsInbox,
+    engagementHintCounts,
     playbooksSummary: [],
     teamDocumentsList: [],
     generatedAt: new Date().toISOString(),
@@ -114,7 +119,7 @@ export function getCachedDashboardBootstrapDeferredCore(
   appOrigin: string
 ): Promise<DashboardBootstrapDeferredCorePayload> {
   return lightweightCached(
-    ["dashboard-bootstrap-deferred-core-v4", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-deferred-core-v5", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [

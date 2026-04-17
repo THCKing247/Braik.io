@@ -224,8 +224,6 @@ export async function fetchDashboardBootstrap(teamId: string, queryClient: Query
       return merged
     }
 
-    kickDeferredCoreMerge(key, queryClient)
-
     const t0Light = typeof performance !== "undefined" ? performance.now() : 0
     dashboardBootstrapClientPerf("bootstrap_light_fetch_start", { teamId: key })
     const light = await fetchBootstrapLight(key)

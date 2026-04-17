@@ -9,6 +9,7 @@ export function mergeDashboardBootstrapDeferredCore(
   core: DashboardBootstrapDeferredCorePayload
 ): FullDashboardBootstrapPayload {
   const unread = core.notifications.unreadCount ?? light.shell.unreadNotifications
+  const engagementCounts = core.engagementHintCounts ?? light.shell.engagement.counts
   return {
     ...light,
     dashboard: core.dashboard,
@@ -26,6 +27,9 @@ export function mergeDashboardBootstrapDeferredCore(
     shell: {
       ...light.shell,
       unreadNotifications: unread,
+      engagement: {
+        counts: engagementCounts,
+      },
       generatedAt: light.shell.generatedAt,
     },
   }

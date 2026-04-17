@@ -2,7 +2,7 @@
  * GET /api/dashboard/bootstrap-deferred-core?teamId=
  *
  * Second phase: full home dashboard slice (games, calendar, readiness summary) + roster + notification rows +
- * announcements + coach readiness detail. Depth chart is bootstrap-deferred-heavy.
+ * announcements + coach engagement hint counts. Per-player readiness loads from roster APIs. Depth chart: bootstrap-deferred-heavy.
  */
 import { NextResponse } from "next/server"
 import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"

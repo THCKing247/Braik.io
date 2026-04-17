@@ -23,6 +23,8 @@ export type AppBootstrapContextValue = {
   teamId: string
   phase: Phase
   payload: AppBootstrapPayload | null
+  /** True while bootstrap-light has merged but deferred-core snapshot is not in the React Query cache yet. */
+  deferredCorePending: boolean
   /** Server unread + client optimistic delta (for badges / shell). */
   effectiveUnreadNotifications: number
   refetch: () => Promise<void>
@@ -117,11 +119,14 @@ export function AppBootstrapProvider({
     (payload?.unreadNotifications ?? 0) + pendingUnreadDelta
   )
 
+  const deferredCorePending = Boolean(tid && q.data?.deferredPending === true)
+
   const value = useMemo<AppBootstrapContextValue>(
     () => ({
       teamId,
       phase,
       payload,
+      deferredCorePending,
       effectiveUnreadNotifications,
       refetch,
       applyUnreadDelta,
@@ -131,6 +136,7 @@ export function AppBootstrapProvider({
       teamId,
       phase,
       payload,
+      deferredCorePending,
       effectiveUnreadNotifications,
       refetch,
       applyUnreadDelta,

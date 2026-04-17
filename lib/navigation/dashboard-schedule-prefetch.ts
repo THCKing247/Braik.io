@@ -12,6 +12,10 @@ const HEAVY_DASHBOARD_PREFIXES = [
   "/dashboard/roster",
   "/dashboard/documents",
   "/dashboard/playbooks",
+  /** First paint: do not prefetch RSC for tools not needed until navigated */
+  "/dashboard/inventory",
+  "/dashboard/study-guides",
+  "/dashboard/weight-room",
 ] as const
 
 export function prefetchPropForDashboardScheduleHref(href: string): boolean | undefined {

@@ -188,19 +188,38 @@ interface Contact {
   positionGroup: string | null
 }
 
-const MESSAGE_PAGE_LIMIT = 30
-
 /** Recent page only; older history via `before` + intersection observer. */
+const MESSAGE_PAGE_LIMIT = 40
+
 function threadDetailFetchUrl(threadId: string, extra?: Record<string, string>) {
   const p = new URLSearchParams()
   p.set("limit", String(MESSAGE_PAGE_LIMIT))
   p.set("attachments", "metadata")
+  /** Sidebar already has participants; skip heavy join on open for faster TTFB. */
+  p.set("includeParticipants", "0")
   if (extra) {
     for (const [k, v] of Object.entries(extra)) {
       if (v !== undefined && v !== "") p.set(k, v)
     }
   }
   return `/api/messages/thread/${encodeURIComponent(threadId)}?${p.toString()}`
+}
+
+function computeBootstrapInboxSignature(inbox: MessageThreadsInboxPayload | null | undefined): string {
+  if (inbox == null) return inbox === null ? "null" : "undef"
+  try {
+    const raw = inbox.threads
+    const arr = Array.isArray(raw) ? raw : []
+    const ids = arr
+      .map((x) => {
+        const o = x as { threadId?: string; id?: string }
+        return o.threadId ?? o.id ?? ""
+      })
+      .filter(Boolean)
+    return `u${inbox.meta?.totalUnread ?? 0}|${ids.join(",")}`
+  } catch {
+    return "err"
+  }
 }
 
 interface MessagingManagerProps {
@@ -279,6 +298,16 @@ export function MessagingManager({
   /** Snapshot for rollback if POST /read fails after optimistic UI. */
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
   const isLoadingRef = useRef(false)
+
+  const bootstrapInboxRef = useRef(bootstrapThreadsInbox)
+  bootstrapInboxRef.current = bootstrapThreadsInbox
+
+  const lastHydratedBootstrapSigRef = useRef<string>("")
+  const inboxListFetchGuardsRef = useRef<{
+    teamId: string | null
+    initialListFetched: boolean
+    nullBootstrapFetched: boolean
+  }>({ teamId: null, initialListFetched: false, nullBootstrapFetched: false })
 
   const logThreadMessageBanner = useCallback(
     (
@@ -621,65 +650,107 @@ export function MessagingManager({
   )
 
   useEffect(() => {
+    const g = inboxListFetchGuardsRef.current
+    if (g.teamId !== teamId) {
+      inboxListFetchGuardsRef.current = {
+        teamId,
+        initialListFetched: false,
+        nullBootstrapFetched: false,
+      }
+      lastHydratedBootstrapSigRef.current = ""
+    }
+  }, [teamId])
+
+  /** Apply server inbox from dashboard bootstrap when it arrives (signature dedupes React Query reference churn). */
+  useEffect(() => {
+    if (!teamId || bootstrapCoreReady !== true || bootstrapThreadsInbox == null) return
+
+    const sig = computeBootstrapInboxSignature(bootstrapThreadsInbox)
+    if (sig === lastHydratedBootstrapSigRef.current) return
+    lastHydratedBootstrapSigRef.current = sig
+
+    const raw = bootstrapThreadsInbox.threads
+    const data = threadsPayloadToUiThreads(Array.isArray(raw) ? raw : [])
+    console.info("[messaging:inbox] hydrate from bootstrap", { teamId, threadCount: data.length, sig })
+    const meta = bootstrapThreadsInbox.meta
+    if (typeof meta?.totalUnread === "number") {
+      messagingUnreadRef.current?.syncThreadUnreadFromServer(meta.totalUnread)
+    }
+    setThreads((prev) => {
+      if (JSON.stringify(prev) === JSON.stringify(data)) return prev
+      return data
+    })
+    setSelectedThread((prev) => {
+      if (!prev) return prev
+      const match = data.find((t: Thread) => t.id === prev.id)
+      if (!match) return prev
+      return { ...match, messages: prev.messages }
+    })
+    const urlThreadId = searchParamsRef.current?.get("threadId")
+    if (urlThreadId && !urlThreadIdProcessedRef.current) {
+      const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
+      if (threadFromUrl) {
+        setSelectedThread(threadFromUrl)
+        setMobileShowList(false)
+        urlThreadIdProcessedRef.current = true
+      } else {
+        console.warn(`Thread ${urlThreadId} not found or access denied`)
+      }
+    }
+    setInboxLoadError(null)
+    setError(null)
+    setInitialLoading(false)
+  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox])
+
+  /**
+   * Thread list GET only when needed — deps intentionally omit `bootstrapThreadsInbox` identity
+   * so selecting a thread / React Query data reference churn does not re-trigger `threads?teamId=`.
+   */
+  useEffect(() => {
     if (!teamId) return
 
-    console.info("[messaging:inbox] inbox effect", {
+    const inbox = bootstrapInboxRef.current
+
+    console.info("[messaging:inbox] list-fetch effect", {
       teamId,
       bootstrapCoreReady,
-      hasBootstrapInbox: bootstrapThreadsInbox != null,
+      inboxState: inbox === null ? "null" : inbox === undefined ? "undefined" : "object",
     })
 
-    // When deferred core has merged server inbox, prefer it (no extra GET).
-    if (bootstrapCoreReady === true && bootstrapThreadsInbox != null) {
-      const raw = bootstrapThreadsInbox.threads
-      const data = threadsPayloadToUiThreads(Array.isArray(raw) ? raw : [])
-      console.info("[messaging:inbox] hydrate from bootstrap", { teamId, threadCount: data.length })
-      const meta = bootstrapThreadsInbox.meta
-      if (typeof meta?.totalUnread === "number") {
-        messagingUnreadRef.current?.syncThreadUnreadFromServer(meta.totalUnread)
-      }
-      setThreads((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(data)) return prev
-        return data
-      })
-      setSelectedThread((prev) => {
-        if (!prev) return prev
-        const match = data.find((t: Thread) => t.id === prev.id)
-        if (!match) return prev
-        return { ...match, messages: prev.messages }
-      })
-      const urlThreadId = searchParamsRef.current?.get("threadId")
-      if (urlThreadId && !urlThreadIdProcessedRef.current) {
-        const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
-        if (threadFromUrl) {
-          setSelectedThread(threadFromUrl)
-          setMobileShowList(false)
-          urlThreadIdProcessedRef.current = true
-        } else {
-          console.warn(`Thread ${urlThreadId} not found or access denied`)
-        }
-      }
-      setInboxLoadError(null)
-      setError(null)
-      setInitialLoading(false)
+    if (bootstrapCoreReady === true && inbox != null) {
+      console.info("[messaging:inbox] list-fetch skip (bootstrap inbox present)", { teamId })
       return
     }
 
-    // Explicit null from server after core ready: fetch inbox via API.
-    if (bootstrapCoreReady === true && bootstrapThreadsInbox === null) {
-      console.info("[messaging:inbox] bootstrap inbox null → fetch", { teamId })
+    if (bootstrapCoreReady === true && inbox === undefined) {
+      console.info("[messaging:inbox] list-fetch skip (core ready, inbox undefined — wait for payload)", {
+        teamId,
+      })
+      return
+    }
+
+    if (bootstrapCoreReady === true && inbox === null) {
+      if (inboxListFetchGuardsRef.current.nullBootstrapFetched) {
+        console.info("[messaging:inbox] list-fetch skip (already fetched for null-bootstrap)", { teamId })
+        return
+      }
+      inboxListFetchGuardsRef.current.nullBootstrapFetched = true
+      console.info("[messaging:inbox] loadThreads triggered", { teamId, reason: "bootstrap-inbox-null" })
       void loadThreadsFrom("bootstrap-inbox-fallback")
       return
     }
 
-    // Dashboard/bootstrap still loading OR inbox not merged yet — fetch lightweight list immediately
-    // so the sidebar is not stuck on skeletons waiting for deferredPending.
-    console.info("[messaging:inbox] fetch initial list (not blocked on bootstrap)", {
+    if (inboxListFetchGuardsRef.current.initialListFetched) {
+      console.info("[messaging:inbox] list-fetch skip (initial list already requested)", { teamId })
+      return
+    }
+    inboxListFetchGuardsRef.current.initialListFetched = true
+    console.info("[messaging:inbox] loadThreads triggered", {
       teamId,
-      bootstrapCoreReady,
+      reason: "initial-list-while-deferred-pending",
     })
     void loadThreadsFrom("initial-load")
-  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox, loadThreadsFrom])
+  }, [teamId, bootstrapCoreReady, loadThreadsFrom])
 
   const loadContacts = async () => {
     try {
@@ -872,15 +943,23 @@ export function MessagingManager({
         messageIngressRef.current = "full-load"
       }
       setMessages(sortedMessages)
-      
-      // Update selectedThread metadata only if it's missing or different
-      setSelectedThread(prev => {
+
+      setSelectedThread((prev) => {
+        const detailParts = Array.isArray(data.participants) ? data.participants : []
+        const mergedParticipants =
+          detailParts.length > 0 ? detailParts : prev?.id === threadId ? prev.participants : []
         if (!prev || prev.id !== threadId) {
-          return { ...data, canModerate: data.canModerate === true, unreadCount: 0 }
+          return {
+            ...data,
+            participants: mergedParticipants,
+            canModerate: data.canModerate === true,
+            unreadCount: 0,
+          }
         }
         return {
           ...prev,
           ...data,
+          participants: mergedParticipants,
           canModerate: data.canModerate === true,
           messages: sortedMessages,
           unreadCount: 0,
@@ -1597,11 +1676,13 @@ export function MessagingManager({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
+            console.info("[messaging:thread-select]", { threadId: thread.id, teamId, source: "sidebar-keyboard" })
             setSelectedThread(thread)
             setMobileShowList(false)
           }
         }}
         onClick={() => {
+          console.info("[messaging:thread-select]", { threadId: thread.id, teamId, source: "sidebar-click" })
           setSelectedThread(thread)
           setMobileShowList(false)
         }}

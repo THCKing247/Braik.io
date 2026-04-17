@@ -8,15 +8,15 @@ import { MODERATED_MESSAGE_PLACEHOLDER } from "@/lib/messaging/moderation-copy"
 import { repairThreadParticipantsFromThreadAndMessages } from "@/lib/messaging/thread-participants"
 import { fetchMessagesPageForThread } from "@/lib/messaging/thread-detail-query"
 
-const DEFAULT_MSG_LIMIT = 30
+const DEFAULT_MSG_LIMIT = 40
 const MAX_MSG_LIMIT = 80
 
 /** attachment query: metadata = no storage path in JSON (client loads via /attachments/[id]); full = include file_url; none = skip query */
 type AttachmentsMode = "metadata" | "full" | "none"
 
 /**
- * GET /api/messages/threads/[threadId]?limit=40&before=<messageId>
- * Heavy thread payload: participants + a **page** of messages (newest first by default).
+ * GET /api/messages/threads/[threadId]?limit=40&before=<messageId>&includeParticipants=0|1
+ * Paginated messages (newest page first). `includeParticipants=0` skips the participants query (client may use sidebar cache).
  * Use `before` to load older pages (infinite scroll / "Load more").
  */
 export async function GET(
@@ -43,6 +43,11 @@ export async function GET(
     const attachmentsParam = (searchParams.get("attachments") || "metadata").toLowerCase()
     const attachmentsMode: AttachmentsMode =
       attachmentsParam === "full" ? "full" : attachmentsParam === "none" ? "none" : "metadata"
+    const includeParticipantsParam = searchParams.get("includeParticipants")
+    const includeParticipants =
+      includeParticipantsParam === null || includeParticipantsParam === ""
+        ? true
+        : !["0", "false", "no"].includes(includeParticipantsParam.toLowerCase())
 
     const tRoute = performance.now()
     const supabase = getSupabaseServer()
@@ -95,10 +100,12 @@ export async function GET(
     }
 
     const [partsRes, pageResult, mem] = await Promise.all([
-      supabase
-        .from("message_thread_participants")
-        .select("user_id, joined_at, last_read_at")
-        .eq("thread_id", threadId),
+      includeParticipants
+        ? supabase
+            .from("message_thread_participants")
+            .select("user_id, joined_at, last_read_at")
+            .eq("thread_id", threadId)
+        : Promise.resolve({ data: [] as { user_id: string; joined_at: string; last_read_at: string | null }[], error: null }),
       fetchMessagesPageForThread(supabase, threadId, { limit, beforeMessageId }),
       getUserMembershipForUserId(thread.team_id, userId),
     ])
@@ -111,7 +118,7 @@ export async function GET(
 
     const messages = pageResult.messageRows
 
-    const participantUserIds = (participants ?? []).map((p) => p.user_id)
+    const participantUserIds = includeParticipants ? (participants ?? []).map((p) => p.user_id) : []
     const senderIds = [...new Set(messages.map((m) => m.sender_id))]
     const userIdSet = new Set<string>([thread.created_by, ...participantUserIds, ...senderIds])
     const allUserIds = [...userIdSet].filter(Boolean)
@@ -179,19 +186,21 @@ export async function GET(
       }
     })
 
-    const formattedParticipants = (participants ?? [])
-      .map((p) => {
-        const user = userMap.get(p.user_id)
-        return user
-          ? {
-              id: `${threadId}-${p.user_id}`,
-              userId: p.user_id,
-              user,
-              readOnly: false,
-            }
-          : null
-      })
-      .filter(Boolean)
+    const formattedParticipants = includeParticipants
+      ? (participants ?? [])
+          .map((p) => {
+            const user = userMap.get(p.user_id)
+            return user
+              ? {
+                  id: `${threadId}-${p.user_id}`,
+                  userId: p.user_id,
+                  user,
+                  readOnly: false,
+                }
+              : null
+          })
+          .filter(Boolean)
+      : []
 
     const oldestId = formattedMessages.length > 0 ? formattedMessages[0].id : null
     const newestId = formattedMessages.length > 0 ? formattedMessages[formattedMessages.length - 1].id : null
@@ -204,6 +213,7 @@ export async function GET(
       limit,
       before: Boolean(beforeMessageId),
       attachmentsMode,
+      includeParticipants,
       messageCount: formattedMessages.length,
     })
 
@@ -216,7 +226,7 @@ export async function GET(
       creator: creator
         ? { id: creator.id, name: creator.name, email: creator.email }
         : { id: thread.created_by, name: null, email: "" },
-      participants: formattedParticipants,
+      ...(includeParticipants ? { participants: formattedParticipants } : {}),
       messages: formattedMessages,
       _count: { messages: formattedMessages.length },
       isReadOnly: false,

@@ -178,6 +178,7 @@ export async function POST(
       threadId,
       userId,
       ms: Math.round(performance.now() - tPost),
+      rowsUpdated,
       notificationsDeferred: true,
     })
 

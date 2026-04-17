@@ -24,6 +24,24 @@ export type AppBootstrapTeam = {
   logoUrl: string | null
 }
 
+/** Non-pricing storage and capability summary for UI (coach shell). */
+export type VideoEntitlementSummary = {
+  tier: string
+  storageCapBytes: number
+  /** Bytes counted against quota (team-only or pooled program total). */
+  storageUsedBytes: number
+  /** Raw team bucket usage (always this team uploads). */
+  teamUsedBytes: number
+  videoCount: number
+  clipCount: number
+  aiVideoEnabled: boolean
+  taggingEnabled: boolean
+  crossTeamLibraryEnabled: boolean
+  bulkManagementEnabled: boolean
+  advancedClipTools: boolean
+  sharedStorageScope: "team" | "program"
+}
+
 /** Game Video / Clips gating for nav + gated routes (org/team flags + user permissions). */
 export type AppBootstrapVideoClips = {
   productEnabled: boolean
@@ -33,6 +51,8 @@ export type AppBootstrapVideoClips = {
   canCreateClips: boolean
   canShareClips: boolean
   canDeleteVideo: boolean
+  /** Present when product is on and user can view video — for storage bar / caps in Team Video. */
+  entitlement?: VideoEntitlementSummary
 }
 
 /** Lightweight shell payload — no roster, calendar rows, messages, etc. */

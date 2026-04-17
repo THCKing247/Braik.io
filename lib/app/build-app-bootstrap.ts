@@ -7,17 +7,8 @@ import {
   canViewPayments,
 } from "@/lib/auth/roles"
 import { getUnreadNotificationCount } from "@/lib/utils/notifications"
-import type {
-  AppBootstrapPayload,
-  AppBootstrapTeamFlags,
-  AppBootstrapVideoClips,
-} from "@/lib/app/app-bootstrap-types"
-import {
-  effectiveVideoClipsProductEnabled,
-  loadTeamOrgVideoFlags,
-  loadUserVideoPermissions,
-  resolveVideoClipsNavVisible,
-} from "@/lib/video/resolve-video-clips-access"
+import type { AppBootstrapPayload, AppBootstrapTeamFlags } from "@/lib/app/app-bootstrap-types"
+import { buildVideoClipsBootstrap } from "@/lib/video/bootstrap-video"
 import { isCoachBPlusEntitled } from "@/lib/braik-ai/coach-b-plus-entitlement"
 
 /** Shell for first paint — intentionally lightweight. */
@@ -81,15 +72,7 @@ export async function buildAppBootstrapPayloadLite(input: {
 
   const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
 
-  const videoClips: AppBootstrapVideoClips = {
-    productEnabled: false,
-    navVisible: false,
-    canViewVideo: false,
-    canUploadVideo: false,
-    canCreateClips: false,
-    canShareClips: false,
-    canDeleteVideo: false,
-  }
+  const videoClips = await buildVideoClipsBootstrap(supabase, input.teamId, input.userId)
 
   return {
     user: {
@@ -146,12 +129,11 @@ export async function buildAppBootstrapPayload(input: {
         })
 
   // Engagement hint counts: load client-side via GET /api/engagement/hints (see DashboardEngagementHints), not here.
-  const [profileRes, teamRes, unread, videoFlags, videoPerms, coachBPlus] = await Promise.all([
+  const [profileRes, teamRes, unread, videoClipsBootstrap, coachBPlus] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
     supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
     getUnreadNotificationCount(input.userId, input.teamId),
-    loadTeamOrgVideoFlags(supabase, input.teamId),
-    loadUserVideoPermissions(supabase, input.userId),
+    buildVideoClipsBootstrap(supabase, input.teamId, input.userId),
     coachBPlusPromise,
   ])
 
@@ -163,24 +145,7 @@ export async function buildAppBootstrapPayload(input: {
     throw new Error("TEAM_NOT_FOUND")
   }
 
-  const productEnabled = effectiveVideoClipsProductEnabled({
-    teamVideoClipsEnabled: videoFlags.teamVideoClipsEnabled,
-    organizationVideoClipsEnabled: videoFlags.organizationVideoClipsEnabled,
-    athleticDepartmentVideoClipsEnabled: videoFlags.athleticDepartmentVideoClipsEnabled,
-  })
-
-  const videoClips: AppBootstrapVideoClips = {
-    productEnabled,
-    navVisible: resolveVideoClipsNavVisible({
-      productEnabled,
-      canViewVideo: videoPerms.can_view_video,
-    }),
-    canViewVideo: videoPerms.can_view_video,
-    canUploadVideo: videoPerms.can_upload_video,
-    canCreateClips: videoPerms.can_create_clips,
-    canShareClips: videoPerms.can_share_clips,
-    canDeleteVideo: videoPerms.can_delete_video,
-  }
+  const videoClips = videoClipsBootstrap
 
   return {
     user: {

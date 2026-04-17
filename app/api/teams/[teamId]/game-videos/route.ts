@@ -2,14 +2,10 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
-import {
-  effectiveVideoClipsProductEnabled,
-  loadTeamOrgVideoFlags,
-  loadUserVideoPermissions,
-} from "@/lib/video/resolve-video-clips-access"
+import { gateGameVideoTeamApi } from "@/lib/video/api-access"
 
 /**
- * Lists game videos for a team. TODO: enforce storage paths, signed URLs, and upload pipeline.
+ * Lists game videos for a team.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ teamId: string }> }) {
   try {
@@ -26,23 +22,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tea
     await requireTeamAccess(teamId)
 
     const supabase = getSupabaseServer()
-    const [flags, perms] = await Promise.all([
-      loadTeamOrgVideoFlags(supabase, teamId),
-      loadUserVideoPermissions(supabase, session.user.id),
-    ])
-
-    const productEnabled = effectiveVideoClipsProductEnabled({
-      teamVideoClipsEnabled: flags.teamVideoClipsEnabled,
-      organizationVideoClipsEnabled: flags.organizationVideoClipsEnabled,
-      athleticDepartmentVideoClipsEnabled: flags.athleticDepartmentVideoClipsEnabled,
-    })
-    if (!productEnabled || !perms.can_view_video) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { view: true })
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status })
     }
 
     const { data: rows, error } = await supabase
       .from("game_videos")
-      .select("id, team_id, title, duration_seconds, created_at")
+      .select(
+        "id, team_id, title, mime_type, file_size_bytes, duration_seconds, upload_status, processing_status, created_at"
+      )
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
       .limit(100)

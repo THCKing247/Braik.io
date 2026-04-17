@@ -2,12 +2,9 @@
 
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { GameVideoLibrary } from "@/components/portal/game-video-library"
 import { Video } from "lucide-react"
 
-/**
- * Game Video / Clips — scaffold only.
- * TODO: Integrate upload pipeline (Supabase Storage), transcoding, video player, and clip editor.
- */
 export default function GameVideoPage() {
   return (
     <DashboardPageShell>
@@ -40,25 +37,20 @@ function GameVideoBody({ teamId }: { teamId: string }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Game Video / Clips</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Team: <span className="font-mono text-xs">{teamId}</span>
+            Upload game film, create clips, and manage storage for your team.
           </p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6">
-        <p className="text-sm font-medium text-foreground">Coming next</p>
-        <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-muted-foreground">
-          <li>TODO: Upload full game video to secure storage (coach / delegated uploader).</li>
-          <li>TODO: In-browser player with keyboard shortcuts and timeline.</li>
-          <li>TODO: Clip editor — mark in/out, label plays, share to position groups.</li>
-          <li>TODO: Use GET /api/teams/[teamId]/game-videos for listing once uploads exist.</li>
-        </ul>
-      </div>
-
-      <div className="rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-        Permissions: view={String(vc.canViewVideo)} upload={String(vc.canUploadVideo)} clips={String(vc.canCreateClips)}{" "}
-        share={String(vc.canShareClips)} delete={String(vc.canDeleteVideo)}
-      </div>
+      <GameVideoLibrary
+        teamId={teamId}
+        entitlement={vc.entitlement}
+        canUpload={vc.canUploadVideo}
+        canCreateClips={vc.canCreateClips}
+        canDeleteVideo={vc.canDeleteVideo}
+        aiVideoEnabled={Boolean(vc.entitlement?.aiVideoEnabled)}
+        taggingEnabled={Boolean(vc.entitlement?.taggingEnabled)}
+      />
     </div>
   )
 }

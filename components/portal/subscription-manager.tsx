@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 
 interface Team {
   id: string
@@ -88,7 +89,7 @@ export function SubscriptionManager({
 
           {isHeadCoach && (
             <div className="flex gap-4">
-              <Link href="/dashboard/collections">
+              <Link href="/dashboard/collections" prefetch={prefetchPropForDashboardScheduleHref("/dashboard/collections")}>
                 <Button style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}>
                   Manage Payments
                 </Button>
@@ -127,7 +128,7 @@ export function SubscriptionManager({
             <p className="mb-4" style={{ color: "rgb(var(--muted))" }}>
               Stripe payment integration coming soon. For now, you can track payments through the Collections page.
             </p>
-            <Link href="/dashboard/collections">
+            <Link href="/dashboard/collections" prefetch={prefetchPropForDashboardScheduleHref("/dashboard/collections")}>
               <Button variant="outline" style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}>
                 Go to Collections
               </Button>

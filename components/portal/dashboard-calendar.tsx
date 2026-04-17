@@ -485,6 +485,7 @@ export function DashboardCalendar({
                   <Link
                     key={day.toISOString()}
                     href="/dashboard/calendar"
+                    prefetch={false}
                     className={cellClass}
                     style={cellStyle}
                   >

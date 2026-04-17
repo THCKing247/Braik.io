@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { useEffect, useState } from "react"
 
 /**
@@ -50,6 +51,7 @@ export function RosterClaimReviewDashboardBanner({ teamId }: { teamId: string })
       </p>
       <Link
         href="/dashboard/roster/review"
+        prefetch={prefetchPropForDashboardScheduleHref("/dashboard/roster/review")}
         className="text-sm font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950 shrink-0"
       >
         Review roster signups

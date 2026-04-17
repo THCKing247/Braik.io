@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import Image from "next/image"
 import { signOut } from "@/lib/auth/client-auth"
 import { Button } from "@/components/ui/button"
@@ -74,7 +75,11 @@ export function AdNav({
       <div className="mx-auto px-4">
         <div className="flex min-h-20 items-center justify-between py-2">
           <div className="flex items-center gap-8">
-            <Link href={homeHref} className="flex items-center gap-2">
+            <Link
+              href={homeHref}
+              prefetch={prefetchPropForDashboardScheduleHref(homeHref)}
+              className="flex items-center gap-2"
+            >
               <Image
                 src="/braik-logo.webp"
                 alt="Braik"
@@ -90,7 +95,7 @@ export function AdNav({
                 <Link
                   key={item.href}
                   href={item.href}
-                  prefetch
+                  prefetch={prefetchPropForDashboardScheduleHref(item.href)}
                   className="rounded-md px-3 py-2 text-sm font-medium text-[#495057] hover:bg-[#F3F4F6] hover:text-[#212529]"
                 >
                   {item.label}

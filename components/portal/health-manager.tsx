@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { startOfDay } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -905,7 +906,12 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                   Mark resolved
                 </Button>
                 <Button variant="outline" asChild className="flex-1 border-border">
-                  <Link href={`/dashboard/roster/${detailInjury.player_id}?teamId=${encodeURIComponent(teamId)}`}>
+                  <Link
+                    href={`/dashboard/roster/${detailInjury.player_id}?teamId=${encodeURIComponent(teamId)}`}
+                    prefetch={prefetchPropForDashboardScheduleHref(
+                      `/dashboard/roster/${detailInjury.player_id}`
+                    )}
+                  >
                     Player profile
                   </Link>
                 </Button>

@@ -142,6 +142,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
                   alt="Coach B clipboard mascot"
                   width={96}
                   height={96}
+                  loading="lazy"
                   className="h-[88px] w-[88px] object-contain"
                 />
               </div>

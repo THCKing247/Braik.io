@@ -294,7 +294,9 @@ export function AdFootballProgramHub() {
 
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" asChild>
-          <Link href="/dashboard/settings">Settings (users &amp; coaching titles)</Link>
+          <Link href="/dashboard/settings" prefetch={false}>
+            Settings (users &amp; coaching titles)
+          </Link>
         </Button>
       </div>
     </div>

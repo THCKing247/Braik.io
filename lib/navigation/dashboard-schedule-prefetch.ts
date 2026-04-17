@@ -1,21 +1,39 @@
 /**
  * Next.js App Router prefetches visible `<Link>` RSC payloads by default.
- * Heavy dashboard areas (sidebar, quick actions, schedule strip) should pass the return value as
- * `prefetch={...}` so first paint does not request every sub-route's RSC payload.
+ * Team-scoped dashboard routes often trigger large client trees + data hooks; use the return value as
+ * `prefetch={...}` on sidebar, strips, and cards so hover/idle does not pull every segment’s RSC.
  *
- * Light routes (e.g. profile, settings, support) leave `undefined` so default prefetch stays on.
+ * **Default prefetch stays on** for relatively light routes (e.g. `/dashboard/profile`, `/dashboard/support`)
+ * where a small RSC payload is acceptable.
  */
 const HEAVY_DASHBOARD_PREFIXES = [
+  "/dashboard/ad",
   "/dashboard/schedule",
   "/dashboard/messages",
   "/dashboard/calendar",
   "/dashboard/roster",
   "/dashboard/documents",
   "/dashboard/playbooks",
-  /** First paint: do not prefetch RSC for tools not needed until navigated */
   "/dashboard/inventory",
   "/dashboard/study-guides",
   "/dashboard/weight-room",
+  "/dashboard/health",
+  "/dashboard/stats",
+  "/dashboard/fundraising",
+  "/dashboard/game-video",
+  "/dashboard/settings",
+  "/dashboard/announcements",
+  "/dashboard/program-intelligence",
+  "/dashboard/collections",
+  "/dashboard/film",
+  "/dashboard/recruiting",
+  "/dashboard/ai-assistant",
+  "/dashboard/payments",
+  "/dashboard/invoice",
+  "/dashboard/subscription",
+  "/dashboard/director",
+  "/dashboard/admin",
+  "/dashboard/invites",
 ] as const
 
 export function prefetchPropForDashboardScheduleHref(href: string): boolean | undefined {

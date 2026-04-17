@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 
 interface Team {
@@ -176,7 +177,7 @@ export function BillingSettings({ team }: BillingSettingsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/dashboard/collections">
+          <Link href="/dashboard/collections" prefetch={prefetchPropForDashboardScheduleHref("/dashboard/collections")}>
             <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">View Collections Overview</Button>
           </Link>
         </CardContent>

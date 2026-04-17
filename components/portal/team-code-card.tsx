@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 /**
@@ -34,7 +35,7 @@ export function TeamCodeCard({ teamIdCode }: { teamIdCode: string }) {
             <p className="text-sm text-muted-foreground">
               No team code has been generated yet. Generate one so others can join your team.
             </p>
-            <Link href="/dashboard/settings">
+            <Link href="/dashboard/settings" prefetch={prefetchPropForDashboardScheduleHref("/dashboard/settings")}>
               <Button variant="outline" className="border-border text-foreground">
                 Open Settings
               </Button>

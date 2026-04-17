@@ -122,6 +122,61 @@ function messageAttachmentIsImage(att: { mimeType?: string; fileName?: string })
   return /\.(webp|png|jpe?g|gif|bmp|avif)$/i.test(n)
 }
 
+/** Defer image bytes until near viewport — avoids N parallel storage fetches on thread open. */
+function LazyThreadAttachmentImage({
+  attachmentId,
+  fileName,
+  isOwnMessage,
+}: {
+  attachmentId: string
+  fileName: string
+  isOwnMessage: boolean
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [loadMedia, setLoadMedia] = useState(false)
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setLoadMedia(true)
+      },
+      { root: null, rootMargin: "280px 0px", threshold: 0 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  const secureUrl = `/api/messages/attachments/${attachmentId}`
+  return (
+    <div ref={wrapRef} className="w-full">
+      {loadMedia ? (
+        <a href={secureUrl} target="_blank" rel="noopener noreferrer" className="block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={secureUrl}
+            alt={fileName || "Image attachment"}
+            className={cn(
+              "max-h-64 max-w-full rounded-lg object-contain",
+              isOwnMessage ? "border border-white/25" : "border border-[rgb(var(--border))]"
+            )}
+            loading="lazy"
+            decoding="async"
+          />
+        </a>
+      ) : (
+        <div
+          className={cn(
+            "flex min-h-[120px] w-full items-center justify-center rounded-lg border border-dashed text-xs",
+            isOwnMessage ? "border-white/40 bg-white/10 text-white/90" : "border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/50 text-[rgb(var(--muted))]"
+          )}
+        >
+          Image · {fileName || "attachment"}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface Contact {
   id: string
   name: string
@@ -133,7 +188,20 @@ interface Contact {
   positionGroup: string | null
 }
 
-const MESSAGE_PAGE_LIMIT = 40
+const MESSAGE_PAGE_LIMIT = 30
+
+/** Recent page only; older history via `before` + intersection observer. */
+function threadDetailFetchUrl(threadId: string, extra?: Record<string, string>) {
+  const p = new URLSearchParams()
+  p.set("limit", String(MESSAGE_PAGE_LIMIT))
+  p.set("attachments", "metadata")
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) {
+      if (v !== undefined && v !== "") p.set(k, v)
+    }
+  }
+  return `/api/messages/thread/${encodeURIComponent(threadId)}?${p.toString()}`
+}
 
 interface MessagingManagerProps {
   teamId: string
@@ -669,6 +737,7 @@ export function MessagingManager({
     async (threadId: string): Promise<boolean> => {
       const rollback = optimisticReadRef.current
       try {
+        const tRead = typeof performance !== "undefined" ? performance.now() : 0
         const res = await fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
         if (!res.ok) {
           if (rollback?.threadId === threadId) {
@@ -682,6 +751,12 @@ export function MessagingManager({
           return false
         }
         optimisticReadRef.current = null
+        if (typeof performance !== "undefined") {
+          console.info("[messaging:thread-open] POST read", {
+            threadId,
+            ms: Math.round(performance.now() - tRead),
+          })
+        }
         const data = (await res.json()) as {
           unreadNotifications?: number
           markedNotificationCount?: number
@@ -767,14 +842,21 @@ export function MessagingManager({
       )
     }
     try {
-      const response = await fetch(
-        `/api/messages/thread/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
-      )
+      const tOpen = typeof performance !== "undefined" ? performance.now() : 0
+      void markThreadReadAndSync(threadId)
+      const response = await fetch(threadDetailFetchUrl(threadId))
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || "Failed to load messages")
       }
       const data = await response.json()
+      if (typeof performance !== "undefined") {
+        console.info("[messaging:thread-open] GET thread detail", {
+          threadId,
+          ms: Math.round(performance.now() - tOpen),
+          messageCount: Array.isArray(data.messages) ? data.messages.length : 0,
+        })
+      }
       const pag = data.pagination as
         | { hasMoreOlder?: boolean; oldestMessageId?: string | null }
         | undefined
@@ -813,8 +895,6 @@ export function MessagingManager({
         patchThreadListFromDetailMessages(threadId, [], true)
       }
 
-      void markThreadReadAndSync(threadId)
-
       // Setup realtime subscription for this thread (only on initial load)
       if (showLoading) {
         setupRealtimeSubscription(threadId)
@@ -852,9 +932,7 @@ export function MessagingManager({
     const container = messagesContainerRef.current
     const prevScrollHeight = container?.scrollHeight ?? 0
     try {
-      const res = await fetch(
-        `/api/messages/thread/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}&before=${encodeURIComponent(oldest)}`
-      )
+      const res = await fetch(threadDetailFetchUrl(threadId, { before: oldest }))
       if (!res.ok) return
       const data = await res.json()
       const pag = data.pagination as { hasMoreOlder?: boolean } | undefined
@@ -915,9 +993,7 @@ export function MessagingManager({
     const wasNearBottom = messagesContainerRef.current ? isNearBottomEl(messagesContainerRef.current) : false
     try {
       // Fetch latest messages without showing loading spinner
-      const response = await fetch(
-        `/api/messages/thread/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
-      )
+      const response = await fetch(threadDetailFetchUrl(threadId))
       if (response.ok) {
         const data = await response.json()
 
@@ -2035,11 +2111,19 @@ export function MessagingManager({
                           {message.attachments.map((att: any, idx: number) => {
                             const secureUrl = att.id
                               ? `/api/messages/attachments/${att.id}`
-                              : `/api/messages/attachments/serve?fileUrl=${encodeURIComponent(att.fileUrl)}`
+                              : att.fileUrl
+                                ? `/api/messages/attachments/serve?fileUrl=${encodeURIComponent(att.fileUrl)}`
+                                : "#"
                             const isImg = messageAttachmentIsImage(att)
                             return (
-                              <div key={idx}>
-                                {isImg ? (
+                              <div key={att.id ?? idx}>
+                                {isImg && att.id ? (
+                                  <LazyThreadAttachmentImage
+                                    attachmentId={att.id}
+                                    fileName={att.fileName || ""}
+                                    isOwnMessage={isOwnMessage}
+                                  />
+                                ) : isImg ? (
                                   <a
                                     href={secureUrl}
                                     target="_blank"

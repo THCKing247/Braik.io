@@ -16,6 +16,7 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ threadId: string }> }
 ) {
+  const tPost = performance.now()
   try {
     const session = await getServerSession()
     if (!session?.user?.id) {
@@ -139,25 +140,49 @@ export async function POST(
     })
 
     const readTimestamp = new Date().toISOString()
-    const { data: markedRows, error: notifError } = await supabase
-      .from("notifications")
-      .update({ read: true, read_at: readTimestamp })
-      .eq("user_id", userId)
-      .eq("team_id", thread.team_id)
-      .eq("read", false)
-      .eq("link_type", "message_thread")
-      .eq("link_id", threadId)
-      .select("id")
-
-    if (notifError) {
-      console.error(`${LOG} notifications`, { threadId, userId, message: notifError.message })
-    }
-
-    const markedNotificationCount = markedRows?.length ?? 0
+    const teamIdForNotifs = thread.team_id
 
     /**
-     * Intentionally fast response: skip per-request total recounts (were ~1s+).
-     * Shell/bootstrap badge refreshes via existing polling; client already applies optimistic unread deltas.
+     * Defer notification row updates — they are not needed to unblock thread UI and can add seconds on large tables.
+     * Shell badge catches up via polling / other sync.
+     */
+    void (async () => {
+      const t0 = performance.now()
+      try {
+        const { data: markedRows, error: notifError } = await supabase
+          .from("notifications")
+          .update({ read: true, read_at: readTimestamp })
+          .eq("user_id", userId)
+          .eq("team_id", teamIdForNotifs)
+          .eq("read", false)
+          .eq("link_type", "message_thread")
+          .eq("link_id", threadId)
+          .select("id")
+
+        if (notifError) {
+          console.error(`${LOG} notifications (async)`, { threadId, userId, message: notifError.message })
+        } else {
+          console.info(`${LOG} notifications (async) ok`, {
+            threadId,
+            userId,
+            marked: markedRows?.length ?? 0,
+            ms: Math.round(performance.now() - t0),
+          })
+        }
+      } catch (e) {
+        console.error(`${LOG} notifications (async) threw`, e)
+      }
+    })()
+
+    console.info(`${LOG} timing`, {
+      threadId,
+      userId,
+      ms: Math.round(performance.now() - tPost),
+      notificationsDeferred: true,
+    })
+
+    /**
+     * Fast response: skip per-request total recounts; notification count applied asynchronously above.
      */
     return NextResponse.json({
       success: true,
@@ -169,7 +194,7 @@ export async function POST(
             lastReadAt: participantRow.last_read_at,
           }
         : null,
-      markedNotificationCount,
+      markedNotificationCount: 0,
     })
   } catch (error: unknown) {
     console.error(LOG, error)

@@ -8,8 +8,11 @@ import { MODERATED_MESSAGE_PLACEHOLDER } from "@/lib/messaging/moderation-copy"
 import { repairThreadParticipantsFromThreadAndMessages } from "@/lib/messaging/thread-participants"
 import { fetchMessagesPageForThread } from "@/lib/messaging/thread-detail-query"
 
-const DEFAULT_MSG_LIMIT = 40
-const MAX_MSG_LIMIT = 100
+const DEFAULT_MSG_LIMIT = 30
+const MAX_MSG_LIMIT = 80
+
+/** attachment query: metadata = no storage path in JSON (client loads via /attachments/[id]); full = include file_url; none = skip query */
+type AttachmentsMode = "metadata" | "full" | "none"
 
 /**
  * GET /api/messages/threads/[threadId]?limit=40&before=<messageId>
@@ -37,7 +40,11 @@ export async function GET(
       ? Math.min(MAX_MSG_LIMIT, Math.max(1, limitRaw))
       : DEFAULT_MSG_LIMIT
     const beforeMessageId = searchParams.get("before")?.trim() || null
+    const attachmentsParam = (searchParams.get("attachments") || "metadata").toLowerCase()
+    const attachmentsMode: AttachmentsMode =
+      attachmentsParam === "full" ? "full" : attachmentsParam === "none" ? "none" : "metadata"
 
+    const tRoute = performance.now()
     const supabase = getSupabaseServer()
     const userId = session.user.id
 
@@ -118,28 +125,43 @@ export async function GET(
 
     const creator = userMap.get(thread.created_by)
     const messageIds = messages.map((m) => m.id)
+    const tAttachQuery = performance.now()
+    type AttRow = {
+      id: string
+      message_id: string
+      file_name: string
+      file_url?: string
+      file_size: number
+      mime_type: string
+    }
     const { data: attachments } =
-      messageIds.length > 0
+      messageIds.length > 0 && attachmentsMode !== "none"
         ? await supabase
             .from("message_attachments")
-            .select("id, message_id, file_name, file_url, file_size, mime_type")
+            .select(
+              attachmentsMode === "full"
+                ? "id, message_id, file_name, file_url, file_size, mime_type"
+                : "id, message_id, file_name, file_size, mime_type"
+            )
             .in("message_id", messageIds)
-        : { data: [] as { id: string; message_id: string; file_name: string; file_url: string; file_size: number; mime_type: string }[] }
+        : { data: [] as AttRow[] }
 
-    const attachmentsByMessage = new Map<string, Array<{ id: string; fileName: string; fileUrl: string; fileSize: number; mimeType: string }>>()
+    const attachmentsByMessage = new Map<
+      string,
+      Array<{ id: string; fileName: string; fileUrl?: string; fileSize: number; mimeType: string }>
+    >()
     ;(attachments ?? []).forEach((att) => {
       const existing = attachmentsByMessage.get(att.message_id) || []
-      attachmentsByMessage.set(att.message_id, [
-        ...existing,
-        {
-          id: att.id,
-          fileName: att.file_name,
-          fileUrl: att.file_url,
-          fileSize: att.file_size,
-          mimeType: att.mime_type,
-        },
-      ])
+      const row = {
+        id: att.id,
+        fileName: att.file_name,
+        fileSize: att.file_size,
+        mimeType: att.mime_type,
+        ...(attachmentsMode === "full" && att.file_url ? { fileUrl: att.file_url as string } : {}),
+      }
+      attachmentsByMessage.set(att.message_id, [...existing, row])
     })
+    const attachMs = Math.round(performance.now() - tAttachQuery)
 
     const canModerate =
       isAdminUserRole(session.user?.role) || (mem ? canAdminDeleteMessages(mem.role) : false)
@@ -173,6 +195,17 @@ export async function GET(
 
     const oldestId = formattedMessages.length > 0 ? formattedMessages[0].id : null
     const newestId = formattedMessages.length > 0 ? formattedMessages[formattedMessages.length - 1].id : null
+
+    const totalMs = Math.round(performance.now() - tRoute)
+    console.info("[GET /api/messages/threads/[threadId]] timing", {
+      threadId,
+      msTotal: totalMs,
+      msAttachmentsQuery: messageIds.length > 0 && attachmentsMode !== "none" ? attachMs : 0,
+      limit,
+      before: Boolean(beforeMessageId),
+      attachmentsMode,
+      messageCount: formattedMessages.length,
+    })
 
     return NextResponse.json({
       id: thread.id,

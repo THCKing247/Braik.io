@@ -72,7 +72,10 @@ export async function buildAppBootstrapPayloadLite(input: {
 
   const roleUpper = input.liteRole.toUpperCase().replace(/ /g, "_")
 
-  const videoClips = await buildVideoClipsBootstrap(supabase, input.teamId, input.userId)
+  const videoClips = await buildVideoClipsBootstrap(supabase, input.teamId, input.userId, {
+    portalRole: input.liteRole,
+    isPlatformOwner: input.isPlatformOwner,
+  })
 
   return {
     user: {
@@ -133,7 +136,10 @@ export async function buildAppBootstrapPayload(input: {
     supabase.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
     supabase.from("teams").select("id, name, logo_url").eq("id", input.teamId).maybeSingle(),
     getUnreadNotificationCount(input.userId, input.teamId),
-    buildVideoClipsBootstrap(supabase, input.teamId, input.userId),
+    buildVideoClipsBootstrap(supabase, input.teamId, input.userId, {
+      portalRole: input.liteRole,
+      isPlatformOwner: input.isPlatformOwner,
+    }),
     coachBPlusPromise,
   ])
 

@@ -1,19 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import {
   effectiveVideoClipsProductEnabled,
-  loadTeamOrgVideoFlags,
   loadUserVideoPermissions,
+  resolvePortalTeamOrgVideoFlags,
   type UserVideoPermissionsRow,
 } from "@/lib/video/resolve-video-clips-access"
 
 export type VideoGateResult =
   | {
       ok: true
-      flags: Awaited<ReturnType<typeof loadTeamOrgVideoFlags>>
+      flags: Awaited<ReturnType<typeof resolvePortalTeamOrgVideoFlags>>
       perms: UserVideoPermissionsRow
       productEnabled: boolean
     }
   | { ok: false; status: number; message: string }
+
+export type VideoGateAuthContext = {
+  portalRole?: string | null
+  isPlatformOwner?: boolean
+}
 
 export async function gateGameVideoTeamApi(
   supabase: SupabaseClient,
@@ -25,11 +30,15 @@ export async function gateGameVideoTeamApi(
     createClip: boolean
     shareClip: boolean
     deleteVideo: boolean
-  }>
+  }>,
+  auth?: VideoGateAuthContext
 ): Promise<VideoGateResult> {
   const [flags, perms] = await Promise.all([
-    loadTeamOrgVideoFlags(supabase, teamId),
-    loadUserVideoPermissions(supabase, userId),
+    resolvePortalTeamOrgVideoFlags(supabase, teamId),
+    loadUserVideoPermissions(supabase, userId, {
+      portalRole: auth?.portalRole,
+      isPlatformOwner: auth?.isPlatformOwner,
+    }),
   ])
 
   const productEnabled = effectiveVideoClipsProductEnabled({

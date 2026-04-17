@@ -18,6 +18,16 @@ Set these on the Next.js server (never expose secret keys to the browser):
 
 Optional AI clip assist reuses existing `OPENAI_API_KEY` (same as Coach B). Without it, uploads and clips still work; AI suggestion returns a clear error.
 
+## Development: enable Game Video without DB toggles
+
+When `NODE_ENV=development`, set:
+
+| Variable | Purpose |
+|----------|---------|
+| `BRAIK_VIDEO_DEV_DEFAULTS` | If `true`, team / organization / athletic department video flags are treated as enabled for bootstrap and API gates so you can test uploads without editing rows. |
+
+Production must leave this unset or `false`.
+
 ## Operational notes
 
 - Playback uses **presigned GET URLs** (≈1 hour TTL). Increase TTL in `lib/video/constants.ts` if needed.

@@ -53,6 +53,8 @@ export type AppBootstrapVideoClips = {
   canDeleteVideo: boolean
   /** Present when product is on and user can view video — for storage bar / caps in Team Video. */
   entitlement?: VideoEntitlementSummary
+  /** Coach-facing explanation when Game Video nav/page is hidden (setup / permissions). */
+  disableHint?: string | null
 }
 
 /** Lightweight shell payload — no roster, calendar rows, messages, etc. */

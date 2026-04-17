@@ -94,7 +94,7 @@ export async function buildLightFullDashboardBootstrapData(
   }
 
   const shellCacheKey = [
-    "app-bootstrap-lite-v1",
+    "app-bootstrap-lite-v2",
     teamId,
     userId,
     liteRole,

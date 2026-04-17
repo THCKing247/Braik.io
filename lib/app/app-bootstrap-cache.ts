@@ -39,7 +39,7 @@ export async function getCachedAppBootstrap(
   const coachBPlus = await isCoachBPlusEntitled(supabase, teamId, userId, { isPlatformOwner })
   const mKey = membershipCacheKey(membership)
   return lightweightCached(
-    ["app-bootstrap-v3", userId, teamId, mKey, coachBPlus ? "1" : "0"],
+    ["app-bootstrap-v4", userId, teamId, mKey, coachBPlus ? "1" : "0"],
     { revalidate: LW_TTL_APP_BOOTSTRAP, tags: [APP_BOOTSTRAP_CACHE_TAG] },
     () =>
       buildAppBootstrapPayload({

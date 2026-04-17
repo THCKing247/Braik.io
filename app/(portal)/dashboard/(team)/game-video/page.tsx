@@ -21,8 +21,14 @@ function GameVideoBody({ teamId }: { teamId: string }) {
       <div className="mx-auto max-w-lg rounded-xl border border-border bg-card p-8 text-center shadow-sm">
         <p className="text-lg font-semibold text-foreground">Game Video / Clips is not available</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Your program may not have this feature enabled, or your account does not include video access. Contact your
-          administrator if you believe this is a mistake.
+          {vc?.disableHint ??
+            "Your program may not have this feature enabled, or your account does not include video access."}
+        </p>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Head coaches can enable video for the team in Braik admin (school / organization / team toggles). Developers:
+          set <span className="font-mono">BRAIK_VIDEO_DEV_DEFAULTS=true</span> in{" "}
+          <span className="font-mono">.env.local</span> with <span className="font-mono">NODE_ENV=development</span> to
+          bypass DB flags locally.
         </p>
       </div>
     )

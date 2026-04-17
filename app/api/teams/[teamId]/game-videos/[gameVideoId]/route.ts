@@ -22,7 +22,10 @@ export async function GET(
     await requireTeamAccess(teamId)
 
     const supabase = getSupabaseServer()
-    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { view: true })
+    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { view: true }, {
+      portalRole: session.user.role,
+      isPlatformOwner: session.user.isPlatformOwner === true,
+    })
     if (!gate.ok) {
       return NextResponse.json({ error: gate.message }, { status: gate.status })
     }
@@ -69,7 +72,10 @@ export async function DELETE(
     await requireTeamAccess(teamId)
 
     const supabase = getSupabaseServer()
-    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { deleteVideo: true, view: true })
+    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { deleteVideo: true, view: true }, {
+      portalRole: session.user.role,
+      isPlatformOwner: session.user.isPlatformOwner === true,
+    })
     if (!gate.ok) {
       return NextResponse.json({ error: gate.message }, { status: gate.status })
     }

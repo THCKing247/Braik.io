@@ -21,7 +21,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
     await requireTeamAccess(teamId)
 
     const supabase = getSupabaseServer()
-    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { upload: true })
+    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { upload: true }, {
+      portalRole: session.user.role,
+      isPlatformOwner: session.user.isPlatformOwner === true,
+    })
     if (!gate.ok) {
       return NextResponse.json({ error: gate.message }, { status: gate.status })
     }

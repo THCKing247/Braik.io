@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
 import {
   effectiveVideoClipsProductEnabled,
-  loadTeamOrgVideoFlags,
   loadUserVideoPermissions,
+  resolvePortalTeamOrgVideoFlags,
   resolveVideoClipsNavVisible,
 } from "@/lib/video/resolve-video-clips-access"
 import { resolveEffectiveVideoEntitlements } from "@/lib/video/entitlements"
@@ -13,11 +13,15 @@ import type { AppBootstrapVideoClips } from "@/lib/app/app-bootstrap-types"
 export async function buildVideoClipsBootstrap(
   supabase: SupabaseClient,
   teamId: string,
-  userId: string
+  userId: string,
+  ctx: { portalRole: string; isPlatformOwner?: boolean }
 ): Promise<AppBootstrapVideoClips> {
   const [flags, videoPerms] = await Promise.all([
-    loadTeamOrgVideoFlags(supabase, teamId),
-    loadUserVideoPermissions(supabase, userId),
+    resolvePortalTeamOrgVideoFlags(supabase, teamId),
+    loadUserVideoPermissions(supabase, userId, {
+      portalRole: ctx.portalRole,
+      isPlatformOwner: ctx.isPlatformOwner,
+    }),
   ])
 
   const productEnabled = effectiveVideoClipsProductEnabled({
@@ -25,6 +29,22 @@ export async function buildVideoClipsBootstrap(
     organizationVideoClipsEnabled: flags.organizationVideoClipsEnabled,
     athleticDepartmentVideoClipsEnabled: flags.athleticDepartmentVideoClipsEnabled,
   })
+
+  const navVisible = resolveVideoClipsNavVisible({
+    productEnabled,
+    canViewVideo: videoPerms.can_view_video,
+  })
+
+  let disableHint: string | null = null
+  if (!navVisible) {
+    if (!productEnabled) {
+      disableHint =
+        "Game Video is turned off for this team or school (team / organization / athletic department settings). Enable it in Braik admin or school settings, or set BRAIK_VIDEO_DEV_DEFAULTS=true locally for development."
+    } else if (!videoPerms.can_view_video) {
+      disableHint =
+        "Your account does not have permission to view game video. Ask an administrator to grant video access for your user."
+    }
+  }
 
   let entitlement: VideoEntitlementSummary | undefined
   if (productEnabled && videoPerms.can_view_video) {
@@ -53,15 +73,13 @@ export async function buildVideoClipsBootstrap(
 
   return {
     productEnabled,
-    navVisible: resolveVideoClipsNavVisible({
-      productEnabled,
-      canViewVideo: videoPerms.can_view_video,
-    }),
+    navVisible,
     canViewVideo: videoPerms.can_view_video,
     canUploadVideo: videoPerms.can_upload_video,
     canCreateClips: videoPerms.can_create_clips,
     canShareClips: videoPerms.can_share_clips,
     canDeleteVideo: videoPerms.can_delete_video,
     entitlement,
+    disableHint,
   }
 }

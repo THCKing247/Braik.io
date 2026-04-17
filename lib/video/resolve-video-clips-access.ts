@@ -16,6 +16,58 @@ const defaultPerms: UserVideoPermissionsRow = {
   can_delete_video: false,
 }
 
+/** Full coach/staff capabilities when no explicit `user_video_permissions` row exists. */
+const coachStaffVideoPerms: UserVideoPermissionsRow = {
+  can_view_video: true,
+  can_upload_video: true,
+  can_create_clips: true,
+  can_share_clips: true,
+  can_delete_video: true,
+}
+
+const viewerOnlyVideoPerms: UserVideoPermissionsRow = {
+  can_view_video: true,
+  can_upload_video: false,
+  can_create_clips: false,
+  can_share_clips: false,
+  can_delete_video: false,
+}
+
+export function normalizePortalRole(role: string | null | undefined): string {
+  return String(role ?? "")
+    .toUpperCase()
+    .replace(/ /g, "_")
+    .trim()
+}
+
+/**
+ * When `user_video_permissions` has no row, infer sensible defaults from portal role so coaches
+ * are not blocked unless an admin explicitly revokes via the permissions table.
+ */
+export function defaultVideoPermissionsForRole(roleRaw: string | null | undefined): UserVideoPermissionsRow {
+  const r = normalizePortalRole(roleRaw)
+  if (
+    r === "HEAD_COACH" ||
+    r === "ASSISTANT_COACH" ||
+    r === "ATHLETIC_DIRECTOR" ||
+    r === "SCHOOL_ADMIN" ||
+    r === "ADMIN"
+  ) {
+    return { ...coachStaffVideoPerms }
+  }
+  if (r === "PLAYER" || r === "PARENT") {
+    return { ...viewerOnlyVideoPerms }
+  }
+  return { ...defaultPerms }
+}
+
+/** Development: treat team/org/AD video gates as ON without editing the database. */
+export function isVideoDevDefaultsActive(): boolean {
+  return (
+    process.env.NODE_ENV === "development" && process.env.BRAIK_VIDEO_DEV_DEFAULTS?.trim() === "true"
+  )
+}
+
 /**
  * Athletic department (when linked) + org + team must allow the product; user needs at least can_view_video for nav + page shell.
  * If no AD is linked, the AD gate is skipped (null).
@@ -40,7 +92,8 @@ export function resolveVideoClipsNavVisible(args: {
 
 export async function loadUserVideoPermissions(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  opts?: { portalRole?: string | null; isPlatformOwner?: boolean }
 ): Promise<UserVideoPermissionsRow> {
   const { data } = await supabase
     .from("user_video_permissions")
@@ -49,14 +102,21 @@ export async function loadUserVideoPermissions(
     )
     .eq("user_id", userId)
     .maybeSingle()
-  if (!data) return { ...defaultPerms }
-  return {
-    can_view_video: Boolean(data.can_view_video),
-    can_upload_video: Boolean(data.can_upload_video),
-    can_create_clips: Boolean(data.can_create_clips),
-    can_share_clips: Boolean(data.can_share_clips),
-    can_delete_video: Boolean(data.can_delete_video),
+  if (data) {
+    return {
+      can_view_video: Boolean(data.can_view_video),
+      can_upload_video: Boolean(data.can_upload_video),
+      can_create_clips: Boolean(data.can_create_clips),
+      can_share_clips: Boolean(data.can_share_clips),
+      can_delete_video: Boolean(data.can_delete_video),
+    }
   }
+
+  if (opts?.isPlatformOwner === true) {
+    return { ...coachStaffVideoPerms }
+  }
+
+  return defaultVideoPermissionsForRole(opts?.portalRole)
 }
 
 export async function loadTeamOrgVideoFlags(
@@ -130,5 +190,25 @@ export async function loadTeamOrgVideoFlags(
     teamVideoClipsEnabled: teamFlag,
     organizationVideoClipsEnabled,
     athleticDepartmentVideoClipsEnabled,
+  }
+}
+
+/**
+ * Team/org/AD flags after optional development override (`BRAIK_VIDEO_DEV_DEFAULTS=true`).
+ */
+export async function resolvePortalTeamOrgVideoFlags(
+  supabase: SupabaseClient,
+  teamId: string
+): Promise<{
+  teamVideoClipsEnabled: boolean
+  organizationVideoClipsEnabled: boolean | null
+  athleticDepartmentVideoClipsEnabled: boolean | null
+}> {
+  const base = await loadTeamOrgVideoFlags(supabase, teamId)
+  if (!isVideoDevDefaultsActive()) return base
+  return {
+    teamVideoClipsEnabled: true,
+    organizationVideoClipsEnabled: true,
+    athleticDepartmentVideoClipsEnabled: true,
   }
 }

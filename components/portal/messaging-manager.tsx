@@ -1,9 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
-import { useQueryClient } from "@tanstack/react-query"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
-import { dashboardBootstrapQueryKey } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -121,6 +119,8 @@ interface Contact {
   positionGroup: string | null
 }
 
+const MESSAGE_PAGE_LIMIT = 40
+
 interface MessagingManagerProps {
   teamId: string
   userRole: string
@@ -145,7 +145,6 @@ export function MessagingManager({
   searchParamsRef.current = searchParams
   const messagingUnreadRef = useRef(messagingUnread)
   messagingUnreadRef.current = messagingUnread
-  const queryClient = useQueryClient()
   const [threads, setThreads] = useState<Thread[]>([])
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -153,6 +152,8 @@ export function MessagingManager({
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [messagesLoading, setMessagesLoading] = useState(false)
+  const [hasMoreOlder, setHasMoreOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [messageBody, setMessageBody] = useState("")
   const [attachments, setAttachments] = useState<any[]>([])
@@ -188,6 +189,9 @@ export function MessagingManager({
   const lastMessageCountRef = useRef<number>(0)
   /** Dedupe: last message id that triggered the in-thread “new messages” banner (jump pill). */
   const lastBannerMessageIdRef = useRef<string | null>(null)
+  const loadOlderInFlightRef = useRef(false)
+  const topSentinelRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<Message[]>([])
   /** Snapshot for rollback if POST /read fails after optimistic UI. */
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
   const isLoadingRef = useRef(false)
@@ -262,6 +266,10 @@ export function MessagingManager({
   useEffect(() => {
     selectedThreadIdRef.current = selectedThread?.id ?? null
   }, [selectedThread?.id])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // Load messages only when threadId changes (not when selectedThread object changes)
   useEffect(() => {
@@ -600,19 +608,20 @@ export function MessagingManager({
       },
     ]
     setThreads((prev) =>
-      prev.map((t) =>
-        t.id !== threadId
-          ? t
-          : {
-              ...t,
-              updatedAt: new Date(
-                last.createdAt instanceof Date ? last.createdAt : new Date(last.createdAt)
-              ),
-              messages: previewMessages,
-              unreadCount: isViewingThread ? 0 : t.unreadCount ?? 0,
-              _count: { messages: detailMessages.length },
-            }
-      )
+      prev.map((t) => {
+        if (t.id !== threadId) return t
+        const countFromPayload =
+          detailMessages.length > 1 ? detailMessages.length : (t._count?.messages ?? detailMessages.length)
+        return {
+          ...t,
+          updatedAt: new Date(
+            last.createdAt instanceof Date ? last.createdAt : new Date(last.createdAt)
+          ),
+          messages: previewMessages,
+          unreadCount: isViewingThread ? 0 : t.unreadCount ?? 0,
+          _count: { messages: countFromPayload },
+        }
+      })
     )
   }
 
@@ -647,8 +656,6 @@ export function MessagingManager({
         if (typeof teamTu === "number") {
           messagingUnread?.syncThreadUnreadFromServer(teamTu)
         }
-        queryClient.invalidateQueries({ queryKey: dashboardBootstrapQueryKey(teamId) })
-        // removed to stop refetch loop
         return true
       } catch (e) {
         if (rollback?.threadId === threadId) {
@@ -662,7 +669,7 @@ export function MessagingManager({
         return false
       }
     },
-    [shell, queryClient, teamId, messagingUnread]
+    [shell, messagingUnread]
   )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
@@ -706,6 +713,7 @@ export function MessagingManager({
 
   const loadMessages = async (threadId: string, showLoading = true) => {
     if (showLoading) {
+      setHasMoreOlder(false)
       setMessagesLoading(true)
       lastBannerMessageIdRef.current = null
       setShowJumpToNewest(false)
@@ -719,13 +727,19 @@ export function MessagingManager({
       )
     }
     try {
-      const response = await fetch(`/api/messages/threads/${threadId}`)
+      const response = await fetch(
+        `/api/messages/threads/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
+      )
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || "Failed to load messages")
       }
       const data = await response.json()
-      
+      const pag = data.pagination as
+        | { hasMoreOlder?: boolean; oldestMessageId?: string | null }
+        | undefined
+      setHasMoreOlder(Boolean(pag?.hasMoreOlder))
+
       // Update messages state - ensure proper sorting
       const sortedMessages = (data.messages || []).sort((a: Message, b: Message) => {
         const aTime = new Date(a.createdAt).getTime()
@@ -767,7 +781,7 @@ export function MessagingManager({
       }
 
       return { messages: sortedMessages as Message[], raw: data }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error loading messages:", error)
       if (showLoading) {
         const rb = optimisticReadRef.current
@@ -779,7 +793,7 @@ export function MessagingManager({
           optimisticReadRef.current = null
         }
       }
-      setError(error.message || "Failed to load messages")
+      setError(error instanceof Error ? error.message : "Failed to load messages")
       return null
     } finally {
       if (showLoading) {
@@ -787,6 +801,68 @@ export function MessagingManager({
       }
     }
   }
+
+  const loadOlderMessages = useCallback(async () => {
+    const threadId = selectedThreadIdRef.current
+    if (!threadId || !hasMoreOlder || loadingOlder || loadOlderInFlightRef.current) return
+    const oldest = messagesRef.current[0]?.id
+    if (!oldest) return
+    loadOlderInFlightRef.current = true
+    setLoadingOlder(true)
+    const container = messagesContainerRef.current
+    const prevScrollHeight = container?.scrollHeight ?? 0
+    try {
+      const res = await fetch(
+        `/api/messages/threads/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}&before=${encodeURIComponent(oldest)}`
+      )
+      if (!res.ok) return
+      const data = await res.json()
+      const pag = data.pagination as { hasMoreOlder?: boolean } | undefined
+      setHasMoreOlder(Boolean(pag?.hasMoreOlder))
+      const incoming = (data.messages || []) as Message[]
+      const sortedIncoming = incoming.sort((a: Message, b: Message) => {
+        const aTime = new Date(a.createdAt).getTime()
+        const bTime = new Date(b.createdAt).getTime()
+        return aTime - bTime
+      })
+      messageIngressRef.current = "poll"
+      setMessages((prev) => {
+        const byId = new Map<string, Message>()
+        for (const m of sortedIncoming) byId.set(m.id, m)
+        for (const m of prev) byId.set(m.id, m)
+        return Array.from(byId.values()).sort((a, b) => {
+          const aTime = new Date(a.createdAt).getTime()
+          const bTime = new Date(b.createdAt).getTime()
+          return aTime - bTime
+        })
+      })
+      requestAnimationFrame(() => {
+        const el = messagesContainerRef.current
+        if (el && prevScrollHeight > 0) {
+          const next = el.scrollHeight - prevScrollHeight
+          el.scrollTop += next
+        }
+      })
+    } finally {
+      loadOlderInFlightRef.current = false
+      setLoadingOlder(false)
+    }
+  }, [hasMoreOlder, loadingOlder])
+
+  useEffect(() => {
+    const root = messagesContainerRef.current
+    const target = topSentinelRef.current
+    if (!root || !target || !selectedThread?.id || !hasMoreOlder) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return
+        void loadOlderMessages()
+      },
+      { root, rootMargin: "120px 0px 0px 0px", threshold: 0 }
+    )
+    obs.observe(target)
+    return () => obs.disconnect()
+  }, [selectedThread?.id, hasMoreOlder, loadOlderMessages])
 
   const refreshMessages = async (threadId: string) => {
     if (isRefreshingRef.current) return // Prevent concurrent refreshes
@@ -799,7 +875,9 @@ export function MessagingManager({
     const wasNearBottom = messagesContainerRef.current ? isNearBottomEl(messagesContainerRef.current) : false
     try {
       // Fetch latest messages without showing loading spinner
-      const response = await fetch(`/api/messages/threads/${threadId}`)
+      const response = await fetch(
+        `/api/messages/threads/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
+      )
       if (response.ok) {
         const data = await response.json()
 
@@ -810,14 +888,7 @@ export function MessagingManager({
           hadNewFromPoll = newMessages.length > 0
 
           if (newMessages.length === 0) {
-            const allIds = new Set(data.messages?.map((m: Message) => m.id) || [])
             return prev
-              .filter((m) => allIds.has(m.id))
-              .sort((a, b) => {
-                const aTime = new Date(a.createdAt).getTime()
-                const bTime = new Date(b.createdAt).getTime()
-                return aTime - bTime
-              })
           }
 
           messageIngressRef.current = "poll"
@@ -830,15 +901,15 @@ export function MessagingManager({
           })
         })
 
-        const mergedForPreview = [...(data.messages || [])].sort((a: Message, b: Message) => {
+        const pageSorted = [...(data.messages || [])].sort((a: Message, b: Message) => {
           const aTime = new Date(a.createdAt).getTime()
           const bTime = new Date(b.createdAt).getTime()
           return aTime - bTime
         }) as Message[]
         const viewing = selectedThreadIdRef.current === threadId
         const clearUnreadInList = viewing && (!hadNewFromPoll || wasNearBottom)
-        if (mergedForPreview.length) {
-          patchThreadListFromDetailMessages(threadId, mergedForPreview, clearUnreadInList)
+        if (pageSorted.length) {
+          patchThreadListFromDetailMessages(threadId, pageSorted, clearUnreadInList)
         }
         if (hadNewFromPoll && wasNearBottom && viewing) {
           void markThreadReadAndSync(threadId)
@@ -949,30 +1020,6 @@ export function MessagingManager({
 
     realtimeSubscriptionRef.current = subscription
   }
-
-  useEffect(() => {
-    if (!teamId) return
-
-    const channel = supabase
-      .channel(`messages-${teamId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-        },
-        () => {
-          loadThreadsFrom("messages-realtime")
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreadsFrom is [teamId]-scoped
-  }, [teamId])
 
   useEffect(() => {
     const onFocus = () => {
@@ -1877,7 +1924,22 @@ export function MessagingManager({
                   <p style={{ color: "rgb(var(--muted))" }}>No messages yet. Start the conversation!</p>
                 </div>
               ) : (
-                messages.flatMap((message, index) => {
+                <>
+                {hasMoreOlder ? (
+                  <div
+                    ref={topSentinelRef}
+                    className="flex min-h-[1px] w-full shrink-0 flex-col items-center justify-center py-2"
+                    aria-hidden
+                  >
+                    {loadingOlder ? (
+                      <div
+                        className="h-4 w-4 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent"
+                        aria-label="Loading older messages"
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+                {messages.flatMap((message, index) => {
                 const prev = index > 0 ? messages[index - 1] : null
                 const showDaySep =
                   !prev || messageDayKey(prev.createdAt) !== messageDayKey(message.createdAt)
@@ -1992,7 +2054,8 @@ export function MessagingManager({
                   </div>
                 )
                 return [sep, bubble]
-                })
+                })}
+                </>
               )}
               <div ref={messagesEndRef} />
             </div>

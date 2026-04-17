@@ -30,10 +30,16 @@ export async function GET(request: Request) {
     const { user } = await requireTeamAccessWithUser(teamId, session.user)
     const payload = await loadMessageThreadsInboxPayload(supabase, teamId, user.id, { limit, offset })
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       threads: payload.threads,
       meta: payload.meta,
     })
+    /** Shared edge hint: short TTL; authenticated payload — use private, not public CDN cache. */
+    res.headers.set(
+      "Cache-Control",
+      "private, s-maxage=10, stale-while-revalidate=60"
+    )
+    return res
   } catch (error: unknown) {
     console.error("[GET /api/messages/threads]", error)
     const msg = error instanceof Error ? error.message : "Failed to load threads"

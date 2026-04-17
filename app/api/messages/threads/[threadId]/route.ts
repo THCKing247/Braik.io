@@ -6,13 +6,18 @@ import { canAdminDeleteMessages } from "@/lib/auth/roles"
 import { isAdminUserRole } from "@/lib/auth/user-roles"
 import { MODERATED_MESSAGE_PLACEHOLDER } from "@/lib/messaging/moderation-copy"
 import { repairThreadParticipantsFromThreadAndMessages } from "@/lib/messaging/thread-participants"
+import { fetchMessagesPageForThread } from "@/lib/messaging/thread-detail-query"
+
+const DEFAULT_MSG_LIMIT = 40
+const MAX_MSG_LIMIT = 100
 
 /**
- * GET /api/messages/threads/[threadId]
- * Returns thread details with messages and participants.
+ * GET /api/messages/threads/[threadId]?limit=40&before=<messageId>
+ * Heavy thread payload: participants + a **page** of messages (newest first by default).
+ * Use `before` to load older pages (infinite scroll / "Load more").
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ threadId: string }> }
 ) {
   try {
@@ -25,6 +30,13 @@ export async function GET(
     if (!threadId) {
       return NextResponse.json({ error: "threadId is required" }, { status: 400 })
     }
+
+    const { searchParams } = new URL(request.url)
+    const limitRaw = Number.parseInt(searchParams.get("limit") || String(DEFAULT_MSG_LIMIT), 10)
+    const limit = Number.isFinite(limitRaw)
+      ? Math.min(MAX_MSG_LIMIT, Math.max(1, limitRaw))
+      : DEFAULT_MSG_LIMIT
+    const beforeMessageId = searchParams.get("before")?.trim() || null
 
     const supabase = getSupabaseServer()
     const userId = session.user.id
@@ -75,16 +87,12 @@ export async function GET(
       })
     }
 
-    const [partsRes, msgsRes, mem] = await Promise.all([
+    const [partsRes, pageResult, mem] = await Promise.all([
       supabase
         .from("message_thread_participants")
         .select("user_id, joined_at, last_read_at")
         .eq("thread_id", threadId),
-      supabase
-        .from("messages")
-        .select("id, sender_id, content, created_at, updated_at, deleted_at")
-        .eq("thread_id", threadId)
-        .order("created_at", { ascending: true }),
+      fetchMessagesPageForThread(supabase, threadId, { limit, beforeMessageId }),
       getUserMembershipForUserId(thread.team_id, userId),
     ])
 
@@ -94,14 +102,10 @@ export async function GET(
       return NextResponse.json({ error: "Failed to load thread" }, { status: 500 })
     }
 
-    const { data: messages, error: messagesError } = msgsRes
-    if (messagesError) {
-      console.error("[GET /api/messages/threads/[threadId]] messages", messagesError)
-      return NextResponse.json({ error: "Failed to load messages" }, { status: 500 })
-    }
+    const messages = pageResult.messageRows
 
     const participantUserIds = (participants ?? []).map((p) => p.user_id)
-    const senderIds = [...new Set((messages ?? []).map((m) => m.sender_id))]
+    const senderIds = [...new Set(messages.map((m) => m.sender_id))]
     const userIdSet = new Set<string>([thread.created_by, ...participantUserIds, ...senderIds])
     const allUserIds = [...userIdSet].filter(Boolean)
 
@@ -113,7 +117,7 @@ export async function GET(
     const userMap = new Map((userRows ?? []).map((u) => [u.id, { id: u.id, name: u.name ?? null, email: u.email ?? "" }]))
 
     const creator = userMap.get(thread.created_by)
-    const messageIds = (messages ?? []).map((m) => m.id)
+    const messageIds = messages.map((m) => m.id)
     const { data: attachments } =
       messageIds.length > 0
         ? await supabase
@@ -138,10 +142,9 @@ export async function GET(
     })
 
     const canModerate =
-      isAdminUserRole(session.user?.role) ||
-      (mem ? canAdminDeleteMessages(mem.role) : false)
+      isAdminUserRole(session.user?.role) || (mem ? canAdminDeleteMessages(mem.role) : false)
 
-    const formattedMessages = (messages ?? []).map((m) => {
+    const formattedMessages = messages.map((m) => {
       const sender = userMap.get(m.sender_id) || { id: m.sender_id, name: null, email: "" }
       const removed = !!(m as { deleted_at?: string | null }).deleted_at
       return {
@@ -168,6 +171,9 @@ export async function GET(
       })
       .filter(Boolean)
 
+    const oldestId = formattedMessages.length > 0 ? formattedMessages[0].id : null
+    const newestId = formattedMessages.length > 0 ? formattedMessages[formattedMessages.length - 1].id : null
+
     return NextResponse.json({
       id: thread.id,
       subject: thread.title,
@@ -183,6 +189,13 @@ export async function GET(
       isReadOnly: false,
       canReply: true,
       canModerate,
+      pagination: {
+        limit,
+        hasMoreOlder: pageResult.hasMoreOlder,
+        oldestMessageId: oldestId,
+        newestMessageId: newestId,
+        before: beforeMessageId,
+      },
     })
   } catch (error: unknown) {
     console.error("[GET /api/messages/threads/[threadId]]", error)

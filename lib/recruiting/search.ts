@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 export interface RecruitingSearchFilters {
   position?: string | null
   graduationYear?: number | null
+  /** When set, only players on this team (players.team_id) are included */
+  teamId?: string | null
   state?: string | null
   teamLevel?: string | null
   heightFeetMin?: number | null
@@ -12,6 +14,11 @@ export interface RecruitingSearchFilters {
   gpaMin?: number | null
   playbookMasteryMin?: number | null
   recruitingVisibilityOnly?: boolean
+  /**
+   * When true, keep only profiles that have something concrete to show publicly
+   * (video links, Hudl/YouTube, bio, or at least one measurable).
+   */
+  requireListingQuality?: boolean
   limit?: number
   offset?: number
 }
@@ -36,6 +43,49 @@ export interface RecruitingSearchResultCard {
   recruitingVisibility: boolean
 }
 
+type ProfileListingRow = {
+  player_id: string
+  slug: string | null
+  graduation_year: number | null
+  height_feet: number | null
+  height_inches: number | null
+  weight_lbs: number | null
+  forty_time: number | null
+  gpa: number | null
+  bio: string | null
+  hudl_url: string | null
+  youtube_url: string | null
+  recruiting_visibility: boolean
+}
+
+/** True if the profile is worth showing on a public browse list (has film, social video URLs, bio, or measurables). */
+export function playerHasPublicListingSignal(
+  profile: {
+    bio?: string | null
+    hudl_url?: string | null
+    youtube_url?: string | null
+    height_feet?: number | null
+    weight_lbs?: number | null
+    forty_time?: number | null
+    gpa?: number | null
+  },
+  hasVideoLink: boolean
+): boolean {
+  if (hasVideoLink) return true
+  if (profile.hudl_url?.trim()) return true
+  if (profile.youtube_url?.trim()) return true
+  if (profile.bio?.trim()) return true
+  if (
+    profile.height_feet != null ||
+    profile.weight_lbs != null ||
+    profile.forty_time != null ||
+    profile.gpa != null
+  ) {
+    return true
+  }
+  return false
+}
+
 /**
  * Search players with recruiting profiles where recruiting_visibility = true.
  * Applies filters and returns result cards for the recruiter portal.
@@ -50,7 +100,10 @@ export async function searchRecruitingProfiles(
   // Base: player_recruiting_profiles with recruiting_visibility = true
   let query = supabase
     .from("player_recruiting_profiles")
-    .select("player_id, slug, graduation_year, height_feet, height_inches, weight_lbs, forty_time, gpa, recruiting_visibility", { count: "exact" })
+    .select(
+      "player_id, slug, graduation_year, height_feet, height_inches, weight_lbs, forty_time, gpa, bio, hudl_url, youtube_url, recruiting_visibility",
+      { count: "exact" }
+    )
     .eq("recruiting_visibility", true)
 
   if (filters.graduationYear != null) {
@@ -80,7 +133,32 @@ export async function searchRecruitingProfiles(
   }
 
   const playerIds = profiles.map((p) => p.player_id)
-  const profileByPlayer = new Map(profiles.map((p) => [p.player_id, p]))
+  const profileByPlayer = new Map(
+    profiles.map((p) => {
+      const raw = p as Record<string, unknown>
+      const row: ProfileListingRow = {
+        player_id: String(raw.player_id),
+        slug: (raw.slug as string | null) ?? null,
+        graduation_year: (raw.graduation_year as number | null) ?? null,
+        height_feet: (raw.height_feet as number | null) ?? null,
+        height_inches: (raw.height_inches as number | null) ?? null,
+        weight_lbs: (raw.weight_lbs as number | null) ?? null,
+        forty_time: raw.forty_time != null ? Number(raw.forty_time) : null,
+        gpa: raw.gpa != null ? Number(raw.gpa) : null,
+        bio: (raw.bio as string | null) ?? null,
+        hudl_url: (raw.hudl_url as string | null) ?? null,
+        youtube_url: (raw.youtube_url as string | null) ?? null,
+        recruiting_visibility: Boolean(raw.recruiting_visibility),
+      }
+      return [row.player_id, row] as const
+    })
+  )
+
+  let playersWithVideo = new Set<string>()
+  if (filters.requireListingQuality && playerIds.length > 0) {
+    const { data: vidRows } = await supabase.from("player_video_links").select("player_id").in("player_id", playerIds)
+    playersWithVideo = new Set((vidRows ?? []).map((r: { player_id: string }) => r.player_id))
+  }
 
   const { data: players } = await supabase
     .from("players")
@@ -145,12 +223,19 @@ export async function searchRecruitingProfiles(
   for (const player of players) {
     const profile = profileByPlayer.get(player.id)
     if (!profile) continue
+    if (filters.requireListingQuality) {
+      const hasVid = playersWithVideo.has(player.id)
+      if (!playerHasPublicListingSignal(profile, hasVid)) continue
+    }
     const team = teamById.get((player as { team_id: string }).team_id)
     const programId = team ? (team as { program_id?: string }).program_id : null
     const program = programId ? programById.get(programId) : null
     const state = programId ? stateByProgramId.get(programId) ?? null : null
     const teamLevel = team ? (team as { team_level?: string }).team_level ?? null : null
 
+    if (filters.teamId != null && filters.teamId.trim() !== "") {
+      if ((player as { team_id?: string }).team_id !== filters.teamId) continue
+    }
     if (filters.position != null && filters.position.trim() !== "") {
       const pos = (player as { position_group?: string }).position_group ?? ""
       if (pos.toLowerCase() !== filters.position!.trim().toLowerCase()) continue
@@ -190,4 +275,83 @@ export async function searchRecruitingProfiles(
   }
 
   return { results, total }
+}
+
+export interface RecruitingBrowseMeta {
+  teams: Array<{ id: string; name: string }>
+  positions: string[]
+  graduationYears: number[]
+}
+
+/**
+ * Distinct filter options for the public recruiting browser: teams/positions/years that appear
+ * among recruiting-visible profiles that also pass the public listing-quality bar.
+ */
+export async function getRecruitingBrowseMeta(supabase: SupabaseClient): Promise<RecruitingBrowseMeta> {
+  const { data: profiles } = await supabase
+    .from("player_recruiting_profiles")
+    .select(
+      "player_id, graduation_year, bio, hudl_url, youtube_url, height_feet, weight_lbs, forty_time, gpa"
+    )
+    .eq("recruiting_visibility", true)
+
+  if (!profiles?.length) {
+    return { teams: [], positions: [], graduationYears: [] }
+  }
+
+  const playerIds = profiles.map((p) => (p as { player_id: string }).player_id)
+  const { data: vidRows } = await supabase.from("player_video_links").select("player_id").in("player_id", playerIds)
+  const videoSet = new Set((vidRows ?? []).map((r: { player_id: string }) => r.player_id))
+
+  const qualityIds = new Set<string>()
+  const yearSet = new Set<number>()
+  for (const row of profiles) {
+    const pr = row as ProfileListingRow
+    if (
+      playerHasPublicListingSignal(
+        {
+          bio: pr.bio,
+          hudl_url: pr.hudl_url,
+          youtube_url: pr.youtube_url,
+          height_feet: pr.height_feet,
+          weight_lbs: pr.weight_lbs,
+          forty_time: pr.forty_time != null ? Number(pr.forty_time) : null,
+          gpa: pr.gpa != null ? Number(pr.gpa) : null,
+        },
+        videoSet.has(pr.player_id)
+      )
+    ) {
+      qualityIds.add(pr.player_id)
+      if (pr.graduation_year != null) yearSet.add(pr.graduation_year)
+    }
+  }
+
+  if (qualityIds.size === 0) {
+    return { teams: [], positions: [], graduationYears: [...yearSet].sort((a, b) => b - a) }
+  }
+
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, position_group, team_id")
+    .in("id", [...qualityIds])
+
+  const positionSet = new Set<string>()
+  const teamIds = new Set<string>()
+  for (const pl of players ?? []) {
+    const pos = (pl as { position_group?: string }).position_group?.trim()
+    if (pos) positionSet.add(pos)
+    const tid = (pl as { team_id?: string }).team_id
+    if (tid) teamIds.add(tid)
+  }
+
+  const { data: teams } =
+    teamIds.size > 0
+      ? await supabase.from("teams").select("id, name").in("id", [...teamIds]).order("name")
+      : { data: [] }
+
+  return {
+    teams: (teams ?? []).map((t: { id: string; name?: string }) => ({ id: t.id, name: t.name ?? "" })),
+    positions: [...positionSet].sort((a, b) => a.localeCompare(b)),
+    graduationYears: [...yearSet].sort((a, b) => b - a),
+  }
 }

@@ -28,11 +28,16 @@ export default async function PublicRecruitingProfilePage({
   return (
     <div className="min-h-screen bg-[#0f1419] text-gray-100">
       <header className="border-b border-gray-800 py-4 px-6">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="text-lg font-semibold text-white hover:text-gray-300">
             Braik
           </Link>
-          <span className="text-sm text-gray-500">Recruiting Profile</span>
+          <div className="flex items-center gap-4 text-sm">
+            <Link href="/recruiting" className="text-blue-400 hover:text-blue-300 hover:underline">
+              Browse athletes
+            </Link>
+            <span className="text-gray-500">Recruiting Profile</span>
+          </div>
         </div>
       </header>
 
@@ -229,9 +234,12 @@ export default async function PublicRecruitingProfilePage({
           )}
         </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
+        <p className="mt-6 flex flex-wrap justify-center gap-4 text-center text-sm text-gray-500">
+          <Link href="/recruiting" className="hover:text-gray-400">
+            ← Browse athletes
+          </Link>
           <Link href="/" className="hover:text-gray-400">
-            ← Back to Braik
+            Braik home
           </Link>
         </p>
       </main>

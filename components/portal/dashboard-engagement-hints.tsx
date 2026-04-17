@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
@@ -40,22 +40,36 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
   const [hints, setHints] = useState<Hint[]>([])
   const [loading, setLoading] = useState(false)
   const [dismissTick, setDismissTick] = useState(0)
+  const abortRef = useRef<AbortController | null>(null)
 
   const coachRole = identity.roleUpper
   const showStrip = pathname === "/dashboard" && Boolean(currentTeamId) && COACH_ROLES.has(coachRole)
 
+  const shellPhase = shell?.phase
+  const shellTeamId = shell?.payload?.team?.id
+  const countsSerialized = useMemo(
+    () => JSON.stringify(shell?.payload?.engagement?.counts ?? null),
+    [shell?.payload?.engagement?.counts]
+  )
+
   useEffect(() => {
     if (!currentTeamId || !showStrip) {
+      abortRef.current?.abort()
+      abortRef.current = null
       setHints([])
       setLoading(false)
       return
     }
     const counts = shell?.payload?.engagement?.counts ?? null
-    if (shell?.phase === "ok" && shell.payload?.team.id === currentTeamId && counts) {
+    if (shellPhase === "ok" && shellTeamId === currentTeamId && counts) {
       setHints(buildEngagementHints(currentTeamId, counts))
       setLoading(false)
       return
     }
+    abortRef.current?.abort()
+    const ac = new AbortController()
+    abortRef.current = ac
+
     let cancelled = false
     const mem = readLightweightMemoryRaw(hintsMemKey(currentTeamId))
     if (mem && mem.ageMs < 45_000) {
@@ -71,10 +85,11 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
     }
     fetchWithTimeout(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`, {
       credentials: "same-origin",
+      signal: ac.signal,
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
-        if (cancelled) return
+        if (cancelled || ac.signal.aborted) return
         if (res.ok && Array.isArray(data.hints)) {
           const list = data.hints as Hint[]
           setHints(list)
@@ -84,15 +99,17 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
         }
       })
       .catch(() => {
-        if (!cancelled && !mem) setHints([])
+        if (cancelled || ac.signal.aborted) return
+        if (!mem) setHints([])
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled && !ac.signal.aborted) setLoading(false)
       })
     return () => {
       cancelled = true
+      ac.abort()
     }
-  }, [currentTeamId, showStrip, shell?.phase, shell?.payload])
+  }, [currentTeamId, showStrip, shellPhase, shellTeamId, countsSerialized])
 
   const nextHint = useMemo(() => {
     for (const h of hints) {

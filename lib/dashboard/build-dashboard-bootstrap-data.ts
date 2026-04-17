@@ -19,9 +19,59 @@ import { timedBootstrap } from "@/lib/debug/bootstrap-timing"
 
 const READINESS_CACHE_KEY = "braik-team-readiness-summary-v4"
 
+/** Home/calendar strip: bounded window + LIMIT so bootstrap never scans full events history (uses idx_events_team_start). */
+const BOOTSTRAP_EVENTS_LOOKBACK_DAYS = 30
+const BOOTSTRAP_EVENTS_LOOKAHEAD_DAYS = 365
+const BOOTSTRAP_EVENTS_LIMIT = 50
+
+const EVENTS_SELECT_BOOTSTRAP = "id, event_type, title, start, end, location"
+
 /** Games columns needed for banner record + next-game card (scores/quarters for outcomes; no game_type / confirmed_by_coach on home). */
 const GAMES_SELECT_BOOTSTRAP =
   "id, opponent, game_date, location, result, notes, conference_game, team_score, opponent_score, season_id, seasons(year), q1_home, q2_home, q3_home, q4_home, q1_away, q2_away, q3_away, q4_away"
+
+async function loadCalendarEventsForBootstrapFast(teamId: string): Promise<DashboardBootstrapPayload["calendarEvents"]> {
+  const supabase = getSupabaseServer()
+  const now = new Date()
+  const startMin = new Date(now)
+  startMin.setUTCDate(startMin.getUTCDate() - BOOTSTRAP_EVENTS_LOOKBACK_DAYS)
+  const startMax = new Date(now)
+  startMax.setUTCDate(startMax.getUTCDate() + BOOTSTRAP_EVENTS_LOOKAHEAD_DAYS)
+
+  const { data, error } = await supabase
+    .from("events")
+    .select(EVENTS_SELECT_BOOTSTRAP)
+    .eq("team_id", teamId)
+    .gte("start", startMin.toISOString())
+    .lte("start", startMax.toISOString())
+    .order("start", { ascending: true })
+    .limit(BOOTSTRAP_EVENTS_LIMIT)
+
+  if (error) {
+    throw new Error(`CALENDAR_QUERY_FAILED:${error.message}`)
+  }
+
+  return (data ?? []).map((e: Record<string, unknown>) => ({
+    id: e.id as string,
+    type: (e.event_type as string) ?? "CUSTOM",
+    title: (e.title as string) ?? "",
+    start: e.start as string,
+    end: e.end as string,
+    location: (e.location as string | null) ?? null,
+  }))
+}
+
+/** Isolated cache for calendar rows — bounded query; does not invalidate whole dashboard payload alone. */
+export function getCachedCalendarEventsForBootstrap(teamId: string): Promise<DashboardBootstrapPayload["calendarEvents"]> {
+  return lightweightCached(
+    ["dashboard-bootstrap-calendar-events-v1", teamId],
+    {
+      revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
+      tags: [tagTeamDashboardBootstrap(teamId)],
+    },
+    () => loadCalendarEventsForBootstrapFast(teamId)
+  )
+}
 
 /**
  * Fetches team row + games + optional readiness. Caller must have already authorized the user for teamId.
@@ -51,7 +101,7 @@ export async function buildDashboardBootstrapData(
       )
     : Promise.resolve(null)
 
-  const [teamRow, gamesResult, calendarResult, readinessPayload] = await Promise.all([
+  const [teamRow, gamesResult, calendarEvents, readinessPayload] = await Promise.all([
     timedBootstrap(timing, "team", async () =>
       supabase
         .from("teams")
@@ -69,13 +119,7 @@ export async function buildDashboardBootstrapData(
         .lte("game_date", endIso)
         .order("game_date", { ascending: true })
     }),
-    timedBootstrap(timing, "calendar_events", async () =>
-      supabase
-        .from("events")
-        .select("id, event_type, title, start, end, location")
-        .eq("team_id", teamId)
-        .order("start", { ascending: true })
-    ),
+    timedBootstrap(timing, "calendar_events", () => getCachedCalendarEventsForBootstrap(teamId)),
     readinessPromise,
   ])
 
@@ -87,21 +131,8 @@ export async function buildDashboardBootstrapData(
     throw new Error(`GAMES_QUERY_FAILED:${gamesResult.error.message}`)
   }
 
-  if (calendarResult.error) {
-    throw new Error(`CALENDAR_QUERY_FAILED:${calendarResult.error.message}`)
-  }
-
   const t = teamRow.data as Record<string, unknown>
   const games = (gamesResult.data ?? []).map((r: Record<string, unknown>) => mapDbGameRowToTeamGameRow(r))
-
-  const calendarEvents = (calendarResult.data ?? []).map((e: Record<string, unknown>) => ({
-    id: e.id as string,
-    type: (e.event_type as string) ?? "CUSTOM",
-    title: (e.title as string) ?? "",
-    start: e.start as string,
-    end: e.end as string,
-    location: (e.location as string | null) ?? null,
-  }))
 
   let readiness: DashboardBootstrapPayload["readiness"]
   if (canEditRoster && readinessPayload?.summary) {
@@ -193,7 +224,7 @@ export function getCachedDashboardBootstrapData(
 ): Promise<DashboardBootstrapPayload> {
   return lightweightCached(
     /** userId + role bucket: same team row/games for everyone, but readiness slice differs for coaches. */
-    ["dashboard-bootstrap-payload-v2", teamId, userId, canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-payload-v3", teamId, userId, canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [tagTeamDashboardBootstrap(teamId)],

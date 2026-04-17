@@ -23,6 +23,8 @@ import {
 
 /**
  * Home slice (games, calendar, readiness summary) + roster + notifications + announcements + readiness detail — no depth chart.
+ * Calendar rows for `dashboard.calendarEvents` use a bounded query via `getCachedCalendarEventsForBootstrap` inside
+ * `getCachedDashboardBootstrapData` (see build-dashboard-bootstrap-data).
  * Playbooks browse + team documents lists are loaded on those routes (GET /api/playbooks/summary, GET /api/documents), not here.
  */
 export async function buildDashboardBootstrapDeferredCoreData(
@@ -112,7 +114,7 @@ export function getCachedDashboardBootstrapDeferredCore(
   appOrigin: string
 ): Promise<DashboardBootstrapDeferredCorePayload> {
   return lightweightCached(
-    ["dashboard-bootstrap-deferred-core-v3", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
+    ["dashboard-bootstrap-deferred-core-v4", teamId, userId, access.canEditRoster ? "coach" : "noncoach"],
     {
       revalidate: LW_TTL_DASHBOARD_BOOTSTRAP,
       tags: [

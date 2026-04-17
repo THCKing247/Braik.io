@@ -165,6 +165,8 @@ export function MessagingManager({
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  /** Thread list fetch only — avoids conflating with send/message errors. */
+  const [inboxLoadError, setInboxLoadError] = useState<string | null>(null)
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [hasMoreOlder, setHasMoreOlder] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -471,8 +473,12 @@ export function MessagingManager({
 
   const loadThreads = useCallback(
     async (opts?: { skipMessagingBadgeSync?: boolean }) => {
-      if (isLoadingRef.current) return
+      if (isLoadingRef.current) {
+        console.info("[messaging:inbox] loadThreads skipped (already in flight)", { teamId })
+        return
+      }
       isLoadingRef.current = true
+      console.info("[messaging:inbox] loadThreads start", { teamId })
       try {
         const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
         if (!response.ok) {
@@ -481,7 +487,18 @@ export function MessagingManager({
         }
         const raw = await response.json()
         const list = Array.isArray(raw) ? raw : ((raw as { threads?: unknown[] }).threads ?? [])
+        console.info("[messaging:inbox] raw thread response", {
+          teamId,
+          topLevelKeys: raw && typeof raw === "object" && !Array.isArray(raw) ? Object.keys(raw as object) : [],
+          listLength: list.length,
+          firstKeys: list[0] && typeof list[0] === "object" ? Object.keys(list[0] as object) : [],
+        })
         const data = threadsPayloadToUiThreads(list)
+        console.info("[messaging:inbox] mapped thread list", {
+          teamId,
+          count: data.length,
+          idsSample: data.slice(0, 3).map((t) => t.id),
+        })
         const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
         const mu = messagingUnreadRef.current
         if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
@@ -511,14 +528,17 @@ export function MessagingManager({
             console.warn(`Thread ${urlThreadId} not found or access denied`)
           }
         }
+        setInboxLoadError(null)
         setError(null)
       } catch (error: unknown) {
-        console.error("Error loading threads:", error)
+        console.error("[messaging:inbox] Error loading threads:", error)
         const msg = error instanceof Error ? error.message : "Failed to load threads"
+        setInboxLoadError(msg)
         setError(msg)
       } finally {
         isLoadingRef.current = false
         setInitialLoading(false)
+        console.info("[messaging:inbox] loadThreads finished", { teamId })
       }
     },
     [teamId]
@@ -535,13 +555,17 @@ export function MessagingManager({
   useEffect(() => {
     if (!teamId) return
 
-    if (bootstrapCoreReady === false) {
-      return
-    }
+    console.info("[messaging:inbox] inbox effect", {
+      teamId,
+      bootstrapCoreReady,
+      hasBootstrapInbox: bootstrapThreadsInbox != null,
+    })
 
+    // When deferred core has merged server inbox, prefer it (no extra GET).
     if (bootstrapCoreReady === true && bootstrapThreadsInbox != null) {
       const raw = bootstrapThreadsInbox.threads
       const data = threadsPayloadToUiThreads(Array.isArray(raw) ? raw : [])
+      console.info("[messaging:inbox] hydrate from bootstrap", { teamId, threadCount: data.length })
       const meta = bootstrapThreadsInbox.meta
       if (typeof meta?.totalUnread === "number") {
         messagingUnreadRef.current?.syncThreadUnreadFromServer(meta.totalUnread)
@@ -567,19 +591,27 @@ export function MessagingManager({
           console.warn(`Thread ${urlThreadId} not found or access denied`)
         }
       }
+      setInboxLoadError(null)
       setError(null)
       setInitialLoading(false)
       return
     }
 
+    // Explicit null from server after core ready: fetch inbox via API.
     if (bootstrapCoreReady === true && bootstrapThreadsInbox === null) {
+      console.info("[messaging:inbox] bootstrap inbox null → fetch", { teamId })
       void loadThreadsFrom("bootstrap-inbox-fallback")
       return
     }
 
+    // Dashboard/bootstrap still loading OR inbox not merged yet — fetch lightweight list immediately
+    // so the sidebar is not stuck on skeletons waiting for deferredPending.
+    console.info("[messaging:inbox] fetch initial list (not blocked on bootstrap)", {
+      teamId,
+      bootstrapCoreReady,
+    })
     void loadThreadsFrom("initial-load")
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadThreadsFrom is [teamId]-scoped
-  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox])
+  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox, loadThreadsFrom])
 
   const loadContacts = async () => {
     try {
@@ -1804,6 +1836,24 @@ export function MessagingManager({
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="h-14 rounded-lg animate-pulse bg-muted" />
               ))}
+            </div>
+          ) : inboxLoadError && threads.length === 0 ? (
+            <div className="mx-4 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-center">
+              <p className="text-sm font-medium text-amber-950">Couldn&apos;t load conversations</p>
+              <p className="mt-1 text-xs text-amber-900/80">{inboxLoadError}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-3 rounded-xl"
+                onClick={() => {
+                  setInboxLoadError(null)
+                  setInitialLoading(true)
+                  void loadThreadsFrom("retry-inbox")
+                }}
+              >
+                Try again
+              </Button>
             </div>
           ) : threads.length === 0 ? (
             <div className="mx-4 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/40 px-4 py-10 text-center">

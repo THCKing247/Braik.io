@@ -61,7 +61,7 @@ export type FullDashboardBootstrapPayload = {
   notifications: NotificationsApiPayload
   announcements: TeamAnnouncementRow[]
   readinessDetail: DashboardReadinessDetailPayload | null
-  /** Filled after deferred-core merge; same shape as GET /api/messages/threads (threads + meta). */
+  /** Filled after deferred-core merge; inbox loader shape (threads + meta). HTTP GET /api/messages/threads returns a slimmer wire list. */
   messageThreadsInbox: MessageThreadsInboxPayload | null
   /** Reserved; always empty from bootstrap — playbooks page loads GET /api/playbooks/summary. */
   playbooksSummary: PlaybookSummaryRow[]

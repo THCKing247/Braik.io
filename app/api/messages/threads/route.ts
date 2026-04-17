@@ -3,11 +3,12 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { loadMessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
+import { mapLegacyFormattedThreadsToWire } from "@/lib/messaging/thread-list-wire"
 
 /**
  * GET /api/messages/threads?teamId=xxx
- * Returns threads for the team that the current user is a participant in.
- * Uses DB-side aggregates for counts/unread and latest message (no full message-table scan in Node).
+ * Returns a **wire** thread list (threadId, lastMessage preview, participants, unread, updatedAt) —
+ * no full message history. Maps server-side from the same inbox loader used by bootstrap (legacy shape).
  */
 export async function GET(request: Request) {
   try {
@@ -29,9 +30,10 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServer()
     const { user } = await requireTeamAccessWithUser(teamId, session.user)
     const payload = await loadMessageThreadsInboxPayload(supabase, teamId, user.id, { limit, offset })
+    const threadsWire = mapLegacyFormattedThreadsToWire(payload.threads)
 
     const res = NextResponse.json({
-      threads: payload.threads,
+      threads: threadsWire,
       meta: payload.meta,
     })
     /** Shared edge hint: short TTL; authenticated payload — use private, not public CDN cache. */

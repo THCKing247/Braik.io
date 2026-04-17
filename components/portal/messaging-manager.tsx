@@ -29,6 +29,10 @@ import {
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
 import type { MessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
+import {
+  wireThreadListItemToThread,
+  type MessageThreadWireItem,
+} from "@/lib/messaging/thread-list-wire"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
@@ -102,6 +106,16 @@ function messageDaySeparatorLabel(d: Date | string) {
   return format(date, "MMMM d, yyyy")
 }
 
+/** Inbox list from API or bootstrap: wire items use `threadId`; legacy formatted threads use `id`. */
+function threadsPayloadToUiThreads(raw: unknown[]): Thread[] {
+  if (!raw.length) return []
+  const first = raw[0] as { threadId?: string; id?: string }
+  if (typeof first.threadId === "string") {
+    return (raw as MessageThreadWireItem[]).map(wireThreadListItemToThread)
+  }
+  return raw as Thread[]
+}
+
 function messageAttachmentIsImage(att: { mimeType?: string; fileName?: string }) {
   if (att.mimeType && att.mimeType.startsWith("image/")) return true
   const n = (att.fileName || "").toLowerCase()
@@ -125,7 +139,7 @@ interface MessagingManagerProps {
   teamId: string
   userRole: string
   userId: string
-  /** Same shape as GET /api/messages/threads after deferred-core bootstrap. */
+  /** Server inbox payload (legacy `id` threads). Client GET /api/messages/threads returns wire (`threadId`) and maps to UI. */
   bootstrapThreadsInbox?: MessageThreadsInboxPayload | null
   /** False until dashboard deferred-core has merged (wait before inbox GET). */
   bootstrapCoreReady?: boolean
@@ -255,13 +269,6 @@ export function MessagingManager({
       /* ignore */
     }
   }, [userId, teamId])
-
-  useEffect(() => {
-    if (searchParams?.get("threadId")) return
-    if (!isWide || selectedThread || threads.length === 0) return
-    const generalChat = threads.find((t) => t.threadType === "GENERAL")
-    setSelectedThread(generalChat || threads[0])
-  }, [isWide, threads, selectedThread, searchParams])
 
   useEffect(() => {
     selectedThreadIdRef.current = selectedThread?.id ?? null
@@ -473,7 +480,8 @@ export function MessagingManager({
           throw new Error(errorData.error || "Failed to load threads")
         }
         const raw = await response.json()
-        const data: Thread[] = Array.isArray(raw) ? raw : ((raw as { threads?: Thread[] }).threads ?? [])
+        const list = Array.isArray(raw) ? raw : ((raw as { threads?: unknown[] }).threads ?? [])
+        const data = threadsPayloadToUiThreads(list)
         const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
         const mu = messagingUnreadRef.current
         if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
@@ -533,7 +541,7 @@ export function MessagingManager({
 
     if (bootstrapCoreReady === true && bootstrapThreadsInbox != null) {
       const raw = bootstrapThreadsInbox.threads
-      const data = (Array.isArray(raw) ? raw : []) as Thread[]
+      const data = threadsPayloadToUiThreads(Array.isArray(raw) ? raw : [])
       const meta = bootstrapThreadsInbox.meta
       if (typeof meta?.totalUnread === "number") {
         messagingUnreadRef.current?.syncThreadUnreadFromServer(meta.totalUnread)
@@ -728,7 +736,7 @@ export function MessagingManager({
     }
     try {
       const response = await fetch(
-        `/api/messages/threads/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
+        `/api/messages/thread/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
       )
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -773,8 +781,8 @@ export function MessagingManager({
         patchThreadListFromDetailMessages(threadId, [], true)
       }
 
-      await markThreadReadAndSync(threadId)
-      
+      void markThreadReadAndSync(threadId)
+
       // Setup realtime subscription for this thread (only on initial load)
       if (showLoading) {
         setupRealtimeSubscription(threadId)
@@ -813,7 +821,7 @@ export function MessagingManager({
     const prevScrollHeight = container?.scrollHeight ?? 0
     try {
       const res = await fetch(
-        `/api/messages/threads/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}&before=${encodeURIComponent(oldest)}`
+        `/api/messages/thread/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}&before=${encodeURIComponent(oldest)}`
       )
       if (!res.ok) return
       const data = await res.json()
@@ -876,7 +884,7 @@ export function MessagingManager({
     try {
       // Fetch latest messages without showing loading spinner
       const response = await fetch(
-        `/api/messages/threads/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
+        `/api/messages/thread/${encodeURIComponent(threadId)}?limit=${MESSAGE_PAGE_LIMIT}`
       )
       if (response.ok) {
         const data = await response.json()

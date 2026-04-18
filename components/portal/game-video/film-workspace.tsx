@@ -115,6 +115,8 @@ export function FilmWorkspace({
   const [draftClips, setDraftClips] = useState<FilmDraftClip[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [bulkDraftIds, setBulkDraftIds] = useState<Set<string>>(new Set())
+  /** Brief highlight in the draft list after logging a clip without selecting it (continuous marking). */
+  const [recentlyLoggedDraftId, setRecentlyLoggedDraftId] = useState<string | null>(null)
   const [markPhase, setMarkPhase] = useState<MarkPhase>("idle")
   const [pendingStartMs, setPendingStartMs] = useState<number | null>(null)
 
@@ -150,6 +152,13 @@ export function FilmWorkspace({
   }, [highlightClipId, outMs, markPhase, pendingStartMs, playheadMs, durationSafe, selectedDraftId, draftClips])
 
   const clipValid = displayOutMs > displayInMs + 80
+
+  /** Preview loop targets the active mark range or selected draft — not idle “whole film” scrubber defaults. */
+  const previewClipAllowed = useMemo(() => {
+    if (!clipValid) return false
+    if (highlightClipId) return true
+    return markPhase === "await_end" || selectedDraftId != null
+  }, [clipValid, highlightClipId, markPhase, selectedDraftId])
 
   const reelStorageKey = `braik:coach-reel:${teamId}:${video.id}`
 
@@ -206,7 +215,14 @@ export function FilmWorkspace({
     setPendingStartMs(null)
     setPreviewStripTiles([])
     setPreviewStripStatus("idle")
+    setRecentlyLoggedDraftId(null)
   }, [video.id])
+
+  useEffect(() => {
+    if (!recentlyLoggedDraftId) return
+    const t = window.setTimeout(() => setRecentlyLoggedDraftId(null), 2200)
+    return () => window.clearTimeout(t)
+  }, [recentlyLoggedDraftId])
 
   useEffect(() => {
     try {
@@ -337,6 +353,12 @@ export function FilmWorkspace({
     [durationSafe],
   )
 
+  const releasePreviewOverlay = useCallback(() => {
+    previewCleanupRef.current?.()
+    previewCleanupRef.current = null
+    setPreviewActive(false)
+  }, [])
+
   const stopPreview = useCallback(() => {
     previewCleanupRef.current?.()
     previewCleanupRef.current = null
@@ -345,7 +367,14 @@ export function FilmWorkspace({
     el?.pause()
   }, [])
 
-  const startPreview = async () => {
+  const startPreview = useCallback(async () => {
+    if (
+      !highlightClipId &&
+      markPhase === "idle" &&
+      selectedDraftId == null
+    ) {
+      return
+    }
     stopMainPlay()
     previewCleanupRef.current?.()
     previewCleanupRef.current = null
@@ -358,7 +387,14 @@ export function FilmWorkspace({
     } catch {
       /* autoplay */
     }
-  }
+  }, [
+    highlightClipId,
+    markPhase,
+    selectedDraftId,
+    stopMainPlay,
+    displayOutMs,
+    displayInMs,
+  ])
 
   const clipSegmentPlayMode =
     Boolean(highlightClipId) || markPhase === "await_end" || selectedDraftId != null
@@ -432,8 +468,8 @@ export function FilmWorkspace({
   const discardOpenMark = useCallback(() => {
     setMarkPhase("idle")
     setPendingStartMs(null)
-    stopPreview()
-  }, [stopPreview])
+    releasePreviewOverlay()
+  }, [releasePreviewOverlay])
 
   const applyMarkStart = useCallback(() => {
     if (highlightClipId) {
@@ -493,8 +529,9 @@ export function FilmWorkspace({
     }
     setDraftClips((prev) => [...prev, draft])
     setBulkDraftIds((prev) => new Set(prev).add(id))
-    setSelectedDraftId(id)
-    setClipTitle(draft.titleDraft)
+    setRecentlyLoggedDraftId(id)
+    setSelectedDraftId(null)
+    setClipTitle("")
     setClipDescription("")
     setClipTagsFree("")
     setQuickTagsSelected(new Set())
@@ -502,7 +539,7 @@ export function FilmWorkspace({
     setClipAttachedPlayerIds([])
     setPendingStartMs(null)
     setMarkPhase("idle")
-    stopPreview()
+    releasePreviewOverlay()
   }, [
     highlightClipId,
     playheadMs,
@@ -512,7 +549,7 @@ export function FilmWorkspace({
     pendingStartMs,
     draftClips.length,
     onError,
-    stopPreview,
+    releasePreviewOverlay,
     editorFps,
   ])
 
@@ -1324,7 +1361,7 @@ export function FilmWorkspace({
           <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
             {highlightClipId
               ? "Film plays behind your saved clip — timeline range matches the clip below."
-              : "Drag the scrubber or use the controls. Mark multiple plays while the film runs — drafts appear on the timeline and in the list; save when you are ready."}
+              : "Drag the scrubber or use the controls. Mark start → mark end for each play — drafts stack as you watch; save to the roster only when you choose."}
           </p>
         </header>
 
@@ -1418,6 +1455,7 @@ export function FilmWorkspace({
           <DraftClipQueue
             drafts={draftClips}
             selectedId={selectedDraftId}
+            pulseDraftId={recentlyLoggedDraftId}
             bulkSelectedIds={bulkDraftIds}
             markPhase={markPhase}
             pendingStartMs={pendingStartMs}
@@ -1473,6 +1511,7 @@ export function FilmWorkspace({
           }}
           previewActive={previewActive}
           clipValid={clipValid}
+          previewClipAllowed={previewClipAllowed}
           saving={clipSaving}
           fineTuneExpanded={fineTuneExpanded}
           onToggleFineTune={() => setFineTuneExpanded((v) => !v)}

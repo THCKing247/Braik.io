@@ -36,6 +36,8 @@ type Props = {
   onSaveDraftsAndContinue?: () => void
   previewActive: boolean
   clipValid: boolean
+  /** When false, Preview clip is disabled (e.g. full-film mode with no draft selected). */
+  previewClipAllowed?: boolean
   saving: boolean
   fineTuneExpanded: boolean
   onToggleFineTune: () => void
@@ -72,6 +74,7 @@ export function QuickClipBar({
   onSaveDraftsAndContinue,
   previewActive,
   clipValid,
+  previewClipAllowed,
   saving,
   fineTuneExpanded,
   onToggleFineTune,
@@ -94,6 +97,7 @@ export function QuickClipBar({
   if (!enabled) return null
 
   const showDraftActions = draftWorkflow && !savedClipEditing && draftCount > 0
+  const canPreviewClip = previewClipAllowed ?? clipValid
 
   return (
     <div className="rounded-2xl border-2 border-border bg-card p-5 shadow-md ring-1 ring-black/[0.06] dark:bg-card md:p-6">
@@ -111,14 +115,24 @@ export function QuickClipBar({
               </>
             ) : draftWorkflow ? (
               <>
-                Let the film run — press <strong className="text-foreground">Mark start</strong> /{" "}
-                <strong className="text-foreground">Mark end</strong> for each play. Drafts stack on the timeline and in the list;
-                name and <strong className="text-foreground">Save selected</strong> or <strong className="text-foreground">Save all</strong> when ready.
+                <strong className="text-foreground">Mark start</strong> begins a clip;{" "}
+                <strong className="text-foreground">Mark end</strong> saves it to drafts and you can keep going — no “save &amp;
+                next” step. Name clips and use <strong className="text-foreground">Save selected</strong> /{" "}
+                <strong className="text-foreground">Save all</strong> when you want them on the roster.
                 {markPhase === "await_end" ? (
                   <span className="mt-1 block font-medium text-amber-800 dark:text-amber-200">
-                    Waiting for end mark — press Mark end at the stop point (or Cancel mark in the draft list).
+                    Clip is open — press <strong className="text-foreground">Mark end</strong> to log it, then{" "}
+                    <strong className="text-foreground">Mark start</strong> for the next play.
                   </span>
-                ) : null}
+                ) : draftCount > 0 ? (
+                  <span className="mt-1 block text-slate-600 dark:text-slate-400">
+                    Ready for the next play — press <strong className="text-foreground">Mark start</strong> when it begins.
+                  </span>
+                ) : (
+                  <span className="mt-1 block text-slate-600 dark:text-slate-400">
+                    Press <strong className="text-foreground">Mark start</strong> when the play begins.
+                  </span>
+                )}
               </>
             ) : (
               <>
@@ -149,6 +163,7 @@ export function QuickClipBar({
           variant="secondary"
           className="min-h-[52px] flex-1 gap-2 border-2 border-sky-500/30 bg-sky-50 font-bold text-sky-950 hover:bg-sky-100 dark:border-sky-500/40 dark:bg-sky-950/50 dark:text-sky-100 dark:hover:bg-sky-950 sm:flex-none sm:min-w-[155px]"
           onClick={onMarkStart}
+          aria-label={draftWorkflow && !savedClipEditing ? "Mark start — begin a new clip" : "Mark start"}
         >
           <Flag className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
           Mark start
@@ -159,6 +174,9 @@ export function QuickClipBar({
           variant="secondary"
           className="min-h-[52px] flex-1 gap-2 border-2 border-amber-500/35 bg-amber-50 font-bold text-amber-950 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-100 dark:hover:bg-amber-950 sm:flex-none sm:min-w-[155px]"
           onClick={onMarkEnd}
+          aria-label={
+            draftWorkflow && !savedClipEditing ? "Mark end — finish clip and add to draft list" : "Mark end"
+          }
         >
           <Flag className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
           Mark end
@@ -190,7 +208,7 @@ export function QuickClipBar({
               previewActive && "border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-50",
             )}
             onClick={() => (previewActive ? onStopPreview() : onPreview())}
-            disabled={!clipValid && !previewActive}
+            disabled={!previewActive && !canPreviewClip}
           >
             {previewActive ? (
               <>
@@ -207,9 +225,10 @@ export function QuickClipBar({
         </div>
         <p className="mt-2 text-xs leading-snug text-muted-foreground">
           <strong className="text-foreground">Play film</strong> plays from the scrubber to the end of the video.{" "}
-          <strong className="text-foreground">Play clip</strong> plays your in→out range once (saved clip or after Mark start/end).{" "}
+          <strong className="text-foreground">Play clip</strong> plays your in→out range once (saved clip or while marking).{" "}
           <strong className="text-foreground">Pause / Resume</strong> applies while that playback is active.{" "}
-          <strong className="text-foreground">Preview clip</strong> loops the range for fine-tuning.
+          <strong className="text-foreground">Preview clip</strong> loops the{" "}
+          {draftWorkflow && !savedClipEditing ? "selected draft or open mark range" : "range"} for fine-tuning.
         </p>
       </div>
 

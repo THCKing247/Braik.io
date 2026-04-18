@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 export function DraftClipQueue({
   drafts,
   selectedId,
+  pulseDraftId,
   bulkSelectedIds,
   markPhase,
   pendingStartMs,
@@ -23,6 +24,8 @@ export function DraftClipQueue({
 }: {
   drafts: FilmDraftClip[]
   selectedId: string | null
+  /** Flash highlight after quick logging without selecting (non-blocking). */
+  pulseDraftId?: string | null
   bulkSelectedIds: Set<string>
   markPhase: "idle" | "await_end"
   pendingStartMs: number | null
@@ -39,7 +42,8 @@ export function DraftClipQueue({
         <div>
           <h3 className="text-base font-bold tracking-tight text-foreground">Marked clips (draft)</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Mark start/end while the film plays — clips stack here. Name them, then save selected or all.
+            Each <strong className="text-foreground">Mark end</strong> adds a draft — keep marking plays, then save when you are
+            ready.
           </p>
         </div>
         {markPhase === "await_end" && (
@@ -67,6 +71,7 @@ export function DraftClipQueue({
         <ul className="mt-4 space-y-2">
           {drafts.map((d) => {
             const selected = selectedId === d.id
+            const pulse = pulseDraftId === d.id
             const bulkOn = bulkSelectedIds.has(d.id)
             const dur = durationMsLabel(d.startMs, d.endMs)
             return (
@@ -75,6 +80,7 @@ export function DraftClipQueue({
                   className={cn(
                     "flex flex-col gap-2 rounded-xl border p-3 transition-colors sm:flex-row sm:items-center sm:gap-3",
                     selected ? "border-primary bg-primary/10 ring-2 ring-primary/25" : "border-border bg-muted/20 hover:bg-muted/35",
+                    pulse && "animate-pulse ring-2 ring-emerald-400/60",
                   )}
                 >
                   <div className="flex shrink-0 items-center gap-2">

@@ -34,7 +34,7 @@ export async function GET(
     const { data: rows, error } = await supabase
       .from("video_clips")
       .select(
-        "id, game_video_id, start_ms, end_ms, duration_ms, title, label, description, tags, share_token, metadata, created_at, updated_at"
+        "id, game_video_id, start_ms, end_ms, duration_ms, title, label, description, tags, share_token, metadata, created_at, updated_at, is_private"
       )
       .eq("team_id", teamId)
       .eq("game_video_id", gameVideoId)

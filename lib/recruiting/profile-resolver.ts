@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import {
+  loadRecruitingFilmPayload,
+  type RecruitingFilmPayload,
+} from "@/lib/recruiting/recruiting-media"
 
 export interface RecruitingProfileView {
   playerId: string
@@ -159,6 +163,8 @@ export async function getRecruitingProfileByPlayerIdOrSlug(
 
 export interface PublicRecruitingPageData extends RecruitingProfileView {
   videoLinks: Array<{ videoType: string; url: string; sortOrder: number }>
+  /** Unified Braik + external recruiting film (external links duplicated in videoLinks for compatibility). */
+  recruitingFilm: RecruitingFilmPayload
   statsSummary: Record<string, unknown> | null
   coachNotes: string | null
   playbookMasteryPct: number | null
@@ -184,8 +190,8 @@ export async function getPublicRecruitingPageData(
   const playerId = base.playerId
   const programId = base.programId
 
-  const [videoRes, playerRes, evalRes, devRes, knowledgeRes, assignmentsRes] = await Promise.all([
-    supabase.from("player_video_links").select("video_type, url, sort_order").eq("player_id", playerId).order("sort_order"),
+  const [filmPayload, playerRes, evalRes, devRes, knowledgeRes, assignmentsRes] = await Promise.all([
+    loadRecruitingFilmPayload(supabase, playerId, base.teamId),
     base.statsVisible || base.coachNotesVisible ? supabase.from("players").select("season_stats, coach_notes").eq("id", playerId).maybeSingle() : Promise.resolve({ data: null }),
     base.coachNotesVisible ? supabase.from("player_evaluations").select("coach_notes").eq("player_id", playerId).order("created_at", { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null }),
     base.developmentVisible ? supabase.from("player_development_metrics").select("strength_score, speed_score, football_iq_score, leadership_score, discipline_score").eq("player_id", playerId).order("created_at", { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null }),
@@ -193,10 +199,11 @@ export async function getPublicRecruitingPageData(
     base.playbookMasteryVisible && programId ? supabase.from("play_assignments").select("id").eq("program_id", programId) : Promise.resolve({ data: [] }),
   ])
 
-  const videoLinks = (videoRes.data ?? []).map((r: { video_type: string; url: string; sort_order: number }) => ({
-    videoType: r.video_type,
-    url: r.url,
-    sortOrder: r.sort_order,
+  const recruitingFilm = filmPayload
+  const videoLinks = recruitingFilm.externalLinks.map((l) => ({
+    videoType: l.videoType,
+    url: l.url,
+    sortOrder: l.sortOrder,
   }))
 
   let statsSummary: Record<string, unknown> | null = null
@@ -238,6 +245,7 @@ export async function getPublicRecruitingPageData(
   return {
     ...base,
     videoLinks,
+    recruitingFilm,
     statsSummary,
     coachNotes,
     playbookMasteryPct,

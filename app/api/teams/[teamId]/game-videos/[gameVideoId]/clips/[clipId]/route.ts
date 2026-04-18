@@ -7,6 +7,65 @@ import { incrementClipRollup } from "@/lib/video/quota"
 
 export const runtime = "nodejs"
 
+/**
+ * PATCH — clip recruiting privacy.
+ * Body: { isPrivate: boolean }
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ teamId: string; gameVideoId: string; clipId: string }> }
+) {
+  try {
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { teamId, gameVideoId, clipId } = await params
+    await requireTeamAccess(teamId)
+
+    const supabase = getSupabaseServer()
+    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { view: true }, {
+      portalRole: session.user.role,
+      isPlatformOwner: session.user.isPlatformOwner === true,
+    })
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status })
+    }
+
+    let body: { isPrivate?: boolean }
+    try {
+      body = (await request.json()) as { isPrivate?: boolean }
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+    }
+
+    if (typeof body.isPrivate !== "boolean") {
+      return NextResponse.json({ error: "isPrivate boolean required" }, { status: 400 })
+    }
+
+    const { data: updated, error } = await supabase
+      .from("video_clips")
+      .update({ is_private: body.isPrivate, updated_at: new Date().toISOString() })
+      .eq("id", clipId)
+      .eq("team_id", teamId)
+      .eq("game_video_id", gameVideoId)
+      .select("id, is_private")
+      .maybeSingle()
+
+    if (error || !updated) {
+      return NextResponse.json({ error: "Not found or update failed" }, { status: 404 })
+    }
+
+    return NextResponse.json({ clip: updated })
+  } catch (e) {
+    if (e instanceof MembershipLookupError) {
+      return NextResponse.json({ error: e.message }, { status: 403 })
+    }
+    throw e
+  }
+}
+
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ teamId: string; gameVideoId: string; clipId: string }> }

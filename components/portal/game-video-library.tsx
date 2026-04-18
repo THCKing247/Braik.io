@@ -8,6 +8,7 @@ import { FilmRoomModalShell } from "@/components/portal/game-video/film-room-mod
 import { FilmWorkspace } from "@/components/portal/game-video/film-workspace"
 import { MediaLibraryRail } from "@/components/portal/game-video/media-library-rail"
 import type { ClipLibraryRow, ClipRow, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
+import { defaultDisplayTitleFromFileName } from "@/lib/video/upload-display-title"
 
 export function GameVideoLibrary({
   teamId,
@@ -40,8 +41,8 @@ export function GameVideoLibrary({
   const [modalClips, setModalClips] = useState<ClipRow[]>([])
 
   const [uploadUi, setUploadUi] = useState<UploadUiState | null>(null)
+  const [privacyBusyKey, setPrivacyBusyKey] = useState<string | null>(null)
   const uploadSuccessClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fileRef = useRef<HTMLInputElement | null>(null)
 
   const clearUploadSuccessTimer = useCallback(() => {
     if (uploadSuccessClearRef.current != null) {
@@ -198,6 +199,57 @@ export function GameVideoLibrary({
     }
   }
 
+  const patchVideoPrivacy = useCallback(
+    async (videoId: string, isPrivate: boolean) => {
+      setPrivacyBusyKey(`v:${videoId}`)
+      setError(null)
+      try {
+        const res = await fetch(`/api/teams/${teamId}/game-videos/${videoId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPrivate }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || "Update failed")
+        setVideos((prev) =>
+          prev.map((v) => (v.id === videoId ? { ...v, is_private: isPrivate } : v)),
+        )
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Update failed")
+      } finally {
+        setPrivacyBusyKey(null)
+      }
+    },
+    [teamId],
+  )
+
+  const patchClipPrivacy = useCallback(
+    async (gameVideoId: string, clipId: string, isPrivate: boolean) => {
+      setPrivacyBusyKey(`c:${clipId}`)
+      setError(null)
+      try {
+        const res = await fetch(`/api/teams/${teamId}/game-videos/${gameVideoId}/clips/${clipId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPrivate }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || "Update failed")
+        setAllClips((prev) =>
+          prev.map((c) => (c.id === clipId ? { ...c, is_private: isPrivate } : c)),
+        )
+        setModalClips((prev) =>
+          prev.map((c) => (c.id === clipId ? { ...c, is_private: isPrivate } : c)),
+        )
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Update failed")
+      } finally {
+        setPrivacyBusyKey(null)
+      }
+    },
+    [teamId],
+  )
+
   const deleteVideoInModal = async () => {
     if (!filmRoomVideoId || !modalVideo || !canDeleteVideo) return
     if (!confirm("Delete this game video from storage? All clips on this film will be removed.")) return
@@ -211,28 +263,33 @@ export function GameVideoLibrary({
     }
   }
 
-  const onUploadFile = async (file: File) => {
+  const onUploadFile = async (file: File, coachTitle?: string) => {
     if (!canUpload) return
     clearUploadSuccessTimer()
     setError(null)
-    setUploadUi({ phase: "preparing", pct: 0, fileName: file.name })
+    const displayTitle = coachTitle?.trim()
+      ? coachTitle.trim()
+      : defaultDisplayTitleFromFileName(file.name)
+    setUploadUi({ phase: "preparing", pct: 0, fileName: file.name, displayTitle })
     try {
+      const initPayload: Record<string, unknown> = {
+        fileName: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        multipart: file.size > 100 * 1024 * 1024,
+      }
+      if (coachTitle?.trim()) initPayload.title = coachTitle.trim()
+
       const initRes = await fetch(`/api/teams/${teamId}/game-videos/upload/init`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          title: file.name,
-          multipart: file.size > 100 * 1024 * 1024,
-        }),
+        body: JSON.stringify(initPayload),
       })
       const init = await initRes.json().catch(() => ({}))
       if (!initRes.ok) throw new Error(init.error || "Upload init failed")
 
       if (init.mode === "single_put" && init.uploadUrl) {
-        setUploadUi({ phase: "uploading", pct: 0, fileName: file.name })
+        setUploadUi({ phase: "uploading", pct: 0, fileName: file.name, displayTitle })
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest()
           xhr.open("PUT", init.uploadUrl)
@@ -240,7 +297,7 @@ export function GameVideoLibrary({
           xhr.upload.onprogress = (ev) => {
             if (ev.lengthComputable && ev.total > 0) {
               const pct = Math.round((ev.loaded / ev.total) * 100)
-              setUploadUi({ phase: "uploading", pct, fileName: file.name })
+              setUploadUi({ phase: "uploading", pct, fileName: file.name, displayTitle })
             }
           }
           xhr.onload = () => {
@@ -259,7 +316,7 @@ export function GameVideoLibrary({
           durationSeconds = null
         }
 
-        setUploadUi({ phase: "finalizing", pct: 100, fileName: file.name })
+        setUploadUi({ phase: "finalizing", pct: 100, fileName: file.name, displayTitle })
         const compRes = await fetch(`/api/teams/${teamId}/game-videos/upload/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -272,7 +329,7 @@ export function GameVideoLibrary({
         const comp = await compRes.json().catch(() => ({}))
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
         await loadList()
-        setUploadUi({ phase: "success", pct: 100, fileName: file.name })
+        setUploadUi({ phase: "success", pct: 100, fileName: file.name, displayTitle })
         clearUploadSuccessTimer()
         uploadSuccessClearRef.current = setTimeout(() => {
           setUploadUi(null)
@@ -286,7 +343,7 @@ export function GameVideoLibrary({
         const totalParts: number = Math.ceil(file.size / partSize)
         const parts: Array<{ partNumber: number; etag: string }> = []
 
-        setUploadUi({ phase: "uploading", pct: 0, fileName: file.name })
+        setUploadUi({ phase: "uploading", pct: 0, fileName: file.name, displayTitle })
 
         for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
           const start = (partNumber - 1) * partSize
@@ -311,7 +368,7 @@ export function GameVideoLibrary({
                 const base = (partNumber - 1) / totalParts
                 const frac = ev.loaded / ev.total / totalParts
                 const overall = Math.min(100, Math.round((base + frac) * 100))
-                setUploadUi({ phase: "uploading", pct: overall, fileName: file.name })
+                setUploadUi({ phase: "uploading", pct: overall, fileName: file.name, displayTitle })
               }
             }
             xhr.onload = () => {
@@ -335,7 +392,7 @@ export function GameVideoLibrary({
           durationSeconds = null
         }
 
-        setUploadUi({ phase: "finalizing", pct: 100, fileName: file.name })
+        setUploadUi({ phase: "finalizing", pct: 100, fileName: file.name, displayTitle })
         const compRes = await fetch(`/api/teams/${teamId}/game-videos/upload/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -350,7 +407,7 @@ export function GameVideoLibrary({
         const comp = await compRes.json().catch(() => ({}))
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
         await loadList()
-        setUploadUi({ phase: "success", pct: 100, fileName: file.name })
+        setUploadUi({ phase: "success", pct: 100, fileName: file.name, displayTitle })
         clearUploadSuccessTimer()
         uploadSuccessClearRef.current = setTimeout(() => {
           setUploadUi(null)
@@ -383,12 +440,16 @@ export function GameVideoLibrary({
           clipsLoading={loadingClips}
           canUpload={canUpload}
           canDeleteVideo={canDeleteVideo}
+          canSetRecruitingPrivacy={canUpload || canCreateClips}
           taggingEnabled={taggingEnabled}
           entitlement={entitlement}
           uploadUi={uploadUi}
-          fileInputRef={fileRef as React.RefObject<HTMLInputElement>}
-          onPickUpload={() => fileRef.current?.click()}
-          onFileSelected={(f) => void onUploadFile(f)}
+          privacyBusyKey={privacyBusyKey}
+          onVideoPrivacyChange={(id, isPrivate) => void patchVideoPrivacy(id, isPrivate)}
+          onClipPrivacyChange={(gameVideoId, clipId, isPrivate) =>
+            void patchClipPrivacy(gameVideoId, clipId, isPrivate)
+          }
+          onUploadVideo={(f, title) => void onUploadFile(f, title)}
           onOpenFilmRoom={openFilmRoom}
           onDeleteFilm={(v) => void deleteFilmFromBrowse(v)}
           onDeleteClip={(c) => void deleteClipFromBrowse(c)}
@@ -416,9 +477,7 @@ export function GameVideoLibrary({
                 }}
                 canUpload={canUpload}
                 uploadUi={uploadUi}
-                fileInputRef={fileRef as React.RefObject<HTMLInputElement>}
-                onPickUpload={() => fileRef.current?.click()}
-                onFileSelected={(f) => void onUploadFile(f)}
+                onUploadVideo={(f, title) => void onUploadFile(f, title)}
               />
 
               <div className="flex min-h-0 min-w-0 flex-col">
@@ -474,6 +533,7 @@ function normalizeClipRow(raw: unknown, film: GameVideoRow): ClipLibraryRow {
     created_at: typeof o.created_at === "string" ? o.created_at : null,
     game_video_id: film.id,
     film_title: film.title ?? null,
+    is_private: o.is_private === true,
   }
 }
 

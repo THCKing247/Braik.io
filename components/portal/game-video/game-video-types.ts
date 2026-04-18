@@ -7,6 +7,8 @@ export type GameVideoRow = {
   upload_status?: string | null
   processing_status?: string | null
   created_at?: string | null
+  /** When true, hidden from public/recruiter recruiting surfaces. */
+  is_private?: boolean | null
 }
 
 export type ClipMetadata = {
@@ -25,16 +27,20 @@ export type ClipRow = {
   share_token?: string | null
   metadata?: ClipMetadata | null
   created_at?: string | null
+  is_private?: boolean | null
 }
 
 /** Clip with parent film info for team-wide library browse */
 export type ClipLibraryRow = ClipRow & {
   game_video_id: string
   film_title: string | null
+  is_private?: boolean | null
 }
 
 export type UploadUiState = {
   phase: "preparing" | "uploading" | "finalizing" | "success"
   pct: number
   fileName: string
+  /** Coach-facing title shown during upload; mirrors DB title when custom title was sent. */
+  displayTitle?: string
 }

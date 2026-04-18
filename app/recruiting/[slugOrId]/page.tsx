@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getPublicRecruitingPageData } from "@/lib/recruiting/profile-resolver"
+import { RecruitingFilmSection } from "@/components/recruiting/recruiting-film-section"
 
 export const dynamic = "force-dynamic"
 
@@ -98,46 +99,13 @@ export default async function PublicRecruitingProfilePage({
             </section>
           )}
 
-          {/* Video links */}
-          {data.videoLinks.length > 0 && (
-            <section className="p-6 md:p-8 border-b border-gray-800">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Film &amp; Video</h2>
-              <ul className="space-y-2">
-                {data.videoLinks.map((link, i) => (
-                  <li key={i}>
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 hover:underline capitalize"
-                    >
-                      {link.videoType.replace(/_/g, " ")} →
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              {data.hudlUrl && (
-                <a
-                  href={data.hudlUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-block text-blue-400 hover:text-blue-300 hover:underline"
-                >
-                  Hudl Profile →
-                </a>
-              )}
-              {data.youtubeUrl && (
-                <a
-                  href={data.youtubeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 ml-4 inline-block text-blue-400 hover:text-blue-300 hover:underline"
-                >
-                  YouTube →
-                </a>
-              )}
-            </section>
-          )}
+          <RecruitingFilmSection
+            externalLinks={data.videoLinks}
+            braikVideos={data.recruitingFilm.braikVideos}
+            braikClips={data.recruitingFilm.braikClips}
+            hudlUrl={data.hudlUrl}
+            youtubeUrl={data.youtubeUrl}
+          />
 
           {/* Stats (if visible) */}
           {data.statsSummary && Object.keys(data.statsSummary).length > 0 && (

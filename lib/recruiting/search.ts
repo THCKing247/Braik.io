@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { getPlayerIdsWithFilmListingSignal } from "@/lib/recruiting/listing-film"
 
 export interface RecruitingSearchFilters {
   position?: string | null
@@ -156,8 +157,7 @@ export async function searchRecruitingProfiles(
 
   let playersWithVideo = new Set<string>()
   if (filters.requireListingQuality && playerIds.length > 0) {
-    const { data: vidRows } = await supabase.from("player_video_links").select("player_id").in("player_id", playerIds)
-    playersWithVideo = new Set((vidRows ?? []).map((r: { player_id: string }) => r.player_id))
+    playersWithVideo = await getPlayerIdsWithFilmListingSignal(supabase, playerIds)
   }
 
   const { data: players } = await supabase
@@ -300,8 +300,7 @@ export async function getRecruitingBrowseMeta(supabase: SupabaseClient): Promise
   }
 
   const playerIds = profiles.map((p) => (p as { player_id: string }).player_id)
-  const { data: vidRows } = await supabase.from("player_video_links").select("player_id").in("player_id", playerIds)
-  const videoSet = new Set((vidRows ?? []).map((r: { player_id: string }) => r.player_id))
+  const videoSet = await getPlayerIdsWithFilmListingSignal(supabase, playerIds)
 
   const qualityIds = new Set<string>()
   const yearSet = new Set<number>()

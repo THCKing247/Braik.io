@@ -1,27 +1,10 @@
 "use client"
 
-import type { RefObject } from "react"
-import { Film, Loader2, Upload } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { CheckCircle2 } from "lucide-react"
+import { Film, Loader2 } from "lucide-react"
 import type { GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
 import { formatBytes } from "@/components/portal/game-video/format-bytes"
+import { VideoUploadZone } from "@/components/portal/game-video/video-upload-zone"
 import { cn } from "@/lib/utils"
-
-function uploadPhaseLabel(phase: UploadUiState["phase"]): string {
-  switch (phase) {
-    case "preparing":
-      return "Preparing upload…"
-    case "uploading":
-      return "Uploading to storage…"
-    case "finalizing":
-      return "Finishing upload…"
-    case "success":
-      return "Upload complete"
-    default:
-      return "Working…"
-  }
-}
 
 export function MediaLibraryRail({
   filmRoom = false,
@@ -31,9 +14,7 @@ export function MediaLibraryRail({
   onSelect,
   canUpload,
   uploadUi,
-  fileInputRef,
-  onPickUpload,
-  onFileSelected,
+  onUploadVideo,
 }: {
   filmRoom?: boolean
   videos: GameVideoRow[]
@@ -42,9 +23,7 @@ export function MediaLibraryRail({
   onSelect: (id: string) => void
   canUpload: boolean
   uploadUi: UploadUiState | null
-  fileInputRef: RefObject<HTMLInputElement>
-  onPickUpload: () => void
-  onFileSelected: (file: File) => void
+  onUploadVideo: (file: File, coachTitle?: string) => void
 }) {
   return (
     <aside
@@ -76,67 +55,16 @@ export function MediaLibraryRail({
         </div>
         {canUpload && (
           <div className="mt-5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                e.target.value = ""
-                if (f) onFileSelected(f)
-              }}
+            <VideoUploadZone
+              variant="compact"
+              filmRoom={filmRoom}
+              canUpload={canUpload}
+              uploadUi={uploadUi}
+              onUpload={(file, title) => onUploadVideo(file, title)}
             />
-            <Button
-              type="button"
-              variant="default"
-              size={filmRoom ? "lg" : "sm"}
-              className={cn(
-                "w-full font-bold shadow-md",
-                filmRoom && "h-12 min-h-[52px] border-2 border-[#1e40af] bg-[#2563EB] text-base text-white hover:bg-[#1d4ed8]",
-              )}
-              disabled={
-                !!uploadUi &&
-                (uploadUi.phase === "preparing" || uploadUi.phase === "uploading" || uploadUi.phase === "finalizing")
-              }
-              onClick={onPickUpload}
-            >
-              <Upload className={cn("mr-2 shrink-0", filmRoom ? "h-5 w-5" : "h-4 w-4")} aria-hidden />
-              Upload video
-            </Button>
           </div>
         )}
       </div>
-
-      {uploadUi && (
-        <div className="border-b border-border px-4 py-3">
-          <div className={cn("flex flex-wrap items-center justify-between gap-2", filmRoom && "text-sm")}>
-            <div className="flex min-w-0 items-center gap-2">
-              {uploadUi.phase === "success" ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-              ) : (
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
-              )}
-              <span className="font-medium text-foreground">{uploadPhaseLabel(uploadUi.phase)}</span>
-            </div>
-            <span className="font-mono tabular-nums text-muted-foreground">{uploadUi.pct}%</span>
-          </div>
-          <p
-            className={cn("mt-1 truncate text-muted-foreground", filmRoom ? "text-xs" : "text-[11px]")}
-            title={uploadUi.fileName}
-          >
-            {uploadUi.fileName}
-          </p>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={`h-full rounded-full transition-[width] duration-150 ease-out ${
-                uploadUi.phase === "success" ? "bg-emerald-600 dark:bg-emerald-500" : "bg-[#2563EB]"
-              }`}
-              style={{ width: `${uploadUi.pct}%` }}
-            />
-          </div>
-        </div>
-      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
         {loading ? (

@@ -26,7 +26,7 @@ export const VIDEO_TIER_DEFAULTS: Record<VideoCapabilityTier, TierCapabilityDefa
   starter: {
     storageCapBytes: 10 * GB,
     maxClips: 200,
-    aiVideoFeaturesEnabled: false,
+    aiVideoFeaturesEnabled: true,
     taggingEnabled: false,
     crossTeamLibraryEnabled: false,
     bulkManagementEnabled: false,
@@ -37,7 +37,7 @@ export const VIDEO_TIER_DEFAULTS: Record<VideoCapabilityTier, TierCapabilityDefa
   pro: {
     storageCapBytes: 100 * GB,
     maxClips: 1000,
-    aiVideoFeaturesEnabled: false,
+    aiVideoFeaturesEnabled: true,
     taggingEnabled: true,
     crossTeamLibraryEnabled: false,
     bulkManagementEnabled: false,

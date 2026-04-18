@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { getPlayerIdsWithFilmListingSignal } from "@/lib/recruiting/listing-film"
 
 export interface ProgramOverview {
   programId: string
@@ -495,10 +496,10 @@ export async function getRecruitingReadyPlayers(
     .in("player_id", playerIds)
   const visibilityByPlayer = new Map((profiles ?? []).map((p) => [p.player_id, (p as { recruiting_visibility?: boolean }).recruiting_visibility === true]))
 
-  const { data: videoRows } = await supabase.from("player_video_links").select("player_id").in("player_id", playerIds)
+  const filmListingPlayers = await getPlayerIdsWithFilmListingSignal(supabase, playerIds)
   const hasVideoByPlayer = new Map<string, boolean>()
-  for (const v of videoRows ?? []) {
-    if (v.player_id) hasVideoByPlayer.set(v.player_id, true)
+  for (const pid of filmListingPlayers) {
+    hasVideoByPlayer.set(pid, true)
   }
 
   const { data: evals } = await supabase

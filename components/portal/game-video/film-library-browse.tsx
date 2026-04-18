@@ -1,6 +1,5 @@
 "use client"
 
-import type { RefObject } from "react"
 import { useMemo, useState } from "react"
 import {
   Clapperboard,
@@ -10,16 +9,17 @@ import {
   Scissors,
   Search,
   Trash2,
-  Upload,
   Video,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
 import type { ClipLibraryRow, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
 import { formatBytes } from "@/components/portal/game-video/format-bytes"
 import { durationMsLabel, formatMsRange } from "@/lib/video/timecode"
 import { cn } from "@/lib/utils"
+import { VideoUploadZone } from "@/components/portal/game-video/video-upload-zone"
 
 export type LibraryItemType = "all" | "films" | "clips"
 export type FilmStatusFilter = "all" | "ready" | "processing"
@@ -31,12 +31,14 @@ type Props = {
   clipsLoading: boolean
   canUpload: boolean
   canDeleteVideo: boolean
+  canSetRecruitingPrivacy: boolean
   taggingEnabled: boolean
   entitlement?: VideoEntitlementSummary
   uploadUi: UploadUiState | null
-  fileInputRef: RefObject<HTMLInputElement>
-  onPickUpload: () => void
-  onFileSelected: (file: File) => void
+  privacyBusyKey?: string | null
+  onVideoPrivacyChange?: (videoId: string, isPrivate: boolean) => void | Promise<void>
+  onClipPrivacyChange?: (gameVideoId: string, clipId: string, isPrivate: boolean) => void | Promise<void>
+  onUploadVideo: (file: File, coachTitle?: string) => void
   onOpenFilmRoom: (videoId: string, opts?: { clipId?: string }) => void
   onDeleteFilm: (video: GameVideoRow) => void
   onDeleteClip: (clip: ClipLibraryRow) => void
@@ -59,12 +61,14 @@ export function FilmLibraryBrowse({
   clipsLoading,
   canUpload,
   canDeleteVideo,
+  canSetRecruitingPrivacy,
   taggingEnabled,
   entitlement,
   uploadUi,
-  fileInputRef,
-  onPickUpload,
-  onFileSelected,
+  privacyBusyKey,
+  onVideoPrivacyChange,
+  onClipPrivacyChange,
+  onUploadVideo,
   onOpenFilmRoom,
   onDeleteFilm,
   onDeleteClip,
@@ -126,7 +130,7 @@ export function FilmLibraryBrowse({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="border-b border-border pb-6">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Film library</h1>
           <p className="mt-2 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-400">
@@ -134,50 +138,16 @@ export function FilmLibraryBrowse({
           </p>
         </div>
         {canUpload && (
-          <div className="shrink-0">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                e.target.value = ""
-                if (f) onFileSelected(f)
-              }}
+          <div className="mt-6">
+            <VideoUploadZone
+              variant="hero"
+              canUpload={canUpload}
+              uploadUi={uploadUi}
+              onUpload={(file, title) => onUploadVideo(file, title)}
             />
-            <Button
-              type="button"
-              size="lg"
-              className="h-12 min-h-[48px] gap-2 bg-[#2563EB] px-6 text-base font-bold text-white shadow-md hover:bg-[#1d4ed8]"
-              disabled={
-                !!uploadUi &&
-                (uploadUi.phase === "preparing" || uploadUi.phase === "uploading" || uploadUi.phase === "finalizing")
-              }
-              onClick={onPickUpload}
-            >
-              <Upload className="h-5 w-5" aria-hidden />
-              Upload video
-            </Button>
           </div>
         )}
       </div>
-
-      {uploadUi && (
-        <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
-            <span className="text-foreground">{uploadUi.phase === "success" ? "Upload complete" : "Uploading…"}</span>
-            <span className="font-mono text-muted-foreground">{uploadUi.pct}%</span>
-          </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{uploadUi.fileName}</p>
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={`h-full rounded-full transition-[width] duration-150 ${uploadUi.phase === "success" ? "bg-emerald-600" : "bg-[#2563EB]"}`}
-              style={{ width: `${uploadUi.pct}%` }}
-            />
-          </div>
-        </div>
-      )}
 
       {entitlement && (
         <div className="rounded-2xl border border-border/80 bg-muted/30 px-4 py-3 text-sm text-foreground shadow-sm">
@@ -323,6 +293,23 @@ export function FilmLibraryBrowse({
                           </p>
                         </div>
                       </div>
+                      {canSetRecruitingPrivacy && v.upload_status === "ready" && (
+                        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3 text-left">
+                          <Checkbox
+                            checked={v.is_private === true}
+                            disabled={privacyBusyKey === `v:${v.id}`}
+                            onCheckedChange={(checked) => onVideoPrivacyChange?.(v.id, checked === true)}
+                            className="mt-1"
+                            aria-label="Private video — hide from recruiters"
+                          />
+                          <span className="text-sm leading-snug text-foreground">
+                            <span className="font-bold">Private (hide from recruiters)</span>
+                            <span className="mt-0.5 block text-muted-foreground">
+                              When checked, this film will not appear on public recruiting profiles.
+                            </span>
+                          </span>
+                        </label>
+                      )}
                       <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
                         <Button
                           type="button"
@@ -408,6 +395,25 @@ export function FilmLibraryBrowse({
                             </span>
                           ))}
                         </div>
+                      )}
+                      {canSetRecruitingPrivacy && (
+                        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3 text-left">
+                          <Checkbox
+                            checked={c.is_private === true}
+                            disabled={privacyBusyKey === `c:${c.id}`}
+                            onCheckedChange={(checked) =>
+                              onClipPrivacyChange?.(c.game_video_id, c.id, checked === true)
+                            }
+                            className="mt-1"
+                            aria-label="Private clip — hide from recruiters"
+                          />
+                          <span className="text-sm leading-snug text-foreground">
+                            <span className="font-bold">Private (hide from recruiters)</span>
+                            <span className="mt-0.5 block text-muted-foreground">
+                              When checked, this clip will not appear on public recruiting profiles.
+                            </span>
+                          </span>
+                        </label>
                       )}
                       <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
                         <Button

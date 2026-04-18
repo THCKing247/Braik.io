@@ -33,7 +33,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tea
     const { data: rows, error } = await supabase
       .from("game_videos")
       .select(
-        "id, team_id, title, mime_type, file_size_bytes, duration_seconds, upload_status, processing_status, created_at"
+        "id, team_id, title, mime_type, file_size_bytes, duration_seconds, upload_status, processing_status, created_at, is_private"
       )
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })

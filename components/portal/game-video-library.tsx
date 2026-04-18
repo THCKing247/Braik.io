@@ -3,10 +3,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
+import { FilmLibraryBrowse } from "@/components/portal/game-video/film-library-browse"
+import { FilmRoomModalShell } from "@/components/portal/game-video/film-room-modal-shell"
 import { FilmWorkspace } from "@/components/portal/game-video/film-workspace"
 import { MediaLibraryRail } from "@/components/portal/game-video/media-library-rail"
-import type { ClipRow, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
-import { formatBytes } from "@/components/portal/game-video/format-bytes"
+import type { ClipLibraryRow, ClipRow, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
 
 export function GameVideoLibrary({
   teamId,
@@ -16,7 +17,6 @@ export function GameVideoLibrary({
   canDeleteVideo,
   aiVideoEnabled,
   taggingEnabled,
-  embeddedInModal = false,
 }: {
   teamId: string
   entitlement?: VideoEntitlementSummary
@@ -25,17 +25,20 @@ export function GameVideoLibrary({
   canDeleteVideo: boolean
   aiVideoEnabled: boolean
   taggingEnabled: boolean
-  /** Full-screen film room overlay — tighter layout and higher-contrast copy */
-  embeddedInModal?: boolean
 }) {
   const [videos, setVideos] = useState<GameVideoRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadingVideos, setLoadingVideos] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
+  const [allClips, setAllClips] = useState<ClipLibraryRow[]>([])
+  const [loadingClips, setLoadingClips] = useState(false)
 
-  const [clips, setClips] = useState<ClipRow[]>([])
+  const [filmRoomVideoId, setFilmRoomVideoId] = useState<string | null>(null)
+  const [filmRoomClipId, setFilmRoomClipId] = useState<string | null>(null)
+
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
+  const [modalClips, setModalClips] = useState<ClipRow[]>([])
+
   const [uploadUi, setUploadUi] = useState<UploadUiState | null>(null)
   const uploadSuccessClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
@@ -47,10 +50,10 @@ export function GameVideoLibrary({
     }
   }, [])
 
-  const selected = videos.find((v) => v.id === selectedId) ?? null
+  const modalVideo = videos.find((v) => v.id === filmRoomVideoId) ?? null
 
   const loadList = useCallback(async () => {
-    setLoading(true)
+    setLoadingVideos(true)
     setError(null)
     try {
       const res = await fetch(`/api/teams/${teamId}/game-videos`)
@@ -60,13 +63,42 @@ export function GameVideoLibrary({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load")
     } finally {
-      setLoading(false)
+      setLoadingVideos(false)
     }
   }, [teamId])
+
+  const loadAllClips = useCallback(
+    async (videoList: GameVideoRow[]) => {
+      if (videoList.length === 0) {
+        setAllClips([])
+        return
+      }
+      setLoadingClips(true)
+      try {
+        const batches = await Promise.all(
+          videoList.map(async (v) => {
+            const res = await fetch(`/api/teams/${teamId}/game-videos/${v.id}/clips`)
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) return [] as ClipLibraryRow[]
+            const raw = data.clips ?? []
+            return (raw as unknown[]).map((row) => normalizeClipRow(row, v))
+          }),
+        )
+        setAllClips(batches.flat())
+      } finally {
+        setLoadingClips(false)
+      }
+    },
+    [teamId],
+  )
 
   useEffect(() => {
     void loadList()
   }, [loadList])
+
+  useEffect(() => {
+    void loadAllClips(videos)
+  }, [videos, loadAllClips])
 
   useEffect(() => () => clearUploadSuccessTimer(), [clearUploadSuccessTimer])
 
@@ -82,45 +114,98 @@ export function GameVideoLibrary({
         setPlaybackUrl(null)
       }
     },
-    [teamId]
+    [teamId],
   )
 
-  useEffect(() => {
-    if (selectedId) void loadPlayback(selectedId)
-  }, [selectedId, loadPlayback])
-
-  const loadClips = useCallback(
+  const loadModalClips = useCallback(
     async (videoId: string) => {
       try {
         const res = await fetch(`/api/teams/${teamId}/game-videos/${videoId}/clips`)
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || "Failed to load clips")
-        setClips(data.clips ?? [])
+        const film = videos.find((v) => v.id === videoId)
+        if (!film) {
+          setModalClips([])
+          return
+        }
+        const raw = data.clips ?? []
+        const mapped = (raw as unknown[]).map((row) => stripToClipRow(normalizeClipRow(row, film)))
+        setModalClips(mapped)
       } catch {
-        setClips([])
+        setModalClips([])
       }
     },
-    [teamId]
+    [teamId, videos],
   )
 
   useEffect(() => {
-    if (selectedId) void loadClips(selectedId)
-  }, [selectedId, loadClips])
+    if (!filmRoomVideoId) {
+      setPlaybackUrl(null)
+      setModalClips([])
+      return
+    }
+    void loadPlayback(filmRoomVideoId)
+    void loadModalClips(filmRoomVideoId)
+  }, [filmRoomVideoId, loadPlayback, loadModalClips])
 
-  const refreshClips = useCallback(async () => {
-    if (selectedId) await loadClips(selectedId)
-  }, [selectedId, loadClips])
+  const refreshClipsForWorkspace = useCallback(async () => {
+    if (!filmRoomVideoId) return
+    await loadModalClips(filmRoomVideoId)
+    await loadAllClips(videos)
+  }, [filmRoomVideoId, loadModalClips, loadAllClips, videos])
 
-  const deleteVideo = async () => {
-    if (!selectedId || !canDeleteVideo) return
-    if (!confirm("Delete this game video from storage? All clips on this film will be removed.")) return
+  const closeFilmRoom = useCallback(() => {
+    setFilmRoomVideoId(null)
+    setFilmRoomClipId(null)
+    setPlaybackUrl(null)
+    setModalClips([])
+    setError(null)
+    void loadList()
+  }, [loadList])
+
+  const openFilmRoom = useCallback((videoId: string, opts?: { clipId?: string }) => {
+    setError(null)
+    setFilmRoomVideoId(videoId)
+    setFilmRoomClipId(opts?.clipId ?? null)
+  }, [])
+
+  const deleteFilmFromBrowse = async (v: GameVideoRow) => {
+    if (!canDeleteVideo) return
+    if (!confirm(`Delete “${v.title || "this film"}” from storage? All clips on this film will be removed.`)) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/game-videos/${selectedId}`, { method: "DELETE" })
+      const res = await fetch(`/api/teams/${teamId}/game-videos/${v.id}`, { method: "DELETE" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Delete failed")
-      setSelectedId(null)
-      setPlaybackUrl(null)
+      if (filmRoomVideoId === v.id) closeFilmRoom()
       await loadList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed")
+    }
+  }
+
+  const deleteClipFromBrowse = async (c: ClipLibraryRow) => {
+    if (!confirm("Remove this clip?")) return
+    try {
+      const res = await fetch(`/api/teams/${teamId}/game-videos/${c.game_video_id}/clips/${c.id}`, {
+        method: "DELETE",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Delete failed")
+      await loadList()
+      if (filmRoomVideoId === c.game_video_id) await loadModalClips(c.game_video_id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed")
+    }
+  }
+
+  const deleteVideoInModal = async () => {
+    if (!filmRoomVideoId || !modalVideo || !canDeleteVideo) return
+    if (!confirm("Delete this game video from storage? All clips on this film will be removed.")) return
+    try {
+      const res = await fetch(`/api/teams/${teamId}/game-videos/${filmRoomVideoId}`, { method: "DELETE" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Delete failed")
+      closeFilmRoom()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed")
     }
@@ -187,7 +272,6 @@ export function GameVideoLibrary({
         const comp = await compRes.json().catch(() => ({}))
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
         await loadList()
-        setSelectedId(vid)
         setUploadUi({ phase: "success", pct: 100, fileName: file.name })
         clearUploadSuccessTimer()
         uploadSuccessClearRef.current = setTimeout(() => {
@@ -266,7 +350,6 @@ export function GameVideoLibrary({
         const comp = await compRes.json().catch(() => ({}))
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
         await loadList()
-        setSelectedId(init.videoId as string)
         setUploadUi({ phase: "success", pct: 100, fileName: file.name })
         clearUploadSuccessTimer()
         uploadSuccessClearRef.current = setTimeout(() => {
@@ -285,136 +368,117 @@ export function GameVideoLibrary({
   }
 
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-6",
-        embeddedInModal && "min-h-0 flex-1",
-      )}
-    >
-      {entitlement && (
-        <details
-          className={cn(
-            "group rounded-2xl border px-4 py-3 shadow-sm open:shadow-md",
-            embeddedInModal
-              ? "border-white/15 bg-white/[0.07] text-sm text-slate-200 open:bg-white/[0.09]"
-              : "border-border/80 bg-muted/20 text-xs text-muted-foreground open:bg-card",
-          )}
-        >
-          <summary className="cursor-pointer list-none font-semibold text-foreground outline-none marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className={cn(embeddedInModal && "text-white")}>Video space for this team — {formatBytes(entitlement.storageUsedBytes)} of {formatBytes(entitlement.storageCapBytes)}{" "}
-              used</span>
-            <span className={cn("ml-2 inline", embeddedInModal ? "text-slate-300" : "text-muted-foreground")}>
-              ({entitlement.videoCount} films, {entitlement.clipCount} clips stored)
-              {entitlement.sharedStorageScope === "program" ? " · Program-shared" : ""}
-            </span>
-          </summary>
-          <p
-            className={cn(
-              "mt-2 border-t pt-2 text-[13px] leading-relaxed",
-              embeddedInModal ? "border-white/10 text-slate-300" : "border-border text-[11px] text-muted-foreground",
-            )}
-          >
-            Storage keeps your uploads safe; your film work is in the viewer and saved clips below.
-          </p>
-        </details>
-      )}
-
-      {error && (
-        <div
-          className={cn(
-            "rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-destructive",
-            embeddedInModal && "text-base font-medium",
-          )}
-        >
-          {error}
-        </div>
-      )}
-
-      <div
-        className={cn(
-          "grid min-h-0 gap-6 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:items-stretch lg:gap-8",
-          embeddedInModal && "flex-1",
+    <>
+      <div className="space-y-6">
+        {error && !filmRoomVideoId && (
+          <div className="rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-base font-medium text-destructive">
+            {error}
+          </div>
         )}
-      >
-        <MediaLibraryRail
-          filmRoom={embeddedInModal}
+
+        <FilmLibraryBrowse
           videos={videos}
-          loading={loading}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
+          videosLoading={loadingVideos}
+          clips={allClips}
+          clipsLoading={loadingClips}
           canUpload={canUpload}
+          canDeleteVideo={canDeleteVideo}
+          taggingEnabled={taggingEnabled}
+          entitlement={entitlement}
           uploadUi={uploadUi}
           fileInputRef={fileRef as React.RefObject<HTMLInputElement>}
           onPickUpload={() => fileRef.current?.click()}
           onFileSelected={(f) => void onUploadFile(f)}
+          onOpenFilmRoom={openFilmRoom}
+          onDeleteFilm={(v) => void deleteFilmFromBrowse(v)}
+          onDeleteClip={(c) => void deleteClipFromBrowse(c)}
         />
-
-        <div className="flex min-h-0 min-w-0 flex-col">
-          {!selected ? (
-            <div
-              className={cn(
-                "flex flex-col justify-center rounded-2xl border border-dashed px-6 py-12 text-left sm:px-10",
-                embeddedInModal
-                  ? "min-h-[min(520px,calc(100dvh-16rem))] border-white/20 bg-white/[0.06] text-slate-100"
-                  : "min-h-[440px] border-border bg-gradient-to-b from-card to-muted/20 text-foreground",
-              )}
-            >
-              <p className={cn("text-xl font-bold", embeddedInModal && "text-white")}>Open a film to start</p>
-              <p
-                className={cn(
-                  "mt-3 max-w-lg text-[15px] leading-relaxed",
-                  embeddedInModal ? "text-slate-300" : "text-muted-foreground",
-                )}
-              >
-                Pick a video from the film library on the left. The player opens here with mark buttons, notes, tags, and
-                your saved clips.
-              </p>
-              <ol className="mt-8 max-w-lg list-decimal space-y-4 pl-6 text-[15px] leading-snug">
-                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
-                  <span className="font-semibold">Upload video</span>{" "}
-                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
-                    — use the blue button on the left if you need new film.
-                  </span>
-                </li>
-                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
-                  <span className="font-semibold">Select your game or practice</span>{" "}
-                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
-                    — wait until it shows Ready.
-                  </span>
-                </li>
-                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
-                  <span className="font-semibold">Mark start and end</span>{" "}
-                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
-                    — on the play you’re coaching up.
-                  </span>
-                </li>
-                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
-                  <span className="font-semibold">Save clip and tag it</span>{" "}
-                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
-                    — build your teaching reel on the Saved clips tab.
-                  </span>
-                </li>
-              </ol>
-            </div>
-          ) : (
-            <FilmWorkspace
-              teamId={teamId}
-              video={selected}
-              playbackUrl={playbackUrl}
-              clips={clips}
-              onRefreshClips={refreshClips}
-              canCreateClips={canCreateClips}
-              canDeleteVideo={canDeleteVideo}
-              aiVideoEnabled={aiVideoEnabled}
-              taggingEnabled={taggingEnabled}
-              onError={setError}
-              onDeleteVideo={deleteVideo}
-            />
-          )}
-        </div>
       </div>
-    </div>
+
+      {filmRoomVideoId && modalVideo && (
+        <FilmRoomModalShell onExit={closeFilmRoom} exitLabel="Back to film library">
+          <div className={cn("flex min-h-0 flex-1 flex-col gap-6")}>
+            {error && (
+              <div className="rounded-xl border border-destructive/50 bg-destructive/20 px-4 py-3 text-base font-medium text-red-100">
+                {error}
+              </div>
+            )}
+
+            <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:items-stretch lg:gap-8">
+              <MediaLibraryRail
+                filmRoom
+                videos={videos}
+                loading={loadingVideos}
+                selectedId={filmRoomVideoId}
+                onSelect={(id) => {
+                  setFilmRoomVideoId(id)
+                  setFilmRoomClipId(null)
+                }}
+                canUpload={canUpload}
+                uploadUi={uploadUi}
+                fileInputRef={fileRef as React.RefObject<HTMLInputElement>}
+                onPickUpload={() => fileRef.current?.click()}
+                onFileSelected={(f) => void onUploadFile(f)}
+              />
+
+              <div className="flex min-h-0 min-w-0 flex-col">
+                <FilmWorkspace
+                  teamId={teamId}
+                  video={modalVideo}
+                  playbackUrl={playbackUrl}
+                  clips={modalClips}
+                  onRefreshClips={refreshClipsForWorkspace}
+                  canCreateClips={canCreateClips}
+                  canDeleteVideo={canDeleteVideo}
+                  aiVideoEnabled={aiVideoEnabled}
+                  taggingEnabled={taggingEnabled}
+                  onError={setError}
+                  onDeleteVideo={deleteVideoInModal}
+                  initialClipId={filmRoomClipId}
+                />
+              </div>
+            </div>
+          </div>
+        </FilmRoomModalShell>
+      )}
+    </>
   )
+}
+
+function normalizeClipRow(raw: unknown, film: GameVideoRow): ClipLibraryRow {
+  const o = raw as Record<string, unknown>
+  const title =
+    (typeof o.title === "string" && o.title) || (typeof o.label === "string" && o.label) || null
+  let tags: string[] | null = null
+  if (Array.isArray(o.tags)) tags = o.tags.map((t) => String(t)).filter(Boolean)
+  else if (typeof o.tags === "string") {
+    try {
+      const p = JSON.parse(o.tags) as unknown
+      if (Array.isArray(p)) tags = p.map((t) => String(t))
+    } catch {
+      tags = o.tags.split(",").map((t) => t.trim()).filter(Boolean)
+    }
+  }
+
+  return {
+    id: String(o.id ?? ""),
+    start_ms: Number(o.start_ms ?? o.startMs ?? 0),
+    end_ms: Number(o.end_ms ?? o.endMs ?? 0),
+    duration_ms: o.duration_ms != null ? Number(o.duration_ms) : null,
+    title,
+    description: typeof o.description === "string" ? o.description : null,
+    tags,
+    share_token: typeof o.share_token === "string" ? o.share_token : null,
+    metadata: (o.metadata as ClipLibraryRow["metadata"]) ?? null,
+    created_at: typeof o.created_at === "string" ? o.created_at : null,
+    game_video_id: film.id,
+    film_title: film.title ?? null,
+  }
+}
+
+function stripToClipRow(c: ClipLibraryRow): ClipRow {
+  const { game_video_id: _g, film_title: _f, ...rest } = c
+  return rest
 }
 
 function readDurationFromFile(file: File): Promise<number | null> {

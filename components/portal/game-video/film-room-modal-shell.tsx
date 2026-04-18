@@ -1,23 +1,24 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { useCallback, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useRef } from "react"
 import { ArrowLeft, Clapperboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 /**
- * Full-viewport film workspace overlay. Keeps route at /dashboard/game-video while focusing the coach UI.
- * Exit returns to team dashboard home (same teamId).
+ * Full-viewport film workspace overlay. Parent supplies onExit (e.g. back to in-route film library).
  */
-export function FilmRoomModalShell({ teamId, children }: { teamId: string; children: ReactNode }) {
-  const router = useRouter()
-  const exit = useCallback(() => {
-    router.push(`/dashboard?teamId=${encodeURIComponent(teamId)}`)
-  }, [router, teamId])
-
-  const exitRef = useRef(exit)
-  exitRef.current = exit
+export function FilmRoomModalShell({
+  onExit,
+  exitLabel = "Back to film library",
+  children,
+}: {
+  onExit: () => void
+  exitLabel?: string
+  children: ReactNode
+}) {
+  const exitRef = useRef(onExit)
+  exitRef.current = onExit
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow
@@ -65,10 +66,10 @@ export function FilmRoomModalShell({ teamId, children }: { teamId: string; child
           size="lg"
           variant="secondary"
           className="h-12 min-h-[48px] shrink-0 gap-2 border-2 border-white/25 bg-white px-5 text-base font-bold text-[#0f172a] shadow-lg hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a]"
-          onClick={exit}
+          onClick={() => exitRef.current()}
         >
           <ArrowLeft className="h-5 w-5 shrink-0" aria-hidden />
-          Exit film room
+          {exitLabel}
         </Button>
       </header>
 

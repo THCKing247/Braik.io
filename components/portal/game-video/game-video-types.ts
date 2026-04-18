@@ -24,6 +24,13 @@ export type ClipRow = {
   tags?: string[] | null
   share_token?: string | null
   metadata?: ClipMetadata | null
+  created_at?: string | null
+}
+
+/** Clip with parent film info for team-wide library browse */
+export type ClipLibraryRow = ClipRow & {
+  game_video_id: string
+  film_title: string | null
 }
 
 export type UploadUiState = {

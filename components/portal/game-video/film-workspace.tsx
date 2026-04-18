@@ -31,6 +31,8 @@ type Props = {
   taggingEnabled: boolean
   onError: (msg: string | null) => void
   onDeleteVideo: () => Promise<void>
+  /** When opening from library with "Open clip", load this clip into the editor once clips are available */
+  initialClipId?: string | null
 }
 
 export function FilmWorkspace({
@@ -45,10 +47,12 @@ export function FilmWorkspace({
   taggingEnabled,
   onError,
   onDeleteVideo,
+  initialClipId = null,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const timelineRef = useRef<HTMLDivElement | null>(null)
   const previewCleanupRef = useRef<(() => void) | null>(null)
+  const initialClipAppliedRef = useRef<string | null>(null)
 
   const [durationMs, setDurationMs] = useState(0)
   const [playheadMs, setPlayheadMs] = useState(0)
@@ -105,6 +109,7 @@ export function FilmWorkspace({
   useEffect(() => () => previewCleanupRef.current?.(), [])
 
   useEffect(() => {
+    initialClipAppliedRef.current = null
     setInMs(0)
     setOutMs(0)
     setPlayheadMs(0)
@@ -364,26 +369,39 @@ export function FilmWorkspace({
     }
   }
 
-  const loadClipIntoEditor = (c: ClipRow) => {
-    setHighlightClipId(c.id)
-    setInMs(c.start_ms)
-    setOutMs(c.end_ms)
-    setClipTitle(c.title || "")
-    setClipDescription(c.description || "")
-    const tags = Array.isArray(c.tags) ? c.tags : []
-    const { quickSelected, freeComma } = splitQuickAndFreeFromTags(tags)
-    setQuickTagsSelected(quickSelected)
-    setClipTagsFree(freeComma)
-    const mc = c.metadata?.categories
-    setClipCategories({
-      playType: mc?.playType ?? "",
-      situation: mc?.situation ?? "",
-      personnel: mc?.personnel ?? "",
-      outcome: mc?.outcome ?? "",
-    })
-    seekMs(c.start_ms)
-    stopPreview()
-  }
+  const loadClipIntoEditor = useCallback(
+    (c: ClipRow) => {
+      setHighlightClipId(c.id)
+      setInMs(c.start_ms)
+      setOutMs(c.end_ms)
+      setClipTitle(c.title || "")
+      setClipDescription(c.description || "")
+      const tags = Array.isArray(c.tags) ? c.tags : []
+      const { quickSelected, freeComma } = splitQuickAndFreeFromTags(tags)
+      setQuickTagsSelected(quickSelected)
+      setClipTagsFree(freeComma)
+      const mc = c.metadata?.categories
+      setClipCategories({
+        playType: mc?.playType ?? "",
+        situation: mc?.situation ?? "",
+        personnel: mc?.personnel ?? "",
+        outcome: mc?.outcome ?? "",
+      })
+      seekMs(c.start_ms)
+      stopPreview()
+    },
+    [seekMs, stopPreview],
+  )
+
+  useEffect(() => {
+    if (!initialClipId) return
+    const key = `${video.id}:${initialClipId}`
+    if (initialClipAppliedRef.current === key) return
+    const c = clips.find((x) => x.id === initialClipId)
+    if (!c) return
+    initialClipAppliedRef.current = key
+    loadClipIntoEditor(c)
+  }, [clips, initialClipId, video.id, loadClipIntoEditor])
 
   const previewSavedClip = async (c: ClipRow) => {
     previewCleanupRef.current?.()

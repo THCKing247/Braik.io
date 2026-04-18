@@ -3,8 +3,6 @@
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { GameVideoLibrary } from "@/components/portal/game-video-library"
-import { FilmRoomModalShell } from "@/components/portal/game-video/film-room-modal-shell"
-
 export default function GameVideoPage() {
   return (
     <DashboardPageShell>
@@ -35,17 +33,14 @@ function GameVideoBody({ teamId }: { teamId: string }) {
   }
 
   return (
-    <FilmRoomModalShell teamId={teamId}>
-      <GameVideoLibrary
-        teamId={teamId}
-        entitlement={vc.entitlement}
-        canUpload={vc.canUploadVideo}
-        canCreateClips={vc.canCreateClips}
-        canDeleteVideo={vc.canDeleteVideo}
-        aiVideoEnabled={Boolean(vc.entitlement?.aiVideoEnabled)}
-        taggingEnabled={Boolean(vc.entitlement?.taggingEnabled)}
-        embeddedInModal
-      />
-    </FilmRoomModalShell>
+    <GameVideoLibrary
+      teamId={teamId}
+      entitlement={vc.entitlement}
+      canUpload={vc.canUploadVideo}
+      canCreateClips={vc.canCreateClips}
+      canDeleteVideo={vc.canDeleteVideo}
+      aiVideoEnabled={Boolean(vc.entitlement?.aiVideoEnabled)}
+      taggingEnabled={Boolean(vc.entitlement?.taggingEnabled)}
+    />
   )
 }

@@ -1,20 +1,36 @@
 "use client"
 
-import type { RefObject } from "react"
-import { Film } from "lucide-react"
+import type { ReactNode, RefObject } from "react"
+import { ChevronLeft, ChevronRight, Film } from "lucide-react"
 import {
   clampMs,
   formatMsAsTimecode,
   formatMsRange,
   parseLooseTimeToMs,
 } from "@/lib/video/timecode"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
+import {
+  FILM_EDITOR_FPS_PRESETS,
+  frameDurationMs,
+  snapMsToFrameGrid,
+} from "@/lib/video/frame-timing"
+
+export type FilmTimelineSegment = {
+  id: string
+  kind: "draft" | "saved"
+  startMs: number
+  endMs: number
+}
 
 type Props = {
   playbackUrl: string | null
   videoRef: RefObject<HTMLVideoElement>
   playbackKey: string
   previewActive: boolean
+  /** Hide native video controls while Braik-driven preview or main Play transport is active */
+  suppressNativeControls?: boolean
   durationSafe: number
   playheadMs: number
   inMs: number
@@ -30,6 +46,21 @@ type Props = {
   onNudgeOut: (deltaMs: number) => void
   onSetInMs: (ms: number) => void
   onSetOutMs: (ms: number) => void
+  /** Draft + saved clips shown as lane segments (click selects in workspace) */
+  timelineSegments?: FilmTimelineSegment[]
+  selectedTimelineSegmentId?: string | null
+  onTimelineSegmentClick?: (id: string, kind: FilmTimelineSegment["kind"]) => void
+  /** When marking end is pending, pulse the active work range */
+  markingRangeLive?: boolean
+  /** Nominal fps for frame snapping / stepping (coach-selectable). */
+  editorFps: number
+  onEditorFpsChange: (fps: number) => void
+  playheadFrameOrdinal: number
+  onStepPlayheadFrames: (deltaFrames: number) => void
+  onNudgeMarkInFrames: (deltaFrames: number) => void
+  onNudgeMarkOutFrames: (deltaFrames: number) => void
+  /** Optional visual scan lane beneath the scrubber */
+  belowScrubber?: ReactNode
 }
 
 const NUDGE_SMALL = 100
@@ -40,6 +71,7 @@ export function FilmPlayerHero({
   videoRef,
   playbackKey,
   previewActive,
+  suppressNativeControls = false,
   durationSafe,
   playheadMs,
   inMs,
@@ -55,8 +87,21 @@ export function FilmPlayerHero({
   onNudgeOut,
   onSetInMs,
   onSetOutMs,
+  timelineSegments = [],
+  selectedTimelineSegmentId = null,
+  onTimelineSegmentClick,
+  markingRangeLive = false,
+  editorFps,
+  onEditorFpsChange,
+  playheadFrameOrdinal,
+  onStepPlayheadFrames,
+  onNudgeMarkInFrames,
+  onNudgeMarkOutFrames,
+  belowScrubber,
 }: Props) {
   const pct = (ms: number) => Math.min(100, Math.max(0, (ms / durationSafe) * 100))
+  const fd = frameDurationMs(editorFps)
+  const fdLabel = fd < 10 ? fd.toFixed(2) : fd.toFixed(1)
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border bg-[#0a0f1a] shadow-lg ring-1 ring-black/5 dark:ring-white/10">
@@ -66,7 +111,7 @@ export function FilmPlayerHero({
             ref={videoRef}
             key={playbackKey}
             className="h-full w-full object-contain"
-            controls={!previewActive}
+            controls={!previewActive && !suppressNativeControls}
             src={playbackUrl}
             preload="metadata"
             onLoadedMetadata={onLoadedMetadata}
@@ -109,6 +154,53 @@ export function FilmPlayerHero({
           </div>
         </div>
 
+        <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-slate-900/40 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Frames</span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-9 gap-1 border border-white/15 bg-slate-800/90 px-3 text-xs font-semibold text-slate-100"
+              onClick={() => onStepPlayheadFrames(-1)}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Prev frame
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-9 gap-1 border border-white/15 bg-slate-800/90 px-3 text-xs font-semibold text-slate-100"
+              onClick={() => onStepPlayheadFrames(1)}
+            >
+              Next frame
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <label className="flex items-center gap-2 font-semibold uppercase tracking-wide text-slate-500">
+              Nominal FPS
+              <select
+                className="rounded-md border border-white/15 bg-slate-900 px-2 py-1.5 font-mono text-sm text-slate-100"
+                value={editorFps}
+                onChange={(e) => onEditorFpsChange(Number(e.target.value))}
+              >
+                {FILM_EDITOR_FPS_PRESETS.map((fps) => (
+                  <option key={fps} value={fps}>
+                    {fps}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="hidden sm:inline text-slate-600">·</span>
+            <span className="font-mono text-slate-300">
+              Frame <strong className="text-emerald-300">{playheadFrameOrdinal}</strong>
+              <span className="ml-1 text-slate-500">(~{fdLabel} ms)</span>
+            </span>
+          </div>
+        </div>
+
         <div
           ref={timelineRef}
           role="slider"
@@ -119,6 +211,7 @@ export function FilmPlayerHero({
           tabIndex={0}
           className="relative mb-3 h-14 cursor-pointer rounded-xl bg-slate-800/80 ring-2 ring-white/15 transition-shadow hover:ring-sky-400/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           onMouseDown={(e) => {
+            if ((e.target as HTMLElement).closest("[data-timeline-segment]")) return
             onTimelinePointerDown(e.clientX)
             const move = (ev: MouseEvent) => onTimelinePointerDown(ev.clientX)
             const up = () => {
@@ -133,15 +226,42 @@ export function FilmPlayerHero({
             if (e.key === "ArrowRight") onNudgePlayhead(NUDGE_LARGE)
           }}
         >
+          {timelineSegments.map((seg) => {
+            const left = pct(seg.startMs)
+            const w = Math.max(0, pct(seg.endMs) - left)
+            const sel = seg.id === selectedTimelineSegmentId
+            return (
+              <button
+                key={`${seg.kind}-${seg.id}`}
+                type="button"
+                data-timeline-segment
+                title={seg.kind === "draft" ? "Draft clip — click to select" : "Saved clip — click to open"}
+                className={cn(
+                  "absolute bottom-0 top-0 z-[1] rounded-xl transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80",
+                  seg.kind === "draft" ? "bg-amber-400/35 hover:bg-amber-400/45" : "bg-emerald-500/25 hover:bg-emerald-500/35",
+                  sel && "ring-2 ring-amber-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]",
+                )}
+                style={{ left: `${left}%`, width: `${w}%` }}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onTimelineSegmentClick?.(seg.id, seg.kind)
+                }}
+              />
+            )
+          })}
           <div
-            className="pointer-events-none absolute bottom-0 top-0 rounded-xl bg-sky-500/30"
+            className={cn(
+              "pointer-events-none absolute bottom-0 top-0 z-[2] rounded-xl bg-sky-500/40",
+              markingRangeLive && "animate-pulse bg-sky-400/45",
+            )}
             style={{
               left: `${pct(inMs)}%`,
               width: `${Math.max(0, pct(outMs) - pct(inMs))}%`,
             }}
           />
           <div
-            className="pointer-events-none absolute bottom-0 top-0 w-1 rounded-sm bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.85)]"
+            className="pointer-events-none absolute bottom-0 top-0 z-[4] w-1 rounded-sm bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.85)]"
             style={{ left: `${pct(playheadMs)}%`, transform: "translateX(-50%)" }}
           />
           <div
@@ -153,6 +273,8 @@ export function FilmPlayerHero({
             style={{ left: `${pct(outMs)}%`, transform: "translateX(-50%)" }}
           />
         </div>
+
+        {belowScrubber}
 
         {fineTuneExpanded && (
           <div className="space-y-3 border-t border-white/10 pt-4">
@@ -191,6 +313,20 @@ export function FilmPlayerHero({
               >
                 +1s
               </button>
+              <button
+                type="button"
+                className="rounded-lg border border-violet-500/25 bg-violet-950/35 px-2.5 py-1.5 text-xs font-semibold text-violet-100 hover:bg-violet-950/55"
+                onClick={() => onStepPlayheadFrames(-1)}
+              >
+                −1 fr
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-violet-500/25 bg-violet-950/35 px-2.5 py-1.5 text-xs font-semibold text-violet-100 hover:bg-violet-950/55"
+                onClick={() => onStepPlayheadFrames(1)}
+              >
+                +1 fr
+              </button>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="mr-1 self-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -210,6 +346,22 @@ export function FilmPlayerHero({
               >
                 +
               </button>
+              <button
+                type="button"
+                className="rounded-lg border border-violet-500/30 bg-violet-950/40 px-2 py-1 text-[11px] font-semibold text-violet-100 hover:bg-violet-950/70"
+                onClick={() => onNudgeMarkInFrames(-1)}
+                title={`Trim start −1 frame (~${fdLabel} ms)`}
+              >
+                −1 fr
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-violet-500/30 bg-violet-950/40 px-2 py-1 text-[11px] font-semibold text-violet-100 hover:bg-violet-950/70"
+                onClick={() => onNudgeMarkInFrames(1)}
+                title={`Trim start +1 frame (~${fdLabel} ms)`}
+              >
+                +1 fr
+              </button>
               <span className="ml-3 self-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 Trim end
               </span>
@@ -227,6 +379,22 @@ export function FilmPlayerHero({
               >
                 +
               </button>
+              <button
+                type="button"
+                className="rounded-lg border border-violet-500/30 bg-violet-950/40 px-2 py-1 text-[11px] font-semibold text-violet-100 hover:bg-violet-950/70"
+                onClick={() => onNudgeMarkOutFrames(-1)}
+                title={`Trim end −1 frame (~${fdLabel} ms)`}
+              >
+                −1 fr
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-violet-500/30 bg-violet-950/40 px-2 py-1 text-[11px] font-semibold text-violet-100 hover:bg-violet-950/70"
+                onClick={() => onNudgeMarkOutFrames(1)}
+                title={`Trim end +1 frame (~${fdLabel} ms)`}
+              >
+                +1 fr
+              </button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -238,7 +406,10 @@ export function FilmPlayerHero({
                   value={formatMsAsTimecode(inMs)}
                   onChange={(e) => {
                     const ms = parseLooseTimeToMs(e.target.value)
-                    if (ms != null) onSetInMs(clampMs(ms, 0, outMs - 100))
+                    if (ms != null) {
+                      const q = snapMsToFrameGrid(clampMs(ms, 0, outMs - 100), editorFps)
+                      onSetInMs(q)
+                    }
                   }}
                 />
               </div>
@@ -249,7 +420,10 @@ export function FilmPlayerHero({
                   value={formatMsAsTimecode(outMs)}
                   onChange={(e) => {
                     const ms = parseLooseTimeToMs(e.target.value)
-                    if (ms != null) onSetOutMs(clampMs(ms, inMs + 100, durationSafe))
+                    if (ms != null) {
+                      const q = snapMsToFrameGrid(clampMs(ms, inMs + 100, durationSafe), editorFps)
+                      onSetOutMs(q)
+                    }
                   }}
                 />
               </div>

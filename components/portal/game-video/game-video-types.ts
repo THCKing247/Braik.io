@@ -4,6 +4,8 @@ export type GameVideoRow = {
   mime_type?: string | null
   file_size_bytes?: number | null
   duration_seconds?: number | null
+  /** Sparse R2-backed preview strip manifest when generated server-side; Film Room still works without it. */
+  film_preview_manifest?: unknown | null
   upload_status?: string | null
   processing_status?: string | null
   created_at?: string | null

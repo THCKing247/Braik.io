@@ -7,6 +7,9 @@ import { CoachFilmSidePanel } from "@/components/portal/game-video/coach-film-si
 import { FilmPlayerHero } from "@/components/portal/game-video/film-player-hero"
 import { QuickClipBar } from "@/components/portal/game-video/quick-clip-bar"
 import { ClipSessionStrip } from "@/components/portal/game-video/clip-session-strip"
+import { DraftClipQueue } from "@/components/portal/game-video/draft-clip-queue"
+import type { FilmDraftClip, MarkPhase } from "@/components/portal/game-video/film-draft-types"
+import { nextDraftSlotLabel } from "@/components/portal/game-video/film-draft-types"
 import {
   mergeQuickAndFreeTags,
   splitQuickAndFreeFromTags,
@@ -19,6 +22,16 @@ import {
 } from "@/lib/video/timecode"
 import { Button } from "@/components/ui/button"
 import { ClipPlayerAttachmentField } from "@/components/portal/game-video/clip-player-attachment-field"
+import { FilmPreviewThumbnailLane } from "@/components/portal/game-video/film-preview-thumbnail-lane"
+import { captureClientPreviewStrip } from "@/lib/video/client-preview-strip"
+import {
+  DEFAULT_FILM_EDITOR_FPS,
+  frameDurationMs,
+  frameOrdinalAtPlayhead,
+  normalizeFpsChoice,
+  snapMsToFrameGrid,
+  stepPlayheadMsByFrames,
+} from "@/lib/video/frame-timing"
 
 const SKIP_COACH = 5000
 
@@ -91,14 +104,52 @@ export function FilmWorkspace({
   const [clipSaving, setClipSaving] = useState(false)
   const [aiWorking, setAiWorking] = useState(false)
   const [clipAttachedPlayerIds, setClipAttachedPlayerIds] = useState<string[]>([])
+  const [mainPlayActive, setMainPlayActive] = useState(false)
+  const [mainPlayFullFilm, setMainPlayFullFilm] = useState(false)
+  const [videoPaused, setVideoPaused] = useState(true)
 
   const [reelClipIds, setReelClipIds] = useState<Set<string>>(new Set())
   /** Newest-first clip ids created in this film-room session (for quick recall without leaving the player). */
   const [sessionClipIds, setSessionClipIds] = useState<string[]>([])
 
+  const [draftClips, setDraftClips] = useState<FilmDraftClip[]>([])
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
+  const [bulkDraftIds, setBulkDraftIds] = useState<Set<string>>(new Set())
+  const [markPhase, setMarkPhase] = useState<MarkPhase>("idle")
+  const [pendingStartMs, setPendingStartMs] = useState<number | null>(null)
+
+  const fpsStorageKey = `braik:film-editor-fps:${video.id}`
+  const [editorFps, setEditorFps] = useState(DEFAULT_FILM_EDITOR_FPS)
+  const [previewStripTiles, setPreviewStripTiles] = useState<Array<{ tMs: number; src: string }>>([])
+  const [previewStripStatus, setPreviewStripStatus] = useState<
+    "idle" | "loading" | "ready" | "error" | "none"
+  >("idle")
+
   const durationSafe = durationMs > 0 ? durationMs : 1
   const videoReady = video.upload_status === "ready"
-  const clipValid = outMs > inMs + 80
+
+  const displayInMs = useMemo(() => {
+    if (highlightClipId) return inMs
+    if (markPhase === "await_end" && pendingStartMs != null) return pendingStartMs
+    if (selectedDraftId) {
+      const d = draftClips.find((x) => x.id === selectedDraftId)
+      if (d) return d.startMs
+    }
+    return inMs
+  }, [highlightClipId, inMs, markPhase, pendingStartMs, selectedDraftId, draftClips])
+
+  const displayOutMs = useMemo(() => {
+    if (highlightClipId) return outMs
+    if (markPhase === "await_end" && pendingStartMs != null)
+      return clampMs(playheadMs, pendingStartMs + 100, durationSafe)
+    if (selectedDraftId) {
+      const d = draftClips.find((x) => x.id === selectedDraftId)
+      if (d) return d.endMs
+    }
+    return outMs
+  }, [highlightClipId, outMs, markPhase, pendingStartMs, playheadMs, durationSafe, selectedDraftId, draftClips])
+
+  const clipValid = displayOutMs > displayInMs + 80
 
   const reelStorageKey = `braik:coach-reel:${teamId}:${video.id}`
 
@@ -146,7 +197,38 @@ export function FilmWorkspace({
     setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
     setFineTuneExpanded(false)
     setClipAttachedPlayerIds([])
+    setMainPlayActive(false)
+    setMainPlayFullFilm(false)
+    setDraftClips([])
+    setSelectedDraftId(null)
+    setBulkDraftIds(new Set())
+    setMarkPhase("idle")
+    setPendingStartMs(null)
+    setPreviewStripTiles([])
+    setPreviewStripStatus("idle")
   }, [video.id])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(fpsStorageKey)
+      if (raw) {
+        const n = Number(raw)
+        if (Number.isFinite(n)) setEditorFps(normalizeFpsChoice(n))
+      } else {
+        setEditorFps(DEFAULT_FILM_EDITOR_FPS)
+      }
+    } catch {
+      setEditorFps(DEFAULT_FILM_EDITOR_FPS)
+    }
+  }, [fpsStorageKey])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(fpsStorageKey, String(editorFps))
+    } catch {
+      /* ignore */
+    }
+  }, [fpsStorageKey, editorFps])
 
   const onVideoMeta = () => {
     const el = videoRef.current
@@ -178,26 +260,71 @@ export function FilmWorkspace({
 
   useEffect(() => {
     const el = videoRef.current
+    if (!el) return
+    const syncPaused = () => setVideoPaused(el.paused)
+    el.addEventListener("play", syncPaused)
+    el.addEventListener("pause", syncPaused)
+    syncPaused()
+    return () => {
+      el.removeEventListener("play", syncPaused)
+      el.removeEventListener("pause", syncPaused)
+    }
+  }, [playbackUrl])
+
+  useEffect(() => {
+    const el = videoRef.current
     if (!el || !previewActive) return
     const onTu = () => {
       const tMs = Math.floor(el.currentTime * 1000)
-      if (tMs >= outMs - 30) {
+      if (tMs >= displayOutMs - 30) {
         if (highlightClipId != null) {
           el.pause()
-          el.currentTime = outMs / 1000
+          el.currentTime = displayOutMs / 1000
           setPreviewActive(false)
         } else {
-          el.currentTime = inMs / 1000
+          el.currentTime = displayInMs / 1000
         }
       }
     }
     el.addEventListener("timeupdate", onTu)
     return () => el.removeEventListener("timeupdate", onTu)
-  }, [previewActive, inMs, outMs, playbackUrl, highlightClipId])
+  }, [previewActive, displayInMs, displayOutMs, playbackUrl, highlightClipId])
+
+  const stopMainPlay = useCallback(() => {
+    setMainPlayActive(false)
+    setMainPlayFullFilm(false)
+    videoRef.current?.pause()
+  }, [])
+
+  /** Stops at end of film (full) or at out point (clip segment); separate from Preview clip loop */
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el || !mainPlayActive || durationSafe < 120) return
+
+    const onTu = () => {
+      const tMs = Math.floor(el.currentTime * 1000)
+      if (mainPlayFullFilm) {
+        if (tMs >= durationSafe - 80) {
+          el.pause()
+          el.currentTime = Math.max(0, (durationSafe - 1) / 1000)
+          stopMainPlay()
+        }
+        return
+      }
+      if (tMs >= displayOutMs - 30) {
+        el.pause()
+        el.currentTime = displayOutMs / 1000
+        stopMainPlay()
+      }
+    }
+    el.addEventListener("timeupdate", onTu)
+    return () => el.removeEventListener("timeupdate", onTu)
+  }, [mainPlayActive, mainPlayFullFilm, displayOutMs, durationSafe, playbackUrl, stopMainPlay])
 
   useEffect(() => {
+    if (!highlightClipId) return
     if (outMs <= inMs) setOutMs(clampMs(inMs + 500, 0, durationSafe))
-  }, [inMs, outMs, durationSafe])
+  }, [highlightClipId, inMs, outMs, durationSafe])
 
   const seekMs = useCallback(
     (ms: number) => {
@@ -219,18 +346,77 @@ export function FilmWorkspace({
   }, [])
 
   const startPreview = async () => {
+    stopMainPlay()
     previewCleanupRef.current?.()
     previewCleanupRef.current = null
     const el = videoRef.current
-    if (!el || outMs <= inMs) return
+    if (!el || displayOutMs <= displayInMs) return
     setPreviewActive(true)
-    el.currentTime = inMs / 1000
+    el.currentTime = displayInMs / 1000
     try {
       await el.play()
     } catch {
       /* autoplay */
     }
   }
+
+  const clipSegmentPlayMode =
+    Boolean(highlightClipId) || markPhase === "await_end" || selectedDraftId != null
+
+  const toggleMainPlay = useCallback(async () => {
+    const el = videoRef.current
+    if (!el || !videoReady) return
+
+    if (mainPlayActive) {
+      if (!el.paused) {
+        el.pause()
+        return
+      }
+      try {
+        await el.play()
+      } catch {
+        /* autoplay */
+      }
+      return
+    }
+
+    if (clipSegmentPlayMode && !clipValid) return
+
+    stopPreview()
+    previewCleanupRef.current?.()
+    previewCleanupRef.current = null
+
+    if (clipSegmentPlayMode) {
+      setMainPlayFullFilm(false)
+      setMainPlayActive(true)
+      el.currentTime = displayInMs / 1000
+      try {
+        await el.play()
+      } catch {
+        /* autoplay */
+      }
+      return
+    }
+
+    setMainPlayFullFilm(true)
+    setMainPlayActive(true)
+    try {
+      await el.play()
+    } catch {
+      /* autoplay */
+    }
+  }, [videoReady, mainPlayActive, clipSegmentPlayMode, clipValid, displayInMs, stopPreview])
+
+  const mainPlayPrimaryLabel =
+    mainPlayActive && !videoPaused
+      ? "Pause"
+      : mainPlayActive && videoPaused
+        ? "Resume"
+        : clipSegmentPlayMode
+          ? "Play clip"
+          : "Play film"
+
+  const mainPlayDisabled = !videoReady || (clipSegmentPlayMode && !clipValid)
 
   const pctPlay = useCallback(
     (clientX: number) => {
@@ -243,37 +429,352 @@ export function FilmWorkspace({
     [durationSafe, seekMs],
   )
 
-  const applyMarkStart = useCallback(() => setInMs(clampMs(playheadMs, 0, durationSafe)), [playheadMs, durationSafe])
-  const applyMarkEnd = useCallback(
-    () => setOutMs(clampMs(playheadMs, Math.min(inMs + 100, durationSafe), durationSafe)),
-    [playheadMs, inMs, durationSafe],
+  const discardOpenMark = useCallback(() => {
+    setMarkPhase("idle")
+    setPendingStartMs(null)
+    stopPreview()
+  }, [stopPreview])
+
+  const applyMarkStart = useCallback(() => {
+    if (highlightClipId) {
+      setInMs(snapMsToFrameGrid(clampMs(playheadMs, 0, durationSafe), editorFps))
+      return
+    }
+    const t = snapMsToFrameGrid(clampMs(playheadMs, 0, durationSafe), editorFps)
+    if (markPhase === "await_end") {
+      setPendingStartMs(t)
+      return
+    }
+    setHighlightClipId(null)
+    onSavedClipContextExit?.()
+    setSelectedDraftId(null)
+    setPendingStartMs(t)
+    setMarkPhase("await_end")
+  }, [highlightClipId, playheadMs, durationSafe, markPhase, onSavedClipContextExit, editorFps])
+
+  const applyMarkEnd = useCallback(() => {
+    if (highlightClipId) {
+      setOutMs(
+        snapMsToFrameGrid(
+          clampMs(playheadMs, Math.min(inMs + 100, durationSafe), durationSafe),
+          editorFps,
+        ),
+      )
+      return
+    }
+    if (markPhase !== "await_end" || pendingStartMs == null) {
+      onError("Press Mark start first — then Mark end when the play finishes.")
+      return
+    }
+    const rawEnd = clampMs(playheadMs, pendingStartMs + 100, durationSafe)
+    const startSnapped = snapMsToFrameGrid(pendingStartMs, editorFps)
+    const endMs = snapMsToFrameGrid(rawEnd, editorFps)
+    if (endMs <= startSnapped + 80) {
+      onError("End mark must be clearly after start — scrub forward and try again.")
+      return
+    }
+    const slotIdx = draftClips.length
+    const slotLabel = nextDraftSlotLabel(slotIdx)
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const draft: FilmDraftClip = {
+      id,
+      startMs: startSnapped,
+      endMs,
+      slotLabel,
+      titleDraft: slotLabel,
+      description: "",
+      quickTagKeys: [],
+      clipTagsFree: "",
+      categories: { playType: "", situation: "", personnel: "", outcome: "" },
+      attachedPlayerIds: [],
+    }
+    setDraftClips((prev) => [...prev, draft])
+    setBulkDraftIds((prev) => new Set(prev).add(id))
+    setSelectedDraftId(id)
+    setClipTitle(draft.titleDraft)
+    setClipDescription("")
+    setClipTagsFree("")
+    setQuickTagsSelected(new Set())
+    setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
+    setClipAttachedPlayerIds([])
+    setPendingStartMs(null)
+    setMarkPhase("idle")
+    stopPreview()
+  }, [
+    highlightClipId,
+    playheadMs,
+    inMs,
+    durationSafe,
+    markPhase,
+    pendingStartMs,
+    draftClips.length,
+    onError,
+    stopPreview,
+    editorFps,
+  ])
+
+  const jumpMarkStart = () => seekMs(displayInMs)
+  const jumpMarkEnd = () => seekMs(displayOutMs)
+
+  const stepPlayheadFrames = useCallback(
+    (deltaFrames: number) => {
+      stopPreview()
+      stopMainPlay()
+      const next = stepPlayheadMsByFrames(playheadMs, deltaFrames, editorFps, durationSafe)
+      seekMs(next)
+    },
+    [stopPreview, stopMainPlay, playheadMs, editorFps, durationSafe, seekMs],
   )
 
-  const jumpMarkStart = () => seekMs(inMs)
-  const jumpMarkEnd = () => seekMs(outMs)
-
   const nudgePlayhead = (deltaMs: number) => seekMs(playheadMs + deltaMs)
-  const nudgeIn = (d: number) => setInMs(clampMs(inMs + d, 0, Math.max(0, outMs - 100)))
-  const nudgeOut = (d: number) =>
+  const nudgeIn = (d: number) => {
+    if (highlightClipId) {
+      setInMs(clampMs(inMs + d, 0, Math.max(0, outMs - 100)))
+      return
+    }
+    if (selectedDraftId) {
+      setDraftClips((prev) =>
+        prev.map((x) =>
+          x.id === selectedDraftId
+            ? { ...x, startMs: clampMs(x.startMs + d, 0, Math.max(0, x.endMs - 100)) }
+            : x,
+        ),
+      )
+      return
+    }
+    setInMs(clampMs(inMs + d, 0, Math.max(0, outMs - 100)))
+  }
+  const nudgeOut = (d: number) => {
+    if (highlightClipId) {
+      setOutMs(clampMs(outMs + d, Math.min(inMs + 100, durationSafe), durationSafe))
+      return
+    }
+    if (selectedDraftId) {
+      setDraftClips((prev) =>
+        prev.map((x) =>
+          x.id === selectedDraftId
+            ? { ...x, endMs: clampMs(x.endMs + d, Math.min(x.startMs + 100, durationSafe), durationSafe) }
+            : x,
+        ),
+      )
+      return
+    }
     setOutMs(clampMs(outMs + d, Math.min(inMs + 100, durationSafe), durationSafe))
+  }
 
-  const clipDurationLabel = useMemo(() => durationMsLabel(inMs, outMs), [inMs, outMs])
+  const nudgeMarkInFrames = (deltaFrames: number) => {
+    nudgeIn(frameDurationMs(editorFps) * deltaFrames)
+  }
+  const nudgeMarkOutFrames = (deltaFrames: number) => {
+    nudgeOut(frameDurationMs(editorFps) * deltaFrames)
+  }
+
+  const setInMsFromTimeline = useCallback(
+    (ms: number) => {
+      if (highlightClipId) {
+        setInMs(ms)
+        return
+      }
+      if (selectedDraftId) {
+        setDraftClips((prev) =>
+          prev.map((x) =>
+            x.id === selectedDraftId ? { ...x, startMs: clampMs(ms, 0, Math.max(0, x.endMs - 100)) } : x,
+          ),
+        )
+        return
+      }
+      setInMs(ms)
+    },
+    [highlightClipId, selectedDraftId],
+  )
+  const setOutMsFromTimeline = useCallback(
+    (ms: number) => {
+      if (highlightClipId) {
+        setOutMs(ms)
+        return
+      }
+      if (selectedDraftId) {
+        setDraftClips((prev) =>
+          prev.map((x) =>
+            x.id === selectedDraftId
+              ? { ...x, endMs: clampMs(ms, Math.min(x.startMs + 100, durationSafe), durationSafe) }
+              : x,
+          ),
+        )
+        return
+      }
+      setOutMs(ms)
+    },
+    [highlightClipId, selectedDraftId, durationSafe],
+  )
+
+  const clipDurationLabel = useMemo(() => durationMsLabel(displayInMs, displayOutMs), [displayInMs, displayOutMs])
 
   const timingSummaryForAi = useMemo(() => {
     return [
-      `Marked range ${formatMsRange(inMs, outMs)}`,
+      `Marked range ${formatMsRange(displayInMs, displayOutMs)}`,
       `Clip length ${clipDurationLabel}`,
       durationMs ? `Full film ${formatMsAsTimecode(durationMs)}` : "",
     ]
       .filter(Boolean)
       .join(" · ")
-  }, [inMs, outMs, clipDurationLabel, durationMs])
+  }, [displayInMs, displayOutMs, clipDurationLabel, durationMs])
+
+  const playheadFrameOrdinal = useMemo(
+    () => frameOrdinalAtPlayhead(playheadMs, editorFps),
+    [playheadMs, editorFps],
+  )
+
+  useEffect(() => {
+    if (!playbackUrl || !videoReady || durationMs < 500) {
+      setPreviewStripTiles([])
+      setPreviewStripStatus("idle")
+      return
+    }
+    let cancelled = false
+    const run = async () => {
+      setPreviewStripStatus("loading")
+      setPreviewStripTiles([])
+      try {
+        const r = await fetch(`/api/teams/${teamId}/game-videos/${video.id}/preview-strip`)
+        const data = (await r.json().catch(() => ({}))) as {
+          tiles?: Array<{ tMs?: unknown; url?: unknown }>
+        }
+        if (cancelled) return
+        const rawTiles = Array.isArray(data.tiles) ? data.tiles : []
+        const mapped = rawTiles
+          .filter((x) => x && typeof x === "object" && typeof x.url === "string")
+          .map((x) => {
+            const o = x as { tMs: unknown; url: string }
+            const tMs = typeof o.tMs === "number" ? o.tMs : Number(o.tMs)
+            return { tMs: Math.round(tMs), src: o.url }
+          })
+        if (mapped.length > 0) {
+          setPreviewStripTiles(mapped)
+          setPreviewStripStatus("ready")
+          return
+        }
+      } catch {
+        if (cancelled) return
+      }
+
+      const el = videoRef.current
+      if (!el || cancelled) {
+        setPreviewStripStatus("none")
+        return
+      }
+      try {
+        const cap = await captureClientPreviewStrip(el, durationMs)
+        if (cancelled) return
+        setPreviewStripTiles(cap.map((c) => ({ tMs: c.tMs, src: c.src })))
+        setPreviewStripStatus(cap.length > 0 ? "ready" : "none")
+      } catch {
+        if (!cancelled) setPreviewStripStatus("error")
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [teamId, video.id, playbackUrl, durationMs, videoReady])
+
+  const draftFormRef = useRef({
+    clipTitle,
+    clipDescription,
+    clipTagsFree,
+    quickTagsSelected,
+    clipCategories,
+    clipAttachedPlayerIds,
+  })
+  draftFormRef.current = {
+    clipTitle,
+    clipDescription,
+    clipTagsFree,
+    quickTagsSelected,
+    clipCategories,
+    clipAttachedPlayerIds,
+  }
+
+  const draftClipsRef = useRef(draftClips)
+  draftClipsRef.current = draftClips
+
+  const flushDraftFormIntoStore = useCallback(() => {
+    if (highlightClipId || !selectedDraftId) return
+    const id = selectedDraftId
+    const f = draftFormRef.current
+    setDraftClips((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              titleDraft: f.clipTitle,
+              description: f.clipDescription,
+              clipTagsFree: f.clipTagsFree,
+              quickTagKeys: [...f.quickTagsSelected],
+              categories: { ...f.clipCategories },
+              attachedPlayerIds: [...f.clipAttachedPlayerIds],
+            }
+          : d,
+      ),
+    )
+  }, [highlightClipId, selectedDraftId])
+
+  useEffect(() => {
+    if (highlightClipId || !selectedDraftId) return
+    const d = draftClipsRef.current.find((x) => x.id === selectedDraftId)
+    if (!d) return
+    setClipTitle(d.titleDraft)
+    setClipDescription(d.description)
+    setClipTagsFree(d.clipTagsFree)
+    setQuickTagsSelected(new Set(d.quickTagKeys))
+    setClipCategories({ ...d.categories })
+    setClipAttachedPlayerIds([...d.attachedPlayerIds])
+    seekMs(d.startMs)
+  }, [selectedDraftId, highlightClipId, seekMs])
+
+  const selectDraftById = useCallback(
+    (id: string) => {
+      flushDraftFormIntoStore()
+      stopPreview()
+      stopMainPlay()
+      setHighlightClipId(null)
+      onSavedClipContextExit?.()
+      setSelectedDraftId(id)
+    },
+    [flushDraftFormIntoStore, stopPreview, stopMainPlay, onSavedClipContextExit],
+  )
+
+  const timelineSegments = useMemo(() => {
+    const drafts = draftClips.map((d) => ({
+      id: d.id,
+      kind: "draft" as const,
+      startMs: d.startMs,
+      endMs: d.endMs,
+    }))
+    const saved = clips.map((c) => ({
+      id: c.id,
+      kind: "saved" as const,
+      startMs: c.start_ms,
+      endMs: c.end_ms,
+    }))
+    return [...drafts, ...saved]
+  }, [draftClips, clips])
+
+  const selectedTimelineSegmentId = highlightClipId ?? selectedDraftId
 
   const resetMarks = () => {
-    setInMs(0)
-    setOutMs(Math.min(15000, durationSafe))
-    seekMs(0)
+    stopMainPlay()
     stopPreview()
+    if (highlightClipId) {
+      setInMs(0)
+      setOutMs(Math.min(15000, durationSafe))
+      seekMs(0)
+      return
+    }
+    discardOpenMark()
   }
 
   const toggleQuickTag = (tag: string) => {
@@ -355,6 +856,7 @@ export function FilmWorkspace({
   }
 
   const prepareNextClipRange = (savedOutMs: number) => {
+    stopMainPlay()
     setHighlightClipId(null)
     onSavedClipContextExit?.()
     const nextIn = clampMs(savedOutMs, 0, durationSafe - 100)
@@ -447,6 +949,130 @@ export function FilmWorkspace({
   const saveClipRequestRef = useRef(saveClipRequest)
   saveClipRequestRef.current = saveClipRequest
 
+  const resolveDraftForPersist = useCallback(
+    (d: FilmDraftClip): FilmDraftClip => {
+      if (d.id !== selectedDraftId) return d
+      const f = draftFormRef.current
+      return {
+        ...d,
+        titleDraft: f.clipTitle.trim() ? f.clipTitle : d.slotLabel,
+        description: f.clipDescription,
+        clipTagsFree: f.clipTagsFree,
+        quickTagKeys: [...f.quickTagsSelected],
+        categories: { ...f.clipCategories },
+        attachedPlayerIds: [...f.clipAttachedPlayerIds],
+      }
+    },
+    [selectedDraftId],
+  )
+
+  const saveDraftClipsToServer = useCallback(
+    async (targetIds: string[]) => {
+      if (!canCreateClips || !videoReady) return
+      flushDraftFormIntoStore()
+      await Promise.resolve()
+      const unique = [...new Set(targetIds)]
+      const snapshots = unique
+        .map((id) => draftClipsRef.current.find((x) => x.id === id))
+        .filter((x): x is FilmDraftClip => Boolean(x))
+        .map(resolveDraftForPersist)
+        .filter((d) => d.endMs > d.startMs + 80)
+
+      if (snapshots.length === 0) {
+        onError("Nothing valid to save yet — finish marking or checkboxes.")
+        return
+      }
+
+      setClipSaving(true)
+      onError(null)
+      try {
+        const savedIds: string[] = []
+        for (const d of snapshots) {
+          const tags = taggingEnabled ? mergeQuickAndFreeTags(new Set(d.quickTagKeys), d.clipTagsFree) : []
+          const categories: Record<string, string> = {}
+          if (d.categories.playType.trim()) categories.playType = d.categories.playType.trim()
+          if (d.categories.situation.trim()) categories.situation = d.categories.situation.trim()
+          if (d.categories.personnel.trim()) categories.personnel = d.categories.personnel.trim()
+          if (d.categories.outcome.trim()) categories.outcome = d.categories.outcome.trim()
+
+          const payload = {
+            startMs: d.startMs,
+            endMs: d.endMs,
+            title: (d.titleDraft.trim() || d.slotLabel).slice(0, 500),
+            description: d.description.trim() || null,
+            tags,
+            categories,
+            playerIds: d.attachedPlayerIds,
+          }
+
+          const res = await fetch(`/api/teams/${teamId}/game-videos/${video.id}/clips`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not save clip")
+
+          const newId =
+            typeof (data as { clip?: { id?: unknown } }).clip?.id === "string"
+              ? ((data as { clip: { id: string } }).clip.id as string)
+              : null
+          if (newId) savedIds.push(newId)
+        }
+
+        await onRefreshClips()
+        const rm = new Set(snapshots.map((s) => s.id))
+        setDraftClips((prev) => prev.filter((x) => !rm.has(x.id)))
+        setBulkDraftIds((prev) => {
+          const next = new Set(prev)
+          snapshots.forEach((s) => next.delete(s.id))
+          return next
+        })
+        if (selectedDraftId && rm.has(selectedDraftId)) {
+          setSelectedDraftId(null)
+          clearNewClipForm()
+        }
+        if (savedIds.length > 0) {
+          setSessionClipIds((prev) => [...savedIds, ...prev.filter((x) => !savedIds.includes(x))])
+        }
+        stopPreview()
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "Clip save failed")
+      } finally {
+        setClipSaving(false)
+      }
+    },
+    [
+      teamId,
+      video.id,
+      canCreateClips,
+      videoReady,
+      taggingEnabled,
+      onRefreshClips,
+      selectedDraftId,
+      resolveDraftForPersist,
+      flushDraftFormIntoStore,
+      onError,
+      stopPreview,
+    ],
+  )
+
+  const discardDraftClipsLocal = useCallback((targetIds: string[]) => {
+    const rm = new Set(targetIds)
+    flushDraftFormIntoStore()
+    setDraftClips((prev) => prev.filter((x) => !rm.has(x.id)))
+    setBulkDraftIds((prev) => {
+      const next = new Set(prev)
+      rm.forEach((id) => next.delete(id))
+      return next
+    })
+    if (selectedDraftId && rm.has(selectedDraftId)) {
+      setSelectedDraftId(null)
+      clearNewClipForm()
+    }
+    stopPreview()
+  }, [flushDraftFormIntoStore, selectedDraftId, stopPreview])
+
   const deleteClip = async (clipId: string) => {
     if (!confirm("Remove this clip?")) return
     try {
@@ -470,6 +1096,11 @@ export function FilmWorkspace({
 
   const loadClipIntoEditor = useCallback(
     (c: ClipRow) => {
+      flushDraftFormIntoStore()
+      setSelectedDraftId(null)
+      setMarkPhase("idle")
+      setPendingStartMs(null)
+      stopMainPlay()
       setHighlightClipId(c.id)
       setInMs(c.start_ms)
       setOutMs(c.end_ms)
@@ -490,7 +1121,21 @@ export function FilmWorkspace({
       seekMs(c.start_ms)
       stopPreview()
     },
-    [seekMs, stopPreview],
+    [seekMs, stopPreview, stopMainPlay, flushDraftFormIntoStore],
+  )
+
+  const onTimelineSegmentClick = useCallback(
+    (id: string, kind: "draft" | "saved") => {
+      stopPreview()
+      stopMainPlay()
+      if (kind === "saved") {
+        const c = clips.find((x) => x.id === id)
+        if (c) loadClipIntoEditor(c)
+        return
+      }
+      selectDraftById(id)
+    },
+    [clips, loadClipIntoEditor, selectDraftById, stopPreview, stopMainPlay],
   )
 
   useEffect(() => {
@@ -515,10 +1160,16 @@ export function FilmWorkspace({
   }, [highlightClipId, durationMs, clips, video.id, seekMs])
 
   const enterFullFilmMode = useCallback(() => {
+    stopMainPlay()
     savedClipSeekKeyRef.current = null
     initialClipAppliedRef.current = null
     setHighlightClipId(null)
     stopPreview()
+    setDraftClips([])
+    setSelectedDraftId(null)
+    setBulkDraftIds(new Set())
+    setMarkPhase("idle")
+    setPendingStartMs(null)
     const d = durationSafe > 1 ? durationSafe : 1
     setInMs(0)
     setOutMs(Math.min(15000, d))
@@ -530,10 +1181,12 @@ export function FilmWorkspace({
     setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
     setClipAttachedPlayerIds([])
     onSavedClipContextExit?.()
-  }, [durationSafe, seekMs, stopPreview, onSavedClipContextExit])
+  }, [durationSafe, seekMs, stopPreview, stopMainPlay, onSavedClipContextExit])
 
   const previewSavedClip = async (c: ClipRow) => {
+    stopMainPlay()
     previewCleanupRef.current?.()
+    setSelectedDraftId(null)
     setHighlightClipId(c.id)
     const el = videoRef.current
     if (!el) return
@@ -578,17 +1231,36 @@ export function FilmWorkspace({
       } else if (e.code === "KeyO" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
         applyMarkEnd()
-      } else if (e.code === "Enter" && (e.ctrlKey || e.metaKey) && clipValid && canCreateClips && videoReady) {
+      } else if (e.code === "Enter" && (e.ctrlKey || e.metaKey) && canCreateClips && videoReady) {
         e.preventDefault()
-        void saveClipRequestRef.current(true)
-      } else if (e.code === "KeyS" && e.shiftKey && (e.ctrlKey || e.metaKey) && clipValid && canCreateClips && videoReady) {
+        if (highlightClipId) {
+          if (clipValid) void saveClipRequestRef.current(true)
+        } else if (draftClipsRef.current.length > 0) {
+          void saveDraftClipsToServer(draftClipsRef.current.map((x) => x.id))
+        }
+      } else if (e.code === "KeyS" && e.shiftKey && (e.ctrlKey || e.metaKey) && canCreateClips && videoReady) {
         e.preventDefault()
-        void saveClipRequestRef.current(false)
+        if (highlightClipId) {
+          if (clipValid) void saveClipRequestRef.current(false)
+        } else {
+          const bulk = bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
+          if (bulk.length > 0) void saveDraftClipsToServer(bulk)
+        }
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [clipValid, canCreateClips, videoReady, applyMarkStart, applyMarkEnd])
+  }, [
+    clipValid,
+    canCreateClips,
+    videoReady,
+    applyMarkStart,
+    applyMarkEnd,
+    highlightClipId,
+    selectedDraftId,
+    bulkDraftIds,
+    saveDraftClipsToServer,
+  ])
 
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
@@ -639,8 +1311,9 @@ export function FilmWorkspace({
               </Button>
             </div>
             <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
-              Scrubber shows this clip’s range. Use <strong className="text-foreground">Preview clip</strong> to play only this
-              segment (stops at the end). Switch to full film to mark a new clip or browse the whole game.
+              Scrubber shows this clip’s range. Use <strong className="text-foreground">Play clip</strong> for a single pass or{" "}
+              <strong className="text-foreground">Preview clip</strong> to loop while editing. Switch to full film mode for a new
+              clip or to browse the whole game.
             </p>
           </div>
         )}
@@ -651,7 +1324,7 @@ export function FilmWorkspace({
           <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
             {highlightClipId
               ? "Film plays behind your saved clip — timeline range matches the clip below."
-              : "Drag the scrubber or use the controls. Mark start/end, then use Save & next clip to knock out plays in one sitting."}
+              : "Drag the scrubber or use the controls. Mark multiple plays while the film runs — drafts appear on the timeline and in the list; save when you are ready."}
           </p>
         </header>
 
@@ -691,10 +1364,11 @@ export function FilmWorkspace({
           videoRef={videoRef as RefObject<HTMLVideoElement>}
           playbackKey={playbackUrl ?? ""}
           previewActive={previewActive}
+          suppressNativeControls={previewActive || (mainPlayActive && !mainPlayFullFilm)}
           durationSafe={durationSafe}
           playheadMs={playheadMs}
-          inMs={inMs}
-          outMs={outMs}
+          inMs={displayInMs}
+          outMs={displayOutMs}
           clipDurationLabel={clipDurationLabel}
           timelineRef={timelineRef as RefObject<HTMLDivElement>}
           onLoadedMetadata={onVideoMeta}
@@ -704,8 +1378,33 @@ export function FilmWorkspace({
           onNudgePlayhead={nudgePlayhead}
           onNudgeIn={nudgeIn}
           onNudgeOut={nudgeOut}
-          onSetInMs={(ms) => setInMs(ms)}
-          onSetOutMs={(ms) => setOutMs(ms)}
+          onSetInMs={setInMsFromTimeline}
+          onSetOutMs={setOutMsFromTimeline}
+          timelineSegments={timelineSegments}
+          selectedTimelineSegmentId={selectedTimelineSegmentId}
+          onTimelineSegmentClick={onTimelineSegmentClick}
+          markingRangeLive={markPhase === "await_end"}
+          editorFps={editorFps}
+          onEditorFpsChange={(fps) => setEditorFps(normalizeFpsChoice(fps))}
+          playheadFrameOrdinal={playheadFrameOrdinal}
+          onStepPlayheadFrames={stepPlayheadFrames}
+          onNudgeMarkInFrames={nudgeMarkInFrames}
+          onNudgeMarkOutFrames={nudgeMarkOutFrames}
+          belowScrubber={
+            videoReady && playbackUrl ? (
+              <FilmPreviewThumbnailLane
+                durationMs={durationSafe}
+                playheadMs={playheadMs}
+                tiles={previewStripTiles}
+                status={previewStripStatus}
+                onSeekMs={(ms) => {
+                  stopPreview()
+                  stopMainPlay()
+                  seekMs(ms)
+                }}
+              />
+            ) : null
+          }
         />
 
         {!videoReady && (
@@ -715,9 +1414,63 @@ export function FilmWorkspace({
           </div>
         )}
 
+        {canCreateClips && videoReady && (
+          <DraftClipQueue
+            drafts={draftClips}
+            selectedId={selectedDraftId}
+            bulkSelectedIds={bulkDraftIds}
+            markPhase={markPhase}
+            pendingStartMs={pendingStartMs}
+            onSelect={(id) => selectDraftById(id)}
+            onToggleBulk={(id, checked) => {
+              setBulkDraftIds((prev) => {
+                const next = new Set(prev)
+                if (checked) next.add(id)
+                else next.delete(id)
+                return next
+              })
+            }}
+            onTitleChange={(id, title) => {
+              setDraftClips((prev) => prev.map((d) => (d.id === id ? { ...d, titleDraft: title } : d)))
+              if (selectedDraftId === id) setClipTitle(title)
+            }}
+            onRemove={(id) => discardDraftClipsLocal([id])}
+            onDiscardOpenMark={discardOpenMark}
+            disabled={clipSaving}
+          />
+        )}
+
         <QuickClipBar
           enabled={canCreateClips && videoReady}
           savedClipEditing={!!highlightClipId}
+          draftWorkflow={!highlightClipId}
+          draftCount={draftClips.length}
+          bulkSaveCount={bulkDraftIds.size}
+          markPhase={markPhase}
+          onSaveDraftsSelected={() => {
+            const ids =
+              bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
+            if (ids.length === 0) {
+              onError("Select clips with the checkboxes, or click a draft in the list first.")
+              return
+            }
+            void saveDraftClipsToServer(ids)
+          }}
+          onSaveDraftsAll={() => void saveDraftClipsToServer(draftClips.map((d) => d.id))}
+          onDiscardDraftsSelected={() => {
+            const ids =
+              bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
+            if (ids.length === 0) {
+              onError("Select clips to remove from the queue.")
+              return
+            }
+            discardDraftClipsLocal(ids)
+          }}
+          onSaveDraftsAndContinue={() => {
+            void saveDraftClipsToServer(draftClips.map((d) => d.id)).then(() => {
+              requestAnimationFrame(() => clipTitleInputRef.current?.focus())
+            })
+          }}
           previewActive={previewActive}
           clipValid={clipValid}
           saving={clipSaving}
@@ -725,6 +1478,9 @@ export function FilmWorkspace({
           onToggleFineTune={() => setFineTuneExpanded((v) => !v)}
           onMarkStart={applyMarkStart}
           onMarkEnd={applyMarkEnd}
+          mainPlayPrimaryLabel={mainPlayPrimaryLabel}
+          mainPlayDisabled={mainPlayDisabled}
+          onMainPlayToggle={() => void toggleMainPlay()}
           onPreview={() => void startPreview()}
           onStopPreview={stopPreview}
           onSaveClip={() => void saveClipRequest(false)}

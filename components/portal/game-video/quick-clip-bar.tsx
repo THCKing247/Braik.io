@@ -15,6 +15,8 @@ import {
   Wrench,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { FilmInfoTip } from "@/components/portal/game-video/film-info-tip"
 import { cn } from "@/lib/utils"
 
 const SKIP = 5000
@@ -23,9 +25,7 @@ type MarkPhaseUi = "idle" | "await_end"
 
 type Props = {
   enabled: boolean
-  /** Editing a saved clip — preview plays segment once; copy reflects clip context */
   savedClipEditing?: boolean
-  /** Live marking queue on full film — hide legacy single-clip save row */
   draftWorkflow?: boolean
   draftCount?: number
   bulkSaveCount?: number
@@ -36,22 +36,21 @@ type Props = {
   onSaveDraftsAndContinue?: () => void
   previewActive: boolean
   clipValid: boolean
-  /** When false, Preview clip is disabled (e.g. full-film mode with no draft selected). */
   previewClipAllowed?: boolean
   saving: boolean
   fineTuneExpanded: boolean
   onToggleFineTune: () => void
   onMarkStart: () => void
   onMarkEnd: () => void
-  /** Primary transport: full film from playhead, or in→out once for a marked/saved clip */
   mainPlayPrimaryLabel: string
   mainPlayDisabled: boolean
+  mainPlayDisabledReason?: string
+  playbackScopeHint?: string
+  mainTransportPlaying?: boolean
   onMainPlayToggle: () => void
   onPreview: () => void
   onStopPreview: () => void
-  /** Save without advancing range (keep in/out for minor tweaks or manual next marks) */
   onSaveClip: () => void
-  /** Save and prepare the next clip range from the end of this one */
   onSaveAndContinue?: () => void
   onResetMarks: () => void
   onSkipBack5: () => void
@@ -82,6 +81,9 @@ export function QuickClipBar({
   onMarkEnd,
   mainPlayPrimaryLabel,
   mainPlayDisabled,
+  mainPlayDisabledReason,
+  playbackScopeHint,
+  mainTransportPlaying = false,
   onMainPlayToggle,
   onPreview,
   onStopPreview,
@@ -99,322 +101,403 @@ export function QuickClipBar({
   const showDraftActions = draftWorkflow && !savedClipEditing && draftCount > 0
   const canPreviewClip = previewClipAllowed ?? clipValid
 
-  return (
-    <div className="rounded-2xl border-2 border-border bg-card p-5 shadow-md ring-1 ring-black/[0.06] dark:bg-card md:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-base font-bold tracking-tight text-foreground">
-            {savedClipEditing ? "Adjust this clip" : draftWorkflow ? "Live marking" : "Mark this play"}
-          </h3>
-          <p className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-400">
-            {savedClipEditing ? (
-              <>
-                Range below matches this saved clip. Use <strong className="text-foreground">Play clip</strong> for a clean
-                in→out play, or <strong className="text-foreground">Preview clip</strong> to loop the segment while you adjust
-                marks. <strong className="text-foreground">Save &amp; next</strong> chains another clip on this film.
-              </>
-            ) : draftWorkflow ? (
-              <>
-                <strong className="text-foreground">Mark start</strong> begins a clip;{" "}
-                <strong className="text-foreground">Mark end</strong> saves it to drafts and you can keep going — no “save &amp;
-                next” step. Name clips and use <strong className="text-foreground">Save selected</strong> /{" "}
-                <strong className="text-foreground">Save all</strong> when you want them on the roster.
-                {markPhase === "await_end" ? (
-                  <span className="mt-1 block font-medium text-amber-800 dark:text-amber-200">
-                    Clip is open — press <strong className="text-foreground">Mark end</strong> to log it, then{" "}
-                    <strong className="text-foreground">Mark start</strong> for the next play.
-                  </span>
-                ) : draftCount > 0 ? (
-                  <span className="mt-1 block text-slate-600 dark:text-slate-400">
-                    Ready for the next play — press <strong className="text-foreground">Mark start</strong> when it begins.
-                  </span>
-                ) : (
-                  <span className="mt-1 block text-slate-600 dark:text-slate-400">
-                    Press <strong className="text-foreground">Mark start</strong> when the play begins.
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                Mark <strong className="font-semibold text-foreground">start</strong> then{" "}
-                <strong className="font-semibold text-foreground">end</strong>, or use{" "}
-                <strong className="text-foreground">Play film</strong> to watch from the playhead.{" "}
-                <strong className="font-semibold text-foreground">Save &amp; next clip</strong> saves and sets up the next play.
-              </>
-            )}
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant={fineTuneExpanded ? "secondary" : "outline"}
-          size="default"
-          className="h-11 min-h-[44px] shrink-0 gap-2 px-4 font-semibold"
-          onClick={onToggleFineTune}
-        >
-          <Wrench className="h-4 w-4" aria-hidden />
-          {fineTuneExpanded ? "Hide fine tune" : "Fine tune"}
-        </Button>
-      </div>
+  const previewDisabledReason =
+    !previewActive && !canPreviewClip
+      ? "Preview needs a valid in→out range. Select a draft, finish marking, or open a saved clip."
+      : undefined
 
-      <div className="flex flex-wrap gap-3">
-        <Button
-          type="button"
-          size="lg"
-          variant="secondary"
-          className="min-h-[52px] flex-1 gap-2 border-2 border-sky-500/30 bg-sky-50 font-bold text-sky-950 hover:bg-sky-100 dark:border-sky-500/40 dark:bg-sky-950/50 dark:text-sky-100 dark:hover:bg-sky-950 sm:flex-none sm:min-w-[155px]"
-          onClick={onMarkStart}
-          aria-label={draftWorkflow && !savedClipEditing ? "Mark start — begin a new clip" : "Mark start"}
-        >
-          <Flag className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
-          Mark start
-        </Button>
-        <Button
-          type="button"
-          size="lg"
-          variant="secondary"
-          className="min-h-[52px] flex-1 gap-2 border-2 border-amber-500/35 bg-amber-50 font-bold text-amber-950 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-100 dark:hover:bg-amber-950 sm:flex-none sm:min-w-[155px]"
-          onClick={onMarkEnd}
-          aria-label={
-            draftWorkflow && !savedClipEditing ? "Mark end — finish clip and add to draft list" : "Mark end"
-          }
-        >
-          <Flag className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
-          Mark end
-        </Button>
-      </div>
+  const sectionMuted = "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
 
-      <div className="mt-4 rounded-xl border border-border bg-muted/25 px-3 py-3 md:px-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Playback</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            size="lg"
-            className="min-h-[52px] min-w-[140px] gap-2 border-2 border-[#1e40af] bg-[#2563EB] px-5 text-base font-bold text-white shadow-md hover:bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 dark:hover:bg-[#1d4ed8]"
-            disabled={mainPlayDisabled}
-            onClick={onMainPlayToggle}
-          >
-            {mainPlayPrimaryLabel === "Pause" ? (
-              <Pause className="h-5 w-5 shrink-0" aria-hidden />
-            ) : (
-              <Play className="h-5 w-5 shrink-0" aria-hidden />
-            )}
-            {mainPlayPrimaryLabel}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={cn(
-              "min-h-[52px] flex-1 gap-2 border-2 border-[#2563EB]/50 font-semibold sm:flex-none sm:min-w-[168px]",
-              previewActive && "border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-50",
-            )}
-            onClick={() => (previewActive ? onStopPreview() : onPreview())}
-            disabled={!previewActive && !canPreviewClip}
-          >
-            {previewActive ? (
-              <>
-                <Square className="h-5 w-5" aria-hidden />
-                Stop preview
-              </>
-            ) : (
-              <>
-                <Play className="h-5 w-5" aria-hidden />
-                Preview clip (loop)
-              </>
-            )}
-          </Button>
-        </div>
-        <p className="mt-2 text-xs leading-snug text-muted-foreground">
-          <strong className="text-foreground">Play film</strong> plays from the scrubber to the end of the video.{" "}
-          <strong className="text-foreground">Play clip</strong> plays your in→out range once (saved clip or while marking).{" "}
-          <strong className="text-foreground">Pause / Resume</strong> applies while that playback is active.{" "}
-          <strong className="text-foreground">Preview clip</strong> loops the{" "}
-          {draftWorkflow && !savedClipEditing ? "selected draft or open mark range" : "range"} for fine-tuning.
-        </p>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-3">
-        {showDraftActions ? (
-          <>
-            <Button
-              type="button"
-              size="lg"
-              className="min-h-[52px] flex-[2] gap-2 border-2 border-emerald-600/50 bg-emerald-600 px-6 text-base font-bold text-white shadow-lg hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-              onClick={() => onSaveDraftsAll?.()}
-              disabled={saving}
-            >
-              {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-              Save all ({draftCount})
-            </Button>
-            <Button
-              type="button"
-              size="lg"
-              className="min-h-[52px] flex-1 gap-2 border-2 border-[#2563EB]/40 bg-[#2563EB] px-6 text-base font-bold text-white shadow-lg hover:bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]"
-              onClick={() => onSaveDraftsSelected?.()}
-              disabled={saving}
-            >
-              {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-              Save selected{bulkSaveCount > 0 ? ` (${bulkSaveCount})` : ""}
-            </Button>
-            {onSaveDraftsAndContinue ? (
-              <Button
-                type="button"
-                size="lg"
-                variant="secondary"
-                className="min-h-[52px] flex-1 gap-2 border-2 border-border px-6 text-base font-bold"
-                onClick={() => onSaveDraftsAndContinue?.()}
-                disabled={saving}
-              >
-                <PlusCircle className="h-5 w-5" aria-hidden />
-                Save all &amp; continue
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="lg"
-              variant="destructive"
-              className="min-h-[52px] flex-1 gap-2 border-2 px-6 text-base font-bold shadow-md"
-              onClick={() => onDiscardDraftsSelected?.()}
-              disabled={saving}
-            >
-              Discard selected
-            </Button>
-          </>
-        ) : savedClipEditing ? (
-          <>
-            {onSaveAndContinue ? (
-              <Button
-                type="button"
-                size="lg"
-                className="min-h-[52px] flex-[2] gap-2 border-2 border-emerald-600/50 bg-emerald-600 px-6 text-base font-bold text-white shadow-lg hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-                onClick={onSaveAndContinue}
-                disabled={saving || !clipValid}
-              >
-                {saving ? (
-                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                ) : (
-                  <PlusCircle className="h-5 w-5" aria-hidden />
-                )}
-                Save &amp; next clip
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="lg"
-              className="min-h-[52px] flex-1 gap-2 border-2 border-[#2563EB]/40 bg-[#2563EB]/90 px-6 text-base font-bold text-white shadow-lg hover:bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]"
-              onClick={onSaveClip}
-              disabled={saving || !clipValid}
-            >
-              {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-              Save changes
-            </Button>
-          </>
-        ) : draftWorkflow ? null : (
-          <>
-            {onSaveAndContinue ? (
-              <Button
-                type="button"
-                size="lg"
-                className="min-h-[52px] flex-[2] gap-2 border-2 border-emerald-600/50 bg-emerald-600 px-6 text-base font-bold text-white shadow-lg hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-                onClick={onSaveAndContinue}
-                disabled={saving || !clipValid}
-              >
-                {saving ? (
-                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                ) : (
-                  <PlusCircle className="h-5 w-5" aria-hidden />
-                )}
-                Save &amp; next clip
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="lg"
-              className={cn(
-                "min-h-[52px] gap-2 border-2 px-6 text-base font-bold shadow-lg focus-visible:ring-2 focus-visible:ring-offset-2",
-                onSaveAndContinue
-                  ? "flex-1 border-[#2563EB]/40 bg-[#2563EB]/90 text-white hover:bg-[#1d4ed8] focus-visible:ring-[#2563EB] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]"
-                  : "flex-[2] border-[#2563EB]/40 bg-[#2563EB] text-white hover:bg-[#1d4ed8] focus-visible:ring-[#2563EB] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]",
-              )}
-              onClick={onSaveClip}
-              disabled={saving || !clipValid}
-            >
-              {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-              {onSaveAndContinue ? "Save clip only" : "Save clip"}
-            </Button>
-          </>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          className="h-[52px] min-h-[52px] gap-2 border-2 border-slate-300 font-semibold text-foreground hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800"
-          onClick={onResetMarks}
-        >
-          <RotateCcw className="h-5 w-5" aria-hidden />
-          {draftWorkflow && !savedClipEditing ? "Cancel open mark" : "Reset marks"}
-        </Button>
-      </div>
-
-      <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
-        Shortcuts when not typing: <kbd className="rounded border border-border bg-muted px-1 font-mono">I</kbd> mark start ·{" "}
-        <kbd className="rounded border border-border bg-muted px-1 font-mono">O</kbd> mark end ·{" "}
-        <kbd className="rounded border border-border bg-muted px-1 font-mono">Ctrl</kbd>+
-        <kbd className="rounded border border-border bg-muted px-1 font-mono">Enter</kbd>{" "}
-        {draftWorkflow && !savedClipEditing ? "save all drafts" : "save & next"} ·{" "}
-        <kbd className="rounded border border-border bg-muted px-1 font-mono">Ctrl</kbd>+
-        <kbd className="rounded border border-border bg-muted px-1 font-mono">Shift</kbd>+
-        <kbd className="rounded border border-border bg-muted px-1 font-mono">S</kbd>{" "}
-        {draftWorkflow && !savedClipEditing ? "save selected" : "save only"}
+  const tipOverview = draftWorkflow ? (
+    <>
+      <p>
+        <strong className="text-foreground">Mark start</strong> opens a clip;{" "}
+        <strong className="text-foreground">Mark end</strong> logs it as a draft. Name clips in the list, then save to the roster
+        when you want.
       </p>
+      <p>
+        <strong className="text-foreground">Play</strong> uses full film from the scrubber unless a clip range is ready — then it
+        plays in→out once. <strong className="text-foreground">Preview</strong> loops that range for trimming.
+      </p>
+    </>
+  ) : savedClipEditing ? (
+    <>
+      <p>
+        <strong className="text-foreground">Play clip</strong> runs your range once; <strong className="text-foreground">Preview</strong>{" "}
+        loops while you adjust marks in Fine tune.
+      </p>
+    </>
+  ) : (
+    <>
+      <p>
+        Mark <strong className="text-foreground">start</strong> then <strong className="text-foreground">end</strong>, then save.
+        Play watches from the scrubber until you have a valid range — then it plays that segment once.
+      </p>
+    </>
+  )
 
-      <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="default"
-          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
-          onClick={onSkipBack5}
-        >
-          <SkipBack className="h-4 w-4 shrink-0" aria-hidden />
-          Back {SKIP / 1000}s
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="default"
-          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
-          onClick={onSkipForward5}
-        >
-          <SkipForward className="h-4 w-4 shrink-0" aria-hidden />
-          Ahead {SKIP / 1000}s
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="default"
-          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
-          onClick={onReplayClip}
-        >
-          <Redo2 className="h-4 w-4 shrink-0" aria-hidden />
-          Replay clip
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="default"
-          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
-          onClick={onJumpToMarkStart}
-        >
-          Jump to start
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="default"
-          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
-          onClick={onJumpToMarkEnd}
-        >
-          Jump to end
-        </Button>
+  return (
+    <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-black/[0.03] md:p-5 dark:ring-white/[0.05]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="text-base font-semibold tracking-tight text-foreground md:text-[17px]">
+            {savedClipEditing ? "Clip controls" : draftWorkflow ? "Mark & clip" : "Clip controls"}
+          </h3>
+          <FilmInfoTip label="How these controls work">
+            <div className="space-y-2">
+              {tipOverview}
+              <p className="border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                Shortcuts (when not typing):{" "}
+                <kbd className="rounded bg-muted px-1 font-mono">I</kbd> mark start ·{" "}
+                <kbd className="rounded bg-muted px-1 font-mono">O</kbd> mark end ·{" "}
+                <kbd className="rounded bg-muted px-1 font-mono">Ctrl</kbd>+
+                <kbd className="rounded bg-muted px-1 font-mono">Enter</kbd>{" "}
+                {draftWorkflow ? "save all drafts" : "save & next"} ·{" "}
+                <kbd className="rounded bg-muted px-1 font-mono">Ctrl</kbd>+
+                <kbd className="rounded bg-muted px-1 font-mono">Shift</kbd>+
+                <kbd className="rounded bg-muted px-1 font-mono">S</kbd>{" "}
+                {draftWorkflow ? "save selected" : "save only"}
+              </p>
+            </div>
+          </FilmInfoTip>
+        </div>
+        {markPhase === "await_end" && (
+          <span className="shrink-0 rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-950 dark:text-amber-50">
+            Clip open — Mark end to finish
+          </span>
+        )}
+      </div>
+
+      {/* Primary: marks + playback */}
+      <div className="mt-4 flex flex-wrap items-stretch gap-2 md:gap-3">
+        <div className="flex min-w-0 flex-[1_1_240px] flex-wrap gap-2">
+          <Button
+            type="button"
+            size="default"
+            variant="secondary"
+            className={cn(
+              "h-11 min-h-[44px] flex-1 gap-2 border border-sky-500/30 bg-sky-50 px-4 text-[15px] font-semibold text-sky-950 shadow-sm dark:bg-sky-950/30 dark:text-sky-50 sm:max-w-[200px]",
+              markPhase === "await_end" && "ring-2 ring-sky-400/40 dark:ring-sky-500/35",
+            )}
+            onClick={onMarkStart}
+            aria-label={draftWorkflow && !savedClipEditing ? "Mark start — begin a new clip" : "Mark start"}
+          >
+            <Flag className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
+            Mark start
+          </Button>
+          <Button
+            type="button"
+            size="default"
+            variant="secondary"
+            className={cn(
+              "h-11 min-h-[44px] flex-1 gap-2 border border-amber-500/35 bg-amber-50 px-4 text-[15px] font-semibold text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50 sm:max-w-[200px]",
+              markPhase === "await_end" && "ring-2 ring-amber-400/40 dark:ring-amber-500/35",
+            )}
+            onClick={onMarkEnd}
+            aria-label={
+              draftWorkflow && !savedClipEditing ? "Mark end — finish clip and add to draft list" : "Mark end"
+            }
+          >
+            <Flag className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
+            Mark end
+          </Button>
+        </div>
+
+        <div className="hidden h-11 w-px shrink-0 bg-border/80 md:block" aria-hidden />
+
+        <div className="flex min-w-0 flex-[1_1_280px] flex-wrap gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "inline-flex min-w-0 flex-1 [&>button]:w-full",
+                  mainPlayDisabled && "cursor-not-allowed",
+                )}
+                tabIndex={mainPlayDisabled ? 0 : undefined}
+              >
+                <Button
+                  type="button"
+                  size="default"
+                  className={cn(
+                    "h-11 min-h-[44px] w-full min-w-[120px] gap-2 border border-[#1d4ed8]/70 bg-[#2563EB] px-4 text-[15px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]",
+                    mainTransportPlaying && "ring-2 ring-white/30 ring-offset-2 ring-offset-background",
+                  )}
+                  disabled={mainPlayDisabled}
+                  onClick={onMainPlayToggle}
+                  aria-pressed={mainTransportPlaying}
+                >
+                  {mainPlayPrimaryLabel === "Pause" ? (
+                    <Pause className="h-5 w-5 shrink-0" aria-hidden />
+                  ) : (
+                    <Play className="h-5 w-5 shrink-0" aria-hidden />
+                  )}
+                  {mainPlayPrimaryLabel}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[min(18rem,calc(100vw-2rem))] leading-snug">
+              {mainPlayDisabled ? (
+                <span>{mainPlayDisabledReason ?? "Unavailable"}</span>
+              ) : (
+                <span>{playbackScopeHint ?? "Starts Braik playback from the scrubber or your marked range."}</span>
+              )}
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "inline-flex min-w-0 flex-1 [&>button]:w-full",
+                  !previewActive && !canPreviewClip && "cursor-not-allowed",
+                )}
+                tabIndex={!previewActive && !canPreviewClip ? 0 : undefined}
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  className={cn(
+                    "h-11 min-h-[44px] w-full min-w-[140px] gap-2 px-4 text-[15px] font-semibold shadow-sm",
+                    previewActive
+                      ? "border-emerald-600/55 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/35 dark:text-emerald-50"
+                      : "border-primary/25",
+                  )}
+                  disabled={!previewActive && !canPreviewClip}
+                  onClick={() => (previewActive ? onStopPreview() : onPreview())}
+                  aria-pressed={previewActive}
+                >
+                  {previewActive ? (
+                    <>
+                      <Square className="h-5 w-5 shrink-0" aria-hidden />
+                      Stop preview
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-5 w-5 shrink-0" aria-hidden />
+                      Preview clip
+                    </>
+                  )}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[min(18rem,calc(100vw-2rem))] leading-snug">
+              {previewActive ? (
+                <span>Stop looping the in→out range.</span>
+              ) : previewDisabledReason ? (
+                <span>{previewDisabledReason}</span>
+              ) : (
+                <span>Loop the marked range for precise in/out adjustments.</span>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+
+      {/* Secondary: utilities | saves */}
+      <div className="mt-5 flex flex-col gap-4 border-t border-border/60 pt-5">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant={fineTuneExpanded ? "secondary" : "outline"}
+                size="default"
+                aria-pressed={fineTuneExpanded}
+                className="h-11 gap-2 px-4 text-[15px] font-semibold"
+                onClick={onToggleFineTune}
+              >
+                <Wrench className="h-4 w-4" aria-hidden />
+                {fineTuneExpanded ? "Hide fine tune" : "Fine tune"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs leading-snug">
+              Frame-accurate trim fields and nudges below the scrubber (when expanded). Optional — use when you need exact edges.
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="default"
+                className="h-11 gap-2 px-4 text-[15px] font-semibold text-foreground"
+                onClick={onResetMarks}
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden />
+                {draftWorkflow && !savedClipEditing ? "Cancel mark" : "Reset marks"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs leading-snug">
+              {draftWorkflow && !savedClipEditing
+                ? "Discard the open mark-in without saving a draft."
+                : "Clear in/out marks on the timeline (saved clip editing: resets trim to previous save when applicable)."}
+            </TooltipContent>
+          </Tooltip>
+
+          <div className="mx-1 hidden h-8 w-px shrink-0 bg-border/70 sm:block" aria-hidden />
+
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 md:justify-end">
+            {showDraftActions ? (
+              <>
+                <span className={cn(sectionMuted, "mr-1 hidden sm:inline")}>Save</span>
+                <FilmInfoTip label="Save drafts to the roster" side="bottom">
+                  <p>
+                    <strong className="text-foreground">Save all</strong> uploads every draft in the queue.
+                  </p>
+                  <p>
+                    <strong className="text-foreground">Save selected</strong> uses checked clips, or the clip you last clicked if
+                    none are checked.
+                  </p>
+                  <p>
+                    <strong className="text-foreground">Discard selected</strong> removes drafts from this session only — nothing
+                    saved to the roster yet.
+                  </p>
+                </FilmInfoTip>
+                <Button
+                  type="button"
+                  size="default"
+                  className="h-11 gap-2 border border-emerald-700/35 bg-emerald-600 px-4 text-[15px] font-semibold text-white shadow-sm hover:bg-emerald-700"
+                  onClick={() => onSaveDraftsAll?.()}
+                  disabled={saving}
+                >
+                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
+                  Save all ({draftCount})
+                </Button>
+                <Button
+                  type="button"
+                  size="default"
+                  className="h-11 gap-2 border border-[#2563EB]/40 bg-[#2563EB] px-4 text-[15px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
+                  onClick={() => onSaveDraftsSelected?.()}
+                  disabled={saving}
+                >
+                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
+                  Save selected{bulkSaveCount > 0 ? ` (${bulkSaveCount})` : ""}
+                </Button>
+                {onSaveDraftsAndContinue ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="default"
+                    className="h-11 gap-2 px-4 text-[15px] font-semibold"
+                    onClick={() => onSaveDraftsAndContinue?.()}
+                    disabled={saving}
+                  >
+                    <PlusCircle className="h-5 w-5" aria-hidden />
+                    Save all &amp; continue
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="default"
+                  className="h-11 px-4 text-[15px] font-semibold shadow-sm"
+                  onClick={() => onDiscardDraftsSelected?.()}
+                  disabled={saving}
+                >
+                  Discard
+                </Button>
+              </>
+            ) : savedClipEditing ? (
+              <>
+                {onSaveAndContinue ? (
+                  <Button
+                    type="button"
+                    size="default"
+                    className="h-11 flex-[1_1_auto] gap-2 border border-emerald-700/35 bg-emerald-600 px-4 text-[15px] font-semibold text-white hover:bg-emerald-700 md:min-w-[180px]"
+                    onClick={onSaveAndContinue}
+                    disabled={saving || !clipValid}
+                  >
+                    {saving ? (
+                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                    ) : (
+                      <PlusCircle className="h-5 w-5" aria-hidden />
+                    )}
+                    Save &amp; next
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="default"
+                  className="h-11 flex-[1_1_auto] gap-2 border border-[#2563EB]/40 bg-[#2563EB] px-4 text-[15px] font-semibold text-white hover:bg-[#1d4ed8]"
+                  onClick={onSaveClip}
+                  disabled={saving || !clipValid}
+                >
+                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
+                  Save changes
+                </Button>
+              </>
+            ) : draftWorkflow ? null : (
+              <>
+                {onSaveAndContinue ? (
+                  <Button
+                    type="button"
+                    size="default"
+                    className="h-11 flex-[1_1_auto] gap-2 border border-emerald-700/35 bg-emerald-600 px-4 text-[15px] font-semibold text-white hover:bg-emerald-700 md:min-w-[180px]"
+                    onClick={onSaveAndContinue}
+                    disabled={saving || !clipValid}
+                  >
+                    {saving ? (
+                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                    ) : (
+                      <PlusCircle className="h-5 w-5" aria-hidden />
+                    )}
+                    Save &amp; next
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="default"
+                  className={cn(
+                    "h-11 gap-2 px-4 text-[15px] font-semibold text-white shadow-sm",
+                    onSaveAndContinue
+                      ? "flex-1 border border-[#2563EB]/40 bg-[#2563EB]/95 hover:bg-[#1d4ed8]"
+                      : "flex-[2] border border-[#2563EB]/40 bg-[#2563EB] hover:bg-[#1d4ed8]",
+                  )}
+                  onClick={onSaveClip}
+                  disabled={saving || !clipValid}
+                >
+                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
+                  {onSaveAndContinue ? "Save only" : "Save clip"}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Fine scrub */}
+        <div className="border-t border-border/50 pt-4">
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className={sectionMuted}>Jump &amp; scrub</span>
+            <FilmInfoTip label="Jump and coarse scrub">
+              <p>
+                Skip forward/back on the timeline. Jump snaps to current in/out marks. Replay clip starts preview loop when a range
+                is valid.
+              </p>
+            </FilmInfoTip>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onSkipBack5}>
+              <SkipBack className="h-4 w-4 shrink-0" aria-hidden />
+              −{SKIP / 1000}s
+            </Button>
+            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onSkipForward5}>
+              <SkipForward className="h-4 w-4 shrink-0" aria-hidden />
+              +{SKIP / 1000}s
+            </Button>
+            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onReplayClip}>
+              <Redo2 className="h-4 w-4 shrink-0" aria-hidden />
+              Replay clip
+            </Button>
+            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onJumpToMarkStart}>
+              To in
+            </Button>
+            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onJumpToMarkEnd}>
+              To out
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -10,6 +10,7 @@ import {
 } from "@/lib/video/timecode"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FilmInfoTip } from "@/components/portal/game-video/film-info-tip"
 import { cn } from "@/lib/utils"
 import {
   FILM_EDITOR_FPS_PRESETS,
@@ -111,6 +112,7 @@ export function FilmPlayerHero({
             ref={videoRef}
             key={playbackKey}
             className="h-full w-full object-contain"
+            playsInline
             controls={!previewActive && !suppressNativeControls}
             src={playbackUrl}
             preload="metadata"
@@ -126,9 +128,12 @@ export function FilmPlayerHero({
 
       <div className="border-t border-white/10 bg-[#0f172a]/95 px-4 py-4 backdrop-blur-sm">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-200">
+          <div className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-slate-200">
             <Film className="h-4 w-4 shrink-0" aria-hidden />
-            <span>Scrubber · range</span>
+            <span>Timeline</span>
+            <FilmInfoTip label="Using the timeline" side="bottom" className="text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-offset-[#0f172a]">
+              <p>Click or drag to seek the playhead. Orange bands are drafts; green are saved clips — click to select.</p>
+            </FilmInfoTip>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-200">
             <span>
@@ -157,6 +162,12 @@ export function FilmPlayerHero({
         <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-slate-900/40 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Frames</span>
+            <FilmInfoTip label="Frame stepping and FPS" side="bottom" className="text-slate-400 hover:bg-white/10 hover:text-slate-100 focus-visible:ring-offset-[#0f172a]">
+              <p>
+                Step the playhead one frame at a time. <strong className="text-foreground">Nominal FPS</strong> sets the snap grid
+                for marks and trim (~{fdLabel} ms per frame at current settings).
+              </p>
+            </FilmInfoTip>
             <Button
               type="button"
               variant="secondary"

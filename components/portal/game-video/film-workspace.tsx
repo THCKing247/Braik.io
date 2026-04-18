@@ -22,6 +22,7 @@ import {
   formatMsRange,
 } from "@/lib/video/timecode"
 import { Button } from "@/components/ui/button"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { ClipPlayerAttachmentField } from "@/components/portal/game-video/clip-player-attachment-field"
 import { FilmPreviewThumbnailLane } from "@/components/portal/game-video/film-preview-thumbnail-lane"
 import { captureClientPreviewStrip } from "@/lib/video/client-preview-strip"
@@ -79,6 +80,8 @@ export function FilmWorkspace({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const timelineRef = useRef<HTMLDivElement | null>(null)
   const previewCleanupRef = useRef<(() => void) | null>(null)
+  /** Synchronous guard so preview loop timeupdate handlers never fight main transport (React effect cleanup is one frame late). */
+  const transportModeRef = useRef<"idle" | "preview" | "main_clip" | "main_full">("idle")
   const initialClipAppliedRef = useRef<string | null>(null)
   /** After metadata loads duration, seek playhead to saved clip start once */
   const savedClipSeekKeyRef = useRef<string | null>(null)
@@ -209,6 +212,7 @@ export function FilmWorkspace({
     setClipAttachedPlayerIds([])
     setMainPlayActive(false)
     setMainPlayFullFilm(false)
+    transportModeRef.current = "idle"
     setDraftClips([])
     setSelectedDraftId(null)
     setBulkDraftIds(new Set())
@@ -292,6 +296,7 @@ export function FilmWorkspace({
     const el = videoRef.current
     if (!el || !previewActive) return
     const onTu = () => {
+      if (transportModeRef.current !== "preview") return
       const tMs = Math.floor(el.currentTime * 1000)
       if (tMs >= displayOutMs - 30) {
         if (highlightClipId != null) {
@@ -308,6 +313,7 @@ export function FilmWorkspace({
   }, [previewActive, displayInMs, displayOutMs, playbackUrl, highlightClipId])
 
   const stopMainPlay = useCallback(() => {
+    transportModeRef.current = "idle"
     setMainPlayActive(false)
     setMainPlayFullFilm(false)
     videoRef.current?.pause()
@@ -316,7 +322,7 @@ export function FilmWorkspace({
   /** Stops at end of film (full) or at out point (clip segment); separate from Preview clip loop */
   useEffect(() => {
     const el = videoRef.current
-    if (!el || !mainPlayActive || durationSafe < 120) return
+    if (!el || !mainPlayActive || durationMs < 1) return
 
     const onTu = () => {
       const tMs = Math.floor(el.currentTime * 1000)
@@ -336,7 +342,7 @@ export function FilmWorkspace({
     }
     el.addEventListener("timeupdate", onTu)
     return () => el.removeEventListener("timeupdate", onTu)
-  }, [mainPlayActive, mainPlayFullFilm, displayOutMs, durationSafe, playbackUrl, stopMainPlay])
+  }, [mainPlayActive, mainPlayFullFilm, displayOutMs, durationMs, durationSafe, playbackUrl, stopMainPlay])
 
   useEffect(() => {
     if (!highlightClipId) return
@@ -357,12 +363,14 @@ export function FilmWorkspace({
   const releasePreviewOverlay = useCallback(() => {
     previewCleanupRef.current?.()
     previewCleanupRef.current = null
+    transportModeRef.current = "idle"
     setPreviewActive(false)
   }, [])
 
   const stopPreview = useCallback(() => {
     previewCleanupRef.current?.()
     previewCleanupRef.current = null
+    transportModeRef.current = "idle"
     const el = videoRef.current
     setPreviewActive(false)
     el?.pause()
@@ -381,12 +389,14 @@ export function FilmWorkspace({
     previewCleanupRef.current = null
     const el = videoRef.current
     if (!el || displayOutMs <= displayInMs) return
+    transportModeRef.current = "preview"
     setPreviewActive(true)
     el.currentTime = displayInMs / 1000
     try {
       await el.play()
     } catch {
-      /* autoplay */
+      transportModeRef.current = "idle"
+      setPreviewActive(false)
     }
   }, [
     highlightClipId,
@@ -400,9 +410,15 @@ export function FilmWorkspace({
   const clipSegmentPlayMode =
     Boolean(highlightClipId) || markPhase === "await_end" || selectedDraftId != null
 
+  const willPlayMarkedClipOnce = clipSegmentPlayMode && clipValid
+
   const toggleMainPlay = useCallback(async () => {
+    if (!videoReady || !playbackUrl) {
+      if (videoReady && !playbackUrl) onError("Playback is still loading — try again in a moment.")
+      return
+    }
     const el = videoRef.current
-    if (!el || !videoReady) return
+    if (!el) return
 
     if (mainPlayActive) {
       if (!el.paused) {
@@ -411,49 +427,84 @@ export function FilmWorkspace({
       }
       try {
         await el.play()
-      } catch {
-        /* autoplay */
+      } catch (err) {
+        const msg =
+          err instanceof DOMException && err.name === "NotAllowedError"
+            ? "Playback was blocked. Click play again or interact with the page first."
+            : "Could not resume playback."
+        onError(msg)
       }
       return
     }
-
-    if (clipSegmentPlayMode && !clipValid) return
 
     stopPreview()
     previewCleanupRef.current?.()
     previewCleanupRef.current = null
 
-    if (clipSegmentPlayMode) {
+    const playMarkedClipOnce = clipSegmentPlayMode && clipValid
+
+    if (playMarkedClipOnce) {
+      transportModeRef.current = "main_clip"
       setMainPlayFullFilm(false)
       setMainPlayActive(true)
       el.currentTime = displayInMs / 1000
-      try {
-        await el.play()
-      } catch {
-        /* autoplay */
-      }
-      return
+    } else {
+      transportModeRef.current = "main_full"
+      setMainPlayFullFilm(true)
+      setMainPlayActive(true)
     }
 
-    setMainPlayFullFilm(true)
-    setMainPlayActive(true)
     try {
       await el.play()
-    } catch {
-      /* autoplay */
+    } catch (err) {
+      transportModeRef.current = "idle"
+      setMainPlayActive(false)
+      setMainPlayFullFilm(false)
+      const msg =
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Playback was blocked. Click play again or interact with the page first."
+          : "Could not start playback."
+      onError(msg)
     }
-  }, [videoReady, mainPlayActive, clipSegmentPlayMode, clipValid, displayInMs, stopPreview])
+  }, [
+    videoReady,
+    mainPlayActive,
+    clipSegmentPlayMode,
+    clipValid,
+    displayInMs,
+    stopPreview,
+    playbackUrl,
+    onError,
+  ])
 
   const mainPlayPrimaryLabel =
     mainPlayActive && !videoPaused
       ? "Pause"
       : mainPlayActive && videoPaused
         ? "Resume"
-        : clipSegmentPlayMode
+        : willPlayMarkedClipOnce
           ? "Play clip"
           : "Play film"
 
-  const mainPlayDisabled = !videoReady || (clipSegmentPlayMode && !clipValid)
+  const mainPlayDisabled = !videoReady || !playbackUrl
+
+  const mainPlayDisabledReason = !videoReady
+    ? "Film is still processing."
+    : !playbackUrl
+      ? "Loading playback…"
+      : undefined
+
+  const playbackScopeHint = useMemo(() => {
+    if (previewActive) return "Preview loops the in→out range until you stop."
+    if (!playbackUrl) return "Loading playback URL…"
+    if (mainPlayActive) {
+      return mainPlayFullFilm
+        ? "Playing full film from the scrubber position."
+        : "Playing the marked in→out range once."
+    }
+    if (willPlayMarkedClipOnce) return "Plays from in to out once (starts at the in mark)."
+    return "Plays full film from the current playhead."
+  }, [previewActive, playbackUrl, mainPlayActive, mainPlayFullFilm, willPlayMarkedClipOnce])
 
   const pctPlay = useCallback(
     (clientX: number) => {
@@ -1326,7 +1377,8 @@ export function FilmWorkspace({
   }
 
   return (
-    <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
+    <TooltipProvider delayDuration={260} skipDelayDuration={100}>
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
       <FilmRoomSessionRail
         video={video}
         clips={clips}
@@ -1560,6 +1612,9 @@ export function FilmWorkspace({
           onMarkEnd={applyMarkEnd}
           mainPlayPrimaryLabel={mainPlayPrimaryLabel}
           mainPlayDisabled={mainPlayDisabled}
+          mainPlayDisabledReason={mainPlayDisabledReason}
+          playbackScopeHint={playbackScopeHint}
+          mainTransportPlaying={mainPlayActive && !videoPaused}
           onMainPlayToggle={() => void toggleMainPlay()}
           onPreview={() => void startPreview()}
           onStopPreview={stopPreview}
@@ -1573,8 +1628,8 @@ export function FilmWorkspace({
           onJumpToMarkEnd={jumpMarkEnd}
         />
 
-        <p className="rounded-lg bg-muted/60 px-3 py-2 text-center text-sm font-medium text-foreground xl:hidden">
-          Clip name, tags, coaching notes, assistant, and saved clips — scroll down on smaller screens.
+        <p className="rounded-lg bg-muted/35 px-3 py-2 text-center text-xs text-muted-foreground xl:hidden">
+          Narrow screens: scroll for clip name, tags, and notes in the panel below.
         </p>
       </div>
 
@@ -1617,5 +1672,6 @@ export function FilmWorkspace({
         />
       </div>
     </div>
+    </TooltipProvider>
   )
 }

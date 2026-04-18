@@ -8,6 +8,7 @@ import type { FilmDraftClip } from "@/components/portal/game-video/film-draft-ty
 import { formatBytes } from "@/components/portal/game-video/format-bytes"
 import { formatMsRange } from "@/lib/video/timecode"
 import { cn } from "@/lib/utils"
+import { FilmInfoTip } from "@/components/portal/game-video/film-info-tip"
 
 type DraftQueueProps = {
   drafts: FilmDraftClip[]
@@ -106,9 +107,6 @@ export function FilmRoomSessionRail({
                 {linkedPlayers} athlete{linkedPlayers === 1 ? "" : "s"} linked to full film
               </p>
             )}
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Mark plays on the timeline, name them on the right panel, save when you are ready.
-            </p>
           </div>
         </div>
       </div>
@@ -144,8 +142,14 @@ export function FilmRoomSessionRail({
       )}
 
       <div className="rounded-2xl border-2 border-white/10 bg-card/90 p-4 shadow-md ring-1 ring-white/[0.05] dark:bg-[#0f172a]/85">
-        <h3 className="text-sm font-bold tracking-tight text-foreground">Saved on this film</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Open in the editor — details and tags stay in the right panel.</p>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold tracking-tight text-foreground">Saved clips</h3>
+          <FilmInfoTip label="Saved clips on this film">
+            <p>
+              Opens the clip in the workspace. Coaching notes and tags stay in the right-hand panel — this list is for quick recall.
+            </p>
+          </FilmInfoTip>
+        </div>
         <ul className="mt-3 max-h-[min(280px,32vh)] space-y-1.5 overflow-y-auto pr-1">
           {sortedSaved.length === 0 ? (
             <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">

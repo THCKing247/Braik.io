@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { FilmInfoTip } from "@/components/portal/game-video/film-info-tip"
 import type { FilmDraftClip } from "@/components/portal/game-video/film-draft-types"
 import { durationMsLabel, formatMsAsTimecode, formatMsRange } from "@/lib/video/timecode"
 import { cn } from "@/lib/utils"
@@ -39,34 +40,29 @@ export function DraftClipQueue({
   return (
     <div className="rounded-2xl border-2 border-border bg-card p-4 shadow-sm md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
-        <div>
-          <h3 className="text-base font-bold tracking-tight text-foreground">Marked clips (draft)</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Each <strong className="text-foreground">Mark end</strong> adds a draft — keep marking plays, then save when you are
-            ready.
-          </p>
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-bold tracking-tight text-foreground">Draft clips</h3>
+          <FilmInfoTip label="About draft clips">
+            <p>
+              Each time you press <strong className="text-foreground">Mark end</strong>, the range is added here. Use checkboxes or
+              click a row to choose what <strong className="text-foreground">Save selected</strong> uploads.
+            </p>
+          </FilmInfoTip>
         </div>
         {markPhase === "await_end" && (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-100">
-              Recording range…
-            </span>
-            <span className="text-xs text-amber-900/90 dark:text-amber-50">
-              Started at {pendingStartMs != null ? formatMsAsTimecode(pendingStartMs) : "—"} — press{" "}
-              <strong>Mark end</strong> at the stop point.
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5">
+            <span className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+              Open @ {pendingStartMs != null ? formatMsAsTimecode(pendingStartMs) : "—"}
             </span>
             <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={onDiscardOpenMark} disabled={disabled}>
-              Cancel mark
+              Cancel
             </Button>
           </div>
         )}
       </div>
 
       {drafts.length === 0 && markPhase === "idle" ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          No draft clips yet. Press <strong className="text-foreground">Mark start</strong>, then{" "}
-          <strong className="text-foreground">Mark end</strong> while watching — repeat as many times as you need.
-        </p>
+        <p className="py-8 text-center text-sm text-muted-foreground">No drafts yet — mark start and end on the timeline.</p>
       ) : (
         <ul className="mt-4 space-y-2">
           {drafts.map((d) => {

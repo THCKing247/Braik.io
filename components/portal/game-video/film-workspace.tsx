@@ -1615,7 +1615,7 @@ export function FilmWorkspace({
         )}
         </div>
 
-        <div className="flex w-full min-h-0 shrink-0 flex-col gap-2 overflow-hidden xl:w-[380px] xl:max-w-[400px] xl:self-stretch">
+        <div className="flex w-full min-h-0 shrink-0 flex-col gap-1.5 overflow-hidden xl:w-[min(22rem,calc(100vw-260px))] xl:max-w-none xl:self-stretch 2xl:w-[24rem]">
           {workflowMode ? (
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
               <FilmRoomExperienceToggle
@@ -1661,7 +1661,7 @@ export function FilmWorkspace({
                   setWorkflowStep(s)
                 }}
               />
-              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-xl border border-white/15 bg-[#0f172a]/95 p-2.5 shadow-sm">
+              <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto rounded-lg border border-white/15 bg-[#0f172a]/95 p-2 shadow-sm">
                 <div className="shrink-0 rounded-lg border border-white/15 bg-[#0b1220]/90 px-3 py-2">
                   <p className="text-[11px] font-bold uppercase text-sky-300">Film Room</p>
                   <p className="truncate text-[15px] font-bold text-white">{video.title || "Untitled film"}</p>
@@ -1792,7 +1792,7 @@ export function FilmWorkspace({
 
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border border-white/15 bg-[#0f172a]/95 p-2.5">
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-lg border border-white/15 bg-[#0f172a]/95 p-2">
               {canCreateClips && videoReady ? (
                 <QuickClipBar
                   enabled

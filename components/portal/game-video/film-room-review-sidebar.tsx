@@ -21,7 +21,7 @@ export function FilmRoomExperienceToggle({
   if (!canEdit) return null
   return (
     <div
-      className="flex rounded-lg border border-white/15 bg-[#0b1220] p-1 shadow-inner"
+      className="flex min-w-0 rounded-lg border border-white/15 bg-[#0b1220] p-0.5 shadow-inner"
       role="group"
       aria-label="Film Room mode"
     >
@@ -31,15 +31,15 @@ export function FilmRoomExperienceToggle({
         variant="ghost"
         disabled={disabled}
         className={cn(
-          "h-9 flex-1 gap-1.5 text-[13px] font-semibold",
+          "h-9 min-w-0 flex-1 gap-1 px-2 text-[12px] font-semibold sm:gap-1.5 sm:text-[13px]",
           mode === "review"
             ? "bg-sky-600 text-white shadow-sm hover:bg-sky-600 hover:text-white"
             : "text-slate-200 hover:bg-white/10 hover:text-white",
         )}
         onClick={() => onModeChange("review")}
       >
-        <Film className="h-4 w-4 shrink-0" aria-hidden />
-        Review
+        <Film className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />
+        <span className="truncate">Review</span>
       </Button>
       <Button
         type="button"
@@ -47,15 +47,15 @@ export function FilmRoomExperienceToggle({
         variant="ghost"
         disabled={disabled}
         className={cn(
-          "h-9 flex-1 gap-1.5 text-[13px] font-semibold",
+          "h-9 min-w-0 flex-1 gap-1 px-2 text-[12px] font-semibold sm:gap-1.5 sm:text-[13px]",
           mode === "edit"
             ? "bg-sky-600 text-white shadow-sm hover:bg-sky-600 hover:text-white"
             : "text-slate-200 hover:bg-white/10 hover:text-white",
         )}
         onClick={() => onModeChange("edit")}
       >
-        <Scissors className="h-4 w-4 shrink-0" aria-hidden />
-        Edit clips
+        <Scissors className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />
+        <span className="truncate">Edit clips</span>
       </Button>
     </div>
   )
@@ -90,7 +90,7 @@ export function FilmRoomReviewSidebar({
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
       {modeControls}
 
-      <div className="shrink-0 rounded-lg border border-white/15 bg-[#0b1220]/95 px-3 py-2.5 shadow-sm">
+      <div className="shrink-0 rounded-lg border border-white/15 bg-[#0b1220]/95 px-2.5 py-2 shadow-sm">
         <p className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Film</p>
         <p className="truncate text-[15px] font-bold leading-snug text-white">{video.title || "Untitled film"}</p>
         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-medium text-slate-200">
@@ -103,7 +103,7 @@ export function FilmRoomReviewSidebar({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-lg border border-white/15 bg-[#0f172a]/95 p-2.5 shadow-sm">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-lg border border-white/15 bg-[#0f172a]/95 p-2 shadow-sm">
         <div className="flex shrink-0 items-center justify-between gap-2">
           <h3 className="text-[13px] font-bold text-white">Saved clips</h3>
           <span className="text-[12px] font-medium text-slate-300">{clipsSorted.length} total</span>

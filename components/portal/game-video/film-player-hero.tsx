@@ -134,19 +134,19 @@ export function FilmPlayerHero({
       </div>
 
       {chromeBelowVideo ? (
-        <div className="border-t border-white/10 bg-[#0b1220]/90 px-2 py-2 sm:px-2.5">{chromeBelowVideo}</div>
+        <div className="border-t border-white/10 bg-[#0b1220]/90 px-2 py-1.5 sm:px-2">{chromeBelowVideo}</div>
       ) : null}
 
-      <div className="border-t border-white/10 bg-[#0f172a]/95 px-2.5 py-2 backdrop-blur-sm sm:px-3">
-        <div className="mb-1.5 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-100 sm:text-[13px]">
+      <div className="border-t border-white/10 bg-[#0f172a]/95 px-2 py-1.5 backdrop-blur-sm sm:px-2.5">
+        <div className="mb-1.5 grid gap-1.5 lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)] lg:items-end">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-100 sm:text-[13px]">
             <Film className="h-4 w-4 shrink-0" aria-hidden />
             <span>Timeline</span>
             <FilmInfoTip label="Using the timeline" side="bottom" className="text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-offset-[#0f172a]">
               <p>Click or drag to seek the playhead. Orange bands are drafts; green are saved clips — click to select.</p>
             </FilmInfoTip>
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium text-slate-100 sm:text-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-slate-100 sm:gap-x-3 sm:text-[13px]">
             <span>
               <span className="font-semibold text-slate-200">Now</span>{" "}
               <strong className="font-mono text-base font-bold tabular-nums text-emerald-300 sm:text-lg">

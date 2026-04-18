@@ -23,8 +23,8 @@ export function CaptureStepPanel({
       <DraftClipQueue {...draftQueueProps} bulkSelectEnabled={false} showTitleInputs={false} />
       <Button
         type="button"
-        size="lg"
-        className="h-11 w-full gap-2 font-semibold"
+        size="default"
+        className="h-10 w-full gap-2 text-[13px] font-semibold"
         disabled={!canContinue}
         onClick={onContinue}
       >

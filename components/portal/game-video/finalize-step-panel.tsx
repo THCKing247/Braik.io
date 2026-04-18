@@ -20,8 +20,8 @@ export function FinalizeStepPanel({
   onBack: () => void
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-xs leading-relaxed text-muted-foreground">
+    <div className="flex flex-col gap-2">
+      <p className="text-[13px] leading-snug text-slate-300">
         Saving uploads every draft clip to the roster with the names, tags, and athlete links you added. Full-film recruiting links stay
         separate unless you edit them below.
       </p>
@@ -54,19 +54,24 @@ export function FinalizeStepPanel({
           })}
         </ul>
       )}
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Button type="button" variant="outline" className="h-11 gap-2 font-semibold" onClick={onBack} disabled={saving}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 w-full shrink-0 gap-2 font-semibold sm:w-auto sm:min-w-[7rem]"
+          onClick={onBack}
+          disabled={saving}
+        >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Back
         </Button>
         <Button
           type="button"
-          size="lg"
-          className="h-11 min-w-[200px] gap-2 bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+          className="h-10 w-full min-w-0 flex-1 gap-2 bg-emerald-600 px-3 text-[13px] font-semibold text-white hover:bg-emerald-700 sm:min-h-0 sm:min-w-[12rem]"
           disabled={saving || drafts.length === 0}
           onClick={onFinalize}
         >
-          {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
+          {saving ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden /> : <Save className="h-4 w-4 shrink-0" aria-hidden />}
           Save all clips
         </Button>
       </div>

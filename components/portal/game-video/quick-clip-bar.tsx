@@ -155,10 +155,10 @@ export function QuickClipBar({
   )
 
   return (
-    <div className="rounded-lg border border-border/80 bg-card p-2.5 shadow-sm ring-1 ring-black/[0.03] md:p-3 dark:ring-white/[0.05]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="text-sm font-semibold tracking-tight text-foreground md:text-base">
+    <div className="rounded-lg border border-border/80 bg-card p-2 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border/70 pb-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">
             {savedClipEditing ? "Clip controls" : draftWorkflow ? "Mark & clip" : "Clip controls"}
           </h3>
           <FilmInfoTip label="How these controls work">
@@ -189,21 +189,21 @@ export function QuickClipBar({
           </FilmInfoTip>
         </div>
         {markPhase === "await_end" && (
-          <span className="shrink-0 rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-950 dark:text-amber-50">
+          <span className="max-w-full shrink-0 rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold leading-snug text-amber-950 dark:text-amber-50 sm:text-xs">
             Clip open — Mark end to finish
           </span>
         )}
       </div>
 
-      {/* Primary: marks + playback */}
-      <div className="mt-3 flex flex-wrap items-stretch gap-2 md:gap-2.5">
-        <div className="flex min-w-0 flex-[1_1_240px] flex-wrap gap-2">
+      {/* Primary: marks + playback — grid prevents flex min-width collisions on laptop widths */}
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="flex min-w-0 gap-2">
           <Button
             type="button"
             size="default"
             variant="secondary"
             className={cn(
-              "h-10 min-h-[40px] flex-1 gap-1.5 border border-sky-500/30 bg-sky-50 px-3 text-sm font-semibold text-sky-950 shadow-sm dark:bg-sky-950/30 dark:text-sky-50 sm:max-w-[200px]",
+              "h-10 min-h-[40px] min-w-0 flex-1 gap-1.5 border border-sky-500/30 bg-sky-50 px-2 text-sm font-semibold text-sky-950 shadow-sm dark:bg-sky-950/30 dark:text-sky-50 sm:px-3",
               markPhase === "await_end" && "ring-2 ring-sky-400/40 dark:ring-sky-500/35",
             )}
             onClick={onMarkStart}
@@ -217,7 +217,7 @@ export function QuickClipBar({
             size="default"
             variant="secondary"
             className={cn(
-              "h-10 min-h-[40px] flex-1 gap-1.5 border border-amber-500/35 bg-amber-50 px-3 text-sm font-semibold text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50 sm:max-w-[200px]",
+              "h-10 min-h-[40px] min-w-0 flex-1 gap-1.5 border border-amber-500/35 bg-amber-50 px-2 text-sm font-semibold text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50 sm:px-3",
               markPhase === "await_end" && "ring-2 ring-amber-400/40 dark:ring-amber-500/35",
             )}
             onClick={onMarkEnd}
@@ -230,14 +230,12 @@ export function QuickClipBar({
           </Button>
         </div>
 
-        <div className="hidden h-10 w-px shrink-0 bg-border/80 md:block" aria-hidden />
-
-        <div className="flex min-w-0 flex-[1_1_280px] flex-wrap gap-2">
+        <div className="grid min-w-0 grid-cols-2 gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <span
                 className={cn(
-                  "inline-flex min-w-0 flex-1 [&>button]:w-full",
+                  "inline-flex min-w-0 [&>button]:w-full",
                   mainPlayDisabled && "cursor-not-allowed",
                 )}
                 tabIndex={mainPlayDisabled ? 0 : undefined}
@@ -246,7 +244,7 @@ export function QuickClipBar({
                   type="button"
                   size="default"
                   className={cn(
-                    "h-10 min-h-[40px] w-full min-w-[120px] gap-2 border border-[#1d4ed8]/70 bg-[#2563EB] px-3 text-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]",
+                    "h-10 min-h-[40px] w-full min-w-0 gap-2 border border-[#1d4ed8]/70 bg-[#2563EB] px-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8] sm:px-3",
                     mainTransportPlaying && "ring-2 ring-white/30 ring-offset-2 ring-offset-background",
                   )}
                   disabled={mainPlayDisabled}
@@ -275,7 +273,7 @@ export function QuickClipBar({
             <TooltipTrigger asChild>
               <span
                 className={cn(
-                  "inline-flex min-w-0 flex-1 [&>button]:w-full",
+                  "inline-flex min-w-0 [&>button]:w-full",
                   !previewActive && !canPreviewClip && "cursor-not-allowed",
                 )}
                 tabIndex={!previewActive && !canPreviewClip ? 0 : undefined}
@@ -285,7 +283,7 @@ export function QuickClipBar({
                   variant="outline"
                   size="default"
                   className={cn(
-                    "h-10 min-h-[40px] w-full min-w-[140px] gap-2 px-3 text-sm font-semibold shadow-sm",
+                    "h-10 min-h-[40px] w-full min-w-0 gap-2 px-2 text-sm font-semibold shadow-sm sm:px-3",
                     previewActive
                       ? "border-emerald-600/55 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/35 dark:text-emerald-50"
                       : "border-primary/25",
@@ -321,9 +319,9 @@ export function QuickClipBar({
         </div>
       </div>
 
-      {/* Secondary: utilities | saves */}
-      <div className="mt-5 flex flex-col gap-4 border-t border-border/60 pt-5">
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+      {/* Secondary: utilities (row 1) + saves (responsive grid) — avoids flex-1 + min-width fights */}
+      <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -331,7 +329,7 @@ export function QuickClipBar({
                 variant={fineTuneExpanded ? "secondary" : "outline"}
                 size="default"
                 aria-pressed={fineTuneExpanded}
-                className="h-10 gap-2 px-4 text-sm font-semibold"
+                className="h-9 shrink-0 gap-1.5 px-3 text-[13px] font-semibold"
                 onClick={onToggleFineTune}
               >
                 <Wrench className="h-4 w-4" aria-hidden />
@@ -349,7 +347,7 @@ export function QuickClipBar({
                 type="button"
                 variant="outline"
                 size="default"
-                className="h-10 gap-2 px-4 text-sm font-semibold text-foreground"
+                className="h-9 shrink-0 gap-1.5 px-3 text-[13px] font-semibold text-foreground"
                 onClick={onResetMarks}
               >
                 <RotateCcw className="h-4 w-4" aria-hidden />
@@ -362,64 +360,65 @@ export function QuickClipBar({
                 : "Clear in/out marks on the timeline (saved clip editing: resets trim to previous save when applicable)."}
             </TooltipContent>
           </Tooltip>
+        </div>
 
-          <div className="mx-1 hidden h-8 w-px shrink-0 bg-border/70 sm:block" aria-hidden />
-
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 md:justify-end">
+        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
             {showDraftActions ? (
               <>
-                <span className={cn(sectionMuted, "mr-1 hidden sm:inline")}>Save</span>
-                <FilmInfoTip label="Save drafts to the roster" side="bottom">
-                  <p>
-                    <strong className="text-foreground">Save all</strong> uploads every draft in the queue.
-                  </p>
-                  <p>
-                    <strong className="text-foreground">Save selected</strong> uses checked clips, or the clip you last clicked if
-                    none are checked.
-                  </p>
-                  <p>
-                    <strong className="text-foreground">Discard selected</strong> removes drafts from this session only — nothing
-                    saved to the roster yet.
-                  </p>
-                </FilmInfoTip>
+                <div className="col-span-full flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className={sectionMuted}>Save drafts</span>
+                  <FilmInfoTip label="Save drafts to the roster" side="bottom">
+                    <p>
+                      <strong className="text-foreground">Save all</strong> uploads every draft in the queue.
+                    </p>
+                    <p>
+                      <strong className="text-foreground">Save selected</strong> uses checked clips, or the clip you last clicked if
+                      none are checked.
+                    </p>
+                    <p>
+                      <strong className="text-foreground">Discard selected</strong> removes drafts from this session only — nothing
+                      saved to the roster yet.
+                    </p>
+                  </FilmInfoTip>
+                </div>
                 <Button
                   type="button"
                   size="default"
-                  className="h-10 gap-2 border border-emerald-700/35 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+                  className="h-9 w-full min-w-0 gap-1.5 border border-emerald-700/35 bg-emerald-600 px-2 text-[13px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:px-3"
                   onClick={() => onSaveDraftsAll?.()}
                   disabled={saving}
                 >
-                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-                  Save all ({draftCount})
+                  {saving ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden /> : <Save className="h-4 w-4 shrink-0" aria-hidden />}
+                  <span className="truncate">Save all ({draftCount})</span>
                 </Button>
                 <Button
                   type="button"
                   size="default"
-                  className="h-10 gap-2 border border-[#2563EB]/40 bg-[#2563EB] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
+                  className="h-9 w-full min-w-0 gap-1.5 border border-[#2563EB]/40 bg-[#2563EB] px-2 text-[13px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8] sm:px-3"
                   onClick={() => onSaveDraftsSelected?.()}
                   disabled={saving}
                 >
-                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-                  Save selected{bulkSaveCount > 0 ? ` (${bulkSaveCount})` : ""}
+                  {saving ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden /> : <Save className="h-4 w-4 shrink-0" aria-hidden />}
+                  <span className="truncate">Save selected{bulkSaveCount > 0 ? ` (${bulkSaveCount})` : ""}</span>
                 </Button>
                 {onSaveDraftsAndContinue ? (
                   <Button
                     type="button"
                     variant="secondary"
                     size="default"
-                    className="h-10 gap-2 px-4 text-sm font-semibold"
+                    className="h-9 w-full min-w-0 gap-1.5 px-2 text-[13px] font-semibold sm:px-3"
                     onClick={() => onSaveDraftsAndContinue?.()}
                     disabled={saving}
                   >
-                    <PlusCircle className="h-5 w-5" aria-hidden />
-                    Save all &amp; continue
+                    <PlusCircle className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="truncate">Save all &amp; continue</span>
                   </Button>
                 ) : null}
                 <Button
                   type="button"
                   variant="destructive"
                   size="default"
-                  className="h-10 px-4 text-sm font-semibold shadow-sm"
+                  className="h-9 w-full px-2 text-[13px] font-semibold shadow-sm sm:px-3"
                   onClick={() => onDiscardDraftsSelected?.()}
                   disabled={saving}
                 >
@@ -432,14 +431,14 @@ export function QuickClipBar({
                   <Button
                     type="button"
                     size="default"
-                    className="h-10 flex-[1_1_auto] gap-2 border border-emerald-700/35 bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 md:min-w-[180px]"
+                    className="col-span-full h-9 w-full min-w-0 gap-1.5 border border-emerald-700/35 bg-emerald-600 px-3 text-[13px] font-semibold text-white hover:bg-emerald-700 sm:col-span-1"
                     onClick={onSaveAndContinue}
                     disabled={saving || !clipValid}
                   >
                     {saving ? (
-                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
                     ) : (
-                      <PlusCircle className="h-5 w-5" aria-hidden />
+                      <PlusCircle className="h-4 w-4 shrink-0" aria-hidden />
                     )}
                     Save &amp; next
                   </Button>
@@ -447,11 +446,11 @@ export function QuickClipBar({
                 <Button
                   type="button"
                   size="default"
-                  className="h-10 flex-[1_1_auto] gap-2 border border-[#2563EB]/40 bg-[#2563EB] px-4 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+                  className="col-span-full h-9 w-full min-w-0 gap-1.5 border border-[#2563EB]/40 bg-[#2563EB] px-3 text-[13px] font-semibold text-white hover:bg-[#1d4ed8] sm:col-span-1"
                   onClick={onSaveClip}
                   disabled={saving || !clipValid}
                 >
-                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
+                  {saving ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden /> : <Save className="h-4 w-4 shrink-0" aria-hidden />}
                   Save changes
                 </Button>
               </>
@@ -461,14 +460,14 @@ export function QuickClipBar({
                   <Button
                     type="button"
                     size="default"
-                    className="h-10 flex-[1_1_auto] gap-2 border border-emerald-700/35 bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 md:min-w-[180px]"
+                    className="col-span-full h-9 w-full gap-1.5 border border-emerald-700/35 bg-emerald-600 px-3 text-[13px] font-semibold text-white hover:bg-emerald-700 sm:col-span-1"
                     onClick={onSaveAndContinue}
                     disabled={saving || !clipValid}
                   >
                     {saving ? (
-                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
                     ) : (
-                      <PlusCircle className="h-5 w-5" aria-hidden />
+                      <PlusCircle className="h-4 w-4 shrink-0" aria-hidden />
                     )}
                     Save &amp; next
                   </Button>
@@ -477,25 +476,24 @@ export function QuickClipBar({
                   type="button"
                   size="default"
                   className={cn(
-                    "h-10 gap-2 px-4 text-sm font-semibold text-white shadow-sm",
+                    "col-span-full h-9 gap-1.5 px-3 text-[13px] font-semibold text-white shadow-sm sm:col-span-1",
                     onSaveAndContinue
-                      ? "flex-1 border border-[#2563EB]/40 bg-[#2563EB]/95 hover:bg-[#1d4ed8]"
-                      : "flex-[2] border border-[#2563EB]/40 bg-[#2563EB] hover:bg-[#1d4ed8]",
+                      ? "w-full border border-[#2563EB]/40 bg-[#2563EB]/95 hover:bg-[#1d4ed8]"
+                      : "w-full border border-[#2563EB]/40 bg-[#2563EB] hover:bg-[#1d4ed8]",
                   )}
                   onClick={onSaveClip}
                   disabled={saving || !clipValid}
                 >
-                  {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
+                  {saving ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden /> : <Save className="h-4 w-4 shrink-0" aria-hidden />}
                   {onSaveAndContinue ? "Save only" : "Save clip"}
                 </Button>
               </>
             )}
-          </div>
         </div>
 
         {/* Fine scrub */}
-        <div className="border-t border-border/50 pt-4">
-          <div className="mb-2 flex items-center gap-1.5">
+        <div className="border-t border-border/50 pt-2">
+          <div className="mb-1.5 flex items-center gap-1.5">
             <span className={sectionMuted}>Jump &amp; scrub</span>
             <FilmInfoTip label="Jump and coarse scrub">
               <p>
@@ -504,23 +502,23 @@ export function QuickClipBar({
               </p>
             </FilmInfoTip>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onSkipBack5}>
+          <div className="flex flex-wrap gap-1.5">
+            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1.5 px-2.5 text-[13px] font-medium" onClick={onSkipBack5}>
               <SkipBack className="h-4 w-4 shrink-0" aria-hidden />
               −{SKIP / 1000}s
             </Button>
-            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onSkipForward5}>
+            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1.5 px-2.5 text-[13px] font-medium" onClick={onSkipForward5}>
               <SkipForward className="h-4 w-4 shrink-0" aria-hidden />
               +{SKIP / 1000}s
             </Button>
-            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onReplayClip}>
+            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1.5 px-2.5 text-[13px] font-medium" onClick={onReplayClip}>
               <Redo2 className="h-4 w-4 shrink-0" aria-hidden />
-              Replay clip
+              Replay
             </Button>
-            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onJumpToMarkStart}>
+            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1 px-2.5 text-[13px] font-medium" onClick={onJumpToMarkStart}>
               To in
             </Button>
-            <Button type="button" variant="ghost" size="default" className="h-10 gap-2 px-3 text-[14px] font-medium" onClick={onJumpToMarkEnd}>
+            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1 px-2.5 text-[13px] font-medium" onClick={onJumpToMarkEnd}>
               To out
             </Button>
           </div>

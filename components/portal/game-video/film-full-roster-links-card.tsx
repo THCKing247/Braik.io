@@ -17,8 +17,8 @@ export function FilmFullRosterLinksCard({
   disabled?: boolean
 }) {
   return (
-    <details className="rounded-xl border border-white/10 bg-[#0f172a]/85 p-3 shadow-sm ring-1 ring-white/[0.06]">
-      <summary className="cursor-pointer text-xs font-semibold leading-snug text-slate-200">
+    <details className="rounded-lg border border-white/12 bg-[#0f172a]/85 p-2 shadow-sm ring-1 ring-white/[0.06]">
+      <summary className="cursor-pointer text-[13px] font-semibold leading-snug text-slate-100">
         Full film — recruiting roster links (optional)
       </summary>
       <p className="mt-2 text-[11px] leading-snug text-slate-400">

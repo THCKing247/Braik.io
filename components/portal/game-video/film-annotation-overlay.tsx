@@ -134,7 +134,7 @@ export function FilmAnnotationToolbar({
       variant={activeTool === t ? "default" : "secondary"}
       disabled={disabled}
       className={cn(
-        "h-9 min-w-[2.75rem] gap-1.5 px-2.5 text-xs font-semibold sm:px-3",
+        "h-8 min-w-0 shrink-0 gap-1 px-2 text-[11px] font-semibold sm:h-9 sm:gap-1.5 sm:px-2.5 sm:text-xs",
         activeTool === t && "bg-sky-600 text-white hover:bg-sky-600/90",
         activeTool !== t &&
           "border border-white/20 bg-slate-800/95 text-slate-100 hover:bg-slate-700 hover:text-white",
@@ -144,48 +144,49 @@ export function FilmAnnotationToolbar({
       title={label}
     >
       {icon}
-      <span className="hidden sm:inline">{label}</span>
+      <span>{label}</span>
     </Button>
   )
 
   return (
     <div
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-white/15 bg-slate-950/90 px-2 py-2 shadow-sm"
+      className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-white/15 bg-slate-950/90 px-2 py-1.5 shadow-sm"
       role="toolbar"
       aria-label="Film annotations"
     >
-      <span className="hidden min-w-[5.5rem] text-[11px] font-bold uppercase tracking-wide text-slate-200 sm:inline">
-        Draw
-      </span>
-      {btn("pen", "Pen", <Pencil className="h-4 w-4 shrink-0" aria-hidden />)}
-      {btn("line", "Line", <Minus className="h-4 w-4 shrink-0" aria-hidden />)}
-      {btn("arrow", "Arrow", <MousePointer2 className="h-4 w-4 shrink-0" aria-hidden />)}
-      {btn("circle", "Circle", <Circle className="h-4 w-4 shrink-0" aria-hidden />)}
-      <div className="mx-1 hidden h-6 w-px bg-white/15 sm:block" aria-hidden />
-      <Button
-        type="button"
-        size="sm"
-        variant="secondary"
-        disabled={disabled || !canUndo}
-        className="h-9 gap-1.5 border border-white/15 bg-slate-800/95 px-2.5 text-xs font-semibold text-slate-100 hover:bg-slate-700"
-        onClick={onUndo}
-        title="Undo last stroke"
-      >
-        <Undo2 className="h-4 w-4" aria-hidden />
-        <span className="hidden sm:inline">Undo</span>
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="secondary"
-        disabled={disabled || !hasInk}
-        className="h-9 gap-1.5 border border-white/20 bg-slate-900/80 px-2.5 text-xs font-semibold text-slate-200 hover:bg-red-950/50 hover:text-red-100"
-        onClick={onClear}
-        title="Clear all drawings"
-      >
-        <Trash2 className="h-4 w-4" aria-hidden />
-        <span className="hidden sm:inline">Clear</span>
-      </Button>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-300">Draw</span>
+        {btn("pen", "Pen", <Pencil className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />)}
+        {btn("line", "Line", <Minus className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />)}
+        {btn("arrow", "Arrow", <MousePointer2 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />)}
+        {btn("circle", "Circle", <Circle className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />)}
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-white/10 pt-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={disabled || !canUndo}
+          className="h-8 shrink-0 gap-1 border border-white/15 bg-slate-800/95 px-2 text-[11px] font-semibold text-slate-100 hover:bg-slate-700 sm:h-9 sm:px-2.5 sm:text-xs"
+          onClick={onUndo}
+          title="Undo last stroke"
+        >
+          <Undo2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden />
+          Undo
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={disabled || !hasInk}
+          className="h-8 shrink-0 gap-1 border border-white/20 bg-slate-900/80 px-2 text-[11px] font-semibold text-slate-200 hover:bg-red-950/50 hover:text-red-100 sm:h-9 sm:px-2.5 sm:text-xs"
+          onClick={onClear}
+          title="Clear all drawings"
+        >
+          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden />
+          Clear
+        </Button>
+      </div>
     </div>
   )
 }

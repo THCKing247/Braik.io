@@ -7,7 +7,13 @@ import { FilmLibraryBrowse } from "@/components/portal/game-video/film-library-b
 import { FilmRoomModalShell } from "@/components/portal/game-video/film-room-modal-shell"
 import { FilmWorkspace } from "@/components/portal/game-video/film-workspace"
 import { MediaLibraryRail } from "@/components/portal/game-video/media-library-rail"
-import type { ClipLibraryRow, ClipRow, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
+import type {
+  ClipLibraryRow,
+  ClipRow,
+  FilmUploadMeta,
+  GameVideoRow,
+  UploadUiState,
+} from "@/components/portal/game-video/game-video-types"
 import { defaultDisplayTitleFromFileName } from "@/lib/video/upload-display-title"
 
 export function GameVideoLibrary({
@@ -263,13 +269,12 @@ export function GameVideoLibrary({
     }
   }
 
-  const onUploadFile = async (file: File, coachTitle?: string) => {
+  const onUploadFile = async (file: File, meta: FilmUploadMeta) => {
     if (!canUpload) return
     clearUploadSuccessTimer()
     setError(null)
-    const displayTitle = coachTitle?.trim()
-      ? coachTitle.trim()
-      : defaultDisplayTitleFromFileName(file.name)
+    const customTitle = meta.title?.trim() ?? ""
+    const displayTitle = customTitle.length > 0 ? customTitle : defaultDisplayTitleFromFileName(file.name)
     setUploadUi({ phase: "preparing", pct: 0, fileName: file.name, displayTitle })
     try {
       const initPayload: Record<string, unknown> = {
@@ -277,8 +282,13 @@ export function GameVideoLibrary({
         mimeType: file.type,
         sizeBytes: file.size,
         multipart: file.size > 100 * 1024 * 1024,
+        isPrivate: meta.isPrivate,
       }
-      if (coachTitle?.trim()) initPayload.title = coachTitle.trim()
+      if (customTitle.length > 0) initPayload.title = customTitle
+      if (meta.tags && meta.tags.length > 0) initPayload.tags = meta.tags
+      if (meta.opponent?.trim()) initPayload.opponent = meta.opponent.trim()
+      if (meta.category?.trim()) initPayload.category = meta.category.trim()
+      if (meta.gameDate?.trim()) initPayload.gameDate = meta.gameDate.trim()
 
       const initRes = await fetch(`/api/teams/${teamId}/game-videos/upload/init`, {
         method: "POST",
@@ -449,7 +459,7 @@ export function GameVideoLibrary({
           onClipPrivacyChange={(gameVideoId, clipId, isPrivate) =>
             void patchClipPrivacy(gameVideoId, clipId, isPrivate)
           }
-          onUploadVideo={(f, title) => void onUploadFile(f, title)}
+          onUploadVideo={(f, meta) => void onUploadFile(f, meta)}
           onOpenFilmRoom={openFilmRoom}
           onDeleteFilm={(v) => void deleteFilmFromBrowse(v)}
           onDeleteClip={(c) => void deleteClipFromBrowse(c)}
@@ -476,8 +486,9 @@ export function GameVideoLibrary({
                   setFilmRoomClipId(null)
                 }}
                 canUpload={canUpload}
+                taggingEnabled={taggingEnabled}
                 uploadUi={uploadUi}
-                onUploadVideo={(f, title) => void onUploadFile(f, title)}
+                onUploadVideo={(f, meta) => void onUploadFile(f, meta)}
               />
 
               <div className="flex min-h-0 min-w-0 flex-col">

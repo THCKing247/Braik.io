@@ -37,6 +37,18 @@ export type ClipLibraryRow = ClipRow & {
   is_private?: boolean | null
 }
 
+/** Values collected before upload — passed through init → `game_videos` row. */
+export type FilmUploadMeta = {
+  /** Omit or whitespace-only → server uses filename stem fallback for `title`. */
+  title?: string
+  isPrivate: boolean
+  tags?: string[]
+  opponent?: string
+  category?: string
+  /** ISO date string `YYYY-MM-DD` when set */
+  gameDate?: string | null
+}
+
 export type UploadUiState = {
   phase: "preparing" | "uploading" | "finalizing" | "success"
   pct: number

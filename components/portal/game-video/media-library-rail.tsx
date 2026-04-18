@@ -1,7 +1,7 @@
 "use client"
 
 import { Film, Loader2 } from "lucide-react"
-import type { GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
+import type { FilmUploadMeta, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
 import { formatBytes } from "@/components/portal/game-video/format-bytes"
 import { VideoUploadZone } from "@/components/portal/game-video/video-upload-zone"
 import { cn } from "@/lib/utils"
@@ -13,6 +13,7 @@ export function MediaLibraryRail({
   selectedId,
   onSelect,
   canUpload,
+  taggingEnabled = false,
   uploadUi,
   onUploadVideo,
 }: {
@@ -22,8 +23,9 @@ export function MediaLibraryRail({
   selectedId: string | null
   onSelect: (id: string) => void
   canUpload: boolean
+  taggingEnabled?: boolean
   uploadUi: UploadUiState | null
-  onUploadVideo: (file: File, coachTitle?: string) => void
+  onUploadVideo: (file: File, meta: FilmUploadMeta) => void
 }) {
   return (
     <aside
@@ -59,8 +61,9 @@ export function MediaLibraryRail({
               variant="compact"
               filmRoom={filmRoom}
               canUpload={canUpload}
+              taggingEnabled={taggingEnabled}
               uploadUi={uploadUi}
-              onUpload={(file, title) => onUploadVideo(file, title)}
+              onUpload={(file, meta) => onUploadVideo(file, meta)}
             />
           </div>
         )}

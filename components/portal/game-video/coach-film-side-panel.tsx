@@ -1,5 +1,6 @@
 "use client"
 
+import type React from "react"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils"
 export type CoachFilmTabId = "clip" | "tags" | "notes" | "assistant" | "reel"
 
 type Props = {
+  clipTitleInputRef?: React.RefObject<HTMLInputElement>
   clipCount: number
   reelCount: number
   canCreateClips: boolean
@@ -109,6 +111,7 @@ export function CoachFilmSidePanel(props: Props) {
                 Short label players will recognize in the locker room — e.g. “Counter TD” or “Cover 4 bust.”
               </p>
               <Input
+                ref={props.clipTitleInputRef}
                 className="mt-2 min-h-[44px] text-base"
                 value={props.clipTitle}
                 onChange={(e) => props.setClipTitle(e.target.value)}
@@ -142,8 +145,9 @@ export function CoachFilmSidePanel(props: Props) {
               />
             </div>
             <p className="rounded-lg bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
-              Fastest workflow: use the large <strong className="text-foreground">Save clip</strong> button under the scrubber
-              once your start/end marks look right.
+              Fast breakdown: use <strong className="text-foreground">Save &amp; next clip</strong> under the player to chain
+              plays on the same film. <strong className="text-foreground">Save clip only</strong> keeps your marks if you’re
+              adjusting metadata.
             </p>
             {props.canDeleteVideo && (
               <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-3">

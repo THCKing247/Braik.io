@@ -15,7 +15,12 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
-import type { ClipLibraryRow, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
+import type {
+  ClipLibraryRow,
+  FilmUploadMeta,
+  GameVideoRow,
+  UploadUiState,
+} from "@/components/portal/game-video/game-video-types"
 import { formatBytes } from "@/components/portal/game-video/format-bytes"
 import { durationMsLabel, formatMsRange } from "@/lib/video/timecode"
 import { cn } from "@/lib/utils"
@@ -38,7 +43,7 @@ type Props = {
   privacyBusyKey?: string | null
   onVideoPrivacyChange?: (videoId: string, isPrivate: boolean) => void | Promise<void>
   onClipPrivacyChange?: (gameVideoId: string, clipId: string, isPrivate: boolean) => void | Promise<void>
-  onUploadVideo: (file: File, coachTitle?: string) => void
+  onUploadVideo: (file: File, meta: FilmUploadMeta) => void
   onOpenFilmRoom: (videoId: string, opts?: { clipId?: string }) => void
   onDeleteFilm: (video: GameVideoRow) => void
   onDeleteClip: (clip: ClipLibraryRow) => void
@@ -142,8 +147,9 @@ export function FilmLibraryBrowse({
             <VideoUploadZone
               variant="hero"
               canUpload={canUpload}
+              taggingEnabled={taggingEnabled}
               uploadUi={uploadUi}
-              onUpload={(file, title) => onUploadVideo(file, title)}
+              onUpload={(file, meta) => onUploadVideo(file, meta)}
             />
           </div>
         )}

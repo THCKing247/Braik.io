@@ -4,6 +4,7 @@ import {
   Flag,
   Loader2,
   Play,
+  PlusCircle,
   Redo2,
   RotateCcw,
   Save,
@@ -30,7 +31,10 @@ type Props = {
   onMarkEnd: () => void
   onPreview: () => void
   onStopPreview: () => void
+  /** Save without advancing range (keep in/out for minor tweaks or manual next marks) */
   onSaveClip: () => void
+  /** Save and prepare the next clip range from the end of this one */
+  onSaveAndContinue?: () => void
   onResetMarks: () => void
   onSkipBack5: () => void
   onSkipForward5: () => void
@@ -52,6 +56,7 @@ export function QuickClipBar({
   onPreview,
   onStopPreview,
   onSaveClip,
+  onSaveAndContinue,
   onResetMarks,
   onSkipBack5,
   onSkipForward5,
@@ -72,13 +77,15 @@ export function QuickClipBar({
             {savedClipEditing ? (
               <>
                 Range below matches this saved clip. <strong className="text-foreground">Preview clip</strong> plays in→out once
-                and stops. Use marks to tweak timing, then Save clip to update.
+                and stops. Adjust marks if needed, then save — use <strong className="text-foreground">Save &amp; next</strong> to
+                chain another clip without leaving the film.
               </>
             ) : (
               <>
-                Pause on the first frame of the play, tap <strong className="font-semibold text-foreground">Mark start</strong>,
-                then do the same for the last frame with{" "}
-                <strong className="font-semibold text-foreground">Mark end</strong>.
+                Mark <strong className="font-semibold text-foreground">start</strong> then{" "}
+                <strong className="font-semibold text-foreground">end</strong>. Use{" "}
+                <strong className="font-semibold text-foreground">Save &amp; next clip</strong> to save and immediately set up
+                the next play on the same film.
               </>
             )}
           </p>
@@ -141,15 +148,36 @@ export function QuickClipBar({
             </>
           )}
         </Button>
+        {onSaveAndContinue ? (
+          <Button
+            type="button"
+            size="lg"
+            className="min-h-[52px] flex-[2] gap-2 border-2 border-emerald-600/50 bg-emerald-600 px-6 text-base font-bold text-white shadow-lg hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+            onClick={onSaveAndContinue}
+            disabled={saving || !clipValid}
+          >
+            {saving ? (
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            ) : (
+              <PlusCircle className="h-5 w-5" aria-hidden />
+            )}
+            Save &amp; next clip
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="lg"
-          className="min-h-[52px] flex-[2] gap-2 border-2 border-[#2563EB]/40 bg-[#2563EB] px-8 text-base font-bold text-white shadow-lg hover:bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]"
+          className={cn(
+            "min-h-[52px] gap-2 border-2 px-6 text-base font-bold shadow-lg focus-visible:ring-2 focus-visible:ring-offset-2",
+            onSaveAndContinue
+              ? "flex-1 border-[#2563EB]/40 bg-[#2563EB]/90 text-white hover:bg-[#1d4ed8] focus-visible:ring-[#2563EB] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]"
+              : "flex-[2] border-[#2563EB]/40 bg-[#2563EB] text-white hover:bg-[#1d4ed8] focus-visible:ring-[#2563EB] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]",
+          )}
           onClick={onSaveClip}
           disabled={saving || !clipValid}
         >
           {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-          Save clip
+          {savedClipEditing ? "Save changes" : onSaveAndContinue ? "Save clip only" : "Save clip"}
         </Button>
         <Button
           type="button"
@@ -161,6 +189,16 @@ export function QuickClipBar({
           Reset marks
         </Button>
       </div>
+
+      <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
+        Shortcuts when not typing: <kbd className="rounded border border-border bg-muted px-1 font-mono">I</kbd> mark start ·{" "}
+        <kbd className="rounded border border-border bg-muted px-1 font-mono">O</kbd> mark end ·{" "}
+        <kbd className="rounded border border-border bg-muted px-1 font-mono">Ctrl</kbd>+
+        <kbd className="rounded border border-border bg-muted px-1 font-mono">Enter</kbd> save &amp; next ·{" "}
+        <kbd className="rounded border border-border bg-muted px-1 font-mono">Ctrl</kbd>+
+        <kbd className="rounded border border-border bg-muted px-1 font-mono">Shift</kbd>+
+        <kbd className="rounded border border-border bg-muted px-1 font-mono">S</kbd> save only
+      </p>
 
       <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-5">
         <Button

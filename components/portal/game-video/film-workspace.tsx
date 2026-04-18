@@ -6,6 +6,7 @@ import type { ClipRow, GameVideoRow } from "@/components/portal/game-video/game-
 import { CoachFilmSidePanel } from "@/components/portal/game-video/coach-film-side-panel"
 import { FilmPlayerHero } from "@/components/portal/game-video/film-player-hero"
 import { QuickClipBar } from "@/components/portal/game-video/quick-clip-bar"
+import { ClipSessionStrip } from "@/components/portal/game-video/clip-session-strip"
 import {
   mergeQuickAndFreeTags,
   splitQuickAndFreeFromTags,
@@ -53,6 +54,7 @@ export function FilmWorkspace({
   initialClipId = null,
   onSavedClipContextExit,
 }: Props) {
+  const clipTitleInputRef = useRef<HTMLInputElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const timelineRef = useRef<HTMLDivElement | null>(null)
   const previewCleanupRef = useRef<(() => void) | null>(null)
@@ -83,6 +85,8 @@ export function FilmWorkspace({
   const [aiWorking, setAiWorking] = useState(false)
 
   const [reelClipIds, setReelClipIds] = useState<Set<string>>(new Set())
+  /** Newest-first clip ids created in this film-room session (for quick recall without leaving the player). */
+  const [sessionClipIds, setSessionClipIds] = useState<string[]>([])
 
   const durationSafe = durationMs > 0 ? durationMs : 1
   const videoReady = video.upload_status === "ready"
@@ -121,6 +125,7 @@ export function FilmWorkspace({
   useEffect(() => {
     initialClipAppliedRef.current = null
     savedClipSeekKeyRef.current = null
+    setSessionClipIds([])
     setInMs(0)
     setOutMs(0)
     setPlayheadMs(0)
@@ -229,8 +234,11 @@ export function FilmWorkspace({
     [durationSafe, seekMs],
   )
 
-  const applyMarkStart = () => setInMs(clampMs(playheadMs, 0, durationSafe))
-  const applyMarkEnd = () => setOutMs(clampMs(playheadMs, Math.min(inMs + 100, durationSafe), durationSafe))
+  const applyMarkStart = useCallback(() => setInMs(clampMs(playheadMs, 0, durationSafe)), [playheadMs, durationSafe])
+  const applyMarkEnd = useCallback(
+    () => setOutMs(clampMs(playheadMs, Math.min(inMs + 100, durationSafe), durationSafe)),
+    [playheadMs, inMs, durationSafe],
+  )
 
   const jumpMarkStart = () => seekMs(inMs)
   const jumpMarkEnd = () => seekMs(outMs)
@@ -328,49 +336,100 @@ export function FilmWorkspace({
     return mergeQuickAndFreeTags(quickTagsSelected, clipTagsFree).join(", ")
   }
 
-  const saveClip = async () => {
+  const clearNewClipForm = () => {
+    setClipTitle("")
+    setClipDescription("")
+    setClipTagsFree("")
+    setQuickTagsSelected(new Set())
+    setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
+  }
+
+  const prepareNextClipRange = (savedOutMs: number) => {
+    setHighlightClipId(null)
+    onSavedClipContextExit?.()
+    const nextIn = clampMs(savedOutMs, 0, durationSafe - 100)
+    let nextOut = clampMs(savedOutMs + 12000, nextIn + 100, durationSafe)
+    if (nextOut <= nextIn + 80) {
+      nextOut = clampMs(nextIn + 8000, nextIn + 100, durationSafe)
+    }
+    setInMs(nextIn)
+    setOutMs(nextOut)
+    seekMs(nextIn)
+    stopPreview()
+    clearNewClipForm()
+    requestAnimationFrame(() => clipTitleInputRef.current?.focus())
+  }
+
+  const saveClipRequest = async (advanceForNext: boolean) => {
     if (!canCreateClips || !videoReady) return
     if (!clipValid) {
       onError("Mark where the play ends — it has to be after the start.")
       return
     }
+    const tags = taggingEnabled ? mergeQuickAndFreeTags(quickTagsSelected, clipTagsFree) : []
+    const categories: Record<string, string> = {}
+    if (clipCategories.playType.trim()) categories.playType = clipCategories.playType.trim()
+    if (clipCategories.situation.trim()) categories.situation = clipCategories.situation.trim()
+    if (clipCategories.personnel.trim()) categories.personnel = clipCategories.personnel.trim()
+    if (clipCategories.outcome.trim()) categories.outcome = clipCategories.outcome.trim()
+
+    const title = clipTitle.trim() || "Clip"
+    const description = clipDescription.trim() || null
+    const payload = {
+      startMs: inMs,
+      endMs: outMs,
+      title,
+      description,
+      tags,
+      categories,
+    }
+
+    const savedOutMs = outMs
+    const editingId = highlightClipId
+
     setClipSaving(true)
     onError(null)
     try {
-      const tags = taggingEnabled ? mergeQuickAndFreeTags(quickTagsSelected, clipTagsFree) : []
-      const categories: Record<string, string> = {}
-      if (clipCategories.playType.trim()) categories.playType = clipCategories.playType.trim()
-      if (clipCategories.situation.trim()) categories.situation = clipCategories.situation.trim()
-      if (clipCategories.personnel.trim()) categories.personnel = clipCategories.personnel.trim()
-      if (clipCategories.outcome.trim()) categories.outcome = clipCategories.outcome.trim()
-
-      const res = await fetch(`/api/teams/${teamId}/game-videos/${video.id}/clips`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startMs: inMs,
-          endMs: outMs,
-          title: clipTitle.trim() || "Clip",
-          description: clipDescription.trim() || null,
-          tags,
-          categories,
-        }),
-      })
+      const res = editingId
+        ? await fetch(`/api/teams/${teamId}/game-videos/${video.id}/clips/${editingId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch(`/api/teams/${teamId}/game-videos/${video.id}/clips`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Could not save clip")
+
       await onRefreshClips()
-      setClipTitle("")
-      setClipDescription("")
-      setClipTagsFree("")
-      setQuickTagsSelected(new Set())
-      setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
-      stopPreview()
+
+      if (!editingId && typeof data.clip?.id === "string") {
+        const id = data.clip.id as string
+        setSessionClipIds((prev) => [id, ...prev.filter((x) => x !== id)])
+      }
+
+      if (advanceForNext) {
+        prepareNextClipRange(savedOutMs)
+      } else {
+        stopPreview()
+        if (editingId) {
+          /* keep form + marks for further tweaks */
+        } else {
+          clearNewClipForm()
+        }
+      }
     } catch (e) {
       onError(e instanceof Error ? e.message : "Clip save failed")
     } finally {
       setClipSaving(false)
     }
   }
+
+  const saveClipRequestRef = useRef(saveClipRequest)
+  saveClipRequestRef.current = saveClipRequest
 
   const deleteClip = async (clipId: string) => {
     if (!confirm("Remove this clip?")) return
@@ -381,6 +440,7 @@ export function FilmWorkspace({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Delete failed")
       if (highlightClipId === clipId) setHighlightClipId(null)
+      setSessionClipIds((prev) => prev.filter((id) => id !== clipId))
       setReelClipIds((prev) => {
         const next = new Set(prev)
         next.delete(clipId)
@@ -485,6 +545,33 @@ export function FilmWorkspace({
   const skipForward5 = () => nudgePlayhead(SKIP_COACH)
   const replayMarkedClip = () => void startPreview()
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (
+        t &&
+        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)
+      ) {
+        return
+      }
+      if (e.code === "KeyI" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        applyMarkStart()
+      } else if (e.code === "KeyO" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        applyMarkEnd()
+      } else if (e.code === "Enter" && (e.ctrlKey || e.metaKey) && clipValid && canCreateClips && videoReady) {
+        e.preventDefault()
+        void saveClipRequestRef.current(true)
+      } else if (e.code === "KeyS" && e.shiftKey && (e.ctrlKey || e.metaKey) && clipValid && canCreateClips && videoReady) {
+        e.preventDefault()
+        void saveClipRequestRef.current(false)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [clipValid, canCreateClips, videoReady, applyMarkStart, applyMarkEnd])
+
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
       <div className="min-w-0 flex-1 space-y-4">
@@ -546,9 +633,18 @@ export function FilmWorkspace({
           <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
             {highlightClipId
               ? "Film plays behind your saved clip — timeline range matches the clip below."
-              : "Drag the scrubber or use the video controls. When you’ve marked start and end, hit Save clip."}
+              : "Drag the scrubber or use the controls. Mark start/end, then use Save & next clip to knock out plays in one sitting."}
           </p>
         </header>
+
+        {sessionClipIds.length > 0 && (
+          <ClipSessionStrip
+            clips={clips}
+            sessionOrder={sessionClipIds}
+            highlightClipId={highlightClipId}
+            onSelectClip={(c) => loadClipIntoEditor(c)}
+          />
+        )}
 
         <FilmPlayerHero
           playbackUrl={playbackUrl}
@@ -591,7 +687,8 @@ export function FilmWorkspace({
           onMarkEnd={applyMarkEnd}
           onPreview={() => void startPreview()}
           onStopPreview={stopPreview}
-          onSaveClip={() => void saveClip()}
+          onSaveClip={() => void saveClipRequest(false)}
+          onSaveAndContinue={() => void saveClipRequest(true)}
           onResetMarks={resetMarks}
           onSkipBack5={skipBack5}
           onSkipForward5={skipForward5}
@@ -607,6 +704,7 @@ export function FilmWorkspace({
 
       <div className="flex w-full shrink-0 flex-col xl:sticky xl:top-0 xl:max-h-[calc(100dvh-12rem)] xl:w-[420px] xl:max-w-[min(440px,44vw)] xl:overflow-hidden">
         <CoachFilmSidePanel
+          clipTitleInputRef={clipTitleInputRef}
           clipCount={clips.length}
           reelCount={reelClipIds.size}
           canCreateClips={canCreateClips}

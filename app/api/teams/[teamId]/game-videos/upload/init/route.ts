@@ -19,6 +19,28 @@ import { resolveQuotaBaselineBytes, wouldExceedQuota } from "@/lib/video/quota"
 
 export const runtime = "nodejs"
 
+function coachUploadMetadataBlock(body: {
+  tags?: string[]
+  opponent?: string | null
+  category?: string | null
+  gameDate?: string | null
+}): Record<string, unknown> {
+  const coach: Record<string, unknown> = {}
+  if (Array.isArray(body.tags) && body.tags.length > 0) {
+    coach.tags = body.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 24)
+  }
+  if (typeof body.opponent === "string" && body.opponent.trim()) {
+    coach.opponent = body.opponent.trim().slice(0, 120)
+  }
+  if (typeof body.category === "string" && body.category.trim()) {
+    coach.category = body.category.trim().slice(0, 80)
+  }
+  if (typeof body.gameDate === "string" && body.gameDate.trim()) {
+    coach.gameDate = body.gameDate.trim().slice(0, 32)
+  }
+  return Object.keys(coach).length > 0 ? { coach } : {}
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ teamId: string }> }) {
   try {
     const session = await getServerSession()
@@ -55,6 +77,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       sizeBytes?: number
       title?: string | null
       multipart?: boolean
+      isPrivate?: boolean
+      tags?: string[]
+      opponent?: string | null
+      category?: string | null
+      gameDate?: string | null
     }
     try {
       body = (await request.json()) as typeof body
@@ -107,6 +134,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
     const title =
       typeof body.title === "string" && body.title.trim().length > 0 ? body.title.trim() : safeName.replace(/\.[^.]+$/, "")
 
+    const coachMeta = coachUploadMetadataBlock(body)
+
     const { error: insErr } = await supabase.from("game_videos").insert({
       id: videoId,
       team_id: teamId,
@@ -122,7 +151,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       duration_seconds: null,
       upload_status: "pending",
       processing_status: "none",
-      metadata: {},
+      is_private: body.isPrivate === true,
+      metadata: coachMeta,
     })
 
     if (insErr) {
@@ -141,7 +171,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
         .from("game_videos")
         .update({
           upload_status: "uploading",
-          metadata: { presignedMode: "single_put" },
+          metadata: { ...coachMeta, presignedMode: "single_put" },
           updated_at: new Date().toISOString(),
         })
         .eq("id", videoId)
@@ -168,6 +198,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       .update({
         upload_status: "uploading",
         metadata: {
+          ...coachMeta,
           presignedMode: "multipart",
           multipartUploadId: mp.uploadId,
           expectedSizeBytes: sizeBytes,

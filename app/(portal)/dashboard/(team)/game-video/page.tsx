@@ -3,7 +3,7 @@
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { GameVideoLibrary } from "@/components/portal/game-video-library"
-import { Video } from "lucide-react"
+import { FilmRoomModalShell } from "@/components/portal/game-video/film-room-modal-shell"
 
 export default function GameVideoPage() {
   return (
@@ -35,19 +35,7 @@ function GameVideoBody({ teamId }: { teamId: string }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <div className="rounded-lg bg-primary/10 p-2 text-primary">
-          <Video className="h-6 w-6" aria-hidden />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Film room</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Watch film, mark plays, tag teaching moments, and build your clip reel — built for coaches on a clock.
-          </p>
-        </div>
-      </div>
-
+    <FilmRoomModalShell teamId={teamId}>
       <GameVideoLibrary
         teamId={teamId}
         entitlement={vc.entitlement}
@@ -56,7 +44,8 @@ function GameVideoBody({ teamId }: { teamId: string }) {
         canDeleteVideo={vc.canDeleteVideo}
         aiVideoEnabled={Boolean(vc.entitlement?.aiVideoEnabled)}
         taggingEnabled={Boolean(vc.entitlement?.taggingEnabled)}
+        embeddedInModal
       />
-    </div>
+    </FilmRoomModalShell>
   )
 }

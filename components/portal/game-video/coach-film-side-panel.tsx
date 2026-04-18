@@ -54,11 +54,11 @@ type Props = {
 }
 
 const TAB_DEFS: Array<{ id: CoachFilmTabId; label: string; icon: typeof Video }> = [
-  { id: "clip", label: "Clip", icon: ClipboardList },
-  { id: "tags", label: "Tags", icon: Tags },
+  { id: "clip", label: "Clip details", icon: ClipboardList },
+  { id: "tags", label: "Quick tags", icon: Tags },
   { id: "notes", label: "Notes", icon: PenLine },
   { id: "assistant", label: "Assistant", icon: Wand2 },
-  { id: "reel", label: "My clips", icon: Video },
+  { id: "reel", label: "Saved clips", icon: Video },
 ]
 
 export function CoachFilmSidePanel(props: Props) {
@@ -73,9 +73,9 @@ export function CoachFilmSidePanel(props: Props) {
   }, [props.clipCount, props.reelCount])
 
   return (
-    <div className="flex max-h-none min-h-0 flex-col rounded-2xl border border-border bg-card shadow-lg ring-1 ring-black/[0.04] dark:ring-white/[0.06] xl:max-h-[calc(100vh-9rem)]">
+    <div className="flex max-h-none min-h-0 flex-col rounded-2xl border-2 border-border bg-card shadow-lg ring-1 ring-black/[0.04] dark:ring-white/[0.06] xl:max-h-[calc(100dvh-12rem)]">
       <div className="border-b border-border px-3 py-3 lg:px-4">
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-2">
           {TAB_DEFS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -84,13 +84,13 @@ export function CoachFilmSidePanel(props: Props) {
               aria-selected={tab === id}
               onClick={() => setTab(id)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-[13px]",
+                "inline-flex min-h-[44px] items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:px-4",
                 tab === id
-                  ? "bg-[#0F172A] text-white shadow-sm dark:bg-[#1E293B]"
-                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "bg-[#0F172A] text-white shadow-md dark:bg-[#1E293B]"
+                  : "border border-transparent bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
               )}
             >
-              <Icon className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+              <Icon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
               <span>{label}</span>
               {id === "reel" && props.clipCount > 0 ? (
                 <span className="rounded-md bg-background/25 px-1.5 py-0.5 font-mono text-[10px]">{props.clipCount}</span>
@@ -100,12 +100,12 @@ export function CoachFilmSidePanel(props: Props) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 lg:py-5" role="tabpanel">
+      <div className="flex-1 overflow-y-auto px-4 py-5 lg:px-5 lg:py-6" role="tabpanel">
         {tab === "clip" && (
           <div className="space-y-4">
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clip name</h4>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <h4 className="text-sm font-bold uppercase tracking-wide text-foreground">Clip name</h4>
+              <p className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-400">
                 Short label players will recognize in the locker room — e.g. “Counter TD” or “Cover 4 bust.”
               </p>
               <Input
@@ -151,7 +151,13 @@ export function CoachFilmSidePanel(props: Props) {
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Deletes the full file from storage and all clips on it. Use only if the upload was wrong.
                 </p>
-                <Button type="button" variant="destructive" size="sm" className="mt-3" onClick={() => void props.onDeleteVideo()}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="lg"
+                  className="mt-3 h-12 min-h-[48px] px-6 text-base font-bold shadow-md"
+                  onClick={() => void props.onDeleteVideo()}
+                >
                   Delete film
                 </Button>
               </div>
@@ -254,7 +260,7 @@ export function CoachFilmSidePanel(props: Props) {
               type="button"
               variant="secondary"
               size="lg"
-              className="w-full gap-2"
+              className="h-12 min-h-[48px] w-full gap-2 border-2 border-primary/30 bg-primary/10 text-base font-bold text-primary hover:bg-primary/15"
               disabled={assistantDisabled}
               onClick={() => void props.onRunAiAssist()}
             >
@@ -273,8 +279,8 @@ export function CoachFilmSidePanel(props: Props) {
 
         {tab === "reel" && (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              {reelSummary}. Star clips for your teaching reel.
+            <p className="text-sm leading-snug text-slate-700 dark:text-slate-300">
+              {reelSummary}. Tap <strong className="font-semibold text-foreground">Add to reel</strong> to queue teaching clips.
             </p>
             <ClipReelPanel
               clips={props.clips}
@@ -306,8 +312,8 @@ function Field({
 }) {
   return (
     <div>
-      <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</label>
-      <Input className="mt-1.5" value={value} onChange={(e) => onChange(e.target.value)} placeholder={hint} />
+      <label className="text-sm font-bold uppercase tracking-wide text-foreground">{label}</label>
+      <Input className="mt-2 min-h-[44px] text-base" value={value} onChange={(e) => onChange(e.target.value)} placeholder={hint} />
     </div>
   )
 }

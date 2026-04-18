@@ -80,27 +80,31 @@ export function FilmPlayerHero({
       </div>
 
       <div className="border-t border-white/10 bg-[#0f172a]/95 px-4 py-4 backdrop-blur-sm">
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
-            <Film className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span>Film scrubber</span>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-200">
+            <Film className="h-4 w-4 shrink-0" aria-hidden />
+            <span>Scrubber · range</span>
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-200">
             <span>
-              Now:{" "}
-              <strong className="font-mono tabular-nums text-lg text-emerald-400">
+              <span className="font-semibold text-slate-300">Now</span>{" "}
+              <strong className="font-mono text-xl font-bold tabular-nums text-emerald-300 sm:text-2xl">
                 {formatMsAsTimecode(playheadMs)}
               </strong>
             </span>
-            <span className="hidden sm:inline text-slate-600">·</span>
+            <span className="hidden sm:inline text-slate-500">|</span>
             <span>
-              Marked play:{" "}
-              <strong className="font-mono tabular-nums text-sky-300">{formatMsRange(inMs, outMs)}</strong>
+              <span className="font-semibold text-slate-300">Marked</span>{" "}
+              <strong className="font-mono text-base font-bold tabular-nums text-sky-200 sm:text-lg">
+                {formatMsRange(inMs, outMs)}
+              </strong>
             </span>
-            <span className="hidden sm:inline text-slate-600">·</span>
+            <span className="hidden sm:inline text-slate-500">|</span>
             <span>
-              Length:{" "}
-              <strong className="font-mono tabular-nums text-amber-300">{clipDurationLabel}</strong>
+              <span className="font-semibold text-slate-300">Clip length</span>{" "}
+              <strong className="font-mono text-base font-bold tabular-nums text-amber-200 sm:text-lg">
+                {clipDurationLabel}
+              </strong>
             </span>
           </div>
         </div>
@@ -113,7 +117,7 @@ export function FilmPlayerHero({
           aria-valuemin={0}
           aria-valuemax={durationSafe}
           tabIndex={0}
-          className="relative mb-3 h-12 cursor-pointer rounded-xl bg-slate-800/80 ring-2 ring-white/10 transition-shadow hover:ring-sky-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          className="relative mb-3 h-14 cursor-pointer rounded-xl bg-slate-800/80 ring-2 ring-white/15 transition-shadow hover:ring-sky-400/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
           onMouseDown={(e) => {
             onTimelinePointerDown(e.clientX)
             const move = (ev: MouseEvent) => onTimelinePointerDown(ev.clientX)

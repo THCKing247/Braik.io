@@ -419,12 +419,12 @@ export function FilmWorkspace({
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
       <div className="min-w-0 flex-1 space-y-4">
-        <header className="rounded-xl border border-border/80 bg-muted/25 px-4 py-3 sm:px-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Now coaching</p>
-          <h2 className="mt-0.5 truncate text-xl font-semibold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Scrub the bar, tap <strong className="text-foreground">Mark start</strong> and{" "}
-            <strong className="text-foreground">Mark end</strong>, then save.
+        <header className="rounded-xl border-2 border-border bg-muted/40 px-4 py-4 sm:px-6">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Now coaching</p>
+          <h2 className="mt-1 truncate text-2xl font-bold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
+          <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
+            Drag the scrubber or use the video controls. When you’ve marked start and end, hit{" "}
+            <strong className="font-semibold text-foreground">Save clip</strong>.
           </p>
         </header>
 
@@ -477,12 +477,12 @@ export function FilmWorkspace({
           onJumpToMarkEnd={jumpMarkEnd}
         />
 
-        <p className="text-center text-[11px] text-muted-foreground xl:hidden">
-          Use the tabs below for notes, tags, assistant, and saved clips.
+        <p className="rounded-lg bg-muted/60 px-3 py-2 text-center text-sm font-medium text-foreground xl:hidden">
+          Clip name, tags, coaching notes, assistant, and saved clips — scroll down on smaller screens.
         </p>
       </div>
 
-      <div className="w-full shrink-0 xl:sticky xl:top-6 xl:w-[400px] xl:max-w-[44vw]">
+      <div className="flex w-full shrink-0 flex-col xl:sticky xl:top-0 xl:max-h-[calc(100dvh-12rem)] xl:w-[420px] xl:max-w-[min(440px,44vw)] xl:overflow-hidden">
         <CoachFilmSidePanel
           clipCount={clips.length}
           reelCount={reelClipIds.size}

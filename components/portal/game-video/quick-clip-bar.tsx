@@ -59,19 +59,20 @@ export function QuickClipBar({
   if (!enabled) return null
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">Mark this play</h3>
-          <p className="text-xs text-muted-foreground">
-            Watch the film, tap where the play starts and ends, then save. No typing times first.
+    <div className="rounded-2xl border-2 border-border bg-card p-5 shadow-md ring-1 ring-black/[0.06] dark:bg-card md:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-base font-bold tracking-tight text-foreground">Mark this play</h3>
+          <p className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-400">
+            Pause on the first frame of the play, tap <strong className="font-semibold text-foreground">Mark start</strong>, then
+            do the same for the last frame with <strong className="font-semibold text-foreground">Mark end</strong>.
           </p>
         </div>
         <Button
           type="button"
           variant={fineTuneExpanded ? "secondary" : "outline"}
-          size="sm"
-          className="shrink-0 gap-1.5"
+          size="default"
+          className="h-11 min-h-[44px] shrink-0 gap-2 px-4 font-semibold"
           onClick={onToggleFineTune}
         >
           <Wrench className="h-4 w-4" aria-hidden />
@@ -79,48 +80,48 @@ export function QuickClipBar({
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-3">
         <Button
           type="button"
           size="lg"
           variant="secondary"
-          className="min-h-[48px] flex-1 gap-2 sm:flex-none sm:min-w-[140px]"
+          className="min-h-[52px] flex-1 gap-2 border-2 border-sky-500/30 bg-sky-50 font-bold text-sky-950 hover:bg-sky-100 dark:border-sky-500/40 dark:bg-sky-950/50 dark:text-sky-100 dark:hover:bg-sky-950 sm:flex-none sm:min-w-[155px]"
           onClick={onMarkStart}
         >
-          <Flag className="h-5 w-5 shrink-0 text-sky-500" aria-hidden />
+          <Flag className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
           Mark start
         </Button>
         <Button
           type="button"
           size="lg"
           variant="secondary"
-          className="min-h-[48px] flex-1 gap-2 sm:flex-none sm:min-w-[140px]"
+          className="min-h-[52px] flex-1 gap-2 border-2 border-amber-500/35 bg-amber-50 font-bold text-amber-950 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-100 dark:hover:bg-amber-950 sm:flex-none sm:min-w-[155px]"
           onClick={onMarkEnd}
         >
-          <Flag className="h-5 w-5 shrink-0 text-amber-500" aria-hidden />
+          <Flag className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
           Mark end
         </Button>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-3">
         <Button
           type="button"
           variant="outline"
           className={cn(
-            "min-h-[44px] flex-1 gap-2 border-[#2563EB]/40 sm:flex-none",
-            previewActive && "border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100",
+            "min-h-[52px] flex-1 gap-2 border-2 border-[#2563EB]/50 font-semibold sm:flex-none sm:min-w-[160px]",
+            previewActive && "border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-50",
           )}
           onClick={() => (previewActive ? onStopPreview() : onPreview())}
           disabled={!clipValid && !previewActive}
         >
           {previewActive ? (
             <>
-              <Square className="h-4 w-4" aria-hidden />
+              <Square className="h-5 w-5" aria-hidden />
               Stop preview
             </>
           ) : (
             <>
-              <Play className="h-4 w-4" aria-hidden />
+              <Play className="h-5 w-5" aria-hidden />
               Preview clip
             </>
           )}
@@ -128,36 +129,71 @@ export function QuickClipBar({
         <Button
           type="button"
           size="lg"
-          className="min-h-[48px] flex-[2] gap-2 bg-[#0F172A] px-8 dark:bg-[#1E293B]"
+          className="min-h-[52px] flex-[2] gap-2 border-2 border-[#2563EB]/40 bg-[#2563EB] px-8 text-base font-bold text-white shadow-lg hover:bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 dark:bg-[#3b82f6] dark:hover:bg-[#2563eb]"
           onClick={onSaveClip}
           disabled={saving || !clipValid}
         >
           {saving ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
           Save clip
         </Button>
-        <Button type="button" variant="outline" className="min-h-[44px] gap-2" onClick={onResetMarks}>
-          <RotateCcw className="h-4 w-4" aria-hidden />
+        <Button
+          type="button"
+          variant="outline"
+          className="h-[52px] min-h-[52px] gap-2 border-2 border-slate-300 font-semibold text-foreground hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800"
+          onClick={onResetMarks}
+        >
+          <RotateCcw className="h-5 w-5" aria-hidden />
           Reset marks
         </Button>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-        <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={onSkipBack5}>
-          <SkipBack className="h-4 w-4" aria-hidden />
+      <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
+          onClick={onSkipBack5}
+        >
+          <SkipBack className="h-4 w-4 shrink-0" aria-hidden />
           Back {SKIP / 1000}s
         </Button>
-        <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={onSkipForward5}>
-          <SkipForward className="h-4 w-4" aria-hidden />
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
+          onClick={onSkipForward5}
+        >
+          <SkipForward className="h-4 w-4 shrink-0" aria-hidden />
           Ahead {SKIP / 1000}s
         </Button>
-        <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={onReplayClip}>
-          <Redo2 className="h-4 w-4" aria-hidden />
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
+          onClick={onReplayClip}
+        >
+          <Redo2 className="h-4 w-4 shrink-0" aria-hidden />
           Replay clip
         </Button>
-        <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={onJumpToMarkStart}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
+          onClick={onJumpToMarkStart}
+        >
           Jump to start
         </Button>
-        <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={onJumpToMarkEnd}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          className="h-11 min-h-[44px] gap-2 font-semibold text-foreground hover:bg-muted"
+          onClick={onJumpToMarkEnd}
+        >
           Jump to end
         </Button>
       </div>

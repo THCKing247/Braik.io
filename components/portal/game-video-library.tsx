@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { cn } from "@/lib/utils"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
 import { FilmWorkspace } from "@/components/portal/game-video/film-workspace"
 import { MediaLibraryRail } from "@/components/portal/game-video/media-library-rail"
@@ -15,6 +16,7 @@ export function GameVideoLibrary({
   canDeleteVideo,
   aiVideoEnabled,
   taggingEnabled,
+  embeddedInModal = false,
 }: {
   teamId: string
   entitlement?: VideoEntitlementSummary
@@ -23,6 +25,8 @@ export function GameVideoLibrary({
   canDeleteVideo: boolean
   aiVideoEnabled: boolean
   taggingEnabled: boolean
+  /** Full-screen film room overlay — tighter layout and higher-contrast copy */
+  embeddedInModal?: boolean
 }) {
   const [videos, setVideos] = useState<GameVideoRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -281,33 +285,59 @@ export function GameVideoLibrary({
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className={cn(
+        "flex flex-col gap-6",
+        embeddedInModal && "min-h-0 flex-1",
+      )}
+    >
       {entitlement && (
-        <details className="group rounded-2xl border border-border/80 bg-muted/20 px-4 py-3 text-xs text-muted-foreground shadow-sm open:bg-card open:shadow-md">
-          <summary className="cursor-pointer list-none font-medium text-foreground outline-none marker:hidden [&::-webkit-details-marker]:hidden">
-            <span className="underline-offset-2 group-open:no-underline">
-              Video space for this team — {formatBytes(entitlement.storageUsedBytes)} of {formatBytes(entitlement.storageCapBytes)}{" "}
-              used
-            </span>
-            <span className="ml-2 inline text-muted-foreground">
+        <details
+          className={cn(
+            "group rounded-2xl border px-4 py-3 shadow-sm open:shadow-md",
+            embeddedInModal
+              ? "border-white/15 bg-white/[0.07] text-sm text-slate-200 open:bg-white/[0.09]"
+              : "border-border/80 bg-muted/20 text-xs text-muted-foreground open:bg-card",
+          )}
+        >
+          <summary className="cursor-pointer list-none font-semibold text-foreground outline-none marker:hidden [&::-webkit-details-marker]:hidden">
+            <span className={cn(embeddedInModal && "text-white")}>Video space for this team — {formatBytes(entitlement.storageUsedBytes)} of {formatBytes(entitlement.storageCapBytes)}{" "}
+              used</span>
+            <span className={cn("ml-2 inline", embeddedInModal ? "text-slate-300" : "text-muted-foreground")}>
               ({entitlement.videoCount} films, {entitlement.clipCount} clips stored)
               {entitlement.sharedStorageScope === "program" ? " · Program-shared" : ""}
             </span>
           </summary>
-          <p className="mt-2 border-t border-border pt-2 text-[11px] leading-relaxed">
-            Storage keeps your uploads safe; day-to-day work happens in the film viewer and clip reel below.
+          <p
+            className={cn(
+              "mt-2 border-t pt-2 text-[13px] leading-relaxed",
+              embeddedInModal ? "border-white/10 text-slate-300" : "border-border text-[11px] text-muted-foreground",
+            )}
+          >
+            Storage keeps your uploads safe; your film work is in the viewer and saved clips below.
           </p>
         </details>
       )}
 
       {error && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div
+          className={cn(
+            "rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-destructive",
+            embeddedInModal && "text-base font-medium",
+          )}
+        >
           {error}
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr] lg:items-start lg:gap-8">
+      <div
+        className={cn(
+          "grid min-h-0 gap-6 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:items-stretch lg:gap-8",
+          embeddedInModal && "flex-1",
+        )}
+      >
         <MediaLibraryRail
+          filmRoom={embeddedInModal}
           videos={videos}
           loading={loading}
           selectedId={selectedId}
@@ -319,30 +349,50 @@ export function GameVideoLibrary({
           onFileSelected={(f) => void onUploadFile(f)}
         />
 
-        <div className="min-w-0">
+        <div className="flex min-h-0 min-w-0 flex-col">
           {!selected ? (
-            <div className="flex min-h-[440px] flex-col justify-center rounded-2xl border border-dashed border-border bg-gradient-to-b from-card to-muted/20 px-6 py-12 text-left sm:px-10">
-              <p className="text-lg font-semibold text-foreground">Open a film to start</p>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
-                Your game or practice film opens in the main workspace with a scrubber, mark buttons, and tabs for notes and
-                tags.
+            <div
+              className={cn(
+                "flex flex-col justify-center rounded-2xl border border-dashed px-6 py-12 text-left sm:px-10",
+                embeddedInModal
+                  ? "min-h-[min(520px,calc(100dvh-16rem))] border-white/20 bg-white/[0.06] text-slate-100"
+                  : "min-h-[440px] border-border bg-gradient-to-b from-card to-muted/20 text-foreground",
+              )}
+            >
+              <p className={cn("text-xl font-bold", embeddedInModal && "text-white")}>Open a film to start</p>
+              <p
+                className={cn(
+                  "mt-3 max-w-lg text-[15px] leading-relaxed",
+                  embeddedInModal ? "text-slate-300" : "text-muted-foreground",
+                )}
+              >
+                Pick a video from the film library on the left. The player opens here with mark buttons, notes, tags, and
+                your saved clips.
               </p>
-              <ol className="mt-8 max-w-md list-decimal space-y-3 pl-5 text-sm text-foreground">
-                <li>
-                  <span className="font-medium">Upload</span>{" "}
-                  <span className="text-muted-foreground">— add video from the left if you haven’t yet.</span>
+              <ol className="mt-8 max-w-lg list-decimal space-y-4 pl-6 text-[15px] leading-snug">
+                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
+                  <span className="font-semibold">Upload video</span>{" "}
+                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
+                    — use the blue button on the left if you need new film.
+                  </span>
                 </li>
-                <li>
-                  <span className="font-medium">Pick the film</span>{" "}
-                  <span className="text-muted-foreground">— click it in the library when it’s Ready.</span>
+                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
+                  <span className="font-semibold">Select your game or practice</span>{" "}
+                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
+                    — wait until it shows Ready.
+                  </span>
                 </li>
-                <li>
-                  <span className="font-medium">Watch and mark</span>{" "}
-                  <span className="text-muted-foreground">— set start and end on the play you’re teaching.</span>
+                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
+                  <span className="font-semibold">Mark start and end</span>{" "}
+                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
+                    — on the play you’re coaching up.
+                  </span>
                 </li>
-                <li>
-                  <span className="font-medium">Save &amp; organize</span>{" "}
-                  <span className="text-muted-foreground">— add tags or notes, then star clips for your teaching reel.</span>
+                <li className={cn(embeddedInModal ? "text-white" : "text-foreground")}>
+                  <span className="font-semibold">Save clip and tag it</span>{" "}
+                  <span className={embeddedInModal ? "text-slate-400" : "text-muted-foreground"}>
+                    — build your teaching reel on the Saved clips tab.
+                  </span>
                 </li>
               </ol>
             </div>

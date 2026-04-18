@@ -133,15 +133,15 @@ export function SettingsLayout({ team: initialTeam, userRole }: SettingsLayoutPr
   }
 
   return (
-    <div className="space-y-6">
-      <div className="mb-6">
+    <div className="space-y-6 lg:flex lg:flex-col lg:gap-6 lg:space-y-0">
+      <div className="mb-6 lg:sticky lg:top-0 lg:z-20 lg:mb-0 lg:bg-white lg:pb-4">
         <h1 className="text-3xl font-bold mb-2 text-foreground">Settings</h1>
         <p className="text-muted-foreground">Manage your account and team configuration</p>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         {/* Left Navigation */}
-        <div className="w-full shrink-0 lg:w-64">
+        <div className="w-full shrink-0 lg:sticky lg:top-28 lg:z-10 lg:w-64 lg:self-start lg:bg-white">
           <nav className="flex flex-row gap-1 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
             {visibleSections.map((section) => {
               const Icon = section.icon

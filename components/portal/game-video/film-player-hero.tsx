@@ -105,7 +105,7 @@ export function FilmPlayerHero({
   const fdLabel = fd < 10 ? fd.toFixed(2) : fd.toFixed(1)
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-[#0a0f1a] shadow-lg ring-1 ring-black/5 dark:ring-white/10">
+    <section className="overflow-hidden rounded-xl border border-border bg-[#0a0f1a] shadow-md ring-1 ring-black/5 dark:ring-white/10">
       <div className="relative aspect-video w-full bg-black">
         {playbackUrl ? (
           <video
@@ -126,8 +126,8 @@ export function FilmPlayerHero({
         )}
       </div>
 
-      <div className="border-t border-white/10 bg-[#0f172a]/95 px-4 py-4 backdrop-blur-sm">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+      <div className="border-t border-white/10 bg-[#0f172a]/95 px-3 py-3 backdrop-blur-sm sm:px-4">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-slate-200">
             <Film className="h-4 w-4 shrink-0" aria-hidden />
             <span>Timeline</span>

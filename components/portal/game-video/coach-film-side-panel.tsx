@@ -4,7 +4,16 @@ import type React from "react"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ClipboardList, Loader2, Sparkles, Tags, PenLine, Video, Wand2 } from "lucide-react"
+import {
+  ClipboardList,
+  Loader2,
+  PanelRightClose,
+  Sparkles,
+  Tags,
+  PenLine,
+  Video,
+  Wand2,
+} from "lucide-react"
 import { ClipReelPanel } from "@/components/portal/game-video/clip-reel-panel"
 import type { ClipRow } from "@/components/portal/game-video/game-video-types"
 import { ClipPlayerAttachmentField } from "@/components/portal/game-video/clip-player-attachment-field"
@@ -57,6 +66,8 @@ type Props = {
   teamId: string
   clipAttachedPlayerIds: string[]
   onClipAttachedPlayerIdsChange: (ids: string[]) => void
+  /** Hide this panel to widen the player (desktop). */
+  onRequestCollapse?: () => void
 }
 
 const TAB_DEFS: Array<{ id: CoachFilmTabId; label: string; icon: typeof Video }> = [
@@ -79,9 +90,26 @@ export function CoachFilmSidePanel(props: Props) {
   }, [props.clipCount, props.reelCount])
 
   return (
-    <div className="flex max-h-none min-h-0 flex-col rounded-2xl border-2 border-border bg-card shadow-lg ring-1 ring-black/[0.04] dark:ring-white/[0.06] xl:max-h-[calc(100dvh-12rem)]">
-      <div className="border-b border-border px-3 py-3 lg:px-4">
-        <div className="flex flex-wrap gap-2">
+    <div className="flex max-h-none min-h-0 flex-col rounded-xl border border-border bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06] xl:max-h-[calc(100dvh-9rem)]">
+      <div className="relative border-b border-border">
+        {props.onRequestCollapse ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1 z-10 hidden h-8 w-8 text-muted-foreground hover:text-foreground xl:inline-flex"
+            onClick={props.onRequestCollapse}
+            aria-label="Hide clip details panel"
+          >
+            <PanelRightClose className="h-4 w-4" aria-hidden />
+          </Button>
+        ) : null}
+        <div
+          className={cn(
+            "scrollbar-thin flex flex-wrap gap-1 overflow-x-auto px-2 py-2",
+            props.onRequestCollapse && "xl:pr-11",
+          )}
+        >
           {TAB_DEFS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -90,23 +118,23 @@ export function CoachFilmSidePanel(props: Props) {
               aria-selected={tab === id}
               onClick={() => setTab(id)}
               className={cn(
-                "inline-flex min-h-[44px] items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:px-4",
+                "inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:gap-2 sm:px-3 sm:text-[13px]",
                 tab === id
-                  ? "bg-[#0F172A] text-white shadow-md dark:bg-[#1E293B]"
+                  ? "bg-[#0F172A] text-white shadow-sm dark:bg-[#1E293B]"
                   : "border border-transparent bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
               )}
             >
-              <Icon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-              <span>{label}</span>
+              <Icon className="h-3.5 w-3.5 shrink-0 opacity-90 sm:h-4 sm:w-4" aria-hidden />
+              <span className="max-w-[9rem] truncate sm:max-w-none">{label}</span>
               {id === "reel" && props.clipCount > 0 ? (
-                <span className="rounded-md bg-background/25 px-1.5 py-0.5 font-mono text-[10px]">{props.clipCount}</span>
+                <span className="rounded bg-background/25 px-1 py-0.5 font-mono text-[9px] sm:text-[10px]">{props.clipCount}</span>
               ) : null}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-5 lg:px-5 lg:py-6" role="tabpanel">
+      <div className="flex-1 overflow-y-auto px-3 py-3 lg:px-4 lg:py-4" role="tabpanel">
         {tab === "clip" && (
           <div className="space-y-4">
             <div>

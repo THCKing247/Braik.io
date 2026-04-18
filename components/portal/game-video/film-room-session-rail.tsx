@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo } from "react"
-import { Film, Lock, Users } from "lucide-react"
+import { Film, Lock, PanelLeftClose, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import type { ClipRow, GameVideoRow } from "@/components/portal/game-video/game-video-types"
 import { DraftClipQueue } from "@/components/portal/game-video/draft-clip-queue"
 import type { FilmDraftClip } from "@/components/portal/game-video/film-draft-types"
@@ -36,6 +37,8 @@ type Props = {
   draftWorkflowEnabled: boolean
   draftQueue: DraftQueueProps
   onLoadSavedClip: (c: ClipRow) => void
+  /** Hide this rail to give the player more horizontal space (desktop). */
+  onRequestCollapse?: () => void
 }
 
 export function FilmRoomSessionRail({
@@ -49,6 +52,7 @@ export function FilmRoomSessionRail({
   draftWorkflowEnabled,
   draftQueue,
   onLoadSavedClip,
+  onRequestCollapse,
 }: Props) {
   const sortedSaved = useMemo(() => {
     return [...clips].sort((a, b) => {
@@ -64,18 +68,18 @@ export function FilmRoomSessionRail({
   return (
     <aside
       className={cn(
-        "hidden min-h-0 w-full max-w-[360px] shrink-0 flex-col gap-4 xl:flex",
-        "xl:sticky xl:top-0 xl:max-h-[calc(100dvh-11.5rem)] xl:min-w-[280px] xl:overflow-y-auto xl:pr-1",
+        "hidden min-h-0 w-full shrink-0 flex-col gap-3 xl:flex xl:w-[236px] xl:max-w-[240px]",
+        "xl:sticky xl:top-2 xl:max-h-[calc(100dvh-9rem)] xl:overflow-y-auto xl:overflow-x-hidden xl:pr-0.5",
       )}
     >
-      <div className="rounded-2xl border-2 border-white/10 bg-card/95 p-4 shadow-lg ring-1 ring-white/[0.06] backdrop-blur-sm dark:bg-[#0f172a]/90">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-xl bg-sky-500/15 p-2.5 text-sky-500">
-            <Film className="h-5 w-5" aria-hidden />
+      <div className="rounded-xl border border-white/10 bg-card/95 p-3 shadow-sm ring-1 ring-white/[0.04] backdrop-blur-sm dark:bg-[#0f172a]/90">
+        <div className="flex items-start gap-2">
+          <div className="shrink-0 rounded-lg bg-sky-500/15 p-2 text-sky-500">
+            <Film className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-wide text-sky-600 dark:text-sky-400">This film</p>
-            <h2 className="mt-1 line-clamp-2 text-lg font-bold leading-snug tracking-tight text-foreground">
+            <h2 className="mt-0.5 line-clamp-2 text-[15px] font-bold leading-snug tracking-tight text-foreground">
               {video.title || "Untitled film"}
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -108,23 +112,35 @@ export function FilmRoomSessionRail({
               </p>
             )}
           </div>
+          {onRequestCollapse ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={onRequestCollapse}
+              aria-label="Hide list and widen player"
+            >
+              <PanelLeftClose className="h-4 w-4" aria-hidden />
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      <div className="rounded-2xl border-2 border-white/10 bg-card/90 p-3 shadow-md ring-1 ring-white/[0.05] dark:bg-[#0f172a]/85">
-        <p className="text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Session</p>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-muted/50 px-2 py-2">
-            <div className="text-xl font-bold tabular-nums text-foreground">{draftQueue.drafts.length}</div>
-            <div className="text-[11px] font-medium text-muted-foreground">Drafts</div>
+      <div className="rounded-xl border border-white/10 bg-card/90 p-2.5 shadow-sm ring-1 ring-white/[0.05] dark:bg-[#0f172a]/85">
+        <p className="text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Session</p>
+        <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+          <div className="rounded-lg bg-muted/50 px-1.5 py-1.5">
+            <div className="text-lg font-bold tabular-nums leading-tight text-foreground">{draftQueue.drafts.length}</div>
+            <div className="text-[10px] font-medium text-muted-foreground">Drafts</div>
           </div>
-          <div className="rounded-xl bg-muted/50 px-2 py-2">
-            <div className="text-xl font-bold tabular-nums text-foreground">{clips.length}</div>
-            <div className="text-[11px] font-medium text-muted-foreground">Saved</div>
+          <div className="rounded-lg bg-muted/50 px-1.5 py-1.5">
+            <div className="text-lg font-bold tabular-nums leading-tight text-foreground">{clips.length}</div>
+            <div className="text-[10px] font-medium text-muted-foreground">Saved</div>
           </div>
-          <div className="rounded-xl bg-muted/50 px-2 py-2">
-            <div className="text-xl font-bold tabular-nums text-foreground">{sessionCount}</div>
-            <div className="text-[11px] font-medium text-muted-foreground">This run</div>
+          <div className="rounded-lg bg-muted/50 px-1.5 py-1.5">
+            <div className="text-lg font-bold tabular-nums leading-tight text-foreground">{sessionCount}</div>
+            <div className="text-[10px] font-medium text-muted-foreground">Run</div>
           </div>
         </div>
       </div>
@@ -132,7 +148,7 @@ export function FilmRoomSessionRail({
       {draftWorkflowEnabled ? (
         <DraftClipQueue {...draftQueue} />
       ) : (
-        <div className="rounded-2xl border-2 border-dashed border-white/15 bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-white/15 bg-muted/20 px-3 py-5 text-center text-xs text-muted-foreground">
           {!videoReady
             ? "Draft marking opens when this film is ready to play. Refresh from the library if processing just finished."
             : !canCreateClips
@@ -141,7 +157,7 @@ export function FilmRoomSessionRail({
         </div>
       )}
 
-      <div className="rounded-2xl border-2 border-white/10 bg-card/90 p-4 shadow-md ring-1 ring-white/[0.05] dark:bg-[#0f172a]/85">
+      <div className="rounded-xl border border-white/10 bg-card/90 p-3 shadow-sm ring-1 ring-white/[0.05] dark:bg-[#0f172a]/85">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold tracking-tight text-foreground">Saved clips</h3>
           <FilmInfoTip label="Saved clips on this film">
@@ -150,7 +166,7 @@ export function FilmRoomSessionRail({
             </p>
           </FilmInfoTip>
         </div>
-        <ul className="mt-3 max-h-[min(280px,32vh)] space-y-1.5 overflow-y-auto pr-1">
+        <ul className="mt-2 max-h-[min(220px,28vh)] space-y-1 overflow-y-auto pr-0.5">
           {sortedSaved.length === 0 ? (
             <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
               No clips saved yet for this film.

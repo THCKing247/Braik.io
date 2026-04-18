@@ -2,6 +2,7 @@
 
 import type { RefObject } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { PanelLeftOpen, PanelRightOpen } from "lucide-react"
 import type { ClipRow, GameVideoRow } from "@/components/portal/game-video/game-video-types"
 import { CoachFilmSidePanel } from "@/components/portal/game-video/coach-film-side-panel"
 import { FilmRoomSessionRail } from "@/components/portal/game-video/film-room-session-rail"
@@ -34,6 +35,7 @@ import {
   snapMsToFrameGrid,
   stepPlayheadMsByFrames,
 } from "@/lib/video/frame-timing"
+import { cn } from "@/lib/utils"
 
 const SKIP_COACH = 5000
 
@@ -1351,6 +1353,9 @@ export function FilmWorkspace({
     saveDraftClipsToServer,
   ])
 
+  const [filmRailCollapsed, setFilmRailCollapsed] = useState(false)
+  const [filmDetailsCollapsed, setFilmDetailsCollapsed] = useState(false)
+
   const draftQueueProps = {
     drafts: draftClips,
     selectedId: selectedDraftId,
@@ -1378,24 +1383,40 @@ export function FilmWorkspace({
 
   return (
     <TooltipProvider delayDuration={260} skipDelayDuration={100}>
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
-      <FilmRoomSessionRail
-        video={video}
-        clips={clips}
-        sessionClipIds={sessionClipIds}
-        filmAttachedPlayerIds={filmAttachedPlayerIds}
-        highlightClipId={highlightClipId}
-        canCreateClips={canCreateClips}
-        videoReady={videoReady}
-        draftWorkflowEnabled={canCreateClips && videoReady}
-        draftQueue={draftQueueProps}
-        onLoadSavedClip={loadClipIntoEditor}
-      />
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-2">
+        {filmRailCollapsed ? (
+          <div className="hidden shrink-0 xl:sticky xl:top-2 xl:flex xl:flex-col xl:self-start">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 rounded-lg border-white/15 bg-[#0f172a]/90 text-white shadow-sm hover:bg-white/10"
+              onClick={() => setFilmRailCollapsed(false)}
+              aria-label="Show drafts and saved clips"
+            >
+              <PanelLeftOpen className="h-5 w-5" aria-hidden />
+            </Button>
+          </div>
+        ) : (
+          <FilmRoomSessionRail
+            video={video}
+            clips={clips}
+            sessionClipIds={sessionClipIds}
+            filmAttachedPlayerIds={filmAttachedPlayerIds}
+            highlightClipId={highlightClipId}
+            canCreateClips={canCreateClips}
+            videoReady={videoReady}
+            draftWorkflowEnabled={canCreateClips && videoReady}
+            draftQueue={draftQueueProps}
+            onLoadSavedClip={loadClipIntoEditor}
+            onRequestCollapse={() => setFilmRailCollapsed(true)}
+          />
+        )}
 
-      <div className="min-w-0 flex-1 space-y-4">
+        <div className="min-w-0 flex-1 space-y-3 xl:min-w-0">
         {highlightClipId && (
           <div
-            className="rounded-2xl border-2 border-primary bg-primary/10 px-4 py-4 shadow-md sm:px-6"
+            className="rounded-xl border border-primary/60 bg-primary/10 px-3 py-3 shadow-sm sm:px-4"
             role="status"
             aria-live="polite"
           >
@@ -1438,15 +1459,13 @@ export function FilmWorkspace({
                 Full film mode
               </Button>
             </div>
-            <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
-              Scrubber shows this clip’s range. Use <strong className="text-foreground">Play clip</strong> for a single pass or{" "}
-              <strong className="text-foreground">Preview clip</strong> to loop while editing. Switch to full film mode for a new
-              clip or to browse the whole game.
+            <p className="mt-2 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">
+              Scrubber matches this clip. Use Play clip / Preview under the player; <strong className="text-foreground">Full film mode</strong> for the whole file.
             </p>
           </div>
         )}
 
-        <header className="rounded-xl border-2 border-border bg-muted/40 px-4 py-4 sm:px-6 xl:hidden">
+        <header className="rounded-lg border border-border bg-muted/35 px-3 py-3 sm:px-4 xl:hidden">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Source film</p>
           <h2 className="mt-1 truncate text-2xl font-bold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
           <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
@@ -1457,7 +1476,7 @@ export function FilmWorkspace({
         </header>
 
         {canCreateClips && videoReady && onFilmAttachedPlayerIdsChange && (
-          <div className="hidden lg:block rounded-xl border-2 border-border bg-muted/30 px-4 py-4 sm:px-6">
+          <div className="hidden lg:block rounded-lg border border-border bg-muted/25 px-3 py-3 sm:px-4">
             <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               Full film — roster links
             </p>
@@ -1633,7 +1652,12 @@ export function FilmWorkspace({
         </p>
       </div>
 
-      <div className="flex w-full shrink-0 flex-col xl:sticky xl:top-0 xl:max-h-[calc(100dvh-12rem)] xl:w-[420px] xl:max-w-[min(440px,44vw)] xl:overflow-hidden">
+      <div
+        className={cn(
+          "flex w-full min-w-0 shrink-0 flex-col xl:sticky xl:top-2 xl:max-h-[calc(100dvh-9rem)] xl:overflow-hidden",
+          filmDetailsCollapsed ? "xl:hidden" : "xl:w-[min(320px,28vw)] xl:max-w-[340px]",
+        )}
+      >
         <CoachFilmSidePanel
           clipTitleInputRef={clipTitleInputRef}
           clipCount={clips.length}
@@ -1669,8 +1693,24 @@ export function FilmWorkspace({
           teamId={teamId}
           clipAttachedPlayerIds={clipAttachedPlayerIds}
           onClipAttachedPlayerIdsChange={setClipAttachedPlayerIds}
+          onRequestCollapse={() => setFilmDetailsCollapsed(true)}
         />
       </div>
+
+      {filmDetailsCollapsed ? (
+        <div className="hidden shrink-0 xl:sticky xl:top-2 xl:flex xl:flex-col xl:self-start">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-11 w-11 rounded-lg border-white/15 bg-[#0f172a]/90 text-white shadow-sm hover:bg-white/10"
+            onClick={() => setFilmDetailsCollapsed(false)}
+            aria-label="Show clip details and tags"
+          >
+            <PanelRightOpen className="h-5 w-5" aria-hidden />
+          </Button>
+        </div>
+      ) : null}
     </div>
     </TooltipProvider>
   )

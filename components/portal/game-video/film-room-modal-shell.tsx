@@ -47,7 +47,7 @@ export function FilmRoomModalShell({
       aria-labelledby="film-room-heading"
       aria-describedby="film-room-subtitle"
     >
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-white/10 bg-[#0f172a] px-4 py-4 sm:px-6">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0f172a] px-4 py-3 sm:px-5">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="hidden shrink-0 rounded-xl bg-sky-500/15 p-2.5 text-sky-400 sm:block" aria-hidden>
             <Clapperboard className="h-7 w-7" />
@@ -73,7 +73,7 @@ export function FilmRoomModalShell({
         </Button>
       </header>
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-gradient-to-b from-[#0b1220] to-[#070b12] px-4 py-5 sm:px-6 sm:py-6">
+      <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-gradient-to-b from-[#0b1220] to-[#070b12] px-3 py-4 sm:px-4 sm:py-4">
         <div className="mx-auto flex min-h-full max-w-[1920px] flex-col">{children}</div>
       </div>
     </div>

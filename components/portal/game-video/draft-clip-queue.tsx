@@ -38,7 +38,7 @@ export function DraftClipQueue({
   disabled?: boolean
 }) {
   return (
-    <div className="rounded-2xl border-2 border-border bg-card p-4 shadow-sm md:p-5">
+    <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-bold tracking-tight text-foreground">Draft clips</h3>

@@ -137,8 +137,8 @@ export function QuickClipBar({
   )
 
   return (
-    <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-black/[0.03] md:p-5 dark:ring-white/[0.05]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
+    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm ring-1 ring-black/[0.03] md:p-4 dark:ring-white/[0.05]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="text-base font-semibold tracking-tight text-foreground md:text-[17px]">
             {savedClipEditing ? "Clip controls" : draftWorkflow ? "Mark & clip" : "Clip controls"}

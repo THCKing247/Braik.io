@@ -19,9 +19,13 @@ export function FilmRoomExperienceToggle({
   disabled?: boolean
 }) {
   if (!canEdit) return null
+  const segmentActive =
+    "bg-sky-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-sky-500 hover:text-white disabled:opacity-55"
+  const segmentIdle =
+    "bg-transparent text-slate-200 hover:bg-white/10 hover:text-white disabled:text-slate-500 disabled:hover:bg-transparent"
   return (
     <div
-      className="flex min-w-0 rounded-lg border border-white/15 bg-[#0b1220] p-0.5 shadow-inner"
+      className="inline-flex max-w-full shrink-0 rounded-md border border-white/20 bg-[#070d18] p-px shadow-inner"
       role="group"
       aria-label="Film Room mode"
     >
@@ -31,31 +35,29 @@ export function FilmRoomExperienceToggle({
         variant="ghost"
         disabled={disabled}
         className={cn(
-          "h-9 min-w-0 flex-1 gap-1 px-2 text-[12px] font-semibold sm:gap-1.5 sm:text-[13px]",
-          mode === "review"
-            ? "bg-sky-600 text-white shadow-sm hover:bg-sky-600 hover:text-white"
-            : "text-slate-200 hover:bg-white/10 hover:text-white",
+          "h-8 shrink-0 gap-1 rounded-[5px] px-2.5 text-[11px] font-semibold tracking-tight sm:h-8 sm:text-[12px]",
+          mode === "review" ? segmentActive : segmentIdle,
         )}
         onClick={() => onModeChange("review")}
       >
-        <Film className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />
-        <span className="truncate">Review</span>
+        <Film className="h-3.5 w-3.5 shrink-0 opacity-95" aria-hidden />
+        Review
       </Button>
       <Button
         type="button"
         size="sm"
         variant="ghost"
         disabled={disabled}
+        title="Edit clips — capture workflow"
         className={cn(
-          "h-9 min-w-0 flex-1 gap-1 px-2 text-[12px] font-semibold sm:gap-1.5 sm:text-[13px]",
-          mode === "edit"
-            ? "bg-sky-600 text-white shadow-sm hover:bg-sky-600 hover:text-white"
-            : "text-slate-200 hover:bg-white/10 hover:text-white",
+          "h-8 shrink-0 gap-1 rounded-[5px] px-2.5 text-[11px] font-semibold tracking-tight sm:h-8 sm:text-[12px]",
+          mode === "edit" ? segmentActive : segmentIdle,
         )}
         onClick={() => onModeChange("edit")}
       >
-        <Scissors className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />
-        <span className="truncate">Edit clips</span>
+        <Scissors className="h-3.5 w-3.5 shrink-0 opacity-95" aria-hidden />
+        <span className="hidden min-[340px]:inline">Edit clips</span>
+        <span className="min-[340px]:hidden">Edit</span>
       </Button>
     </div>
   )
@@ -90,7 +92,7 @@ export function FilmRoomReviewSidebar({
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
       {modeControls}
 
-      <div className="shrink-0 rounded-lg border border-white/15 bg-[#0b1220]/95 px-2.5 py-2 shadow-sm">
+      <div className="shrink-0 rounded-md border border-white/15 bg-[#0b1220]/95 px-2 py-1.5 shadow-sm">
         <p className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Film</p>
         <p className="truncate text-[15px] font-bold leading-snug text-white">{video.title || "Untitled film"}</p>
         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-medium text-slate-200">
@@ -103,7 +105,7 @@ export function FilmRoomReviewSidebar({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-lg border border-white/15 bg-[#0f172a]/95 p-2 shadow-sm">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-md border border-white/15 bg-[#0f172a]/95 p-1.5 shadow-sm">
         <div className="flex shrink-0 items-center justify-between gap-2">
           <h3 className="text-[13px] font-bold text-white">Saved clips</h3>
           <span className="text-[12px] font-medium text-slate-300">{clipsSorted.length} total</span>
@@ -143,7 +145,7 @@ export function FilmRoomReviewSidebar({
                       type="button"
                       size="sm"
                       variant="secondary"
-                      className="h-8 w-full border border-white/15 bg-slate-800 text-[13px] font-semibold text-white hover:bg-slate-700"
+                      className="h-8 w-full border border-blue-900/60 bg-blue-700 text-[13px] font-semibold text-white hover:bg-blue-600"
                       onClick={() => onPreviewClip(c)}
                     >
                       <Clapperboard className="mr-1.5 h-3.5 w-3.5" aria-hidden />

@@ -62,6 +62,8 @@ type Props = {
   onNudgeMarkOutFrames: (deltaFrames: number) => void
   /** Optional visual scan lane beneath the scrubber */
   belowScrubber?: ReactNode
+  /** Optional strip under thumbnails (workflow status, draft summary, etc.) */
+  timelineFooter?: ReactNode
   /** Overlay inside the video frame (e.g. telestration canvas) */
   videoOverlay?: ReactNode
   /** Toolbar or hints between the video frame and timeline (e.g. drawing tools) */
@@ -103,6 +105,7 @@ export function FilmPlayerHero({
   onNudgeMarkInFrames,
   onNudgeMarkOutFrames,
   belowScrubber,
+  timelineFooter,
   videoOverlay,
   chromeBelowVideo,
 }: Props) {
@@ -112,7 +115,7 @@ export function FilmPlayerHero({
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-[#0a0f1a] shadow-md ring-1 ring-black/5 dark:ring-white/10">
-      <div className="relative mx-auto aspect-video w-full max-h-[min(38vh,320px)] bg-black">
+      <div className="relative mx-auto aspect-video w-full max-h-[min(40vh,340px)] bg-black xl:max-h-[min(50vh,520px)]">
         {playbackUrl ? (
           <video
             ref={videoRef}
@@ -297,6 +300,10 @@ export function FilmPlayerHero({
         </div>
 
         {belowScrubber}
+
+        {timelineFooter ? (
+          <div className="border-t border-white/10 bg-[#0c1424]/95 px-2 py-2 sm:px-2.5">{timelineFooter}</div>
+        ) : null}
 
         {fineTuneExpanded && (
           <div className="space-y-3 border-t border-white/10 pt-4">

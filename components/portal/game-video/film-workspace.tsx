@@ -1462,6 +1462,7 @@ export function FilmWorkspace({
 
   const captureQuickClipProps = {
     enabled: canCreateClips && videoReady,
+    layoutDensity: "sidebar" as const,
     savedClipEditing: false,
     draftWorkflow: true,
     hideDraftPersistActions: true,
@@ -1497,7 +1498,7 @@ export function FilmWorkspace({
   return (
     <TooltipProvider delayDuration={260} skipDelayDuration={100}>
       <FilmRoomShell>
-        <div className="flex min-h-0 min-w-0 flex-[1_1_58%] flex-col gap-2 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-[1_1_63%] flex-col gap-2 overflow-hidden">
         {highlightClipId && (
           <div
             className="shrink-0 rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 shadow-sm sm:px-3.5"
@@ -1604,6 +1605,37 @@ export function FilmWorkspace({
               />
             ) : null
           }
+          timelineFooter={
+            workflowMode && experienceMode === "edit" && workflowStep === 1 ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-sky-300">Capture</span>
+                  {markPhase === "await_end" ? (
+                    <span className="rounded-full bg-amber-600/25 px-2 py-0.5 text-[11px] font-semibold text-amber-50 ring-1 ring-amber-500/35">
+                      Clip open — mark end to finish
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-slate-400">Mark start → Mark end to log a draft</span>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-300">
+                  <span className="tabular-nums">
+                    Drafts: <strong className="text-white">{draftClips.length}</strong>
+                  </span>
+                  {selectedDraftId ? (
+                    <span className="min-w-0 truncate">
+                      Editing:{" "}
+                      <strong className="text-white">
+                        {draftClips.find((d) => d.id === selectedDraftId)?.titleDraft?.trim() || "Untitled"}
+                      </strong>
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">Select a draft in the queue to rename</span>
+                  )}
+                </div>
+              </div>
+            ) : undefined
+          }
         />
         </div>
 
@@ -1615,15 +1647,17 @@ export function FilmWorkspace({
         )}
         </div>
 
-        <div className="flex w-full min-h-0 shrink-0 flex-col gap-1.5 overflow-hidden xl:w-[min(22rem,calc(100vw-260px))] xl:max-w-none xl:self-stretch 2xl:w-[24rem]">
+        <div className="flex w-full min-h-0 shrink-0 flex-col gap-1.5 overflow-hidden xl:w-[min(20rem,calc(100vw-248px))] xl:max-w-none xl:self-stretch 2xl:w-[22rem]">
           {workflowMode ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-              <FilmRoomExperienceToggle
-                mode={experienceMode}
-                onModeChange={setExperienceMode}
-                canEdit={canCreateClips}
-                disabled={clipSaving}
-              />
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+              <div className="flex shrink-0 justify-end">
+                <FilmRoomExperienceToggle
+                  mode={experienceMode}
+                  onModeChange={setExperienceMode}
+                  canEdit={canCreateClips}
+                  disabled={clipSaving}
+                />
+              </div>
 
               {showReviewSidebar ? (
                 <FilmRoomReviewSidebar
@@ -1661,11 +1695,11 @@ export function FilmWorkspace({
                   setWorkflowStep(s)
                 }}
               />
-              <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto rounded-lg border border-white/15 bg-[#0f172a]/95 p-2 shadow-sm">
-                <div className="shrink-0 rounded-lg border border-white/15 bg-[#0b1220]/90 px-3 py-2">
+              <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto rounded-lg border border-white/15 bg-[#0f172a]/95 p-1.5 shadow-sm">
+                <div className="shrink-0 rounded-md border border-white/15 bg-[#0b1220]/90 px-2 py-1.5">
                   <p className="text-[11px] font-bold uppercase text-sky-300">Film Room</p>
-                  <p className="truncate text-[15px] font-bold text-white">{video.title || "Untitled film"}</p>
-                  <div className="mt-1 flex flex-wrap gap-3 text-[13px] font-medium text-slate-200">
+                  <p className="truncate text-[15px] font-bold leading-snug text-white">{video.title || "Untitled film"}</p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] font-medium text-slate-200">
                     <span>Drafts: {draftClips.length}</span>
                     <span>Saved: {clips.length}</span>
                     <span>Session: {sessionClipIds.length}</span>
@@ -1754,7 +1788,7 @@ export function FilmWorkspace({
                 />
               ) : null}
 
-              <details className="shrink-0 rounded-xl border border-white/15 bg-[#0f172a]/90 p-2.5">
+              <details className="shrink-0 rounded-lg border border-white/15 bg-[#0f172a]/90 p-2">
                 <summary className="cursor-pointer text-[13px] font-semibold text-slate-100">
                   Saved clips on this film ({clips.length})
                 </summary>
@@ -1796,6 +1830,7 @@ export function FilmWorkspace({
               {canCreateClips && videoReady ? (
                 <QuickClipBar
                   enabled
+                  layoutDensity="sidebar"
                   savedClipEditing={!!highlightClipId}
                   draftWorkflow={!highlightClipId}
                   hideDraftPersistActions={false}

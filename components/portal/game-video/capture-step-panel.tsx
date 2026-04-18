@@ -18,7 +18,7 @@ export function CaptureStepPanel({
   onContinue: () => void
 }) {
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    <div className="flex min-h-0 flex-col gap-2">
       <QuickClipBar {...quickClipProps} />
       <DraftClipQueue {...draftQueueProps} bulkSelectEnabled={false} showTitleInputs={false} />
       <Button

@@ -25,6 +25,8 @@ type MarkPhaseUi = "idle" | "await_end"
 
 type Props = {
   enabled: boolean
+  /** Sidebar / narrow rail: stack workflow groups vertically with 2-column button rows */
+  layoutDensity?: "default" | "sidebar"
   savedClipEditing?: boolean
   draftWorkflow?: boolean
   /** Hide Save all / Save selected / Discard for drafts — used when persistence happens only on a Finalize step. */
@@ -64,6 +66,7 @@ type Props = {
 
 export function QuickClipBar({
   enabled,
+  layoutDensity = "default",
   savedClipEditing = false,
   draftWorkflow = false,
   hideDraftPersistActions = false,
@@ -100,6 +103,8 @@ export function QuickClipBar({
   onJumpToMarkEnd,
 }: Props) {
   if (!enabled) return null
+
+  const sidebar = layoutDensity === "sidebar"
 
   const showDraftActions =
     draftWorkflow && !savedClipEditing && draftCount > 0 && !hideDraftPersistActions
@@ -154,11 +159,61 @@ export function QuickClipBar({
     </>
   )
 
+  const jumpGridClass = sidebar
+    ? "grid min-w-0 grid-cols-2 gap-1.5 sm:grid-cols-3"
+    : "flex flex-wrap gap-1.5"
+
+  const surfaceCard = cn(
+    "rounded-lg border shadow-sm",
+    sidebar
+      ? "border-white/15 bg-[#0f172a] p-1.5 ring-1 ring-white/[0.06]"
+      : "border-border/80 bg-card p-2 ring-1 ring-black/[0.03] dark:ring-white/[0.05]",
+  )
+
+  const primaryTransportWrap = sidebar ? "flex flex-col gap-2" : "grid gap-2 sm:grid-cols-2"
+
+  const markBtn =
+    "h-10 min-h-[40px] min-w-0 gap-1.5 px-2 text-sm font-semibold shadow-sm sm:px-3 disabled:opacity-60 disabled:saturate-75"
+  const markStartClasses = cn(
+    markBtn,
+    "border border-sky-700 bg-sky-600 text-white hover:bg-sky-500 hover:text-white dark:bg-sky-600 dark:text-white dark:hover:bg-sky-500",
+    markPhase === "await_end" && "ring-2 ring-sky-300/50 dark:ring-sky-400/45",
+  )
+  const markEndClasses = cn(
+    markBtn,
+    "border border-amber-700 bg-amber-600 text-white hover:bg-amber-500 hover:text-white dark:bg-amber-600 dark:text-white dark:hover:bg-amber-500",
+    markPhase === "await_end" && "ring-2 ring-amber-300/45 dark:ring-amber-400/40",
+  )
+  const playPrimaryClasses = cn(
+    "h-10 min-h-[40px] w-full min-w-0 gap-2 border border-blue-800 bg-blue-600 px-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 sm:px-3 disabled:bg-slate-700 disabled:text-slate-300 disabled:opacity-70 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500",
+    mainTransportPlaying && "ring-2 ring-white/40 ring-offset-2 ring-offset-background",
+  )
+  const previewClasses = cn(
+    "h-10 min-h-[40px] w-full min-w-0 gap-2 px-2 text-sm font-semibold shadow-sm sm:px-3 disabled:opacity-60 disabled:saturate-75",
+    previewActive
+      ? "border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-600"
+      : sidebar
+        ? "border border-slate-500/80 bg-slate-800 text-white hover:bg-slate-700"
+        : "border border-border bg-background text-foreground hover:bg-muted",
+  )
+
+  const outlineToolBtnBase = "h-9 min-h-[36px] w-full min-w-0 gap-1.5 px-2 text-[13px] font-semibold disabled:opacity-55 sm:px-3"
+
   return (
-    <div className="rounded-lg border border-border/80 bg-card p-2 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border/70 pb-2">
+    <div className={surfaceCard}>
+      <div
+        className={cn(
+          "flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b pb-2",
+          sidebar ? "border-white/10" : "border-border/70",
+        )}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+          <h3
+            className={cn(
+              "font-semibold tracking-tight text-foreground",
+              sidebar ? "text-[13px]" : "text-sm",
+            )}
+          >
             {savedClipEditing ? "Clip controls" : draftWorkflow ? "Mark & clip" : "Clip controls"}
           </h3>
           <FilmInfoTip label="How these controls work">
@@ -189,46 +244,47 @@ export function QuickClipBar({
           </FilmInfoTip>
         </div>
         {markPhase === "await_end" && (
-          <span className="max-w-full shrink-0 rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold leading-snug text-amber-950 dark:text-amber-50 sm:text-xs">
-            Clip open — Mark end to finish
+          <span className="max-w-full shrink-0 rounded-full border border-amber-600/45 bg-amber-600/15 px-2 py-0.5 text-[10px] font-semibold leading-snug text-amber-50 sm:px-2.5 sm:text-[11px]">
+            Clip open — mark end
           </span>
         )}
       </div>
 
-      {/* Primary: marks + playback — grid prevents flex min-width collisions on laptop widths */}
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <div className="flex min-w-0 gap-2">
+      {/* Primary: marks + playback — sidebar mode stacks rows; default uses 2-col split */}
+      <div className={cn("mt-2", primaryTransportWrap)}>
+        {sidebar ? (
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Mark range</p>
+        ) : null}
+        <div className="grid min-w-0 grid-cols-2 gap-2">
           <Button
             type="button"
             size="default"
             variant="secondary"
-            className={cn(
-              "h-10 min-h-[40px] min-w-0 flex-1 gap-1.5 border border-sky-500/30 bg-sky-50 px-2 text-sm font-semibold text-sky-950 shadow-sm dark:bg-sky-950/30 dark:text-sky-50 sm:px-3",
-              markPhase === "await_end" && "ring-2 ring-sky-400/40 dark:ring-sky-500/35",
-            )}
+            className={cn(markStartClasses, "w-full")}
             onClick={onMarkStart}
             aria-label={draftWorkflow && !savedClipEditing ? "Mark start — begin a new clip" : "Mark start"}
           >
-            <Flag className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
+            <Flag className="h-4 w-4 shrink-0 opacity-95" aria-hidden />
             Mark start
           </Button>
           <Button
             type="button"
             size="default"
             variant="secondary"
-            className={cn(
-              "h-10 min-h-[40px] min-w-0 flex-1 gap-1.5 border border-amber-500/35 bg-amber-50 px-2 text-sm font-semibold text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50 sm:px-3",
-              markPhase === "await_end" && "ring-2 ring-amber-400/40 dark:ring-amber-500/35",
-            )}
+            className={cn(markEndClasses, "w-full")}
             onClick={onMarkEnd}
             aria-label={
               draftWorkflow && !savedClipEditing ? "Mark end — finish clip and add to draft list" : "Mark end"
             }
           >
-            <Flag className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
+            <Flag className="h-4 w-4 shrink-0 opacity-95" aria-hidden />
             Mark end
           </Button>
         </div>
+
+        {sidebar ? (
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Playback</p>
+        ) : null}
 
         <div className="grid min-w-0 grid-cols-2 gap-2">
           <Tooltip>
@@ -243,10 +299,7 @@ export function QuickClipBar({
                 <Button
                   type="button"
                   size="default"
-                  className={cn(
-                    "h-10 min-h-[40px] w-full min-w-0 gap-2 border border-[#1d4ed8]/70 bg-[#2563EB] px-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8] sm:px-3",
-                    mainTransportPlaying && "ring-2 ring-white/30 ring-offset-2 ring-offset-background",
-                  )}
+                  className={playPrimaryClasses}
                   disabled={mainPlayDisabled}
                   onClick={onMainPlayToggle}
                   aria-pressed={mainTransportPlaying}
@@ -282,12 +335,7 @@ export function QuickClipBar({
                   type="button"
                   variant="outline"
                   size="default"
-                  className={cn(
-                    "h-10 min-h-[40px] w-full min-w-0 gap-2 px-2 text-sm font-semibold shadow-sm sm:px-3",
-                    previewActive
-                      ? "border-emerald-600/55 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/35 dark:text-emerald-50"
-                      : "border-primary/25",
-                  )}
+                  className={previewClasses}
                   disabled={!previewActive && !canPreviewClip}
                   onClick={() => (previewActive ? onStopPreview() : onPreview())}
                   aria-pressed={previewActive}
@@ -319,9 +367,17 @@ export function QuickClipBar({
         </div>
       </div>
 
-      {/* Secondary: utilities (row 1) + saves (responsive grid) — avoids flex-1 + min-width fights */}
-      <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Secondary: trim tools + saves */}
+      <div
+        className={cn(
+          "mt-3 flex flex-col gap-2 border-t pt-3",
+          sidebar ? "border-white/10" : "border-border/60",
+        )}
+      >
+        {sidebar ? (
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Trim &amp; reset</p>
+        ) : null}
+        <div className={cn(sidebar ? "grid min-w-0 grid-cols-2 gap-2" : "flex flex-wrap items-center gap-2")}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -329,10 +385,17 @@ export function QuickClipBar({
                 variant={fineTuneExpanded ? "secondary" : "outline"}
                 size="default"
                 aria-pressed={fineTuneExpanded}
-                className="h-9 shrink-0 gap-1.5 px-3 text-[13px] font-semibold"
+                className={cn(
+                  outlineToolBtnBase,
+                  sidebar &&
+                    (fineTuneExpanded
+                      ? "border border-slate-500 bg-slate-800 text-white hover:bg-slate-700"
+                      : "border border-slate-500/90 bg-transparent text-white hover:bg-white/10"),
+                  !sidebar && "h-9 w-auto shrink-0 px-3",
+                )}
                 onClick={onToggleFineTune}
               >
-                <Wrench className="h-4 w-4" aria-hidden />
+                <Wrench className="h-4 w-4 shrink-0" aria-hidden />
                 {fineTuneExpanded ? "Hide fine tune" : "Fine tune"}
               </Button>
             </TooltipTrigger>
@@ -347,10 +410,16 @@ export function QuickClipBar({
                 type="button"
                 variant="outline"
                 size="default"
-                className="h-9 shrink-0 gap-1.5 px-3 text-[13px] font-semibold text-foreground"
+                className={cn(
+                  outlineToolBtnBase,
+                  sidebar
+                    ? "border border-slate-500/90 bg-transparent text-white hover:bg-white/10"
+                    : "border-border text-foreground hover:bg-muted/80",
+                  !sidebar && "h-9 w-auto shrink-0 px-3",
+                )}
                 onClick={onResetMarks}
               >
-                <RotateCcw className="h-4 w-4" aria-hidden />
+                <RotateCcw className="h-4 w-4 shrink-0" aria-hidden />
                 {draftWorkflow && !savedClipEditing ? "Cancel mark" : "Reset marks"}
               </Button>
             </TooltipTrigger>
@@ -362,9 +431,23 @@ export function QuickClipBar({
           </Tooltip>
         </div>
 
-        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        {showDraftActions || savedClipEditing || (!draftWorkflow && !savedClipEditing) ? (
+          sidebar ? (
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              {showDraftActions ? "Save drafts" : "Save"}
+            </p>
+          ) : null
+        ) : null}
+
+        <div
+          className={cn(
+            "grid min-w-0 gap-2",
+            sidebar ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5",
+          )}
+        >
             {showDraftActions ? (
               <>
+                {!sidebar ? (
                 <div className="col-span-full flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={sectionMuted}>Save drafts</span>
                   <FilmInfoTip label="Save drafts to the roster" side="bottom">
@@ -381,10 +464,11 @@ export function QuickClipBar({
                     </p>
                   </FilmInfoTip>
                 </div>
+                ) : null}
                 <Button
                   type="button"
                   size="default"
-                  className="h-9 w-full min-w-0 gap-1.5 border border-emerald-700/35 bg-emerald-600 px-2 text-[13px] font-semibold text-white shadow-sm hover:bg-emerald-700 sm:px-3"
+                  className="h-9 w-full min-w-0 gap-1.5 border border-emerald-800 bg-emerald-600 px-2 text-[13px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-65 sm:px-3"
                   onClick={() => onSaveDraftsAll?.()}
                   disabled={saving}
                 >
@@ -394,7 +478,7 @@ export function QuickClipBar({
                 <Button
                   type="button"
                   size="default"
-                  className="h-9 w-full min-w-0 gap-1.5 border border-[#2563EB]/40 bg-[#2563EB] px-2 text-[13px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8] sm:px-3"
+                  className="h-9 w-full min-w-0 gap-1.5 border border-blue-800 bg-blue-600 px-2 text-[13px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-65 sm:px-3"
                   onClick={() => onSaveDraftsSelected?.()}
                   disabled={saving}
                 >
@@ -406,7 +490,7 @@ export function QuickClipBar({
                     type="button"
                     variant="secondary"
                     size="default"
-                    className="h-9 w-full min-w-0 gap-1.5 px-2 text-[13px] font-semibold sm:px-3"
+                    className="h-9 w-full min-w-0 gap-1.5 border border-slate-500/80 bg-slate-800 px-2 text-[13px] font-semibold text-white hover:bg-slate-700 disabled:opacity-65 sm:px-3"
                     onClick={() => onSaveDraftsAndContinue?.()}
                     disabled={saving}
                   >
@@ -418,7 +502,7 @@ export function QuickClipBar({
                   type="button"
                   variant="destructive"
                   size="default"
-                  className="h-9 w-full px-2 text-[13px] font-semibold shadow-sm sm:px-3"
+                  className="h-9 w-full px-2 text-[13px] font-semibold shadow-sm hover:bg-red-700 sm:px-3"
                   onClick={() => onDiscardDraftsSelected?.()}
                   disabled={saving}
                 >
@@ -431,7 +515,7 @@ export function QuickClipBar({
                   <Button
                     type="button"
                     size="default"
-                    className="col-span-full h-9 w-full min-w-0 gap-1.5 border border-emerald-700/35 bg-emerald-600 px-3 text-[13px] font-semibold text-white hover:bg-emerald-700 sm:col-span-1"
+                    className="col-span-full h-9 w-full min-w-0 gap-1.5 border border-emerald-800 bg-emerald-600 px-3 text-[13px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-65 sm:col-span-1"
                     onClick={onSaveAndContinue}
                     disabled={saving || !clipValid}
                   >
@@ -446,7 +530,7 @@ export function QuickClipBar({
                 <Button
                   type="button"
                   size="default"
-                  className="col-span-full h-9 w-full min-w-0 gap-1.5 border border-[#2563EB]/40 bg-[#2563EB] px-3 text-[13px] font-semibold text-white hover:bg-[#1d4ed8] sm:col-span-1"
+                  className="col-span-full h-9 w-full min-w-0 gap-1.5 border border-blue-800 bg-blue-600 px-3 text-[13px] font-semibold text-white hover:bg-blue-700 disabled:opacity-65 sm:col-span-1"
                   onClick={onSaveClip}
                   disabled={saving || !clipValid}
                 >
@@ -460,7 +544,7 @@ export function QuickClipBar({
                   <Button
                     type="button"
                     size="default"
-                    className="col-span-full h-9 w-full gap-1.5 border border-emerald-700/35 bg-emerald-600 px-3 text-[13px] font-semibold text-white hover:bg-emerald-700 sm:col-span-1"
+                    className="col-span-full h-9 w-full gap-1.5 border border-emerald-800 bg-emerald-600 px-3 text-[13px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-65 sm:col-span-1"
                     onClick={onSaveAndContinue}
                     disabled={saving || !clipValid}
                   >
@@ -476,10 +560,8 @@ export function QuickClipBar({
                   type="button"
                   size="default"
                   className={cn(
-                    "col-span-full h-9 gap-1.5 px-3 text-[13px] font-semibold text-white shadow-sm sm:col-span-1",
-                    onSaveAndContinue
-                      ? "w-full border border-[#2563EB]/40 bg-[#2563EB]/95 hover:bg-[#1d4ed8]"
-                      : "w-full border border-[#2563EB]/40 bg-[#2563EB] hover:bg-[#1d4ed8]",
+                    "col-span-full h-9 gap-1.5 border border-blue-800 px-3 text-[13px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-65 sm:col-span-1",
+                    onSaveAndContinue ? "w-full bg-blue-700" : "w-full bg-blue-600",
                   )}
                   onClick={onSaveClip}
                   disabled={saving || !clipValid}
@@ -491,8 +573,8 @@ export function QuickClipBar({
             )}
         </div>
 
-        {/* Fine scrub */}
-        <div className="border-t border-border/50 pt-2">
+        {/* Jump & coarse scrub */}
+        <div className={cn("border-t pt-2", sidebar ? "border-white/10" : "border-border/50")}>
           <div className="mb-1.5 flex items-center gap-1.5">
             <span className={sectionMuted}>Jump &amp; scrub</span>
             <FilmInfoTip label="Jump and coarse scrub">
@@ -502,23 +584,68 @@ export function QuickClipBar({
               </p>
             </FilmInfoTip>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1.5 px-2.5 text-[13px] font-medium" onClick={onSkipBack5}>
+          <div className={jumpGridClass}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-9 gap-1.5 px-2.5 text-[13px] font-semibold",
+                sidebar ? "text-slate-100 hover:bg-white/10 hover:text-white" : "text-foreground hover:bg-muted",
+              )}
+              onClick={onSkipBack5}
+            >
               <SkipBack className="h-4 w-4 shrink-0" aria-hidden />
               −{SKIP / 1000}s
             </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1.5 px-2.5 text-[13px] font-medium" onClick={onSkipForward5}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-9 gap-1.5 px-2.5 text-[13px] font-semibold",
+                sidebar ? "text-slate-100 hover:bg-white/10 hover:text-white" : "text-foreground hover:bg-muted",
+              )}
+              onClick={onSkipForward5}
+            >
               <SkipForward className="h-4 w-4 shrink-0" aria-hidden />
               +{SKIP / 1000}s
             </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1.5 px-2.5 text-[13px] font-medium" onClick={onReplayClip}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-9 gap-1.5 px-2.5 text-[13px] font-semibold",
+                sidebar ? "text-slate-100 hover:bg-white/10 hover:text-white" : "text-foreground hover:bg-muted",
+              )}
+              onClick={onReplayClip}
+            >
               <Redo2 className="h-4 w-4 shrink-0" aria-hidden />
               Replay
             </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1 px-2.5 text-[13px] font-medium" onClick={onJumpToMarkStart}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-9 gap-1 px-2.5 text-[13px] font-semibold",
+                sidebar ? "text-slate-100 hover:bg-white/10 hover:text-white" : "text-foreground hover:bg-muted",
+              )}
+              onClick={onJumpToMarkStart}
+            >
               To in
             </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-9 gap-1 px-2.5 text-[13px] font-medium" onClick={onJumpToMarkEnd}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-9 gap-1 px-2.5 text-[13px] font-semibold",
+                sidebar ? "text-slate-100 hover:bg-white/10 hover:text-white" : "text-foreground hover:bg-muted",
+              )}
+              onClick={onJumpToMarkEnd}
+            >
               To out
             </Button>
           </div>

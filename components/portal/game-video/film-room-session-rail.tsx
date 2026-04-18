@@ -68,11 +68,11 @@ export function FilmRoomSessionRail({
   return (
     <aside
       className={cn(
-        "hidden min-h-0 w-full shrink-0 flex-col gap-3 xl:flex xl:w-[236px] xl:max-w-[240px]",
-        "xl:sticky xl:top-2 xl:max-h-[calc(100dvh-9rem)] xl:overflow-y-auto xl:overflow-x-hidden xl:pr-0.5",
+        "hidden min-h-0 w-full shrink-0 flex-col gap-2 xl:flex xl:w-[212px] xl:max-w-[220px]",
+        "xl:sticky xl:top-2 xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-y-auto xl:overflow-x-hidden xl:pr-0.5",
       )}
     >
-      <div className="rounded-xl border border-white/10 bg-card/95 p-3 shadow-sm ring-1 ring-white/[0.04] backdrop-blur-sm dark:bg-[#0f172a]/90">
+      <div className="rounded-lg border border-white/10 bg-card/95 p-2.5 shadow-sm ring-1 ring-white/[0.04] backdrop-blur-sm dark:bg-[#0f172a]/90">
         <div className="flex items-start gap-2">
           <div className="shrink-0 rounded-lg bg-sky-500/15 p-2 text-sky-500">
             <Film className="h-4 w-4" aria-hidden />

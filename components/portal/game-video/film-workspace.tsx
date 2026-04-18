@@ -24,7 +24,6 @@ import {
 } from "@/lib/video/timecode"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { ClipPlayerAttachmentField } from "@/components/portal/game-video/clip-player-attachment-field"
 import { FilmPreviewThumbnailLane } from "@/components/portal/game-video/film-preview-thumbnail-lane"
 import { captureClientPreviewStrip } from "@/lib/video/client-preview-strip"
 import {
@@ -1383,7 +1382,7 @@ export function FilmWorkspace({
 
   return (
     <TooltipProvider delayDuration={260} skipDelayDuration={100}>
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-2">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:gap-1.5">
         {filmRailCollapsed ? (
           <div className="hidden shrink-0 xl:sticky xl:top-2 xl:flex xl:flex-col xl:self-start">
             <Button
@@ -1413,89 +1412,38 @@ export function FilmWorkspace({
           />
         )}
 
-        <div className="min-w-0 flex-1 space-y-3 xl:min-w-0">
+        <div className="min-w-0 flex-1 space-y-2.5 xl:min-w-0">
         {highlightClipId && (
           <div
-            className="rounded-xl border border-primary/60 bg-primary/10 px-3 py-3 shadow-sm sm:px-4"
+            className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 shadow-sm sm:px-3.5"
             role="status"
             aria-live="polite"
           >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase tracking-wide text-primary">Saved clip — editing</p>
-                <h3 className="mt-1 text-xl font-bold leading-tight text-foreground">
-                  {clipTitle || "Untitled clip"}
-                </h3>
-                <p className="mt-2 font-mono text-sm font-semibold text-foreground">
-                  {formatMsRange(inMs, outMs)} · Length {clipDurationLabel}
+                <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Editing saved clip</p>
+                <p className="truncate text-sm font-semibold text-foreground">{clipTitle || "Untitled clip"}</p>
+                <p className="mt-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+                  {formatMsRange(inMs, outMs)} · {clipDurationLabel}
                 </p>
-                {clipDescription.trim() && (
-                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-                    {clipDescription}
-                  </p>
-                )}
-                {mergeQuickAndFreeTags(quickTagsSelected, clipTagsFree).length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {mergeQuickAndFreeTags(quickTagsSelected, clipTagsFree)
-                      .slice(0, 12)
-                      .map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-lg bg-background/80 px-2.5 py-1 text-xs font-semibold text-foreground ring-1 ring-border"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                  </div>
-                )}
               </div>
               <Button
                 type="button"
                 variant="secondary"
-                size="lg"
-                className="h-12 shrink-0 border-2 border-border font-bold"
+                size="sm"
+                className="h-9 shrink-0 border border-border font-semibold"
                 onClick={enterFullFilmMode}
               >
-                Full film mode
+                Full film
               </Button>
             </div>
-            <p className="mt-2 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">
-              Scrubber matches this clip. Use Play clip / Preview under the player; <strong className="text-foreground">Full film mode</strong> for the whole file.
-            </p>
           </div>
         )}
 
-        <header className="rounded-lg border border-border bg-muted/35 px-3 py-3 sm:px-4 xl:hidden">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Source film</p>
-          <h2 className="mt-1 truncate text-2xl font-bold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
-          <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
-            {highlightClipId
-              ? "Film plays behind your saved clip — timeline range matches the clip below."
-              : "Drag the scrubber or use the controls. Mark start → mark end for each play — drafts stack as you watch; save to the roster only when you choose."}
-          </p>
+        <header className="rounded-lg border border-border bg-muted/35 px-3 py-2 sm:px-3.5 xl:hidden">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Film</p>
+          <h2 className="truncate text-lg font-bold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
         </header>
-
-        {canCreateClips && videoReady && onFilmAttachedPlayerIdsChange && (
-          <div className="hidden lg:block rounded-lg border border-border bg-muted/25 px-3 py-3 sm:px-4">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-              Full film — roster links
-            </p>
-            <ClipPlayerAttachmentField
-              teamId={teamId}
-              selectedIds={filmAttachedPlayerIds}
-              disabled={clipSaving}
-              onChange={(ids) => {
-                void onFilmAttachedPlayerIdsChange(ids).catch((e) =>
-                  onError(e instanceof Error ? e.message : "Could not update film roster links"),
-                )
-              }}
-            />
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Optional. Links this whole file to selected athletes’ recruiting profiles. Use clip attachments below for play-level
-              highlights.
-            </p>
-          </div>
-        )}
 
         {sessionClipIds.length > 0 && (
           <ClipSessionStrip
@@ -1647,15 +1595,12 @@ export function FilmWorkspace({
           onJumpToMarkEnd={jumpMarkEnd}
         />
 
-        <p className="rounded-lg bg-muted/35 px-3 py-2 text-center text-xs text-muted-foreground xl:hidden">
-          Narrow screens: scroll for clip name, tags, and notes in the panel below.
-        </p>
       </div>
 
       <div
         className={cn(
-          "flex w-full min-w-0 shrink-0 flex-col xl:sticky xl:top-2 xl:max-h-[calc(100dvh-9rem)] xl:overflow-hidden",
-          filmDetailsCollapsed ? "xl:hidden" : "xl:w-[min(320px,28vw)] xl:max-w-[340px]",
+          "flex w-full min-w-0 shrink-0 flex-col xl:sticky xl:top-2 xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-hidden",
+          filmDetailsCollapsed ? "xl:hidden" : "xl:w-[min(272px,24vw)] xl:max-w-[300px]",
         )}
       >
         <CoachFilmSidePanel
@@ -1693,6 +1638,17 @@ export function FilmWorkspace({
           teamId={teamId}
           clipAttachedPlayerIds={clipAttachedPlayerIds}
           onClipAttachedPlayerIdsChange={setClipAttachedPlayerIds}
+          filmAttachedPlayerIds={filmAttachedPlayerIds}
+          onFilmAttachedPlayerIdsChange={
+            onFilmAttachedPlayerIdsChange
+              ? (ids) => {
+                  void onFilmAttachedPlayerIdsChange(ids).catch((e) =>
+                    onError(e instanceof Error ? e.message : "Could not update film roster links"),
+                  )
+                }
+              : undefined
+          }
+          filmRosterLinksDisabled={clipSaving || !videoReady}
           onRequestCollapse={() => setFilmDetailsCollapsed(true)}
         />
       </div>

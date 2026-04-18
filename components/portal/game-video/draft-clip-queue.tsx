@@ -38,10 +38,10 @@ export function DraftClipQueue({
   disabled?: boolean
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-bold tracking-tight text-foreground">Draft clips</h3>
+    <div className="rounded-lg border border-border bg-card p-2.5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border pb-2">
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-bold tracking-tight text-foreground">Draft queue</h3>
           <FilmInfoTip label="About draft clips">
             <p>
               Each time you press <strong className="text-foreground">Mark end</strong>, the range is added here. Use checkboxes or
@@ -62,7 +62,7 @@ export function DraftClipQueue({
       </div>
 
       {drafts.length === 0 && markPhase === "idle" ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">No drafts yet — mark start and end on the timeline.</p>
+        <p className="py-6 text-center text-xs text-muted-foreground">No drafts — mark in/out on the timeline.</p>
       ) : (
         <ul className="mt-4 space-y-2">
           {drafts.map((d) => {

@@ -460,7 +460,7 @@ export function GameVideoLibrary({
 
   return (
     <>
-      <div className="space-y-5">
+      <div className="space-y-4">
         {error && !filmRoomVideoId && (
           <div className="rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-base font-medium text-destructive">
             {error}

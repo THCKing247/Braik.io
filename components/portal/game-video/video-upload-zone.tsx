@@ -48,8 +48,8 @@ function parseTagsInput(raw: string): string[] | undefined {
 }
 
 type Props = {
-  /** hero = film room marketing size; compact = rail/modal; library = dense film library header */
-  variant?: "hero" | "compact" | "library"
+  /** hero = film room marketing size; compact = rail/modal; library = two-column library header; library-inline = compact toolbar strip */
+  variant?: "hero" | "compact" | "library" | "library-inline"
   filmRoom?: boolean
   canUpload: boolean
   taggingEnabled?: boolean
@@ -196,6 +196,8 @@ export function VideoUploadZone({
   const dragActive = dragDepth > 0
   const isHero = variant === "hero"
   const isLibrary = variant === "library"
+  const isLibraryInline = variant === "library-inline"
+  const metaCompact = isLibrary || isLibraryInline
 
   if (!canUpload) return null
 
@@ -208,15 +210,15 @@ export function VideoUploadZone({
       className={cn(
         "rounded-xl border px-4 py-3 shadow-sm",
         filmRoom ? "border-white/15 bg-muted/40" : "border-border bg-card",
-        !isHero && !isLibrary && "mt-1",
-        isLibrary && "py-2.5",
+        !isHero && !isLibrary && !isLibraryInline && "mt-1",
+        metaCompact && "py-2.5",
       )}
     >
       <div
         className={cn(
           "flex flex-wrap items-center justify-between gap-2 font-medium",
           isHero ? "text-base" : "text-sm",
-          isLibrary && "text-sm",
+          metaCompact && "text-sm",
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -235,14 +237,21 @@ export function VideoUploadZone({
         className={cn(
           "mt-1 font-semibold text-foreground",
           isHero ? "text-base" : "text-xs",
-          isLibrary && "text-sm",
+          metaCompact && !isLibraryInline && "text-sm",
+          isLibraryInline && "text-xs",
           "line-clamp-2",
         )}
         title={progressPrimary}
       >
         {progressPrimary || uploadUi.fileName}
       </p>
-      <p className={cn("mt-0.5 truncate text-muted-foreground", isHero ? "text-sm" : "text-[11px]", isLibrary && "text-[11px]")}>
+      <p
+        className={cn(
+          "mt-0.5 truncate text-muted-foreground",
+          isHero ? "text-sm" : "text-[11px]",
+          metaCompact && "text-[11px]",
+        )}
+      >
         File: {uploadUi.fileName}
       </p>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -263,7 +272,8 @@ export function VideoUploadZone({
         "flex flex-col justify-center rounded-2xl border-2 border-primary/20 bg-primary/[0.05]",
         isHero && "min-h-[200px] gap-5 p-6 md:min-h-[240px] md:p-8",
         isLibrary && "gap-3 p-4",
-        !isHero && !isLibrary && "min-h-[140px] gap-4 p-5 md:min-h-[160px]",
+        isLibraryInline && "gap-2 p-3",
+        !isHero && !isLibrary && !isLibraryInline && "min-h-[140px] gap-4 p-5 md:min-h-[160px]",
       )}
     >
       <div>
@@ -271,22 +281,25 @@ export function VideoUploadZone({
         <p className="mt-1.5 break-all font-mono text-xs font-semibold leading-snug text-foreground sm:text-sm">
           {stagedFile.name}
         </p>
-        {!isLibrary && (
+        {!metaCompact && (
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             Fill in display title and options on the right, then start upload. You remain on this page — no need to re-select the
             film between steps.
           </p>
         )}
-        {isLibrary && (
+        {isLibrary && !isLibraryInline && (
           <p className="mt-2 text-xs leading-snug text-muted-foreground">
             Add title and options on the right, then start upload.
           </p>
+        )}
+        {isLibraryInline && (
+          <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Set title and fields below, then start upload.</p>
         )}
       </div>
       <Button
         type="button"
         variant="outline"
-        className={cn("w-full shrink-0 font-semibold sm:max-w-xs", isLibrary ? "h-9 text-sm" : "h-12")}
+        className={cn("w-full shrink-0 font-semibold sm:max-w-xs", metaCompact ? "h-9 text-sm" : "h-12")}
         onClick={openPicker}
       >
         Choose different file
@@ -319,8 +332,8 @@ export function VideoUploadZone({
         className={cn(
           "text-primary",
           isHero ? "h-11 w-11 md:h-12 md:w-12" : "",
-          isLibrary ? "h-7 w-7" : "",
-          !isHero && !isLibrary ? "h-8 w-8" : "",
+        isLibrary ? "h-7 w-7" : "",
+        !isHero && !isLibrary ? "h-8 w-8" : "",
           dragActive && "scale-105",
         )}
         aria-hidden
@@ -348,27 +361,56 @@ export function VideoUploadZone({
     </button>
   )
 
+  /** Narrow toolbar strip for film library header — paired with Upload button */
+  const compactFilmPickStrip = (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={openPicker}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      aria-label={dragActive ? "Drop video here" : "Drop game film or click to browse"}
+      className={cn(
+        "flex min-h-[40px] min-w-0 flex-1 flex-col items-center justify-center rounded-lg border-2 border-dashed px-2 py-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+        dragActive
+          ? "border-[#2563EB] bg-[#2563EB]/10 ring-2 ring-[#2563EB]/30"
+          : "border-border bg-muted/25 hover:border-[#2563EB]/60 hover:bg-muted/40",
+        busy && "pointer-events-none opacity-60",
+      )}
+    >
+      <Upload className={cn("h-4 w-4 shrink-0 text-primary", dragActive && "scale-105")} aria-hidden />
+      <span className="mt-0.5 text-[11px] font-semibold leading-tight text-foreground">
+        {dragActive ? "Drop video" : "Drop or browse"}
+      </span>
+      <span className="text-[10px] leading-none text-muted-foreground">MP4 · MOV · WebM…</span>
+    </button>
+  )
+
   const metadataPanel = (
     <div
       className={cn(
         "flex flex-col",
         isHero ? "min-h-[200px] lg:min-h-[240px]" : "",
-        isLibrary ? "min-h-0" : "",
+        metaCompact ? "min-h-0" : "",
         filmRoom ? "bg-muted/25" : "bg-muted/30",
       )}
     >
-      <div className={cn("border-b border-border", isLibrary ? "px-4 py-2.5" : "px-5 py-3 md:px-6")}>
+      <div className={cn("border-b border-border", metaCompact ? "px-4 py-2.5" : "px-5 py-3 md:px-6")}>
         <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Upload details</p>
-        <p className={cn("font-semibold text-foreground", isLibrary ? "mt-0.5 text-xs" : "mt-1 text-sm")}>
-          Name & organize this film
+        <p className={cn("font-semibold text-foreground", metaCompact ? "mt-0.5 text-xs" : "mt-1 text-sm")}>
+          {isLibraryInline ? "Title & options" : "Name & organize this film"}
         </p>
       </div>
 
-      <div className={cn("flex flex-1 flex-col", isLibrary ? "gap-3 px-4 py-3" : "gap-4 px-5 py-4 md:px-6")}>
+      <div className={cn("flex flex-1 flex-col", metaCompact ? "gap-3 px-4 py-3" : "gap-4 px-5 py-4 md:px-6")}>
         {!stagedFile ? (
-          <p className={cn("leading-relaxed text-muted-foreground", isLibrary ? "text-xs" : "text-sm")}>
-            {isLibrary
-              ? "Choose a file, then set title and privacy before upload."
+          <p className={cn("leading-relaxed text-muted-foreground", metaCompact ? "text-xs" : "text-sm")}>
+            {metaCompact
+              ? isLibraryInline
+                ? "Choose a file above, then confirm details here."
+                : "Choose a file, then set title and privacy before upload."
               : "Drop a file on the left or click to browse. You’ll set the display title, privacy, and optional labels before upload starts."}
           </p>
         ) : (
@@ -382,7 +424,7 @@ export function VideoUploadZone({
                 ref={titleInputRef}
                 className={cn(
                   "mt-2 border-2 font-medium text-foreground",
-                  isLibrary ? "min-h-9 text-sm" : "min-h-[48px] text-base",
+                  metaCompact ? "min-h-9 text-sm" : "min-h-[48px] text-base",
                 )}
                 placeholder={defaultDisplayTitleFromFileName(stagedFile.name)}
                 value={titleDraft}
@@ -400,7 +442,7 @@ export function VideoUploadZone({
                 <label className="text-xs font-bold uppercase tracking-wide text-foreground">Tags</label>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">Comma-separated — for search and filters.</p>
                 <Input
-                  className={cn("mt-2 border-2 text-foreground", isLibrary ? "min-h-9 text-sm" : "min-h-[44px]")}
+                  className={cn("mt-2 border-2 text-foreground", metaCompact ? "min-h-9 text-sm" : "min-h-[44px]")}
                   placeholder="e.g. varsity, red zone, week 3"
                   value={tagsDraft}
                   onChange={(e) => setTagsDraft(e.target.value)}
@@ -413,7 +455,7 @@ export function VideoUploadZone({
               <div>
                 <label className="text-xs font-bold uppercase tracking-wide text-foreground">Opponent</label>
                 <Input
-                  className={cn("mt-2 border-2 text-foreground", isLibrary ? "min-h-9 text-sm" : "min-h-[44px]")}
+                  className={cn("mt-2 border-2 text-foreground", metaCompact ? "min-h-9 text-sm" : "min-h-[44px]")}
                   placeholder="Optional"
                   value={opponent}
                   onChange={(e) => setOpponent(e.target.value)}
@@ -423,7 +465,7 @@ export function VideoUploadZone({
               <div>
                 <label className="text-xs font-bold uppercase tracking-wide text-foreground">Category</label>
                 <Input
-                  className={cn("mt-2 border-2 text-foreground", isLibrary ? "min-h-9 text-sm" : "min-h-[44px]")}
+                  className={cn("mt-2 border-2 text-foreground", metaCompact ? "min-h-9 text-sm" : "min-h-[44px]")}
                   placeholder="Game, practice, scout…"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
@@ -436,7 +478,7 @@ export function VideoUploadZone({
               <label className="text-xs font-bold uppercase tracking-wide text-foreground">Film date</label>
               <Input
                 type="date"
-                className={cn("mt-2 border-2 text-foreground", isLibrary ? "min-h-9 text-sm" : "min-h-[44px]")}
+                className={cn("mt-2 border-2 text-foreground", metaCompact ? "min-h-9 text-sm" : "min-h-[44px]")}
                 value={gameDate}
                 onChange={(e) => setGameDate(e.target.value)}
                 disabled={busy}
@@ -446,7 +488,7 @@ export function VideoUploadZone({
             <label
               className={cn(
                 "flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background/80 px-4 py-3",
-                isLibrary && "py-2.5",
+                metaCompact && "py-2.5",
               )}
             >
               <Checkbox
@@ -456,7 +498,7 @@ export function VideoUploadZone({
                 className="mt-1"
                 aria-label="Private (hide from recruiters)"
               />
-              <span className={cn("leading-snug text-foreground", isLibrary ? "text-xs" : "text-sm")}>
+              <span className={cn("leading-snug text-foreground", metaCompact ? "text-xs" : "text-sm")}>
                 <span className="font-bold">Private (hide from recruiters)</span>
                 <span className="mt-0.5 block text-[11px] text-muted-foreground">
                   Hidden from public recruiting profiles until you change this later in the library.
@@ -471,10 +513,10 @@ export function VideoUploadZone({
             <div className="mt-auto flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:flex-wrap">
               <Button
                 type="button"
-                size={isLibrary ? "default" : "lg"}
+                size={metaCompact ? "default" : "lg"}
                 className={cn(
                   "flex-1 font-bold shadow-md",
-                  isLibrary ? "min-h-10" : "min-h-[48px]",
+                  metaCompact ? "min-h-10" : "min-h-[48px]",
                   filmRoom
                     ? "border-2 border-[#1e40af] bg-[#2563EB] text-white hover:bg-[#1d4ed8]"
                     : "bg-[#2563EB] text-white hover:bg-[#1d4ed8]",
@@ -484,7 +526,7 @@ export function VideoUploadZone({
               >
                 Start upload
               </Button>
-              <Button type="button" variant="outline" disabled={busy} onClick={clearStaged} className={isLibrary ? "min-h-10" : ""}>
+              <Button type="button" variant="outline" disabled={busy} onClick={clearStaged} className={metaCompact ? "min-h-10" : ""}>
                 Cancel
               </Button>
             </div>
@@ -505,11 +547,45 @@ export function VideoUploadZone({
           <div
             className={cn(
               "overflow-hidden rounded-xl ring-1 ring-black/[0.04] dark:ring-white/[0.06]",
-              isLibrary ? "border border-border/90 bg-card shadow-sm" : "rounded-2xl border-2 shadow-md border-border bg-card",
-              filmRoom && !isLibrary ? "border-white/12 bg-card/80" : "",
+              isLibrary || isLibraryInline
+                ? "border border-border/90 bg-card shadow-sm"
+                : "rounded-2xl border-2 shadow-md border-border bg-card",
+              filmRoom && !isLibrary && !isLibraryInline ? "border-white/12 bg-card/80" : "",
             )}
           >
-            {isHero || isLibrary ? (
+            {isLibraryInline ? (
+              stagedFile ? (
+                <div className="grid lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)] lg:items-stretch">
+                  <div
+                    className={cn(
+                      "border-b border-border lg:border-b-0 lg:border-r lg:border-border",
+                      "p-3 sm:p-3.5",
+                    )}
+                  >
+                    {fileSummaryPanel}
+                  </div>
+                  <div className="min-w-0">{metadataPanel}</div>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <div className="flex flex-col gap-2 border-b border-border/80 bg-muted/15 p-3 sm:flex-row sm:items-stretch">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 shrink-0 gap-2 px-3 font-semibold"
+                      disabled={busy}
+                      onClick={openPicker}
+                    >
+                      <Upload className="h-4 w-4" aria-hidden />
+                      Upload film
+                    </Button>
+                    {compactFilmPickStrip}
+                  </div>
+                  <div className="min-w-0">{metadataPanel}</div>
+                </div>
+              )
+            ) : isHero || isLibrary ? (
               <div
                 className={cn(
                   "grid lg:items-stretch",

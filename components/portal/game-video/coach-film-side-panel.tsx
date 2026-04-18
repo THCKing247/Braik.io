@@ -17,6 +17,7 @@ import {
 import { ClipReelPanel } from "@/components/portal/game-video/clip-reel-panel"
 import type { ClipRow } from "@/components/portal/game-video/game-video-types"
 import { ClipPlayerAttachmentField } from "@/components/portal/game-video/clip-player-attachment-field"
+import { FilmInfoTip } from "@/components/portal/game-video/film-info-tip"
 import { COACH_QUICK_TAG_GROUPS } from "@/components/portal/game-video/coach-quick-tags"
 import { cn } from "@/lib/utils"
 
@@ -66,6 +67,10 @@ type Props = {
   teamId: string
   clipAttachedPlayerIds: string[]
   onClipAttachedPlayerIdsChange: (ids: string[]) => void
+  /** Full-film recruiting links — collapsible under clip details (desktop moved from center column). */
+  filmAttachedPlayerIds?: string[]
+  onFilmAttachedPlayerIdsChange?: (ids: string[]) => void | Promise<void>
+  filmRosterLinksDisabled?: boolean
   /** Hide this panel to widen the player (desktop). */
   onRequestCollapse?: () => void
 }
@@ -90,14 +95,14 @@ export function CoachFilmSidePanel(props: Props) {
   }, [props.clipCount, props.reelCount])
 
   return (
-    <div className="flex max-h-none min-h-0 flex-col rounded-xl border border-border bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06] xl:max-h-[calc(100dvh-9rem)]">
+    <div className="flex max-h-none min-h-0 flex-col rounded-lg border border-border bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06] xl:max-h-[calc(100dvh-7.5rem)]">
       <div className="relative border-b border-border">
         {props.onRequestCollapse ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-1 top-1 z-10 hidden h-8 w-8 text-muted-foreground hover:text-foreground xl:inline-flex"
+            className="absolute right-1 top-0.5 z-10 hidden h-8 w-8 text-muted-foreground hover:text-foreground xl:inline-flex"
             onClick={props.onRequestCollapse}
             aria-label="Hide clip details panel"
           >
@@ -106,8 +111,8 @@ export function CoachFilmSidePanel(props: Props) {
         ) : null}
         <div
           className={cn(
-            "scrollbar-thin flex flex-wrap gap-1 overflow-x-auto px-2 py-2",
-            props.onRequestCollapse && "xl:pr-11",
+            "scrollbar-thin flex flex-wrap gap-0.5 overflow-x-auto px-1.5 py-1.5",
+            props.onRequestCollapse && "xl:pr-10",
           )}
         >
           {TAB_DEFS.map(({ id, label, icon: Icon }) => (
@@ -118,14 +123,14 @@ export function CoachFilmSidePanel(props: Props) {
               aria-selected={tab === id}
               onClick={() => setTab(id)}
               className={cn(
-                "inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:gap-2 sm:px-3 sm:text-[13px]",
+                "inline-flex min-h-[34px] shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:gap-1.5 sm:px-2.5 sm:text-xs",
                 tab === id
                   ? "bg-[#0F172A] text-white shadow-sm dark:bg-[#1E293B]"
                   : "border border-transparent bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
               )}
             >
-              <Icon className="h-3.5 w-3.5 shrink-0 opacity-90 sm:h-4 sm:w-4" aria-hidden />
-              <span className="max-w-[9rem] truncate sm:max-w-none">{label}</span>
+              <Icon className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+              <span className="max-w-[8rem] truncate sm:max-w-none">{label}</span>
               {id === "reel" && props.clipCount > 0 ? (
                 <span className="rounded bg-background/25 px-1 py-0.5 font-mono text-[9px] sm:text-[10px]">{props.clipCount}</span>
               ) : null}
@@ -134,17 +139,19 @@ export function CoachFilmSidePanel(props: Props) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 lg:px-4 lg:py-4" role="tabpanel">
+      <div className="flex-1 overflow-y-auto px-2.5 py-2.5 lg:px-3 lg:py-3" role="tabpanel">
         {tab === "clip" && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
-              <h4 className="text-sm font-bold uppercase tracking-wide text-foreground">Clip name</h4>
-              <p className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-400">
-                Short label players will recognize in the locker room — e.g. “Counter TD” or “Cover 4 bust.”
-              </p>
+              <div className="flex items-center gap-1">
+                <h4 className="text-[11px] font-bold uppercase tracking-wide text-foreground">Clip name</h4>
+                <FilmInfoTip label="Clip title">
+                  <p>Short label athletes recognize — e.g. Counter TD, Cover 4 bust.</p>
+                </FilmInfoTip>
+              </div>
               <Input
                 ref={props.clipTitleInputRef}
-                className="mt-2 min-h-[44px] text-base"
+                className="mt-1.5 min-h-9 text-sm"
                 value={props.clipTitle}
                 onChange={(e) => props.setClipTitle(e.target.value)}
                 placeholder="Name this clip"
@@ -160,7 +167,28 @@ export function CoachFilmSidePanel(props: Props) {
               />
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {props.onFilmAttachedPlayerIdsChange && (
+              <details className="rounded-lg border border-border bg-muted/20 px-2.5 py-2">
+                <summary className="cursor-pointer text-[11px] font-semibold text-foreground">
+                  Full film — recruiting links
+                </summary>
+                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+                  Optional whole-file links for recruiting profiles. Use clip attachments above for play-level highlights.
+                </p>
+                <div className="mt-2">
+                  <ClipPlayerAttachmentField
+                    teamId={props.teamId}
+                    selectedIds={props.filmAttachedPlayerIds ?? []}
+                    disabled={Boolean(props.filmRosterLinksDisabled)}
+                    onChange={(ids) => {
+                      void props.onFilmAttachedPlayerIdsChange?.(ids)
+                    }}
+                  />
+                </div>
+              </details>
+            )}
+
+            <div className="grid gap-2 sm:grid-cols-2">
               <Field
                 label="Play / concept"
                 hint="Inside zone, mesh, stunt…"
@@ -186,22 +214,19 @@ export function CoachFilmSidePanel(props: Props) {
                 onChange={(v) => props.setClipCategories((o) => ({ ...o, outcome: v }))}
               />
             </div>
-            <p className="rounded-lg bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
-              Fast breakdown: use <strong className="text-foreground">Save &amp; next clip</strong> under the player to chain
-              plays on the same film. <strong className="text-foreground">Save clip only</strong> keeps your marks if you’re
-              adjusting metadata.
-            </p>
             {props.canDeleteVideo && (
-              <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-3">
-                <p className="text-xs font-medium text-foreground">Remove this game film</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Deletes the full file from storage and all clips on it. Use only if the upload was wrong.
-                </p>
+              <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[11px] font-medium leading-snug text-foreground">Delete this game film</p>
+                  <FilmInfoTip label="Deleting game film">
+                    <p>Removes the full file and every clip on it from storage.</p>
+                  </FilmInfoTip>
+                </div>
                 <Button
                   type="button"
                   variant="destructive"
-                  size="lg"
-                  className="mt-3 h-12 min-h-[48px] px-6 text-base font-bold shadow-md"
+                  size="sm"
+                  className="mt-2 h-9 w-full font-semibold"
                   onClick={() => void props.onDeleteVideo()}
                 >
                   Delete film
@@ -212,11 +237,7 @@ export function CoachFilmSidePanel(props: Props) {
         )}
 
         {tab === "tags" && (
-          <div className="space-y-5">
-            <p className="text-xs text-muted-foreground">
-              Tap what applies — we’ll attach them when you save. Add custom tags below if your program uses its own
-              vocabulary.
-            </p>
+          <div className="space-y-4">
             {(Object.entries(COACH_QUICK_TAG_GROUPS) as Array<[string, (typeof COACH_QUICK_TAG_GROUPS)["unit"]]>).map(
               ([key, group]) => (
                 <div key={key}>
@@ -263,13 +284,9 @@ export function CoachFilmSidePanel(props: Props) {
         )}
 
         {tab === "notes" && (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Jot what you’ll tell the room — mistakes, coaching points, or shout-outs. This drives search and the
-              assistant (not automatic video analysis).
-            </p>
+          <div className="space-y-2">
             <textarea
-              className="min-h-[200px] w-full rounded-xl border border-input bg-background px-3 py-3 text-sm leading-relaxed shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="min-h-[160px] w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm leading-relaxed shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               value={props.clipDescription}
               onChange={(e) => props.setClipDescription(e.target.value)}
               placeholder="What happened on this play? What should athletes take away?"
@@ -278,44 +295,32 @@ export function CoachFilmSidePanel(props: Props) {
         )}
 
         {tab === "assistant" && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-primary/20 bg-gradient-to-b from-primary/10 to-transparent p-4">
-              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Sparkles className="h-4 w-4 text-primary" aria-hidden />
-                What the assistant does
-              </p>
-              <ul className="mt-3 list-inside list-disc space-y-1.5 text-xs leading-relaxed text-muted-foreground">
-                <li>Suggest a clear clip title from your notes</li>
-                <li>Draft or tighten coaching notes</li>
-                <li>Propose tags and categories you can edit</li>
-                <li>Summarize why this moment matters for teaching</li>
-              </ul>
-              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-                <strong className="text-foreground">Uses:</strong> your notes, tags, clip timing, and labels you typed — not
-                computer vision or automatic play detection yet. Transcripts and deeper analysis can plug in later.
-              </p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-2">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <div className="flex min-w-0 flex-1 items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
+                <span>
+                  Suggests title, notes, and tags from what you typed and clip timing — not automatic video analysis.
+                </span>
+                <FilmInfoTip label="Assistant details">
+                  <p>Uses your notes, tags, and timing. Edits nothing until you save the clip.</p>
+                </FilmInfoTip>
+              </div>
             </div>
-            <details className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              <summary className="cursor-pointer font-medium text-foreground">Future: auto key moments</summary>
-              <p className="mt-2 leading-relaxed">
-                Planned hooks: transcript alignment, scorebug OCR, detector-backed clips. Same clip records — richer
-                metadata when those ship.
-              </p>
-            </details>
             <Button
               type="button"
               variant="secondary"
-              size="lg"
-              className="h-12 min-h-[48px] w-full gap-2 border-2 border-primary/30 bg-primary/10 text-base font-bold text-primary hover:bg-primary/15"
+              size="sm"
+              className="h-10 w-full gap-2 border border-primary/30 bg-primary/10 text-sm font-semibold text-primary hover:bg-primary/15"
               disabled={assistantDisabled}
               onClick={() => void props.onRunAiAssist()}
             >
               {props.aiWorking ? (
-                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : (
-                <Wand2 className="h-5 w-5" aria-hidden />
+                <Wand2 className="h-4 w-4" aria-hidden />
               )}
-              Run breakdown assistant
+              Run assistant
             </Button>
             {!props.aiVideoEnabled && (
               <p className="text-center text-xs text-amber-800 dark:text-amber-200">Assistant is off for this team.</p>
@@ -325,9 +330,7 @@ export function CoachFilmSidePanel(props: Props) {
 
         {tab === "reel" && (
           <div className="space-y-2">
-            <p className="text-sm leading-snug text-slate-700 dark:text-slate-300">
-              {reelSummary}. Tap <strong className="font-semibold text-foreground">Add to reel</strong> to queue teaching clips.
-            </p>
+            <p className="text-[11px] leading-snug text-muted-foreground">{reelSummary}</p>
             <ClipReelPanel
               clips={props.clips}
               highlightClipId={props.highlightClipId}
@@ -358,8 +361,8 @@ function Field({
 }) {
   return (
     <div>
-      <label className="text-sm font-bold uppercase tracking-wide text-foreground">{label}</label>
-      <Input className="mt-2 min-h-[44px] text-base" value={value} onChange={(e) => onChange(e.target.value)} placeholder={hint} />
+      <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</label>
+      <Input className="mt-1 min-h-9 text-sm" value={value} onChange={(e) => onChange(e.target.value)} placeholder={hint} />
     </div>
   )
 }

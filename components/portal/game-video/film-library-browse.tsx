@@ -1,33 +1,30 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import {
-  Clapperboard,
-  Film,
-  Filter,
-  Loader2,
-  Scissors,
-  Search,
-  Trash2,
-  Video,
-} from "lucide-react"
+import { Clapperboard, Film, Loader2, Scissors, Trash2, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
 import type {
   ClipLibraryRow,
+  FilmLibraryFilmStatusFilter,
+  FilmLibraryItemType,
   FilmUploadMeta,
   GameVideoRow,
   UploadUiState,
 } from "@/components/portal/game-video/game-video-types"
 import { formatBytes } from "@/components/portal/game-video/format-bytes"
+import { FilmLibraryToolbarFilters } from "@/components/portal/game-video/film-library-toolbar-filters"
+import { FilmInfoTip } from "@/components/portal/game-video/film-info-tip"
 import { durationMsLabel, formatMsRange } from "@/lib/video/timecode"
 import { cn } from "@/lib/utils"
 import { VideoUploadZone } from "@/components/portal/game-video/video-upload-zone"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
-export type LibraryItemType = "all" | "films" | "clips"
-export type FilmStatusFilter = "all" | "ready" | "processing"
+/** @deprecated Use FilmLibraryItemType from game-video-types */
+export type LibraryItemType = FilmLibraryItemType
+/** @deprecated Use FilmLibraryFilmStatusFilter from game-video-types */
+export type FilmStatusFilter = FilmLibraryFilmStatusFilter
 
 type Props = {
   videos: GameVideoRow[]
@@ -79,8 +76,8 @@ export function FilmLibraryBrowse({
   onDeleteClip,
 }: Props) {
   const [search, setSearch] = useState("")
-  const [itemType, setItemType] = useState<LibraryItemType>("all")
-  const [filmStatus, setFilmStatus] = useState<FilmStatusFilter>("all")
+  const [itemType, setItemType] = useState<FilmLibraryItemType>("all")
+  const [filmStatus, setFilmStatus] = useState<FilmLibraryFilmStatusFilter>("all")
   const [tagFilter, setTagFilter] = useState<string>("")
   const [focusFilmId, setFocusFilmId] = useState<string | null>(null)
 
@@ -134,39 +131,36 @@ export function FilmLibraryBrowse({
   const busy = videosLoading || clipsLoading
 
   return (
-    <div className="space-y-5">
-      <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
-        <div className="border-b border-border/70 px-4 py-4 md:px-5 md:py-4">
-          <div className="flex flex-col gap-5 lg:gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 xl:max-w-md xl:shrink-0">
-              <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">Film library</h1>
-              <p className="mt-1 text-sm leading-snug text-muted-foreground">
-                Search and manage your team’s films and clips — open the film room to mark plays.
-              </p>
+    <TooltipProvider delayDuration={260}>
+      <div className="space-y-3 lg:space-y-4">
+        <div className="rounded-lg border border-border/90 bg-card px-3 py-3 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05] md:px-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+            <div className="min-w-0 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">Film library</h1>
               {entitlement && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/35 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground">
-                    <span className="font-semibold text-muted-foreground">Storage</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium tabular-nums text-foreground md:text-[11px]">
+                    <span className="text-muted-foreground">Storage</span>
                     {formatBytes(entitlement.storageUsedBytes)} / {formatBytes(entitlement.storageCapBytes)}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/35 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground">
-                    <span className="font-semibold text-muted-foreground">Films</span>
+                  <span className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium tabular-nums md:text-[11px]">
+                    <span className="text-muted-foreground">Films</span>
                     {entitlement.videoCount}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/35 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground">
-                    <span className="font-semibold text-muted-foreground">Clips</span>
+                  <span className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium tabular-nums md:text-[11px]">
+                    <span className="text-muted-foreground">Clips</span>
                     {entitlement.clipCount}
                   </span>
                   {entitlement.sharedStorageScope === "program" && (
-                    <span className="text-[11px] font-medium text-muted-foreground">Program-shared</span>
+                    <span className="text-[10px] font-medium text-muted-foreground md:text-[11px]">Program-shared</span>
                   )}
                 </div>
               )}
             </div>
             {canUpload && (
-              <div className="min-w-0 w-full xl:max-w-2xl xl:flex-1">
+              <div className="min-w-0 w-full lg:max-w-xl lg:flex-1 xl:max-w-2xl">
                 <VideoUploadZone
-                  variant="library"
+                  variant="library-inline"
                   canUpload={canUpload}
                   taggingEnabled={taggingEnabled}
                   uploadUi={uploadUi}
@@ -176,295 +170,252 @@ export function FilmLibraryBrowse({
             )}
           </div>
         </div>
-      </div>
 
-      <div className="rounded-xl border border-border bg-card p-3 shadow-sm md:p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <Filter className="h-3.5 w-3.5 text-primary" aria-hidden />
-          Search &amp; filters
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
-          <div className="sm:col-span-2 lg:col-span-5">
-            <label className="sr-only" htmlFor="film-lib-search">
-              Search
-            </label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input
-                id="film-lib-search"
-                className="h-10 border pl-9 text-sm"
-                placeholder="Title, notes, tags…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Show</label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium shadow-sm"
-              value={itemType}
-              onChange={(e) => setItemType(e.target.value as LibraryItemType)}
-            >
-              <option value="all">Films & clips</option>
-              <option value="films">Films only</option>
-              <option value="clips">Clips only</option>
-            </select>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Film status</label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium shadow-sm disabled:opacity-50"
-              value={filmStatus}
-              onChange={(e) => setFilmStatus(e.target.value as FilmStatusFilter)}
-              disabled={itemType === "clips"}
-            >
-              <option value="all">All</option>
-              <option value="ready">Ready</option>
-              <option value="processing">Processing</option>
-            </select>
-          </div>
-          {taggingEnabled && (
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Clip tag</label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium shadow-sm disabled:opacity-50"
-                value={tagFilter}
-                onChange={(e) => setTagFilter(e.target.value)}
-                disabled={itemType === "films"}
-              >
-                <option value="">All tags</option>
-                {allTags.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
+        <FilmLibraryToolbarFilters
+          search={search}
+          onSearchChange={setSearch}
+          itemType={itemType}
+          onItemTypeChange={setItemType}
+          filmStatus={filmStatus}
+          onFilmStatusChange={setFilmStatus}
+          tagFilter={tagFilter}
+          onTagFilterChange={setTagFilter}
+          taggingEnabled={taggingEnabled}
+          tagOptions={allTags}
+          filmStatusDisabled={itemType === "clips"}
+          tagFilterDisabled={itemType === "films"}
+        />
+
         {focusFilmId && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
-            <span className="font-medium text-foreground">Clips from one film</span>
-            <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs font-semibold" onClick={() => setFocusFilmId(null)}>
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-xs md:text-sm">
+            <span className="font-medium text-foreground">Filtering clips to one film</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs font-semibold"
+              onClick={() => setFocusFilmId(null)}
+            >
               Clear
             </Button>
           </div>
         )}
-      </div>
 
-      {busy ? (
-        <div className="flex items-center justify-center gap-3 py-14 text-sm font-medium text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
-          Loading your library…
-        </div>
-      ) : (
-        <>
-          {showFilms && (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <Film className="h-5 w-5 text-primary" aria-hidden />
-                <h2 className="text-base font-semibold text-foreground">Films</h2>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground">
-                  {filteredVideos.length}
-                </span>
-              </div>
-              {filteredVideos.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-12 text-center text-base text-muted-foreground">
-                  No films match your filters. Upload video or adjust search.
-                </p>
-              ) : (
-                <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredVideos.map((v) => (
-                    <li
-                      key={v.id}
-                      className={cn(
-                        "flex flex-col rounded-2xl border-2 bg-card p-5 shadow-sm transition-shadow",
-                        focusFilmId === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:shadow-md",
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
-                          <Video className="h-6 w-6 shrink-0" aria-hidden />
+        {busy ? (
+          <div className="flex items-center justify-center gap-2 py-12 text-sm font-medium text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            Loading library…
+          </div>
+        ) : (
+          <>
+            {showFilms && (
+              <section>
+                <div className="mb-2 flex items-center gap-2">
+                  <Film className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  <h2 className="text-sm font-semibold text-foreground md:text-base">Films</h2>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                    {filteredVideos.length}
+                  </span>
+                </div>
+                {filteredVideos.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">
+                    No films match your filters. Upload video or adjust search.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {filteredVideos.map((v) => (
+                      <li
+                        key={v.id}
+                        className={cn(
+                          "rounded-lg border bg-card p-3 shadow-sm transition-colors md:p-3.5",
+                          "lg:flex lg:flex-row lg:items-center lg:gap-4 lg:py-2.5 lg:pl-3.5 lg:pr-3",
+                          focusFilmId === v.id ? "border-primary ring-1 ring-primary/25" : "border-border hover:border-border/90",
+                        )}
+                      >
+                        <div className="flex min-w-0 flex-1 items-start gap-3 lg:items-center">
+                          <div className="hidden shrink-0 rounded-md bg-primary/10 p-2 text-primary lg:flex">
+                            <Video className="h-5 w-5" aria-hidden />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 font-semibold leading-snug text-foreground">{v.title || "Untitled film"}</p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                              <span
+                                className={cn(
+                                  "rounded px-1.5 py-0.5 font-semibold",
+                                  v.upload_status === "ready"
+                                    ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
+                                    : "bg-amber-500/15 text-amber-900 dark:text-amber-200",
+                                )}
+                              >
+                                {v.upload_status === "ready" ? "Ready" : v.upload_status || "Processing"}
+                              </span>
+                              {v.duration_seconds != null && <span className="tabular-nums">{Math.round(v.duration_seconds)}s</span>}
+                              {v.file_size_bytes != null && <span>{formatBytes(v.file_size_bytes)}</span>}
+                            </div>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 font-bold leading-snug text-foreground">{v.title || "Untitled film"}</p>
-                          <p className="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
-                            <span
-                              className={cn(
-                                "rounded-md px-2 py-0.5 font-semibold",
-                                v.upload_status === "ready"
-                                  ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
-                                  : "bg-amber-500/15 text-amber-900 dark:text-amber-200",
-                              )}
+
+                        {canSetRecruitingPrivacy && v.upload_status === "ready" && (
+                          <div className="mt-3 flex items-center gap-2 border-t border-border/70 pt-3 lg:mt-0 lg:shrink-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+                            <Checkbox
+                              id={`pv-${v.id}`}
+                              checked={v.is_private === true}
+                              disabled={privacyBusyKey === `v:${v.id}`}
+                              onCheckedChange={(checked) => onVideoPrivacyChange?.(v.id, checked === true)}
+                              aria-label="Private — hide from recruiters"
+                            />
+                            <label htmlFor={`pv-${v.id}`} className="cursor-pointer text-xs font-medium leading-none">
+                              Private to recruiters
+                            </label>
+                            <FilmInfoTip label="Recruiter visibility for this film" side="left">
+                              <p>When checked, this full game file does not appear on public recruiting profiles.</p>
+                            </FilmInfoTip>
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3 lg:mt-0 lg:min-w-0 lg:flex-1 lg:justify-end lg:border-t-0 lg:pt-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-9 gap-1.5 bg-[#0F172A] font-semibold text-white hover:bg-[#1E293B] dark:bg-[#1E293B]"
+                            onClick={() => onOpenFilmRoom(v.id)}
+                            disabled={v.upload_status !== "ready"}
+                            title={v.upload_status !== "ready" ? "Wait until this film is ready" : undefined}
+                          >
+                            <Clapperboard className="h-4 w-4 shrink-0" aria-hidden />
+                            Film room
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-9 font-semibold"
+                            onClick={() => {
+                              setItemType("clips")
+                              setFocusFilmId(v.id)
+                            }}
+                          >
+                            Clips
+                          </Button>
+                          {canDeleteVideo && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-9 font-semibold text-destructive hover:text-destructive"
+                              onClick={() => onDeleteFilm(v)}
                             >
-                              {v.upload_status === "ready" ? "Ready" : v.upload_status || "Processing"}
-                            </span>
-                            {v.duration_seconds != null && <span>{Math.round(v.duration_seconds)}s</span>}
-                            {v.file_size_bytes != null && <span>{formatBytes(v.file_size_bytes)}</span>}
-                          </p>
+                              <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                              Delete
+                            </Button>
+                          )}
                         </div>
-                      </div>
-                      {canSetRecruitingPrivacy && v.upload_status === "ready" && (
-                        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3 text-left">
-                          <Checkbox
-                            checked={v.is_private === true}
-                            disabled={privacyBusyKey === `v:${v.id}`}
-                            onCheckedChange={(checked) => onVideoPrivacyChange?.(v.id, checked === true)}
-                            className="mt-1"
-                            aria-label="Private video — hide from recruiters"
-                          />
-                          <span className="text-sm leading-snug text-foreground">
-                            <span className="font-bold">Private (hide from recruiters)</span>
-                            <span className="mt-0.5 block text-muted-foreground">
-                              When checked, this film will not appear on public recruiting profiles.
-                            </span>
-                          </span>
-                        </label>
-                      )}
-                      <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
-                        <Button
-                          type="button"
-                          size="lg"
-                          className="min-h-[48px] w-full gap-2 bg-[#0F172A] font-bold text-white hover:bg-[#1E293B] sm:flex-1 dark:bg-[#1E293B]"
-                          onClick={() => onOpenFilmRoom(v.id)}
-                          disabled={v.upload_status !== "ready"}
-                          title={v.upload_status !== "ready" ? "Wait until this film is ready" : undefined}
-                        >
-                          <Clapperboard className="h-5 w-5 shrink-0" aria-hidden />
-                          Film room — add / edit clips
-                        </Button>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="font-semibold"
-                          onClick={() => {
-                            setItemType("clips")
-                            setFocusFilmId(v.id)
-                          }}
-                        >
-                          View clips
-                        </Button>
-                        {canDeleteVideo && (
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {showClips && (
+              <section className={cn(showFilms && "mt-6 lg:mt-8")}>
+                <div className="mb-2 flex items-center gap-2">
+                  <Scissors className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  <h2 className="text-sm font-semibold text-foreground md:text-base">Saved clips</h2>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                    {filteredClips.length}
+                  </span>
+                </div>
+                {filteredClips.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">
+                    No clips yet — open a film and use <strong className="text-foreground">Film room</strong> to mark plays.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {filteredClips.map((c) => (
+                      <li
+                        key={c.id}
+                        className="rounded-lg border border-border bg-card p-3 shadow-sm md:p-3.5 lg:flex lg:flex-row lg:items-center lg:gap-4 lg:py-2.5 lg:pl-3.5 lg:pr-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-foreground">{c.title || "Untitled clip"}</p>
+                          <p className="mt-0.5 text-xs font-medium text-primary">{c.film_title || "Film"}</p>
+                          <p className="mt-1 font-mono text-[11px] text-muted-foreground md:text-xs">
+                            {formatMsRange(c.start_ms, c.end_ms)} · {durationMsLabel(c.start_ms, c.end_ms)}
+                          </p>
+                          {c.description && (
+                            <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-muted-foreground">{c.description}</p>
+                          )}
+                          {taggingEnabled && (c.tags?.length ?? 0) > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {c.tags!.slice(0, 6).map((t) => (
+                                <span key={t} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {canSetRecruitingPrivacy && (
+                          <div className="mt-3 flex items-center gap-2 border-t border-border/70 pt-3 lg:mt-0 lg:w-[11rem] lg:shrink-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+                            <Checkbox
+                              id={`pc-${c.id}`}
+                              checked={c.is_private === true}
+                              disabled={privacyBusyKey === `c:${c.id}`}
+                              onCheckedChange={(checked) => onClipPrivacyChange?.(c.game_video_id, c.id, checked === true)}
+                              aria-label="Private — hide from recruiters"
+                            />
+                            <label htmlFor={`pc-${c.id}`} className="cursor-pointer text-xs font-medium leading-none">
+                              Private to recruiters
+                            </label>
+                            <FilmInfoTip label="Recruiter visibility for this clip" side="left">
+                              <p>When checked, this clip does not appear on public recruiting profiles.</p>
+                            </FilmInfoTip>
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex flex-wrap gap-2 border-t border-border/70 pt-3 lg:mt-0 lg:justify-end lg:border-t-0 lg:pt-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-9 flex-1 font-semibold lg:flex-none"
+                            onClick={() => onOpenFilmRoom(c.game_video_id, { clipId: c.id })}
+                          >
+                            Open clip
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 flex-1 font-semibold lg:flex-none"
+                            onClick={() => {
+                              setFocusFilmId(c.game_video_id)
+                              setItemType("all")
+                            }}
+                          >
+                            Source film
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"
-                            className="font-semibold text-destructive hover:text-destructive"
-                            onClick={() => onDeleteFilm(v)}
+                            size="sm"
+                            className="h-9 font-semibold text-destructive hover:text-destructive"
+                            onClick={() => onDeleteClip(c)}
                           >
-                            <Trash2 className="mr-1 h-4 w-4" aria-hidden />
-                            Delete film
+                            <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                            Delete
                           </Button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
-          {showClips && (
-            <section className={cn(showFilms && "pt-3")}>
-              <div className="mb-3 flex items-center gap-2">
-                <Scissors className="h-5 w-5 text-primary" aria-hidden />
-                <h2 className="text-base font-semibold text-foreground">Saved clips</h2>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground">
-                  {filteredClips.length}
-                </span>
-              </div>
-              {filteredClips.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-12 text-center text-base text-muted-foreground">
-                  No clips yet — open a film and use <strong className="text-foreground">Add / edit clips</strong> to mark plays.
-                </p>
-              ) : (
-                <ul className="grid gap-4 lg:grid-cols-2">
-                  {filteredClips.map((c) => (
-                    <li
-                      key={c.id}
-                      className="rounded-2xl border-2 border-border bg-card p-5 shadow-sm"
-                    >
-                      <p className="font-bold text-foreground">{c.title || "Untitled clip"}</p>
-                      <p className="mt-1 text-sm font-medium text-primary">{c.film_title || "Film"}</p>
-                      <p className="mt-2 font-mono text-sm text-muted-foreground">
-                        {formatMsRange(c.start_ms, c.end_ms)} · {durationMsLabel(c.start_ms, c.end_ms)}
-                      </p>
-                      {c.description && (
-                        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                          {c.description}
-                        </p>
-                      )}
-                      {taggingEnabled && (c.tags?.length ?? 0) > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {c.tags!.slice(0, 8).map((t) => (
-                            <span
-                              key={t}
-                              className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground"
-                            >
-                              {t}
-                            </span>
-                          ))}
                         </div>
-                      )}
-                      {canSetRecruitingPrivacy && (
-                        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3 text-left">
-                          <Checkbox
-                            checked={c.is_private === true}
-                            disabled={privacyBusyKey === `c:${c.id}`}
-                            onCheckedChange={(checked) =>
-                              onClipPrivacyChange?.(c.game_video_id, c.id, checked === true)
-                            }
-                            className="mt-1"
-                            aria-label="Private clip — hide from recruiters"
-                          />
-                          <span className="text-sm leading-snug text-foreground">
-                            <span className="font-bold">Private (hide from recruiters)</span>
-                            <span className="mt-0.5 block text-muted-foreground">
-                              When checked, this clip will not appear on public recruiting profiles.
-                            </span>
-                          </span>
-                        </label>
-                      )}
-                      <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-                        <Button
-                          type="button"
-                          size="lg"
-                          className="min-h-[44px] flex-1 font-bold"
-                          onClick={() => onOpenFilmRoom(c.game_video_id, { clipId: c.id })}
-                        >
-                          Open clip
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="min-h-[44px] flex-1 border-2 font-semibold"
-                          onClick={() => {
-                            setFocusFilmId(c.game_video_id)
-                            setItemType("all")
-                          }}
-                        >
-                          View source film
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="font-semibold text-destructive hover:text-destructive"
-                          onClick={() => onDeleteClip(c)}
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" aria-hidden />
-                          Delete
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-        </>
-      )}
-    </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+          </>
+        )}
+      </div>
+    </TooltipProvider>
   )
 }

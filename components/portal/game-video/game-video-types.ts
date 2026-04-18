@@ -62,3 +62,7 @@ export type UploadUiState = {
   /** Coach-facing title shown during upload; mirrors DB title when custom title was sent. */
   displayTitle?: string
 }
+
+/** Film library browse — filter bar */
+export type FilmLibraryItemType = "all" | "films" | "clips"
+export type FilmLibraryFilmStatusFilter = "all" | "ready" | "processing"

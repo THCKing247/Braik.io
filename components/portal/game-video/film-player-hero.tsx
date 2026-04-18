@@ -126,40 +126,40 @@ export function FilmPlayerHero({
         )}
       </div>
 
-      <div className="border-t border-white/10 bg-[#0f172a]/95 px-3 py-3 backdrop-blur-sm sm:px-4">
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-slate-200">
+      <div className="border-t border-white/10 bg-[#0f172a]/95 px-2.5 py-2 backdrop-blur-sm sm:px-3">
+        <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-200 sm:text-xs">
             <Film className="h-4 w-4 shrink-0" aria-hidden />
             <span>Timeline</span>
             <FilmInfoTip label="Using the timeline" side="bottom" className="text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-offset-[#0f172a]">
               <p>Click or drag to seek the playhead. Orange bands are drafts; green are saved clips — click to select.</p>
             </FilmInfoTip>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-200">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-200 sm:text-sm">
             <span>
               <span className="font-semibold text-slate-300">Now</span>{" "}
-              <strong className="font-mono text-xl font-bold tabular-nums text-emerald-300 sm:text-2xl">
+              <strong className="font-mono text-lg font-bold tabular-nums text-emerald-300 sm:text-xl">
                 {formatMsAsTimecode(playheadMs)}
               </strong>
             </span>
             <span className="hidden sm:inline text-slate-500">|</span>
             <span>
               <span className="font-semibold text-slate-300">Marked</span>{" "}
-              <strong className="font-mono text-base font-bold tabular-nums text-sky-200 sm:text-lg">
+              <strong className="font-mono text-sm font-bold tabular-nums text-sky-200 sm:text-base">
                 {formatMsRange(inMs, outMs)}
               </strong>
             </span>
             <span className="hidden sm:inline text-slate-500">|</span>
             <span>
               <span className="font-semibold text-slate-300">Clip length</span>{" "}
-              <strong className="font-mono text-base font-bold tabular-nums text-amber-200 sm:text-lg">
+              <strong className="font-mono text-sm font-bold tabular-nums text-amber-200 sm:text-base">
                 {clipDurationLabel}
               </strong>
             </span>
           </div>
         </div>
 
-        <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-slate-900/40 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="mb-2 flex flex-col gap-2 rounded-lg border border-white/10 bg-slate-900/40 px-2.5 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Frames</span>
             <FilmInfoTip label="Frame stepping and FPS" side="bottom" className="text-slate-400 hover:bg-white/10 hover:text-slate-100 focus-visible:ring-offset-[#0f172a]">
@@ -220,7 +220,7 @@ export function FilmPlayerHero({
           aria-valuemin={0}
           aria-valuemax={durationSafe}
           tabIndex={0}
-          className="relative mb-3 h-14 cursor-pointer rounded-xl bg-slate-800/80 ring-2 ring-white/15 transition-shadow hover:ring-sky-400/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+          className="relative mb-2 h-12 cursor-pointer rounded-lg bg-slate-800/80 ring-2 ring-white/15 transition-shadow hover:ring-sky-400/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 sm:h-14"
           onMouseDown={(e) => {
             if ((e.target as HTMLElement).closest("[data-timeline-segment]")) return
             onTimelinePointerDown(e.clientX)

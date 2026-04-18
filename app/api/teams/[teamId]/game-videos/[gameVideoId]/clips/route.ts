@@ -34,7 +34,7 @@ export async function GET(
     const { data: rows, error } = await supabase
       .from("video_clips")
       .select(
-        "id, game_video_id, start_ms, end_ms, duration_ms, title, label, description, tags, share_token, created_at, updated_at"
+        "id, game_video_id, start_ms, end_ms, duration_ms, title, label, description, tags, share_token, metadata, created_at, updated_at"
       )
       .eq("team_id", teamId)
       .eq("game_video_id", gameVideoId)
@@ -86,6 +86,7 @@ export async function POST(
       title?: string
       description?: string | null
       tags?: string[]
+      categories?: Record<string, string>
     }
     try {
       body = (await request.json()) as typeof body
@@ -138,6 +139,14 @@ export async function POST(
 
     const durationMs = endMs - startMs
 
+    const rawCats = body.categories && typeof body.categories === "object" ? body.categories : {}
+    const categories: Record<string, string> = {}
+    for (const [k, v] of Object.entries(rawCats)) {
+      const key = String(k).trim().slice(0, 40)
+      const val = String(v ?? "").trim().slice(0, 120)
+      if (key && val) categories[key] = val
+    }
+
     const { data: inserted, error: insErr } = await supabase
       .from("video_clips")
       .insert({
@@ -151,7 +160,7 @@ export async function POST(
         label: title,
         description,
         tags,
-        metadata: {},
+        metadata: Object.keys(categories).length > 0 ? { categories } : {},
         updated_at: new Date().toISOString(),
       })
       .select("id, game_video_id, start_ms, end_ms, duration_ms, title, description, tags, share_token, created_at")

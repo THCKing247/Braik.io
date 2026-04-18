@@ -32,7 +32,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
     }
 
-    let body: { notes?: string; transcript?: string; existingTitle?: string | null }
+    let body: {
+      notes?: string
+      transcript?: string
+      existingTitle?: string | null
+      clipTimingSummary?: string | null
+    }
     try {
       body = (await request.json()) as typeof body
     } catch {
@@ -44,9 +49,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       .filter(Boolean)
       .join("\n")
 
+    const clipTimingSummary =
+      typeof body.clipTimingSummary === "string" && body.clipTimingSummary.trim()
+        ? body.clipTimingSummary.trim().slice(0, 500)
+        : null
+
     const result = await suggestClipMetadataFromText(ent, {
       notesOrTranscript: text,
       existingTitle: body.existingTitle ?? null,
+      clipTimingSummary,
     })
 
     if (!result.ok) {
@@ -58,10 +69,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
     await insertAiJobCompleted(supabase, {
       teamId,
       jobType: "clip_metadata_suggestion",
-      input: { chars: text.length },
+      input: { chars: text.length, hasTimingSummary: Boolean(clipTimingSummary) },
       output: {
         suggestedTitle: result.suggestedTitle,
         suggestedTags: result.suggestedTags,
+        suggestedCategories: result.suggestedCategories,
       },
     }).catch(() => undefined)
 
@@ -69,6 +81,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       suggestedTitle: result.suggestedTitle,
       suggestedDescription: result.suggestedDescription,
       suggestedTags: result.suggestedTags,
+      suggestedCategories: result.suggestedCategories,
     })
   } catch (e) {
     if (e instanceof MembershipLookupError) {

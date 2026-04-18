@@ -4,16 +4,32 @@ import type { EffectiveVideoEntitlements } from "@/lib/video/entitlements"
 
 export type AiClipAssistInput = {
   notesOrTranscript: string
-  /** Optional existing title hint */
   existingTitle?: string | null
+  /** Human-readable timing line for naming context (coach notes + clock), not vision. */
+  clipTimingSummary?: string | null
+}
+
+export type AiSuggestedCategories = {
+  playType?: string
+  situation?: string
+  personnel?: string
+  outcome?: string
+}
+
+export type AiClipAssistSuccess = {
+  suggestedTitle: string
+  suggestedDescription: string
+  suggestedTags: string[]
+  suggestedCategories: AiSuggestedCategories
 }
 
 export type AiClipAssistResult =
-  | { ok: true; suggestedTitle: string; suggestedDescription: string; suggestedTags: string[] }
+  | ({ ok: true } & AiClipAssistSuccess)
   | { ok: false; code: "OPENAI_NOT_CONFIGURED" | "EMPTY_INPUT" | "AI_DISABLED"; message: string }
 
 /**
- * Lightweight text-only assist — uses coach notes / transcript snippets, not pixel-level video understanding.
+ * Text-only assist — uses coach notes, optional transcript snippets, and timing summary.
+ * Does not analyze pixels; future transcript/OCR/play-recognition can feed the same interface.
  */
 export async function suggestClipMetadataFromText(
   entitlements: EffectiveVideoEntitlements,
@@ -30,12 +46,21 @@ export async function suggestClipMetadataFromText(
     return { ok: false, code: "OPENAI_NOT_CONFIGURED", message: "AI assistant is not configured." }
   }
 
+  const timingBlock = input.clipTimingSummary?.trim()
+    ? `Clip timing context (from editor clocks, not auto-detected): ${input.clipTimingSummary.trim()}`
+    : ""
+
   const prompt = [
-    "You help football coaches label short game clips.",
-    "Return STRICT JSON only with keys: suggestedTitle (string), suggestedDescription (string), suggestedTags (array of 3-8 short lowercase slug-like tags, no spaces).",
-    "Titles should be concise (under 80 characters). Descriptions should be 1-3 sentences.",
+    "You help football coaches label short game clips for film breakdown.",
+    "Return STRICT JSON only with keys:",
+    "- suggestedTitle (string, under 80 chars)",
+    "- suggestedDescription (string, 1-3 sentences)",
+    "- suggestedTags (array of 3-10 short lowercase tags, kebab or single words)",
+    "- suggestedCategories (object with optional string fields: playType, situation, personnel, outcome — use empty string or omit if unknown)",
+    "Infer categories only from the text provided, not from video.",
     input.existingTitle ? `Existing title hint: ${input.existingTitle}` : "",
-    "Source text:",
+    timingBlock,
+    "Source notes / transcript:",
     raw.slice(0, 12000),
   ]
     .filter(Boolean)
@@ -43,13 +68,14 @@ export async function suggestClipMetadataFromText(
 
   try {
     const text = await sendCoachBPrompt(
-      "You output only valid JSON objects for coaching clip labels. No markdown fences.",
+      "You output only valid JSON for coaching clip labels. No markdown fences.",
       prompt
     )
     let parsed: {
       suggestedTitle?: string
       suggestedDescription?: string
       suggestedTags?: string[]
+      suggestedCategories?: Partial<AiSuggestedCategories>
     }
     try {
       parsed = JSON.parse(text) as typeof parsed
@@ -59,13 +85,21 @@ export async function suggestClipMetadataFromText(
     const suggestedTitle = String(parsed.suggestedTitle ?? "").trim().slice(0, 200)
     const suggestedDescription = String(parsed.suggestedDescription ?? "").trim().slice(0, 2000)
     const suggestedTags = Array.isArray(parsed.suggestedTags)
-      ? parsed.suggestedTags.map((t) => String(t).trim()).filter(Boolean).slice(0, 12)
+      ? parsed.suggestedTags.map((t) => String(t).trim()).filter(Boolean).slice(0, 14)
       : []
+    const c = parsed.suggestedCategories ?? {}
+    const suggestedCategories: AiSuggestedCategories = {
+      playType: c.playType ? String(c.playType).trim().slice(0, 80) : undefined,
+      situation: c.situation ? String(c.situation).trim().slice(0, 80) : undefined,
+      personnel: c.personnel ? String(c.personnel).trim().slice(0, 80) : undefined,
+      outcome: c.outcome ? String(c.outcome).trim().slice(0, 80) : undefined,
+    }
     return {
       ok: true,
       suggestedTitle: suggestedTitle || "Untitled clip",
       suggestedDescription,
       suggestedTags,
+      suggestedCategories,
     }
   } catch {
     return {

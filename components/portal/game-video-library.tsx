@@ -1,66 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { CheckCircle2, Loader2, Trash2, Scissors, Sparkles } from "lucide-react"
-
-type GameVideoRow = {
-  id: string
-  title: string | null
-  mime_type?: string | null
-  file_size_bytes?: number | null
-  duration_seconds?: number | null
-  upload_status?: string | null
-  processing_status?: string | null
-  created_at?: string | null
-}
-
-type ClipRow = {
-  id: string
-  start_ms: number
-  end_ms: number
-  duration_ms?: number | null
-  title?: string | null
-  description?: string | null
-  tags?: string[] | null
-  share_token?: string | null
-}
-
-type UploadUiState = {
-  phase: "preparing" | "uploading" | "finalizing" | "success"
-  /** 0–100 for bar + label */
-  pct: number
-  fileName: string
-}
-
-function uploadPhaseLabel(phase: UploadUiState["phase"]): string {
-  switch (phase) {
-    case "preparing":
-      return "Preparing upload…"
-    case "uploading":
-      return "Uploading to storage…"
-    case "finalizing":
-      return "Finishing upload…"
-    case "success":
-      return "Upload complete"
-    default:
-      return "Working…"
-  }
-}
-
-function formatBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 B"
-  const units = ["B", "KB", "MB", "GB", "TB"]
-  let v = n
-  let i = 0
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024
-    i++
-  }
-  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${units[i]}`
-}
+import { FilmWorkspace } from "@/components/portal/game-video/film-workspace"
+import { MediaLibraryRail } from "@/components/portal/game-video/media-library-rail"
+import type { ClipRow, GameVideoRow, UploadUiState } from "@/components/portal/game-video/game-video-types"
+import { formatBytes } from "@/components/portal/game-video/format-bytes"
 
 export function GameVideoLibrary({
   teamId,
@@ -85,15 +30,8 @@ export function GameVideoLibrary({
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
 
   const [clips, setClips] = useState<ClipRow[]>([])
-  const [clipStart, setClipStart] = useState("")
-  const [clipEnd, setClipEnd] = useState("")
-  const [clipTitle, setClipTitle] = useState("")
-  const [clipDescription, setClipDescription] = useState("")
-  const [clipTags, setClipTags] = useState("")
-  const [clipSaving, setClipSaving] = useState(false)
   const [uploadUi, setUploadUi] = useState<UploadUiState | null>(null)
   const uploadSuccessClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
@@ -105,7 +43,7 @@ export function GameVideoLibrary({
     }
   }, [])
 
-  const selected = useMemo(() => videos.find((v) => v.id === selectedId) ?? null, [videos, selectedId])
+  const selected = videos.find((v) => v.id === selectedId) ?? null
 
   const loadList = useCallback(async () => {
     setLoading(true)
@@ -165,111 +103,19 @@ export function GameVideoLibrary({
     if (selectedId) void loadClips(selectedId)
   }, [selectedId, loadClips])
 
-  const onUseCurrentTime = (which: "start" | "end") => {
-    const el = videoRef.current
-    if (!el) return
-    const ms = Math.floor(el.currentTime * 1000)
-    if (which === "start") setClipStart(String(ms))
-    else setClipEnd(String(ms))
-  }
+  const refreshClips = useCallback(async () => {
+    if (selectedId) await loadClips(selectedId)
+  }, [selectedId, loadClips])
 
-  const runAiSuggest = async () => {
-    if (!aiVideoEnabled) return
-    const notes = clipDescription.trim() || clipTitle.trim()
-    if (!notes) return
-    setClipSaving(true)
+  const deleteVideo = async () => {
+    if (!selectedId || !canDeleteVideo) return
+    if (!confirm("Delete this game video from storage? All clips on this film will be removed.")) return
     try {
-      const res = await fetch(`/api/teams/${teamId}/video-clips/ai-suggest`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          notes,
-          transcript: "",
-          existingTitle: clipTitle || null,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "AI suggestion failed")
-      if (data.suggestedTitle) setClipTitle(data.suggestedTitle)
-      if (data.suggestedDescription) setClipDescription(data.suggestedDescription)
-      if (Array.isArray(data.suggestedTags) && data.suggestedTags.length && taggingEnabled) {
-        setClipTags(data.suggestedTags.join(", "))
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "AI failed")
-    } finally {
-      setClipSaving(false)
-    }
-  }
-
-  const saveClip = async () => {
-    if (!selectedId || !canCreateClips) return
-    const startMs = Number(clipStart)
-    const endMs = Number(clipEnd)
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-      setError("Set valid start/end times in milliseconds (use Current buttons while playing).")
-      return
-    }
-    setClipSaving(true)
-    setError(null)
-    try {
-      const tags =
-        taggingEnabled && clipTags.trim()
-          ? clipTags
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean)
-          : []
-      const res = await fetch(`/api/teams/${teamId}/game-videos/${selectedId}/clips`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startMs,
-          endMs,
-          title: clipTitle.trim() || "Clip",
-          description: clipDescription.trim() || null,
-          tags,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "Could not save clip")
-      await loadClips(selectedId)
-      setClipTitle("")
-      setClipDescription("")
-      setClipTags("")
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Clip save failed")
-    } finally {
-      setClipSaving(false)
-    }
-  }
-
-  const deleteClip = async (clipId: string) => {
-    if (!selectedId) return
-    if (!confirm("Delete this clip?")) return
-    try {
-      const res = await fetch(`/api/teams/${teamId}/game-videos/${selectedId}/clips/${clipId}`, {
-        method: "DELETE",
-      })
+      const res = await fetch(`/api/teams/${teamId}/game-videos/${selectedId}`, { method: "DELETE" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Delete failed")
-      await loadClips(selectedId)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed")
-    }
-  }
-
-  const deleteVideo = async (videoId: string) => {
-    if (!canDeleteVideo) return
-    if (!confirm("Delete this game video from storage?")) return
-    try {
-      const res = await fetch(`/api/teams/${teamId}/game-videos/${videoId}`, { method: "DELETE" })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "Delete failed")
-      if (selectedId === videoId) {
-        setSelectedId(null)
-        setPlaybackUrl(null)
-      }
+      setSelectedId(null)
+      setPlaybackUrl(null)
       await loadList()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed")
@@ -435,259 +281,67 @@ export function GameVideoLibrary({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {entitlement && (
-        <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Storage</span>{" "}
-          <span className="font-mono text-xs">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-border bg-gradient-to-r from-card to-muted/30 px-5 py-4 text-sm shadow-sm">
+          <span className="font-semibold text-foreground">Team storage</span>
+          <span className="font-mono text-xs text-muted-foreground">
             {formatBytes(entitlement.storageUsedBytes)} / {formatBytes(entitlement.storageCapBytes)}
           </span>
-          <span className="mx-2 text-border">·</span>
-          <span>
-            Videos {entitlement.videoCount} · Clips {entitlement.clipCount}
+          <span className="text-border">·</span>
+          <span className="text-muted-foreground">
+            {entitlement.videoCount} films · {entitlement.clipCount} clips
           </span>
           {entitlement.sharedStorageScope === "program" && (
             <>
-              <span className="mx-2 text-border">·</span>
-              <span>Program-shared quota</span>
+              <span className="text-border">·</span>
+              <span className="text-muted-foreground">Program-shared quota</span>
             </>
           )}
         </div>
       )}
 
       {error && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-foreground">Library</h2>
-            {canUpload && (
-              <>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    e.target.value = ""
-                    if (f) void onUploadFile(f)
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  disabled={
-                    !!uploadUi &&
-                    (uploadUi.phase === "preparing" ||
-                      uploadUi.phase === "uploading" ||
-                      uploadUi.phase === "finalizing")
-                  }
-                  onClick={() => fileRef.current?.click()}
-                >
-                  Upload video
-                </Button>
-              </>
-            )}
-          </div>
-          {uploadUi && (
-            <div
-              className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
-              role="status"
-              aria-live="polite"
-              aria-valuenow={uploadUi.pct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <div className="flex min-w-0 items-center gap-2">
-                  {uploadUi.phase === "success" ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-                  ) : (
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
-                  )}
-                  <span className="font-medium text-foreground">{uploadPhaseLabel(uploadUi.phase)}</span>
-                </div>
-                <span className="font-mono text-xs tabular-nums text-muted-foreground">{uploadUi.pct}%</span>
-              </div>
-              <p className="mt-1 truncate text-xs text-muted-foreground" title={uploadUi.fileName}>
-                {uploadUi.fileName}
-              </p>
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className={`h-full rounded-full transition-[width] duration-150 ease-out ${
-                    uploadUi.phase === "success"
-                      ? "bg-emerald-600 dark:bg-emerald-500"
-                      : "bg-[#2563EB]"
-                  }`}
-                  style={{ width: `${uploadUi.pct}%` }}
-                />
-              </div>
-            </div>
-          )}
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : videos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No videos yet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {videos.map((v) => (
-                <li key={v.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(v.id)}
-                    className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                      selectedId === v.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-background hover:bg-muted/50"
-                    }`}
-                  >
-                    <span className="line-clamp-2 font-medium text-foreground">{v.title || "Untitled"}</span>
-                    <span className="ml-2 shrink-0 text-xs text-muted-foreground">
-                      {v.upload_status === "ready" ? "Ready" : v.upload_status ?? ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr] lg:items-start lg:gap-8">
+        <MediaLibraryRail
+          videos={videos}
+          loading={loading}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          canUpload={canUpload}
+          uploadUi={uploadUi}
+          fileInputRef={fileRef as React.RefObject<HTMLInputElement>}
+          onPickUpload={() => fileRef.current?.click()}
+          onFileSelected={(f) => void onUploadFile(f)}
+        />
 
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Player</h2>
+        <div className="min-w-0">
           {!selected ? (
-            <p className="text-sm text-muted-foreground">Select a video to play.</p>
+            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/15 px-6 py-16 text-center">
+              <p className="text-lg font-semibold text-foreground">Select a film</p>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+                Choose a video from the library to open the breakdown workspace — timeline, clip reel, and assistant tools.
+              </p>
+            </div>
           ) : (
-            <>
-              <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
-                {playbackUrl ? (
-                  <video
-                    ref={videoRef}
-                    key={playbackUrl}
-                    className="h-full w-full"
-                    controls
-                    src={playbackUrl}
-                    preload="metadata"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    Preparing playback…
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {selected.file_size_bytes != null && <span>{formatBytes(selected.file_size_bytes)}</span>}
-                {selected.duration_seconds != null && (
-                  <span>{Math.round(selected.duration_seconds)}s duration</span>
-                )}
-              </div>
-              {canDeleteVideo && (
-                <Button type="button" variant="outline" size="sm" onClick={() => void deleteVideo(selected.id)}>
-                  <Trash2 className="mr-2 h-4 w-4" aria-hidden />
-                  Delete video
-                </Button>
-              )}
-
-              {canCreateClips && selected.upload_status === "ready" && (
-                <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
-                  <div className="flex items-center gap-2 font-medium text-foreground">
-                    <Scissors className="h-4 w-4" aria-hidden />
-                    Create clip
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Start (ms)</label>
-                      <div className="flex gap-2">
-                        <Input value={clipStart} onChange={(e) => setClipStart(e.target.value)} placeholder="e.g. 12000" />
-                        <Button type="button" variant="secondary" size="sm" onClick={() => onUseCurrentTime("start")}>
-                          Current
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">End (ms)</label>
-                      <div className="flex gap-2">
-                        <Input value={clipEnd} onChange={(e) => setClipEnd(e.target.value)} placeholder="e.g. 45000" />
-                        <Button type="button" variant="secondary" size="sm" onClick={() => onUseCurrentTime("end")}>
-                          Current
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Title</label>
-                    <Input value={clipTitle} onChange={(e) => setClipTitle(e.target.value)} placeholder="Clip title" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Notes (for AI assist)</label>
-                    <textarea
-                      className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={clipDescription}
-                      onChange={(e) => setClipDescription(e.target.value)}
-                      placeholder="What happens on this clip — used for AI title/description suggestions."
-                    />
-                  </div>
-                  {taggingEnabled && (
-                    <div>
-                      <label className="text-xs text-muted-foreground">Tags (comma-separated)</label>
-                      <Input
-                        value={clipTags}
-                        onChange={(e) => setClipTags(e.target.value)}
-                        placeholder="redzone, third down, …"
-                      />
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" onClick={() => void saveClip()} disabled={clipSaving}>
-                      {clipSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                      Save clip
-                    </Button>
-                    {aiVideoEnabled && (
-                      <Button type="button" variant="secondary" size="sm" onClick={() => void runAiSuggest()} disabled={clipSaving}>
-                        <Sparkles className="mr-2 h-4 w-4" aria-hidden />
-                        AI suggest
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="border-t border-border pt-3">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">Saved clips</p>
-                    {clips.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">None yet.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {clips.map((c) => (
-                          <li
-                            key={c.id}
-                            className="flex flex-col gap-1 rounded-md border border-border bg-card px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div>
-                              <div className="font-medium text-foreground">{c.title || "Clip"}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {c.start_ms}–{c.end_ms} ms
-                                {c.share_token && (
-                                  <span className="ml-2 font-mono">
-                                    Ref: {c.share_token.slice(0, 8)}…
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => void deleteClip(c.id)}>
-                              Remove
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
+            <FilmWorkspace
+              teamId={teamId}
+              video={selected}
+              playbackUrl={playbackUrl}
+              clips={clips}
+              onRefreshClips={refreshClips}
+              canCreateClips={canCreateClips}
+              canDeleteVideo={canDeleteVideo}
+              aiVideoEnabled={aiVideoEnabled}
+              taggingEnabled={taggingEnabled}
+              onError={setError}
+              onDeleteVideo={deleteVideo}
+            />
           )}
         </div>
       </div>

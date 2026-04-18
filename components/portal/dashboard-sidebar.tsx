@@ -15,6 +15,8 @@ import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { cn } from "@/lib/utils"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
+import { usePortalShellKind } from "@/components/portal/portal-shell-context"
+import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 240
@@ -41,6 +43,7 @@ function SidebarSectionLabel({ children }: { children: React.ReactNode }) {
 
 export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const identity = useDashboardShellIdentity()
+  const portalKind = usePortalShellKind()
   const shell = useAppBootstrapOptional()
   const messagingUnread = useMessagingUnreadOptional()
   const shellUnread = shell?.effectiveUnreadNotifications ?? 0
@@ -52,16 +55,27 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const userRole = identity.roleUpper || undefined
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
+  const baseHome = portalPrefixedDashboardHref(portalKind, "/")
   const dashboardHomeHref =
     userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
-      ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
-      : "/dashboard"
+      ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+      : baseHome
   const videoNav = shell?.payload?.videoClips?.navVisible
   const quickActions = useMemo(
-    () => getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav }),
-    [userRole, videoNav]
+    () =>
+      getQuickActionsForRole(userRole, {
+        videoClipsNavVisible: videoNav,
+        hrefTransform: (href) => {
+          if (!href.startsWith("/dashboard")) return href
+          const rest = href.slice("/dashboard".length)
+          const suffix = rest === "" ? "/" : rest.startsWith("/") ? rest : `/${rest}`
+          return portalPrefixedDashboardHref(portalKind, suffix)
+        },
+      }),
+    [userRole, videoNav, portalKind]
   )
-  const showCoachB = userRole && canUseCoachB(userRole as Role)
+  const showCoachB =
+    portalKind === "coach" && userRole && canUseCoachB(userRole as Role)
   const coachCopy = useCoachBRotatingCopy()
 
   const roleLabel = userRole
@@ -77,7 +91,9 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
         scrollClassName="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll"
       >
         <div className="relative flex-shrink-0 border-b border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-transparent to-transparent px-4 pb-4 pt-6">
-          <SidebarSectionLabel>Team</SidebarSectionLabel>
+          <SidebarSectionLabel>
+            {portalKind === "player" ? "My team" : portalKind === "parent" ? "Family" : "Team"}
+          </SidebarSectionLabel>
           {roleLabel && (
             <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{roleLabel}</p>
           )}
@@ -98,7 +114,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
               href={dashboardHomeHref}
               label="Dashboard"
               icon={LayoutDashboard}
-              isActive={pathname === "/dashboard"}
+              isActive={stripDashboardPortalPrefix(pathname ?? "") === "/dashboard"}
             />
           </nav>
         </div>
@@ -118,10 +134,15 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
                       ? Math.min(messagesTabBadgeCount, 99)
                       : undefined
                   }
-                  isActive={
-                    pathname === action.href ||
-                    (action.href !== "/dashboard" && pathname.startsWith(action.href))
-                  }
+                  isActive={(() => {
+                    const pathCanon = stripDashboardPortalPrefix(pathname?.split("?")[0] ?? "")
+                    const hrefCanon = stripDashboardPortalPrefix(action.href.split("?")[0] ?? "")
+                    return (
+                      pathCanon === hrefCanon ||
+                      (hrefCanon !== "/dashboard" &&
+                        (pathCanon.startsWith(`${hrefCanon}/`) || pathCanon.startsWith(hrefCanon)))
+                    )
+                  })()}
                 />
               ))}
             </nav>

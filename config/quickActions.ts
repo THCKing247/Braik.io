@@ -17,6 +17,7 @@ import {
   Video,
 } from "lucide-react"
 import { LucideIcon } from "lucide-react"
+import { stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 
 export interface QuickAction {
   id: string
@@ -148,22 +149,27 @@ export const QUICK_ACTIONS: QuickAction[] = [
 
 export function getQuickActionsForRole(
   role: string | undefined,
-  opts?: { videoClipsNavVisible?: boolean }
+  opts?: { videoClipsNavVisible?: boolean; hrefTransform?: (href: string) => string }
 ): QuickAction[] {
   if (!role) return []
+  const xf = opts?.hrefTransform ?? ((h: string) => h)
   return QUICK_ACTIONS.filter((action) => {
     if (!action.roles.includes(role)) return false
     if (action.requiresVideoClipsNav && !opts?.videoClipsNavVisible) return false
     return true
-  })
+  }).map((action) => ({
+    ...action,
+    href: xf(action.href),
+  }))
 }
 
 /** Routes covered by mobile bottom tabs — omit from phone sheet to avoid duplication. */
 export function isPrimaryMobileTabPath(href: string): boolean {
+  const path = stripDashboardPortalPrefix(href.split("?")[0] ?? href)
   return (
-    href === "/dashboard" ||
-    href.startsWith("/dashboard/roster") ||
-    href.startsWith("/dashboard/calendar") ||
-    href.startsWith("/dashboard/messages")
+    path === "/dashboard" ||
+    path.startsWith("/dashboard/roster") ||
+    path.startsWith("/dashboard/calendar") ||
+    path.startsWith("/dashboard/messages")
   )
 }

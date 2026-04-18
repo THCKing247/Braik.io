@@ -14,6 +14,8 @@ import { TeamSwitcher } from "@/components/portal/team-switcher"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { MobileAppCard } from "@/components/mobile/mobile-app-card"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
+import { usePortalShellKind } from "@/components/portal/portal-shell-context"
+import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 
 interface Team {
   id: string
@@ -36,6 +38,7 @@ export function DashboardMoreBottomSheet({
   const [visible, setVisible] = useState(false)
   const pathname = usePathname()
   const identity = useDashboardShellIdentity()
+  const portalKind = usePortalShellKind()
   const coachB = useCoachB()
   const userRole = identity.roleUpper || undefined
   const showAdminLink = identity.isPlatformOwner
@@ -44,8 +47,17 @@ export function DashboardMoreBottomSheet({
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
   const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
   const quickActions = useMemo(
-    () => getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav }),
-    [userRole, videoNav]
+    () =>
+      getQuickActionsForRole(userRole, {
+        videoClipsNavVisible: videoNav,
+        hrefTransform: (href) => {
+          if (!href.startsWith("/dashboard")) return href
+          const rawRest = href.slice("/dashboard".length)
+          const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
+          return portalPrefixedDashboardHref(portalKind, suffix)
+        },
+      }),
+    [userRole, videoNav, portalKind]
   )
   const secondaryLinks = useMemo(
     () => quickActions.filter((a) => !isPrimaryMobileTabPath(a.href)),
@@ -182,17 +194,22 @@ export function DashboardMoreBottomSheet({
                 href={action.href}
                 label={action.label}
                 icon={action.icon}
-                isActive={
-                  pathname === action.href ||
-                  (action.href !== "/dashboard" && pathname.startsWith(action.href))
-                }
+                isActive={(() => {
+                  const pathCanon = stripDashboardPortalPrefix(pathname?.split("?")[0] ?? "")
+                  const hrefCanon = stripDashboardPortalPrefix(action.href.split("?")[0] ?? "")
+                  return (
+                    pathCanon === hrefCanon ||
+                    (hrefCanon !== "/dashboard" &&
+                      (pathCanon.startsWith(`${hrefCanon}/`) || pathCanon.startsWith(hrefCanon)))
+                  )
+                })()}
                 onNavigate={close}
               />
             ))}
           </nav>
 
           <div className="space-y-3 border-t border-border pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            {userRole && canUseCoachB(userRole as Role) ? (
+            {portalKind === "coach" && userRole && canUseCoachB(userRole as Role) ? (
               <button
                 type="button"
                 onClick={() => {

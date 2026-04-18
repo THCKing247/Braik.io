@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState, useRef } from "react"
 import { CoachBProvider } from "@/components/portal/coach-b-context"
 import { PlaybookToastProvider } from "@/components/portal/playbook-toast"
-import { DashboardSidebar } from "@/components/portal/dashboard-sidebar"
+import { DashboardSidebarByPortal } from "@/components/portal/dashboard-sidebar-by-portal"
 import { DashboardMobileTabBar } from "@/components/portal/dashboard-mobile-tab-bar"
 import { MobilePortalShell } from "@/components/mobile/mobile-portal-shell"
 import { AIWidgetWrapper } from "@/components/ai/ai-widget-wrapper"
@@ -14,6 +14,7 @@ import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prom
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { cn } from "@/lib/utils"
+import { stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 
 interface Team {
   id: string
@@ -63,9 +64,10 @@ export function DashboardLayoutClient({
 }) {
   const isLgUp = useMinWidthLg()
   const pathname = usePathname()
+  const pathForLayout = stripDashboardPortalPrefix(pathname ?? "")
   const isSchedulePage =
-    (pathname?.includes("/dashboard/schedule") ?? false) || (pathname?.includes("/dashboard/calendar") ?? false)
-  const isPlayEditorRoute = pathname?.startsWith("/dashboard/playbooks/play/") ?? false
+    (pathForLayout.includes("/dashboard/schedule") ?? false) || (pathForLayout.includes("/dashboard/calendar") ?? false)
+  const isPlayEditorRoute = pathForLayout.startsWith("/dashboard/playbooks/play/")
   const useMobilePortalShell = !isPlayEditorRoute && !isSchedulePage
 
   // RSC passes a new `teams` array every navigation; keep referential stability when id+name are unchanged
@@ -81,7 +83,7 @@ export function DashboardLayoutClient({
   const shellTeams = shellTeamsRef.current.teams
 
   const resolvedCurrentTeamId = currentTeamId ?? shellTeams[0]?.id ?? ""
-  const isDashboardHome = pathname === "/dashboard"
+  const isDashboardHome = pathForLayout === "/dashboard"
 
   return (
     <CoachBProvider isDesktop={isLgUp}>
@@ -103,7 +105,7 @@ export function DashboardLayoutClient({
               )}
               aria-label="Dashboard navigation"
             >
-              <DashboardSidebar teams={shellTeams} />
+              <DashboardSidebarByPortal teams={shellTeams} />
             </aside>
 
             <main

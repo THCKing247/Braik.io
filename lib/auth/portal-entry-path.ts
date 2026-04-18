@@ -1,9 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
+import { resolveBraikPortalKind } from "@/lib/portal/resolve-portal-kind"
+import { defaultDashboardEntryForPortal } from "@/lib/portal/dashboard-path"
 
 const ADMIN_DASHBOARD = "/admin/overview"
 const AD_PORTAL = "/dashboard/ad"
-const HC_DASHBOARD = "/dashboard"
+
+function profileDbRoleToUpper(profileRoleFromDb: string | null | undefined): string {
+  const raw = (profileRoleFromDb ?? "player").trim()
+  return raw.toUpperCase().replace(/ /g, "_").replace(/-/g, "_")
+}
 
 /**
  * Same routing as {@link resolvePortalEntryPath} but skips a profiles row fetch when the caller
@@ -21,7 +27,13 @@ export async function resolvePortalEntryPathWithProfileRole(
   if (canAccessAdPortalRoutes(access)) {
     return access.state === "restricted_football_ad" ? `${AD_PORTAL}/teams` : AD_PORTAL
   }
-  return HC_DASHBOARD
+
+  const portalKind = await resolveBraikPortalKind({
+    supabase,
+    userId,
+    profileRoleUpper: profileDbRoleToUpper(profileRoleFromDb),
+  })
+  return defaultDashboardEntryForPortal(portalKind)
 }
 
 /**
@@ -41,5 +53,4 @@ export async function resolvePortalEntryPath(supabase: SupabaseClient, userId: s
 export const PORTAL_ENTRY_PATHS = {
   ADMIN_DASHBOARD,
   AD_PORTAL,
-  HC_DASHBOARD,
 } as const

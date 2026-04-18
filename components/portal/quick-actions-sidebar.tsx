@@ -9,14 +9,25 @@ import { getQuickActionsForRole } from "@/config/quickActions"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { cn } from "@/lib/utils"
+import { usePortalShellKind } from "@/components/portal/portal-shell-context"
+import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 
 export function QuickActionsSidebar() {
   const identity = useDashboardShellIdentity()
   const pathname = usePathname()
+  const portalKind = usePortalShellKind()
   const userRole = identity.roleUpper || undefined
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
-  const quickActions = getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav })
+  const quickActions = getQuickActionsForRole(userRole, {
+    videoClipsNavVisible: videoNav,
+    hrefTransform: (href) => {
+      if (!href.startsWith("/dashboard")) return href
+      const rawRest = href.slice("/dashboard".length)
+      const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
+      return portalPrefixedDashboardHref(portalKind, suffix)
+    },
+  })
 
   const ToolbarItem = ({ 
     href, 
@@ -34,7 +45,12 @@ export function QuickActionsSidebar() {
     const itemRef = useRef<HTMLDivElement>(null)
     const [hoveredPosition, setHoveredPosition] = useState<{ top: number; left: number } | null>(null)
     const isHovered = hoveredItem === itemId
-    const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href))
+    const pathCanon = stripDashboardPortalPrefix(pathname?.split("?")[0] ?? "")
+    const hrefCanon = stripDashboardPortalPrefix(href.split("?")[0] ?? "")
+    const isActive =
+      pathCanon === hrefCanon ||
+      (hrefCanon !== "/dashboard" &&
+        (pathCanon.startsWith(`${hrefCanon}/`) || pathCanon.startsWith(hrefCanon)))
     
     useEffect(() => {
       if (isHovered && itemRef.current) {

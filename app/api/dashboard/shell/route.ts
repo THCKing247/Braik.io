@@ -6,6 +6,9 @@ import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { authTimingServer } from "@/lib/auth/login-flow-timing"
 import { loadDashboardShellTeamsUncached } from "@/lib/dashboard/load-dashboard-shell-teams-uncached"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { resolveBraikPortalKind } from "@/lib/portal/resolve-portal-kind"
+import { defaultDashboardEntryForPortal } from "@/lib/portal/dashboard-path"
 import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
 import {
   getActiveImpersonationFromToken,
@@ -103,6 +106,16 @@ export async function GET(request: Request) {
     const effectiveUserId = impersonationSession?.target_user_id ?? shellUser.id
     const isImpersonating = Boolean(impersonationSession)
 
+    const portalKind = await resolveBraikPortalKind({
+      supabase: getSupabaseServer(),
+      userId: shellUser.id,
+      profileRoleUpper: userRole ?? "USER",
+    })
+    const userForShell: SessionUser = {
+      ...shellUser,
+      defaultAppPath: defaultDashboardEntryForPortal(portalKind),
+    }
+
     const tBeforeTeams = performance.now()
     const teams = await loadDashboardShellTeamsUncached(
       effectiveUserId,
@@ -149,7 +162,8 @@ export async function GET(request: Request) {
     return jsonResponse(
       {
         shellMode: "full",
-        user: shellUser,
+        user: userForShell,
+        portalKind,
         teams,
         currentTeamId,
         impersonation: impersonationSession,

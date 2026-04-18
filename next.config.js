@@ -1,5 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async rewrites() {
+    return [
+      { source: "/dashboard/coach", destination: "/dashboard" },
+      { source: "/dashboard/coach/:path*", destination: "/dashboard/:path*" },
+      { source: "/dashboard/player", destination: "/dashboard" },
+      { source: "/dashboard/player/:path*", destination: "/dashboard/:path*" },
+      { source: "/dashboard/parent", destination: "/dashboard" },
+      { source: "/dashboard/parent/:path*", destination: "/dashboard/:path*" },
+      { source: "/dashboard/recruiter", destination: "/dashboard/recruiting" },
+      { source: "/dashboard/recruiter/:path*", destination: "/dashboard/recruiting/:path*" },
+    ]
+  },
   experimental: {
     // Tree-shake icon / UI packages so routes only ship icons/components actually used.
     optimizePackageImports: [

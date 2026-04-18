@@ -5,9 +5,11 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useAdPortalDepartmentLink } from "@/components/portal/ad-portal-link-context"
+import { usePortalShellOptional } from "@/components/portal/portal-shell-context"
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
+import { portalPrefixedDashboardHref } from "@/lib/portal/dashboard-path"
 
 interface Team {
   id: string
@@ -51,6 +53,8 @@ function userInitials(displayName: string | null, email: string): string {
 
 export function DashboardNav({ teams }: { teams: Team[] }) {
   const identity = useDashboardShellIdentity()
+  const portalCtx = usePortalShellOptional()
+  const portalKind = portalCtx?.portalKind ?? "coach"
   const { departmentHref: adDepartmentHref } = useAdPortalDepartmentLink()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -66,12 +70,17 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
       !path.startsWith("/dashboard/ad") &&
       !path.startsWith("/dashboard/director"))
   const showDepartmentNavLink =
-    Boolean(adDepartmentHref) && userRole === "HEAD_COACH" && !onAdPortalShell && inTeamPortal
+    Boolean(adDepartmentHref) &&
+    userRole === "HEAD_COACH" &&
+    portalKind === "coach" &&
+    !onAdPortalShell &&
+    inTeamPortal
 
+  const baseHome = portalPrefixedDashboardHref(portalKind, "/")
   const dashboardHomeHref =
     userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
-      ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
-      : "/dashboard"
+      ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+      : baseHome
 
   const initials = userInitials(identity.displayName, identity.email)
 
@@ -104,8 +113,8 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
           </div>
           <div className="flex min-w-0 justify-center">
             <Link
-              href="/dashboard"
-              prefetch={prefetchPropForDashboardScheduleHref("/dashboard")}
+              href={dashboardHomeHref}
+              prefetch={prefetchPropForDashboardScheduleHref(dashboardHomeHref)}
               className="flex max-w-[min(300px,42vw)] min-w-0 items-center justify-center active:opacity-80"
               aria-label="Braik - Home"
             >

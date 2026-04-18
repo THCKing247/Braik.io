@@ -2,50 +2,71 @@
 
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { LayoutDashboard, Users, Calendar, MessageSquare, Menu } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { useMobileDashboardNav } from "@/components/portal/mobile-dashboard-nav-provider"
 import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickActions"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { usePortalTeam } from "@/components/portal/portal-team-context"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
+import { usePortalShellKind } from "@/components/portal/portal-shell-context"
+import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 
-const tabs = [
+type TabSpec = {
+  legacyHref: string
+  label: string
+  icon: LucideIcon
+  match: (canonicalPath: string) => boolean
+}
+
+const defaultTabs: TabSpec[] = [
   {
-    href: "/dashboard",
+    legacyHref: "/dashboard",
     label: "Home",
     icon: LayoutDashboard,
-    match: (p: string) => p === "/dashboard",
+    match: (canonicalPath: string) => canonicalPath === "/dashboard",
   },
   {
-    href: "/dashboard/roster",
+    legacyHref: "/dashboard/roster",
     label: "Roster",
     icon: Users,
-    match: (p: string) => p.startsWith("/dashboard/roster"),
+    match: (canonicalPath: string) => canonicalPath.startsWith("/dashboard/roster"),
   },
   {
-    href: "/dashboard/calendar",
+    legacyHref: "/dashboard/calendar",
     label: "Calendar",
     icon: Calendar,
-    match: (p: string) => p.startsWith("/dashboard/calendar"),
+    match: (canonicalPath: string) => canonicalPath.startsWith("/dashboard/calendar"),
   },
   {
-    href: "/dashboard/messages",
+    legacyHref: "/dashboard/messages",
     label: "Messages",
     icon: MessageSquare,
-    match: (p: string) => p.startsWith("/dashboard/messages"),
+    match: (canonicalPath: string) => canonicalPath.startsWith("/dashboard/messages"),
   },
-] as const
+]
 
-function pathMatchesMoreArea(pathname: string, role: string | undefined, videoClipsNavVisible?: boolean): boolean {
-  const secondary = getQuickActionsForRole(role, { videoClipsNavVisible }).filter(
-    (a) => !isPrimaryMobileTabPath(a.href)
-  )
-  return secondary.some(
-    (a) => pathname === a.href || (a.href !== "/dashboard" && pathname.startsWith(a.href))
-  )
+function pathMatchesMoreArea(
+  pathname: string,
+  role: string | undefined,
+  videoClipsNavVisible?: boolean,
+  hrefTransform?: (href: string) => string
+): boolean {
+  const strippedPath = stripDashboardPortalPrefix(pathname.split("?")[0] ?? pathname)
+  const secondary = getQuickActionsForRole(role, {
+    videoClipsNavVisible,
+    hrefTransform,
+  }).filter((a) => !isPrimaryMobileTabPath(a.href))
+  return secondary.some((a) => {
+    const target = stripDashboardPortalPrefix(a.href.split("?")[0] ?? a.href)
+    return (
+      strippedPath === target ||
+      (target !== "/dashboard" && (strippedPath.startsWith(`${target}/`) || strippedPath.startsWith(target)))
+    )
+  })
 }
 
 /** Bottom nav + More sheet for all viewports below lg. */
@@ -54,6 +75,7 @@ export function DashboardMobileTabBar() {
   const searchParams = useSearchParams()
   const portal = usePortalTeam()
   const identity = useDashboardShellIdentity()
+  const portalKind = usePortalShellKind()
   const bootstrap = useAppBootstrapOptional()
   const messagingUnread = useMessagingUnreadOptional()
   const shellUnread = bootstrap?.effectiveUnreadNotifications ?? 0
@@ -62,19 +84,66 @@ export function DashboardMobileTabBar() {
   const { openMoreSheet, moreSheetOpen } = useMobileDashboardNav()
   const contextTeamId =
     searchParams.get("teamId") || portal?.currentTeamId || portal?.teamIds?.[0] || ""
+
+  const canonicalPath = stripDashboardPortalPrefix(pathname)
+
+  const hrefTransform = useCallback(
+    (href: string) => {
+      if (!href.startsWith("/dashboard")) return href
+      const rawRest = href.slice("/dashboard".length)
+      const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
+      return portalPrefixedDashboardHref(portalKind, suffix)
+    },
+    [portalKind]
+  )
+
+  const baseHome = portalPrefixedDashboardHref(portalKind, "/")
   const homeDashboardHref =
     identity.roleUpper === "HEAD_COACH" && contextTeamId
-      ? `/dashboard?teamId=${encodeURIComponent(contextTeamId)}`
-      : "/dashboard"
+      ? `${baseHome}?teamId=${encodeURIComponent(contextTeamId)}`
+      : baseHome
+
+  const tabs = useMemo(() => {
+    if (portalKind === "recruiter") {
+      const homeHr = portalPrefixedDashboardHref("recruiter", "/")
+      const msgHr = portalPrefixedDashboardHref("recruiter", "/messages")
+      return [
+        {
+          legacyHref: homeHr,
+          label: "Home",
+          icon: LayoutDashboard,
+          match: (canonical: string) =>
+            canonical === "/dashboard/recruiting" ||
+            pathname.startsWith("/dashboard/recruiter") ||
+            canonical.startsWith("/dashboard/recruiting"),
+        },
+        {
+          legacyHref: msgHr,
+          label: "Messages",
+          icon: MessageSquare,
+          match: (canonical: string) => canonical.startsWith("/dashboard/messages"),
+        },
+      ] satisfies TabSpec[]
+    }
+    return defaultTabs
+  }, [pathname, portalKind])
+
   const moreRouteActive = useMemo(
-    () => pathMatchesMoreArea(pathname, identity.roleUpper, videoClipsNavVisible),
-    [pathname, identity.roleUpper, videoClipsNavVisible]
+    () =>
+      portalKind === "recruiter"
+        ? stripDashboardPortalPrefix(pathname).startsWith("/dashboard/support") ||
+          stripDashboardPortalPrefix(pathname).startsWith("/dashboard/profile")
+        : pathMatchesMoreArea(pathname, identity.roleUpper, videoClipsNavVisible, hrefTransform),
+    [pathname, identity.roleUpper, videoClipsNavVisible, hrefTransform, portalKind]
   )
 
   /** Immersive play editor: full-bleed field, no tab bar */
-  if (pathname.startsWith("/dashboard/playbooks/play/")) {
+  if (canonicalPath.startsWith("/dashboard/playbooks/play/")) {
     return null
   }
+
+  /** Recruiter workspace: fewer primary tabs — layout still uses 5 columns with spacer or stretch */
+  const gridColsClass = portalKind === "recruiter" ? "grid-cols-3" : "grid-cols-5"
 
   return (
     <nav
@@ -84,14 +153,25 @@ export function DashboardMobileTabBar() {
       )}
       aria-label="Primary"
     >
-      <div className="mx-auto grid h-[68px] min-h-[68px] max-w-[min(100%,var(--mobile-shell-max-width))] grid-cols-5 items-stretch px-1 pt-1 sm:px-3 md:px-4">
-        {tabs.map(({ href, label, icon: Icon, match }) => {
-          const active = match(pathname)
-          const resolvedHref = href === "/dashboard" ? homeDashboardHref : href
-          const showMsgBadge = href === "/dashboard/messages" && messagesTabBadgeCount > 0
+      <div
+        className={cn(
+          "mx-auto grid h-[68px] min-h-[68px] max-w-[min(100%,var(--mobile-shell-max-width))] items-stretch px-1 pt-1 sm:px-3 md:px-4",
+          gridColsClass
+        )}
+      >
+        {tabs.map(({ legacyHref, label, icon: Icon, match }) => {
+          const active = match(canonicalPath)
+          const resolvedHref =
+            portalKind === "recruiter"
+              ? legacyHref
+              : legacyHref === "/dashboard"
+                ? homeDashboardHref
+                : hrefTransform(legacyHref)
+          const showMsgBadge = label === "Messages" && messagesTabBadgeCount > 0
+
           return (
             <Link
-              key={href}
+              key={`${legacyHref}-${label}`}
               href={resolvedHref}
               prefetch={false}
               className={cn(

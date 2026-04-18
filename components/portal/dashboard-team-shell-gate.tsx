@@ -18,6 +18,8 @@ import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { CoachPageDebug } from "@/components/portal/coach-page-debug"
 import { DashboardLayoutFallback } from "@/components/portal/dashboard-layout-fallback"
 import { DashboardShellLoadingSkeleton } from "@/components/portal/dashboard-shell-loading-skeleton"
+import { PortalShellProvider } from "@/components/portal/portal-shell-context"
+import { PortalRouteEnforcer } from "@/components/portal/portal-route-enforcer"
 
 /**
  * First paint: one GET /api/dashboard/shell (React Query). Downstream pages should consume
@@ -51,7 +53,8 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
     if (
       payload.teams.length === 0 &&
       layoutUserRole === "HEAD_COACH" &&
-      !payload.user.isPlatformOwner
+      !payload.user.isPlatformOwner &&
+      payload.portalKind !== "recruiter"
     ) {
       router.replace("/onboarding")
     }
@@ -80,6 +83,7 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
 
   const {
     user,
+    portalKind,
     teams,
     currentTeamId,
     impersonation,
@@ -92,7 +96,8 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
   if (
     teams.length === 0 &&
     layoutUserRole === "HEAD_COACH" &&
-    !user.isPlatformOwner
+    !user.isPlatformOwner &&
+    portalKind !== "recruiter"
   ) {
     return <DashboardShellLoadingSkeleton />
   }
@@ -100,26 +105,30 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
 
   return (
-    <DashboardShellWithMobileNav teams={teams} currentTeamId={currentTeamId}>
-      <div className="app-shell dashboard-app-shell flex min-h-screen flex-col bg-background">
-        <header className="shrink-0">
-          <DashboardNav teams={teams} />
-        </header>
-        <DashboardLayoutClient
-          teams={teams}
-          currentTeamId={currentTeamId}
-          className="flex w-full min-w-0 flex-col lg:flex-1 lg:min-h-0"
-        >
-          {process.env.NODE_ENV === "development" ? (
-            <CoachPageDebug session={{ user }} teamIds={teams.map((t) => t.id)} accessAllowed={true} />
-          ) : null}
-          {impersonation ? <ImpersonationBanner /> : null}
-          <SuspensionBanner teamStatus={currentTeamStatus ?? currentTeam?.teamStatus} role={user.role} />
-          <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
-            {children}
-          </SubscriptionGuard>
-        </DashboardLayoutClient>
-      </div>
-    </DashboardShellWithMobileNav>
+    <PortalShellProvider portalKind={portalKind}>
+      <PortalRouteEnforcer portalKind={portalKind}>
+        <DashboardShellWithMobileNav teams={teams} currentTeamId={currentTeamId}>
+          <div className="app-shell dashboard-app-shell flex min-h-screen flex-col bg-background">
+            <header className="shrink-0">
+              <DashboardNav teams={teams} />
+            </header>
+            <DashboardLayoutClient
+              teams={teams}
+              currentTeamId={currentTeamId}
+              className="flex w-full min-w-0 flex-col lg:flex-1 lg:min-h-0"
+            >
+              {process.env.NODE_ENV === "development" && portalKind === "coach" ? (
+                <CoachPageDebug session={{ user }} teamIds={teams.map((t) => t.id)} accessAllowed={true} />
+              ) : null}
+              {impersonation ? <ImpersonationBanner /> : null}
+              <SuspensionBanner teamStatus={currentTeamStatus ?? currentTeam?.teamStatus} role={user.role} />
+              <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
+                {children}
+              </SubscriptionGuard>
+            </DashboardLayoutClient>
+          </div>
+        </DashboardShellWithMobileNav>
+      </PortalRouteEnforcer>
+    </PortalShellProvider>
   )
 }

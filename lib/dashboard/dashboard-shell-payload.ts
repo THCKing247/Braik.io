@@ -1,6 +1,7 @@
 import type { SessionUser } from "@/lib/auth/server-auth"
 import type { DashboardShellTeam } from "@/lib/dashboard/load-dashboard-shell-teams-uncached"
 import type { ImpersonationSession } from "@/lib/admin/impersonation"
+import type { BraikPortalKind } from "@/lib/portal/braik-portal-kind"
 
 export type DashboardShellPayload =
   | {
@@ -11,6 +12,8 @@ export type DashboardShellPayload =
   | {
       shellMode: "full"
       user: SessionUser
+      /** Resolved server-side for portal chrome, routing, and nav hrefs. */
+      portalKind: BraikPortalKind
       teams: DashboardShellTeam[]
       currentTeamId: string
       impersonation: ImpersonationSession | null

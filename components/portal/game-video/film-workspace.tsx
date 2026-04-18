@@ -16,6 +16,7 @@ import {
   formatMsAsTimecode,
   formatMsRange,
 } from "@/lib/video/timecode"
+import { Button } from "@/components/ui/button"
 
 const SKIP_COACH = 5000
 
@@ -33,6 +34,8 @@ type Props = {
   onDeleteVideo: () => Promise<void>
   /** When opening from library with "Open clip", load this clip into the editor once clips are available */
   initialClipId?: string | null
+  /** Parent clears URL/state when coach switches to full-film mode */
+  onSavedClipContextExit?: () => void
 }
 
 export function FilmWorkspace({
@@ -48,11 +51,14 @@ export function FilmWorkspace({
   onError,
   onDeleteVideo,
   initialClipId = null,
+  onSavedClipContextExit,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const timelineRef = useRef<HTMLDivElement | null>(null)
   const previewCleanupRef = useRef<(() => void) | null>(null)
   const initialClipAppliedRef = useRef<string | null>(null)
+  /** After metadata loads duration, seek playhead to saved clip start once */
+  const savedClipSeekKeyRef = useRef<string | null>(null)
 
   const [durationMs, setDurationMs] = useState(0)
   const [playheadMs, setPlayheadMs] = useState(0)
@@ -110,6 +116,11 @@ export function FilmWorkspace({
 
   useEffect(() => {
     initialClipAppliedRef.current = null
+  }, [initialClipId])
+
+  useEffect(() => {
+    initialClipAppliedRef.current = null
+    savedClipSeekKeyRef.current = null
     setInMs(0)
     setOutMs(0)
     setPlayheadMs(0)
@@ -128,9 +139,13 @@ export function FilmWorkspace({
     if (!el || !Number.isFinite(el.duration)) return
     const d = Math.floor(el.duration * 1000)
     setDurationMs(d)
-    setOutMs((prev) => (prev > 0 ? clampMs(prev, 0, d) : Math.min(15000, d)))
-    setInMs(0)
-    if (!highlightClipId) setPlayheadMs(0)
+    // Never zero saved clip marks — only clamp to real duration (was wiping library-opened clips).
+    setInMs((prev) => clampMs(prev, 0, d))
+    setOutMs((prev) => {
+      const o = clampMs(prev, 0, d)
+      return o <= 0 ? Math.min(15000, d) : o
+    })
+    setPlayheadMs((prev) => clampMs(prev, 0, d))
   }
 
   const syncPlayhead = useCallback(() => {
@@ -152,11 +167,19 @@ export function FilmWorkspace({
     if (!el || !previewActive) return
     const onTu = () => {
       const tMs = Math.floor(el.currentTime * 1000)
-      if (tMs >= outMs - 30) el.currentTime = inMs / 1000
+      if (tMs >= outMs - 30) {
+        if (highlightClipId != null) {
+          el.pause()
+          el.currentTime = outMs / 1000
+          setPreviewActive(false)
+        } else {
+          el.currentTime = inMs / 1000
+        }
+      }
     }
     el.addEventListener("timeupdate", onTu)
     return () => el.removeEventListener("timeupdate", onTu)
-  }, [previewActive, inMs, outMs, playbackUrl])
+  }, [previewActive, inMs, outMs, playbackUrl, highlightClipId])
 
   useEffect(() => {
     if (outMs <= inMs) setOutMs(clampMs(inMs + 500, 0, durationSafe))
@@ -403,6 +426,34 @@ export function FilmWorkspace({
     loadClipIntoEditor(c)
   }, [clips, initialClipId, video.id, loadClipIntoEditor])
 
+  /** Real duration required for correct seek — library often opened clip before metadata */
+  useEffect(() => {
+    if (!highlightClipId || durationMs <= 0) return
+    const c = clips.find((x) => x.id === highlightClipId)
+    if (!c) return
+    const key = `${video.id}:${highlightClipId}`
+    if (savedClipSeekKeyRef.current === key) return
+    savedClipSeekKeyRef.current = key
+    seekMs(c.start_ms)
+  }, [highlightClipId, durationMs, clips, video.id, seekMs])
+
+  const enterFullFilmMode = useCallback(() => {
+    savedClipSeekKeyRef.current = null
+    initialClipAppliedRef.current = null
+    setHighlightClipId(null)
+    stopPreview()
+    const d = durationSafe > 1 ? durationSafe : 1
+    setInMs(0)
+    setOutMs(Math.min(15000, d))
+    seekMs(0)
+    setClipTitle("")
+    setClipDescription("")
+    setClipTagsFree("")
+    setQuickTagsSelected(new Set())
+    setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
+    onSavedClipContextExit?.()
+  }, [durationSafe, seekMs, stopPreview, onSavedClipContextExit])
+
   const previewSavedClip = async (c: ClipRow) => {
     previewCleanupRef.current?.()
     setHighlightClipId(c.id)
@@ -437,12 +488,65 @@ export function FilmWorkspace({
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
       <div className="min-w-0 flex-1 space-y-4">
+        {highlightClipId && (
+          <div
+            className="rounded-2xl border-2 border-primary bg-primary/10 px-4 py-4 shadow-md sm:px-6"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-primary">Saved clip — editing</p>
+                <h3 className="mt-1 text-xl font-bold leading-tight text-foreground">
+                  {clipTitle || "Untitled clip"}
+                </h3>
+                <p className="mt-2 font-mono text-sm font-semibold text-foreground">
+                  {formatMsRange(inMs, outMs)} · Length {clipDurationLabel}
+                </p>
+                {clipDescription.trim() && (
+                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                    {clipDescription}
+                  </p>
+                )}
+                {mergeQuickAndFreeTags(quickTagsSelected, clipTagsFree).length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {mergeQuickAndFreeTags(quickTagsSelected, clipTagsFree)
+                      .slice(0, 12)
+                      .map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-lg bg-background/80 px-2.5 py-1 text-xs font-semibold text-foreground ring-1 ring-border"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="h-12 shrink-0 border-2 border-border font-bold"
+                onClick={enterFullFilmMode}
+              >
+                Full film mode
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
+              Scrubber shows this clip’s range. Use <strong className="text-foreground">Preview clip</strong> to play only this
+              segment (stops at the end). Switch to full film to mark a new clip or browse the whole game.
+            </p>
+          </div>
+        )}
+
         <header className="rounded-xl border-2 border-border bg-muted/40 px-4 py-4 sm:px-6">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Now coaching</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Source film</p>
           <h2 className="mt-1 truncate text-2xl font-bold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
           <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
-            Drag the scrubber or use the video controls. When you’ve marked start and end, hit{" "}
-            <strong className="font-semibold text-foreground">Save clip</strong>.
+            {highlightClipId
+              ? "Film plays behind your saved clip — timeline range matches the clip below."
+              : "Drag the scrubber or use the video controls. When you’ve marked start and end, hit Save clip."}
           </p>
         </header>
 
@@ -477,6 +581,7 @@ export function FilmWorkspace({
 
         <QuickClipBar
           enabled={canCreateClips && videoReady}
+          savedClipEditing={!!highlightClipId}
           previewActive={previewActive}
           clipValid={clipValid}
           saving={clipSaving}
@@ -527,7 +632,10 @@ export function FilmWorkspace({
           reelClipIds={reelClipIds}
           onToggleReel={toggleReel}
           onLoadClipInEditor={loadClipIntoEditor}
-          onPreviewClip={(c) => void previewSavedClip(c)}
+          onPreviewClip={(c) => {
+            loadClipIntoEditor(c)
+            void previewSavedClip(c)
+          }}
           onDeleteClip={(id) => void deleteClip(id)}
         />
       </div>

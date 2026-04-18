@@ -19,6 +19,8 @@ const SKIP = 5000
 
 type Props = {
   enabled: boolean
+  /** Editing a saved clip — preview plays segment once; copy reflects clip context */
+  savedClipEditing?: boolean
   previewActive: boolean
   clipValid: boolean
   saving: boolean
@@ -39,6 +41,7 @@ type Props = {
 
 export function QuickClipBar({
   enabled,
+  savedClipEditing = false,
   previewActive,
   clipValid,
   saving,
@@ -62,10 +65,22 @@ export function QuickClipBar({
     <div className="rounded-2xl border-2 border-border bg-card p-5 shadow-md ring-1 ring-black/[0.06] dark:bg-card md:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-base font-bold tracking-tight text-foreground">Mark this play</h3>
+          <h3 className="text-base font-bold tracking-tight text-foreground">
+            {savedClipEditing ? "Adjust this clip" : "Mark this play"}
+          </h3>
           <p className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-400">
-            Pause on the first frame of the play, tap <strong className="font-semibold text-foreground">Mark start</strong>, then
-            do the same for the last frame with <strong className="font-semibold text-foreground">Mark end</strong>.
+            {savedClipEditing ? (
+              <>
+                Range below matches this saved clip. <strong className="text-foreground">Preview clip</strong> plays in→out once
+                and stops. Use marks to tweak timing, then Save clip to update.
+              </>
+            ) : (
+              <>
+                Pause on the first frame of the play, tap <strong className="font-semibold text-foreground">Mark start</strong>,
+                then do the same for the last frame with{" "}
+                <strong className="font-semibold text-foreground">Mark end</strong>.
+              </>
+            )}
           </p>
         </div>
         <Button
@@ -122,7 +137,7 @@ export function QuickClipBar({
           ) : (
             <>
               <Play className="h-5 w-5" aria-hidden />
-              Preview clip
+              {savedClipEditing ? "Play clip segment" : "Preview clip"}
             </>
           )}
         </Button>

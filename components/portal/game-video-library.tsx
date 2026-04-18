@@ -435,6 +435,7 @@ export function GameVideoLibrary({
                   onError={setError}
                   onDeleteVideo={deleteVideoInModal}
                   initialClipId={filmRoomClipId}
+                  onSavedClipContextExit={() => setFilmRoomClipId(null)}
                 />
               </div>
             </div>

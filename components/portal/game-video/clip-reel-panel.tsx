@@ -112,7 +112,7 @@ export function ClipReelPanel({
                 </Button>
                 <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => onPreview(c)}>
                   <Play className="h-3.5 w-3.5" aria-hidden />
-                  Watch
+                  Play clip
                 </Button>
                 <Button
                   type="button"

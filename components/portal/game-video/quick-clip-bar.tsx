@@ -27,6 +27,8 @@ type Props = {
   enabled: boolean
   savedClipEditing?: boolean
   draftWorkflow?: boolean
+  /** Hide Save all / Save selected / Discard for drafts — used when persistence happens only on a Finalize step. */
+  hideDraftPersistActions?: boolean
   draftCount?: number
   bulkSaveCount?: number
   markPhase?: MarkPhaseUi
@@ -64,6 +66,7 @@ export function QuickClipBar({
   enabled,
   savedClipEditing = false,
   draftWorkflow = false,
+  hideDraftPersistActions = false,
   draftCount = 0,
   bulkSaveCount = 0,
   markPhase = "idle",
@@ -98,7 +101,8 @@ export function QuickClipBar({
 }: Props) {
   if (!enabled) return null
 
-  const showDraftActions = draftWorkflow && !savedClipEditing && draftCount > 0
+  const showDraftActions =
+    draftWorkflow && !savedClipEditing && draftCount > 0 && !hideDraftPersistActions
   const canPreviewClip = previewClipAllowed ?? clipValid
 
   const previewDisabledReason =
@@ -109,17 +113,31 @@ export function QuickClipBar({
   const sectionMuted = "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
 
   const tipOverview = draftWorkflow ? (
-    <>
-      <p>
-        <strong className="text-foreground">Mark start</strong> opens a clip;{" "}
-        <strong className="text-foreground">Mark end</strong> logs it as a draft. Name clips in the list, then save to the roster
-        when you want.
-      </p>
-      <p>
-        <strong className="text-foreground">Play</strong> uses full film from the scrubber unless a clip range is ready — then it
-        plays in→out once. <strong className="text-foreground">Preview</strong> loops that range for trimming.
-      </p>
-    </>
+    hideDraftPersistActions ? (
+      <>
+        <p>
+          <strong className="text-foreground">Mark start</strong> opens a clip;{" "}
+          <strong className="text-foreground">Mark end</strong> logs it locally — nothing uploads until you finish the workflow on{" "}
+          <strong className="text-foreground">Finalize</strong>.
+        </p>
+        <p>
+          <strong className="text-foreground">Play</strong> uses full film from the scrubber unless a clip range is ready — then it
+          plays in→out once. <strong className="text-foreground">Preview</strong> loops that range for trimming.
+        </p>
+      </>
+    ) : (
+      <>
+        <p>
+          <strong className="text-foreground">Mark start</strong> opens a clip;{" "}
+          <strong className="text-foreground">Mark end</strong> logs it as a draft. Name clips in the list, then save to the roster
+          when you want.
+        </p>
+        <p>
+          <strong className="text-foreground">Play</strong> uses full film from the scrubber unless a clip range is ready — then it
+          plays in→out once. <strong className="text-foreground">Preview</strong> loops that range for trimming.
+        </p>
+      </>
+    )
   ) : savedClipEditing ? (
     <>
       <p>
@@ -152,11 +170,20 @@ export function QuickClipBar({
                 <kbd className="rounded bg-muted px-1 font-mono">O</kbd> mark end ·{" "}
                 <kbd className="rounded bg-muted px-1 font-mono">Ctrl</kbd>+
                 <kbd className="rounded bg-muted px-1 font-mono">Enter</kbd>{" "}
-                {draftWorkflow ? "save all drafts" : "save & next"} ·{" "}
+                {draftWorkflow && hideDraftPersistActions
+                  ? "finalize (Finalize step)"
+                  : draftWorkflow
+                    ? "save all drafts"
+                    : "save & next"}{" "}
+                ·{" "}
                 <kbd className="rounded bg-muted px-1 font-mono">Ctrl</kbd>+
                 <kbd className="rounded bg-muted px-1 font-mono">Shift</kbd>+
                 <kbd className="rounded bg-muted px-1 font-mono">S</kbd>{" "}
-                {draftWorkflow ? "save selected" : "save only"}
+                {draftWorkflow && hideDraftPersistActions
+                  ? "(not used in finalize-only flow)"
+                  : draftWorkflow
+                    ? "save selected"
+                    : "save only"}
               </p>
             </div>
           </FilmInfoTip>

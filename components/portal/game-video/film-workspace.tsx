@@ -2,14 +2,17 @@
 
 import type { RefObject } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { PanelLeftOpen, PanelRightOpen } from "lucide-react"
 import type { ClipRow, GameVideoRow } from "@/components/portal/game-video/game-video-types"
 import { CoachFilmSidePanel } from "@/components/portal/game-video/coach-film-side-panel"
-import { FilmRoomSessionRail } from "@/components/portal/game-video/film-room-session-rail"
+import { CaptureStepPanel } from "@/components/portal/game-video/capture-step-panel"
+import { FinalizeStepPanel } from "@/components/portal/game-video/finalize-step-panel"
+import { FilmFullRosterLinksCard } from "@/components/portal/game-video/film-full-roster-links-card"
+import { FilmWorkflowStepper, type FilmWorkflowStep } from "@/components/portal/game-video/film-workflow-stepper"
+import { NameTagStepPanel } from "@/components/portal/game-video/name-tag-step-panel"
+import { ReviewStepPanel } from "@/components/portal/game-video/review-step-panel"
 import { FilmPlayerHero } from "@/components/portal/game-video/film-player-hero"
 import { QuickClipBar } from "@/components/portal/game-video/quick-clip-bar"
 import { ClipSessionStrip } from "@/components/portal/game-video/clip-session-strip"
-import { DraftClipQueue } from "@/components/portal/game-video/draft-clip-queue"
 import type { FilmDraftClip, MarkPhase } from "@/components/portal/game-video/film-draft-types"
 import { nextDraftSlotLabel } from "@/components/portal/game-video/film-draft-types"
 import {
@@ -117,6 +120,8 @@ export function FilmWorkspace({
   /** Newest-first clip ids created in this film-room session (for quick recall without leaving the player). */
   const [sessionClipIds, setSessionClipIds] = useState<string[]>([])
 
+  const [workflowStep, setWorkflowStep] = useState<FilmWorkflowStep>(1)
+
   const [draftClips, setDraftClips] = useState<FilmDraftClip[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [bulkDraftIds, setBulkDraftIds] = useState<Set<string>>(new Set())
@@ -222,6 +227,7 @@ export function FilmWorkspace({
     setPreviewStripTiles([])
     setPreviewStripStatus("idle")
     setRecentlyLoggedDraftId(null)
+    setWorkflowStep(1)
   }, [video.id])
 
   useEffect(() => {
@@ -1125,6 +1131,7 @@ export function FilmWorkspace({
         if (savedIds.length > 0) {
           setSessionClipIds((prev) => [...savedIds, ...prev.filter((x) => !savedIds.includes(x))])
         }
+        setWorkflowStep(1)
         stopPreview()
       } catch (e) {
         onError(e instanceof Error ? e.message : "Clip save failed")
@@ -1162,6 +1169,23 @@ export function FilmWorkspace({
     }
     stopPreview()
   }, [flushDraftFormIntoStore, selectedDraftId, stopPreview])
+
+  const reorderDraftClip = useCallback(
+    (id: string, dir: -1 | 1) => {
+      flushDraftFormIntoStore()
+      setDraftClips((prev) => {
+        const idx = prev.findIndex((x) => x.id === id)
+        if (idx < 0) return prev
+        const j = idx + dir
+        if (j < 0 || j >= prev.length) return prev
+        const next = [...prev]
+        const [row] = next.splice(idx, 1)
+        next.splice(j, 0, row)
+        return next.map((d, i) => ({ ...d, slotLabel: nextDraftSlotLabel(i) }))
+      })
+    },
+    [flushDraftFormIntoStore],
+  )
 
   const deleteClip = async (clipId: string) => {
     if (!confirm("Remove this clip?")) return
@@ -1260,6 +1284,7 @@ export function FilmWorkspace({
     setBulkDraftIds(new Set())
     setMarkPhase("idle")
     setPendingStartMs(null)
+    setWorkflowStep(1)
     const d = durationSafe > 1 ? durationSafe : 1
     setInMs(0)
     setOutMs(Math.min(15000, d))
@@ -1306,6 +1331,25 @@ export function FilmWorkspace({
   const skipForward5 = () => nudgePlayhead(SKIP_COACH)
   const replayMarkedClip = () => void startPreview()
 
+  const workflowMode = Boolean(canCreateClips && videoReady && !highlightClipId)
+  const workflowModeRef = useRef(workflowMode)
+  workflowModeRef.current = workflowMode
+  const workflowStepRef = useRef(workflowStep)
+  workflowStepRef.current = workflowStep
+
+  useEffect(() => {
+    if (!workflowMode) return
+    if (draftClips.length === 0 && workflowStep > 1) setWorkflowStep(1)
+  }, [workflowMode, draftClips.length, workflowStep])
+
+  useEffect(() => {
+    if (!workflowMode || workflowStep !== 3) return
+    if (draftClips.length === 0) return
+    if (!selectedDraftId || !draftClips.some((d) => d.id === selectedDraftId)) {
+      selectDraftById(draftClips[0].id)
+    }
+  }, [workflowMode, workflowStep, draftClips, selectedDraftId, selectDraftById])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -1325,17 +1369,16 @@ export function FilmWorkspace({
         e.preventDefault()
         if (highlightClipId) {
           if (clipValid) void saveClipRequestRef.current(true)
-        } else if (draftClipsRef.current.length > 0) {
+        } else if (
+          workflowModeRef.current &&
+          workflowStepRef.current === 4 &&
+          draftClipsRef.current.length > 0
+        ) {
           void saveDraftClipsToServer(draftClipsRef.current.map((x) => x.id))
         }
       } else if (e.code === "KeyS" && e.shiftKey && (e.ctrlKey || e.metaKey) && canCreateClips && videoReady) {
         e.preventDefault()
-        if (highlightClipId) {
-          if (clipValid) void saveClipRequestRef.current(false)
-        } else {
-          const bulk = bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
-          if (bulk.length > 0) void saveDraftClipsToServer(bulk)
-        }
+        if (highlightClipId && clipValid) void saveClipRequestRef.current(false)
       }
     }
     window.addEventListener("keydown", onKey)
@@ -1347,13 +1390,8 @@ export function FilmWorkspace({
     applyMarkStart,
     applyMarkEnd,
     highlightClipId,
-    selectedDraftId,
-    bulkDraftIds,
     saveDraftClipsToServer,
   ])
-
-  const [filmRailCollapsed, setFilmRailCollapsed] = useState(false)
-  const [filmDetailsCollapsed, setFilmDetailsCollapsed] = useState(false)
 
   const draftQueueProps = {
     drafts: draftClips,
@@ -1380,39 +1418,58 @@ export function FilmWorkspace({
     disabled: clipSaving,
   }
 
+  const finalizePreviewClips = useMemo(
+    () =>
+      draftClips.map((d) => resolveDraftForPersist(d)).filter((d) => d.endMs > d.startMs + 80),
+    [draftClips, resolveDraftForPersist],
+  )
+
+  const sortedSavedClips = useMemo(() => {
+    return [...clips].sort((a, b) => {
+      const ta = a.created_at ? Date.parse(a.created_at) : 0
+      const tb = b.created_at ? Date.parse(b.created_at) : 0
+      return tb - ta
+    })
+  }, [clips])
+
+  const captureQuickClipProps = {
+    enabled: canCreateClips && videoReady,
+    savedClipEditing: false,
+    draftWorkflow: true,
+    hideDraftPersistActions: true,
+    draftCount: draftClips.length,
+    bulkSaveCount: bulkDraftIds.size,
+    markPhase,
+    previewActive,
+    clipValid,
+    previewClipAllowed,
+    saving: clipSaving,
+    fineTuneExpanded,
+    onToggleFineTune: () => setFineTuneExpanded((v) => !v),
+    onMarkStart: applyMarkStart,
+    onMarkEnd: applyMarkEnd,
+    mainPlayPrimaryLabel,
+    mainPlayDisabled,
+    mainPlayDisabledReason,
+    playbackScopeHint,
+    mainTransportPlaying: mainPlayActive && !videoPaused,
+    onMainPlayToggle: () => void toggleMainPlay(),
+    onPreview: () => void startPreview(),
+    onStopPreview: stopPreview,
+    onSaveClip: () => void saveClipRequest(false),
+    onSaveAndContinue: () => void saveClipRequest(true),
+    onResetMarks: resetMarks,
+    onSkipBack5: skipBack5,
+    onSkipForward5: skipForward5,
+    onReplayClip: replayMarkedClip,
+    onJumpToMarkStart: jumpMarkStart,
+    onJumpToMarkEnd: jumpMarkEnd,
+  }
+
   return (
     <TooltipProvider delayDuration={260} skipDelayDuration={100}>
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:gap-1.5">
-        {filmRailCollapsed ? (
-          <div className="hidden shrink-0 xl:sticky xl:top-2 xl:flex xl:flex-col xl:self-start">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-11 w-11 rounded-lg border-white/15 bg-[#0f172a]/90 text-white shadow-sm hover:bg-white/10"
-              onClick={() => setFilmRailCollapsed(false)}
-              aria-label="Show drafts and saved clips"
-            >
-              <PanelLeftOpen className="h-5 w-5" aria-hidden />
-            </Button>
-          </div>
-        ) : (
-          <FilmRoomSessionRail
-            video={video}
-            clips={clips}
-            sessionClipIds={sessionClipIds}
-            filmAttachedPlayerIds={filmAttachedPlayerIds}
-            highlightClipId={highlightClipId}
-            canCreateClips={canCreateClips}
-            videoReady={videoReady}
-            draftWorkflowEnabled={canCreateClips && videoReady}
-            draftQueue={draftQueueProps}
-            onLoadSavedClip={loadClipIntoEditor}
-            onRequestCollapse={() => setFilmRailCollapsed(true)}
-          />
-        )}
-
-        <div className="min-w-0 flex-1 space-y-2.5 xl:min-w-0">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row xl:items-stretch xl:gap-4">
+        <div className="flex min-h-0 min-w-0 flex-[1_1_58%] flex-col gap-2.5 xl:min-h-[calc(100dvh-9rem)]">
         {highlightClipId && (
           <div
             className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 shadow-sm sm:px-3.5"
@@ -1508,102 +1565,210 @@ export function FilmWorkspace({
             library.
           </div>
         )}
+        </div>
 
-        {canCreateClips && videoReady && (
-          <div className="xl:hidden">
-            <DraftClipQueue
-              drafts={draftClips}
-              selectedId={selectedDraftId}
-              pulseDraftId={recentlyLoggedDraftId}
-              bulkSelectedIds={bulkDraftIds}
-              markPhase={markPhase}
-              pendingStartMs={pendingStartMs}
-              onSelect={(id) => selectDraftById(id)}
-              onToggleBulk={(id, checked) => {
-                setBulkDraftIds((prev) => {
-                  const next = new Set(prev)
-                  if (checked) next.add(id)
-                  else next.delete(id)
-                  return next
-                })
-              }}
-              onTitleChange={(id, title) => {
-                setDraftClips((prev) => prev.map((d) => (d.id === id ? { ...d, titleDraft: title } : d)))
-                if (selectedDraftId === id) setClipTitle(title)
-              }}
-              onRemove={(id) => discardDraftClipsLocal([id])}
-              onDiscardOpenMark={discardOpenMark}
-              disabled={clipSaving}
-            />
-          </div>
-        )}
+        <div className="flex w-full min-h-0 shrink-0 flex-col gap-3 xl:sticky xl:top-2 xl:w-[400px] xl:max-w-[440px] xl:self-start">
+          {workflowMode ? (
+            <>
+              <FilmWorkflowStepper
+                step={workflowStep}
+                draftCount={draftClips.length}
+                disabled={clipSaving}
+                onStepChange={(s) => {
+                  if (draftClips.length === 0 && s > 1) return
+                  setWorkflowStep(s)
+                }}
+              />
+              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-white/10 bg-[#0f172a]/90 p-3 shadow-sm xl:max-h-[calc(100dvh-9rem)]">
+                <div className="rounded-lg border border-white/10 bg-[#0b1220]/80 px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase text-sky-400">Film</p>
+                  <p className="truncate text-sm font-bold text-white">{video.title || "Untitled film"}</p>
+                  <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-400">
+                    <span>Drafts: {draftClips.length}</span>
+                    <span>Saved: {clips.length}</span>
+                    <span>Session: {sessionClipIds.length}</span>
+                  </div>
+                </div>
 
-        <QuickClipBar
-          enabled={canCreateClips && videoReady}
-          savedClipEditing={!!highlightClipId}
-          draftWorkflow={!highlightClipId}
-          draftCount={draftClips.length}
-          bulkSaveCount={bulkDraftIds.size}
-          markPhase={markPhase}
-          onSaveDraftsSelected={() => {
-            const ids =
-              bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
-            if (ids.length === 0) {
-              onError("Select clips with the checkboxes, or click a draft in the list first.")
-              return
-            }
-            void saveDraftClipsToServer(ids)
-          }}
-          onSaveDraftsAll={() => void saveDraftClipsToServer(draftClips.map((d) => d.id))}
-          onDiscardDraftsSelected={() => {
-            const ids =
-              bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
-            if (ids.length === 0) {
-              onError("Select clips to remove from the queue.")
-              return
-            }
-            discardDraftClipsLocal(ids)
-          }}
-          onSaveDraftsAndContinue={() => {
-            void saveDraftClipsToServer(draftClips.map((d) => d.id)).then(() => {
-              requestAnimationFrame(() => clipTitleInputRef.current?.focus())
-            })
-          }}
-          previewActive={previewActive}
-          clipValid={clipValid}
-          previewClipAllowed={previewClipAllowed}
-          saving={clipSaving}
-          fineTuneExpanded={fineTuneExpanded}
-          onToggleFineTune={() => setFineTuneExpanded((v) => !v)}
-          onMarkStart={applyMarkStart}
-          onMarkEnd={applyMarkEnd}
-          mainPlayPrimaryLabel={mainPlayPrimaryLabel}
-          mainPlayDisabled={mainPlayDisabled}
-          mainPlayDisabledReason={mainPlayDisabledReason}
-          playbackScopeHint={playbackScopeHint}
-          mainTransportPlaying={mainPlayActive && !videoPaused}
-          onMainPlayToggle={() => void toggleMainPlay()}
-          onPreview={() => void startPreview()}
-          onStopPreview={stopPreview}
-          onSaveClip={() => void saveClipRequest(false)}
-          onSaveAndContinue={() => void saveClipRequest(true)}
-          onResetMarks={resetMarks}
-          onSkipBack5={skipBack5}
-          onSkipForward5={skipForward5}
-          onReplayClip={replayMarkedClip}
-          onJumpToMarkStart={jumpMarkStart}
-          onJumpToMarkEnd={jumpMarkEnd}
-        />
+                {workflowStep === 1 ? (
+                  <CaptureStepPanel
+                    canContinue={draftClips.length > 0}
+                    onContinue={() => setWorkflowStep(2)}
+                    quickClipProps={captureQuickClipProps}
+                    draftQueueProps={draftQueueProps}
+                  />
+                ) : null}
 
-      </div>
+                {workflowStep === 2 ? (
+                  <ReviewStepPanel
+                    drafts={draftClips}
+                    selectedId={selectedDraftId}
+                    onSelect={(id) => selectDraftById(id)}
+                    onRemove={(id) => discardDraftClipsLocal([id])}
+                    onMove={reorderDraftClip}
+                    onBack={() => setWorkflowStep(1)}
+                    onContinue={() => {
+                      flushDraftFormIntoStore()
+                      setWorkflowStep(3)
+                    }}
+                    disabled={clipSaving}
+                  />
+                ) : null}
 
-      <div
-        className={cn(
-          "flex w-full min-w-0 shrink-0 flex-col xl:sticky xl:top-2 xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-hidden",
-          filmDetailsCollapsed ? "xl:hidden" : "xl:w-[min(272px,24vw)] xl:max-w-[300px]",
-        )}
-      >
-        <CoachFilmSidePanel
+                {workflowStep === 3 ? (
+                  <NameTagStepPanel
+                    drafts={draftClips}
+                    selectedDraftId={selectedDraftId}
+                    onSelectDraft={selectDraftById}
+                    clipTitleInputRef={clipTitleInputRef}
+                    clipTitle={clipTitle}
+                    setClipTitle={setClipTitle}
+                    clipAttachedPlayerIds={clipAttachedPlayerIds}
+                    onClipAttachedPlayerIdsChange={setClipAttachedPlayerIds}
+                    clipCategories={clipCategories}
+                    setClipCategories={setClipCategories}
+                    clipDescription={clipDescription}
+                    setClipDescription={setClipDescription}
+                    quickTagsSelected={quickTagsSelected}
+                    toggleQuickTag={toggleQuickTag}
+                    clipTagsFree={clipTagsFree}
+                    setClipTagsFree={setClipTagsFree}
+                    taggingEnabled={taggingEnabled}
+                    aiVideoEnabled={aiVideoEnabled}
+                    aiWorking={aiWorking}
+                    onRunAiAssist={runAiAssist}
+                    teamId={teamId}
+                    videoReady={videoReady}
+                    canCreateClips={canCreateClips}
+                    onBack={() => setWorkflowStep(2)}
+                    onContinue={() => {
+                      flushDraftFormIntoStore()
+                      setWorkflowStep(4)
+                    }}
+                  />
+                ) : null}
+
+                {workflowStep === 4 ? (
+                  <FinalizeStepPanel
+                    drafts={finalizePreviewClips}
+                    taggingEnabled={taggingEnabled}
+                    saving={clipSaving}
+                    onFinalize={() => void saveDraftClipsToServer(draftClips.map((d) => d.id))}
+                    onBack={() => setWorkflowStep(3)}
+                  />
+                ) : null}
+              </div>
+
+              {onFilmAttachedPlayerIdsChange ? (
+                <FilmFullRosterLinksCard
+                  teamId={teamId}
+                  filmAttachedPlayerIds={filmAttachedPlayerIds}
+                  onFilmAttachedPlayerIdsChange={(ids) =>
+                    onFilmAttachedPlayerIdsChange(ids).catch((e) =>
+                      onError(e instanceof Error ? e.message : "Could not update film roster links"),
+                    )
+                  }
+                  disabled={clipSaving || !videoReady}
+                />
+              ) : null}
+
+              <details className="rounded-xl border border-white/10 bg-[#0f172a]/85 p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-200">
+                  Saved clips on this film ({clips.length})
+                </summary>
+                <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-0.5">
+                  {sortedSavedClips.length === 0 ? (
+                    <li className="rounded-lg border border-dashed border-white/10 px-3 py-6 text-center text-xs text-slate-400">
+                      No clips saved yet.
+                    </li>
+                  ) : (
+                    sortedSavedClips.map((c) => {
+                      const active = highlightClipId === c.id
+                      return (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            onClick={() => loadClipIntoEditor(c)}
+                            className={cn(
+                              "flex w-full flex-col rounded-lg px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                              active ? "bg-primary/15 ring-2 ring-primary/35" : "hover:bg-white/5",
+                            )}
+                          >
+                            <span className="line-clamp-2 text-sm font-semibold text-white">{c.title?.trim() || "Untitled clip"}</span>
+                            <span className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-400">
+                              {formatMsRange(c.start_ms, c.end_ms)}
+                            </span>
+                          </button>
+                        </li>
+                      )
+                    })
+                  )}
+                </ul>
+              </details>
+            </>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-white/10 bg-[#0f172a]/90 p-3 xl:max-h-[calc(100dvh-9rem)]">
+              {canCreateClips && videoReady ? (
+                <QuickClipBar
+                  enabled
+                  savedClipEditing={!!highlightClipId}
+                  draftWorkflow={!highlightClipId}
+                  hideDraftPersistActions={false}
+                  draftCount={draftClips.length}
+                  bulkSaveCount={bulkDraftIds.size}
+                  markPhase={markPhase}
+                  onSaveDraftsSelected={() => {
+                    const ids =
+                      bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
+                    if (ids.length === 0) {
+                      onError("Select clips with the checkboxes, or click a draft in the list first.")
+                      return
+                    }
+                    void saveDraftClipsToServer(ids)
+                  }}
+                  onSaveDraftsAll={() => void saveDraftClipsToServer(draftClips.map((d) => d.id))}
+                  onDiscardDraftsSelected={() => {
+                    const ids =
+                      bulkDraftIds.size > 0 ? [...bulkDraftIds] : selectedDraftId ? [selectedDraftId] : []
+                    if (ids.length === 0) {
+                      onError("Select clips to remove from the queue.")
+                      return
+                    }
+                    discardDraftClipsLocal(ids)
+                  }}
+                  onSaveDraftsAndContinue={() => {
+                    void saveDraftClipsToServer(draftClips.map((d) => d.id)).then(() => {
+                      requestAnimationFrame(() => clipTitleInputRef.current?.focus())
+                    })
+                  }}
+                  previewActive={previewActive}
+                  clipValid={clipValid}
+                  previewClipAllowed={previewClipAllowed}
+                  saving={clipSaving}
+                  fineTuneExpanded={fineTuneExpanded}
+                  onToggleFineTune={() => setFineTuneExpanded((v) => !v)}
+                  onMarkStart={applyMarkStart}
+                  onMarkEnd={applyMarkEnd}
+                  mainPlayPrimaryLabel={mainPlayPrimaryLabel}
+                  mainPlayDisabled={mainPlayDisabled}
+                  mainPlayDisabledReason={mainPlayDisabledReason}
+                  playbackScopeHint={playbackScopeHint}
+                  mainTransportPlaying={mainPlayActive && !videoPaused}
+                  onMainPlayToggle={() => void toggleMainPlay()}
+                  onPreview={() => void startPreview()}
+                  onStopPreview={stopPreview}
+                  onSaveClip={() => void saveClipRequest(false)}
+                  onSaveAndContinue={() => void saveClipRequest(true)}
+                  onResetMarks={resetMarks}
+                  onSkipBack5={skipBack5}
+                  onSkipForward5={skipForward5}
+                  onReplayClip={replayMarkedClip}
+                  onJumpToMarkStart={jumpMarkStart}
+                  onJumpToMarkEnd={jumpMarkEnd}
+                />
+              ) : null}
+
+              <CoachFilmSidePanel
           clipTitleInputRef={clipTitleInputRef}
           clipCount={clips.length}
           reelCount={reelClipIds.size}
@@ -1649,25 +1814,11 @@ export function FilmWorkspace({
               : undefined
           }
           filmRosterLinksDisabled={clipSaving || !videoReady}
-          onRequestCollapse={() => setFilmDetailsCollapsed(true)}
         />
-      </div>
-
-      {filmDetailsCollapsed ? (
-        <div className="hidden shrink-0 xl:sticky xl:top-2 xl:flex xl:flex-col xl:self-start">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-11 w-11 rounded-lg border-white/15 bg-[#0f172a]/90 text-white shadow-sm hover:bg-white/10"
-            onClick={() => setFilmDetailsCollapsed(false)}
-            aria-label="Show clip details and tags"
-          >
-            <PanelRightOpen className="h-5 w-5" aria-hidden />
-          </Button>
+            </div>
+          )}
         </div>
-      ) : null}
-    </div>
+      </div>
     </TooltipProvider>
   )
 }

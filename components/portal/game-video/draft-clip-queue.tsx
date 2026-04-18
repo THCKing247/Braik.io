@@ -14,6 +14,8 @@ export function DraftClipQueue({
   selectedId,
   pulseDraftId,
   bulkSelectedIds,
+  bulkSelectEnabled = true,
+  showTitleInputs = true,
   markPhase,
   pendingStartMs,
   onSelect,
@@ -28,6 +30,10 @@ export function DraftClipQueue({
   /** Flash highlight after quick logging without selecting (non-blocking). */
   pulseDraftId?: string | null
   bulkSelectedIds: Set<string>
+  /** When false, hide bulk checkboxes (finalize-only draft flow). */
+  bulkSelectEnabled?: boolean
+  /** When false, show clip label only (naming happens in Name & Tag step). */
+  showTitleInputs?: boolean
   markPhase: "idle" | "await_end"
   pendingStartMs: number | null
   onSelect: (id: string) => void
@@ -44,8 +50,8 @@ export function DraftClipQueue({
           <h3 className="text-sm font-bold tracking-tight text-foreground">Draft queue</h3>
           <FilmInfoTip label="About draft clips">
             <p>
-              Each time you press <strong className="text-foreground">Mark end</strong>, the range is added here. Use checkboxes or
-              click a row to choose what <strong className="text-foreground">Save selected</strong> uploads.
+              Each time you press <strong className="text-foreground">Mark end</strong>, the range is added here as a draft. Drafts stay
+              on this device until you complete <strong className="text-foreground">Finalize</strong>. Click a row to scrub and trim that range.
             </p>
           </FilmInfoTip>
         </div>
@@ -80,12 +86,14 @@ export function DraftClipQueue({
                   )}
                 >
                   <div className="flex shrink-0 items-center gap-2">
-                    <Checkbox
-                      checked={bulkOn}
-                      onCheckedChange={(c) => onToggleBulk(d.id, c === true)}
-                      aria-label={`Select ${d.slotLabel} for bulk save`}
-                      disabled={disabled}
-                    />
+                    {bulkSelectEnabled ? (
+                      <Checkbox
+                        checked={bulkOn}
+                        onCheckedChange={(c) => onToggleBulk(d.id, c === true)}
+                        aria-label={`Select ${d.slotLabel} for bulk actions`}
+                        disabled={disabled}
+                      />
+                    ) : null}
                     <button
                       type="button"
                       className={cn(
@@ -100,14 +108,23 @@ export function DraftClipQueue({
                       </span>
                     </button>
                   </div>
-                  <Input
-                    className="min-h-10 flex-1 text-sm font-medium"
-                    placeholder={`Title (${d.slotLabel})`}
-                    value={d.titleDraft}
-                    onChange={(e) => onTitleChange(d.id, e.target.value)}
-                    onClick={() => onSelect(d.id)}
-                    disabled={disabled}
-                  />
+                  {showTitleInputs ? (
+                    <Input
+                      className="min-h-10 flex-1 text-sm font-medium"
+                      placeholder={`Title (${d.slotLabel})`}
+                      value={d.titleDraft}
+                      onChange={(e) => onTitleChange(d.id, e.target.value)}
+                      onClick={() => onSelect(d.id)}
+                      disabled={disabled}
+                    />
+                  ) : (
+                    <div
+                      className="flex min-h-10 flex-1 items-center text-sm font-medium text-muted-foreground"
+                      aria-hidden
+                    >
+                      {d.titleDraft || d.slotLabel}
+                    </div>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"

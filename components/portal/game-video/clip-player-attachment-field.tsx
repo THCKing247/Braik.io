@@ -24,11 +24,16 @@ export function ClipPlayerAttachmentField({
   selectedIds,
   onChange,
   disabled,
+  heading = "Players in this clip",
+  description = "Attach roster athletes so this clip appears on their profile and recruiting film. Search and add multiple.",
 }: {
   teamId: string
   selectedIds: string[]
   onChange: (ids: string[]) => void
   disabled?: boolean
+  /** Override default clip-oriented copy when attaching at film level vs clip level. */
+  heading?: string
+  description?: string
 }) {
   const [roster, setRoster] = useState<LitePlayer[]>([])
   const [loading, setLoading] = useState(false)
@@ -89,10 +94,8 @@ export function ClipPlayerAttachmentField({
   return (
     <div className="space-y-3">
       <div>
-        <h4 className="text-sm font-bold text-foreground">Players in this clip</h4>
-        <p className="mt-1 text-xs leading-snug text-muted-foreground">
-          Attach roster athletes so this clip appears on their profile and recruiting film. Search and add multiple.
-        </p>
+        <h4 className="text-sm font-bold text-foreground">{heading}</h4>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">{description}</p>
       </div>
 
       {selectedPlayers.length > 0 && (

@@ -283,22 +283,21 @@ export function GameVideoLibrary({
   return (
     <div className="space-y-6">
       {entitlement && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-border bg-gradient-to-r from-card to-muted/30 px-5 py-4 text-sm shadow-sm">
-          <span className="font-semibold text-foreground">Team storage</span>
-          <span className="font-mono text-xs text-muted-foreground">
-            {formatBytes(entitlement.storageUsedBytes)} / {formatBytes(entitlement.storageCapBytes)}
-          </span>
-          <span className="text-border">·</span>
-          <span className="text-muted-foreground">
-            {entitlement.videoCount} films · {entitlement.clipCount} clips
-          </span>
-          {entitlement.sharedStorageScope === "program" && (
-            <>
-              <span className="text-border">·</span>
-              <span className="text-muted-foreground">Program-shared quota</span>
-            </>
-          )}
-        </div>
+        <details className="group rounded-2xl border border-border/80 bg-muted/20 px-4 py-3 text-xs text-muted-foreground shadow-sm open:bg-card open:shadow-md">
+          <summary className="cursor-pointer list-none font-medium text-foreground outline-none marker:hidden [&::-webkit-details-marker]:hidden">
+            <span className="underline-offset-2 group-open:no-underline">
+              Video space for this team — {formatBytes(entitlement.storageUsedBytes)} of {formatBytes(entitlement.storageCapBytes)}{" "}
+              used
+            </span>
+            <span className="ml-2 inline text-muted-foreground">
+              ({entitlement.videoCount} films, {entitlement.clipCount} clips stored)
+              {entitlement.sharedStorageScope === "program" ? " · Program-shared" : ""}
+            </span>
+          </summary>
+          <p className="mt-2 border-t border-border pt-2 text-[11px] leading-relaxed">
+            Storage keeps your uploads safe; day-to-day work happens in the film viewer and clip reel below.
+          </p>
+        </details>
       )}
 
       {error && (
@@ -322,11 +321,30 @@ export function GameVideoLibrary({
 
         <div className="min-w-0">
           {!selected ? (
-            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/15 px-6 py-16 text-center">
-              <p className="text-lg font-semibold text-foreground">Select a film</p>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-                Choose a video from the library to open the breakdown workspace — timeline, clip reel, and assistant tools.
+            <div className="flex min-h-[440px] flex-col justify-center rounded-2xl border border-dashed border-border bg-gradient-to-b from-card to-muted/20 px-6 py-12 text-left sm:px-10">
+              <p className="text-lg font-semibold text-foreground">Open a film to start</p>
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
+                Your game or practice film opens in the main workspace with a scrubber, mark buttons, and tabs for notes and
+                tags.
               </p>
+              <ol className="mt-8 max-w-md list-decimal space-y-3 pl-5 text-sm text-foreground">
+                <li>
+                  <span className="font-medium">Upload</span>{" "}
+                  <span className="text-muted-foreground">— add video from the left if you haven’t yet.</span>
+                </li>
+                <li>
+                  <span className="font-medium">Pick the film</span>{" "}
+                  <span className="text-muted-foreground">— click it in the library when it’s Ready.</span>
+                </li>
+                <li>
+                  <span className="font-medium">Watch and mark</span>{" "}
+                  <span className="text-muted-foreground">— set start and end on the play you’re teaching.</span>
+                </li>
+                <li>
+                  <span className="font-medium">Save &amp; organize</span>{" "}
+                  <span className="text-muted-foreground">— add tags or notes, then star clips for your teaching reel.</span>
+                </li>
+              </ol>
             </div>
           ) : (
             <FilmWorkspace

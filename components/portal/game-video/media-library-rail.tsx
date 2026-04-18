@@ -51,8 +51,8 @@ export function MediaLibraryRail({
             <Film className="h-5 w-5" aria-hidden />
           </div>
           <div>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">Film library</h2>
-            <p className="text-[11px] text-muted-foreground">Game film on your team</p>
+            <h2 className="text-sm font-semibold tracking-tight text-foreground">Your film</h2>
+            <p className="text-[11px] text-muted-foreground">Recent games · practices</p>
           </div>
         </div>
         {canUpload && (
@@ -80,7 +80,7 @@ export function MediaLibraryRail({
               onClick={onPickUpload}
             >
               <Upload className="mr-2 h-4 w-4" aria-hidden />
-              Upload film
+              Add film
             </Button>
           </div>
         )}
@@ -121,9 +121,9 @@ export function MediaLibraryRail({
           </div>
         ) : videos.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-10 text-center">
-            <p className="text-sm font-medium text-foreground">No film yet</p>
+            <p className="text-sm font-medium text-foreground">Nothing here yet</p>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Upload practice or game video to build highlights and breakdown clips.
+              Add a game or practice so you can mark plays and save teaching clips.
             </p>
           </div>
         ) : (

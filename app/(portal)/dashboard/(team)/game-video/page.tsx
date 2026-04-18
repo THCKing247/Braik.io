@@ -41,9 +41,9 @@ function GameVideoBody({ teamId }: { teamId: string }) {
           <Video className="h-6 w-6" aria-hidden />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Game Video / Clips</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Film room</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Upload game film, create clips, and manage storage for your team.
+            Watch film, mark plays, tag teaching moments, and build your clip reel — built for coaches on a clock.
           </p>
         </div>
       </div>

@@ -776,18 +776,41 @@ export function FilmWorkspace({
         if (cancelled) return
       }
 
-      const el = videoRef.current
+      const waitForVideoEl = async (): Promise<HTMLVideoElement | null> => {
+        const deadline = Date.now() + 8000
+        while (Date.now() < deadline && !cancelled) {
+          const v = videoRef.current
+          if (v) return v
+          await new Promise<void>((r) => requestAnimationFrame(() => r()))
+        }
+        return videoRef.current
+      }
+
+      let el = videoRef.current
+      if (!el && !cancelled) el = await waitForVideoEl()
       if (!el || cancelled) {
         setPreviewStripStatus("none")
         return
       }
       try {
-        const cap = await captureClientPreviewStrip(el, durationMs)
+        let cap = await captureClientPreviewStrip(el, durationMs)
+        if (cancelled) return
+        if (cap.length === 0 && el.videoWidth === 0) {
+          await new Promise<void>((resolve) => {
+            const done = () => resolve()
+            el!.addEventListener("loadeddata", done, { once: true })
+            window.setTimeout(done, 2500)
+          })
+          if (!cancelled) cap = await captureClientPreviewStrip(el, durationMs)
+        }
         if (cancelled) return
         setPreviewStripTiles(cap.map((c) => ({ tMs: c.tMs, src: c.src })))
         setPreviewStripStatus(cap.length > 0 ? "ready" : "none")
-      } catch {
-        if (!cancelled) setPreviewStripStatus("error")
+      } catch (e) {
+        if (cancelled) return
+        const msg = e instanceof Error ? e.message : ""
+        setPreviewStripTiles([])
+        setPreviewStripStatus(msg === "FILM_PREVIEW_CANVAS_TAINTED" ? "none" : "error")
       }
     }
     void run()

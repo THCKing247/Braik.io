@@ -121,6 +121,7 @@ export function FilmPlayerHero({
             ref={videoRef}
             key={playbackKey}
             className="h-full w-full object-contain"
+            crossOrigin="anonymous"
             playsInline
             controls={!previewActive && !suppressNativeControls}
             src={playbackUrl}

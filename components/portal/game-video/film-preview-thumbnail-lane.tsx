@@ -19,29 +19,53 @@ export function FilmPreviewThumbnailLane({ durationMs, playheadMs, tiles, status
   const label = useMemo(() => {
     if (status === "loading") return "Building preview strip…"
     if (status === "error") return "Preview strip unavailable"
-    if (tiles.length === 0) return "Preview strip — scan the film visually (optional)"
+    if (tiles.length === 0) return "Film overview (optional)"
     return "Film scan (low density)"
   }, [status, tiles.length])
 
+  const showStripChrome = status === "loading" || tiles.length > 0 || status === "error"
+
   return (
-    <div className="mt-3 space-y-2">
+    <div className={showStripChrome ? "mt-3 space-y-2" : "mt-2"}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+        <p
+          className={
+            tiles.length === 0 && status !== "loading"
+              ? "text-[9px] font-medium uppercase tracking-wide text-slate-600"
+              : "text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+          }
+        >
+          {label}
+        </p>
         {status === "loading" ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" aria-hidden />
         ) : null}
       </div>
-      <div className="relative overflow-hidden rounded-lg border border-white/10 bg-black/40">
+      <div
+        className={
+          tiles.length === 0 && status !== "loading"
+            ? "relative overflow-hidden rounded-md border border-white/5 bg-black/20"
+            : "relative overflow-hidden rounded-lg border border-white/10 bg-black/40"
+        }
+      >
         <div
           className="flex h-[52px] gap-px overflow-x-auto"
           role="list"
           aria-label="Film preview thumbnails"
         >
           {tiles.length === 0 ? (
-            <div className="flex min-h-[52px] min-w-full items-center justify-center px-3 py-2 text-center text-[11px] leading-snug text-slate-500">
+            <div
+              className={
+                status === "loading"
+                  ? "flex min-h-[52px] min-w-full items-center justify-center px-3 py-2 text-center text-[11px] leading-snug text-slate-500"
+                  : "flex min-h-[40px] min-w-full items-center justify-center px-2 py-1.5 text-center text-[10px] leading-snug text-slate-600/90"
+              }
+            >
               {status === "loading"
                 ? "Sampling a few frames for context — playback and marking stay available."
-                : "When ready, sparse thumbnails appear here (~1–4s apart) so you can scan the session without scrubbing blindly."}
+                : status === "error"
+                  ? "Thumbnails could not load; timeline scrubbing works as usual."
+                  : "Sparse thumbnails may appear here when available (~1–4s apart)."}
             </div>
           ) : (
             tiles.map((t, i) => (

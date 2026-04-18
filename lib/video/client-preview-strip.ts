@@ -7,6 +7,33 @@ import { suggestPreviewIntervalSec } from "@/lib/video/film-preview-manifest"
 
 export type ClientPreviewTile = { tMs: number; src: string }
 
+/**
+ * Canvas capture needs a CORS-enabled video response (e.g. R2 bucket CORS allowing this origin)
+ * plus crossOrigin="anonymous" on the element. Waits until dimensions are known.
+ */
+async function waitForVideoSurface(video: HTMLVideoElement, timeoutMs = 5000): Promise<boolean> {
+  if (video.videoWidth > 0 && video.videoHeight > 0) return true
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (ok: boolean) => {
+      if (done) return
+      done = true
+      clearTimeout(tid)
+      video.removeEventListener("loadeddata", onTry)
+      video.removeEventListener("loadedmetadata", onTry)
+      video.removeEventListener("canplay", onTry)
+      resolve(ok)
+    }
+    const onTry = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) finish(true)
+    }
+    const tid = window.setTimeout(() => finish(video.videoWidth > 0 && video.videoHeight > 0), timeoutMs)
+    video.addEventListener("loadeddata", onTry)
+    video.addEventListener("loadedmetadata", onTry)
+    video.addEventListener("canplay", onTry)
+  })
+}
+
 function waitSeeked(video: HTMLVideoElement): Promise<void> {
   return new Promise((resolve) => {
     const onSeeked = () => {
@@ -32,6 +59,8 @@ export async function captureClientPreviewStrip(
 ): Promise<ClientPreviewTile[]> {
   const maxTiles = Math.min(96, Math.max(8, opts?.maxTiles ?? 64))
   if (!Number.isFinite(durationMs) || durationMs < 500) return []
+
+  await waitForVideoSurface(video)
 
   const intervalMs = Math.round(suggestPreviewIntervalSec(durationMs, maxTiles) * 1000)
   const times: number[] = []
@@ -73,7 +102,13 @@ export async function captureClientPreviewStrip(
       video.currentTime = tMs / 1000
       await waitSeeked(video)
       ctx.drawImage(video, 0, 0, targetW, targetH)
-      const src = canvas.toDataURL("image/jpeg", 0.56)
+      let src: string
+      try {
+        src = canvas.toDataURL("image/jpeg", 0.56)
+      } catch {
+        // Tainted canvas (missing CORS / crossOrigin) — abort; caller shows graceful empty state
+        throw new Error("FILM_PREVIEW_CANVAS_TAINTED")
+      }
       out.push({ tMs, src })
     }
   } finally {

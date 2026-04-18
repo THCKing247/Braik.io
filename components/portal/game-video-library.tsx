@@ -6,7 +6,7 @@ import type { VideoEntitlementSummary } from "@/lib/app/app-bootstrap-types"
 import { FilmLibraryBrowse } from "@/components/portal/game-video/film-library-browse"
 import { FilmRoomModalShell } from "@/components/portal/game-video/film-room-modal-shell"
 import { FilmWorkspace } from "@/components/portal/game-video/film-workspace"
-import { MediaLibraryRail } from "@/components/portal/game-video/media-library-rail"
+import { Button } from "@/components/ui/button"
 import type {
   ClipLibraryRow,
   ClipRow,
@@ -490,7 +490,7 @@ export function GameVideoLibrary({
         />
       </div>
 
-      {filmRoomVideoId && modalVideo && (
+      {filmRoomVideoId && (
         <FilmRoomModalShell onExit={closeFilmRoom} exitLabel="Back to film library">
           <div className={cn("flex min-h-0 flex-1 flex-col gap-6")}>
             {error && (
@@ -499,23 +499,8 @@ export function GameVideoLibrary({
               </div>
             )}
 
-            <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)] lg:items-stretch lg:gap-8">
-              <MediaLibraryRail
-                filmRoom
-                videos={videos}
-                loading={loadingVideos}
-                selectedId={filmRoomVideoId}
-                onSelect={(id) => {
-                  setFilmRoomVideoId(id)
-                  setFilmRoomClipId(null)
-                }}
-                canUpload={canUpload}
-                taggingEnabled={taggingEnabled}
-                uploadUi={uploadUi}
-                onUploadVideo={(f, meta) => void onUploadFile(f, meta)}
-              />
-
-              <div className="flex min-h-0 min-w-0 flex-col">
+            {modalVideo ? (
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <FilmWorkspace
                   teamId={teamId}
                   video={modalVideo}
@@ -534,7 +519,23 @@ export function GameVideoLibrary({
                   onFilmAttachedPlayerIdsChange={updateFilmAttachedPlayers}
                 />
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/10 bg-[#0f172a]/60 px-6 py-16 text-center">
+                <p className="text-lg font-semibold text-white">Film not found</p>
+                <p className="max-w-md text-sm leading-relaxed text-slate-300">
+                  This film may have been removed or is still loading. Go back to the library and open a film from your list.
+                </p>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="secondary"
+                  className="mt-2 h-12 min-h-[48px] border-2 border-white/25 bg-white px-6 text-base font-bold text-[#0f172a]"
+                  onClick={() => closeFilmRoom()}
+                >
+                  Back to film library
+                </Button>
+              </div>
+            )}
           </div>
         </FilmRoomModalShell>
       )}

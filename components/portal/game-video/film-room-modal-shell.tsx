@@ -57,7 +57,7 @@ export function FilmRoomModalShell({
               Film room
             </h1>
             <p id="film-room-subtitle" className="mt-1 text-sm leading-snug text-slate-300 sm:text-[15px]">
-              Full-screen workspace — scrub, mark plays, tag teaching moments, build your reel
+              Clip workspace — scrub the film, mark plays, tag moments, and save clips.
             </p>
           </div>
         </div>

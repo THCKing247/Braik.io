@@ -4,6 +4,7 @@ import type { RefObject } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { ClipRow, GameVideoRow } from "@/components/portal/game-video/game-video-types"
 import { CoachFilmSidePanel } from "@/components/portal/game-video/coach-film-side-panel"
+import { FilmRoomSessionRail } from "@/components/portal/game-video/film-room-session-rail"
 import { FilmPlayerHero } from "@/components/portal/game-video/film-player-hero"
 import { QuickClipBar } from "@/components/portal/game-video/quick-clip-bar"
 import { ClipSessionStrip } from "@/components/portal/game-video/clip-session-strip"
@@ -1299,8 +1300,46 @@ export function FilmWorkspace({
     saveDraftClipsToServer,
   ])
 
+  const draftQueueProps = {
+    drafts: draftClips,
+    selectedId: selectedDraftId,
+    pulseDraftId: recentlyLoggedDraftId,
+    bulkSelectedIds: bulkDraftIds,
+    markPhase,
+    pendingStartMs,
+    onSelect: selectDraftById,
+    onToggleBulk: (id: string, checked: boolean) => {
+      setBulkDraftIds((prev) => {
+        const next = new Set(prev)
+        if (checked) next.add(id)
+        else next.delete(id)
+        return next
+      })
+    },
+    onTitleChange: (id: string, title: string) => {
+      setDraftClips((prev) => prev.map((d) => (d.id === id ? { ...d, titleDraft: title } : d)))
+      if (selectedDraftId === id) setClipTitle(title)
+    },
+    onRemove: (id: string) => discardDraftClipsLocal([id]),
+    onDiscardOpenMark: discardOpenMark,
+    disabled: clipSaving,
+  }
+
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8">
+      <FilmRoomSessionRail
+        video={video}
+        clips={clips}
+        sessionClipIds={sessionClipIds}
+        filmAttachedPlayerIds={filmAttachedPlayerIds}
+        highlightClipId={highlightClipId}
+        canCreateClips={canCreateClips}
+        videoReady={videoReady}
+        draftWorkflowEnabled={canCreateClips && videoReady}
+        draftQueue={draftQueueProps}
+        onLoadSavedClip={loadClipIntoEditor}
+      />
+
       <div className="min-w-0 flex-1 space-y-4">
         {highlightClipId && (
           <div
@@ -1355,7 +1394,7 @@ export function FilmWorkspace({
           </div>
         )}
 
-        <header className="rounded-xl border-2 border-border bg-muted/40 px-4 py-4 sm:px-6">
+        <header className="rounded-xl border-2 border-border bg-muted/40 px-4 py-4 sm:px-6 xl:hidden">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Source film</p>
           <h2 className="mt-1 truncate text-2xl font-bold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
           <p className="mt-2 text-sm leading-snug text-slate-700 dark:text-slate-300">
@@ -1452,30 +1491,32 @@ export function FilmWorkspace({
         )}
 
         {canCreateClips && videoReady && (
-          <DraftClipQueue
-            drafts={draftClips}
-            selectedId={selectedDraftId}
-            pulseDraftId={recentlyLoggedDraftId}
-            bulkSelectedIds={bulkDraftIds}
-            markPhase={markPhase}
-            pendingStartMs={pendingStartMs}
-            onSelect={(id) => selectDraftById(id)}
-            onToggleBulk={(id, checked) => {
-              setBulkDraftIds((prev) => {
-                const next = new Set(prev)
-                if (checked) next.add(id)
-                else next.delete(id)
-                return next
-              })
-            }}
-            onTitleChange={(id, title) => {
-              setDraftClips((prev) => prev.map((d) => (d.id === id ? { ...d, titleDraft: title } : d)))
-              if (selectedDraftId === id) setClipTitle(title)
-            }}
-            onRemove={(id) => discardDraftClipsLocal([id])}
-            onDiscardOpenMark={discardOpenMark}
-            disabled={clipSaving}
-          />
+          <div className="xl:hidden">
+            <DraftClipQueue
+              drafts={draftClips}
+              selectedId={selectedDraftId}
+              pulseDraftId={recentlyLoggedDraftId}
+              bulkSelectedIds={bulkDraftIds}
+              markPhase={markPhase}
+              pendingStartMs={pendingStartMs}
+              onSelect={(id) => selectDraftById(id)}
+              onToggleBulk={(id, checked) => {
+                setBulkDraftIds((prev) => {
+                  const next = new Set(prev)
+                  if (checked) next.add(id)
+                  else next.delete(id)
+                  return next
+                })
+              }}
+              onTitleChange={(id, title) => {
+                setDraftClips((prev) => prev.map((d) => (d.id === id ? { ...d, titleDraft: title } : d)))
+                if (selectedDraftId === id) setClipTitle(title)
+              }}
+              onRemove={(id) => discardDraftClipsLocal([id])}
+              onDiscardOpenMark={discardOpenMark}
+              disabled={clipSaving}
+            />
+          </div>
         )}
 
         <QuickClipBar

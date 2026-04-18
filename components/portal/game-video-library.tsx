@@ -45,6 +45,7 @@ export function GameVideoLibrary({
 
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
   const [modalClips, setModalClips] = useState<ClipRow[]>([])
+  const [filmAttachedPlayerIds, setFilmAttachedPlayerIds] = useState<string[]>([])
 
   const [uploadUi, setUploadUi] = useState<UploadUiState | null>(null)
   const [privacyBusyKey, setPrivacyBusyKey] = useState<string | null>(null)
@@ -112,16 +113,39 @@ export function GameVideoLibrary({
   const loadPlayback = useCallback(
     async (videoId: string) => {
       setPlaybackUrl(null)
+      setFilmAttachedPlayerIds([])
       try {
         const res = await fetch(`/api/teams/${teamId}/game-videos/${videoId}`)
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || "Failed to load video")
         setPlaybackUrl(typeof data.playbackUrl === "string" ? data.playbackUrl : null)
+        const raw = data.attachedPlayerIds
+        const ids = Array.isArray(raw) ? raw.filter((x: unknown): x is string => typeof x === "string") : []
+        setFilmAttachedPlayerIds(ids)
       } catch {
         setPlaybackUrl(null)
+        setFilmAttachedPlayerIds([])
       }
     },
     [teamId],
+  )
+
+  const updateFilmAttachedPlayers = useCallback(
+    async (ids: string[]) => {
+      if (!filmRoomVideoId) return
+      const res = await fetch(`/api/teams/${teamId}/game-videos/${filmRoomVideoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerIds: ids }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as { error?: string }).error || "Could not update film players")
+      const next = Array.isArray((data as { video?: { attachedPlayerIds?: string[] } }).video?.attachedPlayerIds)
+        ? ((data as { video: { attachedPlayerIds: string[] } }).video.attachedPlayerIds)
+        : ids
+      setFilmAttachedPlayerIds(next)
+    },
+    [teamId, filmRoomVideoId],
   )
 
   const loadModalClips = useCallback(
@@ -436,7 +460,7 @@ export function GameVideoLibrary({
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-5">
         {error && !filmRoomVideoId && (
           <div className="rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-base font-medium text-destructive">
             {error}
@@ -506,6 +530,8 @@ export function GameVideoLibrary({
                   onDeleteVideo={deleteVideoInModal}
                   initialClipId={filmRoomClipId}
                   onSavedClipContextExit={() => setFilmRoomClipId(null)}
+                  filmAttachedPlayerIds={filmAttachedPlayerIds}
+                  onFilmAttachedPlayerIdsChange={updateFilmAttachedPlayers}
                 />
               </div>
             </div>
@@ -545,6 +571,9 @@ function normalizeClipRow(raw: unknown, film: GameVideoRow): ClipLibraryRow {
     game_video_id: film.id,
     film_title: film.title ?? null,
     is_private: o.is_private === true,
+    attachedPlayerIds: Array.isArray(o.attachedPlayerIds)
+      ? (o.attachedPlayerIds as unknown[]).filter((x): x is string => typeof x === "string")
+      : [],
   }
 }
 

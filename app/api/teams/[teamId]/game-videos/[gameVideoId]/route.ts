@@ -5,6 +5,7 @@ import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 import { gateGameVideoTeamApi } from "@/lib/video/api-access"
 import { deleteObjectFromR2, presignedGetObjectUrl } from "@/lib/video/r2-client"
 import { adjustRollupAfterVideoDelete } from "@/lib/video/quota"
+import { fetchAttachedPlayerIdsForGameVideo, replaceGameVideoPlayers } from "@/lib/video/player-media-attachments"
 
 export const runtime = "nodejs"
 
@@ -44,12 +45,14 @@ export async function GET(
     }
 
     const key = (row as { storage_key?: string | null }).storage_key
+    const attachedPlayerIds = await fetchAttachedPlayerIdsForGameVideo(supabase, gameVideoId)
+
     if ((row as { upload_status?: string }).upload_status !== "ready" || !key) {
-      return NextResponse.json({ video: row, playbackUrl: null })
+      return NextResponse.json({ video: row, playbackUrl: null, attachedPlayerIds })
     }
 
     const playbackUrl = await presignedGetObjectUrl(key)
-    return NextResponse.json({ video: row, playbackUrl, playbackExpiresSeconds: 3600 })
+    return NextResponse.json({ video: row, playbackUrl, playbackExpiresSeconds: 3600, attachedPlayerIds })
   } catch (e) {
     if (e instanceof MembershipLookupError) {
       return NextResponse.json({ error: e.message }, { status: 403 })
@@ -59,8 +62,8 @@ export async function GET(
 }
 
 /**
- * PATCH — update recruiting privacy (coach/staff with team film access).
- * Body: { isPrivate: boolean }
+ * PATCH — recruiting privacy and/or roster attachments for full film.
+ * Body: { isPrivate?: boolean; playerIds?: string[] }
  */
 export async function PATCH(
   request: Request,
@@ -76,38 +79,79 @@ export async function PATCH(
     await requireTeamAccess(teamId)
 
     const supabase = getSupabaseServer()
-    const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { view: true }, {
-      portalRole: session.user.role,
-      isPlatformOwner: session.user.isPlatformOwner === true,
-    })
-    if (!gate.ok) {
-      return NextResponse.json({ error: gate.message }, { status: gate.status })
-    }
 
-    let body: { isPrivate?: boolean }
+    let body: { isPrivate?: boolean; playerIds?: string[] }
     try {
-      body = (await request.json()) as { isPrivate?: boolean }
+      body = (await request.json()) as { isPrivate?: boolean; playerIds?: string[] }
     } catch {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
     }
 
-    if (typeof body.isPrivate !== "boolean") {
-      return NextResponse.json({ error: "isPrivate boolean required" }, { status: 400 })
+    if (typeof body.isPrivate !== "boolean" && body.playerIds === undefined) {
+      return NextResponse.json({ error: "isPrivate and/or playerIds required" }, { status: 400 })
     }
 
-    const { data: updated, error } = await supabase
+    const { data: gvExists } = await supabase
       .from("game_videos")
-      .update({ is_private: body.isPrivate, updated_at: new Date().toISOString() })
+      .select("id")
       .eq("id", gameVideoId)
       .eq("team_id", teamId)
-      .select("id, is_private")
       .maybeSingle()
-
-    if (error || !updated) {
-      return NextResponse.json({ error: "Not found or update failed" }, { status: 404 })
+    if (!gvExists) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ video: updated })
+    const gate = await gateGameVideoTeamApi(
+      supabase,
+      session.user.id,
+      teamId,
+      { view: true, createClip: body.playerIds !== undefined },
+      {
+        portalRole: session.user.role,
+        isPlatformOwner: session.user.isPlatformOwner === true,
+      },
+    )
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status })
+    }
+
+    if (typeof body.isPrivate === "boolean") {
+      const { data: privRow, error: upErr } = await supabase
+        .from("game_videos")
+        .update({ is_private: body.isPrivate, updated_at: new Date().toISOString() })
+        .eq("id", gameVideoId)
+        .eq("team_id", teamId)
+        .select("id")
+        .maybeSingle()
+
+      if (upErr || !privRow) {
+        return NextResponse.json({ error: "Not found or update failed" }, { status: 404 })
+      }
+    }
+
+    if (body.playerIds !== undefined) {
+      try {
+        await replaceGameVideoPlayers(supabase, gameVideoId, teamId, body.playerIds)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Invalid player attachment"
+        return NextResponse.json({ error: msg }, { status: 400 })
+      }
+    }
+
+    const { data: updated } = await supabase
+      .from("game_videos")
+      .select("id, is_private")
+      .eq("id", gameVideoId)
+      .eq("team_id", teamId)
+      .maybeSingle()
+
+    if (!updated) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+
+    const attachedPlayerIds = await fetchAttachedPlayerIdsForGameVideo(supabase, gameVideoId)
+
+    return NextResponse.json({ video: { ...updated, attachedPlayerIds } })
   } catch (e) {
     if (e instanceof MembershipLookupError) {
       return NextResponse.json({ error: e.message }, { status: 403 })

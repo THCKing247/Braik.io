@@ -134,65 +134,75 @@ export function FilmLibraryBrowse({
   const busy = videosLoading || clipsLoading
 
   return (
-    <div className="space-y-8">
-      <div className="border-b border-border pb-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Film library</h1>
-          <p className="mt-2 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-400">
-            Browse game and practice film, find saved clips, then open the film room when you’re ready to mark or edit.
-          </p>
-        </div>
-        {canUpload && (
-          <div className="mt-6">
-            <VideoUploadZone
-              variant="hero"
-              canUpload={canUpload}
-              taggingEnabled={taggingEnabled}
-              uploadUi={uploadUi}
-              onUpload={(file, meta) => onUploadVideo(file, meta)}
-            />
+    <div className="space-y-5">
+      <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
+        <div className="border-b border-border/70 px-4 py-4 md:px-5 md:py-4">
+          <div className="flex flex-col gap-5 lg:gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0 xl:max-w-md xl:shrink-0">
+              <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">Film library</h1>
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                Search and manage your team’s films and clips — open the film room to mark plays.
+              </p>
+              {entitlement && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/35 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground">
+                    <span className="font-semibold text-muted-foreground">Storage</span>
+                    {formatBytes(entitlement.storageUsedBytes)} / {formatBytes(entitlement.storageCapBytes)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/35 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground">
+                    <span className="font-semibold text-muted-foreground">Films</span>
+                    {entitlement.videoCount}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/35 px-2.5 py-1 text-[11px] font-medium tabular-nums text-foreground">
+                    <span className="font-semibold text-muted-foreground">Clips</span>
+                    {entitlement.clipCount}
+                  </span>
+                  {entitlement.sharedStorageScope === "program" && (
+                    <span className="text-[11px] font-medium text-muted-foreground">Program-shared</span>
+                  )}
+                </div>
+              )}
+            </div>
+            {canUpload && (
+              <div className="min-w-0 w-full xl:max-w-2xl xl:flex-1">
+                <VideoUploadZone
+                  variant="library"
+                  canUpload={canUpload}
+                  taggingEnabled={taggingEnabled}
+                  uploadUi={uploadUi}
+                  onUpload={(file, meta) => onUploadVideo(file, meta)}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      {entitlement && (
-        <div className="rounded-2xl border border-border/80 bg-muted/30 px-4 py-3 text-sm text-foreground shadow-sm">
-          <span className="font-semibold">Team video space:</span>{" "}
-          <span className="font-mono text-[13px]">
-            {formatBytes(entitlement.storageUsedBytes)} / {formatBytes(entitlement.storageCapBytes)}
-          </span>
-          <span className="text-muted-foreground">
-            {" "}
-            · {entitlement.videoCount} films · {entitlement.clipCount} clips
-            {entitlement.sharedStorageScope === "program" ? " · Program-shared" : ""}
-          </span>
+      <div className="rounded-xl border border-border bg-card p-3 shadow-sm md:p-4">
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <Filter className="h-3.5 w-3.5 text-primary" aria-hidden />
+          Search &amp; filters
         </div>
-      )}
-
-      <div className="rounded-2xl border-2 border-border bg-card p-4 shadow-sm md:p-5">
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm font-bold text-foreground">
-          <Filter className="h-4 w-4 text-primary" aria-hidden />
-          Search & filters
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="md:col-span-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+          <div className="sm:col-span-2 lg:col-span-5">
+            <label className="sr-only" htmlFor="film-lib-search">
               Search
             </label>
-            <div className="relative mt-1.5">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input
-                className="min-h-[44px] border-2 pl-10 text-base"
-                placeholder="Film or clip title, notes, tags…"
+                id="film-lib-search"
+                className="h-10 border pl-9 text-sm"
+                placeholder="Title, notes, tags…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
           </div>
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Show</label>
+          <div className="lg:col-span-2">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Show</label>
             <select
-              className="mt-1.5 flex h-11 w-full rounded-xl border-2 border-input bg-background px-3 text-base font-semibold"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium shadow-sm"
               value={itemType}
               onChange={(e) => setItemType(e.target.value as LibraryItemType)}
             >
@@ -201,28 +211,24 @@ export function FilmLibraryBrowse({
               <option value="clips">Clips only</option>
             </select>
           </div>
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-              Film status
-            </label>
+          <div className="lg:col-span-2">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Film status</label>
             <select
-              className="mt-1.5 flex h-11 w-full rounded-xl border-2 border-input bg-background px-3 text-base font-semibold"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium shadow-sm disabled:opacity-50"
               value={filmStatus}
               onChange={(e) => setFilmStatus(e.target.value as FilmStatusFilter)}
               disabled={itemType === "clips"}
             >
               <option value="all">All</option>
-              <option value="ready">Ready to watch</option>
+              <option value="ready">Ready</option>
               <option value="processing">Processing</option>
             </select>
           </div>
           {taggingEnabled && (
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                Clip tag
-              </label>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Clip tag</label>
               <select
-                className="mt-1.5 flex h-11 w-full rounded-xl border-2 border-input bg-background px-3 text-base font-semibold"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium shadow-sm disabled:opacity-50"
                 value={tagFilter}
                 onChange={(e) => setTagFilter(e.target.value)}
                 disabled={itemType === "films"}
@@ -238,9 +244,9 @@ export function FilmLibraryBrowse({
           )}
         </div>
         {focusFilmId && (
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm">
-            <span className="font-medium text-foreground">Showing clips from one film.</span>
-            <Button type="button" variant="outline" size="sm" className="h-9 font-semibold" onClick={() => setFocusFilmId(null)}>
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+            <span className="font-medium text-foreground">Clips from one film</span>
+            <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs font-semibold" onClick={() => setFocusFilmId(null)}>
               Clear
             </Button>
           </div>
@@ -248,7 +254,7 @@ export function FilmLibraryBrowse({
       </div>
 
       {busy ? (
-        <div className="flex items-center justify-center gap-3 py-20 text-base font-medium text-muted-foreground">
+        <div className="flex items-center justify-center gap-3 py-14 text-sm font-medium text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
           Loading your library…
         </div>
@@ -256,10 +262,10 @@ export function FilmLibraryBrowse({
         <>
           {showFilms && (
             <section>
-              <div className="mb-4 flex items-center gap-2">
+              <div className="mb-3 flex items-center gap-2">
                 <Film className="h-5 w-5 text-primary" aria-hidden />
-                <h2 className="text-lg font-bold text-foreground">Films</h2>
-                <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-semibold text-muted-foreground">
+                <h2 className="text-base font-semibold text-foreground">Films</h2>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground">
                   {filteredVideos.length}
                 </span>
               </div>
@@ -361,11 +367,11 @@ export function FilmLibraryBrowse({
           )}
 
           {showClips && (
-            <section className={cn(showFilms && "pt-4")}>
-              <div className="mb-4 flex items-center gap-2">
+            <section className={cn(showFilms && "pt-3")}>
+              <div className="mb-3 flex items-center gap-2">
                 <Scissors className="h-5 w-5 text-primary" aria-hidden />
-                <h2 className="text-lg font-bold text-foreground">Saved clips</h2>
-                <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-semibold text-muted-foreground">
+                <h2 className="text-base font-semibold text-foreground">Saved clips</h2>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground">
                   {filteredClips.length}
                 </span>
               </div>

@@ -18,7 +18,7 @@ export type BraikFilmClip = {
   parentVideoTitle: string | null
 }
 
-function ClipSegmentVideo({
+export function ClipSegmentVideo({
   src,
   startMs,
   endMs,
@@ -99,7 +99,7 @@ export function RecruitingFilmSection({
 
       {externalLinks.length > 0 && (
         <div className="mb-6">
-          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500">Links</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500">External links</h3>
           <ul className="space-y-2">
             {externalLinks.map((link, i) => (
               <li key={`${link.url}-${i}`}>
@@ -119,7 +119,7 @@ export function RecruitingFilmSection({
 
       {braikVideos.some((v) => v.playbackUrl) && (
         <div className="mb-6 space-y-6">
-          <h3 className="text-xs font-semibold uppercase text-gray-500">Team film (Braik)</h3>
+          <h3 className="text-xs font-semibold uppercase text-gray-500">Attached team film (Braik)</h3>
           {braikVideos.map((v) =>
             v.playbackUrl ? (
               <div key={v.id} className="rounded-lg border border-gray-700/80 bg-black/20 p-4">
@@ -144,7 +144,7 @@ export function RecruitingFilmSection({
 
       {braikClips.some((c) => c.playbackUrl) && (
         <div className="mb-6 space-y-6">
-          <h3 className="text-xs font-semibold uppercase text-gray-500">Clips (Braik)</h3>
+          <h3 className="text-xs font-semibold uppercase text-gray-500">Attached clips (Braik)</h3>
           {braikClips.map((c) =>
             c.playbackUrl ? (
               <div key={c.id} className="rounded-lg border border-gray-700/80 bg-black/20 p-4">

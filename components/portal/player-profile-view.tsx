@@ -42,6 +42,7 @@ import { AddFollowUpModal } from "@/components/portal/add-follow-up-modal"
 import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
 import { FOLLOW_UP_CATEGORY_LABELS } from "@/lib/roster/follow-up-ui"
 import { getPositionByCode } from "@/lib/constants/playbook-positions"
+import { PlayerAttachedFilmPanel } from "@/components/portal/player-attached-film-panel"
 
 type TabId = "overview" | "info" | "stats" | "equipment" | "documents" | "health" | "history"
 
@@ -1002,8 +1003,10 @@ function OverviewTab({
             <p className="text-sm text-[#94A3B8]">No contact info on file. Add in Info tab.</p>
           )}
         </div>
+        </div>
       </div>
-      </div>
+
+      <PlayerAttachedFilmPanel playerId={playerId} teamId={teamId} />
 
       {/* Weight room maxes (read-only; logged in Weight Room module) */}
       {(profile.weightRoomMaxes &&

@@ -5,6 +5,7 @@ import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 import { gateGameVideoTeamApi } from "@/lib/video/api-access"
 import { resolveEffectiveVideoEntitlements } from "@/lib/video/entitlements"
 import { incrementClipRollup } from "@/lib/video/quota"
+import { fetchAttachedPlayerIdsForClips, replaceVideoClipPlayers } from "@/lib/video/player-media-attachments"
 
 /**
  * List and create clips for a game video.
@@ -45,7 +46,17 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ clips: rows ?? [] })
+    const list = rows ?? []
+    const attachMap = await fetchAttachedPlayerIdsForClips(
+      supabase,
+      list.map((r) => (r as { id: string }).id),
+    )
+    const clips = list.map((r) => ({
+      ...(r as object),
+      attachedPlayerIds: attachMap.get((r as { id: string }).id) ?? [],
+    }))
+
+    return NextResponse.json({ clips })
   } catch (e) {
     if (e instanceof MembershipLookupError) {
       return NextResponse.json({ error: e.message }, { status: 403 })
@@ -87,6 +98,7 @@ export async function POST(
       description?: string | null
       tags?: string[]
       categories?: Record<string, string>
+      playerIds?: string[]
     }
     try {
       body = (await request.json()) as typeof body
@@ -173,7 +185,18 @@ export async function POST(
 
     await incrementClipRollup(supabase, teamId, 1)
 
-    return NextResponse.json({ clip: inserted })
+    let attachedPlayerIds: string[] = []
+    if (body.playerIds !== undefined) {
+      try {
+        const rep = await replaceVideoClipPlayers(supabase, inserted.id, teamId, body.playerIds)
+        attachedPlayerIds = rep.playerIds
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Invalid player attachment"
+        return NextResponse.json({ error: msg }, { status: 400 })
+      }
+    }
+
+    return NextResponse.json({ clip: { ...inserted, attachedPlayerIds } })
   } catch (e) {
     if (e instanceof MembershipLookupError) {
       return NextResponse.json({ error: e.message }, { status: 403 })

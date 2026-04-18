@@ -18,6 +18,7 @@ import {
   formatMsRange,
 } from "@/lib/video/timecode"
 import { Button } from "@/components/ui/button"
+import { ClipPlayerAttachmentField } from "@/components/portal/game-video/clip-player-attachment-field"
 
 const SKIP_COACH = 5000
 
@@ -37,6 +38,10 @@ type Props = {
   initialClipId?: string | null
   /** Parent clears URL/state when coach switches to full-film mode */
   onSavedClipContextExit?: () => void
+  /** Players linked to the full game video (coach roster attachment). */
+  filmAttachedPlayerIds?: string[]
+  /** Persist full-film attachments (immediate PATCH). */
+  onFilmAttachedPlayerIdsChange?: (ids: string[]) => Promise<void>
 }
 
 export function FilmWorkspace({
@@ -53,6 +58,8 @@ export function FilmWorkspace({
   onDeleteVideo,
   initialClipId = null,
   onSavedClipContextExit,
+  filmAttachedPlayerIds = [],
+  onFilmAttachedPlayerIdsChange,
 }: Props) {
   const clipTitleInputRef = useRef<HTMLInputElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -83,6 +90,7 @@ export function FilmWorkspace({
   const [highlightClipId, setHighlightClipId] = useState<string | null>(null)
   const [clipSaving, setClipSaving] = useState(false)
   const [aiWorking, setAiWorking] = useState(false)
+  const [clipAttachedPlayerIds, setClipAttachedPlayerIds] = useState<string[]>([])
 
   const [reelClipIds, setReelClipIds] = useState<Set<string>>(new Set())
   /** Newest-first clip ids created in this film-room session (for quick recall without leaving the player). */
@@ -137,6 +145,7 @@ export function FilmWorkspace({
     setQuickTagsSelected(new Set())
     setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
     setFineTuneExpanded(false)
+    setClipAttachedPlayerIds([])
   }, [video.id])
 
   const onVideoMeta = () => {
@@ -342,6 +351,7 @@ export function FilmWorkspace({
     setClipTagsFree("")
     setQuickTagsSelected(new Set())
     setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
+    setClipAttachedPlayerIds([])
   }
 
   const prepareNextClipRange = (savedOutMs: number) => {
@@ -382,6 +392,7 @@ export function FilmWorkspace({
       description,
       tags,
       categories,
+      playerIds: clipAttachedPlayerIds,
     }
 
     const savedOutMs = outMs
@@ -405,6 +416,11 @@ export function FilmWorkspace({
       if (!res.ok) throw new Error(data.error || "Could not save clip")
 
       await onRefreshClips()
+
+      const nextAttach = Array.isArray((data as { clip?: { attachedPlayerIds?: string[] } }).clip?.attachedPlayerIds)
+        ? ((data as { clip: { attachedPlayerIds: string[] } }).clip.attachedPlayerIds)
+        : clipAttachedPlayerIds
+      setClipAttachedPlayerIds(nextAttach)
 
       if (!editingId && typeof data.clip?.id === "string") {
         const id = data.clip.id as string
@@ -470,6 +486,7 @@ export function FilmWorkspace({
         personnel: mc?.personnel ?? "",
         outcome: mc?.outcome ?? "",
       })
+      setClipAttachedPlayerIds(Array.isArray(c.attachedPlayerIds) ? c.attachedPlayerIds : [])
       seekMs(c.start_ms)
       stopPreview()
     },
@@ -511,6 +528,7 @@ export function FilmWorkspace({
     setClipTagsFree("")
     setQuickTagsSelected(new Set())
     setClipCategories({ playType: "", situation: "", personnel: "", outcome: "" })
+    setClipAttachedPlayerIds([])
     onSavedClipContextExit?.()
   }, [durationSafe, seekMs, stopPreview, onSavedClipContextExit])
 
@@ -637,6 +655,28 @@ export function FilmWorkspace({
           </p>
         </header>
 
+        {canCreateClips && videoReady && onFilmAttachedPlayerIdsChange && (
+          <div className="hidden lg:block rounded-xl border-2 border-border bg-muted/30 px-4 py-4 sm:px-6">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              Full film — roster links
+            </p>
+            <ClipPlayerAttachmentField
+              teamId={teamId}
+              selectedIds={filmAttachedPlayerIds}
+              disabled={clipSaving}
+              onChange={(ids) => {
+                void onFilmAttachedPlayerIdsChange(ids).catch((e) =>
+                  onError(e instanceof Error ? e.message : "Could not update film roster links"),
+                )
+              }}
+            />
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Optional. Links this whole file to selected athletes’ recruiting profiles. Use clip attachments below for play-level
+              highlights.
+            </p>
+          </div>
+        )}
+
         {sessionClipIds.length > 0 && (
           <ClipSessionStrip
             clips={clips}
@@ -735,6 +775,9 @@ export function FilmWorkspace({
             void previewSavedClip(c)
           }}
           onDeleteClip={(id) => void deleteClip(id)}
+          teamId={teamId}
+          clipAttachedPlayerIds={clipAttachedPlayerIds}
+          onClipAttachedPlayerIdsChange={setClipAttachedPlayerIds}
         />
       </div>
     </div>

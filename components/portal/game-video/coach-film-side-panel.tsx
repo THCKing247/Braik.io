@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ClipboardList, Loader2, Sparkles, Tags, PenLine, Video, Wand2 } from "lucide-react"
 import { ClipReelPanel } from "@/components/portal/game-video/clip-reel-panel"
 import type { ClipRow } from "@/components/portal/game-video/game-video-types"
+import { ClipPlayerAttachmentField } from "@/components/portal/game-video/clip-player-attachment-field"
 import { COACH_QUICK_TAG_GROUPS } from "@/components/portal/game-video/coach-quick-tags"
 import { cn } from "@/lib/utils"
 
@@ -53,6 +54,9 @@ type Props = {
   onLoadClipInEditor: (c: ClipRow) => void
   onPreviewClip: (c: ClipRow) => void
   onDeleteClip: (clipId: string) => void
+  teamId: string
+  clipAttachedPlayerIds: string[]
+  onClipAttachedPlayerIdsChange: (ids: string[]) => void
 }
 
 const TAB_DEFS: Array<{ id: CoachFilmTabId; label: string; icon: typeof Video }> = [
@@ -118,6 +122,16 @@ export function CoachFilmSidePanel(props: Props) {
                 placeholder="Name this clip"
               />
             </div>
+
+            {props.canCreateClips && (
+              <ClipPlayerAttachmentField
+                teamId={props.teamId}
+                selectedIds={props.clipAttachedPlayerIds}
+                onChange={props.onClipAttachedPlayerIdsChange}
+                disabled={!props.videoReady}
+              />
+            )}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="Play / concept"

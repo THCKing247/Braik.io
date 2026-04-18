@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, MembershipLookupError } from "@/lib/auth/rbac"
 import { gateGameVideoTeamApi } from "@/lib/video/api-access"
 import { incrementClipRollup } from "@/lib/video/quota"
+import { fetchAttachedPlayerIdsForClips, replaceVideoClipPlayers } from "@/lib/video/player-media-attachments"
 
 export const runtime = "nodejs"
 
@@ -35,6 +36,7 @@ export async function PATCH(
       description?: string | null
       tags?: string[]
       categories?: Record<string, string>
+      playerIds?: string[]
     }
     try {
       body = (await request.json()) as typeof body
@@ -45,6 +47,8 @@ export async function PATCH(
     const keys = Object.keys(body).filter((k) => body[k as keyof typeof body] !== undefined)
     const privacyOnly =
       keys.length === 1 && keys[0] === "isPrivate" && typeof body.isPrivate === "boolean"
+    const attachmentOnly =
+      keys.length === 1 && keys[0] === "playerIds" && body.playerIds !== undefined
 
     const editsMarksOrMeta =
       typeof body.startMs === "number" ||
@@ -54,7 +58,7 @@ export async function PATCH(
       Array.isArray(body.tags) ||
       (body.categories && typeof body.categories === "object")
 
-    if (!privacyOnly && !editsMarksOrMeta) {
+    if (!privacyOnly && !attachmentOnly && !editsMarksOrMeta && body.playerIds === undefined) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
     }
 
@@ -81,6 +85,39 @@ export async function PATCH(
       }
 
       return NextResponse.json({ clip: updated })
+    }
+
+    if (attachmentOnly) {
+      const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { createClip: true, view: true }, {
+        portalRole: session.user.role,
+        isPlatformOwner: session.user.isPlatformOwner === true,
+      })
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.message }, { status: gate.status })
+      }
+
+      const { data: exists } = await supabase
+        .from("video_clips")
+        .select("id")
+        .eq("id", clipId)
+        .eq("team_id", teamId)
+        .eq("game_video_id", gameVideoId)
+        .maybeSingle()
+
+      if (!exists) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 })
+      }
+
+      try {
+        const rep = await replaceVideoClipPlayers(supabase, clipId, teamId, body.playerIds)
+        const attachMap = await fetchAttachedPlayerIdsForClips(supabase, [clipId])
+        return NextResponse.json({
+          clip: { id: clipId, attachedPlayerIds: attachMap.get(clipId) ?? rep.playerIds },
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Invalid player attachment"
+        return NextResponse.json({ error: msg }, { status: 400 })
+      }
     }
 
     const gate = await gateGameVideoTeamApi(supabase, session.user.id, teamId, { createClip: true, view: true }, {
@@ -172,7 +209,21 @@ export async function PATCH(
       return NextResponse.json({ error: upErr?.message || "Update failed" }, { status: 500 })
     }
 
-    return NextResponse.json({ clip: updated })
+    let attachedPlayerIds: string[] | undefined
+    if (body.playerIds !== undefined) {
+      try {
+        const rep = await replaceVideoClipPlayers(supabase, clipId, teamId, body.playerIds)
+        attachedPlayerIds = rep.playerIds
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Invalid player attachment"
+        return NextResponse.json({ error: msg }, { status: 400 })
+      }
+    }
+
+    return NextResponse.json({
+      clip:
+        attachedPlayerIds !== undefined ? { ...updated, attachedPlayerIds } : updated,
+    })
   } catch (e) {
     if (e instanceof MembershipLookupError) {
       return NextResponse.json({ error: e.message }, { status: 403 })

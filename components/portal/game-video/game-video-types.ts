@@ -9,6 +9,8 @@ export type GameVideoRow = {
   created_at?: string | null
   /** When true, hidden from public/recruiter recruiting surfaces. */
   is_private?: boolean | null
+  /** From coach GET single video — roster players linked to full film. */
+  attachedPlayerIds?: string[]
 }
 
 export type ClipMetadata = {
@@ -28,6 +30,8 @@ export type ClipRow = {
   metadata?: ClipMetadata | null
   created_at?: string | null
   is_private?: boolean | null
+  /** Roster players this clip is attached to (recruiting + player portal). */
+  attachedPlayerIds?: string[]
 }
 
 /** Clip with parent film info for team-wide library browse */

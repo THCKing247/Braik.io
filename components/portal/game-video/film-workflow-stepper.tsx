@@ -28,7 +28,7 @@ export function FilmWorkflowStepper({
   }
 
   return (
-    <nav aria-label="Clip workflow steps" className="rounded-xl border border-white/10 bg-[#0f172a]/90 p-2 shadow-sm">
+    <nav aria-label="Clip workflow steps" className="rounded-xl border border-white/15 bg-[#0f172a]/95 p-1.5 shadow-sm">
       <ol className="flex flex-wrap gap-1">
         {STEPS.map(({ step: id, label }) => {
           const active = step === id
@@ -40,14 +40,14 @@ export function FilmWorkflowStepper({
                 disabled={disabled || !allowed}
                 onClick={() => allowed && onStepChange(id)}
                 className={cn(
-                  "flex h-11 w-full min-w-[7rem] flex-col justify-center rounded-lg px-2 py-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-45",
+                  "flex h-10 w-full min-w-[7rem] flex-col justify-center rounded-lg px-2 py-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-45",
                   active
                     ? "bg-sky-600 text-white shadow-sm"
-                    : "border border-white/10 bg-[#0b1220]/80 text-slate-200 hover:bg-white/10",
+                    : "border border-white/15 bg-[#0b1220]/85 text-slate-100 hover:bg-white/12",
                 )}
               >
-                <span className="text-[10px] font-bold uppercase tracking-wide opacity-90">Step {id}</span>
-                <span className="truncate text-xs font-semibold">{label}</span>
+                <span className="text-[11px] font-bold uppercase tracking-wide opacity-95">Step {id}</span>
+                <span className="truncate text-[13px] font-semibold">{label}</span>
               </button>
             </li>
           )

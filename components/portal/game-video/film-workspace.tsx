@@ -38,8 +38,21 @@ import {
   stepPlayheadMsByFrames,
 } from "@/lib/video/frame-timing"
 import { cn } from "@/lib/utils"
+import { FilmRoomShell } from "@/components/portal/game-video/film-room-shell"
+import {
+  FilmAnnotationOverlay,
+  FilmAnnotationToolbar,
+  type FilmAnnotationStroke,
+  type FilmAnnotationTool,
+} from "@/components/portal/game-video/film-annotation-overlay"
+import {
+  FilmRoomExperienceToggle,
+  FilmRoomReviewSidebar,
+} from "@/components/portal/game-video/film-room-review-sidebar"
 
 const SKIP_COACH = 5000
+
+type FilmRoomExperienceMode = "review" | "edit"
 
 type Props = {
   teamId: string
@@ -121,6 +134,9 @@ export function FilmWorkspace({
   const [sessionClipIds, setSessionClipIds] = useState<string[]>([])
 
   const [workflowStep, setWorkflowStep] = useState<FilmWorkflowStep>(1)
+  const [experienceMode, setExperienceMode] = useState<FilmRoomExperienceMode>("review")
+  const [annotationTool, setAnnotationTool] = useState<FilmAnnotationTool>("none")
+  const [annotationStrokes, setAnnotationStrokes] = useState<FilmAnnotationStroke[]>([])
 
   const [draftClips, setDraftClips] = useState<FilmDraftClip[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
@@ -228,6 +244,9 @@ export function FilmWorkspace({
     setPreviewStripStatus("idle")
     setRecentlyLoggedDraftId(null)
     setWorkflowStep(1)
+    setExperienceMode("review")
+    setAnnotationStrokes([])
+    setAnnotationTool("none")
   }, [video.id])
 
   useEffect(() => {
@@ -1332,15 +1351,23 @@ export function FilmWorkspace({
   const replayMarkedClip = () => void startPreview()
 
   const workflowMode = Boolean(canCreateClips && videoReady && !highlightClipId)
+  const showEditWorkflow = workflowMode && experienceMode === "edit"
+  const showReviewSidebar = workflowMode && experienceMode === "review"
   const workflowModeRef = useRef(workflowMode)
   workflowModeRef.current = workflowMode
   const workflowStepRef = useRef(workflowStep)
   workflowStepRef.current = workflowStep
+  const experienceModeRef = useRef(experienceMode)
+  experienceModeRef.current = experienceMode
 
   useEffect(() => {
     if (!workflowMode) return
     if (draftClips.length === 0 && workflowStep > 1) setWorkflowStep(1)
   }, [workflowMode, draftClips.length, workflowStep])
+
+  useEffect(() => {
+    if (!workflowMode && experienceMode === "edit") setExperienceMode("review")
+  }, [workflowMode, experienceMode])
 
   useEffect(() => {
     if (!workflowMode || workflowStep !== 3) return
@@ -1371,6 +1398,7 @@ export function FilmWorkspace({
           if (clipValid) void saveClipRequestRef.current(true)
         } else if (
           workflowModeRef.current &&
+          experienceModeRef.current === "edit" &&
           workflowStepRef.current === 4 &&
           draftClipsRef.current.length > 0
         ) {
@@ -1468,19 +1496,19 @@ export function FilmWorkspace({
 
   return (
     <TooltipProvider delayDuration={260} skipDelayDuration={100}>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row xl:items-stretch xl:gap-4">
-        <div className="flex min-h-0 min-w-0 flex-[1_1_58%] flex-col gap-2.5 xl:min-h-[calc(100dvh-9rem)]">
+      <FilmRoomShell>
+        <div className="flex min-h-0 min-w-0 flex-[1_1_58%] flex-col gap-2 overflow-hidden">
         {highlightClipId && (
           <div
-            className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 shadow-sm sm:px-3.5"
+            className="shrink-0 rounded-lg border border-primary/50 bg-primary/10 px-3 py-2 shadow-sm sm:px-3.5"
             role="status"
             aria-live="polite"
           >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Editing saved clip</p>
-                <p className="truncate text-sm font-semibold text-foreground">{clipTitle || "Untitled clip"}</p>
-                <p className="mt-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-primary">Editing saved clip</p>
+                <p className="truncate text-[15px] font-semibold text-foreground">{clipTitle || "Untitled clip"}</p>
+                <p className="mt-0.5 font-mono text-[12px] font-medium text-muted-foreground">
                   {formatMsRange(inMs, outMs)} · {clipDurationLabel}
                 </p>
               </div>
@@ -1488,7 +1516,7 @@ export function FilmWorkspace({
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="h-9 shrink-0 border border-border font-semibold"
+                className="h-9 shrink-0 border border-border text-[13px] font-semibold"
                 onClick={enterFullFilmMode}
               >
                 Full film
@@ -1497,8 +1525,8 @@ export function FilmWorkspace({
           </div>
         )}
 
-        <header className="rounded-lg border border-border bg-muted/35 px-3 py-2 sm:px-3.5 xl:hidden">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Film</p>
+        <header className="shrink-0 rounded-lg border border-border bg-muted/35 px-3 py-2 sm:px-3.5 xl:hidden">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Film Room</p>
           <h2 className="truncate text-lg font-bold tracking-tight text-foreground">{video.title || "Untitled film"}</h2>
         </header>
 
@@ -1511,6 +1539,7 @@ export function FilmWorkspace({
           />
         )}
 
+        <div className="min-h-0 flex-1 overflow-hidden">
         <FilmPlayerHero
           playbackUrl={playbackUrl}
           videoRef={videoRef as RefObject<HTMLVideoElement>}
@@ -1542,6 +1571,24 @@ export function FilmWorkspace({
           onStepPlayheadFrames={stepPlayheadFrames}
           onNudgeMarkInFrames={nudgeMarkInFrames}
           onNudgeMarkOutFrames={nudgeMarkOutFrames}
+          videoOverlay={
+            <FilmAnnotationOverlay
+              activeTool={annotationTool}
+              strokes={annotationStrokes}
+              onStrokesChange={setAnnotationStrokes}
+            />
+          }
+          chromeBelowVideo={
+            <FilmAnnotationToolbar
+              activeTool={annotationTool}
+              onToolChange={setAnnotationTool}
+              onUndo={() => setAnnotationStrokes((s) => s.slice(0, -1))}
+              onClear={() => setAnnotationStrokes([])}
+              canUndo={annotationStrokes.length > 0}
+              hasInk={annotationStrokes.length > 0}
+              disabled={!videoReady}
+            />
+          }
           belowScrubber={
             videoReady && playbackUrl ? (
               <FilmPreviewThumbnailLane
@@ -1558,18 +1605,53 @@ export function FilmWorkspace({
             ) : null
           }
         />
+        </div>
 
         {!videoReady && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+          <div className="shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[13px] font-medium text-amber-950 dark:text-amber-100">
             This film is still processing. Refresh in a moment — marking and clips unlock when status shows Ready in your
             library.
           </div>
         )}
         </div>
 
-        <div className="flex w-full min-h-0 shrink-0 flex-col gap-3 xl:sticky xl:top-2 xl:w-[400px] xl:max-w-[440px] xl:self-start">
+        <div className="flex w-full min-h-0 shrink-0 flex-col gap-2 overflow-hidden xl:w-[380px] xl:max-w-[400px] xl:self-stretch">
           {workflowMode ? (
-            <>
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+              <FilmRoomExperienceToggle
+                mode={experienceMode}
+                onModeChange={setExperienceMode}
+                canEdit={canCreateClips}
+                disabled={clipSaving}
+              />
+
+              {showReviewSidebar ? (
+                <FilmRoomReviewSidebar
+                  video={video}
+                  clipsSorted={sortedSavedClips}
+                  highlightClipId={highlightClipId}
+                  sessionClipCount={sessionClipIds.length}
+                  onLoadClip={(c) => loadClipIntoEditor(c)}
+                  onPreviewClip={(c) => {
+                    loadClipIntoEditor(c)
+                    void previewSavedClip(c)
+                  }}
+                  teamId={teamId}
+                  filmAttachedPlayerIds={filmAttachedPlayerIds}
+                  onFilmAttachedPlayerIdsChange={
+                    onFilmAttachedPlayerIdsChange
+                      ? (ids) =>
+                          onFilmAttachedPlayerIdsChange(ids).catch((e) =>
+                            onError(e instanceof Error ? e.message : "Could not update film roster links"),
+                          )
+                      : undefined
+                  }
+                  filmRosterDisabled={clipSaving || !videoReady}
+                />
+              ) : null}
+
+              {showEditWorkflow ? (
+                <>
               <FilmWorkflowStepper
                 step={workflowStep}
                 draftCount={draftClips.length}
@@ -1579,11 +1661,11 @@ export function FilmWorkspace({
                   setWorkflowStep(s)
                 }}
               />
-              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-white/10 bg-[#0f172a]/90 p-3 shadow-sm xl:max-h-[calc(100dvh-9rem)]">
-                <div className="rounded-lg border border-white/10 bg-[#0b1220]/80 px-3 py-2">
-                  <p className="text-[10px] font-bold uppercase text-sky-400">Film</p>
-                  <p className="truncate text-sm font-bold text-white">{video.title || "Untitled film"}</p>
-                  <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-400">
+              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-xl border border-white/15 bg-[#0f172a]/95 p-2.5 shadow-sm">
+                <div className="shrink-0 rounded-lg border border-white/15 bg-[#0b1220]/90 px-3 py-2">
+                  <p className="text-[11px] font-bold uppercase text-sky-300">Film Room</p>
+                  <p className="truncate text-[15px] font-bold text-white">{video.title || "Untitled film"}</p>
+                  <div className="mt-1 flex flex-wrap gap-3 text-[13px] font-medium text-slate-200">
                     <span>Drafts: {draftClips.length}</span>
                     <span>Saved: {clips.length}</span>
                     <span>Session: {sessionClipIds.length}</span>
@@ -1672,13 +1754,13 @@ export function FilmWorkspace({
                 />
               ) : null}
 
-              <details className="rounded-xl border border-white/10 bg-[#0f172a]/85 p-3">
-                <summary className="cursor-pointer text-xs font-semibold text-slate-200">
+              <details className="shrink-0 rounded-xl border border-white/15 bg-[#0f172a]/90 p-2.5">
+                <summary className="cursor-pointer text-[13px] font-semibold text-slate-100">
                   Saved clips on this film ({clips.length})
                 </summary>
-                <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-0.5">
+                <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto pr-0.5">
                   {sortedSavedClips.length === 0 ? (
-                    <li className="rounded-lg border border-dashed border-white/10 px-3 py-6 text-center text-xs text-slate-400">
+                    <li className="rounded-lg border border-dashed border-white/15 px-3 py-6 text-center text-[13px] font-medium text-slate-300">
                       No clips saved yet.
                     </li>
                   ) : (
@@ -1694,8 +1776,8 @@ export function FilmWorkspace({
                               active ? "bg-primary/15 ring-2 ring-primary/35" : "hover:bg-white/5",
                             )}
                           >
-                            <span className="line-clamp-2 text-sm font-semibold text-white">{c.title?.trim() || "Untitled clip"}</span>
-                            <span className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-400">
+                            <span className="line-clamp-2 text-[13px] font-semibold text-white">{c.title?.trim() || "Untitled clip"}</span>
+                            <span className="mt-0.5 font-mono text-[12px] tabular-nums text-slate-300">
                               {formatMsRange(c.start_ms, c.end_ms)}
                             </span>
                           </button>
@@ -1705,9 +1787,12 @@ export function FilmWorkspace({
                   )}
                 </ul>
               </details>
-            </>
+                </>
+              ) : null}
+
+            </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-white/10 bg-[#0f172a]/90 p-3 xl:max-h-[calc(100dvh-9rem)]">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border border-white/15 bg-[#0f172a]/95 p-2.5">
               {canCreateClips && videoReady ? (
                 <QuickClipBar
                   enabled
@@ -1818,7 +1903,7 @@ export function FilmWorkspace({
             </div>
           )}
         </div>
-      </div>
+      </FilmRoomShell>
     </TooltipProvider>
   )
 }

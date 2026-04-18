@@ -62,6 +62,10 @@ type Props = {
   onNudgeMarkOutFrames: (deltaFrames: number) => void
   /** Optional visual scan lane beneath the scrubber */
   belowScrubber?: ReactNode
+  /** Overlay inside the video frame (e.g. telestration canvas) */
+  videoOverlay?: ReactNode
+  /** Toolbar or hints between the video frame and timeline (e.g. drawing tools) */
+  chromeBelowVideo?: ReactNode
 }
 
 const NUDGE_SMALL = 100
@@ -99,6 +103,8 @@ export function FilmPlayerHero({
   onNudgeMarkInFrames,
   onNudgeMarkOutFrames,
   belowScrubber,
+  videoOverlay,
+  chromeBelowVideo,
 }: Props) {
   const pct = (ms: number) => Math.min(100, Math.max(0, (ms / durationSafe) * 100))
   const fd = frameDurationMs(editorFps)
@@ -106,7 +112,7 @@ export function FilmPlayerHero({
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-[#0a0f1a] shadow-md ring-1 ring-black/5 dark:ring-white/10">
-      <div className="relative aspect-video w-full bg-black">
+      <div className="relative mx-auto aspect-video w-full max-h-[min(38vh,320px)] bg-black">
         {playbackUrl ? (
           <video
             ref={videoRef}
@@ -120,38 +126,43 @@ export function FilmPlayerHero({
             onClick={() => syncPlayhead()}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+          <div className="flex h-full items-center justify-center text-sm font-medium text-slate-300">
             Loading your film…
           </div>
         )}
+        {videoOverlay}
       </div>
 
+      {chromeBelowVideo ? (
+        <div className="border-t border-white/10 bg-[#0b1220]/90 px-2 py-2 sm:px-2.5">{chromeBelowVideo}</div>
+      ) : null}
+
       <div className="border-t border-white/10 bg-[#0f172a]/95 px-2.5 py-2 backdrop-blur-sm sm:px-3">
-        <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-200 sm:text-xs">
+        <div className="mb-1.5 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-100 sm:text-[13px]">
             <Film className="h-4 w-4 shrink-0" aria-hidden />
             <span>Timeline</span>
             <FilmInfoTip label="Using the timeline" side="bottom" className="text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-offset-[#0f172a]">
               <p>Click or drag to seek the playhead. Orange bands are drafts; green are saved clips — click to select.</p>
             </FilmInfoTip>
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-200 sm:text-sm">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium text-slate-100 sm:text-sm">
             <span>
-              <span className="font-semibold text-slate-300">Now</span>{" "}
-              <strong className="font-mono text-lg font-bold tabular-nums text-emerald-300 sm:text-xl">
+              <span className="font-semibold text-slate-200">Now</span>{" "}
+              <strong className="font-mono text-base font-bold tabular-nums text-emerald-300 sm:text-lg">
                 {formatMsAsTimecode(playheadMs)}
               </strong>
             </span>
             <span className="hidden sm:inline text-slate-500">|</span>
             <span>
-              <span className="font-semibold text-slate-300">Marked</span>{" "}
+              <span className="font-semibold text-slate-200">Marked</span>{" "}
               <strong className="font-mono text-sm font-bold tabular-nums text-sky-200 sm:text-base">
                 {formatMsRange(inMs, outMs)}
               </strong>
             </span>
             <span className="hidden sm:inline text-slate-500">|</span>
             <span>
-              <span className="font-semibold text-slate-300">Clip length</span>{" "}
+              <span className="font-semibold text-slate-200">Clip length</span>{" "}
               <strong className="font-mono text-sm font-bold tabular-nums text-amber-200 sm:text-base">
                 {clipDurationLabel}
               </strong>
@@ -159,9 +170,9 @@ export function FilmPlayerHero({
           </div>
         </div>
 
-        <div className="mb-2 flex flex-col gap-2 rounded-lg border border-white/10 bg-slate-900/40 px-2.5 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="mb-1.5 flex flex-col gap-1.5 rounded-lg border border-white/15 bg-slate-900/55 px-2 py-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Frames</span>
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-300">Frames</span>
             <FilmInfoTip label="Frame stepping and FPS" side="bottom" className="text-slate-400 hover:bg-white/10 hover:text-slate-100 focus-visible:ring-offset-[#0f172a]">
               <p>
                 Step the playhead one frame at a time. <strong className="text-foreground">Nominal FPS</strong> sets the snap grid
@@ -172,7 +183,7 @@ export function FilmPlayerHero({
               type="button"
               variant="secondary"
               size="sm"
-              className="h-9 gap-1 border border-white/15 bg-slate-800/90 px-3 text-xs font-semibold text-slate-100"
+              className="h-8 gap-1 border border-white/20 bg-slate-800 px-3 text-[13px] font-semibold text-white shadow-sm"
               onClick={() => onStepPlayheadFrames(-1)}
             >
               <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -182,18 +193,18 @@ export function FilmPlayerHero({
               type="button"
               variant="secondary"
               size="sm"
-              className="h-9 gap-1 border border-white/15 bg-slate-800/90 px-3 text-xs font-semibold text-slate-100"
+              className="h-8 gap-1 border border-white/20 bg-slate-800 px-3 text-[13px] font-semibold text-white shadow-sm"
               onClick={() => onStepPlayheadFrames(1)}
             >
               Next frame
               <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            <label className="flex items-center gap-2 font-semibold uppercase tracking-wide text-slate-500">
+          <div className="flex flex-wrap items-center gap-2 text-[13px] text-slate-200">
+            <label className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-300">
               Nominal FPS
               <select
-                className="rounded-md border border-white/15 bg-slate-900 px-2 py-1.5 font-mono text-sm text-slate-100"
+                className="rounded-md border border-white/20 bg-slate-900 px-2 py-1 font-mono text-sm font-semibold text-white"
                 value={editorFps}
                 onChange={(e) => onEditorFpsChange(Number(e.target.value))}
               >
@@ -220,7 +231,7 @@ export function FilmPlayerHero({
           aria-valuemin={0}
           aria-valuemax={durationSafe}
           tabIndex={0}
-          className="relative mb-2 h-12 cursor-pointer rounded-lg bg-slate-800/80 ring-2 ring-white/15 transition-shadow hover:ring-sky-400/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 sm:h-14"
+          className="relative mb-1.5 h-10 cursor-pointer rounded-lg bg-slate-800/90 ring-2 ring-white/20 transition-shadow hover:ring-sky-400/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 sm:h-11"
           onMouseDown={(e) => {
             if ((e.target as HTMLElement).closest("[data-timeline-segment]")) return
             onTimelinePointerDown(e.clientX)

@@ -17,7 +17,7 @@ function GameVideoBody({ teamId }: { teamId: string }) {
   if (!vc?.navVisible) {
     return (
       <div className="mx-auto max-w-lg rounded-xl border border-border bg-card p-8 text-center shadow-sm">
-        <p className="text-lg font-semibold text-foreground">Game Video / Clips is not available</p>
+        <p className="text-lg font-semibold text-foreground">Film Room is not available</p>
         <p className="mt-2 text-sm text-muted-foreground">
           {vc?.disableHint ??
             "Your program may not have this feature enabled, or your account does not include video access."}

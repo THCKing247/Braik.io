@@ -491,8 +491,8 @@ export function GameVideoLibrary({
       </div>
 
       {filmRoomVideoId && (
-        <FilmRoomModalShell onExit={closeFilmRoom} exitLabel="Back to film library">
-          <div className={cn("flex min-h-0 flex-1 flex-col gap-6")}>
+        <FilmRoomModalShell onExit={closeFilmRoom} exitLabel="Back to Film Library">
+          <div className={cn("flex h-full min-h-0 flex-1 flex-col gap-2")}>
             {error && (
               <div className="rounded-xl border border-destructive/50 bg-destructive/20 px-4 py-3 text-base font-medium text-red-100">
                 {error}

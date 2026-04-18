@@ -136,7 +136,7 @@ export function FilmLibraryBrowse({
         <div className="rounded-lg border border-border/90 bg-card px-3 py-3 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05] md:px-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
             <div className="min-w-0 flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">Film library</h1>
+              <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">Film Library</h1>
               {entitlement && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium tabular-nums text-foreground md:text-[11px]">
@@ -283,7 +283,7 @@ export function FilmLibraryBrowse({
                             title={v.upload_status !== "ready" ? "Wait until this film is ready" : undefined}
                           >
                             <Clapperboard className="h-4 w-4 shrink-0" aria-hidden />
-                            Film room
+                            Film Room
                           </Button>
                           <Button
                             type="button"
@@ -328,7 +328,7 @@ export function FilmLibraryBrowse({
                 </div>
                 {filteredClips.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-border bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">
-                    No clips yet — open a film and use <strong className="text-foreground">Film room</strong> to mark plays.
+                    No clips yet — open a film in <strong className="text-foreground">Film Room</strong> to mark plays.
                   </p>
                 ) : (
                   <ul className="space-y-2">

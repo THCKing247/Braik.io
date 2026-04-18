@@ -77,7 +77,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   {
     id: "game-video",
     href: "/dashboard/game-video",
-    label: "Game Video / Clips",
+    label: "Film Room",
     icon: Video,
     roles: ["HEAD_COACH", "ASSISTANT_COACH", "PLAYER", "PARENT", "ATHLETIC_DIRECTOR", "SCHOOL_ADMIN"],
     requiresVideoClipsNav: true,

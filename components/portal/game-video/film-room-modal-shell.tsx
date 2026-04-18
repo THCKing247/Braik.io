@@ -47,17 +47,17 @@ export function FilmRoomModalShell({
       aria-labelledby="film-room-heading"
       aria-describedby="film-room-subtitle"
     >
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#0f172a] px-3 py-2 sm:gap-3 sm:px-4">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/15 bg-[#0f172a] px-3 py-2.5 sm:gap-3 sm:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="hidden shrink-0 rounded-lg bg-sky-500/15 p-2 text-sky-400 sm:flex" aria-hidden>
             <Clapperboard className="h-5 w-5" />
           </div>
           <div className="min-w-0">
             <h1 id="film-room-heading" className="text-lg font-bold tracking-tight text-white sm:text-xl">
-              Film room
+              Film Room
             </h1>
             <p id="film-room-subtitle" className="sr-only">
-              Workspace to scrub film, mark plays, and save clips.
+              Film Room — scrub film, annotate, create clips, and save plays.
             </p>
           </div>
         </div>
@@ -65,7 +65,7 @@ export function FilmRoomModalShell({
           type="button"
           size="sm"
           variant="secondary"
-          className="h-9 shrink-0 gap-2 border border-white/25 bg-white px-4 text-sm font-semibold text-[#0f172a] shadow-sm hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a]"
+          className="h-9 shrink-0 gap-2 border border-white/25 bg-white px-4 text-[13px] font-semibold text-[#0f172a] shadow-sm hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a]"
           onClick={() => exitRef.current()}
         >
           <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
@@ -73,8 +73,8 @@ export function FilmRoomModalShell({
         </Button>
       </header>
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-gradient-to-b from-[#0b1220] to-[#070b12] px-2 py-3 sm:px-3 sm:py-3">
-        <div className="mx-auto flex min-h-full max-w-[1920px] flex-col">{children}</div>
+      <div className="relative min-h-0 flex-1 overflow-hidden overscroll-contain bg-gradient-to-b from-[#0b1220] to-[#070b12] px-2 py-2 sm:px-3">
+        <div className="mx-auto flex h-full min-h-0 max-w-[1920px] flex-col">{children}</div>
       </div>
     </div>
   )

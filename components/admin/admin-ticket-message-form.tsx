@@ -45,7 +45,7 @@ export function AdminTicketMessageForm({ ticketId }: { ticketId: string }) {
       <button type="submit" disabled={saving} className={cn(adminUi.btnPrimarySm, "disabled:opacity-60")}>
         {saving ? "Sending..." : "Send"}
       </button>
-      {status ? <span className="text-xs text-white/70">{status}</span> : null}
+      {status ? <span className="text-xs text-admin-muted">{status}</span> : null}
     </form>
   )
 }

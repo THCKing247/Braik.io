@@ -38,7 +38,7 @@ export function OperatorTeams({
     <div className="space-y-6">
       {filterUserId && (
         <div className={adminUi.noticeInfo}>
-          <p className="text-sm font-medium text-orange-50">
+          <p className="text-sm font-medium text-amber-950">
             Showing teams for this user.{" "}
             <Link href={`/admin/users/${filterUserId}`} className={cn(adminUi.link, "underline-offset-2")}>
               View user in Accounts
@@ -92,14 +92,14 @@ export function OperatorTeams({
 
       <div className="space-y-8">
         {filteredGroups.map((group) => (
-          <section key={group.groupKey} className="space-y-3">
+          <section key={group.groupKey} className="space-y-2">
             <div>
-              <h2 className="text-base font-semibold text-white">{group.groupTitle}</h2>
-              {group.groupHint ? <p className="text-xs font-medium text-slate-400">{group.groupHint}</p> : null}
+              <h2 className="text-sm font-semibold text-admin-primary">{group.groupTitle}</h2>
+              {group.groupHint ? <p className="text-xs font-medium text-admin-muted">{group.groupHint}</p> : null}
             </div>
-            <div className="space-y-3">
+            <div className="divide-y divide-admin-border overflow-hidden rounded-lg border border-admin-border bg-admin-surface">
               {group.teams.map((team) => (
-                <TeamCard key={team.id} team={team} />
+                <TeamRow key={team.id} team={team} />
               ))}
             </div>
           </section>
@@ -107,35 +107,33 @@ export function OperatorTeams({
       </div>
 
       {filteredGroups.length === 0 ? (
-        <p className="text-sm font-medium text-slate-400">No teams match the current filters.</p>
+        <p className="text-sm font-medium text-admin-muted">No teams match the current filters.</p>
       ) : null}
     </div>
   )
 }
 
-function TeamCard({ team }: { team: AdminTeamRow }) {
+function TeamRow({ team }: { team: AdminTeamRow }) {
   return (
-    <div className={cn(adminUi.panel, adminUi.panelPadding)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-white">{team.name}</h3>
-          <p className="text-xs font-medium text-slate-300">{team.organization.name || "—"}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <span className={cn(adminOpsTeamStateChip(team.subscriptionStatus))}>subscription: {team.subscriptionStatus}</span>
-            <span className={cn(adminOpsTeamStateChip(team.teamStatus))}>team: {team.teamStatus}</span>
-          </div>
-          <p className="mt-2 text-xs font-medium text-slate-300">
-            Plan: {team.planTier || "starter"} | Level: {team.teamLevel ?? "—"} | Sport: {team.sport ?? "—"} | Created:{" "}
-            {new Date(team.createdAt).toLocaleDateString()}
-            {" | "}
-            Head coach: {team.headCoachName ?? "—"} | Staff (HC/AC): {team.coachStaffCount}
-          </p>
-          <Link href={`/admin/teams/${team.id}`} className={adminUi.linkSubtle}>
-            View details
-          </Link>
+    <div className="flex flex-wrap items-start justify-between gap-3 px-3 py-2.5">
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold text-admin-primary">{team.name}</h3>
+        <p className="text-xs font-medium text-admin-secondary">{team.organization.name || "—"}</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <span className={cn(adminOpsTeamStateChip(team.subscriptionStatus))}>subscription: {team.subscriptionStatus}</span>
+          <span className={cn(adminOpsTeamStateChip(team.teamStatus))}>team: {team.teamStatus}</span>
         </div>
-        <AdminTeamStatusForm teamId={team.id} initialStatus={team.teamStatus} />
+        <p className="mt-1.5 text-xs font-medium text-admin-secondary">
+          Plan: {team.planTier || "starter"} | Level: {team.teamLevel ?? "—"} | Sport: {team.sport ?? "—"} | Created:{" "}
+          {new Date(team.createdAt).toLocaleDateString()}
+          {" | "}
+          Head coach: {team.headCoachName ?? "—"} | Staff (HC/AC): {team.coachStaffCount}
+        </p>
+        <Link href={`/admin/teams/${team.id}`} className={cn(adminUi.linkSubtle, "mt-1 inline-block")}>
+          View details
+        </Link>
       </div>
+      <AdminTeamStatusForm teamId={team.id} initialStatus={team.teamStatus} />
     </div>
   )
 }

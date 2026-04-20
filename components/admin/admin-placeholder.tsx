@@ -18,7 +18,7 @@ export function AdminFeaturePlaceholder({
       )}
     >
       <Construction className="h-10 w-10 text-orange-400/80" aria-hidden />
-      <p className="max-w-md text-sm leading-relaxed text-slate-300">{message}</p>
+      <p className="max-w-md text-sm leading-relaxed text-admin-secondary">{message}</p>
     </div>
   )
 }

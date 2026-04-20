@@ -19,6 +19,17 @@ const config = {
     },
     extend: {
       colors: {
+        /** Admin console only — light data-ops UI (/admin), scope with `admin-*` utilities */
+        admin: {
+          canvas: "#F8FAFC",
+          surface: "#FFFFFF",
+          border: "#E5E7EB",
+          primary: "#111827",
+          secondary: "#374151",
+          muted: "#6B7280",
+          stripe: "#F9FAFB",
+          hover: "#F3F4F6",
+        },
         // Theme tokens use RGB triplets in CSS (e.g. --bg: 247 249 252) — use rgb() not hsl()
         bg: "rgb(var(--bg) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",

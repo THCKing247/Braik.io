@@ -88,7 +88,7 @@ export function AdminAnnouncementForm() {
         <button type="submit" disabled={submitting} className={cn(adminUi.btnPrimary, "disabled:opacity-60")}>
           {submitting ? "Sending..." : "Send to Head Coaches"}
         </button>
-        {result ? <p className="text-sm text-slate-400">{result}</p> : null}
+        {result ? <p className="text-sm text-admin-muted">{result}</p> : null}
       </div>
     </form>
   )

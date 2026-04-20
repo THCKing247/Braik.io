@@ -164,7 +164,7 @@ export function AdminUserDetailActions({
             checked={aiAutoRechargeEnabled}
             onChange={(e) => setAiAutoRechargeEnabled(e.target.checked)}
           />
-          <span className="font-medium text-slate-200">Auto-recharge AI credits</span>
+          <span className="font-medium text-admin-primary">Auto-recharge AI credits</span>
         </label>
       </div>
 
@@ -194,7 +194,7 @@ export function AdminUserDetailActions({
           Grant / revoke AI credits
         </button>
       </div>
-      {result ? <p className="text-xs font-medium text-slate-200">{result}</p> : null}
+      {result ? <p className="text-xs font-medium text-admin-primary">{result}</p> : null}
     </div>
   )
 }

@@ -202,7 +202,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
   }
 
   if (phase === "loading") {
-    return <p className="text-sm font-medium text-slate-300">Loading…</p>
+    return <p className="text-sm font-medium text-admin-secondary">Loading…</p>
   }
   if (phase === "forbidden") {
     return (
@@ -231,8 +231,8 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
         <div
           className={
             toast.type === "ok"
-              ? "rounded-lg border border-emerald-800 bg-emerald-950 px-4 py-2 text-sm font-medium text-emerald-100"
-              : "rounded-lg border border-red-800 bg-red-950 px-4 py-2 text-sm font-medium text-red-100"
+              ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-950"
+              : "rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900"
           }
         >
           {toast.message}
@@ -242,7 +242,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
       <div className={cn(adminUi.panel, adminUi.panelPadding, "grid gap-4 md:grid-cols-2")}>
         {isEdit && roleType ? (
           <div className="md:col-span-2 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Role type</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-admin-muted">Role type</span>
             <span className={roleType === "system" ? cn(adminChip.violet, "text-xs") : cn(adminChip.neutral, "text-xs")}>
               {roleType === "system" ? "System" : "Custom"}
             </span>
@@ -263,8 +263,8 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
           />
         </div>
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</span>
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-200">
+          <span className="text-xs font-semibold uppercase tracking-wide text-admin-muted">Status</span>
+          <label className="flex items-center gap-2 text-sm font-medium text-admin-primary">
             <Checkbox checked={isActive} onCheckedChange={(c) => setIsActive(Boolean(c))} />
             Active
           </label>
@@ -306,9 +306,9 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
                         className="mt-0.5"
                       />
                       <div>
-                        <div className="text-sm font-medium text-white">{r.label}</div>
-                        <div className="font-mono text-[11px] text-slate-400">{r.key}</div>
-                        {r.description ? <p className="mt-1 text-xs font-medium text-slate-400">{r.description}</p> : null}
+                        <div className="text-sm font-medium text-admin-primary">{r.label}</div>
+                        <div className="font-mono text-[11px] text-admin-muted">{r.key}</div>
+                        {r.description ? <p className="mt-1 text-xs font-medium text-admin-muted">{r.description}</p> : null}
                       </div>
                     </li>
                   ))}
@@ -319,7 +319,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-slate-800 pt-4">
+      <div className="flex flex-wrap items-center gap-3 border-t border-admin-border pt-4">
         <button
           type="button"
           disabled={saving || !name.trim() || !key.trim()}
@@ -328,7 +328,7 @@ export function PlatformRoleForm({ roleId }: { roleId?: string }) {
         >
           {saving ? "Saving…" : isEdit ? "Save changes" : "Create role"}
         </button>
-        <Link href="/admin/roles" className="text-sm font-medium text-slate-300 transition-colors hover:text-white">
+        <Link href="/admin/roles" className="text-sm font-medium text-admin-secondary transition-colors hover:text-admin-primary">
           Cancel
         </Link>
         {isDirty ? <span className="text-xs font-medium text-amber-200">Unsaved changes</span> : null}

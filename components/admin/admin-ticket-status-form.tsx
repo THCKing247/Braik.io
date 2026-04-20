@@ -59,7 +59,7 @@ export function AdminTicketStatusForm({
       >
         {saving ? "Saving..." : "Apply"}
       </button>
-      {message ? <span className="text-xs text-white/70">{message}</span> : null}
+      {message ? <span className="text-xs text-admin-muted">{message}</span> : null}
     </div>
   )
 }

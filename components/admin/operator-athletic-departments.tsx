@@ -35,7 +35,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
 
       {filtered.length === 0 ? (
         <div className={adminUi.emptyState}>
-          <p className="text-sm font-medium text-slate-300">
+          <p className="text-sm font-medium text-admin-secondary">
             {initialRows.length === 0
               ? "No athletic departments found. Provisioning may create schools and departments."
               : "No rows match your search."}
@@ -60,8 +60,8 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
             <tbody>
               {filtered.map((row) => (
                 <tr key={row.id} className={adminUi.tbodyRow}>
-                  <td className={cn(adminUi.td, "font-medium text-white")}>{row.schoolName}</td>
-                  <td className={cn(adminUi.td, "max-w-[220px] text-slate-300")}>
+                  <td className={cn(adminUi.td, "font-medium text-admin-primary")}>{row.schoolName}</td>
+                  <td className={cn(adminUi.td, "max-w-[220px] text-admin-secondary")}>
                     {row.organizationSummary ?? "—"}
                   </td>
                   <td className={adminUi.td}>
@@ -69,14 +69,14 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
                   </td>
                   <td className={adminUi.td}>{row.assistantCoachesAllowed}</td>
                   <td className={adminUi.td}>
-                    <span className={row.videoFeatureEnabled ? adminChip.success : cn(adminChip.neutral, "text-slate-300")}>
+                    <span className={row.videoFeatureEnabled ? adminChip.success : cn(adminChip.neutral, "text-admin-secondary")}>
                       {row.videoFeatureEnabled ? "On" : "Off"}
                     </span>
                   </td>
                   <td className={adminUi.td}>
                     <span
                       className={
-                        row.coachBPlusFeatureEnabled ? adminChip.success : cn(adminChip.neutral, "text-slate-300")
+                        row.coachBPlusFeatureEnabled ? adminChip.success : cn(adminChip.neutral, "text-admin-secondary")
                       }
                     >
                       {row.coachBPlusFeatureEnabled ? "On" : "Off"}

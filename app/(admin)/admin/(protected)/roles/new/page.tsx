@@ -10,8 +10,8 @@ export default function AdminNewRolePage() {
         <Link href="/admin/roles" className={cn(adminUi.linkSubtle, "text-sm")}>
           ← Roles &amp; permissions
         </Link>
-        <h1 className="mt-2 font-athletic text-2xl font-bold uppercase tracking-wide text-white">Create role</h1>
-        <p className="mt-1 text-sm text-slate-400">Define a name, key, and permission set for a new platform role.</p>
+        <h1 className="mt-2 font-athletic text-2xl font-bold uppercase tracking-wide text-admin-primary">Create role</h1>
+        <p className="mt-1 text-sm text-admin-muted">Define a name, key, and permission set for a new platform role.</p>
       </div>
       <PlatformRoleForm />
     </div>

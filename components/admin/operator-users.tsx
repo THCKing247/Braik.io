@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { AdminModal } from "@/components/admin/admin-modal"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
@@ -31,12 +31,17 @@ type AdminCaps = {
 
 export function OperatorUsers({ users }: { users: UserRow[] }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [query, setQuery] = useState("")
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [caps, setCaps] = useState<AdminCaps | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<null | { user: UserRow; kind: "suspend" | "delete" | "restore" }>(null)
+
+  useEffect(() => {
+    setQuery(searchParams.get("q") ?? "")
+  }, [searchParams])
 
   useEffect(() => {
     let cancelled = false
@@ -215,8 +220,8 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
             {filtered.map((user) => (
               <tr key={user.id} className={adminUi.tbodyRow}>
                 <td className={adminUi.td}>
-                  <p className="font-semibold text-white">{user.name || "Unnamed"}</p>
-                  <p className="text-xs font-medium text-slate-300">{user.email}</p>
+                  <p className="font-semibold text-admin-primary">{user.name || "Unnamed"}</p>
+                  <p className="text-xs font-medium text-admin-secondary">{user.email}</p>
                   <Link href={`/admin/users/${user.id}`} className={adminUi.linkSubtle}>
                     View profile
                   </Link>
@@ -225,11 +230,11 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
                 <td className={cn(adminUi.td, "text-xs")}>
                   {user.platformRoleName ? (
                     <>
-                      <span className="font-medium text-white">{user.platformRoleName}</span>
-                      <span className="ml-1 font-mono text-slate-400">({user.platformRoleKey})</span>
+                      <span className="font-medium text-admin-primary">{user.platformRoleName}</span>
+                      <span className="ml-1 font-mono text-admin-muted">({user.platformRoleKey})</span>
                     </>
                   ) : (
-                    <span className="font-medium text-slate-400">—</span>
+                    <span className="font-medium text-admin-muted">—</span>
                   )}
                 </td>
                 <td className={adminUi.td}>

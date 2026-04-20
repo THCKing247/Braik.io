@@ -20,19 +20,21 @@ export function AdminModal({ open, title, summary, onClose, children }: AdminMod
       <button
         type="button"
         onClick={onClose}
-        className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
         aria-label="Close modal"
       />
       <div
         className={cn(
           adminUi.panel,
-          "relative z-[121] w-full max-w-6xl max-h-[min(90vh,920px)] flex flex-col overflow-hidden p-0 text-slate-100 shadow-2xl shadow-black/50"
+          "relative z-[121] flex max-h-[min(90vh,920px)] w-full max-w-6xl flex-col overflow-hidden p-0 text-admin-primary shadow-xl shadow-neutral-900/10"
         )}
       >
         <div className={cn(adminUi.modalHeader, "flex shrink-0 items-start justify-between gap-4")}>
           <div className="min-w-0">
-            <h3 className="text-lg font-semibold tracking-tight text-white">{title}</h3>
-            {summary ? <p className="mt-1 text-xs font-medium leading-relaxed text-slate-300">{summary}</p> : null}
+            <h3 className="text-lg font-semibold tracking-tight text-admin-primary">{title}</h3>
+            {summary ? (
+              <p className="mt-1 text-xs font-medium leading-relaxed text-admin-secondary">{summary}</p>
+            ) : null}
           </div>
           <button
             type="button"

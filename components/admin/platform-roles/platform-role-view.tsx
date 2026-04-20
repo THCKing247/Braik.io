@@ -70,7 +70,7 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
   }, [catalog, permissionKeys])
 
   if (phase === "loading") {
-    return <p className="text-sm font-medium text-slate-300">Loading…</p>
+    return <p className="text-sm font-medium text-admin-secondary">Loading…</p>
   }
   if (phase === "forbidden") {
     return (
@@ -99,7 +99,7 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
         <div>
           <h2 className={cn(adminUi.sectionTitle, "text-xl")}>{role.name}</h2>
           <p className="mt-1 font-mono text-sm text-orange-300">{role.key}</p>
-          <p className="mt-2 max-w-2xl text-sm font-medium text-slate-300">{role.description || "—"}</p>
+          <p className="mt-2 max-w-2xl text-sm font-medium text-admin-secondary">{role.description || "—"}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -118,7 +118,7 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
         <span className={role.role_type === "system" ? adminChip.violet : cn(adminChip.neutral, "px-2 py-1")}>
           {role.role_type === "system" ? "System" : "Custom"}
         </span>
-        <span className={role.is_active ? adminChip.success : cn(adminChip.neutral, "px-2 py-1 text-slate-400")}>
+        <span className={role.is_active ? adminChip.success : cn(adminChip.neutral, "px-2 py-1 text-admin-muted")}>
           {role.is_active ? "Active" : "Inactive"}
         </span>
         <span className={cn(adminUi.badgeNeutral, "px-2 py-1")}>{userCount} users assigned</span>
@@ -131,16 +131,16 @@ export function PlatformRoleView({ roleId }: { roleId: string }) {
             <h4 className="mb-2 text-sm font-semibold text-orange-300">{section}</h4>
             <ul className="space-y-2">
               {rows.map((r) => (
-                <li key={r.key} className="text-sm font-medium text-slate-300">
-                  <span className="font-semibold text-white">{r.label}</span>
-                  <span className="ml-2 font-mono text-[11px] text-slate-400">({r.key})</span>
+                <li key={r.key} className="text-sm font-medium text-admin-secondary">
+                  <span className="font-semibold text-admin-primary">{r.label}</span>
+                  <span className="ml-2 font-mono text-[11px] text-admin-muted">({r.key})</span>
                 </li>
               ))}
             </ul>
           </div>
         ))}
         {permissionKeys.length === 0 ? (
-          <p className="text-sm font-medium text-slate-400">No permissions assigned.</p>
+          <p className="text-sm font-medium text-admin-muted">No permissions assigned.</p>
         ) : null}
       </div>
     </div>

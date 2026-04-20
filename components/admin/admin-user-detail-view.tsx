@@ -209,23 +209,23 @@ export function AdminUserDetailView({ initial }: { initial: AdminUserProfilePayl
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
             <dt className={adminUi.label}>Email</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.email}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.email}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>Full name (users)</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.name ?? "—"}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.name ?? "—"}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>Profile name</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.profileFullName ?? "—"}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.profileFullName ?? "—"}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>App role</dt>
-            <dd className="text-sm font-medium text-slate-200">{getUserRoleLabel(profile.role)}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{getUserRoleLabel(profile.role)}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>Profile role (profiles.role)</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.profileRole ?? "—"}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.profileRole ?? "—"}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>Status</dt>
@@ -235,11 +235,11 @@ export function AdminUserDetailView({ initial }: { initial: AdminUserProfilePayl
           </div>
           <div>
             <dt className={adminUi.label}>Platform role</dt>
-            <dd className="text-sm font-medium text-slate-200">
+            <dd className="text-sm font-medium text-admin-primary">
               {profile.platformRoleName ? (
                 <>
                   {profile.platformRoleName}{" "}
-                  <span className="font-mono text-xs text-slate-400">({profile.platformRoleKey})</span>
+                  <span className="font-mono text-xs text-admin-muted">({profile.platformRoleKey})</span>
                 </>
               ) : (
                 "—"
@@ -248,13 +248,13 @@ export function AdminUserDetailView({ initial }: { initial: AdminUserProfilePayl
           </div>
           <div>
             <dt className={adminUi.label}>Created</dt>
-            <dd className="text-sm font-medium text-slate-200">
+            <dd className="text-sm font-medium text-admin-primary">
               {new Date(profile.createdAt).toLocaleString()}
             </dd>
           </div>
           <div>
             <dt className={adminUi.label}>Last login</dt>
-            <dd className="text-sm font-medium text-slate-200">
+            <dd className="text-sm font-medium text-admin-primary">
               {profile.lastLoginAt ? new Date(profile.lastLoginAt).toLocaleString() : "—"}
             </dd>
           </div>
@@ -266,19 +266,19 @@ export function AdminUserDetailView({ initial }: { initial: AdminUserProfilePayl
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
             <dt className={adminUi.label}>Organization</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.organizationName ?? "—"}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.organizationName ?? "—"}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>School</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.schoolName ?? "—"}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.schoolName ?? "—"}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>Program</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.programName ?? "—"}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.programName ?? "—"}</dd>
           </div>
           <div>
             <dt className={adminUi.label}>Team</dt>
-            <dd className="text-sm font-medium text-slate-200">
+            <dd className="text-sm font-medium text-admin-primary">
               {profile.team ? (
                 <Link href={`/admin/teams/${profile.team.id}`} className={adminUi.link}>
                   {profile.team.name}
@@ -290,7 +290,7 @@ export function AdminUserDetailView({ initial }: { initial: AdminUserProfilePayl
           </div>
           <div>
             <dt className={adminUi.label}>Profile sport</dt>
-            <dd className="text-sm font-medium text-slate-200">{profile.profileSport ?? "—"}</dd>
+            <dd className="text-sm font-medium text-admin-primary">{profile.profileSport ?? "—"}</dd>
           </div>
         </dl>
       </div>

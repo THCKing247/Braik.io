@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 import { adminNavLinkClass, adminUi, isAdminNavActive } from "@/lib/admin/admin-ui"
 import { AdminLoadingShell } from "@/components/admin/admin-loading-shell"
 import { AdminSignOutButton } from "@/components/admin/admin-sign-out-button"
+import { AdminMain } from "@/components/admin/admin-layout"
+import { AdminTopBar } from "@/components/admin/admin-top-bar"
 
 type Phase = "loading" | "ok" | "error"
 
@@ -19,6 +21,7 @@ type AdminCaps = {
   canManagePlatformSettings: boolean
   canViewBilling: boolean
   canManageBilling: boolean
+  canUseDevConsole: boolean
 }
 
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
@@ -72,6 +75,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
                 canManagePlatformSettings: Boolean(j.canManagePlatformSettings),
                 canViewBilling: Boolean(j.canViewBilling),
                 canManageBilling: Boolean(j.canManageBilling),
+                canUseDevConsole: Boolean(j.canUseDevConsole),
               })
             }
           } else if (!cancelled) {
@@ -83,6 +87,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
               canManagePlatformSettings: false,
               canViewBilling: false,
               canManageBilling: false,
+              canUseDevConsole: false,
             })
           }
         } catch {
@@ -95,6 +100,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
               canManagePlatformSettings: false,
               canViewBilling: false,
               canManageBilling: false,
+              canUseDevConsole: false,
             })
           }
         }
@@ -119,7 +125,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
   if (phase === "error") {
     return (
       <div className={adminUi.errorCenter}>
-        <p className="text-sm font-medium text-slate-200">Could not verify admin access.</p>
+        <p className="text-sm font-medium text-admin-secondary">Could not verify admin access.</p>
         <Link href="/admin/login" className={cn(adminUi.link, "text-base")}>
           Admin login
         </Link>
@@ -129,7 +135,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={adminUi.shellGradient}>
-      <div className="flex w-full gap-0">
+      <div className="flex min-h-screen w-full gap-0">
         <aside className={adminUi.sidebar}>
           <p className={adminUi.brandKicker}>Braik</p>
           <h1 className={adminUi.sidebarTitle}>Admin</h1>
@@ -150,6 +156,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
               ) : null}
               {caps?.canManageRoles ? <NavLink href="/admin/roles">Roles &amp; permissions</NavLink> : null}
               {caps?.canManagePlatformSettings ? <NavLink href="/admin/settings/system">System settings</NavLink> : null}
+              {caps?.canUseDevConsole ? <NavLink href="/admin/dev-console">Dev console</NavLink> : null}
             </NavSection>
 
             <NavSection title="Session">
@@ -159,7 +166,12 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
             </NavSection>
           </nav>
         </aside>
-        <main className={adminUi.main}>{children}</main>
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          <AdminTopBar />
+          <main className={cn(adminUi.main, "min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll")}>
+            <AdminMain>{children}</AdminMain>
+          </main>
+        </div>
       </div>
     </div>
   )

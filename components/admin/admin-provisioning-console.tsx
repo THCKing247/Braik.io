@@ -156,7 +156,7 @@ export function AdminProvisioningConsole() {
 
   return (
     <div className="space-y-8">
-      <p className="text-sm font-medium leading-relaxed text-slate-300">
+      <p className="text-sm font-medium leading-relaxed text-admin-secondary">
         Create organizations and teams, then invite users. Invites use Supabase email with a secure link to set a
         password — no temporary passwords are sent in plain text.
       </p>
@@ -172,11 +172,11 @@ export function AdminProvisioningConsole() {
             <label className={adminUi.label}>Slug (optional)</label>
             <input className={adminUi.input} value={orgSlug} onChange={(e) => setOrgSlug(e.target.value)} />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-admin-secondary md:col-span-2">
             <input type="checkbox" checked={orgVideo} onChange={(e) => setOrgVideo(e.target.checked)} />
             video_clips_enabled (org)
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-admin-secondary md:col-span-2">
             <input type="checkbox" checked={orgCoachBPlus} onChange={(e) => setOrgCoachBPlus(e.target.checked)} />
             coach_b_plus_enabled (org) — Coach B action tools
           </label>
@@ -213,11 +213,11 @@ export function AdminProvisioningConsole() {
             <label className={adminUi.label}>Program name (defaults to team name)</label>
             <input className={adminUi.input} value={teamProgramName} onChange={(e) => setTeamProgramName(e.target.value)} />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-admin-secondary md:col-span-2">
             <input type="checkbox" checked={teamVideo} onChange={(e) => setTeamVideo(e.target.checked)} />
             video_clips_enabled (team)
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-admin-secondary md:col-span-2">
             <input type="checkbox" checked={teamCoachBPlus} onChange={(e) => setTeamCoachBPlus(e.target.checked)} />
             coach_b_plus_enabled (team) — Coach B action tools
           </label>
@@ -230,7 +230,7 @@ export function AdminProvisioningConsole() {
 
       <section className={cn(adminUi.panel, adminUi.panelPadding)}>
         <h2 className={cn(adminUi.sectionTitle, "text-lg")}>Invite user</h2>
-        <p className="mt-1 text-xs font-medium text-slate-400">
+        <p className="mt-1 text-xs font-medium text-admin-muted">
           Sends a Supabase invite email. TODO: confirm Auth email templates use your app URL in the dashboard.
         </p>
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitInvite}>
@@ -290,7 +290,7 @@ export function AdminProvisioningConsole() {
               ))}
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-admin-secondary md:col-span-2">
             <input type="checkbox" checked={inviteVideo} onChange={(e) => setInviteVideo(e.target.checked)} />
             Game Video / Clips (sets view/upload/create/share; refine per user in Accounts)
           </label>

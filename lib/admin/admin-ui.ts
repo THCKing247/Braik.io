@@ -1,169 +1,171 @@
 import { cn } from "@/lib/utils"
 
 /**
- * Braik admin — internal ops dashboard: slate-950 canvas, solid contrast,
- * orange-500 accent for primary / active only.
+ * Braik admin — internal ops console: light canvas, high-contrast type,
+ * orange accent for primary actions / active nav only (Stripe-style data UI).
  */
 export const adminUi = {
-  /** Deepest canvas (main content column) */
-  shell: "min-h-screen w-full bg-slate-950 text-slate-50",
+  shell: "min-h-screen w-full bg-admin-canvas text-admin-primary",
 
-  shellGradient: "min-h-screen w-full bg-slate-950 text-slate-50",
+  shellGradient: "min-h-screen w-full bg-admin-canvas text-admin-primary",
 
-  loadingCenter: "flex min-h-screen w-full items-center justify-center bg-slate-950 text-slate-50",
+  loadingCenter:
+    "flex min-h-screen w-full items-center justify-center bg-admin-canvas text-admin-primary",
 
   errorCenter:
-    "flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-slate-950 p-6 text-slate-50",
+    "flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-admin-canvas p-6 text-admin-primary",
 
-  /** Sidebar rail */
   sidebar:
-    "sticky top-0 h-screen w-[min(18rem,85vw)] shrink-0 border-r border-slate-800 bg-slate-950 md:w-72",
+    "sticky top-0 flex h-screen w-[min(18rem,85vw)] shrink-0 flex-col border-r border-admin-border bg-admin-surface md:w-72",
 
-  brandKicker: "text-[11px] font-bold uppercase tracking-[0.2em] text-orange-500",
+  brandKicker: "text-[11px] font-bold uppercase tracking-[0.2em] text-orange-600",
 
-  sidebarTitle: "mt-2 font-athletic text-xl font-bold uppercase tracking-wide text-white",
+  sidebarTitle: "mt-2 font-sans text-lg font-semibold tracking-tight text-admin-primary",
 
-  sidebarTagline: "mt-1 text-xs font-medium leading-snug text-slate-300",
+  sidebarTagline: "mt-1 text-xs font-medium leading-snug text-admin-secondary",
 
-  /** Nav section labels (sidebar groups) */
-  navSectionLabel: "mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400",
+  navSectionLabel: "mb-2 text-[10px] font-semibold uppercase tracking-wider text-admin-muted",
 
-  main: "min-h-screen min-w-0 flex-1 bg-slate-950 px-4 py-6 sm:px-6 lg:px-8 lg:py-8",
+  /** Main column (scrollable); padding applied by AdminMain */
+  main: "relative flex min-h-0 min-w-0 flex-1 flex-col bg-admin-canvas",
 
-  /** Surfaces */
-  panel:
-    "rounded-xl border border-slate-800 bg-slate-900 shadow-sm shadow-black/40 ring-1 ring-slate-800/90",
+  /** Atomic panel — tables, filters, dense logs */
+  panel: "rounded-lg border border-admin-border bg-admin-surface",
 
-  panelMuted: "rounded-xl border border-slate-800 bg-slate-950 shadow-sm shadow-black/30",
+  panelMuted: "rounded-lg border border-admin-border bg-admin-stripe",
 
   panelInteractive:
-    "transition-colors duration-150 hover:border-slate-700 hover:shadow-md hover:shadow-black/50",
+    "transition-colors duration-150 hover:border-neutral-300 hover:bg-admin-hover/80",
 
-  panelPadding: "p-4 sm:p-5",
+  panelPadding: "p-3 sm:p-4",
 
-  pageHeader: "mb-6 space-y-2",
+  pageHeader: "space-y-1",
 
-  pageTitle: "font-sans text-2xl font-bold tracking-tight text-white sm:text-3xl",
+  pageTitle: "font-sans text-xl font-semibold tracking-tight text-admin-primary sm:text-2xl",
 
-  pageDescription: "max-w-2xl text-sm font-medium leading-relaxed text-slate-300",
+  pageDescription: "max-w-2xl text-sm font-medium leading-relaxed text-admin-secondary",
 
-  /** Section titles inside pages */
-  sectionTitle: "text-sm font-semibold text-white",
+  sectionTitle: "text-sm font-semibold text-admin-primary",
 
-  sectionSubtitle: "text-xs font-medium text-slate-300",
+  sectionSubtitle: "text-xs font-medium text-admin-secondary",
 
-  /** Tables */
-  tableWrap: "overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 shadow-inner shadow-black/40",
+  /** Dense tables — zebra rows, sticky header inside scroll wrapper */
+  tableWrap:
+    "overflow-auto rounded-lg border border-admin-border bg-admin-surface max-h-[min(72vh,800px)]",
 
-  table: "w-full min-w-[640px] border-collapse text-left text-sm",
+  table: "w-full min-w-[640px] border-collapse text-left text-[13px]",
 
-  thead: "border-b border-slate-800 bg-slate-900 text-xs font-semibold uppercase tracking-wide text-slate-200",
+  thead:
+    "sticky top-0 z-10 border-b border-admin-border bg-admin-surface text-[11px] font-semibold uppercase tracking-wide text-admin-secondary shadow-[inset_0_-1px_0_0_theme(colors.admin.border)]",
 
-  th: "px-4 py-3 text-left first:pl-4",
+  th: "px-2 py-1.5 text-left first:pl-3",
 
   tbodyRow:
-    "border-b border-slate-800/90 bg-slate-950 transition-colors last:border-b-0 hover:bg-slate-900/90 data-[state=selected]:bg-slate-900",
+    "border-b border-admin-border bg-admin-surface transition-colors even:bg-admin-stripe hover:bg-admin-hover last:border-b-0 data-[state=selected]:bg-orange-50",
 
-  td: "px-4 py-3 align-middle text-slate-200",
+  td: "px-2 py-1.5 align-middle text-admin-primary",
 
-  /** Text scale — avoid sub-slate-400 for body; use 300 for secondary */
-  textPrimary: "text-white",
-  textSecondary: "text-slate-300",
-  textMuted: "text-slate-400",
+  textPrimary: "text-admin-primary",
+  textSecondary: "text-admin-secondary",
+  textMuted: "text-admin-muted",
 
-  link: "font-medium text-orange-400 underline-offset-2 transition-colors hover:text-orange-300",
+  link: "font-medium text-orange-600 underline-offset-2 transition-colors hover:text-orange-700",
 
-  linkSubtle: "text-xs font-medium text-orange-400 underline-offset-2 transition-colors hover:text-orange-300",
+  linkSubtle:
+    "text-xs font-medium text-orange-600 underline-offset-2 transition-colors hover:text-orange-700",
 
   actionPill:
-    "rounded-lg border border-orange-600/80 bg-orange-950 px-2 py-1 text-xs font-semibold text-orange-50 transition-colors hover:border-orange-500 hover:bg-orange-900 hover:text-white",
+    "rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-900 transition-colors hover:border-orange-300 hover:bg-orange-100",
 
-  /** Forms */
-  label: "mb-1.5 block text-xs font-semibold text-slate-300",
+  label: "mb-1 block text-xs font-semibold text-admin-secondary",
 
   input:
-    "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium text-white placeholder:text-slate-500 shadow-sm transition-colors focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/35",
+    "w-full rounded-md border border-admin-border bg-admin-surface px-2.5 py-1.5 text-sm font-medium text-admin-primary placeholder:text-admin-muted shadow-sm transition-colors focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25",
 
   select:
-    "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/35",
+    "w-full rounded-md border border-admin-border bg-admin-surface px-2.5 py-1.5 text-sm font-medium text-admin-primary shadow-sm transition-colors focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25",
 
-  /** Buttons */
   btnPrimary:
-    "inline-flex items-center justify-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:pointer-events-none disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-md bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50",
 
   btnPrimarySm:
-    "inline-flex items-center justify-center rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-md bg-orange-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 disabled:opacity-50",
 
   btnSecondary:
-    "inline-flex items-center justify-center rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 shadow-sm transition-colors hover:border-slate-500 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-md border border-admin-border bg-admin-surface px-3 py-1.5 text-sm font-medium text-admin-primary shadow-sm transition-colors hover:bg-admin-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-50",
 
   btnSecondarySm:
-    "inline-flex items-center justify-center rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-100 transition-colors hover:border-slate-500 hover:bg-slate-800 disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-md border border-admin-border bg-admin-surface px-2 py-1 text-xs font-medium text-admin-primary transition-colors hover:bg-admin-stripe disabled:opacity-50",
 
   btnDanger:
-    "inline-flex items-center justify-center rounded-lg border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:border-red-500 hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-md border border-red-600 bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-50",
 
   btnDangerSm:
-    "inline-flex items-center justify-center rounded-lg border border-red-700 bg-red-950 px-2.5 py-1 text-xs font-semibold text-red-100 transition-colors hover:border-red-600 hover:bg-red-900 disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-800 transition-colors hover:border-red-300 hover:bg-red-100 disabled:opacity-50",
 
   btnWarningSm:
-    "inline-flex items-center justify-center rounded-lg border border-amber-700 bg-amber-950 px-2.5 py-1 text-xs font-semibold text-amber-100 transition-colors hover:border-amber-600 hover:bg-amber-900 disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900 transition-colors hover:border-amber-300 hover:bg-amber-100 disabled:opacity-50",
 
   tableActionBtn:
-    "inline-flex items-center justify-center rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs font-medium text-slate-100 transition-colors hover:border-orange-500/70 hover:bg-slate-800 hover:text-white",
+    "inline-flex items-center justify-center rounded-md border border-admin-border bg-admin-surface px-2 py-1 text-xs font-medium text-admin-primary transition-colors hover:border-orange-300 hover:bg-orange-50",
 
   btnGhost:
-    "inline-flex items-center justify-center rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-700",
+    "inline-flex items-center justify-center rounded-md bg-admin-stripe px-3 py-2 text-sm font-medium text-admin-primary transition-colors hover:bg-admin-hover",
 
-  /** Timeframe / filters — segmented control */
-  pillGroup: "inline-flex flex-wrap gap-0 rounded-lg border border-slate-700 bg-slate-950 p-0.5 shadow-sm",
+  pillGroup:
+    "inline-flex flex-wrap gap-0 rounded-md border border-admin-border bg-admin-stripe p-0.5",
 
   pill:
-    "rounded-md px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-900 hover:text-white",
+    "rounded px-2.5 py-1 text-xs font-semibold text-admin-secondary transition-colors hover:bg-white hover:text-admin-primary",
 
-  pillActive: "bg-orange-500 text-white shadow-sm hover:bg-orange-500 hover:text-white",
+  pillActive: "bg-orange-50 text-admin-primary ring-1 ring-orange-200",
 
   toolbarInput:
-    "min-w-[140px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-white placeholder:text-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/35",
+    "min-w-[140px] rounded-md border border-admin-border bg-admin-surface px-2.5 py-1.5 text-xs font-medium text-admin-primary placeholder:text-admin-muted focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25",
 
-  badgeNeutral: "rounded-md border border-slate-600 bg-slate-900 px-2 py-0.5 text-xs font-medium text-slate-200",
+  badgeNeutral:
+    "rounded border border-admin-border bg-admin-stripe px-1.5 py-0.5 text-xs font-medium text-admin-secondary",
 
   emptyState:
-    "flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/80 p-8 text-center text-sm font-medium text-slate-300",
+    "flex min-h-[160px] flex-col items-center justify-center rounded-lg border border-dashed border-admin-border bg-admin-stripe p-6 text-center text-sm font-medium text-admin-secondary",
 
   noticeInfo:
-    "rounded-xl border border-orange-700/80 bg-orange-950 px-4 py-3 text-sm text-orange-50 shadow-sm",
+    "rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm",
 
-  noticeMuted: "rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-200 shadow-sm",
+  noticeMuted:
+    "rounded-lg border border-admin-border bg-admin-stripe px-3 py-2 text-sm font-medium text-admin-secondary shadow-sm",
 
-  /** Nested rows / list items inside panels */
-  nestedRow: "rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5",
+  nestedRow:
+    "rounded-md border border-admin-border bg-admin-surface px-2.5 py-2",
 
-  /** Checkbox / toggle row inside forms */
-  formCheckRow: "flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5",
+  formCheckRow:
+    "flex items-center gap-2 rounded-md border border-admin-border bg-admin-stripe px-2.5 py-2",
 
-  /** Modal chrome */
-  modalHeader: "border-b border-slate-800 bg-slate-900/90 px-5 py-4",
+  modalHeader: "flex shrink-0 items-start justify-between gap-4 border-b border-admin-border bg-admin-surface px-4 py-3",
 
-  /** Skeleton */
-  skeleton: "admin-skeleton-shimmer rounded-md bg-slate-800",
+  skeleton: "admin-skeleton-shimmer rounded bg-neutral-200",
 
-  skeletonLine: "h-4 w-full rounded bg-slate-800",
+  skeletonLine: "h-4 w-full rounded bg-neutral-200",
 } as const
 
-/** Solid status chips — readable on slate-950 (no low-opacity washes) */
+/** Status chips — readable on light surfaces */
 export const adminChip = {
-  success: "rounded-md border border-emerald-700 bg-emerald-950 px-2 py-0.5 text-xs font-medium text-emerald-100",
-  danger: "rounded-md border border-red-700 bg-red-950 px-2 py-0.5 text-xs font-medium text-red-100",
-  warning: "rounded-md border border-amber-700 bg-amber-950 px-2 py-0.5 text-xs font-medium text-amber-100",
-  orange: "rounded-md border border-orange-700 bg-orange-950 px-2 py-0.5 text-xs font-medium text-orange-100",
-  neutral: "rounded-md border border-slate-600 bg-slate-900 px-2 py-0.5 text-xs font-medium text-slate-200",
-  sky: "rounded-md border border-sky-700 bg-sky-950 px-2 py-0.5 text-xs font-medium text-sky-100",
-  violet: "rounded-md border border-violet-700 bg-violet-950 px-2 py-0.5 text-xs font-medium text-violet-100",
-  purple: "rounded-md border border-purple-700 bg-purple-950 px-2 py-0.5 text-xs font-medium text-purple-100",
+  success:
+    "rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-900",
+  danger: "rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-900",
+  warning:
+    "rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-900",
+  orange:
+    "rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-xs font-medium text-orange-950",
+  neutral:
+    "rounded border border-admin-border bg-admin-stripe px-1.5 py-0.5 text-xs font-medium text-admin-secondary",
+  sky: "rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-xs font-medium text-sky-950",
+  violet:
+    "rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-950",
+  purple:
+    "rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-950",
 } as const
 
-/** Team subscription_status or team_status display */
 export function adminOpsTeamStateChip(value: string): string {
   const n = value.toLowerCase()
   if (n === "active") return adminChip.success
@@ -173,7 +175,6 @@ export function adminOpsTeamStateChip(value: string): string {
   return adminChip.neutral
 }
 
-/** Account / user status */
 export function adminOpsUserStatusChip(status: string): string {
   const v = status.toLowerCase()
   if (v.includes("active")) return adminChip.success
@@ -182,7 +183,6 @@ export function adminOpsUserStatusChip(status: string): string {
   return adminChip.neutral
 }
 
-/** AD / org status */
 export function adminOpsAdStatusChip(status: string): string {
   const n = status.toLowerCase()
   if (n === "active") return adminChip.success
@@ -197,40 +197,38 @@ const kpiAccent = {
   sky: "border-l-sky-500",
   violet: "border-l-violet-500",
   purple: "border-l-purple-500",
-  slate: "border-l-slate-500",
+  slate: "border-l-neutral-400",
 } as const
 
-/** KPI stat box: neutral surface + left accent (Stripe-style) */
 export function adminKpiStatCard(accent: keyof typeof kpiAccent, interactive?: boolean) {
   return cn(
-    "rounded-xl border border-slate-800 border-l-4 bg-slate-900 pl-4 pr-3 py-3 shadow-sm",
+    "rounded-lg border border-admin-border border-l-4 bg-admin-surface px-3 py-2 shadow-sm",
     kpiAccent[accent],
     interactive &&
-      "cursor-pointer text-left transition-colors hover:border-slate-700 hover:bg-slate-800/80 focus-visible:outline focus-visible:ring-2 focus-visible:ring-orange-500/50"
+      "cursor-pointer text-left transition-colors hover:border-neutral-300 hover:bg-admin-hover focus-visible:outline focus-visible:ring-2 focus-visible:ring-orange-500/40"
   )
 }
 
 export function adminKpiLabel() {
-  return "text-xs font-medium text-slate-300"
+  return "text-[11px] font-medium uppercase tracking-wide text-admin-muted"
 }
 
 export function adminKpiValue() {
-  return "mt-1 text-2xl font-semibold tabular-nums tracking-tight text-white"
+  return "mt-0.5 text-xl font-semibold tabular-nums tracking-tight text-admin-primary"
 }
 
-/** Left accent bar for metric / alert cards */
 export const adminAccent = {
   orange: "border-l-orange-500",
   red: "border-l-red-500",
   emerald: "border-l-emerald-500",
   sky: "border-l-sky-500",
   violet: "border-l-violet-500",
-  slate: "border-l-slate-500",
+  slate: "border-l-neutral-400",
 } as const
 
 export function adminMetricCard(accent: keyof typeof adminAccent) {
   return cn(
-    "relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900 pl-4 shadow-sm transition-colors duration-150",
+    "relative overflow-hidden rounded-lg border border-admin-border bg-admin-surface pl-3 shadow-sm transition-colors duration-150",
     "border-l-4",
     adminAccent[accent],
     adminUi.panelInteractive
@@ -239,10 +237,10 @@ export function adminMetricCard(accent: keyof typeof adminAccent) {
 
 export function adminNavLinkClass(active: boolean) {
   return cn(
-    "block rounded-md border-l-2 py-2 pl-3 pr-2 text-sm font-medium transition-colors duration-150",
+    "block rounded-md border-l-2 py-1.5 pl-2.5 pr-2 text-sm font-medium transition-colors duration-150",
     active
-      ? "border-orange-500 bg-slate-900 text-white shadow-sm"
-      : "border-transparent text-slate-300 hover:border-slate-700 hover:bg-slate-900/70 hover:text-white"
+      ? "border-orange-500 bg-orange-50 text-admin-primary"
+      : "border-transparent text-admin-secondary hover:border-neutral-300 hover:bg-admin-stripe hover:text-admin-primary"
   )
 }
 

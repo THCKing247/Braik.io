@@ -143,15 +143,17 @@ export function OperatorPlatformRoles() {
 
   if (phase === "loading") {
     return (
-      <div className={cn(adminUi.panel, adminUi.panelPadding, "text-sm font-medium text-slate-300")}>Loading roles…</div>
+      <div className={cn(adminUi.panel, adminUi.panelPadding, "text-sm font-medium text-admin-secondary")}>Loading roles…</div>
     )
   }
 
   if (phase === "forbidden") {
     return (
-      <div className="space-y-3 rounded-xl border border-amber-800 bg-amber-950 p-6 text-sm text-amber-50">
+      <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
         <p className="font-semibold">You do not have permission to manage roles.</p>
-        <p className="font-medium text-amber-100">Ask a platform administrator to grant the “Manage roles & permissions” capability.</p>
+        <p className="font-medium text-amber-900">
+          Ask a platform administrator to grant the “Manage roles & permissions” capability.
+        </p>
         <Link href="/admin/overview" className={cn(adminUi.link, "inline-block underline-offset-2")}>
           Back to overview
         </Link>
@@ -161,9 +163,9 @@ export function OperatorPlatformRoles() {
 
   if (phase === "unauthorized") {
     return (
-      <div className="space-y-3 rounded-xl border border-amber-800 bg-amber-950 p-6 text-sm text-amber-50">
+      <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
         <p className="font-semibold">Sign-in required</p>
-        <p className="font-medium text-amber-100">{loadErrorMessage ?? "Your session expired or you are not signed in."}</p>
+        <p className="font-medium text-amber-900">{loadErrorMessage ?? "Your session expired or you are not signed in."}</p>
         <Link href="/login" className={cn(adminUi.link, "inline-block underline-offset-2")}>
           Go to sign in
         </Link>
@@ -173,9 +175,9 @@ export function OperatorPlatformRoles() {
 
   if (phase === "error") {
     return (
-      <div className="rounded-xl border border-red-800 bg-red-950 p-6 text-sm text-red-100">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-900">
         <p className="mb-2 font-semibold">Failed to load roles.</p>
-        {loadErrorMessage ? <p className="mb-3 font-medium text-red-200">{loadErrorMessage}</p> : null}
+        {loadErrorMessage ? <p className="mb-3 font-medium text-red-800">{loadErrorMessage}</p> : null}
         <button type="button" className={cn(adminUi.link, "underline")} onClick={() => void load()}>
           Retry
         </button>
@@ -193,7 +195,7 @@ export function OperatorPlatformRoles() {
       />
       {dataSource === "fallback" ? (
         <div className={adminUi.noticeInfo}>
-          <p className="text-sm font-medium text-orange-50">
+          <p className="text-sm font-medium text-amber-950">
             Showing the default platform role catalog (database roles schema is not available yet). Create, edit, and delete
             actions are disabled until migrations are applied.
           </p>
@@ -203,8 +205,8 @@ export function OperatorPlatformRoles() {
         <div
           className={
             toast.type === "ok"
-              ? "rounded-lg border border-emerald-800 bg-emerald-950 px-4 py-2 text-sm font-medium text-emerald-100"
-              : "rounded-lg border border-red-800 bg-red-950 px-4 py-2 text-sm font-medium text-red-100"
+              ? "rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-950"
+              : "rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-900"
           }
         >
           {toast.message}
@@ -223,7 +225,7 @@ export function OperatorPlatformRoles() {
         </div>
         {readOnlyCatalog ? (
           <span
-            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-500"
+            className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-lg border border-admin-border bg-admin-stripe px-4 py-2 text-sm font-medium text-admin-muted"
             title="Run platform roles migrations to enable creating roles"
           >
             Create Role
@@ -251,9 +253,9 @@ export function OperatorPlatformRoles() {
           <tbody>
             {filtered.map((r) => (
               <tr key={r.id} className={adminUi.tbodyRow}>
-                <td className={cn(adminUi.td, "font-medium text-white")}>{r.name}</td>
-                <td className={cn(adminUi.td, "font-mono text-xs text-orange-300")}>{r.key}</td>
-                <td className={cn(adminUi.td, "hidden max-w-md truncate font-medium text-slate-300 md:table-cell")}>
+                <td className={cn(adminUi.td, "font-medium text-admin-primary")}>{r.name}</td>
+                <td className={cn(adminUi.td, "font-mono text-xs text-orange-800")}>{r.key}</td>
+                <td className={cn(adminUi.td, "hidden max-w-md truncate font-medium text-admin-secondary md:table-cell")}>
                   {r.description || "—"}
                 </td>
                 <td className={adminUi.td}>{r.userCount}</td>
@@ -263,14 +265,14 @@ export function OperatorPlatformRoles() {
                   </span>
                 </td>
                 <td className={adminUi.td}>
-                  <span className={r.is_active ? adminChip.success : cn(adminChip.neutral, "text-xs text-slate-400")}>
+                  <span className={r.is_active ? adminChip.success : cn(adminChip.neutral, "text-xs text-admin-muted")}>
                     {r.is_active ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td className={cn(adminUi.td, "text-right")}>
                   <div className="flex flex-wrap justify-end gap-2">
                     {readOnlyCatalog ? (
-                      <span className="text-xs font-medium text-slate-500" title="Run migrations to use role detail and editing">
+                      <span className="text-xs font-medium text-admin-muted" title="Run migrations to use role detail and editing">
                         View
                       </span>
                     ) : (
@@ -279,11 +281,11 @@ export function OperatorPlatformRoles() {
                       </Link>
                     )}
                     {readOnlyCatalog ? (
-                      <span className="text-xs font-medium text-slate-500" title="Run migrations to use role detail and editing">
+                      <span className="text-xs font-medium text-admin-muted" title="Run migrations to use role detail and editing">
                         Edit
                       </span>
                     ) : (
-                      <Link href={`/admin/roles/${r.id}/edit`} className="text-xs font-medium text-slate-300 hover:underline">
+                      <Link href={`/admin/roles/${r.id}/edit`} className="text-xs font-medium text-admin-secondary hover:underline">
                         Edit
                       </Link>
                     )}
@@ -291,7 +293,7 @@ export function OperatorPlatformRoles() {
                       type="button"
                       disabled={readOnlyCatalog || busyId === r.id}
                       onClick={() => void duplicate(r)}
-                      className="text-xs font-medium text-slate-400 hover:text-slate-200 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                      className="text-xs font-medium text-admin-muted hover:text-admin-primary hover:underline disabled:cursor-not-allowed disabled:opacity-40"
                       title={readOnlyCatalog ? "Run migrations to duplicate roles" : undefined}
                     >
                       Duplicate
@@ -300,7 +302,7 @@ export function OperatorPlatformRoles() {
                       type="button"
                       disabled={readOnlyCatalog || !r.is_deletable || busyId === r.id}
                       onClick={() => setDeleteTarget(r)}
-                      className="text-xs font-medium text-red-300 hover:text-red-200 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                      className="text-xs font-medium text-red-700 hover:text-red-800 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
                       title={
                         readOnlyCatalog
                           ? "Run migrations to delete roles"
@@ -318,7 +320,7 @@ export function OperatorPlatformRoles() {
           </tbody>
         </table>
         {filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm font-medium text-slate-400">No roles match your search.</div>
+          <div className="px-4 py-8 text-center text-sm font-medium text-admin-muted">No roles match your search.</div>
         ) : null}
       </div>
 

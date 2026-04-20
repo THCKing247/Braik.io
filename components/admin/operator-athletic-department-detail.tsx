@@ -175,43 +175,43 @@ export function OperatorAthleticDepartmentDetail({
         <Link href="/admin/athletic-departments" className={cn(adminUi.link, "text-sm underline-offset-2")}>
           ← Athletic Departments
         </Link>
-        <span className="text-slate-500">/</span>
-        <span className="text-slate-300">{overview.schoolName}</span>
+        <span className="text-admin-muted">/</span>
+        <span className="text-admin-secondary">{overview.schoolName}</span>
       </div>
 
       {err ? (
-        <div className="rounded-lg border border-red-800 bg-red-950 px-3 py-2 text-sm font-medium text-red-100">{err}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-900">{err}</div>
       ) : null}
 
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
         <h2 className={cn(adminUi.sectionTitle, "text-lg")}>{overview.schoolName}</h2>
         {overview.organizationNames.length > 0 && (
-          <p className="mt-1 text-sm font-medium text-slate-300">Organizations: {overview.organizationNames.join(", ")}</p>
+          <p className="mt-1 text-sm font-medium text-admin-secondary">Organizations: {overview.organizationNames.join(", ")}</p>
         )}
         <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className={adminUi.nestedRow}>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Teams usage</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-100">{usageTeams}</dd>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-admin-muted">Teams usage</dt>
+            <dd className="mt-1 text-sm font-medium text-admin-primary">{usageTeams}</dd>
           </div>
           <div className={adminUi.nestedRow}>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Assistant coaches</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-100">{usageAssist}</dd>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-admin-muted">Assistant coaches</dt>
+            <dd className="mt-1 text-sm font-medium text-admin-primary">{usageAssist}</dd>
           </div>
           <div className={adminUi.nestedRow}>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">School video (master)</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-100">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-admin-muted">School video (master)</dt>
+            <dd className="mt-1 text-sm font-medium text-admin-primary">{overview.videoFeatureEnabled ? "On" : "Off"}</dd>
           </div>
           <div className={adminUi.nestedRow}>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">School Coach B+ (master)</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-100">{overview.coachBPlusFeatureEnabled ? "On" : "Off"}</dd>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-admin-muted">School Coach B+ (master)</dt>
+            <dd className="mt-1 text-sm font-medium text-admin-primary">{overview.coachBPlusFeatureEnabled ? "On" : "Off"}</dd>
           </div>
         </dl>
 
-        <div className="mt-5 space-y-3 border-t border-slate-800 pt-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Edit entitlements</p>
+        <div className="mt-5 space-y-3 border-t border-admin-border pt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-admin-muted">Edit entitlements</p>
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-slate-300">teams_allowed</span>
+              <span className="font-medium text-admin-secondary">teams_allowed</span>
               <input
                 type="number"
                 min={0}
@@ -221,7 +221,7 @@ export function OperatorAthleticDepartmentDetail({
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-slate-300">assistant_coaches_allowed</span>
+              <span className="font-medium text-admin-secondary">assistant_coaches_allowed</span>
               <input
                 type="number"
                 min={0}
@@ -237,7 +237,7 @@ export function OperatorAthleticDepartmentDetail({
                 onChange={(e) => setAdVideo(e.target.checked)}
                 className="h-4 w-4 rounded border-white/30"
               />
-              <span className="text-slate-300">School video enabled (master)</span>
+              <span className="text-admin-secondary">School video enabled (master)</span>
             </label>
             <label className="flex flex-col gap-0.5 text-sm sm:col-span-2">
               <span className="flex items-center gap-2">
@@ -247,9 +247,9 @@ export function OperatorAthleticDepartmentDetail({
                   onChange={(e) => setAdCoachBPlus(e.target.checked)}
                   className="h-4 w-4 rounded border-white/30"
                 />
-                <span className="text-slate-300">Coach B+ (master)</span>
+                <span className="text-admin-secondary">Coach B+ (master)</span>
               </span>
-              <span className="pl-6 text-[11px] font-medium text-slate-500">
+              <span className="pl-6 text-[11px] font-medium text-admin-muted">
                 Enables Coach B action-taking, voice responses, and microphone features for this school. Team and
                 organization flags also apply when linked.
               </span>
@@ -263,7 +263,7 @@ export function OperatorAthleticDepartmentDetail({
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
-          <p className="text-xs font-medium text-slate-400">
+          <p className="text-xs font-medium text-admin-muted">
             Lowering caps below current usage requires confirmation. Team video stays off when school video is off.
             Team Coach B+ stays off when school Coach B+ is off.
           </p>
@@ -272,12 +272,12 @@ export function OperatorAthleticDepartmentDetail({
 
       <div className={cn(adminUi.panel, adminUi.panelPadding)}>
         <h3 className={adminUi.sectionTitle}>Teams</h3>
-        <p className="mt-1 text-xs font-medium text-slate-300">
+        <p className="mt-1 text-xs font-medium text-admin-secondary">
           Team toggles are disabled when school-level master switches are off. Effective access also requires
           organization and team flags when a program is linked (same hierarchy as Game Video).
         </p>
         {teams.length === 0 ? (
-          <p className="mt-4 text-sm font-medium text-slate-400">No teams linked to this athletic department.</p>
+          <p className="mt-4 text-sm font-medium text-admin-muted">No teams linked to this athletic department.</p>
         ) : (
           <div className={cn(adminUi.tableWrap, "mt-4")}>
             <table className={cn(adminUi.table, "min-w-[1280px]")}>
@@ -303,7 +303,7 @@ export function OperatorAthleticDepartmentDetail({
                   const disabledCoachBPlus = !overview.coachBPlusFeatureEnabled
                   return (
                     <tr key={t.id} className={adminUi.tbodyRow}>
-                      <td className={cn(adminUi.td, "font-medium text-white")}>
+                      <td className={cn(adminUi.td, "font-medium text-admin-primary")}>
                         <Link href={`/admin/teams?q=${encodeURIComponent(t.name)}`} className={adminUi.link}>
                           {t.name}
                         </Link>
@@ -315,7 +315,7 @@ export function OperatorAthleticDepartmentDetail({
                       <td className={adminUi.td}>
                         <span className={cn(adminOpsTeamStateChip(t.teamStatus), "text-xs")}>{t.teamStatus}</span>
                       </td>
-                      <td className={cn(adminUi.td, "font-medium text-slate-300")}>
+                      <td className={cn(adminUi.td, "font-medium text-admin-secondary")}>
                         {t.organizationVideoEnabled == null ? "—" : t.organizationVideoEnabled ? "On" : "Off"}
                       </td>
                       <td className={adminUi.td}>
@@ -329,11 +329,11 @@ export function OperatorAthleticDepartmentDetail({
                             title={disabled ? "Enable school-level video first" : undefined}
                             onChange={(e) => toggleTeamVideo(t, e.target.checked)}
                           />
-                          <span className="text-slate-300">{t.videoFeatureEnabled ? "On" : "Off"}</span>
+                          <span className="text-admin-secondary">{t.videoFeatureEnabled ? "On" : "Off"}</span>
                         </label>
                       </td>
                       <td className={adminUi.td}>{t.videoEffectiveEnabled ? "Yes" : "No"}</td>
-                      <td className={cn(adminUi.td, "font-medium text-slate-300")}>
+                      <td className={cn(adminUi.td, "font-medium text-admin-secondary")}>
                         {t.organizationCoachBPlusEnabled == null ? "—" : t.organizationCoachBPlusEnabled ? "On" : "Off"}
                       </td>
                       <td className={adminUi.td}>
@@ -347,7 +347,7 @@ export function OperatorAthleticDepartmentDetail({
                             title={disabledCoachBPlus ? "Enable school-level Coach B+ first" : undefined}
                             onChange={(e) => toggleTeamCoachBPlus(t, e.target.checked)}
                           />
-                          <span className="text-slate-300">{t.coachBPlusFeatureEnabled ? "On" : "Off"}</span>
+                          <span className="text-admin-secondary">{t.coachBPlusFeatureEnabled ? "On" : "Off"}</span>
                         </label>
                       </td>
                       <td className={adminUi.td}>{t.coachBPlusEffectiveEnabled ? "Yes" : "No"}</td>
@@ -371,7 +371,7 @@ export function OperatorAthleticDepartmentDetail({
           />
         </div>
         {filteredUsers.length === 0 ? (
-          <p className="mt-4 text-sm font-medium text-slate-400">
+          <p className="mt-4 text-sm font-medium text-admin-muted">
             {users.length === 0 ? "No users found for this department." : "No users match your search."}
           </p>
         ) : (
@@ -390,18 +390,18 @@ export function OperatorAthleticDepartmentDetail({
               <tbody>
                 {filteredUsers.map((u) => (
                   <tr key={u.id} className={adminUi.tbodyRow}>
-                    <td className={cn(adminUi.td, "text-white")}>
+                    <td className={cn(adminUi.td, "text-admin-primary")}>
                       <Link href={`/admin/users/${u.id}`} className={adminUi.link}>
                         {u.name?.trim() || "—"}
                       </Link>
                     </td>
                     <td className={adminUi.td}>{u.email ?? "—"}</td>
                     <td className={adminUi.td}>{u.role}</td>
-                    <td className={cn(adminUi.td, "max-w-[280px] font-medium text-slate-300")}>{u.teamLabels}</td>
+                    <td className={cn(adminUi.td, "max-w-[280px] font-medium text-admin-secondary")}>{u.teamLabels}</td>
                     <td className={adminUi.td}>
                       <span className={cn(adminOpsUserStatusChip(u.status), "text-xs")}>{u.status}</span>
                     </td>
-                    <td className={cn(adminUi.td, "font-medium text-slate-300")}>
+                    <td className={cn(adminUi.td, "font-medium text-admin-secondary")}>
                       {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "—"}
                     </td>
                   </tr>

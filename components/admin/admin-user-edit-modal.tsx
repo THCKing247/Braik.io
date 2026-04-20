@@ -179,7 +179,7 @@ export function AdminUserEditModal({
           </div>
         </div>
         <div className={cn(adminUi.panelMuted, "p-3")}>
-          <p className="mb-2 text-xs font-medium text-slate-300">Game Video / Clips</p>
+          <p className="mb-2 text-xs font-medium text-admin-secondary">Game Video / Clips</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {(
               [
@@ -190,7 +190,7 @@ export function AdminUserEditModal({
                 ["can_delete_video", "Delete video"],
               ] as const
             ).map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2 text-xs text-slate-300">
+              <label key={key} className="flex items-center gap-2 text-xs text-admin-secondary">
                 <input
                   type="checkbox"
                   checked={video[key]}

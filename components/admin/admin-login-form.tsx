@@ -69,20 +69,17 @@ export function AdminLoginForm() {
   }
 
   return (
-    <div
-      className={cn(
-        adminUi.panel,
-        "w-full p-8 shadow-2xl shadow-black/40 backdrop-blur-md"
-      )}
-    >
-      <div className="mb-6 flex items-center justify-center gap-2 text-orange-400">
+    <div className={cn(adminUi.panel, adminUi.panelPadding, "w-full shadow-sm")}>
+      <div className="mb-6 flex items-center justify-center gap-2 text-orange-600">
         <Shield className="h-6 w-6" aria-hidden />
-        <h2 className="text-xl font-semibold tracking-tight text-white">Admin portal</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-admin-primary">Admin portal</h2>
       </div>
-      <p className="mb-6 text-center text-sm text-slate-400">Sign in with your platform owner or admin account</p>
+      <p className="mb-6 text-center text-sm text-admin-secondary">
+        Sign in with your platform owner or admin account
+      </p>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="admin-email" className="text-sm font-medium text-slate-300">
+          <Label htmlFor="admin-email" className="text-sm font-medium text-admin-secondary">
             Email
           </Label>
           <Input
@@ -92,11 +89,11 @@ export function AdminLoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="admin@example.com"
-            className="border-white/15 bg-[#060a12]/90 text-slate-100 placeholder:text-slate-500 focus-visible:border-orange-500/50 focus-visible:ring-orange-500/30"
+            className={adminUi.input}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="admin-password" className="text-sm font-medium text-slate-300">
+          <Label htmlFor="admin-password" className="text-sm font-medium text-admin-secondary">
             Password
           </Label>
           <div className="relative">
@@ -107,12 +104,12 @@ export function AdminLoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="••••••••"
-              className="border-white/15 bg-[#060a12]/90 pr-10 text-slate-100 placeholder:text-slate-500 focus-visible:border-orange-500/50 focus-visible:ring-orange-500/30"
+              className={cn(adminUi.input, "pr-10")}
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute inset-y-0 right-0 flex items-center px-3 text-white/50 hover:text-white/80"
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-admin-muted hover:text-admin-primary"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -121,7 +118,7 @@ export function AdminLoginForm() {
         </div>
         {error && (
           <div
-            className="rounded-lg border border-red-500/50 bg-red-500/20 px-3 py-2 text-sm text-red-200"
+            className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900"
             role="alert"
           >
             {error}
@@ -129,14 +126,14 @@ export function AdminLoginForm() {
         )}
         <Button
           type="submit"
-          className="w-full bg-orange-500 font-semibold text-white hover:bg-orange-400 focus-visible:ring-orange-500/50"
+          className="w-full bg-orange-600 font-semibold text-white hover:bg-orange-500 focus-visible:ring-orange-500/50"
           disabled={loading}
           size="lg"
         >
           {loading ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-      <p className="mt-5 text-center text-xs text-slate-500">
+      <p className="mt-5 text-center text-xs text-admin-muted">
         Not an admin?{" "}
         <a href="/login" className={cn(adminUi.link, "text-xs")}>
           Go to main sign in

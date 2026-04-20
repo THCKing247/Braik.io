@@ -78,7 +78,7 @@ export function AdminAuditClient() {
         </button>
       </div>
 
-      {loading && <p className="text-sm font-medium text-slate-400">Loading…</p>}
+      {loading && <p className="text-sm font-medium text-admin-muted">Loading…</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {!loading && !error && (
@@ -96,22 +96,22 @@ export function AdminAuditClient() {
             <tbody>
               {logs.map((row) => (
                 <tr key={row.id} className={adminUi.tbodyRow}>
-                  <td className={cn(adminUi.td, "whitespace-nowrap text-slate-200")}>
+                  <td className={cn(adminUi.td, "whitespace-nowrap text-admin-primary")}>
                     {new Date(row.createdAt).toLocaleString()}
                   </td>
                   <td className={adminUi.td}>
-                    <div className="font-medium text-white">{row.actorEmail ?? row.actorId}</div>
-                    {row.actorName ? <div className="text-xs text-slate-400">{row.actorName}</div> : null}
-                    <div className="font-mono text-[10px] text-slate-500">{row.actorId}</div>
+                    <div className="font-medium text-admin-primary">{row.actorEmail ?? row.actorId}</div>
+                    {row.actorName ? <div className="text-xs text-admin-muted">{row.actorName}</div> : null}
+                    <div className="font-mono text-[10px] text-admin-muted">{row.actorId}</div>
                   </td>
                   <td className={cn(adminUi.td, "font-mono text-xs")}>{row.action}</td>
                   <td className={adminUi.td}>
-                    <div className="text-slate-200">{row.targetType ?? "—"}</div>
+                    <div className="text-admin-primary">{row.targetType ?? "—"}</div>
                     {row.targetId ? (
-                      <div className="font-mono text-xs text-slate-400 break-all">{row.targetId}</div>
+                      <div className="font-mono text-xs text-admin-muted break-all">{row.targetId}</div>
                     ) : null}
                   </td>
-                  <td className={cn(adminUi.td, "max-w-md font-mono text-[11px] text-slate-400")}>
+                  <td className={cn(adminUi.td, "max-w-md font-mono text-[11px] text-admin-muted")}>
                     {row.metadata != null ? JSON.stringify(row.metadata) : "—"}
                   </td>
                 </tr>
@@ -119,7 +119,7 @@ export function AdminAuditClient() {
             </tbody>
           </table>
           {logs.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm font-medium text-slate-400">No audit entries found.</p>
+            <p className="px-4 py-6 text-center text-sm font-medium text-admin-muted">No audit entries found.</p>
           ) : null}
         </div>
       )}

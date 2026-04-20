@@ -122,7 +122,7 @@ export function AdminTeamDetailActions({
         </div>
         <label className={cn(adminUi.formCheckRow, "cursor-pointer")}>
           <input type="checkbox" checked={aiEnabled} onChange={(e) => setAiEnabled(e.target.checked)} />
-          <span className="font-medium text-slate-200">AI enabled</span>
+          <span className="font-medium text-admin-primary">AI enabled</span>
         </label>
         <label className={cn(adminUi.formCheckRow, "cursor-pointer")}>
           <input
@@ -130,7 +130,7 @@ export function AdminTeamDetailActions({
             checked={aiDisabledByPlatform}
             onChange={(e) => setAiDisabledByPlatform(e.target.checked)}
           />
-          <span className="font-medium text-slate-200">Disable AI by platform</span>
+          <span className="font-medium text-admin-primary">Disable AI by platform</span>
         </label>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -141,8 +141,8 @@ export function AdminTeamDetailActions({
           Save AI settings
         </button>
       </div>
-      <p className="text-xs font-medium text-slate-300">Current AI usage this cycle: {team.aiUsageThisCycle}</p>
-      {result ? <p className="text-xs font-medium text-slate-200">{result}</p> : null}
+      <p className="text-xs font-medium text-admin-secondary">Current AI usage this cycle: {team.aiUsageThisCycle}</p>
+      {result ? <p className="text-xs font-medium text-admin-primary">{result}</p> : null}
     </div>
   )
 }

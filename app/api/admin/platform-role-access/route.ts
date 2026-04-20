@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { getAdminAccessForApi } from "@/lib/admin/admin-access"
-import { hasPermission } from "@/lib/permissions/platform-permissions"
+import { getAdminAccessForApi, hasLegacyAdminAccess } from "@/lib/admin/admin-access"
+import { hasPermission, hasRole } from "@/lib/permissions/platform-permissions"
 import type { PlatformPermissionKey } from "@/lib/permissions/platform-permission-keys"
 
 export const runtime = "nodejs"
@@ -29,6 +29,7 @@ export async function GET() {
     canManagePlatformSettings,
     canViewBilling,
     canManageBilling,
+    canUseDevConsole,
   ] = await Promise.all([
     check(actorId, actorEmail, "manage_roles_permissions"),
     check(actorId, actorEmail, "manage_users"),
@@ -37,6 +38,11 @@ export async function GET() {
     check(actorId, actorEmail, "manage_platform_settings"),
     check(actorId, actorEmail, "view_billing"),
     check(actorId, actorEmail, "manage_billing"),
+    (async () => {
+      return (
+        (await hasLegacyAdminAccess(actorId, actorEmail)) || (await hasRole(actorId, "platform_admin"))
+      )
+    })(),
   ])
 
   return NextResponse.json({
@@ -48,5 +54,6 @@ export async function GET() {
     canManagePlatformSettings,
     canViewBilling,
     canManageBilling,
+    canUseDevConsole,
   })
 }

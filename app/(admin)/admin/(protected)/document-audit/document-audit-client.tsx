@@ -88,7 +88,7 @@ export function DocumentAuditClient() {
         </button>
       </div>
 
-      {loading && <p className="text-sm text-slate-400">Loading…</p>}
+      {loading && <p className="text-sm text-admin-muted">Loading…</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {!loading && !error && (
@@ -109,7 +109,7 @@ export function DocumentAuditClient() {
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id} className={adminUi.tbodyRow}>
-                  <td className={cn(adminUi.td, "whitespace-nowrap text-slate-300")}>
+                  <td className={cn(adminUi.td, "whitespace-nowrap text-admin-secondary")}>
                     {new Date(e.createdAt).toLocaleString()}
                   </td>
                   <td className={cn(adminUi.td, "max-w-[140px] truncate")} title={e.actorProfileId}>
@@ -123,7 +123,7 @@ export function DocumentAuditClient() {
                   <td className={adminUi.td}>{e.accessMethod ?? "—"}</td>
                   <td className={cn(adminUi.td, "font-mono text-xs")}>{e.ipAddress ?? "—"}</td>
                   <td
-                    className={cn(adminUi.td, "max-w-xs truncate font-mono text-xs text-slate-500")}
+                    className={cn(adminUi.td, "max-w-xs truncate font-mono text-xs text-admin-muted")}
                     title={JSON.stringify(e.metadata)}
                   >
                     {JSON.stringify(e.metadata)}
@@ -133,7 +133,7 @@ export function DocumentAuditClient() {
             </tbody>
           </table>
           {entries.length === 0 && (
-            <p className="p-6 text-center text-sm text-slate-500">No entries match filters.</p>
+            <p className="p-6 text-center text-sm text-admin-muted">No entries match filters.</p>
           )}
         </div>
       )}

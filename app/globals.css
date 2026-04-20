@@ -265,11 +265,11 @@
     opacity: 0.22;
   }
 
-  /* Admin console — dark skeleton shimmer (solid base + moving highlight) */
+  /* Admin console — light skeleton shimmer */
   .admin-skeleton-shimmer {
     position: relative;
     overflow: hidden;
-    background-color: rgb(15 23 42); /* slate-900 */
+    background-color: rgb(229 231 235); /* gray-200 */
   }
   .admin-skeleton-shimmer::after {
     content: "";
@@ -279,7 +279,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgb(51 65 85 / 0.35),
+      rgb(255 255 255 / 0.7),
       transparent
     );
     animation: admin-skeleton-shimmer 1.4s ease-in-out infinite;

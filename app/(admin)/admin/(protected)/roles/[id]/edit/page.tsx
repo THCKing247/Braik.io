@@ -11,8 +11,8 @@ export default async function AdminEditRolePage({ params }: { params: Promise<{ 
         <Link href="/admin/roles" className={cn(adminUi.linkSubtle, "text-sm")}>
           ← Roles &amp; permissions
         </Link>
-        <h1 className="mt-2 font-athletic text-2xl font-bold uppercase tracking-wide text-white">Edit role</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="mt-2 font-athletic text-2xl font-bold uppercase tracking-wide text-admin-primary">Edit role</h1>
+        <p className="mt-1 text-sm text-admin-muted">
           Update metadata, status, and permissions. Changes apply to users with this role.
         </p>
       </div>

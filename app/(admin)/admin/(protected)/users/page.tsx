@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
 import { effectiveAppRoleForAdmin, type UserRole } from "@/lib/auth/user-roles"
@@ -81,12 +82,14 @@ export default async function AdminUsersPage({
   )
 
   return (
-    <OperatorUsers
-      users={users.map((user) => ({
-        ...user,
-        createdAt: new Date(user.createdAt).toISOString(),
-        lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt).toISOString() : null,
-      }))}
-    />
+    <Suspense fallback={<p className="text-sm text-admin-muted">Loading accounts…</p>}>
+      <OperatorUsers
+        users={users.map((user) => ({
+          ...user,
+          createdAt: new Date(user.createdAt).toISOString(),
+          lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt).toISOString() : null,
+        }))}
+      />
+    </Suspense>
   )
 }

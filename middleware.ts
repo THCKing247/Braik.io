@@ -179,6 +179,16 @@ export async function middleware(request: NextRequest) {
       }
     }
 
+    // Canonical team URLs must not expose `?teamId=` — identity comes from path segments only.
+    if (
+      /^\/dashboard\/org\/[^/]+\/team\/[^/]+(?:\/|$)/.test(pathname) &&
+      request.nextUrl.searchParams.has("teamId")
+    ) {
+      const u = request.nextUrl.clone()
+      u.searchParams.delete("teamId")
+      return finish(NextResponse.redirect(u))
+    }
+
     const canonicalTeamMatch = pathname.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)(?:\/(.*))?$/)
     if (canonicalTeamMatch) {
       const shortOrgId = decodeURIComponent(canonicalTeamMatch[1] ?? "")
@@ -196,6 +206,7 @@ export async function middleware(request: NextRequest) {
         }
         const rewriteUrl = request.nextUrl.clone()
         rewriteUrl.pathname = rest ? `/dashboard${rest}` : "/dashboard"
+        rewriteUrl.searchParams.delete("teamId")
         rewriteUrl.searchParams.set("teamId", json.teamId)
         return finish(NextResponse.rewrite(rewriteUrl))
       } catch {

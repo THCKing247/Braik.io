@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
-import { useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +35,12 @@ import {
 } from "@/lib/messaging/thread-list-wire"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
+import {
+  buildDashboardTeamMessagePath,
+  buildDashboardTeamMessagesPath,
+  parseCanonicalTeamMessagesPath,
+  type DashboardTeamPathParams,
+} from "@/lib/navigation/organization-routes"
 
 interface Message {
   id: string
@@ -230,6 +236,8 @@ interface MessagingManagerProps {
   bootstrapThreadsInbox?: MessageThreadsInboxPayload | null
   /** False until dashboard deferred-core has merged (wait before inbox GET). */
   bootstrapCoreReady?: boolean
+  /** From `/messages/[messageId]` — thread to open when inbox loads. */
+  routeThreadId?: string
 }
 
 export function MessagingManager({
@@ -238,12 +246,20 @@ export function MessagingManager({
   userId,
   bootstrapThreadsInbox,
   bootstrapCoreReady,
+  routeThreadId,
 }: MessagingManagerProps) {
+  const router = useRouter()
+  const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
-  const shell = useAppBootstrapOptional()
-  const messagingUnread = useMessagingUnreadOptional()
   const searchParamsRef = useRef(searchParams)
   searchParamsRef.current = searchParams
+  const canonicalTeamParts: DashboardTeamPathParams | null = useMemo(
+    () => parseCanonicalTeamMessagesPath(pathname)?.parts ?? null,
+    [pathname]
+  )
+
+  const shell = useAppBootstrapOptional()
+  const messagingUnread = useMessagingUnreadOptional()
   const messagingUnreadRef = useRef(messagingUnread)
   messagingUnreadRef.current = messagingUnread
   const [threads, setThreads] = useState<Thread[]>([])
@@ -277,6 +293,8 @@ export function MessagingManager({
   const isUserScrollingRef = useRef<boolean>(false)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const urlThreadIdProcessedRef = useRef<boolean>(false)
+  /** Avoid clearing selection while `router.push` to `/messages/:id` still has the index pathname. */
+  const pendingCanonicalThreadNavRef = useRef<string | null>(null)
   const contactsFetchStartedRef = useRef(false)
   const selectedThreadIdRef = useRef<string | null>(null)
   const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(new Set())
@@ -372,6 +390,44 @@ export function MessagingManager({
   useEffect(() => {
     selectedThreadIdRef.current = selectedThread?.id ?? null
   }, [selectedThread?.id])
+
+  // On canonical team messages routes, the open thread is driven by the path (or [messageId] param), not `?threadId=`.
+  useEffect(() => {
+    if (!canonicalTeamParts) return
+    const fromPath =
+      parseCanonicalTeamMessagesPath(pathname)?.threadId?.trim() || routeThreadId?.trim() || null
+    if (!fromPath) {
+      if (pendingCanonicalThreadNavRef.current) return
+      setSelectedThread(null)
+      setMobileShowList(true)
+      return
+    }
+    pendingCanonicalThreadNavRef.current = null
+    if (threads.length === 0) return
+    const t = threads.find((x) => x.id === fromPath)
+    if (t) {
+      setSelectedThread(t)
+      setMobileShowList(false)
+    }
+  }, [canonicalTeamParts, pathname, routeThreadId, threads])
+
+  // One-time migration: `?threadId=` on canonical messages → `/messages/:id` (or drop duplicate query when path already has the id).
+  useEffect(() => {
+    if (!canonicalTeamParts) return
+    const q = searchParams.get("threadId")?.trim()
+    if (!q) return
+    const pathTid = parseCanonicalTeamMessagesPath(pathname)?.threadId?.trim() || routeThreadId?.trim() || null
+    const sp = new URLSearchParams(searchParams.toString())
+    sp.delete("threadId")
+    const rest = sp.toString()
+    const suffix = rest ? `?${rest}` : ""
+    if (pathTid === q) {
+      const base = pathname.split("?")[0]
+      router.replace(`${base}${suffix}`)
+      return
+    }
+    router.replace(`${buildDashboardTeamMessagePath(canonicalTeamParts, q)}${suffix}`)
+  }, [canonicalTeamParts, pathname, routeThreadId, router, searchParams])
 
   useEffect(() => {
     messagesRef.current = messages
@@ -612,17 +668,18 @@ export function MessagingManager({
           return { ...match, messages: prev.messages }
         })
 
-        // Check for threadId in URL params (from notification deep link)
-        const urlThreadId = searchParamsRef.current?.get("threadId")
-
-        if (urlThreadId && !urlThreadIdProcessedRef.current) {
-          const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
+        // Legacy coach/dashboard route: deep link via ?threadId= only (canonical uses path segment).
+        const legacyQueryThreadId = canonicalTeamParts
+          ? null
+          : searchParamsRef.current?.get("threadId")?.trim()
+        if (legacyQueryThreadId && !urlThreadIdProcessedRef.current) {
+          const threadFromUrl = data.find((t: Thread) => t.id === legacyQueryThreadId)
           if (threadFromUrl) {
             setSelectedThread(threadFromUrl)
             setMobileShowList(false)
             urlThreadIdProcessedRef.current = true
           } else {
-            console.warn(`Thread ${urlThreadId} not found or access denied`)
+            console.warn(`Thread ${legacyQueryThreadId} not found or access denied`)
           }
         }
         setInboxLoadError(null)
@@ -638,7 +695,7 @@ export function MessagingManager({
         console.info("[messaging:inbox] loadThreads finished", { teamId })
       }
     },
-    [teamId]
+    [teamId, canonicalTeamParts]
   )
 
   const loadThreadsFrom = useCallback(
@@ -686,21 +743,23 @@ export function MessagingManager({
       if (!match) return prev
       return { ...match, messages: prev.messages }
     })
-    const urlThreadId = searchParamsRef.current?.get("threadId")
-    if (urlThreadId && !urlThreadIdProcessedRef.current) {
-      const threadFromUrl = data.find((t: Thread) => t.id === urlThreadId)
+    const legacyQueryThreadId = canonicalTeamParts
+      ? null
+      : searchParamsRef.current?.get("threadId")?.trim()
+    if (legacyQueryThreadId && !urlThreadIdProcessedRef.current) {
+      const threadFromUrl = data.find((t: Thread) => t.id === legacyQueryThreadId)
       if (threadFromUrl) {
         setSelectedThread(threadFromUrl)
         setMobileShowList(false)
         urlThreadIdProcessedRef.current = true
       } else {
-        console.warn(`Thread ${urlThreadId} not found or access denied`)
+        console.warn(`Thread ${legacyQueryThreadId} not found or access denied`)
       }
     }
     setInboxLoadError(null)
     setError(null)
     setInitialLoading(false)
-  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox])
+  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox, canonicalTeamParts])
 
   /**
    * Thread list GET only when needed — deps intentionally omit `bootstrapThreadsInbox` identity
@@ -1406,6 +1465,10 @@ export function MessagingManager({
       const newThread = await response.json()
       setThreads([newThread, ...threads])
       setSelectedThread(newThread)
+      if (canonicalTeamParts && newThread?.id) {
+        pendingCanonicalThreadNavRef.current = newThread.id
+        router.push(buildDashboardTeamMessagePath(canonicalTeamParts, newThread.id))
+      }
       setNewThreadSubject("")
       setSelectedContacts([])
       setShowCreateThread(false)
@@ -1657,6 +1720,18 @@ export function MessagingManager({
     }
   }
 
+  const navigateToThread = useCallback(
+    (thread: Thread) => {
+      setSelectedThread(thread)
+      setMobileShowList(false)
+      if (canonicalTeamParts) {
+        pendingCanonicalThreadNavRef.current = thread.id
+        router.push(buildDashboardTeamMessagePath(canonicalTeamParts, thread.id))
+      }
+    },
+    [canonicalTeamParts, router]
+  )
+
   const renderThreadCard = (thread: Thread) => {
     const isSelected = selectedThread?.id === thread.id
     const lastMessage = thread.messages[0]
@@ -1677,14 +1752,12 @@ export function MessagingManager({
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             console.info("[messaging:thread-select]", { threadId: thread.id, teamId, source: "sidebar-keyboard" })
-            setSelectedThread(thread)
-            setMobileShowList(false)
+            navigateToThread(thread)
           }
         }}
         onClick={() => {
           console.info("[messaging:thread-select]", { threadId: thread.id, teamId, source: "sidebar-click" })
-          setSelectedThread(thread)
-          setMobileShowList(false)
+          navigateToThread(thread)
         }}
         className={cn(
           "relative mx-3 mb-3 cursor-pointer rounded-2xl border p-4 text-left shadow-sm transition-all md:mx-4 md:mb-3 md:p-4 lg:rounded-2xl lg:p-4",
@@ -2057,6 +2130,9 @@ export function MessagingManager({
                     aria-label="Back to threads"
                     onClick={() => {
                       setMobileShowList(true)
+                      if (canonicalTeamParts) {
+                        router.push(buildDashboardTeamMessagesPath(canonicalTeamParts))
+                      }
                     }}
                   >
                     <ChevronLeft className="h-5 w-5" />

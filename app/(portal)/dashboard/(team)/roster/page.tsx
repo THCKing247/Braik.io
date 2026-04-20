@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo } from "react"
-import { useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { parseCanonicalDashboardTeamPath } from "@/lib/navigation/organization-routes"
 import { useQueryClient } from "@tanstack/react-query"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { RosterManagerEnhanced } from "@/components/portal/roster-manager-enhanced"
@@ -30,8 +31,20 @@ function RosterPageContent({
   canEdit: boolean
   userRole: string
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
+  const canonicalTeamParts = parseCanonicalDashboardTeamPath(pathname ?? "")
   const initialView = (searchParams.get("view") === "list" ? "list" : "card") as "card" | "list"
+
+  useEffect(() => {
+    if (!canonicalTeamParts || !searchParams.get("teamId")) return
+    const p = new URLSearchParams(searchParams.toString())
+    p.delete("teamId")
+    const qs = p.toString()
+    const base = pathname?.split("?")[0] ?? ""
+    router.replace(qs ? `${base}?${qs}` : base, { scroll: false })
+  }, [canonicalTeamParts, pathname, router, searchParams])
   const initialSearch = searchParams.get("q") ?? ""
   const initialPosition = searchParams.get("position") ?? ""
   const tabParam = searchParams.get("tab")
@@ -101,6 +114,7 @@ function RosterPageContent({
         initialTab={initialTab}
         prefetchedReadinessDetail={prefetchedReadinessDetail}
         rosterBootstrapPending={rosterAwaitingDeferred}
+        canonicalTeamParts={canonicalTeamParts}
       />
     </PortalStandardPage>
   )

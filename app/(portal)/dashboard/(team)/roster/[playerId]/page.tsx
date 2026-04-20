@@ -1,6 +1,10 @@
 "use client"
 
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams, usePathname, useSearchParams } from "next/navigation"
+import {
+  buildDashboardTeamRosterPath,
+  parseCanonicalDashboardTeamPath,
+} from "@/lib/navigation/organization-routes"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PlayerProfileView } from "@/components/portal/player-profile-view"
 
@@ -22,18 +26,23 @@ function PlayerProfilePageContent({
   canEdit: boolean
 }) {
   const params = useParams()
+  const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
   const playerId = (params?.playerId as string) ?? ""
+  const canonicalTeamParts = parseCanonicalDashboardTeamPath(pathname)
   const resolvedTeamId = searchParams.get("teamId") || teamId
   const view = searchParams.get("view")
   const q = searchParams.get("q")
   const position = searchParams.get("position")
   const rosterParams = new URLSearchParams()
-  if (resolvedTeamId) rosterParams.set("teamId", resolvedTeamId)
+  if (!canonicalTeamParts && resolvedTeamId) rosterParams.set("teamId", resolvedTeamId)
   if (view) rosterParams.set("view", view)
   if (q) rosterParams.set("q", q)
   if (position) rosterParams.set("position", position)
-  const backHref = `/dashboard/roster${rosterParams.toString() ? `?${rosterParams.toString()}` : ""}`
+  const qs = rosterParams.toString()
+  const backHref = canonicalTeamParts
+    ? `${buildDashboardTeamRosterPath(canonicalTeamParts)}${qs ? `?${qs}` : ""}`
+    : `/dashboard/roster${qs ? `?${qs}` : ""}`
 
   if (!playerId) {
     return (

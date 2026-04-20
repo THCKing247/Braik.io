@@ -48,6 +48,10 @@ import { usePlaybookToast } from "./playbook-toast"
 import { parseRosterLimitResponse } from "@/lib/roster/roster-limit-ui"
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import {
+  buildDashboardTeamPath,
+  type DashboardTeamPathParams,
+} from "@/lib/navigation/organization-routes"
 import { depthChartAssignmentsEqual } from "@/lib/depth-chart/compare-assignments"
 
 /** Configurable billing warning when coach creates a player (no account yet). Override via NEXT_PUBLIC_ROSTER_BILLING_WARNING env. */
@@ -152,6 +156,8 @@ interface RosterManagerEnhancedProps {
   prefetchedReadinessDetail?: { summary: TeamReadinessSummary; players?: PlayerReadinessItem[] } | null
   /** True while deferred dashboard bootstrap has not merged roster yet — show skeleton without blocking page mount. */
   rosterBootstrapPending?: boolean
+  /** Canonical org/team path params — when set, URL sync omits `?teamId=` and uses path identity only. */
+  canonicalTeamParts?: DashboardTeamPathParams | null
 }
 
 /** Roster card/list filter: aligns with list Status column semantics. */
@@ -677,6 +683,7 @@ export function RosterManagerEnhanced({
   initialTab = "roster",
   prefetchedReadinessDetail = null,
   rosterBootstrapPending = false,
+  canonicalTeamParts = null,
 }: RosterManagerEnhancedProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -804,14 +811,17 @@ export function RosterManagerEnhanced({
   const syncRosterParamsToUrl = useMemo(() => {
     return (view: "card" | "list", q: string, position: string) => {
       const p = new URLSearchParams()
-      p.set("teamId", teamId)
-      if (view) p.set("view", view)
+      const useCanonicalTeamPath = Boolean(canonicalTeamParts)
+      if (!useCanonicalTeamPath) {
+        p.set("teamId", teamId)
+      }
+      if (view !== "card") p.set("view", view)
       if (q) p.set("q", q)
       if (position) p.set("position", position)
       const query = p.toString()
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+      router.replace(query ? `${pathname}?${query}` : pathname.split("?")[0], { scroll: false })
     }
-  }, [teamId, pathname, router])
+  }, [teamId, pathname, router, canonicalTeamParts])
 
   useEffect(() => {
     syncRosterParamsToUrl(rosterViewMode, rosterSearchQuery.trim(), rosterPositionFilter)
@@ -1619,15 +1629,26 @@ export function RosterManagerEnhanced({
     return () => window.removeEventListener("beforeunload", onBeforeUnload)
   }, [showDepthChartModal, hasUnsavedChanges])
 
-  const rosterProfileHref = (p: Player) => {
+  const playerProfileHrefFor = (playerId: string) => {
+    if (canonicalTeamParts) {
+      const p = new URLSearchParams()
+      if (rosterViewMode !== "card") p.set("view", rosterViewMode)
+      if (rosterSearchQuery.trim()) p.set("q", rosterSearchQuery.trim())
+      if (rosterPositionFilter) p.set("position", rosterPositionFilter)
+      const base = buildDashboardTeamPath(canonicalTeamParts, `/roster/${playerId}`)
+      const qs = p.toString()
+      return qs ? `${base}?${qs}` : base
+    }
     const params = new URLSearchParams()
     params.set("teamId", teamId)
-    if (rosterViewMode) params.set("view", rosterViewMode)
+    if (rosterViewMode !== "card") params.set("view", rosterViewMode)
     if (rosterSearchQuery.trim()) params.set("q", rosterSearchQuery.trim())
     if (rosterPositionFilter) params.set("position", rosterPositionFilter)
-    const q = params.toString()
-    return `/dashboard/roster/${p.id}${q ? `?${q}` : ""}`
+    const qs = params.toString()
+    return `/dashboard/roster/${playerId}${qs ? `?${qs}` : ""}`
   }
+
+  const rosterProfileHref = (p: Player) => playerProfileHrefFor(p.id)
 
   const tabBtnClass = (active: boolean) =>
     `flex min-h-[44px] shrink-0 items-center justify-center whitespace-nowrap px-3 text-sm font-semibold transition-colors sm:px-4 lg:min-h-10 lg:rounded-none lg:border-b-2 lg:px-4 ${
@@ -2172,9 +2193,7 @@ export function RosterManagerEnhanced({
                           </thead>
                           <tbody>
                             {attentionRows.map((p) => {
-                              const params = new URLSearchParams()
-                              params.set("teamId", teamId)
-                              const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                              const profileHref = playerProfileHrefFor(p.playerId)
                               const openCount = teamOpenFollowUps.filter((f) => f.playerId === p.playerId).length
                               return (
                                 <tr key={p.playerId} className="border-b border-border/60 hover:bg-muted/30">
@@ -2415,9 +2434,7 @@ export function RosterManagerEnhanced({
                           </thead>
                           <tbody>
                             {checklistRows.map((p) => {
-                              const params = new URLSearchParams()
-                              params.set("teamId", teamId)
-                              const profileHref = `/dashboard/roster/${p.playerId}?${params.toString()}`
+                              const profileHref = playerProfileHrefFor(p.playerId)
                               const cell = (ok: boolean) => (
                                 <span
                                   className={ok ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}
@@ -2476,7 +2493,7 @@ export function RosterManagerEnhanced({
                       >
                         <ul className="space-y-2">
                           {teamActivity.map((a) => {
-                            const profileHref = `/dashboard/roster/${a.playerId}?teamId=${encodeURIComponent(teamId)}`
+                            const profileHref = playerProfileHrefFor(a.playerId)
                             const label = TEAM_ACTIVITY_LABELS[a.actionType] ?? a.actionType
                             const timeAgo = (() => {
                               const d = new Date(a.createdAt)

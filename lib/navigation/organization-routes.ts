@@ -75,6 +75,29 @@ export function buildDashboardTeamMessagesPath(parts: DashboardTeamPathParams): 
   return buildDashboardTeamPath(parts, "/messages")
 }
 
+/** Active thread/conversation segment (thread UUID) under team messages. */
+export function buildDashboardTeamMessagePath(parts: DashboardTeamPathParams, threadOrMessageId: string): string {
+  const id = encodeURIComponent(threadOrMessageId)
+  return buildDashboardTeamPath(parts, `/messages/${id}`)
+}
+
+/** Parse `/dashboard/org/.../team/.../messages` and optional `/messages/:threadId`. */
+export function parseCanonicalTeamMessagesPath(pathname: string): {
+  parts: DashboardTeamPathParams
+  threadId?: string
+} | null {
+  const bare = pathname.split("?")[0] ?? pathname
+  const m = bare.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)\/messages(?:\/([^/]+))?$/)
+  if (!m) return null
+  const parts: DashboardTeamPathParams = {
+    shortOrgId: decodeURIComponent(m[1]),
+    shortTeamId: decodeURIComponent(m[2]),
+  }
+  const seg = m[3]
+  if (!seg) return { parts }
+  return { parts, threadId: decodeURIComponent(seg) }
+}
+
 export function buildDashboardTeamStatsPath(parts: DashboardTeamPathParams): string {
   return buildDashboardTeamPath(parts, "/stats")
 }

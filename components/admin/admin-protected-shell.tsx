@@ -36,9 +36,9 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
 
 function NavSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="mt-6 first:mt-0">
+    <div className="min-w-0">
       <p className={adminUi.navSectionLabel}>{title}</p>
-      <div className="space-y-0.5">{children}</div>
+      <div className="mt-1 space-y-1">{children}</div>
     </div>
   )
 }
@@ -134,13 +134,15 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={adminUi.shellGradient}>
-      <div className="flex min-h-screen w-full gap-0">
-        <aside className={adminUi.sidebar}>
-          <p className={adminUi.brandKicker}>Braik</p>
-          <h1 className={adminUi.sidebarTitle}>Admin</h1>
-          <p className={adminUi.sidebarTagline}>Platform operations</p>
-          <nav className="mt-8 text-sm">
+    <div className={cn(adminUi.shellGradient, "flex h-[100dvh] min-h-0 flex-col overflow-hidden")}>
+      <div className="flex min-h-0 flex-1 w-full gap-0">
+        <aside className={adminUi.sidebar} aria-label="Admin navigation">
+          <div className={adminUi.sidebarBrandBlock}>
+            <p className={adminUi.brandKicker}>Braik</p>
+            <h1 className={adminUi.sidebarTitle}>Admin</h1>
+            <p className={adminUi.sidebarTagline}>Platform operations</p>
+          </div>
+          <nav className={cn(adminUi.sidebarNav, adminUi.scrollRegionHidden)} aria-label="Primary">
             <NavSection title="Operations">
               <NavLink href="/admin/overview">Overview</NavLink>
               <NavLink href="/admin/users">Accounts</NavLink>
@@ -160,15 +162,18 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
             </NavSection>
 
             <NavSection title="Session">
-              <div className="pt-1">
+              <div className="px-1 pt-0.5">
                 <AdminSignOutButton />
               </div>
             </NavSection>
           </nav>
         </aside>
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <AdminTopBar />
-          <main className={cn(adminUi.main, "min-h-0 flex-1 overflow-y-auto overscroll-contain touch-scroll")}>
+          <main
+            id="admin-main-scroll"
+            className={cn(adminUi.main, adminUi.scrollRegionHidden, "min-h-0 flex-1 overflow-y-auto overscroll-contain")}
+          >
             <AdminMain>{children}</AdminMain>
           </main>
         </div>

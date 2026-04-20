@@ -136,6 +136,14 @@ export function OperatorTeams({
 
       <div className="space-y-8">
         <h2 className={cn(adminUi.sectionTitle, "text-base")}>Teams by organization</h2>
+        {groups.length === 0 && !filterUserId ? (
+          <div className={cn(adminUi.noticeMuted, "text-sm")}>
+            No team rows were returned for this page. If you expected teams here, check server logs for{" "}
+            <span className="font-mono text-[11px]">loadAdminTeamsGrouped:teams_query_error</span> (a failed select
+            often returns empty data without throwing) or confirm the <span className="font-mono text-[11px]">userId</span>{" "}
+            filter is not hiding staff who only appear in <span className="font-mono text-[11px]">team_members</span>.
+          </div>
+        ) : null}
         {filteredGroups.map((group) => (
           <section key={group.groupKey} className="space-y-2">
             <div>
@@ -164,7 +172,11 @@ function TeamRow({ team }: { team: AdminTeamRow }) {
       ? "Owner: team.organization_id"
       : team.ownershipSource === "program_organization_id"
         ? "Owner: program → organization"
-        : "Owner: not linked — see group header"
+        : team.ownershipSource === "organization_athletic_department"
+          ? "Owner: inferred — unique organization for this athletic department"
+          : team.ownershipSource === "organization_school"
+            ? "Owner: inferred — unique organization for this school"
+            : "Owner: unassigned / legacy — see section header"
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 px-3 py-2.5">
       <div className="min-w-0">

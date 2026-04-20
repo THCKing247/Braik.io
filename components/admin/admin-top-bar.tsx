@@ -58,7 +58,10 @@ export function AdminTopBar() {
         </button>
       </div>
       <nav
-        className="hidden items-center gap-1 overflow-x-auto lg:flex"
+        className={cn(
+          "hidden items-center gap-1 overflow-x-auto overscroll-x-contain lg:flex",
+          "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        )}
         aria-label="Quick navigation"
       >
         {QUICK_LINKS.map((item) => (

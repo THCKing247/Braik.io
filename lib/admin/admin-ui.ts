@@ -16,15 +16,25 @@ export const adminUi = {
     "flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-admin-canvas p-6 text-admin-primary",
 
   sidebar:
-    "sticky top-0 flex h-screen w-[min(18rem,85vw)] shrink-0 flex-col border-r border-admin-border bg-admin-surface md:w-72",
+    "flex h-full min-h-0 w-[min(17rem,82vw)] shrink-0 flex-col overflow-hidden border-r border-admin-border bg-admin-surface md:w-[17.5rem]",
 
-  brandKicker: "text-[11px] font-bold uppercase tracking-[0.2em] text-orange-600",
+  sidebarBrandBlock: "shrink-0 px-5 pb-3 pt-7",
 
-  sidebarTitle: "mt-2 font-sans text-lg font-semibold tracking-tight text-admin-primary",
+  sidebarNav:
+    "flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-8 pt-2",
 
-  sidebarTagline: "mt-1 text-xs font-medium leading-snug text-admin-secondary",
+  /** Hide scrollbars visually while keeping wheel/touch scroll (Chromium / Firefox / WebKit). */
+  scrollRegionHidden:
+    "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
 
-  navSectionLabel: "mb-2 text-[10px] font-semibold uppercase tracking-wider text-admin-muted",
+  brandKicker: "text-[11px] font-bold uppercase tracking-[0.22em] text-orange-600",
+
+  sidebarTitle: "mt-1.5 font-sans text-[1.05rem] font-semibold tracking-tight text-admin-primary",
+
+  sidebarTagline: "mt-1 max-w-[13rem] text-[11px] font-medium leading-snug text-admin-muted",
+
+  navSectionLabel:
+    "mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-admin-muted",
 
   /** Main column (scrollable); padding applied by AdminMain */
   main: "relative flex min-h-0 min-w-0 flex-1 flex-col bg-admin-canvas",
@@ -51,7 +61,7 @@ export const adminUi = {
 
   /** Dense tables — zebra rows, sticky header inside scroll wrapper */
   tableWrap:
-    "overflow-auto rounded-lg border border-admin-border bg-admin-surface max-h-[min(72vh,800px)]",
+    "max-h-[min(72vh,800px)] overflow-auto rounded-lg border border-admin-border bg-admin-surface [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
 
   table: "w-full min-w-[640px] border-collapse text-left text-[13px]",
 
@@ -237,10 +247,10 @@ export function adminMetricCard(accent: keyof typeof adminAccent) {
 
 export function adminNavLinkClass(active: boolean) {
   return cn(
-    "block rounded-md border-l-2 py-1.5 pl-2.5 pr-2 text-sm font-medium transition-colors duration-150",
+    "block rounded-lg border border-transparent px-3 py-2 text-[13px] font-medium leading-snug tracking-tight transition-colors duration-150",
     active
-      ? "border-orange-500 bg-orange-50 text-admin-primary"
-      : "border-transparent text-admin-secondary hover:border-neutral-300 hover:bg-admin-stripe hover:text-admin-primary"
+      ? "border-orange-200/90 bg-orange-50/95 text-admin-primary shadow-[inset_3px_0_0_0_theme(colors.orange.500)]"
+      : "text-admin-secondary hover:border-admin-border hover:bg-admin-stripe hover:text-admin-primary"
   )
 }
 

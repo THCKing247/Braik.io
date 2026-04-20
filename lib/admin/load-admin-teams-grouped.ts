@@ -2,7 +2,14 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
 import { isAssistantCoachRole, isHeadCoachRole, pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
-export type OwnershipSource = "team_organization_id" | "program_organization_id" | "unassigned"
+export type OwnershipSource =
+  | "team_organization_id"
+  | "program_organization_id"
+  /** Unique org linked to this AD on organizations.athletic_department_id */
+  | "organization_athletic_department"
+  /** Unique org linked to this school on organizations.school_id */
+  | "organization_school"
+  | "unassigned"
 
 export type AdminTeamRow = {
   id: string
@@ -102,21 +109,46 @@ export async function loadAdminTeamsGrouped(params: {
 
     let teamIds: string[] | null = null
     if (filterUserId) {
+      const resolved = new Set<string>()
       const { data: profile } = await supabase.from("profiles").select("team_id").eq("id", filterUserId).maybeSingle()
-      teamIds = profile?.team_id ? [profile.team_id] : []
+      if (profile?.team_id) resolved.add(profile.team_id as string)
+      const { data: memberRows, error: tmErr } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", filterUserId)
+        .eq("active", true)
+      if (tmErr) {
+        console.warn("[admin] loadAdminTeamsGrouped:team_members_filter_error", {
+          filterUserId,
+          message: tmErr.message,
+        })
+      }
+      for (const r of memberRows ?? []) {
+        const tid = (r as { team_id?: string }).team_id
+        if (tid) resolved.add(tid)
+      }
+      teamIds = [...resolved]
+      console.info("[admin] loadAdminTeamsGrouped:filter_user_team_ids", {
+        filterUserId,
+        count: teamIds.length,
+        teamIds,
+        fromProfile: Boolean(profile?.team_id),
+        fromTeamMembers: (memberRows ?? []).length,
+      })
       if (teamIds.length === 0) {
         console.info("[admin] loadAdminTeamsGrouped:no_teams_for_user", { filterUserId })
         return { groups: [], organizationDirectory: emptyDirectory(orgDirectorySource), filterUserId }
       }
     }
 
-    let rq = supabase
-      .from("teams")
-      .select(
-        "id, name, plan_tier, subscription_status, team_status, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
-      )
-      .order("created_at", { ascending: false })
-      .limit(2000)
+    const TEAMS_SELECT_FULL =
+      "id, name, plan_tier, subscription_status, team_status, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
+    const TEAMS_SELECT_MINIMAL =
+      "id, name, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
+
+    type TeamsQueryRow = Record<string, unknown>
+
+    let rq = supabase.from("teams").select(TEAMS_SELECT_FULL).order("created_at", { ascending: false }).limit(2000)
 
     if (teamIds) rq = rq.in("id", teamIds)
     if (q) {
@@ -128,7 +160,38 @@ export async function loadAdminTeamsGrouped(params: {
         rq = rq.ilike("name", `%${q}%`)
       }
     }
-    const { data: rows } = await rq
+    const teamsFirst = await rq
+    let rows: TeamsQueryRow[] | null = teamsFirst.data as TeamsQueryRow[] | null
+    const teamsErr = teamsFirst.error
+    if (teamsErr) {
+      console.error("[admin] loadAdminTeamsGrouped:teams_query_error", {
+        message: teamsErr.message,
+        code: teamsErr.code,
+        details: teamsErr.details,
+        hint: teamsErr.hint,
+      })
+      let rq2 = supabase.from("teams").select(TEAMS_SELECT_MINIMAL).order("created_at", { ascending: false }).limit(2000)
+      if (teamIds) rq2 = rq2.in("id", teamIds)
+      if (q) {
+        const { data: matchingOrgs } = await supabase.from("organizations").select("id").ilike("name", `%${q}%`).limit(150)
+        const matchingOrgIds = [...new Set((matchingOrgs ?? []).map((o) => (o as { id: string }).id))]
+        if (matchingOrgIds.length > 0) {
+          rq2 = rq2.or(`name.ilike.%${q}%,organization_id.in.(${matchingOrgIds.join(",")})`)
+        } else {
+          rq2 = rq2.ilike("name", `%${q}%`)
+        }
+      }
+      const second = await rq2
+      rows = second.data as TeamsQueryRow[] | null
+      if (second.error) {
+        console.error("[admin] loadAdminTeamsGrouped:teams_query_retry_failed", {
+          message: second.error.message,
+          code: second.error.code,
+        })
+        throw second.error
+      }
+      console.warn("[admin] loadAdminTeamsGrouped:teams_query_used_minimal_select_after_full_failed")
+    }
     const raw = rows ?? []
 
     console.info("[admin] loadAdminTeamsGrouped:teams_loaded", {
@@ -141,18 +204,25 @@ export async function loadAdminTeamsGrouped(params: {
     const schoolIdsDirect = [...new Set(raw.map((r) => r.school_id as string | null).filter(Boolean))] as string[]
     const adIds = [...new Set(raw.map((r) => r.athletic_department_id as string | null).filter(Boolean))] as string[]
 
-    const { data: programs } =
+    const programsResult =
       programIds.length > 0
         ? await supabase.from("programs").select("id, program_name, sport, organization_id").in("id", programIds)
-        : { data: [] as ProgramRow[] }
-    const programById = new Map<string, ProgramRow>((programs ?? []).map((p) => [p.id as string, p as ProgramRow]))
+        : { data: [] as ProgramRow[], error: null as null }
+    if (programsResult.error) {
+      console.warn("[admin] loadAdminTeamsGrouped:programs_query_warning", {
+        message: programsResult.error.message,
+        code: programsResult.error.code,
+      })
+    }
+    const programs = programsResult.data ?? []
+    const programById = new Map<string, ProgramRow>(programs.map((p) => [p.id as string, p as ProgramRow]))
 
     const referencedOrgIds = new Set<string>()
     for (const t of raw) {
       const tid = (t as { organization_id?: string | null }).organization_id
       if (tid) referencedOrgIds.add(tid as string)
     }
-    for (const p of programs ?? []) {
+    for (const p of programs) {
       const pr = p as ProgramRow
       if (pr.organization_id) referencedOrgIds.add(pr.organization_id)
     }
@@ -165,6 +235,21 @@ export async function loadAdminTeamsGrouped(params: {
       for (const o of extraOrgs ?? []) {
         const r = o as OrgRow
         orgById.set(r.id, r)
+      }
+    }
+
+    const orgsByAthleticDepartmentId = new Map<string, OrgRow[]>()
+    const orgsBySchoolId = new Map<string, OrgRow[]>()
+    for (const o of orgById.values()) {
+      if (o.athletic_department_id) {
+        const list = orgsByAthleticDepartmentId.get(o.athletic_department_id) ?? []
+        list.push(o)
+        orgsByAthleticDepartmentId.set(o.athletic_department_id, list)
+      }
+      if (o.school_id) {
+        const list = orgsBySchoolId.get(o.school_id) ?? []
+        list.push(o)
+        orgsBySchoolId.set(o.school_id, list)
       }
     }
 
@@ -218,9 +303,21 @@ export async function loadAdminTeamsGrouped(params: {
     const teamCountByOrgId = new Map<string, number>()
     let bucketDirect = 0
     let bucketProgram = 0
+    let bucketOrgAd = 0
+    let bucketOrgSchool = 0
     let bucketUnassigned = 0
 
     type Tagged = { row: AdminTeamRow; groupKey: string; groupTitle: string; groupHint: string | null }
+    const resolutionRows: Array<{
+      teamId: string
+      teamName: string
+      ownershipSource: OwnershipSource
+      effectiveOrganizationId: string | null
+      directOrganizationId: string | null
+      programOrganizationId: string | null
+      inferredVia: "none" | "athletic_department" | "school"
+    }> = []
+
     const tagged: Tagged[] = raw.map((t) => {
       const id = t.id as string
       const staff = staffByTeam.get(id) ?? []
@@ -233,7 +330,31 @@ export async function loadAdminTeamsGrouped(params: {
       const prog = pid ? programById.get(pid) : undefined
       const directOid = (t.organization_id as string | null)?.trim() || null
       const oidFromProgram = prog?.organization_id?.trim() || null
-      const effectiveOid = directOid ?? oidFromProgram ?? null
+      const fromTeamOrProgram = directOid ?? oidFromProgram ?? null
+
+      const teamAdId = (t.athletic_department_id as string | null)?.trim() || null
+      const sidTeam = (t.school_id as string | null) ?? null
+
+      let inferredOid: string | null = null
+      let inferredVia: "none" | "athletic_department" | "school" = "none"
+      if (!fromTeamOrProgram && teamAdId) {
+        const adMatches = orgsByAthleticDepartmentId.get(teamAdId) ?? []
+        if (adMatches.length === 1) {
+          inferredOid = adMatches[0].id
+          inferredVia = "athletic_department"
+        } else if (adMatches.length > 1) {
+          /* ambiguity: leave inferredOid null */
+        }
+      }
+      if (!fromTeamOrProgram && !inferredOid && sidTeam) {
+        const schoolMatches = orgsBySchoolId.get(sidTeam) ?? []
+        if (schoolMatches.length === 1) {
+          inferredOid = schoolMatches[0].id
+          inferredVia = "school"
+        }
+      }
+
+      const effectiveOidFinal = fromTeamOrProgram ?? inferredOid ?? null
 
       let ownershipSource: OwnershipSource = "unassigned"
       if (directOid) {
@@ -242,19 +363,24 @@ export async function loadAdminTeamsGrouped(params: {
       } else if (oidFromProgram) {
         ownershipSource = "program_organization_id"
         bucketProgram += 1
+      } else if (inferredOid && inferredVia === "athletic_department") {
+        ownershipSource = "organization_athletic_department"
+        bucketOrgAd += 1
+      } else if (inferredOid && inferredVia === "school") {
+        ownershipSource = "organization_school"
+        bucketOrgSchool += 1
       } else {
         bucketUnassigned += 1
       }
 
-      const orgRow = effectiveOid ? orgById.get(effectiveOid) : undefined
+      const orgRow = effectiveOidFinal ? orgById.get(effectiveOidFinal) : undefined
       const resolvedOrgName =
         (orgRow?.name && String(orgRow.name).trim()) ||
-        (effectiveOid ? `Unknown organization (${effectiveOid.slice(0, 8)}…)` : null)
+        (effectiveOidFinal ? `Unknown organization (${effectiveOidFinal.slice(0, 8)}…)` : null)
 
       const programName = (prog?.program_name as string | undefined)?.trim() || null
 
       let schoolName: string | null = null
-      const sidTeam = (t.school_id as string | null) ?? null
       const sidFromOrg = orgRow?.school_id ?? null
       const sid = sidTeam ?? sidFromOrg ?? null
       if (sid) {
@@ -264,6 +390,22 @@ export async function loadAdminTeamsGrouped(params: {
       const legacyParts: string[] = []
       if (prog && !prog.organization_id) {
         legacyParts.push(`Program "${programName ?? prog.id.slice(0, 8)}" has no organization_id`)
+      }
+      if (!fromTeamOrProgram && teamAdId) {
+        const adMatches = orgsByAthleticDepartmentId.get(teamAdId) ?? []
+        if (adMatches.length > 1) {
+          legacyParts.push(
+            `${adMatches.length} organizations tied to this athletic department — set teams.organization_id explicitly`
+          )
+        }
+      }
+      if (!fromTeamOrProgram && !inferredOid && sidTeam) {
+        const schoolMatches = orgsBySchoolId.get(sidTeam) ?? []
+        if (schoolMatches.length > 1) {
+          legacyParts.push(
+            `${schoolMatches.length} organizations tied to this school — set teams.organization_id explicitly`
+          )
+        }
       }
       if (sidTeam && schoolName) legacyParts.push(`Team school: ${schoolName}`)
       else if (sidTeam) legacyParts.push(`Team school_id set`)
@@ -280,19 +422,21 @@ export async function loadAdminTeamsGrouped(params: {
       let groupTitle: string
       let groupHint: string | null
 
-      if (effectiveOid) {
-        teamCountByOrgId.set(effectiveOid, (teamCountByOrgId.get(effectiveOid) ?? 0) + 1)
-        groupKey = `org:${effectiveOid}`
+      if (effectiveOidFinal) {
+        teamCountByOrgId.set(effectiveOidFinal, (teamCountByOrgId.get(effectiveOidFinal) ?? 0) + 1)
+        groupKey = `org:${effectiveOidFinal}`
         groupTitle = resolvedOrgName ?? "Organization"
         const hints: string[] = []
         if (programName) hints.push(`Program: ${programName}`)
         if (ownershipSource === "program_organization_id") hints.push("Ownership via program → organization")
         if (ownershipSource === "team_organization_id") hints.push("Ownership via team.organization_id")
+        if (ownershipSource === "organization_athletic_department") hints.push("Ownership inferred: unique org for this athletic department")
+        if (ownershipSource === "organization_school") hints.push("Ownership inferred: unique org for this school")
         if (schoolName) hints.push(`School (metadata): ${schoolName}`)
         groupHint = hints.length > 0 ? hints.join(" · ") : null
       } else {
         groupKey = "unassigned"
-        groupTitle = "Teams without organization ownership"
+        groupTitle = "Unassigned / Legacy Teams"
         groupHint =
           legacyParts.length > 0
             ? `${legacyParts.join(" · ")} · Assign teams.organization_id or link the program to an organization.`
@@ -305,17 +449,31 @@ export async function loadAdminTeamsGrouped(params: {
         planTier: (t.plan_tier as string | undefined) ?? null,
         subscriptionStatus: (t.subscription_status as string | undefined) ?? "active",
         teamStatus: (t.team_status as string | undefined) ?? "active",
-        organization: { id: effectiveOid, name: resolvedOrgName ?? "—" },
+        organization: { id: effectiveOidFinal, name: resolvedOrgName ?? "—" },
         ownershipSource,
         legacyContext: legacyParts.length > 0 ? legacyParts.join(" · ") : null,
         sport: (t.sport as string | null) ?? (prog?.sport as string | null) ?? null,
         teamLevel: (t.team_level as string | null) ?? null,
         createdAt:
-          typeof t.created_at === "string" ? t.created_at : new Date(t.created_at as string).toISOString(),
+          typeof t.created_at === "string"
+            ? t.created_at
+            : t.created_at
+              ? new Date(t.created_at as string).toISOString()
+              : new Date().toISOString(),
         players: [],
         headCoachName,
         coachStaffCount,
       }
+
+      resolutionRows.push({
+        teamId: id,
+        teamName: row.name,
+        ownershipSource,
+        effectiveOrganizationId: effectiveOidFinal,
+        directOrganizationId: directOid,
+        programOrganizationId: oidFromProgram,
+        inferredVia,
+      })
 
       return { row, groupKey, groupTitle, groupHint }
     })
@@ -323,8 +481,14 @@ export async function loadAdminTeamsGrouped(params: {
     console.info("[admin] loadAdminTeamsGrouped:ownership_buckets", {
       team_organization_id: bucketDirect,
       program_organization_id: bucketProgram,
+      organization_via_athletic_department: bucketOrgAd,
+      organization_via_school: bucketOrgSchool,
       unassigned: bucketUnassigned,
       teamCountByOrganization: Object.fromEntries(teamCountByOrgId),
+    })
+    console.info("[admin] loadAdminTeamsGrouped:team_resolution", {
+      teams: resolutionRows,
+      includedInThisView: raw.length,
     })
 
     const directoryOrgRows = [...orgById.values()].sort((a, b) =>

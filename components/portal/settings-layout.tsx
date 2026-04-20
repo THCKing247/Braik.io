@@ -132,18 +132,25 @@ export function SettingsLayout({ team: initialTeam, userRole }: SettingsLayoutPr
   }
 
   return (
-    <PortalStandardPageRoot>
-      <PortalStandardPageHeader title="Settings" description="Manage your account and team configuration." />
+    <PortalStandardPageRoot className="flex min-h-0 flex-1 flex-col !space-y-0 overflow-hidden pb-0">
+      <div className="shrink-0 space-y-4 border-b border-[#E5E7EB] bg-[#f9fafb] pb-4 pt-0 lg:bg-[#f9fafb]">
+        <PortalStandardPageHeader
+          title="Settings"
+          description="Manage your account and team configuration."
+          className="border-0 pb-0"
+        />
+        <PortalUnderlineTabs
+          emphasized
+          ariaLabel="Settings sections"
+          tabs={visibleSections.map((s) => ({ id: s.id, label: s.label }))}
+          value={activeSection}
+          onValueChange={(id) => setActiveSection(id as SettingsSection)}
+        />
+      </div>
 
-      <PortalUnderlineTabs
-        emphasized
-        ariaLabel="Settings sections"
-        tabs={visibleSections.map((s) => ({ id: s.id, label: s.label }))}
-        value={activeSection}
-        onValueChange={(id) => setActiveSection(id as SettingsSection)}
-      />
-
-      <main className="min-w-0 space-y-6">{renderContent()}</main>
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+        <div className="space-y-6 py-4">{renderContent()}</div>
+      </main>
     </PortalStandardPageRoot>
   )
 }

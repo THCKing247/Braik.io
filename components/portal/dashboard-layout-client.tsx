@@ -70,6 +70,8 @@ export function DashboardLayoutClient({
   const isSchedulePage =
     (pathForLayout.includes("/dashboard/schedule") ?? false) || (pathForLayout.includes("/dashboard/calendar") ?? false)
   const isPlayEditorRoute = pathForLayout.startsWith("/dashboard/playbooks/play/")
+  const isSettingsPage = pathForLayout === "/dashboard/settings" || pathForLayout.startsWith("/dashboard/settings/")
+  const isMessagesPage = pathForLayout.includes("/dashboard/messages")
   const useMobilePortalShell = !isPlayEditorRoute && !isSchedulePage
 
   // RSC passes a new `teams` array every navigation; keep referential stability when id+name are unchanged
@@ -133,16 +135,23 @@ export function DashboardLayoutClient({
               <ScrollFadeContainer
                 variant="muted"
                 fadeHeight="h-8"
-                className="w-full min-h-0 flex-1 lg:flex lg:min-h-0 lg:flex-col"
+                className={cn(
+                  "w-full min-h-0 flex-1 lg:flex lg:min-h-0 lg:flex-col",
+                  (isSettingsPage || isMessagesPage) && "min-h-0 flex-1"
+                )}
                 scrollClassName={cn(
-                  "w-full min-h-0 flex-1 max-lg:overflow-x-hidden max-lg:overflow-y-visible",
-                  "lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden"
+                  "w-full min-h-0 flex-1 max-lg:overflow-x-hidden",
+                  /* Settings/Messages: outer column does not scroll — the page owns an inner scroll region. */
+                  isSettingsPage || isMessagesPage
+                    ? "flex flex-col overflow-y-hidden overscroll-y-contain lg:overflow-y-hidden lg:overflow-x-hidden"
+                    : "max-lg:overflow-y-auto max-lg:overscroll-y-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden"
                 )}
               >
                 <div
                   className={cn(
                     "w-full min-w-0 max-w-full lg:flex-1 lg:min-h-0",
-                    isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
+                    isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden",
+                    (isSettingsPage || isMessagesPage) && "flex min-h-0 flex-1 flex-col overflow-hidden"
                   )}
                 >
                   <div
@@ -151,21 +160,34 @@ export function DashboardLayoutClient({
                       "lg:p-0",
                       isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0 lg:!rounded-none lg:!border-0 lg:!bg-transparent lg:!p-0 lg:!shadow-none",
                       isSchedulePage &&
-                        "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"
+                        "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]",
+                      (isSettingsPage || isMessagesPage) && "flex min-h-0 flex-1 flex-col overflow-hidden"
                     )}
                     aria-label="Page content"
                   >
                     <div
                       className={cn(
                         "min-w-0 w-full max-w-full",
-                        isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden"
+                        isSchedulePage && "flex min-h-0 flex-1 flex-col overflow-hidden",
+                        (isSettingsPage || isMessagesPage) && "flex min-h-0 flex-1 flex-col overflow-hidden"
                       )}
                     >
                       {/* Hints only on home dashboard — avoids mounting /api fetch wiring on every route */}
                       {isDashboardHome && resolvedCurrentTeamId ? (
                         <DeferredDashboardEngagementHints currentTeamId={resolvedCurrentTeamId} />
                       ) : null}
-                      {useMobilePortalShell ? <MobilePortalShell>{children}</MobilePortalShell> : children}
+                      {useMobilePortalShell ? (
+                        <MobilePortalShell
+                          className={cn(
+                            (isSettingsPage || isMessagesPage) &&
+                              "flex min-h-0 flex-1 flex-col overflow-hidden lg:overflow-hidden"
+                          )}
+                        >
+                          {children}
+                        </MobilePortalShell>
+                      ) : (
+                        children
+                      )}
                     </div>
                   </div>
                 </div>

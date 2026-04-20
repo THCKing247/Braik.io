@@ -26,6 +26,7 @@ import {
   Heart,
   Trash2,
   LayoutGrid,
+  Plus,
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
 import type { MessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
@@ -300,6 +301,8 @@ export function MessagingManager({
   const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(new Set())
   const [isWide, setIsWide] = useState(false)
   const [mobileShowList, setMobileShowList] = useState(true)
+  /** Landing dashboard first; thread split/detail after selecting or deep-linking a thread. */
+  const [inboxPhase, setInboxPhase] = useState<"landing" | "thread">("landing")
   const [composeGroupFilter, setComposeGroupFilter] = useState<null | "coachStaff">(null)
   /** Narrow player list by roster position group; omit non-players when set */
   const [contactPositionFilter, setContactPositionFilter] = useState<string | null>(null)
@@ -376,6 +379,11 @@ export function MessagingManager({
   }, [])
 
   useEffect(() => {
+    const tid = searchParams.get("threadId")?.trim()
+    if (tid) setInboxPhase("thread")
+  }, [searchParams])
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(starredStorageKey(userId, teamId))
       if (raw) {
@@ -400,6 +408,7 @@ export function MessagingManager({
       if (pendingCanonicalThreadNavRef.current) return
       setSelectedThread(null)
       setMobileShowList(true)
+      setInboxPhase("landing")
       return
     }
     pendingCanonicalThreadNavRef.current = null
@@ -408,6 +417,7 @@ export function MessagingManager({
     if (t) {
       setSelectedThread(t)
       setMobileShowList(false)
+      setInboxPhase("thread")
     }
   }, [canonicalTeamParts, pathname, routeThreadId, threads])
 
@@ -1465,6 +1475,7 @@ export function MessagingManager({
       const newThread = await response.json()
       setThreads([newThread, ...threads])
       setSelectedThread(newThread)
+      setInboxPhase("thread")
       if (canonicalTeamParts && newThread?.id) {
         pendingCanonicalThreadNavRef.current = newThread.id
         router.push(buildDashboardTeamMessagePath(canonicalTeamParts, newThread.id))
@@ -1706,6 +1717,28 @@ export function MessagingManager({
     setNewThreadSubject("")
   }
 
+  const backToLanding = useCallback(() => {
+    setInboxPhase("landing")
+    setSelectedThread(null)
+    setMobileShowList(true)
+    if (canonicalTeamParts) {
+      router.push(buildDashboardTeamMessagesPath(canonicalTeamParts))
+    }
+  }, [canonicalTeamParts, router])
+
+  /** Compose UI lives in the thread-layout left column — enter that layout before opening compose. */
+  const openComposeFromLanding = (type: "all" | "player" | "parent" | "group") => {
+    setInboxPhase("thread")
+    setMobileShowList(true)
+    openComposeCategory(type)
+  }
+
+  const openCoachesStaffFromLanding = () => {
+    setInboxPhase("thread")
+    setMobileShowList(true)
+    openCoachesStaffCompose()
+  }
+
   const avatarClassForKind = (kind?: ParticipantKind) => {
     switch (kind) {
       case "player":
@@ -1722,6 +1755,7 @@ export function MessagingManager({
 
   const navigateToThread = useCallback(
     (thread: Thread) => {
+      setInboxPhase("thread")
       setSelectedThread(thread)
       setMobileShowList(false)
       if (canonicalTeamParts) {
@@ -1760,7 +1794,8 @@ export function MessagingManager({
           navigateToThread(thread)
         }}
         className={cn(
-          "relative mx-3 mb-3 cursor-pointer rounded-2xl border p-4 text-left shadow-sm transition-all md:mx-4 md:mb-3 md:p-4 lg:rounded-2xl lg:p-4",
+          "relative mb-3 cursor-pointer rounded-2xl border p-4 text-left shadow-sm transition-all md:mb-3 md:p-4 lg:rounded-2xl lg:p-4",
+          inboxPhase === "landing" ? "mx-0" : "mx-3 md:mx-4",
           isSelected ? "border-[rgb(var(--accent))] bg-[rgb(var(--platinum))] ring-1 ring-[rgb(var(--accent))]/25" : "border-[rgb(var(--border))] bg-white hover:border-[rgb(var(--accent))]/40"
         )}
         style={{ borderColor: isSelected ? undefined : "rgb(var(--border))" }}
@@ -1807,6 +1842,11 @@ export function MessagingManager({
               >
                 {threadCategoryLabel(thread)}
               </span>
+              <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                {thread.threadType === "GROUP" || thread.threadType === "group" || thread.participants.length > 2
+                  ? "Group"
+                  : "Individual"}
+              </span>
               {isReadOnly && (
                 <span className="inline-flex items-center gap-0.5 text-[11px] text-[rgb(var(--muted))]">
                   <Lock className="h-3 w-3" /> Read-only
@@ -1833,10 +1873,10 @@ export function MessagingManager({
     )
   }
 
+  const landingFeaturedThread = sortedThreadSections.starred[0]
+
   return (
-    <div
-      className="relative flex h-[calc(100dvh-15rem)] min-h-[520px] flex-col overflow-hidden lg:flex-row"
-    >
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden lg:min-h-0">
       {error && (
         <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2 transform rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
           {error}
@@ -1846,6 +1886,196 @@ export function MessagingManager({
         </div>
       )}
 
+      {inboxPhase === "landing" ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] pb-4">
+          <div className="space-y-4 border-b border-[#E5E7EB] pb-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-[#0F172A]">Messages</h1>
+                <p className="mt-1 text-sm text-[#64748B]">Inbox &amp; conversations</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {canCreateThread && (
+                  <Button
+                    type="button"
+                    className="gap-1.5 rounded-xl"
+                    style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
+                    onClick={() => openComposeFromLanding("all")}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                    New
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => void loadThreadsFrom("landing-refresh")}
+                  disabled={refreshing || initialLoading}
+                >
+                  <RefreshCw className={cn("mr-1.5 h-4 w-4", refreshing && "animate-spin")} aria-hidden />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[rgb(var(--muted))]" aria-hidden />
+              <Input
+                type="search"
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 rounded-xl pl-10"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "rgb(var(--border))",
+                  color: "rgb(var(--text))",
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            {landingFeaturedThread ? (
+              <button
+                type="button"
+                onClick={() => navigateToThread(landingFeaturedThread)}
+                className="w-full rounded-2xl border border-[rgb(var(--border))] bg-gradient-to-br from-[#EFF6FF] via-white to-[#F8FAFC] p-5 text-left shadow-sm transition hover:border-[rgb(var(--accent))]/40"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgb(var(--accent))]">Featured</p>
+                <h2 className="mt-2 text-lg font-semibold text-[rgb(var(--text))]">
+                  {getThreadDisplayName(landingFeaturedThread)}
+                </h2>
+                <p className="mt-2 line-clamp-3 text-sm text-[rgb(var(--muted))]">
+                  {landingFeaturedThread.messages[0]?.body?.trim()
+                    ? `${landingFeaturedThread.messages[0].creator?.name || landingFeaturedThread.messages[0].creator?.email || ""}: ${landingFeaturedThread.messages[0].body}`
+                    : "Open this conversation"}
+                </p>
+                <p className="mt-3 text-xs font-medium text-[rgb(var(--accent))]">Open thread →</p>
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-[rgb(var(--border))] bg-gradient-to-br from-[#EFF6FF] via-white to-[#F8FAFC] p-5 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgb(var(--accent))]">Featured</p>
+                <h2 className="mt-2 text-lg font-semibold text-[rgb(var(--text))]">Team spotlight</h2>
+                <p className="mt-2 text-sm leading-relaxed text-[rgb(var(--muted))]">
+                  Star a conversation for priority. Coach announcements can be highlighted here when available.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {canCreateThread && (
+            <div className="mt-8 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgb(var(--muted))]">Start a conversation</p>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => openComposeFromLanding("all")}
+                  className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl border border-[rgb(var(--border))] bg-white px-3 py-4 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow"
+                >
+                  <LayoutGrid className="h-6 w-6 text-slate-700" aria-hidden />
+                  <span className="text-sm font-semibold text-[rgb(var(--text))]">All</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openComposeFromLanding("player")}
+                  className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl border border-[rgb(var(--border))] bg-white px-3 py-4 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow"
+                >
+                  <UserRound className="h-6 w-6 text-emerald-600" aria-hidden />
+                  <span className="text-sm font-semibold text-[rgb(var(--text))]">Players</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openComposeFromLanding("parent")}
+                  className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl border border-[rgb(var(--border))] bg-white px-3 py-4 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow"
+                >
+                  <Heart className="h-6 w-6 text-violet-600" aria-hidden />
+                  <span className="text-sm font-semibold text-[rgb(var(--text))]">Parents</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openCoachesStaffFromLanding()}
+                  className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl border border-[rgb(var(--border))] bg-white px-3 py-4 text-center shadow-sm transition hover:border-[rgb(var(--accent))]/50 hover:shadow"
+                >
+                  <Shield className="h-6 w-6 text-orange-600" aria-hidden />
+                  <span className="text-sm font-semibold leading-tight text-[rgb(var(--text))]">Coaches &amp; Staff</span>
+                </button>
+              </div>
+              <p className="text-center text-[11px] leading-snug text-[rgb(var(--muted))] md:text-left">
+                All lists everyone you can message. Coaches &amp; Staff opens a group thread — pick one person or several (name
+                required for multiple).
+              </p>
+            </div>
+          )}
+
+          <div className="mt-8 space-y-4">
+            <h3 className="text-sm font-semibold text-[rgb(var(--text))]">Conversations</h3>
+            {initialLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />
+                ))}
+              </div>
+            ) : inboxLoadError && threads.length === 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-center">
+                <p className="text-sm font-medium text-amber-950">Couldn&apos;t load conversations</p>
+                <p className="mt-1 text-xs text-amber-900/80">{inboxLoadError}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 rounded-xl"
+                  onClick={() => {
+                    setInboxLoadError(null)
+                    setInitialLoading(true)
+                    void loadThreadsFrom("retry-inbox")
+                  }}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : threads.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/40 px-4 py-10 text-center">
+                <MessageSquare className="mx-auto mb-3 h-10 w-10 text-[rgb(var(--accent))]" aria-hidden />
+                <p className="text-sm font-medium text-[rgb(var(--text))]">No conversations yet</p>
+                <p className="mt-2 text-sm leading-relaxed text-[rgb(var(--muted))]">
+                  {canCreateThread
+                    ? "Use the cards above to start a conversation."
+                    : "When your team adds you to a thread, it will show up here."}
+                </p>
+              </div>
+            ) : (
+              <>
+                {sortedThreadSections.starred.length > 0 && (
+                  <div className="mb-1">
+                    <button
+                      type="button"
+                      onClick={() => setPriorityCollapsed((c) => !c)}
+                      className="mb-2 flex w-full items-center justify-between rounded-lg bg-[rgb(var(--platinum))]/50 px-3 py-2 text-left"
+                    >
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--muted))]">
+                        Priority · Starred
+                      </span>
+                      <span className="text-xs text-[rgb(var(--accent))]">{priorityCollapsed ? "Show" : "Hide"}</span>
+                    </button>
+                    {!priorityCollapsed && sortedThreadSections.starred.map((t) => renderThreadCard(t))}
+                  </div>
+                )}
+                <div className="mt-1">
+                  {sortedThreadSections.rest.length > 0 && (
+                    <h3 className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--muted))]">
+                      All threads
+                    </h3>
+                  )}
+                  {sortedThreadSections.rest.map((t) => renderThreadCard(t))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:min-h-0 lg:flex-row">
       <div
         className={cn(
           "flex min-h-0 flex-col border-b lg:h-full lg:w-[min(100%,22rem)] lg:max-w-md lg:flex-none lg:border-b-0 lg:border-r",
@@ -2127,12 +2357,9 @@ export function MessagingManager({
                     size="sm"
                     variant="ghost"
                     className="mt-0.5 h-9 shrink-0 px-2"
-                    aria-label="Back to threads"
+                    aria-label="Back to inbox"
                     onClick={() => {
-                      setMobileShowList(true)
-                      if (canonicalTeamParts) {
-                        router.push(buildDashboardTeamMessagesPath(canonicalTeamParts))
-                      }
+                      backToLanding()
                     }}
                   >
                     <ChevronLeft className="h-5 w-5" />
@@ -2172,17 +2399,30 @@ export function MessagingManager({
                     </Button>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleManualRefresh}
-                  disabled={refreshing || messagesLoading}
-                  className="h-9 w-9 shrink-0 p-0"
-                  title="Refresh messages"
-                  style={{ color: "rgb(var(--accent))" }}
-                >
-                  <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {isWide && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 px-2 text-xs"
+                      onClick={() => backToLanding()}
+                    >
+                      Inbox
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleManualRefresh}
+                    disabled={refreshing || messagesLoading}
+                    className="h-9 w-9 shrink-0 p-0"
+                    title="Refresh messages"
+                    style={{ color: "rgb(var(--accent))" }}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -2429,6 +2669,9 @@ export function MessagingManager({
           </div>
         )}
       </div>
+
+        </div>
+      )}
 
       <Dialog
         open={showParticipantsModal}

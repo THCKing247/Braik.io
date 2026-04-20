@@ -94,6 +94,23 @@ export function parseCanonicalTeamMessagesPath(pathname: string): {
   return { parts, threadId: decodeURIComponent(seg) }
 }
 
+/**
+ * Parse `/player/:segment/messages/:threadId` or `/parent/:linkCode/messages/:threadId`
+ * when `basePath` is `/player/:segment` or `/parent/:linkCode` (no trailing slash).
+ */
+export function parseFreePortalMessagesPath(pathname: string, basePath: string): { threadId?: string } | null {
+  const bare = (pathname.split("?")[0] ?? pathname).replace(/\/$/, "")
+  const base = (basePath.split("?")[0] ?? basePath).replace(/\/$/, "")
+  if (!base) return null
+  const prefix = `${base}/messages`
+  if (bare === prefix) return {}
+  if (!bare.startsWith(`${prefix}/`)) return null
+  const rest = bare.slice(prefix.length + 1)
+  const seg = rest.split("/")[0]?.trim()
+  if (!seg) return {}
+  return { threadId: decodeURIComponent(seg) }
+}
+
 export function buildDashboardTeamStatsPath(parts: DashboardTeamPathParams): string {
   return buildDashboardTeamPath(parts, "/stats")
 }

@@ -40,6 +40,7 @@ import {
   buildDashboardTeamMessagePath,
   buildDashboardTeamMessagesPath,
   parseCanonicalTeamMessagesPath,
+  parseFreePortalMessagesPath,
   type DashboardTeamPathParams,
 } from "@/lib/navigation/organization-routes"
 
@@ -239,6 +240,8 @@ interface MessagingManagerProps {
   bootstrapCoreReady?: boolean
   /** From `/messages/[messageId]` — thread to open when inbox loads. */
   routeThreadId?: string
+  /** Standalone `/player/:id` or `/parent/:linkCode` base — thread URLs stay under this prefix instead of dashboard paths. */
+  freePortalBasePath?: string
 }
 
 export function MessagingManager({
@@ -248,6 +251,7 @@ export function MessagingManager({
   bootstrapThreadsInbox,
   bootstrapCoreReady,
   routeThreadId,
+  freePortalBasePath,
 }: MessagingManagerProps) {
   const router = useRouter()
   const pathname = usePathname() ?? ""
@@ -258,6 +262,7 @@ export function MessagingManager({
     () => parseCanonicalTeamMessagesPath(pathname)?.parts ?? null,
     [pathname]
   )
+  const freePortalBaseTrimmed = freePortalBasePath?.trim() ?? ""
 
   const shell = useAppBootstrapOptional()
   const messagingUnread = useMessagingUnreadOptional()
@@ -399,11 +404,23 @@ export function MessagingManager({
     selectedThreadIdRef.current = selectedThread?.id ?? null
   }, [selectedThread?.id])
 
-  // On canonical team messages routes, the open thread is driven by the path (or [messageId] param), not `?threadId=`.
+  // On canonical dashboard or free-portal messages routes, the open thread is driven by the path (or [messageId] param), not `?threadId=`.
   useEffect(() => {
-    if (!canonicalTeamParts) return
-    const fromPath =
-      parseCanonicalTeamMessagesPath(pathname)?.threadId?.trim() || routeThreadId?.trim() || null
+    const hasCanon = Boolean(canonicalTeamParts)
+    const hasFree = Boolean(freePortalBaseTrimmed)
+    if (!hasCanon && !hasFree) return
+
+    let fromPath: string | null = null
+    if (hasCanon) {
+      fromPath =
+        parseCanonicalTeamMessagesPath(pathname)?.threadId?.trim() || routeThreadId?.trim() || null
+    } else {
+      fromPath =
+        parseFreePortalMessagesPath(pathname, freePortalBaseTrimmed)?.threadId?.trim() ||
+        routeThreadId?.trim() ||
+        null
+    }
+
     if (!fromPath) {
       if (pendingCanonicalThreadNavRef.current) return
       setSelectedThread(null)
@@ -419,14 +436,26 @@ export function MessagingManager({
       setMobileShowList(false)
       setInboxPhase("thread")
     }
-  }, [canonicalTeamParts, pathname, routeThreadId, threads])
+  }, [canonicalTeamParts, freePortalBaseTrimmed, pathname, routeThreadId, threads])
 
-  // One-time migration: `?threadId=` on canonical messages → `/messages/:id` (or drop duplicate query when path already has the id).
+  // One-time migration: `?threadId=` on messages routes → `/messages/:id` (or drop duplicate query when path already has the id).
   useEffect(() => {
-    if (!canonicalTeamParts) return
     const q = searchParams.get("threadId")?.trim()
     if (!q) return
-    const pathTid = parseCanonicalTeamMessagesPath(pathname)?.threadId?.trim() || routeThreadId?.trim() || null
+
+    let pathTid: string | null = null
+    if (canonicalTeamParts) {
+      pathTid =
+        parseCanonicalTeamMessagesPath(pathname)?.threadId?.trim() || routeThreadId?.trim() || null
+    } else if (freePortalBaseTrimmed) {
+      pathTid =
+        parseFreePortalMessagesPath(pathname, freePortalBaseTrimmed)?.threadId?.trim() ||
+        routeThreadId?.trim() ||
+        null
+    } else {
+      return
+    }
+
     const sp = new URLSearchParams(searchParams.toString())
     sp.delete("threadId")
     const rest = sp.toString()
@@ -436,8 +465,12 @@ export function MessagingManager({
       router.replace(`${base}${suffix}`)
       return
     }
-    router.replace(`${buildDashboardTeamMessagePath(canonicalTeamParts, q)}${suffix}`)
-  }, [canonicalTeamParts, pathname, routeThreadId, router, searchParams])
+    if (canonicalTeamParts) {
+      router.replace(`${buildDashboardTeamMessagePath(canonicalTeamParts, q)}${suffix}`)
+      return
+    }
+    router.replace(`${freePortalBaseTrimmed.replace(/\/$/, "")}/messages/${encodeURIComponent(q)}${suffix}`)
+  }, [canonicalTeamParts, freePortalBaseTrimmed, pathname, routeThreadId, router, searchParams])
 
   useEffect(() => {
     messagesRef.current = messages
@@ -1476,7 +1509,10 @@ export function MessagingManager({
       setThreads([newThread, ...threads])
       setSelectedThread(newThread)
       setInboxPhase("thread")
-      if (canonicalTeamParts && newThread?.id) {
+      if (freePortalBaseTrimmed && newThread?.id) {
+        pendingCanonicalThreadNavRef.current = newThread.id
+        router.push(`${freePortalBaseTrimmed.replace(/\/$/, "")}/messages/${encodeURIComponent(newThread.id)}`)
+      } else if (canonicalTeamParts && newThread?.id) {
         pendingCanonicalThreadNavRef.current = newThread.id
         router.push(buildDashboardTeamMessagePath(canonicalTeamParts, newThread.id))
       }
@@ -1721,10 +1757,14 @@ export function MessagingManager({
     setInboxPhase("landing")
     setSelectedThread(null)
     setMobileShowList(true)
+    if (freePortalBaseTrimmed) {
+      router.push(`${freePortalBaseTrimmed.replace(/\/$/, "")}/messages`)
+      return
+    }
     if (canonicalTeamParts) {
       router.push(buildDashboardTeamMessagesPath(canonicalTeamParts))
     }
-  }, [canonicalTeamParts, router])
+  }, [canonicalTeamParts, freePortalBaseTrimmed, router])
 
   /** Compose UI lives in the thread-layout left column — enter that layout before opening compose. */
   const openComposeFromLanding = (type: "all" | "player" | "parent" | "group") => {
@@ -1758,12 +1798,17 @@ export function MessagingManager({
       setInboxPhase("thread")
       setSelectedThread(thread)
       setMobileShowList(false)
+      if (freePortalBaseTrimmed && thread?.id) {
+        pendingCanonicalThreadNavRef.current = thread.id
+        router.push(`${freePortalBaseTrimmed.replace(/\/$/, "")}/messages/${encodeURIComponent(thread.id)}`)
+        return
+      }
       if (canonicalTeamParts) {
         pendingCanonicalThreadNavRef.current = thread.id
         router.push(buildDashboardTeamMessagePath(canonicalTeamParts, thread.id))
       }
     },
-    [canonicalTeamParts, router]
+    [canonicalTeamParts, freePortalBaseTrimmed, router]
   )
 
   const renderThreadCard = (thread: Thread) => {

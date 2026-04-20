@@ -40,7 +40,7 @@ function getStoragePathFromImageUrl(imageUrl: string): string | null {
 }
 
 /**
- * POST /api/roster/[playerId]/image
+ * POST /api/roster/[playerAccountId]/image
  * Uploads a player image to Supabase Storage. Coaches can upload for any player; players can upload only their own photo.
  */
 export async function POST(
@@ -55,7 +55,7 @@ export async function POST(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const teamIdHint = new URL(request.url).searchParams.get("teamId")
@@ -123,7 +123,7 @@ export async function POST(
       })
 
     if (uploadError) {
-      console.error("[POST /api/roster/[playerId]/image] upload", uploadError)
+      console.error("[POST /api/roster/[playerAccountId]/image] upload", uploadError)
       return NextResponse.json({ error: "Failed to upload image" }, { status: 500 })
     }
 
@@ -136,7 +136,7 @@ export async function POST(
       .eq("id", resolvedPlayerId)
 
     if (updateError) {
-      console.error("[POST /api/roster/[playerId]/image]", updateError)
+      console.error("[POST /api/roster/[playerAccountId]/image]", updateError)
       return NextResponse.json({ error: "Failed to update player image" }, { status: 500 })
     }
 
@@ -152,7 +152,7 @@ export async function POST(
     return NextResponse.json({ imageUrl: fileUrl })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to upload image"
-    console.error("[POST /api/roster/[playerId]/image]", error)
+    console.error("[POST /api/roster/[playerAccountId]/image]", error)
     return NextResponse.json(
       { error: String(message).includes("Access denied") ? "Access denied" : message },
       { status: String(message).includes("Access denied") ? 403 : 500 }
@@ -161,7 +161,7 @@ export async function POST(
 }
 
 /**
- * DELETE /api/roster/[playerId]/image
+ * DELETE /api/roster/[playerAccountId]/image
  * Removes a player image from Storage (if Supabase URL) or filesystem (legacy), and clears image_url.
  */
 export async function DELETE(
@@ -176,7 +176,7 @@ export async function DELETE(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const teamIdHint = new URL(request.url).searchParams.get("teamId")
@@ -229,7 +229,7 @@ export async function DELETE(
       .eq("id", resolvedPlayerId)
 
     if (updateError) {
-      console.error("[DELETE /api/roster/[playerId]/image]", updateError)
+      console.error("[DELETE /api/roster/[playerAccountId]/image]", updateError)
       return NextResponse.json({ error: "Failed to remove player image" }, { status: 500 })
     }
 
@@ -245,7 +245,7 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to remove image"
-    console.error("[DELETE /api/roster/[playerId]/image]", error)
+    console.error("[DELETE /api/roster/[playerAccountId]/image]", error)
     return NextResponse.json(
       { error: String(message).includes("Access denied") ? "Access denied" : message },
       { status: String(message).includes("Access denied") ? 403 : 500 }

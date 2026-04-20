@@ -5,7 +5,7 @@ import { MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
- * POST /api/roster/[playerId]/invite/revoke
+ * POST /api/roster/[playerAccountId]/invite/revoke
  * Revoke the pending player invite for this roster spot (sets status = 'revoked').
  */
 export async function POST(
@@ -20,7 +20,7 @@ export async function POST(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
@@ -51,7 +51,7 @@ export async function POST(
       .maybeSingle()
 
     if (inviteErr) {
-      console.error("[POST /api/roster/[playerId]/invite/revoke]", inviteErr)
+      console.error("[POST /api/roster/[playerAccountId]/invite/revoke]", inviteErr)
       return NextResponse.json({ error: "Failed to find invite" }, { status: 500 })
     }
 
@@ -65,7 +65,7 @@ export async function POST(
       .eq("id", (invite as { id: string }).id)
 
     if (updateErr) {
-      console.error("[POST /api/roster/[playerId]/invite/revoke]", updateErr)
+      console.error("[POST /api/roster/[playerAccountId]/invite/revoke]", updateErr)
       return NextResponse.json({ error: "Failed to revoke invite" }, { status: 500 })
     }
 
@@ -78,7 +78,7 @@ export async function POST(
     if (message.includes("Access denied") || message.includes("Insufficient")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[POST /api/roster/[playerId]/invite/revoke]", err)
+    console.error("[POST /api/roster/[playerAccountId]/invite/revoke]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

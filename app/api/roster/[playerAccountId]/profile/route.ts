@@ -22,7 +22,7 @@ import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-pl
 const SYNCED_STAT_KEYS = new Set<string>(SEASON_STAT_KEYS as unknown as string[])
 
 /**
- * GET /api/roster/[playerId]/profile?teamId=xxx
+ * GET /api/roster/[playerAccountId]/profile?teamId=xxx
  * Returns full player profile. Coach: any player on team. Player: only own profile (user_id = session user).
  */
 export async function GET(
@@ -37,7 +37,7 @@ export async function GET(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -125,13 +125,13 @@ export async function GET(
         { status: 403 }
       )
     }
-    console.error("[GET /api/roster/.../profile]", err)
+    console.error("[GET /api/roster/[playerAccountId]/profile]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 /**
- * PATCH /api/roster/[playerId]/profile
+ * PATCH /api/roster/[playerAccountId]/profile
  * Update profile. Coach: any field. Player: only self-edit fields and only on own profile.
  */
 export async function PATCH(
@@ -146,7 +146,7 @@ export async function PATCH(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
@@ -333,7 +333,7 @@ export async function PATCH(
       .single()
 
     if (updateErr) {
-      console.error("[PATCH /api/roster/.../profile]", updateErr.message)
+      console.error("[PATCH /api/roster/[playerAccountId]/profile]", updateErr.message)
       return NextResponse.json({ error: updateErr.message }, { status: 500 })
     }
 
@@ -341,7 +341,7 @@ export async function PATCH(
       try {
         await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, [resolvedPlayerId])
       } catch (e) {
-        console.error("[PATCH /api/roster/.../profile] weekly→season sync failed", e)
+        console.error("[PATCH /api/roster/[playerAccountId]/profile] weekly→season sync failed", e)
       }
     }
 
@@ -425,7 +425,7 @@ export async function PATCH(
         { status: 403 }
       )
     }
-    console.error("[PATCH /api/roster/.../profile]", err)
+    console.error("[PATCH /api/roster/[playerAccountId]/profile]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

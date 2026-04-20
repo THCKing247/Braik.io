@@ -19,8 +19,9 @@ const FOLLOW_UP_CATEGORIES = [
 ] as const
 
 /**
- * GET /api/roster/[playerId]/follow-ups?teamId=xxx&status=open
+ * GET /api/roster/[playerAccountId]/follow-ups?teamId=xxx&status=open
  * List follow-ups for this player. Coach: any player. Player: own only.
+ * Each list item `playerId` is internal `players.id` (UUID), not the public `player_account_id` path segment.
  */
 export async function GET(
   request: Request,
@@ -38,7 +39,7 @@ export async function GET(
     const status = searchParams.get("status")?.trim() || null
 
     if (!segment || !teamId) {
-      return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId and teamId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
@@ -80,7 +81,7 @@ export async function GET(
     const { data: rows, error } = await query
 
     if (error) {
-      console.error("[GET /api/roster/.../follow-ups]", error.message)
+      console.error("[GET /api/roster/[playerAccountId]/follow-ups]", error.message)
       return NextResponse.json({ error: "Failed to load follow-ups" }, { status: 500 })
     }
 
@@ -148,13 +149,13 @@ export async function GET(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[GET /api/roster/.../follow-ups]", err)
+    console.error("[GET /api/roster/[playerAccountId]/follow-ups]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 /**
- * POST /api/roster/[playerId]/follow-ups
+ * POST /api/roster/[playerAccountId]/follow-ups
  * Create a follow-up and a linked team calendar event. Coach only.
  * Body: { category, note?, start | startAt (ISO), end? | endAt? (ISO, optional; defaults to start + 30m) }
  */
@@ -172,7 +173,7 @@ export async function POST(
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!segment || !teamId) {
-      return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId and teamId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
@@ -247,7 +248,7 @@ export async function POST(
       .single()
 
     if (error) {
-      console.error("[POST /api/roster/.../follow-ups]", error.message)
+      console.error("[POST /api/roster/[playerAccountId]/follow-ups]", error.message)
       return NextResponse.json({ error: "Failed to create follow-up" }, { status: 500 })
     }
 
@@ -291,7 +292,7 @@ export async function POST(
     })
 
     if (eventError) {
-      console.error("[POST /api/roster/.../follow-ups] calendar insert failed", eventError.message)
+      console.error("[POST /api/roster/[playerAccountId]/follow-ups] calendar insert failed", eventError.message)
       await supabase.from("player_follow_ups").delete().eq("id", insertedRow.id)
       return NextResponse.json({ error: "Follow-up saved but calendar event failed. Try again." }, { status: 500 })
     }
@@ -314,7 +315,7 @@ export async function POST(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[POST /api/roster/.../follow-ups]", err)
+    console.error("[POST /api/roster/[playerAccountId]/follow-ups]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

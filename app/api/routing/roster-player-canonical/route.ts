@@ -9,8 +9,8 @@ import {
 export const runtime = "nodejs"
 
 /**
- * Legacy player UUID → canonical `/dashboard/org/:shortOrgId/team/:shortTeamId/roster/:playerAccountId`.
- * Optional `nested` query (e.g. `/recruiting`) appended after the roster segment.
+ * Legacy internal `players.id` UUID → canonical `/dashboard/org/:shortOrgId/team/:shortTeamId/roster/:playerAccountId`.
+ * Query `playerId` must be the internal UUID (middleware); optional `nested` (e.g. `/recruiting`) after the roster segment.
  */
 export async function GET(request: Request) {
   const auth = await getRequestAuth()
@@ -19,12 +19,16 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url)
-  const playerId = url.searchParams.get("playerId")?.trim()
-  if (!playerId) {
-    return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+  /** Value is internal `players.id` — param name `playerId` is historical for `/api/routing` callers. */
+  const playerUuid = url.searchParams.get("playerId")?.trim()
+  if (!playerUuid) {
+    return NextResponse.json(
+      { error: "Internal player UUID is required (pass as query param playerId)." },
+      { status: 400 }
+    )
   }
 
-  const canonical = await resolveCanonicalPlayerRouteByPlayerUuid(getSupabaseServer(), playerId)
+  const canonical = await resolveCanonicalPlayerRouteByPlayerUuid(getSupabaseServer(), playerUuid)
   if (!canonical) {
     return NextResponse.json({ error: "Player not found for canonical route" }, { status: 404 })
   }

@@ -6,8 +6,9 @@ import { effectiveDocumentStatus } from "@/lib/player-documents/status"
 import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
- * GET /api/roster/[playerId]/documents?teamId=xxx
+ * GET /api/roster/[playerAccountId]/documents?teamId=xxx
  * Legacy list shape for roster integrations; prefer GET /api/player-documents for new UI.
+ * Each list item `playerId` field is the internal `players.id` UUID (row key), not the public `player_account_id` route segment.
  */
 export async function GET(
   request: Request,
@@ -23,7 +24,7 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!segment || !teamId) {
-      return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId and teamId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
@@ -48,7 +49,7 @@ export async function GET(
       .order("uploaded_at", { ascending: false })
 
     if (error) {
-      console.error("[GET /api/roster/.../documents]", error.message)
+      console.error("[GET /api/roster/[playerAccountId]/documents]", error.message)
       return NextResponse.json({ error: "Failed to load documents" }, { status: 500 })
     }
 
@@ -102,13 +103,13 @@ export async function GET(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[GET /api/roster/.../documents]", err)
+    console.error("[GET /api/roster/[playerAccountId]/documents]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 /**
- * POST /api/roster/[playerId]/documents
+ * POST /api/roster/[playerAccountId]/documents
  * Coach uploads disabled — use POST /api/player-documents/upload (player/parent).
  */
 export async function POST() {

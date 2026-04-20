@@ -16,7 +16,7 @@ function clientIp(request: Request): string | null {
 }
 
 /**
- * PATCH /api/roster/[playerId]/documents/[docId]
+ * PATCH /api/roster/[playerAccountId]/documents/[docId]
  * Update document (e.g. visibleToPlayer). Coach only.
  */
 export async function PATCH(
@@ -31,7 +31,7 @@ export async function PATCH(
 
     const { playerAccountId: segment, docId } = await params
     if (!segment || !docId) {
-      return NextResponse.json({ error: "playerId and docId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId and docId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
@@ -87,7 +87,7 @@ export async function PATCH(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[PATCH /api/roster/.../documents/...]", err)
+    console.error("[PATCH /api/roster/[playerAccountId]/documents/[docId]]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
@@ -107,7 +107,7 @@ export async function DELETE(
 
     const { playerAccountId: segment, docId } = await params
     if (!segment || !docId) {
-      return NextResponse.json({ error: "playerId and docId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId and docId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
@@ -211,7 +211,7 @@ export async function DELETE(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[DELETE /api/roster/.../documents/...]", err)
+    console.error("[DELETE /api/roster/[playerAccountId]/documents/[docId]]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

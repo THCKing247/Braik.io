@@ -10,7 +10,7 @@ import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-pl
 export const runtime = "nodejs"
 
 /**
- * GET /api/roster/[playerId]/attached-film?teamId=
+ * GET /api/roster/[playerAccountId]/attached-film?teamId=
  * Braik film attached to this player (portal rules: includes coach-only private film when attached).
  * Same access as player profile: coach, self, linked parent.
  */
@@ -28,7 +28,7 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!teamId || !segment) {
-      return NextResponse.json({ error: "teamId and playerId required" }, { status: 400 })
+      return NextResponse.json({ error: "teamId and playerAccountId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
@@ -68,7 +68,7 @@ export async function GET(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: "You don't have access to this team." }, { status: 403 })
     }
-    console.error("[GET /api/roster/.../attached-film]", err)
+    console.error("[GET /api/roster/[playerAccountId]/attached-film]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

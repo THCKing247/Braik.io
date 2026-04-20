@@ -7,7 +7,7 @@ import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
 import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
- * PATCH /api/roster/[playerId] - Update a player (e.g. invite_code, invite_status).
+ * PATCH /api/roster/[playerAccountId] — update a player (e.g. invite_code, invite_status).
  * Used when coach "sends invite" to a coach-created player: set invite_code and invite_status = 'invited'.
  */
 export async function PATCH(
@@ -22,7 +22,7 @@ export async function PATCH(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const { requireTeamPermission } = await import("@/lib/auth/rbac")
@@ -124,7 +124,7 @@ export async function PATCH(
       .single()
 
     if (error) {
-      console.error("[PATCH /api/roster/[playerId]]", error.message)
+      console.error("[PATCH /api/roster/[playerAccountId]]", error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
@@ -165,20 +165,20 @@ export async function PATCH(
     })
   } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {
-      console.error("[PATCH /api/roster/[playerId]] membership lookup failed (DB/schema)", err.message)
+      console.error("[PATCH /api/roster/[playerAccountId]] membership lookup failed (DB/schema)", err.message)
       return NextResponse.json({ error: "Failed to update player" }, { status: 500 })
     }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Insufficient")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[PATCH /api/roster/[playerId]]", err)
+    console.error("[PATCH /api/roster/[playerAccountId]]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 /**
- * DELETE /api/roster/[playerId] - Remove a player from the roster.
+ * DELETE /api/roster/[playerAccountId] — remove a player from the roster.
  */
 export async function DELETE(
   _request: Request,
@@ -192,7 +192,7 @@ export async function DELETE(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const { requireTeamPermission } = await import("@/lib/auth/rbac")
@@ -218,21 +218,21 @@ export async function DELETE(
     const { error: deleteErr } = await supabase.from("players").delete().eq("id", playerUuid)
 
     if (deleteErr) {
-      console.error("[DELETE /api/roster/[playerId]]", deleteErr.message)
+      console.error("[DELETE /api/roster/[playerAccountId]]", deleteErr.message)
       return NextResponse.json({ error: deleteErr.message }, { status: 500 })
     }
 
     return new NextResponse(null, { status: 204 })
   } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {
-      console.error("[DELETE /api/roster/[playerId]] membership lookup failed (DB/schema)", err.message)
+      console.error("[DELETE /api/roster/[playerAccountId]] membership lookup failed (DB/schema)", err.message)
       return NextResponse.json({ error: "Failed to delete player" }, { status: 500 })
     }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Insufficient")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[DELETE /api/roster/[playerId]]", err)
+    console.error("[DELETE /api/roster/[playerAccountId]]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

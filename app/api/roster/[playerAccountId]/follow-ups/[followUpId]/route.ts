@@ -8,7 +8,7 @@ import { revalidateTeamCalendar } from "@/lib/cache/lightweight-get-cache"
 import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
- * PATCH /api/roster/[playerId]/follow-ups/[followUpId]
+ * PATCH /api/roster/[playerAccountId]/follow-ups/[followUpId]
  * Update follow-up (resolve or edit note). Coach only. Body: { status?: 'resolved', note?: string }
  */
 export async function PATCH(
@@ -25,7 +25,7 @@ export async function PATCH(
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!segment || !followUpId || !teamId) {
-      return NextResponse.json({ error: "playerId, followUpId, and teamId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId, followUpId, and teamId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
@@ -74,7 +74,7 @@ export async function PATCH(
       .single()
 
     if (error) {
-      console.error("[PATCH /api/roster/.../follow-ups/...]", error.message)
+      console.error("[PATCH /api/roster/[playerAccountId]/follow-ups/[followUpId]]", error.message)
       return NextResponse.json({ error: "Failed to update follow-up" }, { status: 500 })
     }
 
@@ -94,7 +94,7 @@ export async function PATCH(
         const newDesc = desc ? `${desc}\n\n${resolvedLine}` : resolvedLine
         const { error: evUpdErr } = await supabase.from("events").update({ title: newTitle, description: newDesc }).eq("id", ev.id)
         if (evUpdErr) {
-          console.warn("[PATCH /api/roster/.../follow-ups/...] calendar update failed", evUpdErr.message)
+          console.warn("[PATCH /api/roster/[playerAccountId]/follow-ups/[followUpId]] calendar update failed", evUpdErr.message)
         }
       }
 
@@ -117,7 +117,7 @@ export async function PATCH(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[PATCH /api/roster/.../follow-ups/...]", err)
+    console.error("[PATCH /api/roster/[playerAccountId]/follow-ups/[followUpId]]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

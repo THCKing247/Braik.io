@@ -372,7 +372,10 @@ export async function resolveCanonicalPlayerRouteByPlayerUuid(
   }
 }
 
-/** Short-ID route → internal player UUID (scoped to resolved team from org/team short IDs). */
+/**
+ * Resolve dashboard `playerAccountId` path segment to internal `players.id` (UUID), scoped to the team
+ * from `shortOrgId` + `shortTeamId` (legacy `playerRouteSegment` name kept for call sites).
+ */
 export async function resolvePlayerUuidFromDashboardShortRoute(
   supabase: SupabaseClient,
   shortOrgId: string,

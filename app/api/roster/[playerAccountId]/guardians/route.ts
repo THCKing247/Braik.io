@@ -6,7 +6,7 @@ import { canEditRoster } from "@/lib/auth/roles"
 import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
- * GET /api/roster/[playerId]/guardians?teamId=xxx
+ * GET /api/roster/[playerAccountId]/guardians?teamId=xxx
  * Returns guardians linked to this player (guardian_links + guardians).
  * Coach: any player. Player: own profile only. Future: guardian can see own link.
  */
@@ -24,7 +24,7 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!segment || !teamId) {
-      return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId and teamId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
@@ -58,7 +58,7 @@ export async function GET(
       .eq("player_id", resolvedPlayerId)
 
     if (linksErr) {
-      console.error("[GET /api/roster/.../guardians]", linksErr.message)
+      console.error("[GET /api/roster/[playerAccountId]/guardians]", linksErr.message)
       return NextResponse.json({ error: "Failed to load guardians" }, { status: 500 })
     }
 
@@ -116,7 +116,7 @@ export async function GET(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[GET /api/roster/.../guardians]", err)
+    console.error("[GET /api/roster/[playerAccountId]/guardians]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

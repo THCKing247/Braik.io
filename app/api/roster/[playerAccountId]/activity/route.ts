@@ -9,10 +9,10 @@ const DEFAULT_LIMIT = 25
 const MAX_LIMIT = 100
 
 /**
- * GET /api/roster/[playerId]/activity?teamId=xxx&limit=25&offset=0
+ * GET /api/roster/[playerAccountId]/activity?teamId=xxx&limit=25&offset=0
  * Returns recent activity for this player. Coach: any player. Player: own profile only.
  * Response: { items, total, limit, offset } when offset or total is requested (page mode); else legacy array only.
- * Players see activity that is appropriate (e.g. photo/doc/equipment/stats; no sensitive audit detail).
+ * Items include `playerId` as internal `players.id` (UUID), not the public roster route segment.
  */
 export async function GET(
   request: Request,
@@ -36,7 +36,7 @@ export async function GET(
     const pageMode = searchParams.get("pageMode") === "1" || searchParams.has("offset")
 
     if (!segment || !teamId) {
-      return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId and teamId are required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
@@ -79,7 +79,7 @@ export async function GET(
     const { data: rows, error, count } = await query
 
     if (error) {
-      console.error("[GET /api/roster/.../activity]", error.message)
+      console.error("[GET /api/roster/[playerAccountId]/activity]", error.message)
       return NextResponse.json({ error: "Failed to load activity" }, { status: 500 })
     }
 
@@ -125,7 +125,7 @@ export async function GET(
     if (message.includes("Access denied") || message.includes("Not a member")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[GET /api/roster/.../activity]", err)
+    console.error("[GET /api/roster/[playerAccountId]/activity]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

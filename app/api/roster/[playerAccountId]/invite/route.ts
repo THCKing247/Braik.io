@@ -25,7 +25,7 @@ function generateSecureToken(): string {
 }
 
 /**
- * POST /api/roster/[playerId]/invite - Create or update a player invite (token + optional email/phone).
+ * POST /api/roster/[playerAccountId]/invite — create or update a player invite (token + optional email/phone).
  * Returns join link so the player can open /signup/player?token=... without entering a code.
  * Sets `players.invite_code` (unique player code) and syncs a typed `invite_codes` row (`player_claim_invite`) for signup/redeem flows.
  */
@@ -41,7 +41,7 @@ export async function POST(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
@@ -66,7 +66,7 @@ export async function POST(
 
     const originCheck = resolveTrustedAppOrigin({ request })
     if (!originCheck.ok) {
-      console.error("[POST /api/roster/[playerId]/invite] app origin missing:", originCheck.message)
+      console.error("[POST /api/roster/[playerAccountId]/invite] app origin missing:", originCheck.message)
       return NextResponse.json({ error: originCheck.message, code: originCheck.code }, { status: 503 })
     }
 
@@ -129,7 +129,7 @@ export async function POST(
         })
         .eq("id", (existingInvite as { id: string }).id)
       if (updateInviteErr) {
-        console.error("[POST /api/roster/[playerId]/invite] player_invites update", updateInviteErr)
+        console.error("[POST /api/roster/[playerAccountId]/invite] player_invites update", updateInviteErr)
         return NextResponse.json({ error: "Failed to update invite" }, { status: 500 })
       }
       logInviteAction("invite_created", { playerId: resolvedPlayerId, inviteId: (existingInvite as { id: string }).id })
@@ -150,7 +150,7 @@ export async function POST(
         .select("id")
         .single()
       if (insertInviteErr) {
-        console.error("[POST /api/roster/[playerId]/invite] player_invites insert", insertInviteErr)
+        console.error("[POST /api/roster/[playerAccountId]/invite] player_invites insert", insertInviteErr)
         return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
       }
       if (inserted)
@@ -165,7 +165,7 @@ export async function POST(
       .single()
 
     if (error) {
-      console.error("[POST /api/roster/[playerId]/invite]", error.message)
+      console.error("[POST /api/roster/[playerAccountId]/invite]", error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
@@ -194,7 +194,7 @@ export async function POST(
       created_by_user_id: session.user.id,
     })
     if (typedInviteErr) {
-      console.warn("[POST /api/roster/[playerId]/invite] invite_codes player_claim_invite", typedInviteErr.message)
+      console.warn("[POST /api/roster/[playerAccountId]/invite] invite_codes player_claim_invite", typedInviteErr.message)
     }
 
     const joinBuilt = buildPlayerJoinUrl(token, request)
@@ -209,14 +209,14 @@ export async function POST(
     })
   } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {
-      console.error("[POST /api/roster/[playerId]/invite] membership lookup failed (DB/schema)", err.message)
+      console.error("[POST /api/roster/[playerAccountId]/invite] membership lookup failed (DB/schema)", err.message)
       return NextResponse.json({ error: "Failed to set invite" }, { status: 500 })
     }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Insufficient")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[POST /api/roster/[playerId]/invite]", err)
+    console.error("[POST /api/roster/[playerAccountId]/invite]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

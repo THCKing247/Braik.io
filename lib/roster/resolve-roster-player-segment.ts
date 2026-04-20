@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { normalizeIncomingShortIdSegment } from "@/lib/navigation/canonical-short-id-paths"
 
-/** Same shape as middleware UUID check — roster URL segment that is a player UUID (legacy). */
+/** Matches a segment that looks like `players.id` (legacy deep links); not the public `player_account_id`. */
 export const ROSTER_PLAYER_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -15,8 +15,8 @@ export function normalizePlayerAccountIdSegment(segment: string): string {
 }
 
 /**
- * Resolve a roster URL or API path segment to `players.id` for the given team.
- * Accepts internal UUID (legacy) or public `player_account_id`.
+ * Resolve `:playerAccountId` (URL/API segment) to `players.id` for the given team.
+ * Accepts legacy `players.id` UUID or public numeric `player_account_id` text.
  */
 export async function resolvePlayerUuidForTeamRosterSegment(
   supabase: SupabaseClient,

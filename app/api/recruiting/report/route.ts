@@ -8,6 +8,7 @@ import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-pl
 
 /**
  * GET /api/recruiting/report?playerId=xxx
+ * `playerId` is the roster API segment (public `player_account_id` or legacy `players.id` UUID), same as `/api/roster/[playerAccountId]/...`.
  * Returns full recruiting report for a player. Coach must belong to the player's program.
  */
 export async function GET(request: Request) {

@@ -5,7 +5,7 @@ import { MembershipLookupError } from "@/lib/auth/rbac"
 import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
- * PATCH /api/roster/[playerId]/forms - Update player forms status
+ * PATCH /api/roster/[playerAccountId]/forms — update player forms status
  * Used when coach marks forms as complete or selects missing forms
  */
 export async function PATCH(
@@ -20,7 +20,7 @@ export async function PATCH(
 
     const { playerAccountId: segment } = await params
     if (!segment) {
-      return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+      return NextResponse.json({ error: "playerAccountId route segment is required" }, { status: 400 })
     }
 
     const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
@@ -83,7 +83,7 @@ export async function PATCH(
       .single()
 
     if (error) {
-      console.error("[PATCH /api/roster/[playerId]/forms]", error.message)
+      console.error("[PATCH /api/roster/[playerAccountId]/forms]", error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
@@ -95,14 +95,14 @@ export async function PATCH(
     })
   } catch (err: unknown) {
     if (err instanceof MembershipLookupError) {
-      console.error("[PATCH /api/roster/[playerId]/forms] membership lookup failed (DB/schema)", err.message)
+      console.error("[PATCH /api/roster/[playerAccountId]/forms] membership lookup failed (DB/schema)", err.message)
       return NextResponse.json({ error: "Failed to update forms" }, { status: 500 })
     }
     const message = err instanceof Error ? err.message : "Access denied"
     if (message.includes("Access denied") || message.includes("Insufficient")) {
       return NextResponse.json({ error: message }, { status: 403 })
     }
-    console.error("[PATCH /api/roster/[playerId]/forms]", err)
+    console.error("[PATCH /api/roster/[playerAccountId]/forms]", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

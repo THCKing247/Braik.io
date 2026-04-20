@@ -1637,7 +1637,7 @@ export function RosterManagerEnhanced({
     }`
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-x-hidden px-4 pb-6 lg:px-0 lg:pb-0">
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden pb-6 lg:pb-0">
       {/* Tab Navigation — scrollable on small screens, 44px tap targets */}
       <div className="mb-4 border-b border-border lg:mb-6">
         <div

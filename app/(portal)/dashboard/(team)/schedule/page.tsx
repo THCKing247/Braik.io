@@ -8,7 +8,7 @@ import Link from "next/link"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
+import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { ScheduleGameListSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -191,28 +191,30 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 px-4 pb-10 pt-2 md:px-6 lg:px-0">
-      <PortalPageHeaderSurface>
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl" style={{ color: "rgb(var(--text))" }}>
-          Schedule
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
-          Team games only (upcoming and completed). Practices, meetings, and other events live in{" "}
-          <Link
-            href="/dashboard/calendar"
-            prefetch={prefetchPropForDashboardScheduleHref("/dashboard/calendar")}
-            className="font-medium text-[rgb(var(--accent))] underline-offset-2 hover:underline"
-          >
-            Calendar
-          </Link>
-          .
-        </p>
-        {canEdit && (
-          <p className="mt-2 text-sm font-medium" style={{ color: "rgb(var(--text2))" }}>
-            Game Schedule lists every game in order. Game Results is a filtered view of finished games and scores.
-          </p>
-        )}
-      </PortalPageHeaderSurface>
+    <PortalStandardPageRoot className="space-y-4 pb-10 pt-2">
+      <PortalStandardPageHeader
+        title={<h1 className="text-xl font-semibold tracking-tight text-[#0F172A] md:text-2xl">Schedule</h1>}
+        description={
+          <div className="text-sm text-[#64748B]">
+            <p>
+              Team games only (upcoming and completed). Practices, meetings, and other events live in{" "}
+              <Link
+                href="/dashboard/calendar"
+                prefetch={prefetchPropForDashboardScheduleHref("/dashboard/calendar")}
+                className="font-medium text-[rgb(var(--accent))] underline-offset-2 hover:underline"
+              >
+                Calendar
+              </Link>
+              .
+            </p>
+            {canEdit ? (
+              <p className="mt-2 text-sm font-medium text-[#334155]">
+                Game Schedule lists every game in order. Game Results is a filtered view of finished games and scores.
+              </p>
+            ) : null}
+          </div>
+        }
+      />
 
       <PortalUnderlineTabs
         className="max-w-lg"
@@ -364,6 +366,6 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
       />
 
       <TeamGamesImportDialog teamId={teamId} open={importOpen} onOpenChange={setImportOpen} onImported={onSaved} />
-    </div>
+    </PortalStandardPageRoot>
   )
 }

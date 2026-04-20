@@ -10,6 +10,7 @@ import {
   startOfWeek,
 } from "date-fns"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
+import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -189,14 +190,12 @@ export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; c
   }, [sessions])
 
   return (
-    <div className="mx-auto min-w-0 max-w-6xl space-y-4 px-4 pb-8 md:px-0">
-      <div className="flex flex-col gap-3 border-b border-[#E5E7EB] pb-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#0F172A]">Weight room</h1>
-          <p className="mt-1 text-sm text-[#64748B]">Schedule, maxes, and team strength leaderboard.</p>
-        </div>
-        <WeightRoomToolbar teamId={teamId} tab={tab} maxes={maxes} />
-      </div>
+    <PortalStandardPageRoot maxWidthClassName="max-w-6xl">
+      <PortalStandardPageHeader
+        title="Weight room"
+        description="Schedule, maxes, and team strength leaderboard."
+        actions={<WeightRoomToolbar teamId={teamId} tab={tab} maxes={maxes} />}
+      />
 
       <PortalUnderlineTabs
         tabs={TAB_DEFS}
@@ -286,7 +285,7 @@ export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; c
         }}
         data={certData}
       />
-    </div>
+    </PortalStandardPageRoot>
   )
 }
 

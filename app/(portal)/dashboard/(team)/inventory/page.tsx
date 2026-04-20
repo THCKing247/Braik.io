@@ -2,6 +2,7 @@
 
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { InventoryManager } from "@/components/portal/inventory-manager"
+import { PortalStandardPage } from "@/components/portal/portal-standard-page"
 
 const defaultCoachPermissions = {
   canView: true,
@@ -25,15 +26,17 @@ export default function InventoryPage() {
 
 function InventoryPageContent({ teamId }: { teamId: string }) {
   return (
-    <InventoryManager
-      teamId={teamId}
-      initialItems={[]}
-      players={[]}
-      permissions={defaultCoachPermissions}
-      initialRecentUnitCostChanges={[]}
-      initialPendingConditionReportCount={0}
-      initialViewer={{ canReportCondition: false, canApproveConditionReports: false }}
-      bootstrapInventory
-    />
+    <PortalStandardPage title="Inventory" description="Track gear, assignments, costs, and equipment condition across your program.">
+      <InventoryManager
+        teamId={teamId}
+        initialItems={[]}
+        players={[]}
+        permissions={defaultCoachPermissions}
+        initialRecentUnitCostChanges={[]}
+        initialPendingConditionReportCount={0}
+        initialViewer={{ canReportCondition: false, canApproveConditionReports: false }}
+        bootstrapInventory
+      />
+    </PortalStandardPage>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
+import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -86,21 +87,19 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
   )
 
   return (
-    <div className="mx-auto min-w-0 max-w-5xl space-y-4 px-4 pb-8 md:px-0">
-      <div className="flex flex-col gap-3 border-b border-[#E5E7EB] pb-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#0F172A]">Study guides</h1>
-          <p className="mt-1 text-sm text-[#64748B]">Program-linked assignments, quizzes, and accountability.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 md:justify-end">
-          {tab === "assignments" && (
+    <PortalStandardPageRoot>
+      <PortalStandardPageHeader
+        title="Study guides"
+        description="Program-linked assignments, quizzes, and accountability."
+        actions={
+          tab === "assignments" ? (
             <Button type="button" size="sm" className="rounded-lg" onClick={() => setBuilderOpen(true)}>
               <Plus className="mr-1 h-4 w-4" />
               New assignment
             </Button>
-          )}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       <PortalUnderlineTabs tabs={COACH_TABS} value={tab} onValueChange={(id) => setTab(id as CoachTab)} ariaLabel="Study guides" />
 
@@ -231,7 +230,7 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
         onClose={() => setDetailId(null)}
         onUpdated={loadAssignments}
       />
-    </div>
+    </PortalStandardPageRoot>
   )
 }
 

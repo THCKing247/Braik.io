@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { DocumentsManager } from "@/components/portal/documents-manager"
+import { PortalStandardPage } from "@/components/portal/portal-standard-page"
 
 export default function DocumentsPage() {
   return (
@@ -77,13 +78,18 @@ function DocumentsPageContent({
   const allowPlayerParentMediaUpload = userRole === "PLAYER" || userRole === "PARENT"
 
   return (
-    <DocumentsManager
-      teamId={teamId}
-      documents={docsWithDate}
-      canUploadCoachCategories={canUploadCoachCategories}
-      allowPlayerParentMediaUpload={allowPlayerParentMediaUpload}
-      userRole={userRole}
-      listLoading={listLoading}
-    />
+    <PortalStandardPage
+      title="Documents"
+      description="Upload, organize, and share team files with visibility and assignment controls."
+    >
+      <DocumentsManager
+        teamId={teamId}
+        documents={docsWithDate}
+        canUploadCoachCategories={canUploadCoachCategories}
+        allowPlayerParentMediaUpload={allowPlayerParentMediaUpload}
+        userRole={userRole}
+        listLoading={listLoading}
+      />
+    </PortalStandardPage>
   )
 }

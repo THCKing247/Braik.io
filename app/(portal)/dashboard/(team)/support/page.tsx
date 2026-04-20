@@ -2,31 +2,20 @@ import { Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { LifeBuoy, Mail, BookOpen, MessageSquarePlus } from "lucide-react"
+import { Mail, BookOpen, MessageSquarePlus } from "lucide-react"
 import { SupportFeedbackForm } from "@/components/portal/support-feedback-form"
+import { PortalStandardPage } from "@/components/portal/portal-standard-page"
 
 /* No force-dynamic: parent dashboard layout is already dynamic (cookies). This page is mostly static UI. */
 
 export default function SupportPage() {
   return (
-    <div className="mx-auto max-w-3xl space-y-8 p-6">
-      <div className="flex items-center gap-3">
-        <div
-          className="flex h-12 w-12 items-center justify-center rounded-2xl"
-          style={{ backgroundColor: "rgb(var(--platinum))" }}
-        >
-          <LifeBuoy className="h-6 w-6" style={{ color: "rgb(var(--accent))" }} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "rgb(var(--text))" }}>
-            Support
-          </h1>
-          <p className="text-sm" style={{ color: "rgb(var(--muted))" }}>
-            Send feedback, contact the team, and browse legal links — full help articles are coming soon
-          </p>
-        </div>
-      </div>
-
+    <PortalStandardPage
+      maxWidthClassName="max-w-3xl"
+      title="Support"
+      description="Send feedback, contact the team, and browse legal links — full help articles are coming soon."
+      bodyClassName="space-y-6"
+    >
       <Card className="border" style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg" style={{ color: "rgb(var(--text))" }}>
@@ -120,6 +109,6 @@ export default function SupportPage() {
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </PortalStandardPage>
   )
 }

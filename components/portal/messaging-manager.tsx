@@ -1762,7 +1762,7 @@ export function MessagingManager({
 
   return (
     <div
-      className="relative flex h-[calc(100dvh-12rem)] min-h-[560px] flex-col overflow-hidden rounded-[18px] border border-border bg-white shadow-[0_2px_14px_rgba(15,23,42,0.08)] lg:flex-row"
+      className="relative flex h-[calc(100dvh-15rem)] min-h-[520px] flex-col overflow-hidden lg:flex-row"
     >
       {error && (
         <div className="absolute left-1/2 top-4 z-50 max-w-md -translate-x-1/2 transform rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
@@ -1780,20 +1780,6 @@ export function MessagingManager({
         )}
         style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
       >
-        <div
-          className="flex flex-shrink-0 items-center justify-between border-b px-4 py-4 md:px-5"
-          style={{ borderBottomColor: "rgb(var(--border))" }}
-        >
-          <div>
-            <h2 className="text-lg font-semibold" style={{ color: "rgb(var(--text))" }}>
-              Messages
-            </h2>
-            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
-              Inbox & conversations
-            </p>
-          </div>
-        </div>
-
         {canCreateThread && (
           <div className="border-b px-3 py-3 md:px-4 md:py-4" style={{ borderBottomColor: "rgb(var(--border))" }}>
             <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-[rgb(var(--muted))] md:text-left">
@@ -2054,7 +2040,7 @@ export function MessagingManager({
 
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          "flex min-h-0 flex-1 flex-col overflow-hidden bg-white",
           !isWide && (!selectedThread || mobileShowList) ? "hidden" : ""
         )}
       >

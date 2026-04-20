@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
+import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import {
   assignmentTypeLabel,
   DueDateBadge,
@@ -159,9 +160,11 @@ export function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 px-4 pb-8 md:px-0">
-      <h1 className="text-2xl font-bold text-[#0F172A]">Study guides</h1>
-      <p className="text-sm text-[#64748B]">Review program material and complete quizzes your coaches assign.</p>
+    <PortalStandardPageRoot maxWidthClassName="max-w-3xl">
+      <PortalStandardPageHeader
+        title="Study guides"
+        description="Review program material and complete quizzes your coaches assign."
+      />
 
       <PortalUnderlineTabs
         tabs={[
@@ -254,7 +257,7 @@ export function StudyGuidesPlayerView({ teamId }: { teamId: string }) {
           setDetailReload((x) => x + 1)
         }}
       />
-    </div>
+    </PortalStandardPageRoot>
   )
 }
 

@@ -74,6 +74,7 @@ import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashb
 import { RosterClaimReviewDashboardBanner } from "@/components/portal/roster-claim-review-dashboard-banner"
 import { useBraikPerfDashboardBootstrapReady, useBraikPerfMount } from "@/lib/perf/braik-perf-client"
 import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
+import { PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { AppLoader } from "@/components/ui/app-loader"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1033,8 +1034,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const awaitingDeferredCore = Boolean(dashQ.data?.deferredPending)
 
   return (
-    <div className="min-w-0 space-y-4 pb-2 sm:space-y-5 md:space-y-6 md:pb-6">
-
+    <>
       {/* ── Team Banner ── */}
       <TeamBanner
         user={user}
@@ -1054,77 +1054,78 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         networkSyncHint={dashNetworkHint}
       />
 
-      {hasTeam && canAddCalendarEvents ? <RosterClaimReviewDashboardBanner teamId={dataTeamId} /> : null}
+      <PortalStandardPageRoot className="space-y-4 pb-2 sm:space-y-5 md:space-y-6 md:pb-6">
+        {hasTeam && canAddCalendarEvents ? <RosterClaimReviewDashboardBanner teamId={dataTeamId} /> : null}
 
-      {/* ── Connect to Team Card (if no team and not head coach) ── */}
-      {!hasTeam && !isHeadCoach && <ConnectToTeamCard user={user} />}
+        {/* ── Connect to Team Card (if no team and not head coach) ── */}
+        {!hasTeam && !isHeadCoach && <ConnectToTeamCard user={user} />}
 
-      {/* ── Next game (games table) + home calendar strip ── */}
-      {hasTeam && (
-        <div className="space-y-3 sm:space-y-4">
-          <div className="lg:hidden">
-            <UpcomingGameCard teamId={dataTeamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
-          </div>
-          <DashboardCalendar
-            teamId={dataTeamId}
-            canAddEvents={canAddCalendarEvents}
-            bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
-            initialCalendarEvents={
-              dashboardBootstrapState === "ok" && bootstrapAligned && !awaitingDeferredCore
-                ? bootstrapAligned.calendarEvents
-                : undefined
-            }
-          />
-        </div>
-      )}
-
-      {/* ── Sentinel: loads deferred-core when near viewport or after fallback delay (not on first paint) ── */}
-      {hasTeam ? <DashboardHomeDeferredBootstrapTrigger teamId={dataTeamId} /> : null}
-
-      {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
-      {hasTeam && (
-        <HomeDashboardWidgetsRow key={dataTeamId}>
-          <div className="min-h-0 lg:col-span-4">
-            <DashboardAnnouncementsCard
+        {/* ── Next game (games table) + home calendar strip ── */}
+        {hasTeam && (
+          <div className="space-y-3 sm:space-y-4">
+            <div className="lg:hidden">
+              <UpcomingGameCard teamId={dataTeamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
+            </div>
+            <DashboardCalendar
               teamId={dataTeamId}
-              canCreate={canAddCalendarEvents}
-              viewerUserId={user.id}
-              viewerRole={user.role}
-              bootstrapLoading={dashboardBootstrapState === "loading"}
-              initialAnnouncements={
-                dashboardBootstrapState === "ok" && !awaitingDeferredCore ? dashQ.data?.announcements : undefined
-              }
-            />
-          </div>
-          <div className="min-h-0 lg:col-span-5">
-            <NotificationsCard
-              teamId={dataTeamId}
-              bootstrapLoading={dashboardBootstrapState === "loading"}
-              initialNotifications={
-                dashboardBootstrapState === "ok" && !awaitingDeferredCore
-                  ? homeNotificationsFiltered
+              canAddEvents={canAddCalendarEvents}
+              bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
+              initialCalendarEvents={
+                dashboardBootstrapState === "ok" && bootstrapAligned && !awaitingDeferredCore
+                  ? bootstrapAligned.calendarEvents
                   : undefined
               }
             />
           </div>
-          <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">
-            <div className="hidden lg:block lg:flex-1">
-              <UpcomingGameCard teamId={dataTeamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
-            </div>
-            {/* One mount only: `hidden lg:block` + `lg:hidden` still mount both branches and duplicate /readiness?summaryOnly=1 */}
-            <div className="shrink-0 lg:flex-1">
-              <Suspense fallback={<ReadinessSummarySuspenseFallback />}>
-                <ReadinessSummaryCardLazy
-                  teamId={dataTeamId}
-                  dashboardBootstrapState={dashboardBootstrapState}
-                  readinessFromBootstrap={bootstrapAligned?.readiness}
-                />
-              </Suspense>
-            </div>
-          </div>
-        </HomeDashboardWidgetsRow>
-      )}
+        )}
 
-    </div>
+        {/* ── Sentinel: loads deferred-core when near viewport or after fallback delay (not on first paint) ── */}
+        {hasTeam ? <DashboardHomeDeferredBootstrapTrigger teamId={dataTeamId} /> : null}
+
+        {/* ── Announcements + Notifications + Readiness (deferred until near viewport) ── */}
+        {hasTeam && (
+          <HomeDashboardWidgetsRow key={dataTeamId}>
+            <div className="min-h-0 lg:col-span-4">
+              <DashboardAnnouncementsCard
+                teamId={dataTeamId}
+                canCreate={canAddCalendarEvents}
+                viewerUserId={user.id}
+                viewerRole={user.role}
+                bootstrapLoading={dashboardBootstrapState === "loading"}
+                initialAnnouncements={
+                  dashboardBootstrapState === "ok" && !awaitingDeferredCore ? dashQ.data?.announcements : undefined
+                }
+              />
+            </div>
+            <div className="min-h-0 lg:col-span-5">
+              <NotificationsCard
+                teamId={dataTeamId}
+                bootstrapLoading={dashboardBootstrapState === "loading"}
+                initialNotifications={
+                  dashboardBootstrapState === "ok" && !awaitingDeferredCore
+                    ? homeNotificationsFiltered
+                    : undefined
+                }
+              />
+            </div>
+            <div className="space-y-3 sm:space-y-4 lg:col-span-3 lg:flex lg:h-full lg:flex-col lg:space-y-0 lg:gap-6">
+              <div className="hidden lg:block lg:flex-1">
+                <UpcomingGameCard teamId={dataTeamId} scheduleGames={scheduleGames} loading={scheduleGamesLoading} />
+              </div>
+              {/* One mount only: `hidden lg:block` + `lg:hidden` still mount both branches and duplicate /readiness?summaryOnly=1 */}
+              <div className="shrink-0 lg:flex-1">
+                <Suspense fallback={<ReadinessSummarySuspenseFallback />}>
+                  <ReadinessSummaryCardLazy
+                    teamId={dataTeamId}
+                    dashboardBootstrapState={dashboardBootstrapState}
+                    readinessFromBootstrap={bootstrapAligned?.readiness}
+                  />
+                </Suspense>
+              </div>
+            </div>
+          </HomeDashboardWidgetsRow>
+        )}
+      </PortalStandardPageRoot>
+    </>
   )
 }

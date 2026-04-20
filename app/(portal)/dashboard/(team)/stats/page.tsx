@@ -4,7 +4,7 @@ import dynamic from "next/dynamic"
 import { useEffect, useState, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
+import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -529,15 +529,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <PortalPageHeaderSurface>
-          <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>
-            All Stats
-          </h1>
-          <p style={{ color: "rgb(var(--muted))" }}>
-            Team statistics aggregated from player profiles
-          </p>
-        </PortalPageHeaderSurface>
+      <PortalStandardPageRoot className="space-y-6">
+        <PortalStandardPageHeader title="Stats" description="Team statistics aggregated from player profiles." />
         <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
           <CardHeader>
             <CardTitle style={{ color: "rgb(var(--text))" }}>Unable to load stats</CardTitle>
@@ -546,7 +539,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
             <p style={{ color: "rgb(var(--muted))" }}>{error}</p>
           </CardContent>
         </Card>
-      </div>
+      </PortalStandardPageRoot>
     )
   }
 
@@ -554,90 +547,77 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     statsTab === "all" ? filteredRows.length === 0 : filteredWeeklyTableRows.length === 0
 
   return (
-    <div className="mobile-section">
-      <PortalPageHeaderSurface contentClassName="px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>
-            Stats
-          </h1>
-          <p style={{ color: "rgb(var(--muted))" }}>
-            {statsTab === "all"
-              ? "Season totals from player profiles. Click a row to open the player profile."
-              : "Per-game and weekly stat lines. All Stats season totals are the sum of these rows (plus any keys not in weekly sums)."}
-          </p>
-          <PortalUnderlineTabs
-            className="mt-4"
-            ariaLabel="Stats view"
-            tabs={[
-              { id: "all", label: "All Stats" },
-              { id: "weekly", label: "Weekly / Game Stats" },
-            ]}
-            value={statsTab}
-            onValueChange={(id) => {
-              if (id === "all" || id === "weekly") setStatsTab(id)
-            }}
-          />
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowImportPanel((prev) => !prev)}
-            >
-              {showImportPanel ? "Close Import" : "Import Stats"}
+    <PortalStandardPageRoot>
+      <PortalStandardPageHeader
+        title="Stats"
+        description={
+          statsTab === "all"
+            ? "Season totals from player profiles. Click a row to open the player profile."
+            : "Per-game and weekly stat lines. All Stats season totals are the sum of these rows (plus any keys not in weekly sums)."
+        }
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={() => setShowImportPanel((prev) => !prev)}>
+                {showImportPanel ? "Close Import" : "Import Stats"}
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditWeeklyEntry(null)
+                  setAddWeeklyOpen(true)
+                }}
+              >
+                <CalendarPlus className="h-4 w-4 mr-2" aria-hidden />
+                Add Weekly/Game Stats
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={exportDisabled}>
+              <Download className="h-4 w-4 mr-2" aria-hidden />
+              Export CSV
             </Button>
-          )}
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditWeeklyEntry(null)
-                setAddWeeklyOpen(true)
-              }}
-            >
-              <CalendarPlus className="h-4 w-4 mr-2" aria-hidden />
-              Add Weekly/Game Stats
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={exportDisabled}>
-            <Download className="h-4 w-4 mr-2" aria-hidden />
-            Export CSV
-          </Button>
-          {canEdit && statsTab === "weekly" && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={selectedRowKeys.size === 0}
-              onClick={() => setBulkEditOpen(true)}
-            >
-              <PencilLine className="h-4 w-4 mr-2" aria-hidden />
-              Bulk Edit
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={selectedRowKeys.size === 0}
-              onClick={() => {
-                setDeleteError(null)
-                setDeleteConfirmOpen(true)
-              }}
-            >
-              {statsTab === "all" ? (
-                <RefreshCw className="h-4 w-4 mr-2" aria-hidden />
-              ) : (
-                <Trash2 className="h-4 w-4 mr-2" aria-hidden />
-              )}
-              {statsTab === "all" ? "Re-sync totals" : "Delete selected"}
-            </Button>
-          )}
-        </div>
-        </div>
-      </PortalPageHeaderSurface>
+            {canEdit && statsTab === "weekly" && (
+              <Button variant="outline" size="sm" disabled={selectedRowKeys.size === 0} onClick={() => setBulkEditOpen(true)}>
+                <PencilLine className="h-4 w-4 mr-2" aria-hidden />
+                Bulk Edit
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={selectedRowKeys.size === 0}
+                onClick={() => {
+                  setDeleteError(null)
+                  setDeleteConfirmOpen(true)
+                }}
+              >
+                {statsTab === "all" ? (
+                  <RefreshCw className="h-4 w-4 mr-2" aria-hidden />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" aria-hidden />
+                )}
+                {statsTab === "all" ? "Re-sync totals" : "Delete selected"}
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      <PortalUnderlineTabs
+        ariaLabel="Stats view"
+        tabs={[
+          { id: "all", label: "All Stats" },
+          { id: "weekly", label: "Weekly / Game Stats" },
+        ]}
+        value={statsTab}
+        onValueChange={(id) => {
+          if (id === "all" || id === "weekly") setStatsTab(id)
+        }}
+      />
 
       <AddWeeklyStatsDialog
         open={addWeeklyOpen}
@@ -678,6 +658,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         confirmMode={statsTab === "all" ? "resync_season" : "soft_delete_weekly"}
       />
 
+      <main className="min-w-0 space-y-6">
       {/* Filters */}
       <Card className="border mt-6" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
         <CardHeader>
@@ -1291,6 +1272,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
           </CardContent>
         </Card>
       )}
-    </div>
+      </main>
+    </PortalStandardPageRoot>
   )
 }

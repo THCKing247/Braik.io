@@ -12,7 +12,7 @@ import { Copy, Pencil, Plus, Share2, Trash2 } from "lucide-react"
 import { QrCodeImage } from "@/components/ui/qr-code-image"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 import { DueCollectionsTab, type DueCollectionRow } from "@/components/portal/due-collections-tab"
-import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
+import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 
 function formatMoney(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
@@ -151,15 +151,15 @@ export function FundraisingView({ teamId }: { teamId: string }) {
 
   if (data?.access === "payment_refs_only") {
     return (
-      <div className="min-w-0 space-y-4">
-        <PortalPageHeaderSurface>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
-            Finances
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
-            Payment references only — for sharing with families. Braik does not process payments.
-          </p>
-        </PortalPageHeaderSurface>
+      <PortalStandardPageRoot>
+        <PortalStandardPageHeader
+          title={<h1 className="text-xl font-semibold tracking-tight text-[#0F172A]">Finances</h1>}
+          description={
+            <p className="text-sm text-[#64748B]">
+              Payment references only — for sharing with families. Braik does not process payments.
+            </p>
+          }
+        />
         <PaymentRefsSection
           teamId={teamId}
           refs={data.paymentRefs}
@@ -167,7 +167,7 @@ export function FundraisingView({ teamId }: { teamId: string }) {
           affiliate={null}
           onChanged={load}
         />
-      </div>
+      </PortalStandardPageRoot>
     )
   }
 
@@ -266,32 +266,24 @@ function FundraisingShell({
   const [seasonModalOpen, setSeasonModalOpen] = useState(false)
 
   return (
-    <div className="min-w-0 space-y-4">
-      <PortalPageHeaderSurface contentClassName="px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
-              Finances
-            </h1>
-            <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
-              Ledger and reference links — Braik does not process payments.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 shrink-0"
-              onClick={() => setSeasonModalOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={seasonModalOpen}
-            >
-              Season: {seasonLabel(seasonYear)}
-            </Button>
-          </div>
-        </div>
-      </PortalPageHeaderSurface>
+    <PortalStandardPageRoot>
+      <PortalStandardPageHeader
+        title={<h1 className="text-xl font-semibold tracking-tight text-[#0F172A]">Finances</h1>}
+        description={<p className="text-sm text-[#64748B]">Ledger and reference links — Braik does not process payments.</p>}
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0"
+            onClick={() => setSeasonModalOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={seasonModalOpen}
+          >
+            Season: {seasonLabel(seasonYear)}
+          </Button>
+        }
+      />
 
       <SeasonPickerModal
         open={seasonModalOpen}
@@ -315,7 +307,7 @@ function FundraisingShell({
       />
 
       {children}
-    </div>
+    </PortalStandardPageRoot>
   )
 }
 

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { RosterManagerEnhanced } from "@/components/portal/roster-manager-enhanced"
+import { PortalStandardPage, PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import {
   kickDeferredCoreMerge,
   useDashboardBootstrapQuery,
@@ -78,27 +79,29 @@ function RosterPageContent({
 
   if (blockingLoad) {
     return (
-      <div className="w-full min-w-0 max-w-full overflow-x-hidden px-4 py-4 lg:px-0" aria-busy="true" aria-label="Loading roster">
-        <div className="mb-4 h-10 w-48 animate-pulse rounded-lg bg-muted lg:mb-6" />
+      <PortalStandardPageRoot className="overflow-x-hidden" aria-busy="true" aria-label="Loading roster">
+        <PortalStandardPageHeader title="Roster" description="Loading roster data…" />
         <div className="h-72 w-full animate-pulse rounded-xl bg-muted lg:h-80" />
-      </div>
+      </PortalStandardPageRoot>
     )
   }
 
   return (
-    <RosterManagerEnhanced
-      teamId={teamId}
-      programId={programId}
-      players={players}
-      canEdit={canEdit}
-      teamSport="football"
-      userRole={userRole}
-      initialView={initialView}
-      initialSearch={initialSearch}
-      initialPosition={initialPosition}
-      initialTab={initialTab}
-      prefetchedReadinessDetail={prefetchedReadinessDetail}
-      rosterBootstrapPending={rosterAwaitingDeferred}
-    />
+    <PortalStandardPage title="Roster" description="Manage players, readiness, and football depth tools.">
+      <RosterManagerEnhanced
+        teamId={teamId}
+        programId={programId}
+        players={players}
+        canEdit={canEdit}
+        teamSport="football"
+        userRole={userRole}
+        initialView={initialView}
+        initialSearch={initialSearch}
+        initialPosition={initialPosition}
+        initialTab={initialTab}
+        prefetchedReadinessDetail={prefetchedReadinessDetail}
+        rosterBootstrapPending={rosterAwaitingDeferred}
+      />
+    </PortalStandardPage>
   )
 }

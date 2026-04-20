@@ -2,6 +2,7 @@
 
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { MessagingManager } from "@/components/portal/messaging-manager"
+import { PortalStandardPage } from "@/components/portal/portal-standard-page"
 import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
 
 export default function MessagesPage() {
@@ -28,12 +29,14 @@ function MessagesPageInner({
   const bootstrapThreadsInbox = bootstrapCoreReady ? dashQ.data?.messageThreadsInbox : undefined
 
   return (
-    <MessagingManager
-      teamId={teamId}
-      userRole={userRole}
-      userId={userId}
-      bootstrapThreadsInbox={bootstrapThreadsInbox}
-      bootstrapCoreReady={bootstrapCoreReady}
-    />
+    <PortalStandardPage className="pb-3" title="Messages" description="Inbox and conversations for your team.">
+      <MessagingManager
+        teamId={teamId}
+        userRole={userRole}
+        userId={userId}
+        bootstrapThreadsInbox={bootstrapThreadsInbox}
+        bootstrapCoreReady={bootstrapCoreReady}
+      />
+    </PortalStandardPage>
   )
 }

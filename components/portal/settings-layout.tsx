@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect, type ComponentType } from "react"
-import { Users, Calendar, Lock, ShieldCheck, UserCog, Building2, FileText } from "lucide-react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { TeamSettingsSection } from "./settings-sections/team-settings-section"
 import { SeasonSettings } from "./settings-sections/season-settings"
 import { CalendarSettingsSection } from "./settings-sections/calendar-settings-section"
@@ -11,6 +10,8 @@ import { RosterTemplateSettings } from "./settings-sections/roster-template-sett
 import { UsersListSettings } from "./settings-sections/users-list-settings"
 import { LinkToOrganizationSettings } from "./settings-sections/link-to-organization-settings"
 import { DocumentSettingsSection } from "./settings-sections/document-settings-section"
+import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
+import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 
 interface Team {
   id: string
@@ -58,25 +59,23 @@ interface SettingsLayoutProps {
 const SETTINGS_SECTIONS: Array<{
   id: SettingsSection
   label: string
-  icon: ComponentType<{ className?: string }>
   visible: (role: string) => boolean
 }> = [
-  { id: "team", label: "Team", icon: Users, visible: (role) => role === "HEAD_COACH" },
-  { id: "season", label: "Season", icon: Calendar, visible: (role) => role === "HEAD_COACH" },
-  { id: "calendar", label: "Calendar", icon: Calendar, visible: (role) => role === "HEAD_COACH" },
-  { id: "permissions", label: "Roles", icon: Lock, visible: (role) => role === "HEAD_COACH" },
-  { id: "rosterTemplate", label: "Roster Template", icon: Users, visible: (role) =>
+  { id: "team", label: "Team", visible: (role) => role === "HEAD_COACH" },
+  { id: "season", label: "Season", visible: (role) => role === "HEAD_COACH" },
+  { id: "calendar", label: "Calendar", visible: (role) => role === "HEAD_COACH" },
+  { id: "permissions", label: "Roles", visible: (role) => role === "HEAD_COACH" },
+  { id: "rosterTemplate", label: "Roster Template", visible: (role) =>
     role === "HEAD_COACH" || role === "ASSISTANT_COACH",
   },
-  { id: "documents", label: "Documents", icon: FileText, visible: (role) => role === "HEAD_COACH" },
-  { id: "users", label: "Users", icon: UserCog, visible: (role) => role === "HEAD_COACH" },
+  { id: "documents", label: "Documents", visible: (role) => role === "HEAD_COACH" },
+  { id: "users", label: "Users", visible: (role) => role === "HEAD_COACH" },
   {
     id: "linkToOrganization",
     label: "Athletic Department",
-    icon: Building2,
     visible: (role) => role === "HEAD_COACH",
   },
-  { id: "compliance", label: "Compliance & Legal", icon: ShieldCheck, visible: (role) =>
+  { id: "compliance", label: "Compliance & Legal", visible: (role) =>
     role === "HEAD_COACH" || role === "ASSISTANT_COACH",
   },
 ]
@@ -133,45 +132,18 @@ export function SettingsLayout({ team: initialTeam, userRole }: SettingsLayoutPr
   }
 
   return (
-    <div className="space-y-6 lg:flex lg:flex-col lg:gap-6 lg:space-y-0">
-      <div className="mb-6 lg:sticky lg:top-0 lg:z-20 lg:mb-0 lg:bg-white lg:pb-4">
-        <h1 className="text-3xl font-bold mb-2 text-foreground">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and team configuration</p>
-      </div>
+    <PortalStandardPageRoot>
+      <PortalStandardPageHeader title="Settings" description="Manage your account and team configuration." />
 
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        {/* Left Navigation */}
-        <div className="w-full shrink-0 lg:sticky lg:top-28 lg:z-10 lg:w-64 lg:self-start lg:bg-white">
-          <nav className="flex flex-row gap-1 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
-            {visibleSections.map((section) => {
-              const Icon = section.icon
-              const isActive = activeSection === section.id
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={`flex shrink-0 items-center gap-3 whitespace-nowrap rounded-lg px-4 py-3 text-left transition-colors lg:w-full ${
-                    isActive
-                      ? "bg-primary text-primary-foreground border border-primary"
-                      : "text-muted-foreground bg-transparent hover:bg-muted/50 hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium">{section.label}</span>
-                </button>
-              )
-            })}
-          </nav>
-        </div>
+      <PortalUnderlineTabs
+        emphasized
+        ariaLabel="Settings sections"
+        tabs={visibleSections.map((s) => ({ id: s.id, label: s.label }))}
+        value={activeSection}
+        onValueChange={(id) => setActiveSection(id as SettingsSection)}
+      />
 
-        {/* Right Content Panel */}
-        <div className="flex-1 min-w-0">
-          <div className="rounded-lg border border-border bg-card p-6">
-            {renderContent()}
-          </div>
-        </div>
-      </div>
-    </div>
+      <main className="min-w-0 space-y-6">{renderContent()}</main>
+    </PortalStandardPageRoot>
   )
 }

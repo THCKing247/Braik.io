@@ -10,7 +10,7 @@ import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-pl
  */
 export async function POST(
   _request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -18,7 +18,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment } = await params
+    const { playerAccountId: segment } = await params
     if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }

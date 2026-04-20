@@ -31,7 +31,7 @@ function generateSecureToken(): string {
  */
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -39,7 +39,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment } = await params
+    const { playerAccountId: segment } = await params
     if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }

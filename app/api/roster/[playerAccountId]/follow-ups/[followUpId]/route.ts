@@ -13,7 +13,7 @@ import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-pl
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ playerId: string; followUpId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string; followUpId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -21,7 +21,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment, followUpId } = await params
+    const { playerAccountId: segment, followUpId } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!segment || !followUpId || !teamId) {

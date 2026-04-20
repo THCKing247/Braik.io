@@ -21,7 +21,7 @@ function clientIp(request: Request): string | null {
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ playerId: string; docId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string; docId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -29,7 +29,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment, docId } = await params
+    const { playerAccountId: segment, docId } = await params
     if (!segment || !docId) {
       return NextResponse.json({ error: "playerId and docId are required" }, { status: 400 })
     }
@@ -97,7 +97,7 @@ export async function PATCH(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ playerId: string; docId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string; docId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -105,7 +105,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment, docId } = await params
+    const { playerAccountId: segment, docId } = await params
     if (!segment || !docId) {
       return NextResponse.json({ error: "playerId and docId are required" }, { status: 400 })
     }

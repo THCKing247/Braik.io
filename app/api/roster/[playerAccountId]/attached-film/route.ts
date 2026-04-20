@@ -16,7 +16,7 @@ export const runtime = "nodejs"
  */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -24,7 +24,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment } = await params
+    const { playerAccountId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     if (!teamId || !segment) {

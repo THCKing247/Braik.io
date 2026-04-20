@@ -27,7 +27,7 @@ const SYNCED_STAT_KEYS = new Set<string>(SEASON_STAT_KEYS as unknown as string[]
  */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -35,7 +35,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment } = await params
+    const { playerAccountId: segment } = await params
     if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
@@ -136,7 +136,7 @@ export async function GET(
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -144,7 +144,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment } = await params
+    const { playerAccountId: segment } = await params
     if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }

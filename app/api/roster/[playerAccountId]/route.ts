@@ -12,7 +12,7 @@ import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-pl
  */
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -20,7 +20,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment } = await params
+    const { playerAccountId: segment } = await params
     if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
@@ -182,7 +182,7 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: Request,
-  { params }: { params: Promise<{ playerId: string }> }
+  { params }: { params: Promise<{ playerAccountId: string }> }
 ) {
   try {
     const session = await getServerSession()
@@ -190,7 +190,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId: segment } = await params
+    const { playerAccountId: segment } = await params
     if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }

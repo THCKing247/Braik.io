@@ -190,7 +190,7 @@ export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; c
   }, [sessions])
 
   return (
-    <PortalStandardPageRoot maxWidthClassName="max-w-6xl">
+    <PortalStandardPageRoot>
       <PortalStandardPageHeader
         title="Weight room"
         description="Schedule, maxes, and team strength leaderboard."

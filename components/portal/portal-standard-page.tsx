@@ -6,18 +6,21 @@ import { cn } from "@/lib/utils"
 export const portalStandardPageHeaderContainerClassName =
   "flex flex-col gap-3 border-b border-[#E5E7EB] pb-4 md:flex-row md:items-start md:justify-between"
 
+/** Default width inside team dashboard main: full available width; horizontal gutters come from `DashboardLayoutClient` main (`md:p-6`, `xl:p-8`). Mobile keeps `px-4` here. */
+export const PORTAL_STANDARD_PAGE_WIDTH_CLASS = "w-full min-w-0 max-w-none"
+
 export function PortalStandardPageRoot({
   children,
   className,
-  maxWidthClassName = "max-w-5xl",
+  maxWidthClassName = PORTAL_STANDARD_PAGE_WIDTH_CLASS,
 }: {
   children: ReactNode
   className?: string
-  /** Override default `max-w-5xl` when a page truly needs more horizontal room (e.g. Weight Room). */
+  /** Override default full width when a page should stay narrow (e.g. support form, player reading view). */
   maxWidthClassName?: string
 }) {
   return (
-    <div className={cn("mx-auto min-w-0 space-y-4 px-4 pb-8 md:px-0", maxWidthClassName, className)}>{children}</div>
+    <div className={cn("space-y-4 px-4 pb-8 md:px-0", maxWidthClassName, className)}>{children}</div>
   )
 }
 

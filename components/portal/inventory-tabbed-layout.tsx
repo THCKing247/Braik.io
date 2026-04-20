@@ -492,7 +492,7 @@ function InventoryExpenseLedger({
         </Card>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 lg:max-w-4xl">
+      <div className="flex w-full max-w-full flex-wrap items-center justify-between gap-2">
         <PortalUnderlineTabs
           compact
           tabs={expenseBreakdownTabs}
@@ -1346,7 +1346,7 @@ export function InventoryTabbedLayout({
                 ariaLabel="Inventory category filter"
               />
               {bucketFilter !== "All" && (
-                <p className="text-[11px] -mt-1 lg:max-w-5xl" style={{ color: "rgb(var(--muted))" }}>
+                <p className="text-[11px] -mt-1 max-w-full" style={{ color: "rgb(var(--muted))" }}>
                   {isPlayerAssignableBucket(bucketFilter)
                     ? "Player equipment — costs roll up to assignable gear and uniforms."
                     : "Program inventory — replacement and facility costs (not assigned to players)."}
@@ -1430,7 +1430,7 @@ export function InventoryTabbedLayout({
             ariaLabel="Inventory category filter"
           />
           {bucketFilter !== "All" && (
-            <p className="text-[11px] -mt-1 lg:max-w-5xl" style={{ color: "rgb(var(--muted))" }}>
+            <p className="text-[11px] -mt-1 max-w-full" style={{ color: "rgb(var(--muted))" }}>
               {isPlayerAssignableBucket(bucketFilter)
                 ? "Player equipment — costs roll up to assignable gear and uniforms."
                 : "Program inventory — replacement and facility costs (not assigned to players)."}

@@ -2,19 +2,31 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { safeAdminDbQuery } from "@/lib/admin/admin-db-safe"
 import { isAssistantCoachRole, isHeadCoachRole, pickHeadCoachUserId, type TeamMemberStaffRow } from "@/lib/team-staff"
 
+export type OwnershipSource = "team_organization_id" | "program_organization_id" | "unassigned"
+
 export type AdminTeamRow = {
   id: string
   name: string
   planTier: string | null
   subscriptionStatus: string
   teamStatus: string
-  organization: { name: string }
+  organization: { id: string | null; name: string }
+  ownershipSource: OwnershipSource
+  /** Secondary context only (school / dept / program without org); not primary grouping. */
+  legacyContext: string | null
   sport: string | null
   teamLevel: string | null
   createdAt: string
   players: Array<{ id: string }>
   headCoachName: string | null
   coachStaffCount: number
+}
+
+/** Every organization row from the DB with how many teams resolve to it (canonical ownership). */
+export type AdminOrganizationDirectoryRow = {
+  id: string
+  name: string
+  teamCount: number
 }
 
 export type AdminTeamGroup = {
@@ -24,12 +36,47 @@ export type AdminTeamGroup = {
   teams: AdminTeamRow[]
 }
 
+type OrgRow = {
+  id: string
+  name: string | null
+  school_id: string | null
+  athletic_department_id: string | null
+}
+
+type ProgramRow = {
+  id: string
+  program_name: string | null
+  sport: string | null
+  organization_id: string | null
+}
+
+type SchoolRow = { id: string; name: string | null }
+type AdRow = { id: string; school_id: string | null }
+
+function emptyDirectory(rows: OrgRow[]): AdminOrganizationDirectoryRow[] {
+  return rows.map((o) => ({
+    id: o.id,
+    name: (o.name ?? "").trim() || "—",
+    teamCount: 0,
+  }))
+}
+
 export async function loadAdminTeamsGrouped(params: {
   query?: string
   filterUserId?: string | null
-}): Promise<{ groups: AdminTeamGroup[]; filterUserId: string | null }> {
+}): Promise<{
+  groups: AdminTeamGroup[]
+  organizationDirectory: AdminOrganizationDirectoryRow[]
+  filterUserId: string | null
+}> {
   const q = params.query?.trim() || ""
   const filterUserId = params.filterUserId?.trim() || null
+
+  const fallback = {
+    groups: [] as AdminTeamGroup[],
+    organizationDirectory: [] as AdminOrganizationDirectoryRow[],
+    filterUserId,
+  }
 
   return safeAdminDbQuery(async () => {
     console.info("[admin] loadAdminTeamsGrouped:start", {
@@ -38,12 +85,28 @@ export async function loadAdminTeamsGrouped(params: {
       source: "lib/admin/load-admin-teams-grouped.ts · loadAdminTeamsGrouped",
     })
     const supabase = getSupabaseServer()
+
+    const { data: orgRowsFromDb } = await supabase
+      .from("organizations")
+      .select("id, name, school_id, athletic_department_id")
+      .order("name", { ascending: true })
+      .limit(500)
+
+    const orgDirectorySource = (orgRowsFromDb ?? []) as OrgRow[]
+    console.info("[admin] loadAdminTeamsGrouped:organizations_loaded", {
+      count: orgDirectorySource.length,
+      ids: orgDirectorySource.map((o) => o.id),
+    })
+
+    let orgById = new Map<string, OrgRow>(orgDirectorySource.map((o) => [o.id, o]))
+
     let teamIds: string[] | null = null
     if (filterUserId) {
       const { data: profile } = await supabase.from("profiles").select("team_id").eq("id", filterUserId).maybeSingle()
       teamIds = profile?.team_id ? [profile.team_id] : []
       if (teamIds.length === 0) {
-        return { groups: [] as AdminTeamGroup[], filterUserId }
+        console.info("[admin] loadAdminTeamsGrouped:no_teams_for_user", { filterUserId })
+        return { groups: [], organizationDirectory: emptyDirectory(orgDirectorySource), filterUserId }
       }
     }
 
@@ -67,45 +130,45 @@ export async function loadAdminTeamsGrouped(params: {
     }
     const { data: rows } = await rq
     const raw = rows ?? []
-    const teamIdList = raw.map((t) => t.id as string)
 
-    const directOrgIds = [...new Set(raw.map((r) => r.organization_id as string | null).filter(Boolean))] as string[]
+    console.info("[admin] loadAdminTeamsGrouped:teams_loaded", {
+      count: raw.length,
+      teamIds: raw.map((t) => (t as { id: string }).id),
+    })
+
+    const teamIdList = raw.map((t) => t.id as string)
     const programIds = [...new Set(raw.map((r) => r.program_id as string | null).filter(Boolean))] as string[]
     const schoolIdsDirect = [...new Set(raw.map((r) => r.school_id as string | null).filter(Boolean))] as string[]
     const adIds = [...new Set(raw.map((r) => r.athletic_department_id as string | null).filter(Boolean))] as string[]
-
-    type ProgramRow = {
-      id: string
-      program_name: string | null
-      sport: string | null
-      organization_id: string | null
-    }
-    type OrgRow = {
-      id: string
-      name: string | null
-      school_id: string | null
-      athletic_department_id: string | null
-    }
-    type SchoolRow = { id: string; name: string | null }
-    type AdRow = { id: string; school_id: string | null }
 
     const { data: programs } =
       programIds.length > 0
         ? await supabase.from("programs").select("id, program_name, sport, organization_id").in("id", programIds)
         : { data: [] as ProgramRow[] }
-    const programById = new Map<string, ProgramRow>(
-      (programs ?? []).map((p) => [p.id as string, p as ProgramRow])
-    )
+    const programById = new Map<string, ProgramRow>((programs ?? []).map((p) => [p.id as string, p as ProgramRow]))
 
-    const orgIdsFromPrograms = [...new Set((programs ?? []).map((p) => p.organization_id as string | null).filter(Boolean))] as string[]
-    const orgIds = [...new Set([...directOrgIds, ...orgIdsFromPrograms])]
-    const { data: organizations } =
-      orgIds.length > 0
-        ? await supabase.from("organizations").select("id, name, school_id, athletic_department_id").in("id", orgIds)
-        : { data: [] as OrgRow[] }
-    const orgById = new Map<string, OrgRow>((organizations ?? []).map((o) => [o.id as string, o as OrgRow]))
+    const referencedOrgIds = new Set<string>()
+    for (const t of raw) {
+      const tid = (t as { organization_id?: string | null }).organization_id
+      if (tid) referencedOrgIds.add(tid as string)
+    }
+    for (const p of programs ?? []) {
+      const pr = p as ProgramRow
+      if (pr.organization_id) referencedOrgIds.add(pr.organization_id)
+    }
+    const missingOrgIds = [...referencedOrgIds].filter((id) => !orgById.has(id))
+    if (missingOrgIds.length > 0) {
+      const { data: extraOrgs } = await supabase
+        .from("organizations")
+        .select("id, name, school_id, athletic_department_id")
+        .in("id", missingOrgIds)
+      for (const o of extraOrgs ?? []) {
+        const r = o as OrgRow
+        orgById.set(r.id, r)
+      }
+    }
 
-    const schoolIdsFromOrg = [...new Set((organizations ?? []).map((o) => o.school_id as string | null).filter(Boolean))] as string[]
+    const schoolIdsFromOrg = [...new Set(orgDirectorySource.map((o) => o.school_id).filter(Boolean))] as string[]
     const allSchoolIds = [...new Set([...schoolIdsDirect, ...schoolIdsFromOrg])]
 
     const { data: schools } =
@@ -152,6 +215,11 @@ export async function loadAdminTeamsGrouped(params: {
         : { data: [] as { id: string; name: string | null }[] }
     const hcNameById = new Map((hcUsers ?? []).map((u) => [u.id, u.name?.trim() || null]))
 
+    const teamCountByOrgId = new Map<string, number>()
+    let bucketDirect = 0
+    let bucketProgram = 0
+    let bucketUnassigned = 0
+
     type Tagged = { row: AdminTeamRow; groupKey: string; groupTitle: string; groupHint: string | null }
     const tagged: Tagged[] = raw.map((t) => {
       const id = t.id as string
@@ -163,58 +231,72 @@ export async function loadAdminTeamsGrouped(params: {
 
       const pid = t.program_id as string | null
       const prog = pid ? programById.get(pid) : undefined
-      const directOid = t.organization_id as string | null
-      const oidFromProgram = prog?.organization_id as string | undefined
-      const oid = (directOid ?? oidFromProgram) as string | undefined
-      const orgRow = oid ? orgById.get(oid) : undefined
-      const orgName = (orgRow?.name as string | undefined) ?? null
-      const programName = (prog?.program_name as string | undefined) ?? null
+      const directOid = (t.organization_id as string | null)?.trim() || null
+      const oidFromProgram = prog?.organization_id?.trim() || null
+      const effectiveOid = directOid ?? oidFromProgram ?? null
+
+      let ownershipSource: OwnershipSource = "unassigned"
+      if (directOid) {
+        ownershipSource = "team_organization_id"
+        bucketDirect += 1
+      } else if (oidFromProgram) {
+        ownershipSource = "program_organization_id"
+        bucketProgram += 1
+      } else {
+        bucketUnassigned += 1
+      }
+
+      const orgRow = effectiveOid ? orgById.get(effectiveOid) : undefined
+      const resolvedOrgName =
+        (orgRow?.name && String(orgRow.name).trim()) ||
+        (effectiveOid ? `Unknown organization (${effectiveOid.slice(0, 8)}…)` : null)
+
+      const programName = (prog?.program_name as string | undefined)?.trim() || null
 
       let schoolName: string | null = null
-      const sid = (t.school_id as string | null) ?? (orgRow?.school_id as string | undefined) ?? null
+      const sidTeam = (t.school_id as string | null) ?? null
+      const sidFromOrg = orgRow?.school_id ?? null
+      const sid = sidTeam ?? sidFromOrg ?? null
       if (sid) {
         schoolName = (schoolById.get(sid)?.name as string | undefined) ?? null
+      }
+
+      const legacyParts: string[] = []
+      if (prog && !prog.organization_id) {
+        legacyParts.push(`Program "${programName ?? prog.id.slice(0, 8)}" has no organization_id`)
+      }
+      if (sidTeam && schoolName) legacyParts.push(`Team school: ${schoolName}`)
+      else if (sidTeam) legacyParts.push(`Team school_id set`)
+      const adTeam = t.athletic_department_id as string | null
+      if (adTeam) {
+        const ad = adById.get(adTeam)
+        const adschool = ad?.school_id ? schoolById.get(ad.school_id)?.name : null
+        legacyParts.push(
+          adschool ? `Athletic dept (school: ${adschool})` : `Athletic dept on team (${adTeam.slice(0, 8)}…)`
+        )
       }
 
       let groupKey: string
       let groupTitle: string
       let groupHint: string | null
 
-      if (oid) {
-        groupKey = `org:${oid}`
-        if (orgName && programName) {
-          groupTitle = `${orgName} — ${programName}`
-          groupHint = schoolName ? `School: ${schoolName}` : null
-        } else if (orgName) {
-          groupTitle = orgName
-          groupHint = programName ?? null
-        } else {
-          groupTitle = programName ?? "Program"
-          groupHint = null
-        }
-      } else if (sid) {
-        groupKey = `school:${sid}`
-        groupTitle = schoolName ?? "School"
-        const adid = t.athletic_department_id as string | null
-        if (adid) {
-          const ad = adById.get(adid)
-          const adsid = ad?.school_id as string | undefined
-          groupHint = adsid ? `Athletic department · ${(schoolById.get(adsid)?.name as string) ?? ""}` : "Athletic department"
-        } else {
-          groupHint = null
-        }
-      } else if (t.athletic_department_id) {
-        const adid = t.athletic_department_id as string
-        groupKey = `ad:${adid}`
-        const ad = adById.get(adid)
-        const adsid = ad?.school_id as string | undefined
-        const sn = adsid ? (schoolById.get(adsid)?.name as string | undefined) : null
-        groupTitle = sn ? `${sn} (athletic department)` : "Athletic department"
-        groupHint = null
+      if (effectiveOid) {
+        teamCountByOrgId.set(effectiveOid, (teamCountByOrgId.get(effectiveOid) ?? 0) + 1)
+        groupKey = `org:${effectiveOid}`
+        groupTitle = resolvedOrgName ?? "Organization"
+        const hints: string[] = []
+        if (programName) hints.push(`Program: ${programName}`)
+        if (ownershipSource === "program_organization_id") hints.push("Ownership via program → organization")
+        if (ownershipSource === "team_organization_id") hints.push("Ownership via team.organization_id")
+        if (schoolName) hints.push(`School (metadata): ${schoolName}`)
+        groupHint = hints.length > 0 ? hints.join(" · ") : null
       } else {
         groupKey = "unassigned"
-        groupTitle = "Unassigned / legacy"
-        groupHint = "No program, school, or organization link"
+        groupTitle = "Teams without organization ownership"
+        groupHint =
+          legacyParts.length > 0
+            ? `${legacyParts.join(" · ")} · Assign teams.organization_id or link the program to an organization.`
+            : "Link each team to an organization (directly or via its program)."
       }
 
       const row: AdminTeamRow = {
@@ -223,7 +305,9 @@ export async function loadAdminTeamsGrouped(params: {
         planTier: (t.plan_tier as string | undefined) ?? null,
         subscriptionStatus: (t.subscription_status as string | undefined) ?? "active",
         teamStatus: (t.team_status as string | undefined) ?? "active",
-        organization: { name: orgName ?? "—" },
+        organization: { id: effectiveOid, name: resolvedOrgName ?? "—" },
+        ownershipSource,
+        legacyContext: legacyParts.length > 0 ? legacyParts.join(" · ") : null,
         sport: (t.sport as string | null) ?? (prog?.sport as string | null) ?? null,
         teamLevel: (t.team_level as string | null) ?? null,
         createdAt:
@@ -234,6 +318,26 @@ export async function loadAdminTeamsGrouped(params: {
       }
 
       return { row, groupKey, groupTitle, groupHint }
+    })
+
+    console.info("[admin] loadAdminTeamsGrouped:ownership_buckets", {
+      team_organization_id: bucketDirect,
+      program_organization_id: bucketProgram,
+      unassigned: bucketUnassigned,
+      teamCountByOrganization: Object.fromEntries(teamCountByOrgId),
+    })
+
+    const directoryOrgRows = [...orgById.values()].sort((a, b) =>
+      (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" })
+    )
+    const organizationDirectory: AdminOrganizationDirectoryRow[] = directoryOrgRows.map((o) => ({
+      id: o.id,
+      name: (o.name ?? "").trim() || "—",
+      teamCount: teamCountByOrgId.get(o.id) ?? 0,
+    }))
+    console.info("[admin] loadAdminTeamsGrouped:organization_directory_built", {
+      organizationsInDirectory: organizationDirectory.length,
+      organizationsWithTeams: organizationDirectory.filter((o) => o.teamCount > 0).length,
     })
 
     const groupMap = new Map<string, { groupTitle: string; groupHint: string | null; teams: AdminTeamRow[] }>()
@@ -247,15 +351,26 @@ export async function loadAdminTeamsGrouped(params: {
       groupMap.set(item.groupKey, g)
     }
 
-    const groups: AdminTeamGroup[] = [...groupMap.entries()]
-      .map(([groupKey, v]) => ({
+    const orgGroups: AdminTeamGroup[] = []
+    let unassignedGroup: AdminTeamGroup | null = null
+
+    for (const [groupKey, v] of groupMap.entries()) {
+      const section: AdminTeamGroup = {
         groupKey,
         groupTitle: v.groupTitle,
         groupHint: v.groupHint,
         teams: v.teams.sort((a, b) => a.name.localeCompare(b.name)),
-      }))
-      .sort((a, b) => a.groupTitle.localeCompare(b.groupTitle))
+      }
+      if (groupKey === "unassigned") {
+        unassignedGroup = section
+      } else {
+        orgGroups.push(section)
+      }
+    }
 
-    return { groups, filterUserId }
-  }, { groups: [] as AdminTeamGroup[], filterUserId })
+    orgGroups.sort((a, b) => a.groupTitle.localeCompare(b.groupTitle))
+    const groups: AdminTeamGroup[] = [...orgGroups, ...(unassignedGroup ? [unassignedGroup] : [])]
+
+    return { groups, organizationDirectory, filterUserId }
+  }, fallback)
 }

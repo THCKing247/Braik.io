@@ -9,6 +9,8 @@ export default async function AdminTeamsPage({
   const sp = searchParams instanceof Promise ? await searchParams : searchParams
   const query = sp?.q?.trim() || ""
   const filterUserId = sp?.userId?.trim() || null
-  const { groups, filterUserId: fid } = await loadAdminTeamsGrouped({ query, filterUserId })
-  return <OperatorTeams groups={groups} filterUserId={fid} />
+  const { groups, organizationDirectory, filterUserId: fid } = await loadAdminTeamsGrouped({ query, filterUserId })
+  return (
+    <OperatorTeams groups={groups} organizationDirectory={organizationDirectory} filterUserId={fid} />
+  )
 }

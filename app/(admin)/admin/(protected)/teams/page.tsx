@@ -1,6 +1,9 @@
 import { OperatorTeams } from "@/components/admin/operator-teams"
 import { loadAdminTeamsGrouped } from "@/lib/admin/load-admin-teams-grouped"
 
+/** Ensure list reflects DB after PATCH + router.refresh() (operational status updates). */
+export const dynamic = "force-dynamic"
+
 export default async function AdminTeamsPage({
   searchParams,
 }: {

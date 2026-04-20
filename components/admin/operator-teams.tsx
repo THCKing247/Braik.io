@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { AdminTeamStatusForm } from "@/components/admin/admin-team-status-form"
 import type {
@@ -11,6 +11,15 @@ import type {
 } from "@/lib/admin/load-admin-teams-grouped"
 import { adminKpiLabel, adminKpiStatCard, adminKpiValue, adminOpsTeamStateChip, adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
+
+function formatStatusLabel(raw: string): string {
+  const s = raw.trim().toLowerCase()
+  if (!s) return "—"
+  return s
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
+}
 
 export function OperatorTeams({
   groups,
@@ -167,6 +176,12 @@ export function OperatorTeams({
 }
 
 function TeamRow({ team }: { team: AdminTeamRow }) {
+  const [operationalStatus, setOperationalStatus] = useState(team.teamStatus)
+
+  useEffect(() => {
+    setOperationalStatus(team.teamStatus)
+  }, [team.teamStatus, team.id])
+
   const ownerLabel =
     team.ownershipSource === "team_organization_id"
       ? "Owner: team.organization_id"
@@ -194,8 +209,20 @@ function TeamRow({ team }: { team: AdminTeamRow }) {
           </p>
         ) : null}
         <div className="mt-1.5 flex flex-wrap gap-1.5">
-          <span className={cn(adminOpsTeamStateChip(team.subscriptionStatus))}>subscription: {team.subscriptionStatus}</span>
-          <span className={cn(adminOpsTeamStateChip(team.teamStatus))}>team: {team.teamStatus}</span>
+          <span
+            className={cn(adminOpsTeamStateChip(team.subscriptionStatus), "inline-flex items-center gap-1.5")}
+            title="teams.subscription_status — billing / subscription lifecycle"
+          >
+            <span className="font-semibold">Billing subscription</span>
+            <span>{formatStatusLabel(team.subscriptionStatus)}</span>
+          </span>
+          <span
+            className={cn(adminOpsTeamStateChip(operationalStatus), "inline-flex items-center gap-1.5")}
+            title="teams.team_status — operational access (guards write/AI)"
+          >
+            <span className="font-semibold">Operational status</span>
+            <span>{formatStatusLabel(operationalStatus)}</span>
+          </span>
         </div>
         <p className="mt-1.5 text-xs font-medium text-admin-secondary">
           Plan: {team.planTier || "starter"} | Level: {team.teamLevel ?? "—"} | Sport: {team.sport ?? "—"} | Created:{" "}
@@ -207,7 +234,11 @@ function TeamRow({ team }: { team: AdminTeamRow }) {
           View details
         </Link>
       </div>
-      <AdminTeamStatusForm teamId={team.id} initialStatus={team.teamStatus} />
+      <AdminTeamStatusForm
+        teamId={team.id}
+        initialStatus={team.teamStatus}
+        onSaved={(next) => setOperationalStatus(next)}
+      />
     </div>
   )
 }

@@ -10,9 +10,12 @@ const TEAM_STATUSES = ["active", "suspended", "cancelled", "terminated"] as cons
 export function AdminTeamStatusForm({
   teamId,
   initialStatus,
+  onSaved,
 }: {
   teamId: string
   initialStatus: string
+  /** Called with persisted `teams.team_status` so parent chips can update immediately. */
+  onSaved?: (teamStatus: string) => void
 }) {
   const router = useRouter()
   const [status, setStatus] = useState(initialStatus)
@@ -34,11 +37,14 @@ export function AdminTeamStatusForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamStatus: status }),
       })
-      const payload = await response.json()
+      const payload = await response.json() as { team?: { team_status?: string }; error?: string }
       if (!response.ok) {
         throw new Error(payload.error || "Failed to update team status")
       }
-      setSuccess("Status updated")
+      const persisted =
+        typeof payload.team?.team_status === "string" ? payload.team.team_status.trim().toLowerCase() : status
+      onSaved?.(persisted)
+      setSuccess("Operational status saved")
       router.refresh()
     } catch (err: any) {
       setError(err.message || "Failed to update")

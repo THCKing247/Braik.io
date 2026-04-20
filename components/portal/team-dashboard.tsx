@@ -74,6 +74,7 @@ import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashb
 import { RosterClaimReviewDashboardBanner } from "@/components/portal/roster-claim-review-dashboard-banner"
 import { useBraikPerfDashboardBootstrapReady, useBraikPerfMount } from "@/lib/perf/braik-perf-client"
 import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
+import { AppLoader } from "@/components/ui/app-loader"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -623,7 +624,7 @@ function UpcomingGameCard({
         style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}
       >
         <CardContent className="flex min-h-[120px] items-center justify-center py-6">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" />
+          <AppLoader size="md" label="Loading next game" />
         </CardContent>
       </Card>
     )

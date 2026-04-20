@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { InvoicePageClient } from "@/components/portal/invoice-page-client"
+import { LoadingState } from "@/components/ui/loading-state"
 
 export default function InvoicePage() {
   return (
@@ -79,11 +80,7 @@ function InvoicePageWithData({
   }, [teamId])
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
+    return <LoadingState label="Loading invoices" minHeightClassName="min-h-[40vh]" size="lg" />
   }
 
   return (

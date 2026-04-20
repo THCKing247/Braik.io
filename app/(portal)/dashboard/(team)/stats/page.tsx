@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadingState } from "@/components/ui/loading-state"
 
 const StatsLeaderCards = dynamic(
   () => import("@/components/portal/stats-leader-cards").then((m) => m.StatsLeaderCards),
@@ -523,14 +524,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div
-          className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent"
-          aria-label="Loading"
-        />
-      </div>
-    )
+    return <LoadingState label="Loading stats" minHeightClassName="min-h-[40vh]" size="lg" />
   }
 
   if (error) {
@@ -1085,12 +1079,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       )}
 
       {statsTab === "weekly" && weeklyLoading && (
-        <div className="flex min-h-[30vh] items-center justify-center mt-6">
-          <div
-            className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent"
-            aria-label="Loading weekly stats"
-          />
-        </div>
+        <LoadingState label="Loading weekly stats" minHeightClassName="min-h-[30vh]" className="mt-6" size="lg" />
       )}
 
       {statsTab === "all" && filteredRows.length > 0 && (

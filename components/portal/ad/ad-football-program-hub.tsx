@@ -6,6 +6,7 @@ import Link from "next/link"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LoadingState } from "@/components/ui/loading-state"
 
 type HubTeam = { id: string; name: string; teamLevel: string }
 type StaffRow = {
@@ -118,11 +119,7 @@ export function AdFootballProgramHub() {
   }
 
   if (loading || !data) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-      </div>
-    )
+    return <LoadingState label="Loading program hub" minHeightClassName="min-h-[50vh]" size="lg" />
   }
 
   const assignmentOptions = data.staff.filter((s) => s.staffStatus !== "pending_assignment")

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { AppLoader } from "@/components/ui/app-loader"
 import { supabaseClient } from "@/src/lib/supabaseClient"
 
 const JOIN_TOKEN_KEY = "braik_join_token"
@@ -181,7 +182,9 @@ export default function JoinPage() {
       <div className="rounded-xl border border-[rgb(var(--border))] bg-white p-8 shadow-sm max-w-md w-full text-center">
         {(status === "loading" || status === "redirect_to_auth") && (
           <>
-            <div className="h-10 w-10 mx-auto rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent animate-spin" />
+            <div className="flex justify-center">
+              <AppLoader size="lg" label={status === "redirect_to_auth" ? "Opening player signup" : "Linking your roster spot"} />
+            </div>
             <p className="mt-4 text-sm text-[#64748B]">
               {status === "redirect_to_auth" ? "Opening player signup…" : "Linking your roster spot…"}
             </p>
@@ -189,7 +192,9 @@ export default function JoinPage() {
         )}
         {status === "redeeming" && (
           <>
-            <div className="h-10 w-10 mx-auto rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent animate-spin" />
+            <div className="flex justify-center">
+              <AppLoader size="lg" label="Linking your roster spot" />
+            </div>
             <p className="mt-4 text-sm text-[#64748B]">Linking your roster spot…</p>
           </>
         )}

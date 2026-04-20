@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { LoadingState } from "@/components/ui/loading-state"
 import Link from "next/link"
 import { User } from "lucide-react"
 
@@ -123,11 +124,13 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
 
   if (status === "loading" || status === "found") {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-        {status === "found" && (
-          <p className="text-sm text-[#64748B]">Opening your profile...</p>
-        )}
+      <div className="min-h-[50vh] px-4">
+        <LoadingState
+          label={status === "found" ? "Opening your profile" : "Loading profile"}
+          minHeightClassName="min-h-[50vh]"
+          size="lg"
+        />
+        {status === "found" ? <p className="text-center text-sm text-[#64748B]">Opening your profile...</p> : null}
       </div>
     )
   }

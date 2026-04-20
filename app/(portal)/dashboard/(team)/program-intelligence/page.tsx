@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { LoadingState } from "@/components/ui/loading-state"
 
 interface Program {
   id: string
@@ -131,9 +132,7 @@ export default function ProgramIntelligencePage() {
           )}
 
           {loading && !data && (
-            <div className="flex min-h-[200px] items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2563EB] border-t-transparent" />
-            </div>
+            <LoadingState label="Loading program intelligence" minHeightClassName="min-h-[200px]" size="lg" />
           )}
 
           {!loading && data && (

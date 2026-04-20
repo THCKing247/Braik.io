@@ -9,6 +9,7 @@ import { MessagingUnreadProvider } from "@/components/portal/messaging-unread-co
 import { AdPortalLinkProvider } from "@/components/portal/ad-portal-link-context"
 import { rememberActiveDashboardTeam } from "@/lib/dashboard/active-team-session"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
+import { LoadingState } from "@/components/ui/loading-state"
 
 interface Team {
   id: string
@@ -88,9 +89,7 @@ const shellSuspenseFallback = (
       className="min-h-[52px] w-full shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)]"
       style={{ minHeight: "max(52px, calc(52px + env(safe-area-inset-top, 0px)))" }}
     />
-    <div className="flex flex-1 items-center justify-center p-6">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
-    </div>
+    <LoadingState label="Loading dashboard" minHeightClassName="min-h-[40vh]" className="flex-1 p-6" size="lg" />
   </div>
 )
 

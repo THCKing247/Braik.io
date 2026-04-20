@@ -36,13 +36,13 @@ export function parseGlobalQuery(qRaw: string): ParsedGlobalQuery {
     return { kind: "uuid_full", uuid: q.toLowerCase() }
   }
 
-  if (PARTIAL_ONLY.test(q) && partialUuidLooksLike(q)) {
-    return { kind: "uuid_partial", fragment: q.trim().toLowerCase() }
-  }
-
   const single = parseInstantOrDayRange(q)
   if (single) {
     return { kind: "time_range", startIso: single.start.toISOString(), endIso: single.end.toISOString() }
+  }
+
+  if (PARTIAL_ONLY.test(q) && partialUuidLooksLike(q)) {
+    return { kind: "uuid_partial", fragment: q.trim().toLowerCase() }
   }
 
   return { kind: "empty" }
@@ -460,10 +460,16 @@ export async function fetchEntitiesByFullUuid(supabase: SupabaseClient, uuid: st
   return { hits, errors: [u.error, t.error, s.error].filter(Boolean) }
 }
 
-export async function fetchPartialUuidRpc(
-  supabase: SupabaseClient,
-  fragment: string
-): Promise<{ source_table: string; entity_id: string }[]> {
+/** Matches Postgres RETURNS TABLE from admin_dev_console_uuid_fragment(text). */
+export type UuidFragmentRpcRow = {
+  source_table: string
+  matched_column: string
+  record_id: string
+  label: string
+  created_at: string | null
+}
+
+export async function fetchPartialUuidRpc(supabase: SupabaseClient, fragment: string): Promise<UuidFragmentRpcRow[]> {
   const { data, error } = await supabase.rpc("admin_dev_console_uuid_fragment", {
     fragment: fragment.trim().toLowerCase(),
   })
@@ -473,13 +479,22 @@ export async function fetchPartialUuidRpc(
     return []
   }
 
-  const rows = (data ?? []) as { source_table?: string; entity_id?: string; sourceTable?: string; entityId?: string }[]
+  const rows = (data ?? []) as Partial<UuidFragmentRpcRow &
+    Record<"sourceTable" | "matchedColumn" | "recordId" | "createdAt", unknown>>[]
   return rows
     .map((r) => ({
-      source_table: (r.source_table ?? r.sourceTable ?? "") as string,
-      entity_id: (r.entity_id ?? r.entityId ?? "") as string,
+      source_table: String(r.source_table ?? r.sourceTable ?? ""),
+      matched_column: String(r.matched_column ?? r.matchedColumn ?? ""),
+      record_id: String(r.record_id ?? r.recordId ?? ""),
+      label: String(r.label ?? ""),
+      created_at:
+        typeof r.created_at === "string"
+          ? r.created_at
+          : typeof r.createdAt === "string"
+            ? r.createdAt
+            : null,
     }))
-    .filter((r) => r.source_table && r.entity_id)
+    .filter((r) => r.source_table && r.record_id)
 }
 
 export async function fetchEntitySummary(

@@ -369,16 +369,28 @@ export function AdminDevConsoleClient() {
                   {data.entityHits.map((hit, idx) => {
                     const h = hit as {
                       source_table?: string
+                      matched_column?: string
+                      record_id?: string
                       entity_id?: string
+                      label?: string
+                      created_at?: string | null
                       record?: Record<string, unknown>
                       summary?: Record<string, unknown>
                     }
-                    const id = String(h.entity_id ?? "")
+                    const id = String(h.record_id ?? h.entity_id ?? "")
                     const summary = h.summary ?? h.record ?? {}
                     return (
                       <tr key={`${id}-${idx}`} className={adminUi.tbodyRow}>
                         <td className={cn(adminUi.td, "font-mono text-xs")}>
-                          <div>{h.source_table ?? "—"}</div>
+                          <div>
+                            {h.source_table ?? "—"}
+                            {h.matched_column ? (
+                              <span className="text-admin-muted">.{h.matched_column}</span>
+                            ) : null}
+                          </div>
+                          {h.label ? (
+                            <div className="mb-0.5 text-[11px] font-medium text-admin-secondary">{h.label}</div>
+                          ) : null}
                           <IdCell value={id} />
                         </td>
                         <td className={cn(adminUi.td, "max-w-md font-mono text-[11px] text-admin-secondary")}>

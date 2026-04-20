@@ -173,16 +173,23 @@ export async function GET(request: Request) {
     if (parsed.kind === "uuid_partial") {
       const fragment = parsed.fragment
       const rpcRows = await fetchPartialUuidRpc(supabase, fragment)
-      const userIds = rpcRows.filter((r) => r.source_table === "users").map((r) => r.entity_id)
-      const teamIds = rpcRows.filter((r) => r.source_table === "teams").map((r) => r.entity_id)
-      const allIds = [...userIds, ...teamIds, ...rpcRows.filter((r) => r.source_table === "subscriptions").map((r) => r.entity_id)]
+      const userIds = rpcRows.filter((r) => r.source_table === "users").map((r) => r.record_id)
+      const teamIds = rpcRows.filter((r) => r.source_table === "teams").map((r) => r.record_id)
+      const allIds = [
+        ...userIds,
+        ...teamIds,
+        ...rpcRows.filter((r) => r.source_table === "subscriptions").map((r) => r.record_id),
+      ]
 
       const [summaries, auditByTargetFrag, auditByActors, auditByTargetIds, agentPartial] = await Promise.all([
         Promise.all(
           rpcRows.slice(0, 25).map(async (r) => ({
             source_table: r.source_table,
-            entity_id: r.entity_id,
-            summary: await fetchEntitySummary(supabase, r.source_table, r.entity_id),
+            matched_column: r.matched_column,
+            record_id: r.record_id,
+            label: r.label,
+            created_at: r.created_at,
+            summary: await fetchEntitySummary(supabase, r.source_table, r.record_id),
           }))
         ),
         allow(tables, "audit_logs")

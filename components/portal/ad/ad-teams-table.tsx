@@ -6,7 +6,7 @@ import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 
 export type TeamRow = {
   id: string
-  organizationPortalUuid?: string | null
+  shortOrgId?: string | null
   shortTeamId?: string | null
   name: string
   /** For filters only — not shown as its own column. */
@@ -39,15 +39,15 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
   }
 
   const teamPortalHref = (team: TeamRow): string =>
-    team.organizationPortalUuid && team.shortTeamId
+    team.shortOrgId && team.shortTeamId
       ? buildDashboardTeamPath({
-          organizationPortalUuid: team.organizationPortalUuid,
+          shortOrgId: team.shortOrgId,
           shortTeamId: team.shortTeamId,
         })
       : `/dashboard?teamId=${encodeURIComponent(team.id)}`
   const teamEditHref = (team: TeamRow): string =>
-    team.organizationPortalUuid
-      ? `/org/${encodeURIComponent(team.organizationPortalUuid)}/teams/${encodeURIComponent(team.id)}`
+    team.shortOrgId
+      ? `/org/${encodeURIComponent(team.shortOrgId)}/teams/${encodeURIComponent(team.id)}`
       : `/dashboard/ad/teams/${team.id}`
 
   return (

@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import {
   buildOrganizationPortalPath,
   resolveDefaultOrganizationPortalUuidForUser,
+  resolveDefaultShortOrgIdForUser,
 } from "@/lib/navigation/organization-routes"
 
 export const runtime = "nodejs"
@@ -14,15 +15,17 @@ export async function GET() {
   if (!auth?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const organizationPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(
-    getSupabaseServer(),
-    auth.user.id
-  )
-  if (!organizationPortalUuid) {
+  const supabase = getSupabaseServer()
+  const [organizationPortalUuid, shortOrgId] = await Promise.all([
+    resolveDefaultOrganizationPortalUuidForUser(supabase, auth.user.id),
+    resolveDefaultShortOrgIdForUser(supabase, auth.user.id),
+  ])
+  if (!organizationPortalUuid || !shortOrgId) {
     return NextResponse.json({ error: "No organization portal available" }, { status: 404 })
   }
   return NextResponse.json({
+    shortOrgId,
     organizationPortalUuid,
-    path: buildOrganizationPortalPath(organizationPortalUuid),
+    path: buildOrganizationPortalPath(shortOrgId),
   })
 }

@@ -4,7 +4,7 @@ import { resolveBraikPortalKind } from "@/lib/portal/resolve-portal-kind"
 import { defaultDashboardEntryForPortal } from "@/lib/portal/dashboard-path"
 import {
   buildOrganizationPortalPath,
-  resolveDefaultOrganizationPortalUuidForUser,
+  resolveDefaultShortOrgIdForUser,
 } from "@/lib/navigation/organization-routes"
 
 const ADMIN_DASHBOARD = "/admin/overview"
@@ -29,10 +29,10 @@ export async function resolvePortalEntryPathWithProfileRole(
 
   const access = await resolveFootballAdAccessState(supabase, userId)
   if (canAccessAdPortalRoutes(access)) {
-    const organizationPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, userId)
-    if (organizationPortalUuid) {
+    const shortOrgId = await resolveDefaultShortOrgIdForUser(supabase, userId)
+    if (shortOrgId) {
       return buildOrganizationPortalPath(
-        organizationPortalUuid,
+        shortOrgId,
         access.state === "restricted_football_ad" ? "/teams" : ""
       )
     }

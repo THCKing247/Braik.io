@@ -25,7 +25,7 @@ const SIDEBAR_WIDTH = 240
 interface Team {
   id: string
   name: string
-  organizationPortalUuid?: string | null
+  shortOrgId?: string | null
   shortTeamId?: string | null
   organization: { name: string }
   sport: string
@@ -63,9 +63,9 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")
   const dashboardHomeHref =
-    userRole === "HEAD_COACH" && currentTeam?.organizationPortalUuid && currentTeam?.shortTeamId
+    userRole === "HEAD_COACH" && currentTeam?.shortOrgId && currentTeam?.shortTeamId
       ? buildDashboardTeamPath({
-          organizationPortalUuid: currentTeam.organizationPortalUuid,
+          shortOrgId: currentTeam.shortOrgId,
           shortTeamId: currentTeam.shortTeamId,
         })
       : userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)

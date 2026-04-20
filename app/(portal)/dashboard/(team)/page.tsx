@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
-import { useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   DashboardPageShell,
   DashboardPageShellSkeleton,
@@ -19,6 +19,7 @@ import { authTimingClient } from "@/lib/auth/login-flow-timing"
 
 export default function DashboardPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const role = session?.user?.role
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const teamId = searchParams.get("teamId")?.trim()
     if (!teamId) return
+    if ((pathname ?? "").startsWith("/dashboard/org/")) return
     fetch(`/api/routing/team-canonical?teamId=${encodeURIComponent(teamId)}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload: { path?: string } | null) => {
@@ -53,7 +55,7 @@ export default function DashboardPage() {
       .catch(() => {
         // Keep legacy URL working if canonical lookup fails.
       })
-  }, [searchParams, router])
+  }, [searchParams, router, pathname])
 
   /**
    * Must match `DashboardPageShellContent` session gate: if shell/bootstrap already has user id, render

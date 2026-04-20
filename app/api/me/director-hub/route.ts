@@ -3,7 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import {
   resolveCanonicalTeamRouteByTeamId,
-  resolveDefaultOrganizationPortalUuidForUser,
+  resolveDefaultShortOrgIdForUser,
 } from "@/lib/navigation/organization-routes"
 
 export const runtime = "nodejs"
@@ -190,7 +190,7 @@ export async function GET() {
         }
       })
     )
-    const organizationPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, userId)
+    const shortOrgId = await resolveDefaultShortOrgIdForUser(supabase, userId)
 
     const teamIds = teams.map((t) => t.id)
 
@@ -282,7 +282,7 @@ export async function GET() {
       programRole,
       programName: program?.program_name ?? null,
       sport: program?.sport ?? null,
-      organizationPortalUuid,
+      shortOrgId,
       teamShortIds,
       teams,
       coachAssignments,

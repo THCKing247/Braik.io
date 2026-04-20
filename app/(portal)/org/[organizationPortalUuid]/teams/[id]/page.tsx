@@ -1,5 +1,15 @@
-import { AdTeamEditPageClient } from "@/components/portal/ad/ad-team-edit-page-client"
+import { redirect } from "next/navigation"
+import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import { resolveShortOrgIdForOrganizationPortalUuid } from "@/lib/navigation/organization-routes"
 
-export default function OrganizationTeamEditPage({ params }: { params: { id: string } }) {
-  return <AdTeamEditPageClient teamId={params.id} />
+export default async function OrganizationTeamEditPage({
+  params,
+}: {
+  params: { organizationPortalUuid: string; id: string }
+}) {
+  const shortOrgId = await resolveShortOrgIdForOrganizationPortalUuid(
+    getSupabaseServer(),
+    params.organizationPortalUuid
+  )
+  redirect(shortOrgId ? `/org/${shortOrgId}/teams/${params.id}` : "/dashboard")
 }

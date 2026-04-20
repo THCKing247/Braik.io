@@ -8,8 +8,9 @@ type TeamIdentityRow = {
 }
 
 export type CanonicalTeamRoute = {
-  organizationPortalUuid: string
+  shortOrgId: string
   shortTeamId: string
+  organizationPortalUuid?: string
 }
 
 function toCanonicalPathSuffix(pathSuffix?: string): string {
@@ -23,14 +24,52 @@ function normalizeShortTeamId(value: string): string {
   return trimmed
 }
 
-export function buildOrganizationPortalPath(organizationPortalUuid: string, pagePath?: string): string {
+export function buildOrganizationPortalPath(shortOrgId: string, pagePath?: string): string {
   const suffix = toCanonicalPathSuffix(pagePath)
-  return `/org/${encodeURIComponent(organizationPortalUuid)}${suffix}`
+  return `/org/${encodeURIComponent(shortOrgId)}${suffix}`
 }
 
 export function buildDashboardTeamPath(input: CanonicalTeamRoute, nestedPath?: string): string {
   const suffix = toCanonicalPathSuffix(nestedPath)
-  return `/dashboard/org/${encodeURIComponent(input.organizationPortalUuid)}/team/${encodeURIComponent(input.shortTeamId)}${suffix}`
+  return `/dashboard/org/${encodeURIComponent(input.shortOrgId)}/team/${encodeURIComponent(input.shortTeamId)}${suffix}`
+}
+
+async function fetchAllOrganizationPortals(
+  supabase: SupabaseClient
+): Promise<Array<{ id: string; created_at?: string | null }>> {
+  const { data } = await supabase.from("athletic_departments").select("id, created_at")
+  return (data ?? []) as Array<{ id: string; created_at?: string | null }>
+}
+
+function sortByCreationThenId<T extends { id: string; created_at?: string | null }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    const aTs = a.created_at ? Date.parse(a.created_at) : 0
+    const bTs = b.created_at ? Date.parse(b.created_at) : 0
+    if (aTs !== bTs) return aTs - bTs
+    return a.id.localeCompare(b.id)
+  })
+}
+
+export async function resolveShortOrgIdForOrganizationPortalUuid(
+  supabase: SupabaseClient,
+  organizationPortalUuid: string
+): Promise<string | null> {
+  const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
+  const index = rows.findIndex((r) => r.id === organizationPortalUuid)
+  if (index < 0) return null
+  return String(index + 1).padStart(3, "0")
+}
+
+export async function resolveOrganizationPortalUuidFromShortOrgId(
+  supabase: SupabaseClient,
+  shortOrgId: string
+): Promise<string | null> {
+  const normalized = normalizeShortTeamId(shortOrgId)
+  if (!/^\d{3,}$/.test(normalized)) return null
+  const ordinal = Number.parseInt(normalized, 10)
+  if (!Number.isFinite(ordinal) || ordinal <= 0) return null
+  const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
+  return rows[ordinal - 1]?.id ?? null
 }
 
 async function resolveOrganizationPortalUuidFromProgram(
@@ -132,20 +171,25 @@ export async function resolveCanonicalTeamRouteByTeamId(
 ): Promise<CanonicalTeamRoute | null> {
   const organizationPortalUuid = await resolveOrganizationPortalUuidForTeam(supabase, teamId)
   if (!organizationPortalUuid) return null
+  const shortOrgId = await resolveShortOrgIdForOrganizationPortalUuid(supabase, organizationPortalUuid)
+  if (!shortOrgId) return null
   const allTeams = sortTeamsForShortId(await fetchOrganizationTeams(supabase, organizationPortalUuid))
   const index = allTeams.findIndex((t) => t.id === teamId)
   if (index < 0) return null
   return {
+    shortOrgId,
     organizationPortalUuid,
     shortTeamId: String(index + 1).padStart(3, "0"),
   }
 }
 
-export async function resolveTeamIdFromOrganizationShortId(
+export async function resolveTeamIdFromShortOrgTeamIds(
   supabase: SupabaseClient,
-  organizationPortalUuid: string,
+  shortOrgId: string,
   shortTeamId: string
 ): Promise<string | null> {
+  const organizationPortalUuid = await resolveOrganizationPortalUuidFromShortOrgId(supabase, shortOrgId)
+  if (!organizationPortalUuid) return null
   const normalized = normalizeShortTeamId(shortTeamId)
   if (!/^\d{3,}$/.test(normalized)) return null
   const ordinal = Number.parseInt(normalized, 10)
@@ -186,4 +230,13 @@ export async function resolveDefaultOrganizationPortalUuidForUser(
   const memberTeamId = (memberRow as { team_id?: string | null } | null)?.team_id ?? null
   if (!memberTeamId) return null
   return resolveOrganizationPortalUuidForTeam(supabase, memberTeamId)
+}
+
+export async function resolveDefaultShortOrgIdForUser(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<string | null> {
+  const organizationPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, userId)
+  if (!organizationPortalUuid) return null
+  return resolveShortOrgIdForOrganizationPortalUuid(supabase, organizationPortalUuid)
 }

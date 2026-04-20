@@ -22,8 +22,8 @@ type OkPayload = {
 
 export function AdTeamEditPageClient({ teamId }: { teamId: string }) {
   const router = useRouter()
-  const params = useParams<{ organizationPortalUuid?: string }>()
-  const orgBase = params?.organizationPortalUuid ? `/org/${params.organizationPortalUuid}` : null
+  const params = useParams<{ shortOrgId?: string }>()
+  const orgBase = params?.shortOrgId ? `/org/${params.shortOrgId}` : null
   const [data, setData] = useState<OkPayload | null>(null)
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading")
 

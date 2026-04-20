@@ -15,7 +15,7 @@ import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 interface Team {
   id: string
   name: string
-  organizationPortalUuid?: string | null
+  shortOrgId?: string | null
   shortTeamId?: string | null
   organization: {
     name: string
@@ -87,9 +87,9 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")
   const currentTeam = teams.find((team) => team.id === currentTeamId) || teams[0]
   const dashboardHomeHref =
-    userRole === "HEAD_COACH" && currentTeam?.organizationPortalUuid && currentTeam?.shortTeamId
+    userRole === "HEAD_COACH" && currentTeam?.shortOrgId && currentTeam?.shortTeamId
       ? buildDashboardTeamPath({
-          organizationPortalUuid: currentTeam.organizationPortalUuid,
+          shortOrgId: currentTeam.shortOrgId,
           shortTeamId: currentTeam.shortTeamId,
         })
       : userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)

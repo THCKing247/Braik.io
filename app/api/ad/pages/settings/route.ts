@@ -6,7 +6,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import type { AppAdPortalBootstrapPayload } from "@/lib/app/app-ad-portal-bootstrap-types"
 import {
   buildOrganizationPortalPath,
-  resolveDefaultOrganizationPortalUuidForUser,
+  resolveDefaultShortOrgIdForUser,
 } from "@/lib/navigation/organization-routes"
 
 export const runtime = "nodejs"
@@ -38,8 +38,8 @@ export async function GET() {
     }
 
     if (!shell.flags.tabVisibility.showSettings) {
-      const orgPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, u.id)
-      const redirectTo = orgPortalUuid ? buildOrganizationPortalPath(orgPortalUuid, "/teams") : "/dashboard/ad/teams"
+      const shortOrgId = await resolveDefaultShortOrgIdForUser(supabase, u.id)
+      const redirectTo = shortOrgId ? buildOrganizationPortalPath(shortOrgId, "/teams") : "/dashboard/ad/teams"
       const res = NextResponse.json({ redirectTo })
       if (sessionResult.refreshedSession) applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
       return res

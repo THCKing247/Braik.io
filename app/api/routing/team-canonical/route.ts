@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
+    shortOrgId: canonical.shortOrgId,
     organizationPortalUuid: canonical.organizationPortalUuid,
     shortTeamId: canonical.shortTeamId,
     path: buildDashboardTeamPath(canonical),

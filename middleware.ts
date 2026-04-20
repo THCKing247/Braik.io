@@ -16,7 +16,7 @@ const UUID_RE =
  * - No supabase.auth.getSession(), getUser(), JWT verification, or DB.
  * - Protected routes: presence of `sb-access-token` cookie only (validation in Node API routes + client shell).
  */
-export function middleware(request: NextRequest): NextResponse {
+export function middleware(request: NextRequest) {
   const mwT0 = process.env.BRAIK_MIDDLEWARE_TIMING === "1" ? Date.now() : 0
   const { pathname } = request.nextUrl
 
@@ -92,6 +92,28 @@ export function middleware(request: NextRequest): NextResponse {
   }
 
   if (pathname.startsWith("/dashboard")) {
+    const canonicalTeamMatch = pathname.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)(?:\/(.*))?$/)
+    if (canonicalTeamMatch) {
+      const shortOrgId = decodeURIComponent(canonicalTeamMatch[1] ?? "")
+      const shortTeamId = decodeURIComponent(canonicalTeamMatch[2] ?? "")
+      const rest = canonicalTeamMatch[3] ? `/${canonicalTeamMatch[3]}` : ""
+      const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+      const lookupUrl = `${origin}/api/routing/team-from-short?shortOrgId=${encodeURIComponent(shortOrgId)}&shortTeamId=${encodeURIComponent(shortTeamId)}`
+      return fetch(lookupUrl, { headers: { cookie: request.headers.get("cookie") ?? "" } })
+        .then(async (res) => {
+          if (!res.ok) return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+          const json = (await res.json()) as { teamId?: string }
+          if (!json.teamId || !UUID_RE.test(json.teamId)) {
+            return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+          }
+          const rewriteUrl = request.nextUrl.clone()
+          rewriteUrl.pathname = rest ? `/dashboard${rest}` : "/dashboard"
+          rewriteUrl.searchParams.set("teamId", json.teamId)
+          return finish(NextResponse.rewrite(rewriteUrl))
+        })
+        .catch(() => finish(NextResponse.redirect(new URL("/dashboard", request.url))))
+    }
+
     const res = NextResponse.next()
 
     const isDashboardRoot = pathname === "/dashboard" || pathname === "/dashboard/"

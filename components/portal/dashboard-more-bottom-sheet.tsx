@@ -20,7 +20,7 @@ import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/p
 interface Team {
   id: string
   name: string
-  organizationPortalUuid?: string | null
+  shortOrgId?: string | null
   shortTeamId?: string | null
   organization: { name: string }
   sport: string

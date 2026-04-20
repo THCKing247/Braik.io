@@ -279,7 +279,7 @@ export async function loadAdTeamsTableData(
   })
 
   const tBuildRows = performance.now()
-  const canonicalByTeamId = new Map<string, { organizationPortalUuid: string; shortTeamId: string }>()
+  const canonicalByTeamId = new Map<string, { shortOrgId: string; shortTeamId: string }>()
   await Promise.all(
     teamsData.map(async (team) => {
       const resolved = await resolveCanonicalTeamRouteByTeamId(supabase, team.id)
@@ -294,7 +294,7 @@ export async function loadAdTeamsTableData(
     const genderRaw = row.gender
     teams.push({
       id: t.id,
-      organizationPortalUuid: canonicalByTeamId.get(t.id)?.organizationPortalUuid ?? null,
+      shortOrgId: canonicalByTeamId.get(t.id)?.shortOrgId ?? null,
       shortTeamId: canonicalByTeamId.get(t.id)?.shortTeamId ?? null,
       name: t.name ?? "",
       sport: t.sport ?? null,

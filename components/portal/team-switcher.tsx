@@ -7,7 +7,7 @@ import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 interface Team {
   id: string
   name: string
-  organizationPortalUuid?: string | null
+  shortOrgId?: string | null
   shortTeamId?: string | null
   organization: {
     name: string
@@ -21,9 +21,9 @@ export function TeamSwitcher({ teams, currentTeamId }: { teams: Team[]; currentT
   const [selectedTeamId, setSelectedTeamId] = useState(currentTeamId)
 
   const canonicalTeamHref = (team: Team): string => {
-    if (team.organizationPortalUuid && team.shortTeamId) {
+    if (team.shortOrgId && team.shortTeamId) {
       return buildDashboardTeamPath({
-        organizationPortalUuid: team.organizationPortalUuid,
+        shortOrgId: team.shortOrgId,
         shortTeamId: team.shortTeamId,
       })
     }

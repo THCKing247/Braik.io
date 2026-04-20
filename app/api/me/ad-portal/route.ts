@@ -10,6 +10,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
 import {
   buildOrganizationPortalPath,
+  resolveDefaultShortOrgIdForUser,
   resolveDefaultOrganizationPortalUuidForUser,
 } from "@/lib/navigation/organization-routes"
 
@@ -39,11 +40,15 @@ export async function GET() {
     const canEnter = access.mode !== "none"
     const restricted = access.mode === "restricted_football"
     const showOverviewAndSettings = adPortalShowsOverviewAndSettings(access)
-    const organizationPortalUuid = await routePerf(sink, "org_portal", () =>
-      resolveDefaultOrganizationPortalUuidForUser(getSupabaseServer(), userId)
+    const supabase = getSupabaseServer()
+    const [organizationPortalUuid, shortOrgId] = await routePerf(sink, "org_portal", () =>
+      Promise.all([
+        resolveDefaultOrganizationPortalUuidForUser(supabase, userId),
+        resolveDefaultShortOrgIdForUser(supabase, userId),
+      ])
     )
-    const defaultOrgPath = organizationPortalUuid
-      ? buildOrganizationPortalPath(organizationPortalUuid, restricted ? "/teams" : "")
+    const defaultOrgPath = shortOrgId
+      ? buildOrganizationPortalPath(shortOrgId, restricted ? "/teams" : "")
       : restricted
         ? "/dashboard/ad/teams"
         : "/dashboard/ad"
@@ -62,6 +67,7 @@ export async function GET() {
       mode: access.mode,
       restrictedFootball: restricted,
       showOverviewAndSettings,
+      shortOrgId,
       organizationPortalUuid,
       /** First stop in athletic department shell after login (varsity HC with football scope). */
       defaultPath: defaultOrgPath,

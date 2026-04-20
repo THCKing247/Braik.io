@@ -29,7 +29,7 @@ type HubPayload = {
   teams: HubTeam[]
   coachAssignments: AssignmentRow[]
   staff: StaffRow[]
-  organizationPortalUuid: string | null
+  shortOrgId: string | null
   teamShortIds: Record<string, string> | null
 }
 
@@ -47,8 +47,8 @@ function defaultVarsityTeamId(teams: HubTeam[]): string | null {
 /** Football program controls inside the organization portal. */
 export function AdFootballProgramHub() {
   const router = useRouter()
-  const params = useParams<{ organizationPortalUuid?: string }>()
-  const orgBase = params?.organizationPortalUuid ? `/org/${params.organizationPortalUuid}` : null
+  const params = useParams<{ shortOrgId?: string }>()
+  const orgBase = params?.shortOrgId ? `/org/${params.shortOrgId}` : null
   const [data, setData] = useState<HubPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -81,9 +81,9 @@ export function AdFootballProgramHub() {
     if (!selectedTeamId) return
     const selectedShortId = data?.teamShortIds?.[selectedTeamId]
     const canonicalPath =
-      selectedShortId && data?.organizationPortalUuid
+      selectedShortId && data?.shortOrgId
         ? buildDashboardTeamPath({
-            organizationPortalUuid: data.organizationPortalUuid,
+            shortOrgId: data.shortOrgId,
             shortTeamId: selectedShortId,
           })
         : `/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`
@@ -91,7 +91,7 @@ export function AdFootballProgramHub() {
       selectedTeamId,
       portalHref: canonicalPath,
     })
-  }, [selectedTeamId, data?.teamShortIds, data?.organizationPortalUuid])
+  }, [selectedTeamId, data?.teamShortIds, data?.shortOrgId])
 
   const assignStaffTeam = async (userId: string, teamId: string) => {
     if (!data?.programId) return
@@ -142,9 +142,9 @@ export function AdFootballProgramHub() {
   const selectedLevelLabel = selectedTeam ? LEVEL_LABEL[selectedTeam.teamLevel] || selectedTeam.teamLevel : ""
   const selectedTeamShortId = selectedTeamId ? data.teamShortIds?.[selectedTeamId] : null
   const selectedTeamPortalHref =
-    selectedTeamId && selectedTeamShortId && data.organizationPortalUuid
+    selectedTeamId && selectedTeamShortId && data.shortOrgId
       ? buildDashboardTeamPath({
-          organizationPortalUuid: data.organizationPortalUuid,
+          shortOrgId: data.shortOrgId,
           shortTeamId: selectedTeamShortId,
         })
       : selectedTeamId

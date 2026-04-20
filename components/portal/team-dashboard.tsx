@@ -194,7 +194,7 @@ function TeamBanner({
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl shadow-lg shadow-slate-900/15 ring-1 ring-white/10 md:shadow-md md:ring-0"
+      className="relative overflow-hidden border-b border-white/10"
       style={{
         background: "linear-gradient(135deg, #1e3a5f 0%, #0B2A5B 60%, #162d4a 100%)",
       }}
@@ -207,7 +207,7 @@ function TeamBanner({
         }}
       />
 
-      <div className="relative flex min-w-0 flex-col gap-3 px-4 py-4 sm:gap-4 sm:px-5 sm:py-5 md:flex-row md:items-center md:justify-between md:gap-4 md:px-6">
+      <div className="relative flex min-w-0 flex-col gap-3 px-4 py-4 sm:gap-4 sm:px-5 sm:py-5 md:flex-row md:items-center md:justify-between md:gap-4 md:px-6 md:py-6">
         {/* Left: Logo + name */}
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           {/* Team logo or placeholder */}
@@ -1027,7 +1027,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const awaitingDeferredCore = Boolean(dashQ.data?.deferredPending)
 
   return (
-    <div className="min-w-0 space-y-3 pb-2 sm:space-y-4 md:space-y-6 md:pb-6">
+    <div className="min-w-0 space-y-4 pb-2 sm:space-y-5 md:space-y-6 md:pb-6">
 
       {/* ── Team Banner ── */}
       <TeamBanner

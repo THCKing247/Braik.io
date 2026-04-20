@@ -146,7 +146,8 @@ export function DashboardLayoutClient({
                   <div
                     className={cn(
                       "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
-                      "lg:rounded-xl lg:border lg:border-gray-200 lg:bg-white lg:p-6 lg:shadow-sm",
+                      !isDashboardHome && "lg:rounded-xl lg:border lg:border-gray-200 lg:bg-white lg:p-6 lg:shadow-sm",
+                      isDashboardHome && "lg:p-0",
                       isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0 lg:!rounded-none lg:!border-0 lg:!bg-transparent lg:!p-0 lg:!shadow-none",
                       isSchedulePage &&
                         "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"

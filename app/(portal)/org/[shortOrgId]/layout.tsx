@@ -6,7 +6,7 @@ export default async function OrganizationPortalLayout({ children }: { children:
   const shell = await loadAdPortalBootstrapForAdLayout()
   if (!shell.ok) {
     if (shell.kind === "unauthorized") {
-      redirect("/login?callbackUrl=/dashboard/ad")
+      redirect("/login?callbackUrl=/dashboard")
     }
     redirect("/dashboard")
   }

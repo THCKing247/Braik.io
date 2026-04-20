@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import {
   DashboardPageShell,
   DashboardPageShellSkeleton,
@@ -19,8 +19,6 @@ import { authTimingClient } from "@/lib/auth/login-flow-timing"
 
 export default function DashboardPage() {
   const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const role = session?.user?.role
   const identity = useDashboardShellIdentity()
@@ -35,27 +33,15 @@ export default function DashboardPage() {
       fetch("/api/routing/organization-default", { credentials: "same-origin" })
         .then((res) => (res.ok ? res.json() : null))
         .then((payload: { path?: string } | null) => {
-          router.replace(payload?.path || "/dashboard/ad")
+          router.replace(payload?.path ?? "/dashboard")
         })
         .catch(() => {
-          router.replace("/dashboard/ad")
+          router.replace("/dashboard")
         })
     }
   }, [status, role, router])
 
-  useEffect(() => {
-    const teamId = searchParams.get("teamId")?.trim()
-    if (!teamId) return
-    if ((pathname ?? "").startsWith("/dashboard/org/")) return
-    fetch(`/api/routing/team-canonical?teamId=${encodeURIComponent(teamId)}`, { credentials: "same-origin" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((payload: { path?: string } | null) => {
-        if (payload?.path) router.replace(payload.path)
-      })
-      .catch(() => {
-        // Keep legacy URL working if canonical lookup fails.
-      })
-  }, [searchParams, router, pathname])
+  // Legacy `?teamId=` → canonical `/dashboard/org/...` is handled in middleware (avoids client redirect races).
 
   /**
    * Must match `DashboardPageShellContent` session gate: if shell/bootstrap already has user id, render

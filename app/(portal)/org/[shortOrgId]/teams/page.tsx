@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation"
 import { AdTeamsPageLoader } from "@/components/portal/ad/ad-teams-page-loader"
 import { loadAdTeamsTableForRequest } from "@/lib/ad/load-ad-teams-table-for-request"
+import { buildOrganizationPortalPath } from "@/lib/navigation/organization-routes"
 
-export default async function OrganizationTeamsPage() {
+export default async function OrganizationTeamsPage({ params }: { params: { shortOrgId: string } }) {
   const result = await loadAdTeamsTableForRequest()
   if (!result.ok) {
     if (result.kind === "unauthorized") {
-      redirect("/login?callbackUrl=/dashboard/ad/teams")
+      const callback = buildOrganizationPortalPath(params.shortOrgId, "/teams")
+      redirect(`/login?callbackUrl=${encodeURIComponent(callback)}`)
     }
     if (result.kind === "forbidden") {
       redirect("/dashboard")

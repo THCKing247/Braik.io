@@ -12,11 +12,11 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /**
- * Braik middleware — synchronous, Edge-safe:
- * - No supabase.auth.getSession(), getUser(), JWT verification, or DB.
- * - Protected routes: presence of `sb-access-token` cookie only (validation in Node API routes + client shell).
+ * Braik middleware — Edge-safe:
+ * - No supabase auth/DB in-process; uses Node APIs over fetch for lookups.
+ * - Protected routes: presence of `sb-access-token` cookie (validation in Node routes + client shell).
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const mwT0 = process.env.BRAIK_MIDDLEWARE_TIMING === "1" ? Date.now() : 0
   const { pathname } = request.nextUrl
 
@@ -63,7 +63,8 @@ export function middleware(request: NextRequest) {
     return finish(NextResponse.next())
   }
 
-  const requiresAuth = pathname.startsWith("/dashboard") || pathname.startsWith("/admin")
+  const requiresAuth =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname.startsWith("/org")
   if (!requiresAuth) {
     return finish(NextResponse.next())
   }
@@ -85,33 +86,79 @@ export function middleware(request: NextRequest) {
   if (!accessToken) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/login"
-    loginUrl.searchParams.set("callbackUrl", pathname)
-    // Do not clear auth cookies on redirect: they may be valid but not sent (e.g. race).
-    // Clearing here could wipe a valid session and cause random sign-outs.
+    const callbackTarget = `${pathname}${request.nextUrl.search}`
+    loginUrl.searchParams.set("callbackUrl", callbackTarget)
     return finish(NextResponse.redirect(loginUrl))
   }
 
+  const cookieHeader = request.headers.get("cookie") ?? ""
+  const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+
+  if (pathname.startsWith("/org")) {
+    const orgSegMatch = pathname.match(/^\/org\/([^/]+)(\/.*)?$/)
+    if (orgSegMatch && UUID_RE.test(orgSegMatch[1] ?? "")) {
+      const uuid = orgSegMatch[1] ?? ""
+      const rest = orgSegMatch[2] ?? ""
+      const lookupUrl = `${origin}/api/routing/org-short-from-uuid?organizationPortalUuid=${encodeURIComponent(uuid)}`
+      try {
+        const lookupRes = await fetch(lookupUrl, { headers: { cookie: cookieHeader } })
+        if (lookupRes.ok) {
+          const json = (await lookupRes.json()) as { shortOrgId?: string }
+          if (json.shortOrgId) {
+            const targetPath = `/org/${json.shortOrgId}${rest}`
+            return finish(NextResponse.redirect(new URL(targetPath, request.url)))
+          }
+        }
+      } catch {
+        // Fall through — app may render 404.
+      }
+    }
+    return finish(NextResponse.next())
+  }
+
   if (pathname.startsWith("/dashboard")) {
+    if (pathname === "/dashboard" || pathname === "/dashboard/") {
+      const legacyTeamId = request.nextUrl.searchParams.get("teamId")?.trim()
+      if (legacyTeamId && UUID_RE.test(legacyTeamId)) {
+        try {
+          const canonRes = await fetch(
+            `${origin}/api/routing/team-canonical?teamId=${encodeURIComponent(legacyTeamId)}`,
+            { headers: { cookie: cookieHeader } }
+          )
+          if (canonRes.ok) {
+            const payload = (await canonRes.json()) as { path?: string }
+            if (payload.path) {
+              return finish(NextResponse.redirect(new URL(payload.path, request.url)))
+            }
+          }
+        } catch {
+          // Fall through to legacy dashboard + hint cookie behavior.
+        }
+      }
+    }
+
     const canonicalTeamMatch = pathname.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)(?:\/(.*))?$/)
     if (canonicalTeamMatch) {
       const shortOrgId = decodeURIComponent(canonicalTeamMatch[1] ?? "")
       const shortTeamId = decodeURIComponent(canonicalTeamMatch[2] ?? "")
       const rest = canonicalTeamMatch[3] ? `/${canonicalTeamMatch[3]}` : ""
-      const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`
       const lookupUrl = `${origin}/api/routing/team-from-short?shortOrgId=${encodeURIComponent(shortOrgId)}&shortTeamId=${encodeURIComponent(shortTeamId)}`
-      return fetch(lookupUrl, { headers: { cookie: request.headers.get("cookie") ?? "" } })
-        .then(async (res) => {
-          if (!res.ok) return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
-          const json = (await res.json()) as { teamId?: string }
-          if (!json.teamId || !UUID_RE.test(json.teamId)) {
-            return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
-          }
-          const rewriteUrl = request.nextUrl.clone()
-          rewriteUrl.pathname = rest ? `/dashboard${rest}` : "/dashboard"
-          rewriteUrl.searchParams.set("teamId", json.teamId)
-          return finish(NextResponse.rewrite(rewriteUrl))
-        })
-        .catch(() => finish(NextResponse.redirect(new URL("/dashboard", request.url))))
+      try {
+        const lookupRes = await fetch(lookupUrl, { headers: { cookie: cookieHeader } })
+        if (!lookupRes.ok) {
+          return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+        }
+        const json = (await lookupRes.json()) as { teamId?: string }
+        if (!json.teamId || !UUID_RE.test(json.teamId)) {
+          return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+        }
+        const rewriteUrl = request.nextUrl.clone()
+        rewriteUrl.pathname = rest ? `/dashboard${rest}` : "/dashboard"
+        rewriteUrl.searchParams.set("teamId", json.teamId)
+        return finish(NextResponse.rewrite(rewriteUrl))
+      } catch {
+        return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+      }
     }
 
     const res = NextResponse.next()
@@ -145,5 +192,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/api/dev/:path*", "/signup", "/signup/:path*"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/org/:path*", "/api/dev/:path*", "/signup", "/signup/:path*"],
 }

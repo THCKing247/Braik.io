@@ -27,7 +27,8 @@ type AdRow = { id: string; school_id: string | null }
 export type AdminTeamDetailModel = {
   id: string
   name: string
-  planTier: string | null
+  /** From `teams.plan_type` when present (production billing shape); omitted columns leave null. */
+  planDisplay: string | null
   subscriptionStatus: string
   teamStatus: string
   sport: string | null
@@ -52,8 +53,44 @@ export type LoadAdminTeamDetailResult =
   | { ok: false; kind: "not_found" }
   | { ok: false; kind: "query_error"; message: string }
 
-const TEAMS_SELECT =
-  "id, name, plan_tier, subscription_status, team_status, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
+/** Prefer current schema (`plan_type`); do not select deprecated/nonexistent `plan_tier`. */
+const TEAMS_SELECT_FULL =
+  "id, name, plan_type, subscription_status, team_status, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
+
+/** Fallback when select fails due to missing columns (schema drift). */
+const TEAMS_SELECT_MINIMAL =
+  "id, name, subscription_status, team_status, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
+
+function isLikelyMissingColumnError(error: { message?: string } | null): boolean {
+  const m = (error?.message ?? "").toLowerCase()
+  return (
+    (m.includes("column") && m.includes("does not exist")) ||
+    m.includes("could not find") ||
+    m.includes("schema cache")
+  )
+}
+
+async function fetchTeamRowFlexible(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  teamId: string
+): Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> {
+  const first = await supabase.from("teams").select(TEAMS_SELECT_FULL).eq("id", teamId).maybeSingle()
+  if (!first.error) {
+    return { data: (first.data ?? null) as Record<string, unknown> | null, error: null }
+  }
+  if (isLikelyMissingColumnError(first.error)) {
+    console.warn("[admin] loadAdminTeamDetail:teams_retry_minimal_select", {
+      reason: first.error.message,
+      teamId,
+    })
+    const second = await supabase.from("teams").select(TEAMS_SELECT_MINIMAL).eq("id", teamId).maybeSingle()
+    return {
+      data: (second.data ?? null) as Record<string, unknown> | null,
+      error: second.error ? { message: second.error.message } : null,
+    }
+  }
+  return { data: null, error: { message: first.error.message } }
+}
 
 function ownershipSummary(source: OwnershipSource): string {
   switch (source) {
@@ -78,7 +115,7 @@ export async function loadAdminTeamDetail(teamId: string): Promise<LoadAdminTeam
 
   const supabase = getSupabaseServer()
 
-  const { data: teamRow, error: teamErr } = await supabase.from("teams").select(TEAMS_SELECT).eq("id", id).maybeSingle()
+  const { data: teamRow, error: teamErr } = await fetchTeamRowFlexible(supabase, id)
 
   if (teamErr) {
     return { ok: false, kind: "query_error", message: teamErr.message }
@@ -258,10 +295,12 @@ export async function loadAdminTeamDetail(teamId: string): Promise<LoadAdminTeam
         ? new Date(createdRaw as string).toISOString()
         : new Date().toISOString()
 
+  const planFromRow = typeof t.plan_type === "string" && t.plan_type.trim() ? t.plan_type.trim() : null
+
   const model: AdminTeamDetailModel = {
     id: t.id as string,
     name: (t.name as string) ?? "—",
-    planTier: (t.plan_tier as string | undefined) ?? null,
+    planDisplay: planFromRow,
     subscriptionStatus: (t.subscription_status as string | undefined) ?? "active",
     teamStatus: (t.team_status as string | undefined) ?? "active",
     sport: (t.sport as string | null) ?? (prog?.sport as string | null) ?? null,

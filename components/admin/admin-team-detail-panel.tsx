@@ -28,8 +28,8 @@ export function AdminTeamDetailPanel({ model }: { model: AdminTeamDetailModel })
               <dd className="font-mono text-xs font-medium text-admin-primary">{model.id}</dd>
             </div>
             <div>
-              <dt className={adminUi.label}>Plan tier</dt>
-              <dd className="text-sm font-medium text-admin-primary">{model.planTier ?? "—"}</dd>
+              <dt className={adminUi.label}>Plan type</dt>
+              <dd className="text-sm font-medium text-admin-primary">{model.planDisplay ?? "—"}</dd>
             </div>
             <div>
               <dt className={adminUi.label}>Sport</dt>

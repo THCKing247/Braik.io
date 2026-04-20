@@ -49,9 +49,7 @@ export async function GET() {
     )
     const defaultOrgPath = shortOrgId
       ? buildOrganizationPortalPath(shortOrgId, restricted ? "/teams" : "")
-      : restricted
-        ? "/dashboard/ad/teams"
-        : "/dashboard/ad"
+      : "/dashboard"
 
     if (sink) {
       sink.push({ label: "total", ms: Math.round(performance.now() - started) })

@@ -58,7 +58,7 @@ export function AdFootballProgramHub() {
     const res = await fetch("/api/me/director-hub")
     const json = (await res.json()) as HubPayload
     if (!json.eligible) {
-      router.replace(orgBase ? `${orgBase}/coaches` : "/dashboard/ad/coaches")
+      router.replace(orgBase ? `${orgBase}/coaches` : "/dashboard")
       return
     }
     setData(json)

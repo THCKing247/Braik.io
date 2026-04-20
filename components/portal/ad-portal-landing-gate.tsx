@@ -2,15 +2,17 @@
 
 import { useSession } from "@/lib/auth/client-auth"
 import { DashboardPageShellSkeleton } from "@/components/portal/dashboard-page-shell"
-import { useRouter, useSearchParams } from "next/navigation"
+import { CANONICAL_DASHBOARD_TEAM_PATH_RE } from "@/lib/navigation/organization-routes"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 
 /**
- * Varsity head coaches with football AD portal scope enter the athletic department shell first
- * (`/dashboard/ad` or `/dashboard/ad/teams`), not the team dashboard.
+ * Varsity head coaches with football AD portal scope default to the organization portal unless they are
+ * already on a team dashboard (`?teamId=` legacy or canonical `/dashboard/org/:shortOrgId/team/:shortTeamId`).
  */
 export function AdPortalLandingGate({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const teamId = searchParams.get("teamId")
@@ -25,7 +27,9 @@ export function AdPortalLandingGate({ children }: { children: ReactNode }) {
       setReady(true)
       return
     }
-    if (teamId) {
+    const path = pathname ?? ""
+    const onCanonicalTeamDashboard = CANONICAL_DASHBOARD_TEAM_PATH_RE.test(path)
+    if (teamId || onCanonicalTeamDashboard) {
       setReady(true)
       return
     }
@@ -52,7 +56,7 @@ export function AdPortalLandingGate({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [status, session, teamId, router])
+  }, [status, session, teamId, pathname, router])
 
   if (!ready) {
     return (

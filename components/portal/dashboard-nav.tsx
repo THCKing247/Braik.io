@@ -10,7 +10,10 @@ import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { portalPrefixedDashboardHref } from "@/lib/portal/dashboard-path"
-import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
+import {
+  buildDashboardTeamPath,
+  CANONICAL_DASHBOARD_TEAM_PATH_RE,
+} from "@/lib/navigation/organization-routes"
 
 interface Team {
   id: string
@@ -74,6 +77,7 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const onAdPortalShell = path.startsWith("/dashboard/ad")
   const inTeamPortal =
     Boolean(searchParams.get("teamId")) ||
+    CANONICAL_DASHBOARD_TEAM_PATH_RE.test(path) ||
     (path.startsWith("/dashboard/") &&
       !path.startsWith("/dashboard/ad") &&
       !path.startsWith("/dashboard/director"))

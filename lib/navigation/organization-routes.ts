@@ -7,11 +7,21 @@ type TeamIdentityRow = {
   program_id?: string | null
 }
 
+/** Resolved route parts for URL builders. `organizationPortalUuid` is for internal/JSON only — never put it in browser paths. */
 export type CanonicalTeamRoute = {
   shortOrgId: string
   shortTeamId: string
   organizationPortalUuid?: string
 }
+
+/** Inputs allowed for visible dashboard team URLs (path segments must be short IDs). */
+export type DashboardTeamPathParams = {
+  shortOrgId: string
+  shortTeamId: string
+}
+
+/** Matches browser-visible canonical team dashboard URLs (`/dashboard/org/:shortOrgId/team/:shortTeamId`). */
+export const CANONICAL_DASHBOARD_TEAM_PATH_RE = /^\/dashboard\/org\/[^/]+\/team\/[^/]+/
 
 function toCanonicalPathSuffix(pathSuffix?: string): string {
   if (!pathSuffix || pathSuffix === "/") return ""
@@ -29,7 +39,7 @@ export function buildOrganizationPortalPath(shortOrgId: string, pagePath?: strin
   return `/org/${encodeURIComponent(shortOrgId)}${suffix}`
 }
 
-export function buildDashboardTeamPath(input: CanonicalTeamRoute, nestedPath?: string): string {
+export function buildDashboardTeamPath(input: DashboardTeamPathParams, nestedPath?: string): string {
   const suffix = toCanonicalPathSuffix(nestedPath)
   return `/dashboard/org/${encodeURIComponent(input.shortOrgId)}/team/${encodeURIComponent(input.shortTeamId)}${suffix}`
 }

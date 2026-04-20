@@ -65,7 +65,7 @@ export function AdNav({
   const userEmail = ad?.payload?.user.email ?? userEmailProp
   const navItems = fullOwnerNav
     .filter((item) => Boolean(tabVisibility[item.key]))
-    .map((item) => ({ ...item, href: orgBase ? `${orgBase}${item.href}` : item.href || "/dashboard/ad" }))
+    .map((item) => ({ ...item, href: orgBase ? `${orgBase}${item.href}` : item.href || "/dashboard" }))
   const homeHref = orgBase ? orgBase : tabVisibility.homeHref
 
   return (

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
@@ -13,8 +14,13 @@ export function AdminTeamStatusForm({
   teamId: string
   initialStatus: string
 }) {
+  const router = useRouter()
   const [status, setStatus] = useState(initialStatus)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setStatus(initialStatus)
+  }, [initialStatus])
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -33,6 +39,7 @@ export function AdminTeamStatusForm({
         throw new Error(payload.error || "Failed to update team status")
       }
       setSuccess("Status updated")
+      router.refresh()
     } catch (err: any) {
       setError(err.message || "Failed to update")
     } finally {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { MatchType, UnifiedSearchResultRow } from "@/lib/admin/dev-console-types"
 
 const UUID_FULL =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
@@ -10,6 +11,13 @@ export type ParsedGlobalQuery =
   | { kind: "uuid_full"; uuid: string }
   | { kind: "uuid_partial"; fragment: string }
   | { kind: "time_range"; startIso: string; endIso: string }
+  | {
+      kind: "relative_range"
+      preset: "today" | "last_24h" | "last_7d" | "last_30d"
+      startIso: string
+      endIso: string
+    }
+  | { kind: "text_search"; text: string }
 
 export type EntityTableFilter = "users" | "teams" | "subscriptions" | "audit_logs" | "agent_actions" | "creations"
 
@@ -23,9 +31,52 @@ export function partialUuidLooksLike(fragment: string): boolean {
   return hex.length >= 8 && /^[0-9a-fA-F]+$/.test(hex)
 }
 
+export function escapeIlikePattern(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")
+}
+
+export function relativePresetRange(
+  preset: "today" | "last_24h" | "last_7d" | "last_30d",
+  nowMs: number = Date.now()
+): { startIso: string; endIso: string } {
+  const now = new Date(nowMs)
+  if (preset === "today") {
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    const end = new Date(start.getTime() + 86400000 - 1)
+    return { startIso: start.toISOString(), endIso: end.toISOString() }
+  }
+  const dur =
+    preset === "last_24h"
+      ? 86400000
+      : preset === "last_7d"
+        ? 7 * 86400000
+        : 30 * 86400000
+  return { startIso: new Date(nowMs - dur).toISOString(), endIso: new Date(nowMs).toISOString() }
+}
+
+function parseRelativePreset(qRaw: string): ParsedGlobalQuery | null {
+  const key = qRaw.trim().toLowerCase().replace(/\s+/g, " ")
+  const presets: Record<string, "today" | "last_24h" | "last_7d" | "last_30d"> = {
+    today: "today",
+    "last 24 hours": "last_24h",
+    "last 24h": "last_24h",
+    "last 7 days": "last_7d",
+    "last 7d": "last_7d",
+    "last 30 days": "last_30d",
+    "last 30d": "last_30d",
+  }
+  const preset = presets[key]
+  if (!preset) return null
+  const { startIso, endIso } = relativePresetRange(preset)
+  return { kind: "relative_range", preset, startIso, endIso }
+}
+
 export function parseGlobalQuery(qRaw: string): ParsedGlobalQuery {
   const q = qRaw.trim()
   if (!q) return { kind: "empty" }
+
+  const relative = parseRelativePreset(qRaw)
+  if (relative) return relative
 
   const rangeFromSep = splitRange(q)
   if (rangeFromSep) {
@@ -45,7 +96,7 @@ export function parseGlobalQuery(qRaw: string): ParsedGlobalQuery {
     return { kind: "uuid_partial", fragment: q.trim().toLowerCase() }
   }
 
-  return { kind: "empty" }
+  return { kind: "text_search", text: q.trim() }
 }
 
 function splitRange(q: string): { start: Date; end: Date } | null {
@@ -183,7 +234,7 @@ export async function fetchUsersByEmailSearch(params: {
   return { hits, total: count ?? hits.length }
 }
 
-function pickAuditRow(raw: Record<string, unknown>) {
+export function pickAuditRow(raw: Record<string, unknown>) {
   const actionType =
     (typeof raw.action_type === "string" && raw.action_type) ||
     (typeof raw.action === "string" && raw.action) ||
@@ -486,6 +537,290 @@ export async function fetchRecentCreations(params: {
   }
 }
 
+function rankUserTextMatch(row: Record<string, unknown>, needleRaw: string): {
+  matched_field: string
+  match_type: MatchType
+  relevance_score: number
+} {
+  const needle = needleRaw.trim().toLowerCase()
+  const email = String(row.email ?? "").toLowerCase()
+  const name = String(row.name ?? "").toLowerCase()
+  const status = String(row.status ?? "").toLowerCase()
+
+  if (needle.length === 0) {
+    return { matched_field: "users", match_type: "unknown", relevance_score: 400 }
+  }
+  if (email === needle) return { matched_field: "users.email", match_type: "email_exact", relevance_score: 740 }
+  if (email.includes(needle)) return { matched_field: "users.email", match_type: "email_partial", relevance_score: 720 }
+  if (status === needle) return { matched_field: "users.status", match_type: "status_exact", relevance_score: 710 }
+  if (status.includes(needle)) return { matched_field: "users.status", match_type: "status_partial", relevance_score: 660 }
+  if (name === needle) return { matched_field: "users.name", match_type: "name_exact", relevance_score: 700 }
+  if (name.includes(needle)) return { matched_field: "users.name", match_type: "name_partial", relevance_score: 640 }
+  return { matched_field: "users", match_type: "text_contains", relevance_score: 520 }
+}
+
+function rankTeamTextMatch(row: Record<string, unknown>, needleRaw: string): {
+  matched_field: string
+  match_type: MatchType
+  relevance_score: number
+} {
+  const needle = needleRaw.trim().toLowerCase()
+  const name = String(row.name ?? "").toLowerCase()
+  const ts = String(row.team_status ?? "").toLowerCase()
+  const ss = String(row.subscription_status ?? "").toLowerCase()
+  if (!needle) return { matched_field: "teams", match_type: "unknown", relevance_score: 400 }
+  if (name.includes(needle)) return { matched_field: "teams.name", match_type: "name_partial", relevance_score: 620 }
+  if (ts.includes(needle)) return { matched_field: "teams.team_status", match_type: "status_partial", relevance_score: 600 }
+  if (ss.includes(needle)) return { matched_field: "teams.subscription_status", match_type: "status_partial", relevance_score: 590 }
+  return { matched_field: "teams", match_type: "text_contains", relevance_score: 500 }
+}
+
+export async function fetchUsersGlobalTextSearch(params: {
+  supabase: SupabaseClient
+  pattern: string
+  offset: number
+  limit: number
+  startIso?: string | null
+  endIso?: string | null
+}): Promise<{ hits: UnifiedSearchResultRow[]; total: number }> {
+  const { supabase, pattern, offset, limit, startIso, endIso } = params
+  const p = pattern.trim()
+  if (!p) return { hits: [], total: 0 }
+
+  const esc = escapeIlikePattern(p)
+  const il = `%${esc}%`
+  let q = supabase
+    .from("users")
+    .select("id, email, name, role, status, created_at", { count: "exact" })
+    .or(`email.ilike.${il},name.ilike.${il},status.ilike.${il}`)
+    .order("created_at", { ascending: false })
+  if (startIso) q = q.gte("created_at", startIso)
+  if (endIso) q = q.lte("created_at", endIso)
+
+  const { data: rows, error, count } = await q.range(offset, offset + limit - 1)
+  if (error) throw error
+
+  const hits = (rows ?? []).map((u) => {
+    const row = u as Record<string, unknown>
+    const id = String(row.id ?? "")
+    const r = rankUserTextMatch(row, p)
+    const label = String(row.email ?? row.name ?? id)
+    const secondary_label = row.name ? String(row.name) : null
+    return {
+      source_table: "users",
+      matched_field: r.matched_field,
+      match_type: r.match_type,
+      record_id: id,
+      label,
+      secondary_label,
+      created_at: typeof row.created_at === "string" ? row.created_at : null,
+      relevance_score: r.relevance_score,
+      preview: row as Record<string, unknown>,
+    }
+  })
+
+  return { hits, total: count ?? hits.length }
+}
+
+export async function fetchTeamsGlobalTextSearch(params: {
+  supabase: SupabaseClient
+  pattern: string
+  offset: number
+  limit: number
+  startIso?: string | null
+  endIso?: string | null
+}): Promise<{ hits: UnifiedSearchResultRow[]; total: number }> {
+  const { supabase, pattern, offset, limit, startIso, endIso } = params
+  const p = pattern.trim()
+  if (!p) return { hits: [], total: 0 }
+
+  const esc = escapeIlikePattern(p)
+  const il = `%${esc}%`
+  let q = supabase
+    .from("teams")
+    .select("id, name, head_coach_user_id, team_status, subscription_status, created_at", { count: "exact" })
+    .or(`name.ilike.${il},team_status.ilike.${il},subscription_status.ilike.${il}`)
+    .order("created_at", { ascending: false })
+  if (startIso) q = q.gte("created_at", startIso)
+  if (endIso) q = q.lte("created_at", endIso)
+
+  const { data: rows, error, count } = await q.range(offset, offset + limit - 1)
+  if (error) throw error
+
+  const hits = (rows ?? []).map((t) => {
+    const row = t as Record<string, unknown>
+    const id = String(row.id ?? "")
+    const r = rankTeamTextMatch(row, p)
+    return {
+      source_table: "teams",
+      matched_field: r.matched_field,
+      match_type: r.match_type,
+      record_id: id,
+      label: String(row.name ?? id),
+      secondary_label: row.head_coach_user_id ? String(row.head_coach_user_id) : null,
+      created_at: typeof row.created_at === "string" ? row.created_at : null,
+      relevance_score: r.relevance_score,
+      preview: row as Record<string, unknown>,
+    }
+  })
+
+  return { hits, total: count ?? hits.length }
+}
+
+export async function fetchAuditLogsGlobalTextSearch(params: {
+  supabase: SupabaseClient
+  pattern: string
+  offset: number
+  limit: number
+  startIso?: string | null
+  endIso?: string | null
+}): Promise<{ hits: UnifiedSearchResultRow[]; total: number }> {
+  const { supabase, pattern, offset, limit, startIso, endIso } = params
+  const p = pattern.trim()
+  if (!p) return { hits: [], total: 0 }
+
+  const esc = escapeIlikePattern(p)
+  const il = `%${esc}%`
+  let q = supabase
+    .from("audit_logs")
+    .select(AUDIT_LOG_COLUMNS, { count: "exact" })
+    .or(`action_type.ilike.${il},target_id.ilike.${il},target_type.ilike.${il}`)
+    .order("created_at", { ascending: false })
+  if (startIso) q = q.gte("created_at", startIso)
+  if (endIso) q = q.lte("created_at", endIso)
+
+  const { data: rows, error, count } = await q.range(offset, offset + limit - 1)
+  if (error) throw error
+
+  const needle = p.toLowerCase()
+  const hits = (rows ?? []).map((raw) => {
+    const row = raw as Record<string, unknown>
+    const id = String(row.id ?? "")
+    const at = String(row.action_type ?? row.action ?? "").toLowerCase()
+    const tid = String(row.target_id ?? "").toLowerCase()
+    let matched_field = "audit_logs.action_type"
+    let match_type: MatchType = "text_contains"
+    let score = 420
+    if (at === needle) {
+      match_type = "action_type_exact"
+      score = 705
+    } else if (at.includes(needle)) {
+      match_type = "action_type_partial"
+      score = 640
+    } else if (tid.includes(needle)) {
+      matched_field = "audit_logs.target_id"
+      match_type = "text_contains"
+      score = 430
+    }
+    const pr = pickAuditRow(row)
+    return {
+      source_table: "audit_logs",
+      matched_field,
+      match_type,
+      record_id: id,
+      label: pr.action_type || id,
+      secondary_label: pr.target_id,
+      created_at: pr.created_at,
+      relevance_score: score,
+      preview: pr as unknown as Record<string, unknown>,
+    }
+  })
+
+  return { hits, total: count ?? hits.length }
+}
+
+export async function fetchAgentActionsGlobalTextSearch(params: {
+  supabase: SupabaseClient
+  pattern: string
+  offset: number
+  limit: number
+  startIso?: string | null
+  endIso?: string | null
+}): Promise<{ hits: UnifiedSearchResultRow[]; total: number }> {
+  const { supabase, pattern, offset, limit, startIso, endIso } = params
+  const p = pattern.trim()
+  if (!p) return { hits: [], total: 0 }
+
+  const esc = escapeIlikePattern(p)
+  const il = `%${esc}%`
+  let q = supabase
+    .from("agent_actions")
+    .select("id, team_id, user_id, action_type, executed_at, undone, cost_in_credits", { count: "exact" })
+    .ilike("action_type", il)
+    .order("executed_at", { ascending: false })
+  if (startIso) q = q.gte("executed_at", startIso)
+  if (endIso) q = q.lte("executed_at", endIso)
+
+  const { data: rows, error, count } = await q.range(offset, offset + limit - 1)
+  if (error) throw error
+
+  const needle = p.toLowerCase()
+  const hits = (rows ?? []).map((r) => {
+    const row = r as Record<string, unknown>
+    const id = String(row.id ?? "")
+    const at = String(row.action_type ?? "").toLowerCase()
+    const exact = at === needle
+    return {
+      source_table: "agent_actions",
+      matched_field: "agent_actions.action_type",
+      match_type: (exact ? "action_type_exact" : "action_type_partial") as MatchType,
+      record_id: id,
+      label: String(row.action_type ?? id),
+      secondary_label: row.team_id ? String(row.team_id) : null,
+      created_at: typeof row.executed_at === "string" ? row.executed_at : null,
+      relevance_score: exact ? 695 : 630,
+      preview: row as Record<string, unknown>,
+    }
+  })
+
+  return { hits, total: count ?? hits.length }
+}
+
+export async function fetchSubscriptionsGlobalTextSearch(params: {
+  supabase: SupabaseClient
+  pattern: string
+  offset: number
+  limit: number
+  startIso?: string | null
+  endIso?: string | null
+}): Promise<{ hits: UnifiedSearchResultRow[]; total: number }> {
+  const { supabase, pattern, offset, limit, startIso, endIso } = params
+  const p = pattern.trim()
+  if (!p) return { hits: [], total: 0 }
+
+  const esc = escapeIlikePattern(p)
+  const il = `%${esc}%`
+  let q = supabase
+    .from("subscriptions")
+    .select("id, team_id, status, stripe_subscription_id, created_at", { count: "exact" })
+    .or(`status.ilike.${il},stripe_subscription_id.ilike.${il}`)
+    .order("created_at", { ascending: false })
+
+  if (startIso) q = q.gte("created_at", startIso)
+  if (endIso) q = q.lte("created_at", endIso)
+
+  const { data: rows, error, count } = await q.range(offset, offset + limit - 1)
+  if (error) throw error
+
+  const hits = (rows ?? []).map((s) => {
+    const row = s as Record<string, unknown>
+    const id = String(row.id ?? "")
+    return {
+      source_table: "subscriptions",
+      matched_field: "subscriptions.status",
+      match_type: "text_contains" as MatchType,
+      record_id: id,
+      label: String(row.stripe_subscription_id ?? row.team_id ?? id),
+      secondary_label: row.status ? String(row.status) : null,
+      created_at: typeof row.created_at === "string" ? row.created_at : null,
+      relevance_score: 510,
+      preview: row as Record<string, unknown>,
+    }
+  })
+
+  return { hits, total: count ?? hits.length }
+}
+
 export async function fetchEntitiesByFullUuid(supabase: SupabaseClient, uuid: string) {
   const id = uuid.toLowerCase()
   const hits: { source_table: string; entity_id: string; record: Record<string, unknown> | null }[] = []
@@ -579,17 +914,22 @@ export async function fetchAgentActionsForPartialEntities(params: {
     return { rows: [] as Record<string, unknown>[], total: 0 }
   }
 
-  const ors: string[] = []
-  if (u.length) ors.push(`user_id.in.(${u.join(",")})`)
-  if (t.length) ors.push(`team_id.in.(${t.join(",")})`)
-
   let q = supabase
     .from("agent_actions")
     .select("id, team_id, user_id, action_type, executed_at, undo_available_until, undone, cost_in_credits", {
       count: "exact",
     })
-    .or(ors.join(","))
     .order("executed_at", { ascending: false })
+
+  if (u.length && t.length) {
+    q = q.or(`user_id.in.(${u.join(",")}),team_id.in.(${t.join(",")})`)
+  } else if (u.length) {
+    q = q.in("user_id", u)
+  } else if (t.length) {
+    q = q.in("team_id", t)
+  } else {
+    return { rows: [], total: 0 }
+  }
 
   const { data: rows, error, count } = await q.range(offset, offset + limit - 1)
   if (error) throw error

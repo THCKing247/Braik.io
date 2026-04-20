@@ -22,6 +22,9 @@ export function DevConsoleResultsWorkspace(props: {
   loading: boolean
   error: string | null
   humanSummary: string
+  requestId?: string
+  failedScopes?: { scope: string; error_code: string; safe_message: string }[]
+  warnings?: { message: string; scope?: string; code?: string }[]
   /** Legacy GET modes */
   legacyMode?: string
   browseWindowApplied?: boolean
@@ -58,6 +61,30 @@ export function DevConsoleResultsWorkspace(props: {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Results</p>
+            {props.requestId ? (
+              <p className="font-mono text-[10px] text-neutral-400">
+                Request <span className="text-neutral-600">{props.requestId}</span>
+              </p>
+            ) : null}
+            {props.failedScopes && props.failedScopes.length > 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
+                <p className="font-semibold">Some scopes did not load</p>
+                <ul className="mt-1 list-inside list-disc space-y-0.5">
+                  {props.failedScopes.map((f, i) => (
+                    <li key={`${f.scope}-${i}`}>
+                      <span className="font-mono">{f.scope}</span> ({f.error_code}): {f.safe_message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {props.warnings && props.warnings.length > 0 ? (
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 text-[11px] text-neutral-800">
+                {props.warnings.map((w, i) => (
+                  <p key={i}>{w.scope ? `[${w.scope}] ` : ""}{w.message}</p>
+                ))}
+              </div>
+            ) : null}
             <p className="text-sm font-medium leading-snug text-neutral-800">{props.humanSummary}</p>
             {props.browseWindowApplied ? (
               <p className="text-[11px] text-neutral-500">Default time window: last 30 days.</p>
@@ -253,6 +280,7 @@ function EntityHitsTable({ hits, onInspect }: { hits: unknown[]; onInspect: (id:
           <thead className={adminUi.thead}>
             <tr>
               <th className={adminUi.th}>Type</th>
+              <th className={adminUi.th}>Matched</th>
               <th className={adminUi.th}>Label</th>
               <th className={adminUi.th}>Id</th>
               <th className={adminUi.th} />
@@ -262,9 +290,11 @@ function EntityHitsTable({ hits, onInspect }: { hits: unknown[]; onInspect: (id:
             {hits.map((hit, idx) => {
               const h = hit as Record<string, unknown>
               const id = String(h.record_id ?? h.entity_id ?? "")
+              const matched = String(h.matched_column ?? h.matched_field ?? "")
               return (
                 <tr key={`${id}-${idx}`} className={adminUi.tbodyRow}>
                   <td className={cn(adminUi.td, "text-xs font-medium")}>{String(h.source_table ?? "")}</td>
+                  <td className={cn(adminUi.td, "font-mono text-[10px] text-neutral-500")}>{matched || "—"}</td>
                   <td className={cn(adminUi.td, "text-xs text-neutral-600")}>{String(h.label ?? "")}</td>
                   <td className={cn(adminUi.td, "font-mono text-[11px]")}>{id}</td>
                   <td className={adminUi.td}>

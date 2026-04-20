@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { DevModel } from "@/lib/admin/dev-console-schema"
 import { emptyFilterRoot, type FilterGroupNode } from "@/lib/admin/dev-console-structured-query"
-import { DevConsoleHeader } from "./DevConsoleHeader"
+import { DevConsoleHeader, type DevConsolePanelMode } from "./DevConsoleHeader"
 import { summarizeDraft } from "./DevConsoleHumanSummary"
 import { DevConsolePresetBar } from "./DevConsolePresetBar"
 import { DevConsoleQueryBuilder } from "./DevConsoleQueryBuilder"
@@ -24,10 +24,14 @@ import { cn } from "@/lib/utils"
 
 type LegacyOk = {
   ok: true
+  request_id?: string
   mode: string
   browseWindowApplied?: boolean
   inspectId?: string
   primaryEntity?: { source_table: string; record: Record<string, unknown> } | null
+  failed_scopes?: { scope: string; error_code: string; safe_message: string }[]
+  warnings?: { message: string; scope?: string; code?: string }[]
+  query_summary?: { normalized_query?: string; normalized_query_type?: string }
   entityHits: unknown[]
   auditLogs: {
     rows: {
@@ -99,7 +103,8 @@ export function DevConsoleApp() {
     }
   }, [])
 
-  const [advanced, setAdvanced] = useState(false)
+  const [panelMode, setPanelMode] = useState<DevConsolePanelMode>("global")
+  const advanced = panelMode === "structured"
   const [quickSearch, setQuickSearch] = useState("")
   const [model, setModel] = useState<DevModel>("users")
   const [limit, setLimit] = useState(50)
@@ -133,6 +138,7 @@ export function DevConsoleApp() {
   useEffect(() => {
     const q = searchParams.get("q") ?? ""
     const adv = searchParams.get("adv") === "1"
+    const modeUrl = searchParams.get("mode")
     const m = (searchParams.get("model") as DevModel | null) ?? "users"
     const lim = Number(searchParams.get("lim") ?? "50") || 50
     const st = searchParams.get("st") ?? ""
@@ -143,7 +149,9 @@ export function DevConsoleApp() {
     const ins = searchParams.get("ins") ?? ""
 
     setQuickSearch(q)
-    setAdvanced(adv)
+    if (adv) setPanelMode("structured")
+    else if (modeUrl === "trace") setPanelMode("trace")
+    else setPanelMode("global")
     if (["users", "teams", "subscriptions", "audit_logs", "agent_actions"].includes(m)) setModel(m)
     setLimit(Math.min(100, Math.max(25, lim)))
     setDateStart(st)
@@ -167,6 +175,7 @@ export function DevConsoleApp() {
     const p = new URLSearchParams()
     if (quickSearch.trim()) p.set("q", quickSearch.trim())
     if (advanced) p.set("adv", "1")
+    if (panelMode === "trace") p.set("mode", "trace")
     p.set("model", model)
     p.set("lim", String(limit))
     if (dateStart.trim()) p.set("st", dateStart.trim())
@@ -182,6 +191,7 @@ export function DevConsoleApp() {
     router,
     quickSearch,
     advanced,
+    panelMode,
     model,
     limit,
     dateStart,
@@ -207,6 +217,7 @@ export function DevConsoleApp() {
         if (actionType.trim()) params.set("actionType", actionType.trim())
         const tp = tablesToParam(simpleTables)
         if (tp) params.set("tables", tp)
+        if (panelMode === "trace") params.set("mode", "trace")
         if (dateStart.trim()) {
           const t = new Date(dateStart.trim())
           if (!Number.isNaN(t.getTime())) params.set("start", t.toISOString())
@@ -222,9 +233,20 @@ export function DevConsoleApp() {
           credentials: "include",
           cache: "no-store",
         })
-        const json = (await res.json()) as LegacyOk | { ok: false; error?: string }
-        if (!res.ok) throw new Error("error" in json && json.error ? String(json.error) : `Failed (${res.status})`)
-        if (!("ok" in json) || !json.ok) throw new Error("Bad response")
+        const json = (await res.json()) as LegacyOk | { ok: false; safe_message?: string; error?: string }
+        if (!res.ok) {
+          const msg =
+            "safe_message" in json && json.safe_message
+              ? String(json.safe_message)
+              : "error" in json && json.error
+                ? String(json.error)
+                : `Failed (${res.status})`
+          throw new Error(msg)
+        }
+        if (!("ok" in json) || !json.ok) {
+          const msg = "safe_message" in json && json.safe_message ? String(json.safe_message) : "Bad response"
+          throw new Error(msg)
+        }
         setLegacyData(json)
         setStructuredData(null)
         setRunKind("legacy")
@@ -248,6 +270,7 @@ export function DevConsoleApp() {
       dateEnd,
       limit,
       syncUrl,
+      panelMode,
     ]
   )
 
@@ -271,11 +294,24 @@ export function DevConsoleApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      const json = (await res.json()) as StructuredOk | { ok: false; error?: string }
-      if (!res.ok) throw new Error("error" in json && json.error ? String(json.error) : `Failed (${res.status})`)
-      if (!("ok" in json) || !json.ok || json.mode !== "structured") throw new Error("Unexpected response")
+      const json = (await res.json()) as StructuredOk | { ok: false; safe_message?: string; error?: string; error_code?: string }
+      if (!res.ok) {
+        const msg =
+          "safe_message" in json && json.safe_message
+            ? String(json.safe_message)
+            : "error" in json && json.error
+              ? String(json.error)
+              : `Failed (${res.status})`
+        throw new Error(msg)
+      }
+      if (!("ok" in json) || !json.ok) {
+        const code = "error_code" in json && json.error_code ? String(json.error_code) : "ERR"
+        const msg = "safe_message" in json && json.safe_message ? String(json.safe_message) : "Structured query failed"
+        throw new Error(`${code}: ${msg}`)
+      }
 
-      setStructuredData(json)
+      const okBody = json as StructuredOk
+      setStructuredData(okBody)
       setLegacyData(null)
       setRunKind("structured")
       pushRecentSearch(`structured:${model}`)
@@ -364,7 +400,7 @@ export function DevConsoleApp() {
   }
 
   function handleQuickSearchOnly() {
-    setAdvanced(false)
+    setPanelMode("global")
     setOffset(0)
     setInspectId(null)
     void fetchLegacy({ offset: 0, inspect: null })
@@ -385,7 +421,7 @@ export function DevConsoleApp() {
     const endDay = new Date(startDay.getTime() + 86400000 - 1)
 
     if (key === "audit_today") {
-      setAdvanced(false)
+      setPanelMode("global")
       setDateStart(startDay.toISOString())
       setDateEnd(endDay.toISOString())
       setSimpleTables({
@@ -400,22 +436,22 @@ export function DevConsoleApp() {
     }
 
     if (key === "user_email") {
-      setAdvanced(false)
+      setPanelMode("global")
       setQuickSearch("")
       window.setTimeout(() => {
-        document.querySelector<HTMLInputElement>("input[placeholder*=UUID]")?.focus()
+        document.querySelector<HTMLInputElement>("header input.font-mono")?.focus()
       }, 0)
       return
     }
 
     if (key === "uuid_trace") {
-      setAdvanced(false)
+      setPanelMode("trace")
       setQuickSearch("")
       return
     }
 
     if (key === "team_activity") {
-      setAdvanced(true)
+      setPanelMode("structured")
       setModel("agent_actions")
       setFilterRoot(emptyFilterRoot())
       setDateStart(new Date(Date.now() - 7 * 86400000).toISOString())
@@ -423,16 +459,16 @@ export function DevConsoleApp() {
       return
     }
 
-    if (key === "errors") {
-      setAdvanced(false)
-      setQuickSearch("")
-      setActionType("error")
+    if (key === "status_search") {
+      setPanelMode("global")
+      setQuickSearch("inactive")
       setSimpleTables({
         ...simpleTables,
+        users: true,
+        teams: true,
         audit_logs: true,
       })
-      setDateStart(new Date(Date.now() - 7 * 86400000).toISOString())
-      setDateEnd(new Date().toISOString())
+      return
     }
   }
 
@@ -440,7 +476,7 @@ export function DevConsoleApp() {
     const name = window.prompt("Preset name")
     if (!name?.trim()) return
     const snapshot = JSON.stringify({
-      advanced,
+      panelMode,
       quickSearch,
       model,
       limit,
@@ -460,7 +496,8 @@ export function DevConsoleApp() {
     if (!pr) return
     try {
       const s = JSON.parse(pr.snapshot) as Partial<{
-        advanced: boolean
+        panelMode?: DevConsolePanelMode
+        advanced?: boolean
         quickSearch: string
         model: DevModel
         limit: number
@@ -470,7 +507,8 @@ export function DevConsoleApp() {
         dateStart: string
         dateEnd: string
       }>
-      if (typeof s.advanced === "boolean") setAdvanced(s.advanced)
+      if (s.panelMode === "global" || s.panelMode === "structured" || s.panelMode === "trace") setPanelMode(s.panelMode)
+      else if (typeof s.advanced === "boolean") setPanelMode(s.advanced ? "structured" : "global")
       if (typeof s.quickSearch === "string") setQuickSearch(s.quickSearch)
       if (s.model && ["users", "teams", "subscriptions", "audit_logs", "agent_actions"].includes(s.model)) setModel(s.model)
       if (typeof s.limit === "number") setLimit(s.limit)
@@ -518,10 +556,10 @@ export function DevConsoleApp() {
         quickSearch={quickSearch}
         onQuickSearchChange={setQuickSearch}
         onQuickSearchRun={() => handleQuickSearchOnly()}
-        advanced={advanced}
-        onAdvancedChange={(v) => {
-          setAdvanced(v)
-          if (v) setStructuredData(null)
+        panelMode={panelMode}
+        onPanelModeChange={(m) => {
+          setPanelMode(m)
+          if (m !== "structured") setStructuredData(null)
         }}
         onShareLink={handleShareLink}
         disabledSearch={Boolean(inspectId)}
@@ -564,7 +602,7 @@ export function DevConsoleApp() {
               className={adminUi.btnSecondarySm}
               onClick={() => {
                 setQuickSearch("")
-                setAdvanced(false)
+                setPanelMode("global")
                 setFilterRoot(emptyFilterRoot())
                 setOffset(0)
                 setInspectId(null)
@@ -590,6 +628,9 @@ export function DevConsoleApp() {
           humanSummary={displaySummary}
           legacyMode={legacyData?.mode}
           browseWindowApplied={legacyData?.browseWindowApplied}
+          requestId={legacyData?.request_id}
+          failedScopes={legacyData?.failed_scopes}
+          warnings={legacyData?.warnings}
           entityHits={(legacyData?.entityHits ?? []) as unknown[]}
           auditLogs={legacyData?.auditLogs ?? { rows: [], total: 0 }}
           agentActions={legacyData?.agentActions ?? { rows: [], total: 0 }}
@@ -644,14 +685,14 @@ export function DevConsoleApp() {
         onTraceUuid={() => {
           if (!inspectId) return
           setInspectorOpen(false)
-          setAdvanced(false)
+          setPanelMode("trace")
           setQuickSearch(inspectId)
           void fetchLegacy({ inspect: null, offset: 0 })
         }}
         onAuditTimeline={() => {
           if (!inspectId) return
           setInspectorOpen(false)
-          setAdvanced(false)
+          setPanelMode("global")
           const start = new Date(Date.now() - 30 * 86400000).toISOString()
           setDateStart(start)
           setDateEnd(new Date().toISOString())

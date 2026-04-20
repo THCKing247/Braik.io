@@ -15,11 +15,11 @@ export function DevConsolePresetBar(props: {
   const savePreset = props.onSavePreset
 
   const chips: { key: string; label: string }[] = [
-    { key: "errors", label: "Recent errors" },
     { key: "user_email", label: "User by email" },
     { key: "uuid_trace", label: "UUID trace" },
     { key: "team_activity", label: "Team activity" },
     { key: "audit_today", label: "Audit today" },
+    { key: "status_search", label: "Status search" },
   ]
 
   return (

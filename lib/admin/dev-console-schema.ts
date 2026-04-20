@@ -51,9 +51,9 @@ export const DEV_CONSOLE_MODELS: ModelCatalogEntry[] = [
         label: "User id",
         column: "id",
         type: "uuid",
-        operators: ["eq", "contains"],
+        operators: ["eq"],
         indexed: true,
-        hint: "Full UUID or paste from audit logs.",
+        hint: "Exact UUID — use Global or Trace search for partial UUID fragments.",
       },
       {
         id: "email",
@@ -83,7 +83,7 @@ export const DEV_CONSOLE_MODELS: ModelCatalogEntry[] = [
         label: "Status",
         column: "status",
         type: "enum",
-        operators: ["eq"],
+        operators: ["eq", "contains", "starts_with"],
       },
       {
         id: "created_at",
@@ -110,7 +110,7 @@ export const DEV_CONSOLE_MODELS: ModelCatalogEntry[] = [
     searchableFields: ["name", "id", "head_coach_user_id"],
     bestSearchField: "name",
     fields: [
-      { id: "id", label: "Team id", column: "id", type: "uuid", operators: ["eq", "contains"], indexed: true },
+      { id: "id", label: "Team id", column: "id", type: "uuid", operators: ["eq"], indexed: true },
       { id: "name", label: "Name", column: "name", type: "text", operators: ["contains", "starts_with"], indexed: true },
       {
         id: "head_coach_user_id",
@@ -142,7 +142,7 @@ export const DEV_CONSOLE_MODELS: ModelCatalogEntry[] = [
     bestSearchField: "team_id",
     optionalTable: true,
     fields: [
-      { id: "id", label: "Subscription id", column: "id", type: "uuid", operators: ["eq", "contains"], indexed: true },
+      { id: "id", label: "Subscription id", column: "id", type: "uuid", operators: ["eq"], indexed: true },
       { id: "team_id", label: "Team id", column: "team_id", type: "uuid", operators: ["eq"], indexed: true },
       { id: "status", label: "Status", column: "status", type: "text", operators: ["eq"] },
       {

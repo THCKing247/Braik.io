@@ -3,12 +3,14 @@
 import { adminUi } from "@/lib/admin/admin-ui"
 import { cn } from "@/lib/utils"
 
+export type DevConsolePanelMode = "global" | "structured" | "trace"
+
 export function DevConsoleHeader(props: {
   quickSearch: string
   onQuickSearchChange: (v: string) => void
   onQuickSearchRun: () => void
-  advanced: boolean
-  onAdvancedChange: (v: boolean) => void
+  panelMode: DevConsolePanelMode
+  onPanelModeChange: (m: DevConsolePanelMode) => void
   onShareLink: () => void
   disabledSearch?: boolean
 }) {
@@ -24,15 +26,28 @@ export function DevConsoleHeader(props: {
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs font-semibold text-neutral-800">
-            <input
-              type="checkbox"
-              checked={props.advanced}
-              onChange={(e) => props.onAdvancedChange(e.target.checked)}
-              className="rounded border-neutral-300"
-            />
-            Advanced mode
-          </label>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Search mode</span>
+          <div className="flex flex-wrap rounded-lg border border-neutral-200 bg-neutral-50 p-0.5">
+            {(
+              [
+                ["global", "Global"],
+                ["structured", "Structured"],
+                ["trace", "Trace"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                  props.panelMode === id ? "bg-white text-orange-900 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                )}
+                onClick={() => props.onPanelModeChange(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button type="button" className={adminUi.btnSecondarySm} onClick={() => props.onShareLink()}>
             Copy link
           </button>
@@ -41,21 +56,29 @@ export function DevConsoleHeader(props: {
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
         <label className={cn(adminUi.label, "min-w-0 flex-1")}>
-          Quick search
+          {props.panelMode === "trace" ? "Trace id" : "Global search"}
           <input
             value={props.quickSearch}
             onChange={(e) => props.onQuickSearchChange(e.target.value)}
-            disabled={props.disabledSearch}
-            placeholder="UUID, partial UUID, email, date, or range (2026-04-01 .. 2026-04-02)"
+            disabled={props.disabledSearch || props.panelMode === "structured"}
+            placeholder={
+              props.panelMode === "trace"
+                ? "Full or partial UUID"
+                : "User UUID · partial UUID · email · inactive · 2026-04-01..2026-04-20 · today · last 7 days"
+            }
             className={cn(adminUi.input, "font-mono text-xs")}
           />
+          <p className="mt-1 text-[10px] font-medium text-neutral-500">
+            Examples: full UUID, 8+ hex chars, email, status token, date range with .. , presets like{" "}
+            <span className="font-mono">today</span> or <span className="font-mono">last 7 days</span>.
+          </p>
         </label>
         <button
           type="button"
           className={cn(adminUi.btnPrimarySm, "sm:mb-0")}
-          disabled={props.disabledSearch || props.advanced}
+          disabled={props.disabledSearch || props.panelMode === "structured"}
           onClick={() => props.onQuickSearchRun()}
-          title={props.advanced ? "Turn off Advanced mode to run quick search" : undefined}
+          title={props.panelMode === "structured" ? "Use Run query below for structured search" : undefined}
         >
           Search
         </button>

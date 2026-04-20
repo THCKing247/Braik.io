@@ -1,51 +1,29 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import {
+  classifyDbError,
+  createRequestId,
+  devConsoleLog,
+  sanitizeClientMessage,
+} from "@/lib/admin/dev-console-logging"
+import { buildSearchableRegistry } from "@/lib/admin/dev-console-registry"
+import { runDevConsoleGet } from "@/lib/admin/dev-console-get"
+import {
   runStructuredDevConsoleQuery,
   type FilterGroupNode,
 } from "@/lib/admin/dev-console-structured-query"
 import { requireAdminRoleForApi } from "@/lib/permissions/platform-permissions"
 import {
-  fetchAgentActionsForPartialEntities,
-  fetchAgentActionsForUuidFiltered,
-  fetchAgentActionsRange,
-  fetchAuditLogsByActorIds,
-  fetchAuditLogsForUuidFiltered,
-  fetchAuditLogsRange,
-  fetchAuditLogsTargetPartial,
-  fetchAuditLogsWhereTargetIds,
-  fetchEntitiesByFullUuid,
-  fetchEntitySummary,
-  fetchPartialUuidRpc,
-  fetchRecentCreations,
-  fetchUsersByEmailSearch,
-  isFullUuid,
-  looksLikeEmailQuery,
   normalizeLimit,
   normalizeOffset,
-  parseGlobalQuery,
   parseTableFilters,
-  type EntityTableFilter,
 } from "@/lib/admin/dev-console-query"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 
 export const runtime = "nodejs"
 
-const THIRTY_D = 30 * 24 * 60 * 60 * 1000
-
-function allow(filters: Set<EntityTableFilter> | null, table: EntityTableFilter): boolean {
-  return filters == null || filters.has(table)
-}
-
-type AuditRow = {
-  id: string
-  action_type: string
-  actor_id: string
-  target_type: string | null
-  target_id: string | null
-  metadata_json: unknown
-  created_at: string
-  team_id: string | null
+function parseSearchMode(raw: string | null): "global" | "trace" {
+  return raw === "trace" ? "trace" : "global"
 }
 
 export async function GET(request: Request) {
@@ -54,7 +32,17 @@ export async function GET(request: Request) {
     return gate.response
   }
 
+  const requestId = createRequestId()
   const url = new URL(request.url)
+
+  if (url.searchParams.get("registry") === "1") {
+    return NextResponse.json({
+      ok: true as const,
+      request_id: requestId,
+      registry: buildSearchableRegistry(),
+    })
+  }
+
   const inspect = url.searchParams.get("inspect")?.trim() ?? ""
   const q = url.searchParams.get("q")?.trim() ?? ""
   const actionType = url.searchParams.get("actionType")?.trim() || null
@@ -68,307 +56,56 @@ export async function GET(request: Request) {
   let paramStart: string | null | undefined = hasStart ? url.searchParams.get("start")?.trim() || null : undefined
   let paramEnd: string | null | undefined = hasEnd ? url.searchParams.get("end")?.trim() || null : undefined
 
+  const searchMode = parseSearchMode(url.searchParams.get("mode"))
+
+  /** Guard bad explicit date range */
+  if (paramStart !== undefined && paramStart !== null && paramEnd !== undefined && paramEnd !== null) {
+    const a = new Date(paramStart).getTime()
+    const b = new Date(paramEnd).getTime()
+    if (!Number.isNaN(a) && !Number.isNaN(b) && b < a) {
+      return NextResponse.json(
+        {
+          ok: false as const,
+          request_id: requestId,
+          error_code: "INVALID_DATE_RANGE" as const,
+          safe_message: "End date must be on or after start date.",
+        },
+        { status: 400 }
+      )
+    }
+  }
+
   const supabase = getSupabaseServer()
 
   try {
-    if (inspect && isFullUuid(inspect)) {
-      const id = inspect.toLowerCase()
-
-      const [audit, actions, entities] = await Promise.all([
-        allow(tables, "audit_logs")
-          ? fetchAuditLogsForUuidFiltered({
-              supabase,
-              uuid: id,
-              startIso: paramStart ?? undefined,
-              endIso: paramEnd ?? undefined,
-              actionType,
-              offset,
-              limit,
-            })
-          : Promise.resolve({ rows: [] as AuditRow[], total: 0 }),
-        allow(tables, "agent_actions")
-          ? fetchAgentActionsForUuidFiltered({
-              supabase,
-              uuid: id,
-              startIso: paramStart ?? undefined,
-              endIso: paramEnd ?? undefined,
-              offset,
-              limit,
-            })
-          : Promise.resolve({ rows: [], total: 0 }),
-        fetchEntitiesByFullUuid(supabase, id),
-      ])
-
-      const primaryHit = entities.hits[0]
-      const primaryEntity =
-        primaryHit && primaryHit.record
-          ? { source_table: primaryHit.source_table as "users" | "teams" | "subscriptions", record: primaryHit.record }
-          : null
-
-      return NextResponse.json({
-        ok: true as const,
-        mode: "inspect" as const,
-        inspectId: id,
-        primaryEntity,
-        entityHits: entities.hits,
-        auditLogs: audit,
-        agentActions: actions,
-        warnings: entities.errors?.length ? entities.errors.map((e) => String(e)) : undefined,
-      })
-    }
-
-    if (q.trim() && looksLikeEmailQuery(q.trim()) && allow(tables, "users")) {
-      const { hits, total } = await fetchUsersByEmailSearch({
-        supabase,
-        pattern: q.trim(),
-        offset,
-        limit,
-      })
-
-      const entityHits = hits.map((h) => ({
-        source_table: h.source_table,
-        matched_column: h.matched_column,
-        record_id: h.record_id,
-        label: h.label,
-        created_at: h.created_at,
-        summary: h.summary,
-      }))
-
-      return NextResponse.json({
-        ok: true as const,
-        mode: "email_search" as const,
-        browseWindowApplied: false,
-        parsed: { kind: "email_search" as const },
-        entityHits,
-        auditLogs: { rows: [] as AuditRow[], total: 0 },
-        agentActions: { rows: [], total: 0 },
-        creations: undefined,
-        entityTotal: total,
-      })
-    }
-
-    const parsed = parseGlobalQuery(q)
-
-    if (paramStart === undefined && paramEnd === undefined && parsed.kind === "time_range") {
-      paramStart = parsed.startIso
-      paramEnd = parsed.endIso
-    }
-
-    const browseDefault =
-      paramStart === undefined &&
-      paramEnd === undefined &&
-      !inspect &&
-      parsed.kind === "empty" &&
-      !q.trim()
-
-    if (browseDefault) {
-      paramStart = new Date(Date.now() - THIRTY_D).toISOString()
-      paramEnd = new Date().toISOString()
-    }
-
-    if (parsed.kind === "uuid_full") {
-      const id = parsed.uuid
-      const [entities, audit, actions] = await Promise.all([
-        allow(tables, "users") || allow(tables, "teams") || allow(tables, "subscriptions")
-          ? fetchEntitiesByFullUuid(supabase, id)
-          : Promise.resolve({ hits: [] as { source_table: string; entity_id: string; record: Record<string, unknown> | null }[], errors: [] }),
-        allow(tables, "audit_logs")
-          ? fetchAuditLogsForUuidFiltered({
-              supabase,
-              uuid: id,
-              startIso: paramStart ?? undefined,
-              endIso: paramEnd ?? undefined,
-              actionType,
-              offset,
-              limit,
-            })
-          : Promise.resolve({ rows: [] as AuditRow[], total: 0 }),
-        allow(tables, "agent_actions")
-          ? fetchAgentActionsForUuidFiltered({
-              supabase,
-              uuid: id,
-              startIso: paramStart ?? undefined,
-              endIso: paramEnd ?? undefined,
-              offset,
-              limit,
-            })
-          : Promise.resolve({ rows: [], total: 0 }),
-      ])
-
-      return NextResponse.json({
-        ok: true as const,
-        mode: "uuid_full" as const,
-        parsed,
-        browseWindowApplied: browseDefault,
-        entityHits: entities.hits,
-        auditLogs: audit,
-        agentActions: actions,
-        creations: undefined,
-      })
-    }
-
-    if (parsed.kind === "uuid_partial") {
-      const fragment = parsed.fragment
-      const rpcRows = await fetchPartialUuidRpc(supabase, fragment)
-      const userIds = rpcRows.filter((r) => r.source_table === "users").map((r) => r.record_id)
-      const teamIds = rpcRows.filter((r) => r.source_table === "teams").map((r) => r.record_id)
-      const allIds = [
-        ...userIds,
-        ...teamIds,
-        ...rpcRows.filter((r) => r.source_table === "subscriptions").map((r) => r.record_id),
-      ]
-
-      const [summaries, auditByTargetFrag, auditByActors, auditByTargetIds, agentPartial] = await Promise.all([
-        Promise.all(
-          rpcRows.slice(0, 25).map(async (r) => ({
-            source_table: r.source_table,
-            matched_column: r.matched_column,
-            record_id: r.record_id,
-            label: r.label,
-            created_at: r.created_at,
-            summary: await fetchEntitySummary(supabase, r.source_table, r.record_id),
-          }))
-        ),
-        allow(tables, "audit_logs")
-          ? fetchAuditLogsTargetPartial({
-              supabase,
-              fragment,
-              offset: 0,
-              limit: Math.min(200, offset + limit + 50),
-            })
-          : Promise.resolve({ rows: [] as AuditRow[], total: 0 }),
-        allow(tables, "audit_logs") && userIds.length
-          ? fetchAuditLogsByActorIds({
-              supabase,
-              actorIds: userIds,
-              startIso: paramStart ?? undefined,
-              endIso: paramEnd ?? undefined,
-              actionType,
-              offset: 0,
-              limit: Math.min(200, offset + limit + 50),
-            })
-          : Promise.resolve({ rows: [] as AuditRow[], total: 0 }),
-        allow(tables, "audit_logs") && allIds.length
-          ? fetchAuditLogsWhereTargetIds({
-              supabase,
-              targetIds: allIds,
-              startIso: paramStart ?? undefined,
-              endIso: paramEnd ?? undefined,
-              actionType,
-              offset: 0,
-              limit: Math.min(200, offset + limit + 50),
-            })
-          : Promise.resolve({ rows: [] as AuditRow[], total: 0 }),
-        allow(tables, "agent_actions") && (userIds.length || teamIds.length)
-          ? fetchAgentActionsForPartialEntities({
-              supabase,
-              userIds,
-              teamIds,
-              offset,
-              limit,
-            })
-          : Promise.resolve({ rows: [], total: 0 }),
-      ])
-
-      const mergedAudit = dedupeAuditRows([
-        ...auditByTargetFrag.rows,
-        ...auditByActors.rows,
-        ...auditByTargetIds.rows,
-      ])
-        .filter((row) => auditRowMatchesFilters(row, paramStart ?? null, paramEnd ?? null, actionType))
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-      const pagedAudit = mergedAudit.slice(offset, offset + limit)
-
-      return NextResponse.json({
-        ok: true as const,
-        mode: "uuid_partial" as const,
-        parsed,
-        browseWindowApplied: browseDefault,
-        entityHits: summaries,
-        auditLogs: { rows: pagedAudit, total: mergedAudit.length },
-        agentActions: agentPartial,
-        creations: undefined,
-      })
-    }
-
-    const creations =
-      allow(tables, "creations") && paramStart && paramEnd
-        ? await fetchRecentCreations({
-            supabase,
-            startIso: paramStart,
-            endIso: paramEnd,
-            limit,
-          })
-        : undefined
-
-    const [auditRange, agentRange] = await Promise.all([
-      allow(tables, "audit_logs")
-        ? fetchAuditLogsRange({
-            supabase,
-            startIso: paramStart ?? undefined,
-            endIso: paramEnd ?? undefined,
-            actionType,
-            actorId: undefined,
-            targetIdLike: undefined,
-            offset,
-            limit,
-          })
-        : Promise.resolve({ rows: [] as AuditRow[], total: 0 }),
-      allow(tables, "agent_actions")
-        ? fetchAgentActionsRange({
-            supabase,
-            startIso: paramStart ?? undefined,
-            endIso: paramEnd ?? undefined,
-            userId: undefined,
-            teamId: undefined,
-            offset,
-            limit,
-          })
-        : Promise.resolve({ rows: [], total: 0 }),
-    ])
-
-    return NextResponse.json({
-      ok: true as const,
-      mode: browseDefault ? ("browse" as const) : ("time_window" as const),
-      parsed,
-      browseWindowApplied: browseDefault,
-      entityHits: [],
-      auditLogs: auditRange,
-      agentActions: agentRange,
-      creations,
+    const payload = await runDevConsoleGet({
+      requestId,
+      supabase,
+      inspect,
+      q,
+      actionType,
+      tables,
+      offset,
+      limit,
+      urlParamStart: paramStart,
+      urlParamEnd: paramEnd,
+      searchMode,
     })
+    return NextResponse.json(payload)
   } catch (error: unknown) {
-    console.error("admin dev-console:", error)
+    devConsoleLog(requestId, "error", "dev_console_get_fatal", {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json(
-      { ok: false as const, error: error instanceof Error ? error.message : "Internal server error" },
+      {
+        ok: false as const,
+        request_id: requestId,
+        error_code: "INTERNAL_ERROR" as const,
+        safe_message: "The dev console could not complete this request.",
+      },
       { status: 500 }
     )
   }
-}
-
-function dedupeAuditRows(rows: AuditRow[]): AuditRow[] {
-  const seen = new Set<string>()
-  const out: AuditRow[] = []
-  for (const r of rows) {
-    if (seen.has(r.id)) continue
-    seen.add(r.id)
-    out.push(r)
-  }
-  return out
-}
-
-function auditRowMatchesFilters(
-  row: AuditRow,
-  startIso: string | null,
-  endIso: string | null,
-  actionTypeFilter: string | null
-): boolean {
-  const t = new Date(row.created_at).getTime()
-  if (startIso != null && t < new Date(startIso).getTime()) return false
-  if (endIso != null && t > new Date(endIso).getTime()) return false
-  if (actionTypeFilter?.trim() && row.action_type !== actionTypeFilter.trim()) return false
-  return true
 }
 
 const filterConditionSchema = z.object({
@@ -403,17 +140,28 @@ export async function POST(request: Request) {
     return gate.response
   }
 
+  const requestId = createRequestId()
+
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 })
+    return NextResponse.json(
+      { ok: false as const, request_id: requestId, error_code: "VALIDATION_FAILED" as const, safe_message: "Invalid JSON body." },
+      { status: 400 }
+    )
   }
 
   const parsed = structuredBodySchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "Validation failed", details: parsed.error.flatten() },
+      {
+        ok: false as const,
+        request_id: requestId,
+        error_code: "VALIDATION_FAILED" as const,
+        safe_message: "Validation failed.",
+        details: parsed.error.flatten(),
+      },
       { status: 400 }
     )
   }
@@ -424,15 +172,30 @@ export async function POST(request: Request) {
     const result = await runStructuredDevConsoleQuery(supabase, parsed.data)
     return NextResponse.json({
       ok: true as const,
+      request_id: requestId,
       mode: "structured" as const,
       model: parsed.data.model,
       columns: result.columns,
       rows: result.rows,
       total: result.total,
       humanSummary: result.humanSummary,
+      failed_scopes: [] as const,
+      warnings: [] as const,
     })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Structured query failed"
-    return NextResponse.json({ ok: false as const, error: message }, { status: 400 })
+    const internal = error instanceof Error ? error.message : String(error)
+    const safe_message = sanitizeClientMessage(error)
+    const error_code = classifyDbError(internal)
+    devConsoleLog(requestId, "warn", "structured_query_failed", {
+      model: parsed.data.model,
+      error_code,
+      internal: internal.slice(0, 500),
+    })
+    return NextResponse.json({
+      ok: false as const,
+      request_id: requestId,
+      error_code,
+      safe_message,
+    })
   }
 }

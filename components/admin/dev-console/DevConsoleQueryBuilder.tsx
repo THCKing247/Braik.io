@@ -291,6 +291,23 @@ function FilterChildEditor(props: {
   )
 }
 
+function operatorLabel(op: FilterOperator): string {
+  switch (op) {
+    case "eq":
+      return "equals"
+    case "contains":
+      return "contains"
+    case "starts_with":
+      return "starts with"
+    case "gte":
+      return "on or after"
+    case "lte":
+      return "on or before"
+    default:
+      return op
+  }
+}
+
 function ConditionRow(props: {
   c: FilterConditionNode
   model: DevModel
@@ -326,7 +343,7 @@ function ConditionRow(props: {
         >
           {ops.map((o) => (
             <option key={o} value={o}>
-              {o}
+              {operatorLabel(o)}
             </option>
           ))}
         </select>

@@ -13,16 +13,12 @@ import { ConnectToTeam } from "@/components/portal/connect-to-team"
 import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
+import { LoadingState } from "@/components/ui/loading-state"
+import { AppLoader } from "@/components/ui/app-loader"
 
 /** Pulse placeholders while search params / session hydrate — avoids a full-page spinner. */
 export function DashboardPageShellSkeleton() {
-  return (
-    <div className="min-w-0 space-y-4 px-4 pb-4 pt-2 md:space-y-6 md:px-6" aria-busy="true" aria-label="Loading page">
-      <div className="h-9 w-44 animate-pulse rounded-md bg-[rgb(var(--platinum))]" />
-      <div className="h-32 w-full animate-pulse rounded-xl bg-[rgb(var(--platinum))] md:rounded-lg" />
-      <div className="h-40 w-full animate-pulse rounded-xl bg-[rgb(var(--platinum))] md:rounded-lg" />
-    </div>
-  )
+  return <LoadingState label="Loading page" className="px-4 pb-4 pt-2 md:px-6" minHeightClassName="min-h-[36vh]" size="lg" />
 }
 
 /**
@@ -99,7 +95,7 @@ function DashboardPageShellContent({
           }}
           role="status"
         >
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" aria-hidden />
+          <AppLoader size="sm" label="Refreshing team data" />
           Refreshing team menu and badges…
         </div>
       ) : null}

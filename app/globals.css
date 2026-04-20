@@ -244,6 +244,27 @@
 }
 
 @layer utilities {
+  @keyframes app-loader-sweep {
+    0% {
+      opacity: 0.96;
+    }
+    8.333% {
+      opacity: 0.62;
+    }
+    16.666% {
+      opacity: 0.34;
+    }
+    25%,
+    100% {
+      opacity: 0.16;
+    }
+  }
+
+  .app-loader-segment {
+    animation: app-loader-sweep 1.4s linear infinite;
+    opacity: 0.16;
+  }
+
   /* Admin console — dark skeleton shimmer (solid base + moving highlight) */
   .admin-skeleton-shimmer {
     position: relative;

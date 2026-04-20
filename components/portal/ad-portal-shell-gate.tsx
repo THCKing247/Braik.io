@@ -14,6 +14,7 @@ import {
 } from "@/lib/app/ad-portal-bootstrap-query"
 import { AdAppBootstrapProvider } from "@/components/portal/ad-app-bootstrap-context"
 import { AdNav, AdNavShellSkeleton } from "@/components/portal/ad/ad-nav"
+import { LoadingState } from "@/components/ui/loading-state"
 
 export function AdPortalShellGate({
   children,
@@ -104,7 +105,7 @@ export function AdPortalShellGate({
   if (authRedirectError) {
     return (
       <div className="min-h-screen" style={{ backgroundColor: "rgb(var(--snow))" }}>
-        <div className="h-14 animate-pulse border-b border-[#E5E7EB] bg-white/60" aria-hidden />
+        <LoadingState label="Loading portal" minHeightClassName="min-h-screen" size="lg" />
       </div>
     )
   }

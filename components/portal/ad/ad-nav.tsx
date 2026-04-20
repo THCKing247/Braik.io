@@ -7,6 +7,7 @@ import { signOut } from "@/lib/auth/client-auth"
 import { Button } from "@/components/ui/button"
 import { useAdAppBootstrapOptional } from "@/components/portal/ad-app-bootstrap-context"
 import type { AdPortalTabVisibility } from "@/lib/enforcement/football-ad-access"
+import { AppLoader } from "@/components/ui/app-loader"
 
 const fullOwnerNav: {
   href: string
@@ -38,15 +39,7 @@ export function AdNavShellSkeleton() {
     >
       <div className="mx-auto px-4">
         <div className="flex min-h-20 items-center justify-between py-2">
-          <div className="flex items-center gap-8">
-            <div className="h-[4.5rem] w-[180px] animate-pulse rounded bg-[#E5E7EB]" />
-            <div className="hidden md:flex gap-2">
-              <div className="h-9 w-20 animate-pulse rounded-md bg-[#E5E7EB]" />
-              <div className="h-9 w-16 animate-pulse rounded-md bg-[#E5E7EB]" />
-              <div className="h-9 w-20 animate-pulse rounded-md bg-[#E5E7EB]" />
-            </div>
-          </div>
-          <div className="h-8 w-24 animate-pulse rounded-md bg-[#E5E7EB]" />
+          <AppLoader label="Loading navigation" size="md" />
         </div>
       </div>
     </nav>

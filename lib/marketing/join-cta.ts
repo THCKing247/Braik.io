@@ -3,8 +3,15 @@ import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 /** Public player onboarding — team join code or QR with code. */
 export const PLAYER_SIGNUP_HREF = "/signup/player"
 
+/** First-time parent account creation (parent link code → `/signup`). */
+export const PARENT_ACCESS_HREF = "/parent/join"
+
 export function getPlayerSignupHref(): string {
   return PLAYER_SIGNUP_HREF
+}
+
+export function getParentAccessHref(): string {
+  return PARENT_ACCESS_HREF
 }
 
 /** Coach, school, or program access — waitlist or split-entry request page. */
@@ -40,7 +47,11 @@ export function getAthleticDirectorMarketingHref(): string {
 
 /** Short labels for primary player CTAs (hero, nav, footers). */
 export function getPlayerPrimaryCtaLabel(): string {
-  return "Join your team"
+  return "Join Your Team"
+}
+
+export function getParentPrimaryCtaLabel(): string {
+  return "Parent Access"
 }
 
 /** Secondary line for “have a code” contexts. */

@@ -23,6 +23,7 @@ import {
   landingContainerWide,
   landingLightSection,
 } from "@/lib/marketing/landing-visual-theme"
+import { getParentAccessHref, getParentPrimaryCtaLabel } from "@/lib/marketing/join-cta"
 
 /**
  * Below-the-fold / non-LCP: separate chunks to shrink the main home bundle.
@@ -192,6 +193,14 @@ export default function Home() {
                   className={heroPrimaryCta}
                   onAnimationStart={() => trackMarketingEvent("clicked_cta", { cta: "get_started_hero" })}
                 />
+                <Link
+                  href={getParentAccessHref()}
+                  onClick={() => trackMarketingEvent("clicked_cta", { cta: "parent_access_hero" })}
+                >
+                  <Button size="lg" variant="outline" className={heroOutlineBtn}>
+                    {getParentPrimaryCtaLabel()}
+                  </Button>
+                </Link>
                 <Link
                   href="/pricing"
                   onClick={() => trackMarketingEvent("clicked_cta", { cta: "view_pricing_hero" })}

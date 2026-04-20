@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 import {
   resolveAmbiguousJoinCode,
+  resolvePlayerByAccountIdAndTeamJoin,
   resolvePlayerInviteJoinEntry,
   resolveTeamJoinEntryOnly,
   type PlayerJoinEntryErrorCode,
@@ -24,13 +25,16 @@ export async function POST(request: Request) {
       teamJoinCode?: string
       playerInviteCode?: string
       ambiguousCode?: string
+      /** Roster Account ID — must be sent with `teamJoinCode` (pairs with team player_code). */
+      playerAccountId?: string
     }
 
     const ambiguousRaw = typeof body.ambiguousCode === "string" ? body.ambiguousCode.trim() : ""
     const teamRaw = typeof body.teamJoinCode === "string" ? body.teamJoinCode.trim() : ""
     const playerRaw = typeof body.playerInviteCode === "string" ? body.playerInviteCode.trim() : ""
+    const accountIdRaw = typeof body.playerAccountId === "string" ? body.playerAccountId.trim() : ""
 
-    if (ambiguousRaw && (teamRaw || playerRaw)) {
+    if (ambiguousRaw && (teamRaw || playerRaw || accountIdRaw)) {
       return jsonError(
         "both_provided",
         "Send either ambiguousCode or team/player fields — not both.",
@@ -60,6 +64,32 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, code: result.code, error: result.message }, { status })
       }
       return NextResponse.json(result)
+    }
+
+    if (accountIdRaw) {
+      if (!teamRaw) {
+        return jsonError("missing_code", "Enter your team code together with your account ID.", 400)
+      }
+      if (playerRaw) {
+        return jsonError(
+          "both_provided",
+          "Use account ID + team code, or a player invite code — not both.",
+          400
+        )
+      }
+      const pairResult = await resolvePlayerByAccountIdAndTeamJoin(supabase, accountIdRaw, teamRaw)
+      if (!pairResult.ok) {
+        const status =
+          pairResult.code === "invalid_team_code"
+            ? 404
+            : pairResult.code === "player_already_claimed" ||
+                pairResult.code === "expired_player_invite" ||
+                pairResult.code === "invite_max_uses"
+              ? 400
+              : 400
+        return NextResponse.json({ ok: false, code: pairResult.code, error: pairResult.message }, { status })
+      }
+      return NextResponse.json(pairResult)
     }
 
     if (teamRaw && playerRaw) {

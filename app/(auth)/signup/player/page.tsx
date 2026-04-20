@@ -18,8 +18,8 @@ import { buildPlayerInviteRedeemPath } from "@/lib/invites/build-join-link"
 
 type Step = "code" | "info" | "match" | "account"
 
-/** After code step succeeds: team join vs player invite (token flow uses inviteToken instead). */
-type JoinKind = "team" | "player"
+/** After code step succeeds: team join vs player invite vs coach-matched account ID + team (token flow uses inviteToken instead). */
+type JoinKind = "team" | "player" | "account_team"
 
 function PlayerJoinSignupInner() {
   const router = useRouter()
@@ -33,8 +33,20 @@ function PlayerJoinSignupInner() {
     const raw = searchParams.get("playerCode") ?? searchParams.get("invite")
     return raw ? normalizePlayerInviteCode(raw) : ""
   }, [searchParams])
+  /** QR / deep link: prefills team join code (`?team=`) and optional roster account ID (`?account=`). */
+  const teamPrefillFromQuery = useMemo(() => {
+    const raw = searchParams.get("team")
+    return raw ? normalizePlayerJoinCode(raw) : ""
+  }, [searchParams])
+  const accountPrefillFromQuery = useMemo(() => searchParams.get("account")?.trim() ?? "", [searchParams])
 
-  const needsLandingResolve = Boolean(tokenFromQuery || codeFromQuery || playerCodeFromQuery)
+  const needsLandingResolve = Boolean(
+    tokenFromQuery ||
+      codeFromQuery ||
+      playerCodeFromQuery ||
+      teamPrefillFromQuery ||
+      accountPrefillFromQuery
+  )
 
   const [step, setStep] = useState<Step>("code")
   const [error, setError] = useState("")
@@ -45,8 +57,12 @@ function PlayerJoinSignupInner() {
 
   const [teamJoinCode, setTeamJoinCode] = useState("")
   const [playerInviteCode, setPlayerInviteCode] = useState("")
+  /** Coach-issued roster Account ID — paired with team join code for manual onboarding. */
+  const [playerAccountId, setPlayerAccountId] = useState("")
   const [joinKind, setJoinKind] = useState<JoinKind | null>(null)
   const [teamName, setTeamName] = useState<string | null>(null)
+  /** Set when `kind === "account_team"` from resolve-entry — signup confirms this roster row. */
+  const [resolvedAccountTeamPlayerId, setResolvedAccountTeamPlayerId] = useState<string | null>(null)
 
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -174,6 +190,57 @@ function PlayerJoinSignupInner() {
           return
         }
 
+        // Deep link: ?team= prefills team code; ?team=&account= validates Account ID + team together (QR flow).
+        if (teamPrefillFromQuery || accountPrefillFromQuery) {
+          setTeamJoinCode(teamPrefillFromQuery)
+          setPlayerAccountId(accountPrefillFromQuery)
+          if (teamPrefillFromQuery && accountPrefillFromQuery) {
+            const pairRes = await fetch("/api/player/join/resolve-entry", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                teamJoinCode: teamPrefillFromQuery,
+                playerAccountId: accountPrefillFromQuery,
+              }),
+            })
+            const pairData = (await pairRes.json().catch(() => ({}))) as {
+              ok?: boolean
+              kind?: string
+              resolvedPlayerId?: string
+              teamName?: string | null
+              playerFirstName?: string | null
+              playerLastName?: string | null
+              jerseyNumber?: number | null
+              graduationYear?: number | null
+              error?: string
+            }
+            if (cancelled) return
+            if (pairRes.ok && pairData.ok && pairData.kind === "account_team" && pairData.resolvedPlayerId) {
+              setInviteToken(null)
+              setJoinKind("account_team")
+              setResolvedAccountTeamPlayerId(pairData.resolvedPlayerId)
+              setTeamName(pairData.teamName ?? null)
+              if (pairData.playerFirstName) setFirstName(pairData.playerFirstName)
+              if (pairData.playerLastName) setLastName(pairData.playerLastName)
+              if (pairData.jerseyNumber != null) setJerseyNumber(String(pairData.jerseyNumber))
+              if (pairData.graduationYear != null) setGraduationYear(String(pairData.graduationYear))
+              setStep("info")
+            } else {
+              setError(pairData.error ?? "Could not match that account ID to this team.")
+              setStep("code")
+            }
+            setInitializing(false)
+            return
+          }
+          if (cancelled) return
+          if (accountPrefillFromQuery && !teamPrefillFromQuery) {
+            setError("Enter your team code together with your account ID (open the full link from your coach or QR).")
+          }
+          setInitializing(false)
+          setStep("code")
+          return
+        }
+
         // Ambiguous ?code= — try team first, then player (team join QR / shared links)
         const res = await fetch("/api/player/join/resolve-entry", {
           method: "POST",
@@ -227,7 +294,14 @@ function PlayerJoinSignupInner() {
     return () => {
       cancelled = true
     }
-  }, [tokenFromQuery, codeFromQuery, playerCodeFromQuery, router])
+  }, [
+    tokenFromQuery,
+    codeFromQuery,
+    playerCodeFromQuery,
+    teamPrefillFromQuery,
+    accountPrefillFromQuery,
+    router,
+  ])
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8) return false
@@ -242,8 +316,17 @@ function PlayerJoinSignupInner() {
     setError("")
     const teamNorm = normalizePlayerJoinCode(teamJoinCode)
     const playerNorm = normalizePlayerInviteCode(playerInviteCode)
+    const accountTrim = playerAccountId.trim()
+    if (accountTrim && playerNorm) {
+      setError("Use either a parent-style player invite code or Account ID + team code — not both.")
+      return
+    }
+    if (accountTrim && !teamNorm) {
+      setError("Enter your team join code together with your Account ID.")
+      return
+    }
     if (!teamNorm && !playerNorm) {
-      setError("Enter your team join code or your player invite code from your coach.")
+      setError("Enter your team join code and/or Account ID, or your player invite code from your coach.")
       return
     }
     if (teamNorm && playerNorm) {
@@ -252,16 +335,21 @@ function PlayerJoinSignupInner() {
     }
     setLoading(true)
     try {
+      const body =
+        accountTrim && teamNorm
+          ? { teamJoinCode: teamNorm, playerAccountId: accountTrim }
+          : teamNorm
+            ? { teamJoinCode: teamNorm }
+            : { playerInviteCode: playerNorm }
       const res = await fetch("/api/player/join/resolve-entry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          teamNorm ? { teamJoinCode: teamNorm } : { playerInviteCode: playerNorm }
-        ),
+        body: JSON.stringify(body),
       })
       const data = (await res.json()) as {
         ok?: boolean
         kind?: string
+        resolvedPlayerId?: string
         teamName?: string | null
         playerFirstName?: string | null
         playerLastName?: string | null
@@ -272,16 +360,27 @@ function PlayerJoinSignupInner() {
       if (!res.ok || !data.ok) {
         setError(
           data.error ??
-            (teamNorm
+            (teamNorm && !accountTrim
               ? "That team join code is not valid."
-              : "That player invite code is not valid.")
+              : accountTrim
+                ? "That Account ID does not match this team."
+                : "That player invite code is not valid.")
         )
         setLoading(false)
         return
       }
       setInviteToken(null)
+      setResolvedAccountTeamPlayerId(null)
       setTeamName(data.teamName ?? null)
-      if (data.kind === "team") {
+      if (data.kind === "account_team" && data.resolvedPlayerId) {
+        setJoinKind("account_team")
+        setResolvedAccountTeamPlayerId(data.resolvedPlayerId)
+        if (data.playerFirstName) setFirstName(data.playerFirstName)
+        if (data.playerLastName) setLastName(data.playerLastName)
+        if (data.jerseyNumber != null) setJerseyNumber(String(data.jerseyNumber))
+        if (data.graduationYear != null) setGraduationYear(String(data.graduationYear))
+        setStep("info")
+      } else if (data.kind === "team") {
         setJoinKind("team")
         setStep("info")
       } else if (data.kind === "player_invite") {
@@ -305,6 +404,10 @@ function PlayerJoinSignupInner() {
       return
     }
     if (inviteToken) {
+      setStep("account")
+      return
+    }
+    if (joinKind === "account_team") {
       setStep("account")
       return
     }
@@ -401,7 +504,10 @@ function PlayerJoinSignupInner() {
     const isPlayerInviteSignup =
       joinKind === "player" || Boolean(normalizePlayerInviteCode(playerInviteCode))
 
-    if (!inviteToken && !isPlayerInviteSignup) {
+    if (joinKind === "account_team" && resolvedAccountTeamPlayerId) {
+      playerJoinIntent = "confirm"
+      confirmedPlayerId = resolvedAccountTeamPlayerId
+    } else if (!inviteToken && !isPlayerInviteSignup) {
       if (analyzeResult?.outcome === "auto_claim") {
         playerJoinIntent = "auto"
       } else if (analyzeResult?.outcome === "needs_confirmation") {
@@ -458,6 +564,10 @@ function PlayerJoinSignupInner() {
       } else if (joinKind === "player" || normalizePlayerInviteCode(playerInviteCode)) {
         signupBody.teamId = normalizePlayerInviteCode(playerInviteCode)
         signupBody.playerJoinIntent = "player_claim"
+      } else if (joinKind === "account_team" && resolvedAccountTeamPlayerId) {
+        signupBody.teamId = normalizePlayerJoinCode(teamJoinCode)
+        signupBody.playerJoinIntent = "confirm"
+        signupBody.confirmedPlayerId = resolvedAccountTeamPlayerId
       } else {
         signupBody.teamId = normalizePlayerJoinCode(teamJoinCode)
         signupBody.playerJoinIntent = playerJoinIntent
@@ -538,9 +648,8 @@ function PlayerJoinSignupInner() {
                   <>You&apos;re invited — confirm your details and create your Braik account.</>
                 ) : (
                   <>
-                    Enter your team join code or your player invite code from your coach. Use a team code to join your team,
-                    or a player code if your coach invited you directly. Your full roster stays private until you&apos;re
-                    linked.
+                    Enter your team code and the Account ID your coach gave you, or use a personal player invite code. Your
+                    roster stays private until you&apos;re linked.
                   </>
                 )}
               </p>
@@ -552,9 +661,11 @@ function PlayerJoinSignupInner() {
                 <p className="text-xs text-[#1E3A8A]/90 mt-1">
                   {inviteToken
                     ? "This invite is tied to your roster spot. Your player or team codes are filled in on the code step if you go back."
-                    : joinKind === "player"
-                      ? "You&apos;re using a player invite code — you&apos;ll claim the roster spot your coach set up."
-                      : "Complete the steps below. Matching and coach review still apply when you use a team join code."}
+                    : joinKind === "account_team"
+                      ? "Your coach matched your Account ID to this roster spot — finish your profile and create your login."
+                      : joinKind === "player"
+                        ? "You&apos;re using a player invite code — you&apos;ll claim the roster spot your coach set up."
+                        : "Complete the steps below. Matching and coach review still apply when you use only a team join code."}
                 </p>
               </div>
             ) : null}
@@ -562,8 +673,8 @@ function PlayerJoinSignupInner() {
             {step === "code" && (
               <div className="space-y-4">
                 <p className="text-sm text-[#6B7280] text-center">
-                  You only need one code. If you are not sure, ask your coach whether to use the team code or your personal
-                  player invite.
+                  Use your personal player invite alone, or use team code with optional Account ID from your coach. Ask your
+                  coach if you are unsure which applies.
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="teamJoinCode">Team join code</Label>
@@ -573,11 +684,30 @@ function PlayerJoinSignupInner() {
                     onChange={(e) => {
                       setTeamJoinCode(normalizePlayerJoinCode(e.target.value))
                       setPlayerInviteCode("")
+                      setResolvedAccountTeamPlayerId(null)
                     }}
                     className="font-mono text-lg tracking-wider"
                     placeholder="Shared team code (e.g. from QR)"
                     autoComplete="off"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="playerAccountId">Account ID (from coach)</Label>
+                  <Input
+                    id="playerAccountId"
+                    value={playerAccountId}
+                    onChange={(e) => {
+                      setPlayerAccountId(e.target.value)
+                      setPlayerInviteCode("")
+                    }}
+                    className="font-mono text-lg tracking-wider"
+                    placeholder="Required with team code when your coach assigned one"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-[#6B7280]">
+                    Enter together with your team code when your coach set you up manually. Leave blank if you only have a
+                    personal player invite code below.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="playerInviteCode">Player invite code</Label>
@@ -587,6 +717,8 @@ function PlayerJoinSignupInner() {
                     onChange={(e) => {
                       setPlayerInviteCode(normalizePlayerInviteCode(e.target.value))
                       setTeamJoinCode("")
+                      setPlayerAccountId("")
+                      setResolvedAccountTeamPlayerId(null)
                     }}
                     className="font-mono text-lg tracking-wider"
                     placeholder="Personal code from roster invite"
@@ -600,7 +732,10 @@ function PlayerJoinSignupInner() {
                   onClick={handleResolveCode}
                   disabled={
                     loading ||
-                    (!normalizePlayerJoinCode(teamJoinCode) && !normalizePlayerInviteCode(playerInviteCode))
+                    (Boolean(playerAccountId.trim()) && !normalizePlayerJoinCode(teamJoinCode)) ||
+                    (!normalizePlayerJoinCode(teamJoinCode) &&
+                      !normalizePlayerInviteCode(playerInviteCode) &&
+                      !playerAccountId.trim())
                   }
                 >
                   {loading ? "Checking…" : "Continue"}
@@ -652,6 +787,7 @@ function PlayerJoinSignupInner() {
                       setAnalyzeResult(null)
                       setSelectedCandidate(null)
                       setConfirmNotListed(false)
+                      setResolvedAccountTeamPlayerId(null)
                       setStep("code")
                     }}
                   >

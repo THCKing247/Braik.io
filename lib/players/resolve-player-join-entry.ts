@@ -3,6 +3,7 @@ import { findInviteCode } from "@/lib/invites/invite-codes"
 import { normalizePlayerInviteCode } from "@/lib/parent-player-code"
 import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
 import { resolveTeamByPlayerJoinCode } from "@/lib/players/player-claim"
+import { normalizePlayerAccountIdSegment } from "@/lib/roster/resolve-roster-player-segment"
 
 export type PlayerJoinEntryErrorCode =
   | "invalid_team_code"
@@ -20,6 +21,17 @@ export type ResolvePlayerJoinEntryOk =
       ok: true
       kind: "player_invite"
       teamName: string | null
+      playerFirstName: string | null
+      playerLastName: string | null
+      jerseyNumber: number | null
+      graduationYear: number | null
+    }
+  /** Coach-shared team code + roster Account ID pair (manual onboarding). */
+  | {
+      ok: true
+      kind: "account_team"
+      teamName: string | null
+      resolvedPlayerId: string
       playerFirstName: string | null
       playerLastName: string | null
       jerseyNumber: number | null
@@ -196,6 +208,90 @@ export async function resolvePlayerInviteJoinEntry(
     playerLastName: typeof pl2.last_name === "string" ? pl2.last_name.trim() || null : null,
     jerseyNumber: typeof pl2.jersey_number === "number" ? pl2.jersey_number : null,
     graduationYear: typeof pl2.graduation_year === "number" ? pl2.graduation_year : null,
+  }
+}
+
+/**
+ * Validates coach-provided roster Account ID + team join code together before signup.
+ */
+export async function resolvePlayerByAccountIdAndTeamJoin(
+  supabase: SupabaseClient,
+  accountIdRaw: string,
+  teamJoinRaw: string
+): Promise<ResolvePlayerJoinEntryResult> {
+  const teamResolved = await resolveTeamByPlayerJoinCode(supabase, teamJoinRaw)
+  if (!teamResolved) {
+    return {
+      ok: false,
+      code: "invalid_team_code",
+      message: "That team code is not valid. Check with your coach.",
+    }
+  }
+
+  const acctNorm = normalizePlayerAccountIdSegment(accountIdRaw.trim())
+  if (!acctNorm) {
+    return {
+      ok: false,
+      code: "invalid_player_code",
+      message: "Enter the account ID your coach gave you.",
+    }
+  }
+
+  const { data: pl } = await supabase
+    .from("players")
+    .select(
+      "id, first_name, last_name, jersey_number, graduation_year, user_id, team_id, player_account_id, status"
+    )
+    .eq("team_id", teamResolved.teamId)
+    .eq("player_account_id", acctNorm)
+    .maybeSingle()
+
+  const row = pl as {
+    id?: string
+    user_id?: string | null
+    status?: string | null
+    first_name?: string | null
+    last_name?: string | null
+    jersey_number?: number | null
+    graduation_year?: number | null
+  } | null
+
+  if (!row?.id) {
+    return {
+      ok: false,
+      code: "invalid_player_code",
+      message:
+        "That account ID does not match this team. Double-check both values with your coach.",
+    }
+  }
+
+  if (row.user_id) {
+    return {
+      ok: false,
+      code: "player_already_claimed",
+      message: "This roster spot already has an account. Sign in or ask your coach for help.",
+    }
+  }
+
+  const st = String(row.status ?? "").trim().toLowerCase()
+  if (st && st !== "active") {
+    return {
+      ok: false,
+      code: "invalid_player_code",
+      message: "This roster row is not available for signup. Ask your coach.",
+    }
+  }
+
+  const teamName = await loadTeamName(supabase, teamResolved.teamId)
+  return {
+    ok: true,
+    kind: "account_team",
+    teamName,
+    resolvedPlayerId: row.id as string,
+    playerFirstName: typeof row.first_name === "string" ? row.first_name.trim() || null : null,
+    playerLastName: typeof row.last_name === "string" ? row.last_name.trim() || null : null,
+    jerseyNumber: typeof row.jersey_number === "number" ? row.jersey_number : null,
+    graduationYear: typeof row.graduation_year === "number" ? row.graduation_year : null,
   }
 }
 

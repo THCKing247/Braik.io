@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { isValidParentSignupPlayerCode, normalizePlayerInviteCode } from "@/lib/parent-player-code"
+import {
+  normalizePlayerInviteCode,
+  resolveParentAccessCodeForPreview,
+} from "@/lib/parent-player-code"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 import {
   BRAIK_SIGNUP_SESSION_COOKIE,
@@ -10,8 +13,8 @@ import {
 export const runtime = "nodejs"
 
 /**
- * Public: checks that a string is a valid personal player code (not a team-wide player join code).
- * Used by /parent/join before account creation.
+ * Public: validates a parent link code (players.invite_code or typed parent_link invite)
+ * before account creation. Requires the athlete to have completed signup.
  */
 export async function POST(request: Request) {
   try {
@@ -23,15 +26,16 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseServer()
-    const valid = await isValidParentSignupPlayerCode(supabase, code)
-    if (!valid) {
-      return NextResponse.json({
-        valid: false,
-        error: "That code is not a valid player code. Ask your coach for your child's personal code.",
-      })
+    const resolved = await resolveParentAccessCodeForPreview(supabase, code)
+    if (!resolved.ok) {
+      return NextResponse.json({ valid: false, error: resolved.error }, { status: 400 })
     }
 
-    const res = NextResponse.json({ valid: true })
+    const res = NextResponse.json({
+      valid: true,
+      playerDisplayName: resolved.playerDisplayName,
+      teamName: resolved.teamName,
+    })
     if (isWaitlistMode()) {
       const isProd = process.env.NODE_ENV === "production"
       res.cookies.set(BRAIK_SIGNUP_SESSION_COOKIE, "1", {

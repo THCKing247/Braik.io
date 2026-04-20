@@ -7,6 +7,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 import {
+  getParentAccessHref,
+  getParentPrimaryCtaLabel,
   getPlayerPrimaryCtaLabel,
   getPlayerSignupHref,
   getProgramOrCoachAccessHref,
@@ -86,6 +88,15 @@ export function SiteHeader() {
             <Link href={getPlayerSignupHref()}>
               <Button size="sm" className="font-athletic uppercase tracking-wide px-5 bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-md shadow-[#3B82F6]/20">
                 {getPlayerPrimaryCtaLabel()}
+              </Button>
+            </Link>
+            <Link href={getParentAccessHref()}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-athletic uppercase tracking-wide px-5 border-[#CBD5E1] text-slate-800 hover:bg-[#F8FAFC]"
+              >
+                {getParentPrimaryCtaLabel()}
               </Button>
             </Link>
             <Link
@@ -172,6 +183,15 @@ export function SiteHeader() {
           <Link href={getPlayerSignupHref()} className="block">
             <Button className="w-full font-athletic uppercase tracking-wide min-h-[52px] text-base" size="lg">
               {getPlayerPrimaryCtaLabel()}
+            </Button>
+          </Link>
+          <Link href={getParentAccessHref()} className="block">
+            <Button
+              variant="outline"
+              className="w-full font-athletic uppercase tracking-wide min-h-[52px] text-base border-[#CBD5E1] text-slate-900"
+              size="lg"
+            >
+              {getParentPrimaryCtaLabel()}
             </Button>
           </Link>
           <Link href={getProgramOrCoachAccessHref()} className="block">
